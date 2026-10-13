@@ -26,15 +26,15 @@ function waterTexture(rng: Rng): THREE.CanvasTexture {
       g.stroke();
     }
   };
-  for (let i = 0; i < 16; i++) streak(rng.range(8, W - 8), rng.range(0, H), rng.range(40, 100), rng.range(7, 13), 'rgba(42,135,207,0.55)');
-  for (let i = 0; i < 22; i++) streak(rng.range(10, W - 10), rng.range(0, H), rng.range(28, 90), rng.range(2.5, 5), 'rgba(255,255,255,0.85)');
-  for (let i = 0; i < 12; i++) streak(rng.range(10, W - 10), rng.range(0, H), rng.range(14, 36), rng.range(2, 3.5), 'rgba(205,240,255,0.9)');
+  for (let i = 0; i < 16; i++) streak(rng.range(8, W - 8), rng.range(0, H), rng.range(40, 100), rng.range(7, 13), 'rgba(21,136,201,0.6)');
+  for (let i = 0; i < 22; i++) streak(rng.range(10, W - 10), rng.range(0, H), rng.range(28, 90), rng.range(2.5, 5), 'rgba(116,204,244,0.95)');
+  for (let i = 0; i < 12; i++) streak(rng.range(10, W - 10), rng.range(0, H), rng.range(14, 36), rng.range(2, 3.5), 'rgba(116,204,244,0.8)');
   // Foam fringe along both banks.
   for (let i = 0; i < 26; i++) {
     const y = rng.range(0, H);
     const l = rng.range(14, 50);
-    streak(rng.range(1, 6), y, l, rng.range(4, 7), 'rgba(255,255,255,0.95)');
-    streak(rng.range(W - 6, W - 1), y + 20, l, rng.range(4, 7), 'rgba(255,255,255,0.95)');
+    streak(rng.range(1, 6), y, l, rng.range(4, 7), 'rgba(116,204,244,1)');
+    streak(rng.range(W - 6, W - 1), y + 20, l, rng.range(4, 7), 'rgba(116,204,244,1)');
   }
   texture.wrapS = THREE.ClampToEdgeWrapping;
   texture.wrapT = THREE.RepeatWrapping;
@@ -68,7 +68,7 @@ export function buildRiver(rng: Rng): EnvPart {
 
   // ---- ice floes (animated) ---------------------------------------------
   const floes: Floe[] = [];
-  const leftLane = (): number => rng.range(R.minX + 0.8, -15.1);
+  const leftLane = (): number => rng.range(R.minX + 0.7, -15.5);
   for (let i = 0; i < 9; i++) {
     floes.push({ x: leftLane(), z: -50 + i * 6.2, speed: rng.range(0.85, 1.05) * R.flowSpeed, size: rng.range(0.4, 0.65), rot: rng.range(0, 6), spin: rng.range(-0.3, 0.3), phase: rng.range(0, 6), z0: -50, z1: GATE_Z - 1.2 });
   }
@@ -133,7 +133,7 @@ export function buildRiver(rng: Rng): EnvPart {
   group.add(gate.mesh());
 
   // Foam where the water spills past the gate.
-  const foamMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false });
+  const foamMat = new THREE.MeshBasicMaterial({ color: PALETTE.foam, transparent: true, opacity: 0.9, depthWrite: false });
   const foams: THREE.Mesh[] = [];
   for (let i = 0; i < 7; i++) {
     const f = new THREE.Mesh(new THREE.CircleGeometry(1, 10).rotateX(-Math.PI / 2), foamMat);

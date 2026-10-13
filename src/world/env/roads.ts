@@ -114,9 +114,9 @@ export function buildRoads(): EnvPart {
   const bY = W.bridgeY;
   hw.add(wedge([[W.rampWest.from, -0.2], [W.rampWest.to, -0.2], [W.rampWest.to, bY - 0.1], [W.rampWest.from, -0.05]]), PALETTE.snowShade, 0, 0, HZ);
   hw.add(wedge([[W.rampEast.from, -0.2], [W.rampEast.to, -0.2], [W.rampEast.to, -0.05], [W.rampEast.from, bY - 0.1]]), PALETTE.snowShade, 0, 0, HZ);
-  const abut = new THREE.BoxGeometry(1.6, bY + 0.2, HW - 0.3);
-  hw.add(abut, PALETTE.rock, W.rampWest.to + 0.3 + 0.4, (bY - 0.1) / 2 - 0.1 + 0.0, HZ);
-  hw.add(abut, PALETTE.rock, W.rampEast.from - 0.3 - 0.4, (bY - 0.1) / 2 - 0.1, HZ);
+  const abut = new THREE.BoxGeometry(1.2, bY + 0.2, HW - 0.3);
+  hw.add(abut, PALETTE.rock, W.rampWest.to + 0.3 + 0.3, (bY - 0.1) / 2 - 0.1 + 0.0, HZ);
+  hw.add(abut, PALETTE.rock, W.rampEast.from - 0.3 - 0.3, (bY - 0.1) / 2 - 0.1, HZ);
   hw.add(new THREE.BoxGeometry(0.9, 0.2, HW - 0.1), PALETTE.snow, W.rampWest.to + 0.7, bY - 0.05, HZ);
   hw.add(new THREE.BoxGeometry(0.9, 0.2, HW - 0.1), PALETTE.snow, W.rampEast.from - 0.7, bY - 0.05, HZ);
   // Dashed centre line following the profile.
