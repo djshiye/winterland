@@ -15,6 +15,7 @@
 import * as THREE from 'three';
 import { COLORS, PALETTE } from '../config';
 import { createCharacterRig, type CharacterRig } from '../render/characters';
+import { Batch, bake } from '../render/batch';
 import { geo, mesh, toon } from '../render/materials';
 
 export const TRIKE_WHEEL_RADIUS = 0.25;
@@ -24,6 +25,7 @@ export const TRUCK_WHEEL_RADIUS = 0.38;
 function createWheel(radius: number, width: number, axis: 'x' | 'z'): THREE.Group {
   const pivot = new THREE.Group();
   pivot.name = 'wheel';
+  const parts = new THREE.Group();
   const tyre = mesh(geo.cylinder(radius, radius, width, 18), toon(PALETTE.rubber));
   const hub = mesh(geo.cylinder(radius * 0.55, radius * 0.55, width + 0.03, 12), toon(COLORS.MACHINE_STEEL));
   const spoke =
@@ -37,7 +39,9 @@ function createWheel(radius: number, width: number, axis: 'x' | 'z'): THREE.Grou
     tyre.rotation.x = Math.PI / 2;
     hub.rotation.x = Math.PI / 2;
   }
-  pivot.add(tyre, hub, spoke);
+  parts.add(tyre, hub, spoke);
+  // One mesh per wheel (tyre + hub + spoke baked); the pivot stays a separate node so it can spin.
+  pivot.add(bake(parts, { name: 'wheelMesh' }));
   return pivot;
 }
 
@@ -64,6 +68,8 @@ export function createTricycle(): TricycleModel {
   root.name = 'tricycle';
   const body = new THREE.Group();
   root.add(body);
+  // Everything static on the chassis is baked into ONE mesh at the end (body keeps the pivots).
+  const parts = new THREE.Group();
 
   const blue = toon(COLORS.MACHINE_BLUE);
   const blueDark = toon(PALETTE.machineDark);
@@ -85,55 +91,55 @@ export function createTricycle(): TricycleModel {
     const fork = mesh(geo.box(0.06, 0.66, 0.06), blue);
     fork.position.set(sx * 0.11, 0.56, 0.96);
     fork.rotation.x = -0.18;
-    body.add(fork);
+    parts.add(fork);
   }
   const crown = mesh(geo.box(0.3, 0.07, 0.1), blue);
   crown.position.set(0, 0.88, 0.9);
-  body.add(crown);
+  parts.add(crown);
   const head = mesh(geo.box(0.1, 0.34, 0.1), blueDark);
   head.position.set(0, 0.98, 0.88);
-  body.add(head);
+  parts.add(head);
   const bar = mesh(geo.box(0.62, 0.06, 0.06), steel);
   bar.position.set(0, 1.16, 0.86);
-  body.add(bar);
+  parts.add(bar);
   for (const sx of [-1, 1]) {
     const grip = mesh(geo.box(0.12, 0.08, 0.08), dark);
     grip.position.set(sx * 0.34, 1.16, 0.86);
-    body.add(grip);
+    parts.add(grip);
   }
 
   // Main frame tube, saddle post, saddle, pedals.
   const tube = mesh(geo.box(0.1, 0.1, 1.55), blue);
   tube.position.set(0, 0.42, 0.18);
-  body.add(tube);
+  parts.add(tube);
   const post = mesh(geo.box(0.07, 0.3, 0.07), blueDark);
   post.position.set(0, 0.57, 0.02);
-  body.add(post);
+  parts.add(post);
   const saddle = mesh(geo.box(0.32, 0.08, 0.34), dark);
   saddle.position.set(0, 0.74, 0.0);
-  body.add(saddle);
+  parts.add(saddle);
   for (const sx of [-1, 1]) {
     const pedal = mesh(geo.box(0.14, 0.04, 0.2), dark);
     pedal.position.set(sx * 0.2, 0.3, 0.7);
-    body.add(pedal);
+    parts.add(pedal);
   }
   const axle = mesh(geo.box(1.2, 0.06, 0.06), steel);
   axle.position.set(0, r, -0.6);
-  body.add(axle);
+  parts.add(axle);
 
   // Open-top cargo tray 0.9 × 0.3 × 0.9 on the rear flatbed.
   const trayZ = -0.6;
   const trayY = 0.32;
   const floor = mesh(geo.boxBase(0.9, 0.05, 0.9), blueDark);
   floor.position.set(0, trayY, trayZ);
-  body.add(floor);
+  parts.add(floor);
   for (const sz of [-1, 1]) {
     const w = mesh(geo.boxBase(0.9, 0.3 - 0.02, 0.04), blue);
     w.position.set(0, trayY, trayZ + sz * 0.43);
-    body.add(w);
+    parts.add(w);
     const s = mesh(geo.boxBase(0.04, 0.3 - 0.02, 0.82), blue);
     s.position.set(sz * 0.43, trayY, trayZ);
-    body.add(s);
+    parts.add(s);
   }
   // Crates start here (tray floor surface).
   const cargoPivot = new THREE.Object3D();
@@ -146,6 +152,7 @@ export function createTricycle(): TricycleModel {
   riderSeat.position.set(0, 0.78, 0.0);
   body.add(riderSeat);
 
+  body.add(bake(parts, { name: 'tricycleBody' }));
   return { root, body, wheels: [front, rl, rr], cargoPivot, riderSeat, bubbleY: 2.35 };
 }
 
@@ -175,6 +182,10 @@ export function createPickupTruck(color: number = PALETTE.truckRed): PickupTruck
   root.name = 'pickupTruck';
   const body = new THREE.Group();
   root.add(body);
+  // Static chassis parts are baked into ONE mesh at the end; emissive lamps stay small separate meshes.
+  const parts = new THREE.Group();
+  const headLamps = new Batch();
+  const tailLamps = new Batch();
 
   const paint = toon(color);
   const trim = toon(0xffffff);
@@ -190,23 +201,20 @@ export function createPickupTruck(color: number = PALETTE.truckRed): PickupTruck
   // Chassis + floor.
   const chassis = mesh(geo.boxBase(3.6, 0.32, 1.5), dark);
   chassis.position.y = 0.3;
-  body.add(chassis);
+  parts.add(chassis);
 
   // Hood (front, −X) + grille + bumpers + headlights.
   const hood = mesh(geo.boxBase(1.3, 0.5, 1.7), paint);
   hood.position.set(-1.15, 0.45, 0);
-  body.add(hood);
+  parts.add(hood);
   const grille = mesh(geo.box(0.06, 0.28, 1.1), dark);
   grille.position.set(-1.82, 0.7, 0);
-  body.add(grille);
+  parts.add(grille);
   const bumperF = mesh(geo.box(0.16, 0.16, 1.8), steel);
   bumperF.position.set(-1.8, 0.42, 0);
-  body.add(bumperF);
+  parts.add(bumperF);
   for (const sz of [-1, 1]) {
-    const l = mesh(geo.sphere(0.13, 10, 8), lamp);
-    l.scale.set(0.6, 1, 1);
-    l.position.set(-1.82, 0.72, sz * 0.62);
-    body.add(l);
+    headLamps.add(geo.sphere(0.13, 10, 8), COLORS.COURIER_YELLOW, -1.82, 0.72, sz * 0.62, { sx: 0.6 });
   }
 
   // Open-top cab: doors, dashboard, rear wall with window, windshield, roll bar.
@@ -214,71 +222,69 @@ export function createPickupTruck(color: number = PALETTE.truckRed): PickupTruck
   for (const sz of [-1, 1]) {
     const door = mesh(geo.boxBase(0.95, 0.62, 0.08), paint);
     door.position.set(cabX, 0.55, sz * 0.81);
-    body.add(door);
+    parts.add(door);
     const stripe = mesh(geo.box(0.95, 0.07, 0.09), trim);
     stripe.position.set(cabX, 0.95, sz * 0.81);
-    body.add(stripe);
+    parts.add(stripe);
     const win = mesh(geo.box(0.7, 0.16, 0.04), glass, { cast: false });
     win.position.set(cabX - 0.02, 1.08, sz * 0.82);
-    body.add(win);
+    parts.add(win);
   }
   const dash = mesh(geo.boxBase(0.22, 0.58, 1.6), paint);
   dash.position.set(cabX - 0.37, 0.55, 0);
-  body.add(dash);
+  parts.add(dash);
   const wind = mesh(geo.box(0.05, 0.52, 1.5), glass, { cast: false });
   wind.position.set(cabX - 0.5, 1.4, 0);
   wind.rotation.z = -0.35;
-  body.add(wind);
+  parts.add(wind);
   for (const sz of [-1, 1]) {
     const pillar = mesh(geo.box(0.07, 0.62, 0.07), paint);
     pillar.position.set(cabX - 0.48, 1.38, sz * 0.78);
     pillar.rotation.z = -0.35;
-    body.add(pillar);
+    parts.add(pillar);
   }
   const rearWall = mesh(geo.boxBase(0.1, 0.82, 1.7), paint);
   rearWall.position.set(cabX + 0.5, 0.55, 0);
-  body.add(rearWall);
+  parts.add(rearWall);
   const rearWin = mesh(geo.box(0.04, 0.3, 1.1), glass, { cast: false });
   rearWin.position.set(cabX + 0.46, 1.1, 0);
-  body.add(rearWin);
+  parts.add(rearWin);
   const rollBar = mesh(geo.box(0.08, 0.08, 1.7), steel);
   rollBar.position.set(cabX + 0.5, 1.4, 0);
-  body.add(rollBar);
+  parts.add(rollBar);
   // Seat (bench) + cab floor.
   const cabFloor = mesh(geo.boxBase(0.95, 0.06, 1.6), seatMat);
   cabFloor.position.set(cabX, floorY - 0.04, 0);
-  body.add(cabFloor);
+  parts.add(cabFloor);
   const seat = mesh(geo.boxBase(0.34, 0.16, 1.2), seatMat);
   seat.position.set(cabX + 0.28, floorY, 0);
-  body.add(seat);
+  parts.add(seat);
   const seatBack = mesh(geo.boxBase(0.1, 0.5, 1.2), seatMat);
   seatBack.position.set(cabX + 0.4, floorY, 0);
-  body.add(seatBack);
+  parts.add(seatBack);
 
   // Bed: floor + three walls (front wall = cab rear wall), open top.
   const bedLen = 1.4;
   const bedStart = 0.4;
   const bedFloor = mesh(geo.boxBase(bedLen, 0.06, 1.7), dark);
   bedFloor.position.set(bedStart + bedLen / 2, floorY - 0.04, 0);
-  body.add(bedFloor);
+  parts.add(bedFloor);
   for (const sz of [-1, 1]) {
     const w = mesh(geo.boxBase(bedLen, 0.46, 0.09), paint);
     w.position.set(bedStart + bedLen / 2, floorY - 0.04, sz * 0.8);
-    body.add(w);
+    parts.add(w);
     const cap = mesh(geo.box(bedLen, 0.05, 0.13), steel);
     cap.position.set(bedStart + bedLen / 2, floorY + 0.44, sz * 0.8);
-    body.add(cap);
+    parts.add(cap);
   }
   const gate = mesh(geo.boxBase(0.09, 0.46, 1.7), paint);
   gate.position.set(bedStart + bedLen - 0.04, floorY - 0.04, 0);
-  body.add(gate);
+  parts.add(gate);
   const bumperR = mesh(geo.box(0.14, 0.14, 1.7), steel);
   bumperR.position.set(1.85, 0.42, 0);
-  body.add(bumperR);
+  parts.add(bumperR);
   for (const sz of [-1, 1]) {
-    const t = mesh(geo.box(0.05, 0.12, 0.2), tail);
-    t.position.set(1.8, 0.6, sz * 0.62);
-    body.add(t);
+    tailLamps.add(geo.box(0.05, 0.12, 0.2), PALETTE.truckRed, 1.8, 0.6, sz * 0.62);
   }
 
   // Fenders over the wheels.
@@ -286,7 +292,7 @@ export function createPickupTruck(color: number = PALETTE.truckRed): PickupTruck
     for (const sz of [-1, 1]) {
       const f = mesh(geo.box(0.95, 0.09, 0.3), dark);
       f.position.set(x, 0.78, sz * 0.9);
-      body.add(f);
+      parts.add(f);
     }
   }
 
@@ -313,6 +319,9 @@ export function createPickupTruck(color: number = PALETTE.truckRed): PickupTruck
   driverSeat.position.set(cabX + 0.25, floorY + 0.16, 0.38);
   body.add(driverSeat);
 
+  body.add(bake(parts, { name: 'truckBody' }));
+  // Lamps need emissive materials, so they cannot join the vertex-coloured body: one mesh each (head / tail).
+  body.add(headLamps.mesh({ material: lamp, cast: false }), tailLamps.mesh({ material: tail, cast: false }));
   return { root, body, wheels, bedPivot, driverSeat, bubbleY: 2.5 };
 }
 
