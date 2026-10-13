@@ -27,7 +27,8 @@ import { COLORS, PALETTE } from '../config';
 import { bake } from '../render/batch';
 import { geo, mesh, toon } from '../render/materials';
 
-export type CharacterKind = 'player' | 'customer' | 'courier' | 'driver';
+/** 'worker': hired crew (crate runner / cashier / log hauler — variant 0 / 1 / 2). */
+export type CharacterKind = 'player' | 'customer' | 'courier' | 'driver' | 'worker';
 
 /** Height of the body pivot (hips) above the feet, shared by every character. */
 export const CHARACTER_HIP_Y = 0.25;

@@ -2,7 +2,7 @@
  * Shared contracts. Every module codes against these; do not change them without the main session.
  */
 import type * as THREE from 'three';
-import type { PadIdConst } from '../config';
+import type { PadIdConst, UpgradeIdConst } from '../config';
 import type { EventBus } from './EventBus';
 import type { TweenManager } from './Tween';
 import type { Economy } from './Economy';
@@ -18,6 +18,7 @@ import type { ZoneSystem } from '../items/Zones';
 import type { Particles } from '../fx/Particles';
 import type { AudioFX } from '../fx/Audio';
 import type { HUD } from '../ui/HUD';
+import type { Upgrades } from './Upgrades';
 
 // ---------------------------------------------------------------------------
 // Items
@@ -90,6 +91,7 @@ export interface ItemHolder {
 // ---------------------------------------------------------------------------
 
 export type PadId = PadIdConst;
+export type UpgradeId = UpgradeIdConst;
 
 export type Phase =
   | 'intro' // giant log floating in, input locked
@@ -101,23 +103,83 @@ export type Phase =
 
 export interface GameStats {
   logsChopped: number;
+  /** Raw logs sold to trucks. */
   logsSold: number;
+  /** Plank bundles sold to walk-in customers. */
+  planksSold: number;
   cratesMade: number;
   cratesSold: number;
   moneyEarned: number;
   customersServed: number;
   tricyclesServed: number;
   trucksServed: number;
+  /** Shelter tiers + the Great Lodge completed. */
+  sheltersBuilt: number;
+  /** Upgrade levels gained (shop, level pads, crew). */
+  upgradesBought: number;
 }
 
-/** Written by Progression; read by anyone. */
+/**
+ * One-shot progression flags. Fixed names, plus `reveal:<ruleId>` for Progression's reveal table and
+ * `seen:<anything>` for UI hints shown once. Never keep one-shots in private fields: the save restores state only.
+ */
+export type FlagId =
+  | 'introDone'
+  | 'firstCustomerSale'
+  | 'firstTrikeSale'
+  | 'conveyorsRevealed'
+  | 'shopRevealed'
+  | 'shopVisited'
+  | 'finale'
+  | `reveal:${string}`
+  | `seen:${string}`;
+
+export interface PlotState {
+  /** Built tier: index into VILLAGE.tiers, −1 = empty lot. For the Great Lodge: −1 = not built, 0 = built. */
+  tier: number;
+  /** Logs and dollars already paid toward the NEXT tier (in-flight payments included). */
+  logs: number;
+  cash: number;
+}
+
+export interface VillageState {
+  /** The gate is open and the village can be built. */
+  revealed: boolean;
+  /** One entry per LAYOUT.village.plots. */
+  plots: PlotState[];
+  greatLodge: PlotState;
+  /** Derived (core/demand.ts villagePopulation), cached for HUD / demand. */
+  population: number;
+  /** Derived index into VILLAGE.levels (5 = Winterland after the finale). Drives DEMAND. */
+  level: number;
+}
+
+/**
+ * The whole progress of a game: the save file is this object + money + pile contents. Systems initialise
+ * themselves FROM it at construction (a restored game builds everything instantly, silently) and write it as
+ * progress happens. Read by anyone.
+ */
 export interface GameState {
   phase: Phase;
   unlocked: Record<PadId, boolean>;
   padsVisible: Record<PadId, boolean>;
   expanded: boolean;
   stats: GameStats;
+  /** Upgrade levels (0-based; crew level 0 = not hired). */
+  upgrades: Record<UpgradeId, number>;
+  village: VillageState;
+  flags: Partial<Record<FlagId, boolean>>;
+  /**
+   * Dollars paid toward the CURRENT target of each upgrade pad, by holder id ('pad:harvester'): the unlock cost,
+   * then each level cost. Includes value still in flight. Reset to 0 when a target completes.
+   */
+  padPaid: Record<string, number>;
+  /** Simulation seconds played, across sessions. */
+  playTime: number;
 }
+
+/** Must match LAYOUT.village.plots.length (kept literal so this file only imports types from config). */
+export const PLOT_COUNT = 8;
 
 export function createGameState(): GameState {
   const pads = (): Record<PadId, boolean> => ({
@@ -135,13 +197,37 @@ export function createGameState(): GameState {
     stats: {
       logsChopped: 0,
       logsSold: 0,
+      planksSold: 0,
       cratesMade: 0,
       cratesSold: 0,
       moneyEarned: 0,
       customersServed: 0,
       tricyclesServed: 0,
       trucksServed: 0,
+      sheltersBuilt: 0,
+      upgradesBought: 0,
     },
+    upgrades: {
+      carry: 0,
+      speed: 0,
+      axe: 0,
+      harvester: 0,
+      processor: 0,
+      megaSaw: 0,
+      crateRunner: 0,
+      cashier: 0,
+      logHauler: 0,
+    },
+    village: {
+      revealed: false,
+      plots: Array.from({ length: PLOT_COUNT }, () => ({ tier: -1, logs: 0, cash: 0 })),
+      greatLodge: { tier: -1, logs: 0, cash: 0 },
+      population: 0,
+      level: 0,
+    },
+    flags: {},
+    padPaid: {},
+    playTime: 0,
   };
 }
 
@@ -178,6 +264,36 @@ export interface GameEvents {
   'intro:crash': { position: THREE.Vector3 };
   'intro:done': Record<string, never>;
   'expansion:start': Record<string, never>;
+
+  // --- full game -------------------------------------------------------------
+  /**
+   * An upgrade level was gained (shop purchase, level pad fully paid, crew hire = level 0 → 1).
+   * position: the pad / machine, or null for a shop purchase (effects go to the player).
+   */
+  'upgrade:bought': { id: UpgradeId; level: number; position: THREE.Vector3 | null };
+  /** The player stepped onto / off the cabin doormat (the HUD opens / closes the shop panel). */
+  'shop:open': Record<string, never>;
+  'shop:close': Record<string, never>;
+  /** A construction pad received a log or a cash bundle. key: 'plot:<i>' | 'greatLodge'. */
+  'construction:paid': { key: string; kind: 'log' | 'cash'; logsLeft: number; cashLeft: number; position: THREE.Vector3 };
+  /** A shelter tier (plot ≥ 0, tier = VILLAGE.tiers index) or the Great Lodge (plot −1, tier 0) finished building. */
+  'shelter:built': { plot: number; tier: number; position: THREE.Vector3; object: THREE.Object3D };
+  /** The village gate opened. */
+  'village:revealed': { position: THREE.Vector3 };
+  /** Population or level changed (state.village already updated). */
+  'village:changed': { population: number; level: number };
+  /** A new village level was reached (after 'village:changed'). position: the village square. */
+  'village:levelUp': { level: number; position: THREE.Vector3 };
+  /** A crew member walked out of the cabin for the first time. */
+  'helper:hired': { id: UpgradeId; position: THREE.Vector3 };
+  /** Progression revealed something new that is not a pad ('shop', 'village', 'levelPad:harvester', 'greatLodge'…). */
+  reveal: { what: string; position: THREE.Vector3 | null };
+  /** The Great Lodge is complete: celebration, then the stats card. */
+  'finale:start': { position: THREE.Vector3 };
+  /** The welcome-back card's Collect was pressed (money already added). */
+  'offline:collected': { amount: number };
+  /** Settings → Reset progress → confirmed. Game wipes the save and reloads the page. */
+  'game:reset': Record<string, never>;
 }
 
 // ---------------------------------------------------------------------------
@@ -191,7 +307,7 @@ export interface Updatable {
 /**
  * Shared services. Built by game/Game.ts in this order (a constructor may only use services
  * listed before its own; use later ones lazily, e.g. inside update()):
- *   scene/camera/renderer → events → tweens → state → economy → colliders → input → cameraRig →
+ *   scene/camera/renderer → events → tweens → state → economy → upgrades → colliders → input → cameraRig →
  *   particles → audio → hud → items → flights → zones → environment → player → (JuiceDirector) → level
  */
 export interface GameContext {
@@ -202,6 +318,8 @@ export interface GameContext {
   readonly tweens: TweenManager;
   readonly state: GameState;
   readonly economy: Economy;
+  /** Upgrade levels / values / purchases (reads and writes state.upgrades). */
+  readonly upgrades: Upgrades;
   readonly colliders: ColliderWorld;
   readonly input: Input;
   readonly cameraRig: CameraRig;

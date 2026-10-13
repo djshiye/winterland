@@ -264,6 +264,15 @@ export class HUD {
   }
 
   /** Big centred celebration text that pops in and fades out. */
+  /**
+   * Welcome-back card: "While you were away your mill earned $amount" (seconds = time away) with a Collect
+   * button; calls onCollect() once when pressed. CONTRACT for B4; STUB: collects at once.
+   */
+  showOfflineEarnings(amount: number, _seconds: number, onCollect: () => void): void {
+    onCollect();
+    this.toast(`+$${amount}`, { sub: 'earned while you were away' });
+  }
+
   toast(title: string, opts?: { sub?: string; duration?: number }): void {
     this.toastTitle.textContent = title;
     this.toastSub.textContent = opts?.sub ?? '';

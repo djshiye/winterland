@@ -185,6 +185,30 @@ export class CarryStack implements ItemHolder {
     this.animateBadge();
   }
 
+  /**
+   * Change the capacity at runtime (carry upgrades, crew levels). Never drops items: a stack above the new
+   * capacity just refuses more until it shrinks. Refreshes the MAX badge.
+   */
+  setCapacity(n: number): void {
+    this.capacity = Math.max(0, Math.floor(n));
+    this.updateBadge();
+  }
+
+  /** Restore path: place `item` on top at once (no flight, no punch). False (item untouched) if full or not accepted. */
+  addImmediate(item: Item): boolean {
+    if (!this.canAccept(item.kind)) return false;
+    const e = new Entry(this, item.kind, this.ctx.items.stackHeight(item.kind), randRange(-YAW_JITTER, YAW_JITTER));
+    this.entries.push(e);
+    this.layout();
+    e.item = item;
+    e.y = e.targetY;
+    this.opts.anchor.add(item.object);
+    item.object.scale.set(1, 1, 1);
+    this.apply(e);
+    this.updateBadge();
+    return true;
+  }
+
   /** Release every item back to the pool. */
   clear(): void {
     for (const e of this.entries) {

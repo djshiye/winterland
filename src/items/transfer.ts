@@ -3,6 +3,7 @@
  */
 import type * as THREE from 'three';
 import type { GameContext, Item, ItemHolder, ItemKind } from '../core/types';
+import type { CashStack } from './CashStack';
 import type { FlightOptions } from './FlightSystem';
 
 const ALL_KINDS: readonly ItemKind[] = ['log', 'plank', 'crate', 'cash'];
@@ -53,5 +54,26 @@ export function launchNew(
   const slot = to.reserve(item);
   ctx.flights.launch(item, to, slot, opts);
   ctx.events.emit('item:launched', { item, from: null, to });
+  return item;
+}
+
+/**
+ * Chunked payment: take ONE bundle worth up to `amount` dollars from the player's cash (CashStack.takeValue) and
+ * fly it into `to`. Returns null if `to` refuses cash or there is no money. Emits 'item:launched'.
+ */
+export function transferCash(
+  ctx: GameContext,
+  from: CashStack,
+  to: ItemHolder,
+  amount: number,
+  opts?: FlightOptions,
+): Item | null {
+  if (amount < 1 || !to.canAccept('cash')) return null;
+  const item = from.takeValue(amount);
+  if (!item) return null;
+  if (item.object.parent !== ctx.scene) ctx.scene.attach(item.object);
+  const slot = to.reserve(item);
+  ctx.flights.launch(item, to, slot, opts);
+  ctx.events.emit('item:launched', { item, from, to });
   return item;
 }

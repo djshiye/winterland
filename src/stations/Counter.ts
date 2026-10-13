@@ -92,7 +92,8 @@ export class Counter {
     return this.pile.topWorldPosition(out);
   }
 
-  appear(): void {
+  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. TODO(owner): honour it. */
+  appear(instant = false): void {
     this.ctx.tweens.popIn(this.object);
     const position = this.object.getWorldPosition(new THREE.Vector3());
     this.ctx.events.emit('built', { what: this.opts.id, position, object: this.object });

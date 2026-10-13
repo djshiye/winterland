@@ -7,11 +7,19 @@
  *   → camera → shadow focus → HUD (projects world anchors) → render
  */
 import * as THREE from 'three';
-import { ECONOMY, LAYOUT, PADS, PLAYER, TIMING } from '../config';
+import { CREW, DEMAND, ECONOMY, LAYOUT, PADS, PLAYER, TIMING, UPGRADES, VILLAGE } from '../config';
 import { EventBus } from '../core/EventBus';
 import { Economy } from '../core/Economy';
 import { TweenManager } from '../core/Tween';
-import { createGameState, type GameContext, type GameEvents, type PadId, type Updatable } from '../core/types';
+import { Upgrades } from '../core/Upgrades';
+import {
+  createGameState,
+  type GameContext,
+  type GameEvents,
+  type PadId,
+  type Updatable,
+  type UpgradeId,
+} from '../core/types';
 import { Renderer } from '../render/Renderer';
 import { CameraRig } from '../render/CameraRig';
 import { Input } from '../input/Input';
@@ -38,7 +46,17 @@ export interface DebugApi {
   /** Gameplay composition root (stations, NPC queues, pads, progression). */
   level: Level;
   /** Read-only tuning tables (bots/tests derive positions from these instead of hard-coding). */
-  config: { LAYOUT: typeof LAYOUT; PADS: typeof PADS; ECONOMY: typeof ECONOMY; PLAYER: typeof PLAYER; TIMING: typeof TIMING };
+  config: {
+    LAYOUT: typeof LAYOUT;
+    PADS: typeof PADS;
+    ECONOMY: typeof ECONOMY;
+    PLAYER: typeof PLAYER;
+    TIMING: typeof TIMING;
+    UPGRADES: typeof UPGRADES;
+    CREW: typeof CREW;
+    VILLAGE: typeof VILLAGE;
+    DEMAND: typeof DEMAND;
+  };
   state(): Record<string, unknown>;
   pause(): void;
   resume(): void;
@@ -53,6 +71,14 @@ export interface DebugApi {
   addMoney(n: number): void;
   skipIntro(): void;
   unlock(id: PadId): void;
+  /** Shop purchase as if from the panel (spends money). False if not possible. */
+  buy(id: UpgradeId): boolean;
+  /** Jump an upgrade to a level for free (tests). */
+  setUpgrade(id: UpgradeId, level: number): void;
+  /** Open the village gate now. */
+  revealVillage(): void;
+  /** Set plot `plot` (−1 = Great Lodge) to `tier` at once (tests). */
+  buildPlot(plot: number, tier: number): void;
 }
 
 declare global {
@@ -77,6 +103,7 @@ export class Game {
     const tweens = new TweenManager();
     const state = createGameState();
     const economy = new Economy(events, state, ECONOMY.startMoney);
+    const upgrades = new Upgrades(state, economy, events);
     const colliders = new ColliderWorld();
     const input = new Input(renderer.domElement);
     const cameraRig = new CameraRig(renderer.camera);
@@ -90,6 +117,7 @@ export class Game {
       tweens,
       state,
       economy,
+      upgrades,
       colliders,
       input,
       cameraRig,
@@ -197,6 +225,8 @@ export class Game {
       unlocked: { ...c.state.unlocked },
       padsVisible: { ...c.state.padsVisible },
       stats: { ...c.state.stats },
+      upgrades: { ...c.state.upgrades },
+      village: { revealed: c.state.village.revealed, population: c.state.village.population, level: c.state.village.level },
       level: this.level.snapshot(),
     };
   }
@@ -215,7 +245,7 @@ export class Game {
       game: this,
       ctx,
       level: this.level,
-      config: { LAYOUT, PADS, ECONOMY, PLAYER, TIMING },
+      config: { LAYOUT, PADS, ECONOMY, PLAYER, TIMING, UPGRADES, CREW, VILLAGE, DEMAND },
       state: () => this.snapshot(),
       pause: () => {
         this.paused = true;
@@ -242,6 +272,10 @@ export class Game {
       addMoney: (n: number) => ctx.economy.add(n),
       skipIntro: () => this.level.skipIntro(),
       unlock: (id: PadId) => this.level.forceUnlock(id),
+      buy: (id: UpgradeId) => ctx.upgrades.buy(id),
+      setUpgrade: (id: UpgradeId, level: number) => ctx.upgrades.setLevel(id, level),
+      revealVillage: () => this.level.village.reveal(),
+      buildPlot: (plot: number, tier: number) => this.level.village.debugBuild(plot, tier),
     };
   }
 }

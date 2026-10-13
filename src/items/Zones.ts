@@ -19,7 +19,8 @@ import { damp, inRect } from '../core/math';
 import type { GameContext, Item, ItemHolder, ItemKind } from '../core/types';
 import { basic } from '../render/materials';
 import type { FlightOptions } from './FlightSystem';
-import { transferOne } from './transfer';
+import type { CashStack } from './CashStack';
+import { transferCash, transferOne } from './transfer';
 
 export interface ZoneOptions {
   id: string;
@@ -43,6 +44,13 @@ export interface TransferZoneOptions {
   marker?: boolean;
   enabled?: boolean;
   onTransfer?: (item: Item) => void;
+  /** Seconds the player must stand inside before the first transfer (default 0). Leaving resets it. */
+  delay?: number;
+  /**
+   * Chunked cash: when set, `from` must be a CashStack and every transfer is ONE bundle worth `cashAmount()`
+   * dollars (transferCash). Return ≤ 0 to skip. `kinds` is ignored.
+   */
+  cashAmount?: () => number;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,7 +166,7 @@ class TransferZone extends Zone {
 
   protected override entered(): void {
     this.interval = this.base;
-    this.timer = 0;
+    this.timer = this.t.delay ?? 0;
   }
 
   protected override left(): void {
@@ -173,7 +181,12 @@ class TransferZone extends Zone {
     this.timer -= dt;
     let moved = 0;
     while (this.timer <= 0 && moved < 4) {
-      const item = transferOne(ctx, t.from, t.to, t.kinds, t.flight);
+      const amount = t.cashAmount ? t.cashAmount() : 0;
+      const item = t.cashAmount
+        ? amount > 0
+          ? transferCash(ctx, t.from as CashStack, t.to, amount, t.flight)
+          : null
+        : transferOne(ctx, t.from, t.to, t.kinds, t.flight);
       if (!item) {
         this.timer = 0;
         this.interval = this.base; // nothing to move: next burst starts slow again

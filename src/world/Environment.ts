@@ -111,7 +111,8 @@ export class Environment {
    * the strip decor is cleared with puffs, the dirt extends, the new fence (with a gap for the
    * truck counter) pops in, and the collider bounds are widened.
    */
-  expand(): void {
+  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. TODO(owner): honour it. */
+  expand(instant = false): void {
     if (this.expanding || this.expanded) return;
     this.expanding = true;
     this.expandT = 0;

@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { CAMERA, LAYOUT, PADS, type PadIdConst, type XZ } from '../config';
 import type { GameContext, PadId } from '../core/types';
+import { Crew } from '../npc/Crew';
 import { CustomerQueue } from '../npc/CustomerQueue';
 import { TricycleQueue } from '../npc/TricycleQueue';
 import { TruckQueue } from '../npc/TruckQueue';
@@ -22,7 +23,9 @@ import { GiantLog } from '../stations/GiantLog';
 import { Harvester } from '../stations/Harvester';
 import { MegaSaw } from '../stations/MegaSaw';
 import { Processor } from '../stations/Processor';
+import { ShopMat } from '../stations/ShopMat';
 import { UpgradePad } from '../stations/UpgradePad';
+import { Village } from '../village/Village';
 
 export class Level {
   readonly dropZone: DropZone;
@@ -31,6 +34,10 @@ export class Level {
   readonly walkInCash: CashPile;
   readonly customers: CustomerQueue;
   readonly pads: Record<PadId, UpgradePad>;
+  /** Cabin doormat that opens the upgrade shop. */
+  readonly shopMat: ShopMat;
+  readonly village: Village;
+  readonly crew: Crew;
   readonly progression: Progression;
 
   harvester: Harvester | null = null;
@@ -44,6 +51,9 @@ export class Level {
   truckCounter: Counter | null = null;
   truckCash: CashPile | null = null;
   trucks: TruckQueue | null = null;
+
+  /** Pads whose station exists (built live, or at once from a restored state). */
+  private readonly built = new Set<PadId>();
 
   constructor(readonly ctx: GameContext) {
     // Level reacts to unlocks before Progression does (Progression reads ctx.state.unlocked).
@@ -75,6 +85,12 @@ export class Level {
     for (const id of Object.keys(PADS) as PadIdConst[]) pads[id] = new UpgradePad(ctx, PADS[id]);
     this.pads = pads;
 
+    // A restored game: every unlocked station at once, silently, in unlock order.
+    for (const id of Object.keys(PADS) as PadIdConst[]) if (ctx.state.unlocked[id]) this.buildStation(id, true);
+
+    this.shopMat = new ShopMat(ctx);
+    this.village = new Village(ctx);
+    this.crew = new Crew(ctx, this);
     this.progression = new Progression(ctx, this);
   }
 
@@ -94,21 +110,29 @@ export class Level {
     this.eastConveyor?.update(dt);
     this.megaSaw?.update(dt);
     this.trucks?.update(dt);
+    this.shopMat.update(dt);
+    this.village.update(dt);
+    this.crew.update(dt);
     this.progression.update(dt);
   }
 
   /** Build whatever pad `id` unlocks. Idempotent; called from the 'pad:unlocked' event. */
   applyUnlock(id: PadId): void {
-    const s = this.ctx.state;
-    if (s.unlocked[id]) return;
-    s.unlocked[id] = true;
+    this.ctx.state.unlocked[id] = true;
+    this.buildStation(id, false);
+  }
+
+  /** Station(s) of pad `id`. instant (restore): final state at once, no animation / events / camera. */
+  private buildStation(id: PadId, instant: boolean): void {
+    if (this.built.has(id)) return;
+    this.built.add(id);
     switch (id) {
       case 'harvester':
         this.harvester = new Harvester(this.ctx, { log: this.giantLog });
-        this.harvester.build();
+        this.harvester.build(instant);
         break;
       case 'processor':
-        this.ensureProcessor();
+        this.ensureProcessor(instant);
         break;
       case 'westConveyor':
         this.westConveyor = new Conveyor(this.ctx, {
@@ -119,10 +143,10 @@ export class Level {
           kind: 'log',
           itemYaw: 0,
         });
-        this.westConveyor.build();
+        this.westConveyor.build(instant);
         break;
       case 'eastConveyor': {
-        const processor = this.ensureProcessor();
+        const processor = this.ensureProcessor(instant);
         this.eastConveyor = new Conveyor(this.ctx, {
           id: 'conveyor:east',
           ...LAYOUT.eastConveyor,
@@ -131,26 +155,27 @@ export class Level {
           kind: 'log',
           itemYaw: Math.PI / 2,
         });
-        this.eastConveyor.build();
+        this.eastConveyor.build(instant);
         break;
       }
       case 'megaSaw':
-        this.buildExpansion();
+        this.buildExpansion(instant);
         break;
     }
   }
 
   /** Processor + SE counter + SE cash pile + tricycle queue (built together by the processor pad). */
-  private ensureProcessor(): Processor {
+  private ensureProcessor(instant: boolean): Processor {
     if (this.processor) return this.processor;
     if (!this.ctx.state.unlocked.processor) {
       // Unlocking the pad re-enters applyUnlock('processor') synchronously, which builds it.
       this.pads.processor.forceUnlock();
       if (this.processor) return this.processor;
     }
+    this.built.add('processor');
     const ctx = this.ctx;
     const processor = new Processor(ctx);
-    processor.build();
+    processor.build(instant);
     this.processor = processor;
     const se = LAYOUT.seCounter;
     this.seCounter = new Counter(ctx, {
@@ -165,7 +190,7 @@ export class Level {
       grid: se.grid,
       playerZone: se.playerZone,
     });
-    this.seCounter.appear();
+    this.seCounter.appear(instant);
     const sc = LAYOUT.seCash;
     this.seCash = new CashPile(ctx, { id: 'pile:seCash', x: sc.x, z: sc.z, grid: sc.grid, zone: sc.zone });
     this.tricycles = new TricycleQueue(ctx, { counter: this.seCounter, cash: this.seCash });
@@ -173,14 +198,14 @@ export class Level {
   }
 
   /** Phase 5: mega saw, yard expansion north, trucks on the highway, camera zooms out. */
-  private buildExpansion(): void {
+  private buildExpansion(instant: boolean): void {
     const ctx = this.ctx;
     this.megaSaw = new MegaSaw(ctx, { log: this.giantLog });
-    this.megaSaw.build();
+    this.megaSaw.build(instant);
     ctx.state.expanded = true;
-    ctx.events.emit('expansion:start', {});
-    ctx.environment.expand();
-    ctx.cameraRig.setZoom(CAMERA.expansionZoom, 1.6);
+    if (!instant) ctx.events.emit('expansion:start', {});
+    ctx.environment.expand(instant);
+    ctx.cameraRig.setZoom(CAMERA.expansionZoom, instant ? 0 : 1.6);
     const ex = LAYOUT.expansion;
     const tc = ex.truckCounter;
     this.truckCounter = new Counter(ctx, {
@@ -195,7 +220,7 @@ export class Level {
       grid: tc.grid,
       playerZone: tc.playerZone,
     });
-    this.truckCounter.appear();
+    this.truckCounter.appear(instant);
     const tcash = ex.truckCash;
     this.truckCash = new CashPile(ctx, { id: 'pile:truckCash', x: tcash.x, z: tcash.z, grid: tcash.grid, zone: tcash.zone });
     this.trucks = new TruckQueue(ctx, { counter: this.truckCounter, cash: this.truckCash });
