@@ -1,7 +1,7 @@
 /**
  * [B1 — engine] The lumberjack.
  *
- * - Movement: desired velocity = cameraRig.screenToWorldDir(input.move) * PLAYER.speed (or toward
+ * - Movement: desired velocity = cameraRig.screenToWorldDir(input.move) * the Snow Boots speed (ctx.upgrades.value('speed'), or toward
  *   `autopilot` when set); accelerate/decelerate (PLAYER.accel/decel) for responsive-but-smooth feel;
  *   resolve against ctx.colliders (radius PLAYER.radius); face movement direction with
  *   dampAngle(PLAYER.turnLambda). inputEnabled=false → decelerate to a stop.
@@ -13,12 +13,12 @@
  *   the actual (post-collision) world velocity, which drives their sway spring.
  * - Chopping: setChopTarget(p) (called every frame by the giant log while the player stands in its
  *   chop zone; null when leaving) → face p when not moving, loop an axe swing every
- *   TIMING.chopInterval (wind-up, fast strike, recoil); at the strike frame emit
+ *   the Sharp Axe interval (ctx.upgrades.value('axe')) (wind-up, fast strike, recoil); at the strike frame emit
  *   ctx.events 'player:chopHit' { position: p }. No target → axe hidden, swing stops.
  * - Small snow puffs at the feet while running (ctx.particles.puff, throttled).
  */
 import * as THREE from 'three';
-import { PLAYER, TIMING } from '../config';
+import { PLAYER } from '../config';
 import type { GameContext } from '../core/types';
 import { approach, clamp, dampAngle } from '../core/math';
 import { createAxe } from '../assets/characters';
@@ -54,11 +54,14 @@ export class Player {
   /** Debug/test autopilot: walk toward this XZ point (y ignored); cleared on arrival. */
   autopilot: THREE.Vector3 | null = null;
 
-  private readonly axe = createAxe();
+  private axe: THREE.Group;
+  /** Axe level the current model was built for. */
+  private axeTier = -1;
   private readonly chopTarget = new THREE.Vector3();
   private readonly chopPos = new THREE.Vector3();
   private hasChopTarget = false;
   private swinging = false;
+  /** Swing progress 0..1 (advances at 1 / current axe interval). */
   private chopClock = 0;
   private struck = false;
   /** 0..1 blend between normal arm animation and the scripted swing. */
@@ -76,10 +79,12 @@ export class Player {
     this.object.add(this.rig.root);
     this.object.position.set(PLAYER.spawn.x, 0, PLAYER.spawn.z);
     ctx.scene.add(this.object);
+    this.axe = createAxe(0);
     this.rig.handR.add(this.axe);
     this.axe.visible = false;
-    this.arms = new CarryStack(ctx, { id: 'player.arms', accepts: ['log', 'crate'], capacity: PLAYER.armsCapacity, anchor: this.rig.armsAnchor });
+    this.arms = new CarryStack(ctx, { id: 'player.arms', accepts: ['log', 'crate'], capacity: ctx.upgrades.value('carry'), anchor: this.rig.armsAnchor });
     this.back = new CashStack(ctx, { id: 'player.back', anchor: this.rig.backAnchor, maxVisual: PLAYER.cashVisualCap });
+    this.syncUpgrades();
   }
 
   get position(): THREE.Vector3 {
@@ -88,7 +93,12 @@ export class Player {
 
   /** 0 when idle, 1 at full speed. */
   get speed01(): number {
-    return Math.min(1, this.velocity.length() / PLAYER.speed);
+    return Math.min(1, this.velocity.length() / this.maxSpeed);
+  }
+
+  /** Current top walk speed (Snow Boots upgrade), m/s. */
+  get maxSpeed(): number {
+    return this.ctx.upgrades.value('speed');
   }
 
   /** True while the axe is out and swinging. */
@@ -123,7 +133,7 @@ export class Player {
       if (input.active) {
         this.autopilot = null;
         this.ctx.cameraRig.screenToWorldDir(input.move, d);
-        d.multiplyScalar(PLAYER.speed);
+        d.multiplyScalar(this.maxSpeed);
       } else if (this.autopilot) {
         const dx = this.autopilot.x - pos.x;
         const dz = this.autopilot.z - pos.z;
@@ -131,7 +141,7 @@ export class Player {
         if (dist < ARRIVE_RADIUS) {
           this.autopilot = null;
         } else {
-          const sp = PLAYER.speed * Math.min(1, dist / 0.9 + 0.15);
+          const sp = this.maxSpeed * Math.min(1, dist / 0.9 + 0.15);
           d.set((dx / dist) * sp, 0, (dz / dist) * sp);
         }
       }
@@ -179,6 +189,7 @@ export class Player {
       this.blockedFor = 0;
     }
 
+    this.syncUpgrades();
     const speed01 = this.speed01;
 
     // --- chop state ------------------------------------------------------------
@@ -213,7 +224,8 @@ export class Player {
 
     // --- visuals ---------------------------------------------------------------
     this.rig.setCarrying(this.arms.size > 0);
-    this.rig.animate(dt, speed01);
+    // stride rate follows real speed (PLAYER.speed is the walk-cycle normaliser), so a faster player strides faster
+    this.rig.animate(dt, Math.min(1.45, Math.hypot(v.x, v.z) / PLAYER.speed));
     this.arms.update(dt, v);
     this.back.update(dt, v);
 
@@ -228,18 +240,38 @@ export class Player {
 
   // ---------------------------------------------------------------------------
 
+  /** Apply live upgrade levels: carry capacity and axe model (polled, so restores and debug setUpgrade work too). */
+  private syncUpgrades(): void {
+    const up = this.ctx.upgrades;
+    const cap = up.value('carry');
+    if (this.arms.capacity !== cap) this.arms.setCapacity(cap);
+    const tier = up.level('axe');
+    if (tier !== this.axeTier) {
+      this.axeTier = tier;
+      const old = this.axe;
+      const next = createAxe(tier);
+      next.visible = old.visible;
+      this.rig.handR.remove(old);
+      old.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) m.geometry.dispose(); // baked axe geometry is unique per axe (the material is shared)
+      });
+      this.axe = next;
+      this.rig.handR.add(next);
+    }
+  }
+
   private updateSwing(dt: number): void {
     const rig = this.rig;
     this.chopBlend = approach(this.chopBlend, this.swinging ? 1 : 0, dt * 10);
 
     if (this.swinging) {
-      const period = TIMING.chopInterval;
-      this.chopClock += dt;
-      if (this.chopClock >= period) {
-        this.chopClock -= period;
+      this.chopClock += dt / Math.max(0.05, this.ctx.upgrades.value('axe'));
+      if (this.chopClock >= 1) {
+        this.chopClock -= Math.floor(this.chopClock);
         this.struck = false;
       }
-      const k = this.chopClock / period;
+      const k = this.chopClock;
       if (!this.struck && k >= STRIKE_AT) {
         this.struck = true;
         this.chopPos.copy(this.chopTarget);

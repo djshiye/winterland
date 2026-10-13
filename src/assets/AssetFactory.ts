@@ -22,13 +22,14 @@
  * piece — the palisade fence post — comes from scenery.ts here.
  *
  * Domain modules (one owner each):
- *   characters.ts — player, customer, courier, driver, axe
+ *   characters.ts — player, customer, courier, driver, worker (crew), axe
  *   items.ts      — small log, plank bundle, crate, cash bundle
  *   vehicles.ts   — cargo tricycle, pickup truck
  *   shop.ts       — counter table, speech bubble
  *   machines.ts   — giant log, drop-zone slab, harvester, processor, roller conveyor, mega saw
  *   pads.ts       — createPadTexture, upgrade-pad tile
  *   scenery.ts    — palisade fence post
+ *   shelters.ts   — village shelters (tent → hut → cabin → lodge), lot, scaffold, Great Lodge
  */
 import type * as THREE from 'three';
 import { characterCatalog } from './characters';
@@ -36,6 +37,7 @@ import { itemCatalog } from './items';
 import { machineCatalog } from './machines';
 import { padCatalog } from './pads';
 import { sceneryCatalog } from './scenery';
+import { sheltersCatalog } from './shelters';
 import { shopCatalog } from './shop';
 import { vehicleCatalog } from './vehicles';
 
@@ -46,6 +48,7 @@ export * from './shop';
 export * from './machines';
 export * from './pads';
 export * from './scenery';
+export * from './shelters';
 
 export type AssetBuilder = () => THREE.Object3D;
 
@@ -58,4 +61,5 @@ export const ASSET_CATALOG: Record<string, Record<string, AssetBuilder>> = {
   machines: machineCatalog,
   pads: padCatalog,
   scenery: sceneryCatalog,
+  shelters: sheltersCatalog,
 };

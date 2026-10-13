@@ -13,6 +13,7 @@
  * - CUSTOMER: capsule r 0.3 / h 0.75 in CUSTOMER_BLUE (#4FA8F8) with a hood sphere. `variant` varies the
  *   shade, scarf and headwear.
  * - COURIER (cargo-tricycle rider): yellow COURIER_YELLOW helmet + hi-vis stripe, seated pose.
+ * - WORKER (hired crew): crate runner / cashier / log hauler, see createWorkerModel.
  * - DRIVER (pickup truck): brown work jacket, grey flat cap; distinct from customers.
  *
  * Conventions: root origin at the feet, character faces local +Z. `body` is an upper-body pivot at hip
@@ -66,6 +67,8 @@ interface PawnSpec {
   capsule: boolean;
   headR: number;
   skin: number;
+  /** Sleeve colour (default: the body colour). */
+  armColor?: number;
   /** Mitten / glove colour. */
   hand: number;
   boot: number;
@@ -125,6 +128,7 @@ function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: number 
   squash.add(head);
 
   // arms: pivot at the shoulder, hanging down; each is one mesh (sleeve + mitten)
+  const armMat = s.armColor === undefined ? bodyMat : toon(s.armColor);
   const handMat = toon(s.hand);
   const sx = s.bodyR + 0.03;
   const shoulder = topY - 0.14 - HIP;
@@ -133,7 +137,7 @@ function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: number 
     const arm = new THREE.Group();
     arm.position.set(side * sx, shoulder, 0);
     const ag = new THREE.Group();
-    const a = mesh(geo.capsule(ARM_R, ARM_LEN, 4, 10), bodyMat);
+    const a = mesh(geo.capsule(ARM_R, ARM_LEN, 4, 10), armMat);
     a.position.y = -ARM_LEN / 2 - ARM_R * 0.8;
     const h = mesh(geo.sphere(0.1, 10, 8), handMat);
     h.position.y = -CHARACTER_ARM_REACH;
@@ -259,9 +263,11 @@ function npcBody(
   hand: number,
   torsoExtras?: PawnSpec['torsoExtras'],
   headExtras?: PawnSpec['headExtras'],
+  armColor?: number,
 ): ReturnType<typeof buildPawn> {
   return buildPawn({
     bodyColor: color,
+    armColor,
     bodyR: 0.3,
     bodyH: 0.75,
     capsule: true,
@@ -342,24 +348,141 @@ export function createDriverModel(variant = 0): CharacterModel {
   return m;
 }
 
+/** Crew roles, indexed by `variant % 3` (matches UPGRADES crateRunner / cashier / logHauler). */
+export const WORKER_ROLES = ['crateRunner', 'cashier', 'logHauler'] as const;
+
+/**
+ * Hired crew, chunky lumber-yard workers (all distinct from the blue player, light-blue customers and the
+ * yellow-helmeted couriers):
+ *   0 crate runner: orange hi-vis vest with white reflective bands, grey sleeves, white hard hat.
+ *   1 cashier:      green vest over white sleeves, flat dark cap, a little brown satchel on the hip.
+ *   2 log hauler:   red/black plaid jacket, black beanie with a red cuff, brown beard.
+ */
+export function createWorkerModel(variant = 0): CharacterModel {
+  const role = ((variant % 3) + 3) % 3;
+  if (role === 0) {
+    const m = npcBody(
+      COLORS.SAW_GLOW,
+      COLORS.PLAYER_SKIN,
+      PALETTE.rubber,
+      (g, topY) => {
+        g.add(torusRing(0.304, 0.035, COLORS.PLAYER_TRIM, BASE_Y + 0.28 - HIP));
+        g.add(torusRing(0.304, 0.035, COLORS.PLAYER_TRIM, BASE_Y + 0.5 - HIP));
+        g.add(torusRing(0.285, 0.05, PALETTE.metalDark, topY - 0.03 - HIP)); // collar
+      },
+      (g) => {
+        const dome = mesh(geo.sphere(0.25, 16, 10), toon(COLORS.SNOW_WHITE));
+        dome.scale.set(1, 0.72, 1);
+        dome.position.y = 0.1;
+        const brim = mesh(geo.box(0.36, 0.035, 0.16), toon(COLORS.SNOW_WHITE));
+        brim.position.set(0, 0.08, 0.23);
+        const ridge = mesh(geo.box(0.07, 0.04, 0.36), toon(COLORS.SAW_GLOW));
+        ridge.position.set(0, 0.27, 0);
+        g.add(dome, brim, ridge);
+      },
+      PALETTE.metalDark,
+    );
+    m.height = m.headY + 0.1 + 0.25 * 0.72 + 0.03;
+    return m;
+  }
+  if (role === 1) {
+    const m = npcBody(
+      PALETTE.cashDark,
+      COLORS.CRATE_BOX,
+      COLORS.PLAYER_SKIN,
+      (g, topY) => {
+        g.add(torusRing(0.285, 0.05, COLORS.PLAYER_TRIM, topY - 0.03 - HIP)); // shirt collar
+        // satchel on the left hip + strap across the chest
+        const bag = mesh(geo.box(0.14, 0.22, 0.26), toon(COLORS.CRATE_STRIP));
+        bag.position.set(-0.35, 0.36 - HIP, 0.04);
+        const flap = mesh(geo.box(0.15, 0.06, 0.27), toon(PALETTE.barkDark));
+        flap.position.set(-0.35, 0.49 - HIP, 0.04);
+        const strap = mesh(geo.box(0.04, 0.8, 0.04), toon(COLORS.CRATE_STRIP));
+        strap.position.set(-0.04, 0.55 - HIP, 0.285);
+        strap.rotation.z = -0.62;
+        g.add(bag, flap, strap);
+      },
+      (g) => {
+        const dome = mesh(geo.sphere(0.24, 16, 10), toon(PALETTE.rubber));
+        dome.scale.set(1, 0.55, 1);
+        dome.position.y = 0.1;
+        const brim = mesh(geo.box(0.34, 0.035, 0.2), toon(PALETTE.rubber));
+        brim.position.set(0, 0.07, 0.23);
+        const band = mesh(geo.cylinder(0.243, 0.243, 0.04, 16), toon(PALETTE.cashDark));
+        band.position.y = 0.075;
+        g.add(dome, brim, band);
+      },
+      COLORS.PLAYER_TRIM,
+    );
+    m.height = m.headY + 0.1 + 0.24 * 0.55 + 0.03;
+    return m;
+  }
+  // 2: log hauler, plaid = red jacket with dark bands (rings + a vertical stripe)
+  const m = npcBody(
+    PALETTE.truckRed,
+    COLORS.PLAYER_SKIN,
+    PALETTE.rubber,
+    (g, topY) => {
+      for (const y of [0.32, 0.56]) g.add(torusRing(0.302, 0.022, PALETTE.rubber, BASE_Y + y - HIP));
+      const stripe = mesh(geo.box(0.04, 0.62, 0.04), toon(PALETTE.rubber));
+      stripe.position.set(0, BASE_Y + 0.4 - HIP, 0.29);
+      const stripeL = mesh(geo.box(0.04, 0.62, 0.04), toon(PALETTE.rubber));
+      stripeL.position.set(-0.19, BASE_Y + 0.4 - HIP, 0.235);
+      const stripeR = mesh(geo.box(0.04, 0.62, 0.04), toon(PALETTE.rubber));
+      stripeR.position.set(0.19, BASE_Y + 0.4 - HIP, 0.235);
+      g.add(stripe, stripeL, stripeR, torusRing(0.29, 0.045, PALETTE.rubber, topY - 0.03 - HIP));
+    },
+    (g) => {
+      const beard = mesh(geo.sphere(0.22, 14, 10), toon(COLORS.CRATE_STRIP));
+      beard.scale.set(1, 0.55, 0.65);
+      beard.position.set(0, -0.12, 0.13);
+      const dome = mesh(geo.sphere(0.25, 16, 10), toon(PALETTE.rubber));
+      dome.scale.set(1, 0.78, 1);
+      dome.position.y = 0.11;
+      const cuff = mesh(geo.torus(0.23, 0.045, 8, 18), toon(PALETTE.truckRed));
+      cuff.rotation.x = Math.PI / 2;
+      cuff.position.y = 0.085;
+      g.add(beard, dome, cuff);
+    },
+    PALETTE.truckRed,
+  );
+  m.height = m.headY + 0.11 + 0.25 * 0.78;
+  return m;
+}
+
 // ---------------------------------------------------------------------------
 // Axe
 // ---------------------------------------------------------------------------
 
+/** Axe look per upgrade level (0–5): plain wood + iron, then steel with a red handle, then gold. */
+const AXE_STYLES = [
+  { handle: COLORS.LOG_BARK, head: 0x6f7b7c, knob: COLORS.LOG_BARK },
+  { handle: COLORS.LOG_BARK, head: 0x8a9697, knob: COLORS.LOG_BARK },
+  { handle: PALETTE.truckRed, head: 0xc9d3d6, knob: PALETTE.truckRed },
+  { handle: PALETTE.truckRed, head: 0xe9f1f3, knob: 0xe9f1f3 },
+  { handle: PALETTE.barkDark, head: 0xf2b92a, knob: 0xf2b92a },
+  { handle: PALETTE.barkDark, head: COLORS.COURIER_YELLOW, knob: COLORS.COURIER_YELLOW },
+] as const;
+
 /**
- * Brown cylinder handle + silver wedge head. Parent it to a hand (CharacterModel.handR): the handle runs
- * along the hand's local -Y (the arm direction) and the cutting edge leads the swing (local -Z).
+ * Handle + wedge head, one baked mesh. `tier` is the Sharp Axe upgrade level (0–5): 0–1 wood + iron, 2–3 steel
+ * with a red handle, 4–5 gold; the head also grows a little per level. Parent it to a hand
+ * (CharacterModel.handR): the handle runs along the hand's local -Y (the arm direction) and the cutting edge
+ * leads the swing (local -Z). Each call bakes its own geometry (dispose `mesh.geometry` when swapping axes).
  */
-export function createAxe(): THREE.Group {
+export function createAxe(tier = 0): THREE.Group {
+  const lv = Math.max(0, Math.min(AXE_STYLES.length - 1, Math.round(tier)));
+  const st = AXE_STYLES[lv]!;
   const g = new THREE.Group();
-  const handle = mesh(geo.cylinder(0.032, 0.038, 0.78, 8), toon(COLORS.LOG_BARK));
+  const handle = mesh(geo.cylinder(0.032, 0.038, 0.78, 8), toon(st.handle));
   handle.position.y = -0.3;
   // wedge = triangular prism (3 radial segments); apex = cutting edge toward -Z
-  const head = mesh(geo.cylinder(0.19, 0.19, 0.3, 3), toon(0xc9d3d6));
+  const head = mesh(geo.cylinder(0.19, 0.19, 0.3, 3), toon(st.head));
+  const grow = 1 + 0.07 * lv;
   head.rotation.y = Math.PI;
-  head.scale.set(0.5, 1, 1);
+  head.scale.set(0.5 * grow, grow, grow);
   head.position.set(0, -0.6, -0.03);
-  const knob = mesh(geo.sphere(0.048, 8, 6), toon(COLORS.LOG_BARK));
+  const knob = mesh(geo.sphere(0.048, 8, 6), toon(st.knob));
   knob.position.y = 0.1;
   const body = new THREE.Group();
   body.add(handle, head, knob);
@@ -375,5 +498,10 @@ export const characterCatalog: Record<string, () => THREE.Object3D> = {
   courier: () => createCourierModel().root,
   driver: () => createDriverModel(0).root,
   'driver (grey)': () => createDriverModel(1).root,
-  axe: () => createAxe(),
+  'worker: crate runner': () => createWorkerModel(0).root,
+  'worker: cashier': () => createWorkerModel(1).root,
+  'worker: log hauler': () => createWorkerModel(2).root,
+  'axe (lv 0, wood + iron)': () => createAxe(0),
+  'axe (lv 2, steel)': () => createAxe(2),
+  'axe (lv 4, gold)': () => createAxe(4),
 };

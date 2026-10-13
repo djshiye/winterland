@@ -26,6 +26,7 @@ import {
   createCustomerModel,
   createDriverModel,
   createPlayerModel,
+  createWorkerModel,
   type CharacterKind,
   type CharacterModel,
 } from '../assets/characters';
@@ -211,7 +212,6 @@ export function createCharacterRig(kind: CharacterKind, variant = 0): CharacterR
     case 'driver':
       return new CharacterRig(createDriverModel(variant), { scale: characterScale(variant + 211) });
     case 'worker':
-      // Placeholder until the crew model exists (B1).
-      return new CharacterRig(createCourierModel(), { scale: characterScale(variant + 307) });
+      return new CharacterRig(createWorkerModel(variant), { scale: characterScale(variant + 307) });
   }
 }
