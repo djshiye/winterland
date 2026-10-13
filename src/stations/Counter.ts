@@ -18,11 +18,11 @@
  *   Counters created at level start call nothing (they are simply there).
  */
 import * as THREE from 'three';
-import { PALETTE, TIMING, rect, type PileGrid, type Rect } from '../config';
+import { COLORS, TIMING, rect, type PileGrid, type Rect } from '../config';
+import { createCounterModel } from '../assets/shop';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 import { Pile } from '../items/Pile';
 import type { Zone } from '../items/Zones';
-import { geo, mesh, toon } from '../render/materials';
 
 export interface CounterOptions {
   /** Holder id of the top pile, e.g. 'counter:walkIn'. */
@@ -58,7 +58,7 @@ export class Counter {
     this.displayKind = opts.display ?? opts.accepts;
     this.object.position.set(opts.x, 0, opts.z);
     this.object.rotation.y = opts.rotationY;
-    this.object.add(mesh(geo.boxBase(opts.length, opts.height, opts.depth), toon(PALETTE.fence)));
+    this.object.add(createCounterModel(opts.length, opts.depth, opts.height));
     ctx.scene.add(this.object);
     const alongZ = Math.abs(Math.sin(opts.rotationY)) > 0.5;
     ctx.colliders.addBox(
@@ -98,6 +98,9 @@ export class Counter {
     this.ctx.events.emit('built', { what: this.opts.id, position, object: this.object });
   }
 }
+
+const tmpPos = new THREE.Vector3();
+const CHIP_COLORS = [COLORS.LOG_CORE];
 
 interface ConvertSlot extends Slot {
   readonly inner: Slot;
@@ -139,9 +142,22 @@ class ConvertingInput implements ItemHolder {
 
   receive(item: Item, slot: Slot): void {
     const s = slot as ConvertSlot;
+    // Where the product will rest: the juice (chip puff) happens right there.
+    this.pile.getSlotWorldPosition(s.inner, tmpPos);
     this.ctx.items.release(item);
     s.product.object.visible = true;
     this.pile.receive(s.product, s.inner);
+    // The pile's own landing punch is small; make the conversion read as a little "pop".
+    this.ctx.tweens.punchScale(s.product.object, 0.42, 0.26);
+    this.ctx.particles.burst(tmpPos, {
+      colors: CHIP_COLORS,
+      count: 7,
+      size: 0.1,
+      speed: 2.6,
+      life: 0.45,
+      spread: 1.2,
+      shape: 'chip',
+    });
   }
 
   cancel(slot: Slot): void {
