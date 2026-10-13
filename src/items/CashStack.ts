@@ -46,7 +46,7 @@ interface Anim {
 }
 
 const BUNDLE_H = ITEM_SIZE.cash.stackHeight;
-const COL_Z = [0, -0.29];
+const COL_Z = [0, -0.23];
 const POP_IN = 0.22;
 const POP_OUT = 0.14;
 
