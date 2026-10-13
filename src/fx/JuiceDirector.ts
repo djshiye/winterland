@@ -11,7 +11,8 @@
  * - log:chopped (harvester / megaSaw) → small chip burst + quiet 'chop'.
  * - crate:made → sparkle + 'machine'.
  * - sale → 'sell' + floatText "+$<amount>" in green above the position.
- * - stack:full → 'full' + floatText "MAX" (throttled).
+ * - stack:full → 'full' + floatText "FULL" over counters/hoppers (throttled). The player's own stack
+ *   already wears a persistent MAX badge (CarryStack), so it only gets the sound.
  * - pad:paid → 'pay' (combo); pad:unlocked → 'unlock', confetti, ring, shake, toast.
  * - built → 'build', puff + ring.
  * - intro:crash → 'crash' + 'splash', splash particles, big shake.
@@ -84,9 +85,10 @@ export class JuiceDirector {
       if (now - (this.lastFull.get(e.holder) ?? -10) < 0.9) return;
       this.lastFull.set(e.holder, now);
       ctx.audio.play('full');
+      if (e.holder === ctx.player.arms) return; // the CarryStack MAX badge says it already
       this.tmp.copy(e.position);
-      this.tmp.y += 2.2;
-      ctx.hud.floatText(this.tmp, 'MAX', { color: '#ff9a2e', size: 30, duration: 1.0 });
+      this.tmp.y += 1.2;
+      ctx.hud.floatText(this.tmp, 'FULL', { color: '#ff9a2e', size: 26, duration: 1.0 });
     });
 
     ev.on('pad:paid', () => {
