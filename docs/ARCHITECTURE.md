@@ -146,6 +146,11 @@ read by anyone.
   same palette.
 * Build meshes with `render/materials.ts`: `toon(color)` (cached cel material), `basic(color)` (unlit), `geo.*`
   (cached geometries — never dispose them), `mesh(geometry, material)` (shadows on), `makeCanvasTexture()` for labels.
+* **Draw calls are the budget.** Every mesh is a draw call, plus one more in the shadow pass when it casts. Merge the
+  static parts of each model with `render/batch.ts`: `bake(group)` collapses a static toon subtree into one
+  vertex-coloured mesh (shared `vcMat()`), `Batch` builds one from primitives. Bake per animated pivot (a wheel, an
+  arm, a blade keeps its own node with its parts baked inside it); keep textured, emissive, transparent and flashing
+  parts separate. Items are one mesh each; a character is 6, a vehicle 4–7, a machine 2–7.
 * Colours come from `COLORS` (the exact art-direction master palette) / `PALETTE` (aliases + derived shades) in
   `config.ts`. Vibrant, clean, toy-like; chunky proportions; no textures from files.
 * Shadows: one sun with a 2048 shadow map that follows the camera target. Large flat ground pieces receive only.
@@ -160,6 +165,9 @@ read by anyone.
   (the Level instance: stations, queues, pads, progression), `ctx`.
 * Handy spots: chop (−9, 2), drop-zone pickup (−6.6, 0), walk-in counter (−4, 9), walk-in cash (−2, 8.6), processor
   tray (2.0, −0.4), workbench (6.9, −0.4), SE counter (9, 3.6), SE cash (8.9, 6).
+* Renderer budget (checked with `__bot.perf()` and `scripts/perf-breakdown.js`): normal late-game play ≤ ~800 draw
+  calls (currently ~430 desktop, ~500 phone), forced worst case (everything unlocked, 150 s, no cash collected)
+  ≤ ~1500 (currently ~1030).
 * `npm run playtest [outDir] [--mobile]` injects `scripts/playtest-bot.js`, an in-page bot that plays the real economy
   through all five phases (teleporting between stations, stepping the sim), screenshots each milestone and prints the
   unlock timeline, action counts and renderer cost (`__bot.perf()`: draw calls, triangles, live items).
