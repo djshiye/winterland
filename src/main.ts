@@ -24,6 +24,11 @@ if (!app || !hud) {
   showFatal('Winterland failed to start: missing #app/#hud.');
 } else if (!hasWebGL()) {
   showFatal('Winterland needs WebGL. Try a recent Chrome, Firefox or Safari.');
+} else if (new URLSearchParams(location.search).has('gallery')) {
+  // Asset review page: every AssetFactory model on one screen (loaded on demand, not part of the game).
+  import('./debug/Gallery')
+    .then(({ Gallery }) => new Gallery(app).start())
+    .catch((err: unknown) => showFatal(`Gallery failed: ${err instanceof Error ? err.message : String(err)}`));
 } else {
   try {
     const game = new Game(app, hud);

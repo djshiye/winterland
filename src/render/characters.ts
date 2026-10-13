@@ -24,7 +24,8 @@
  * 0 = hanging, negative = forward/up, ±π = straight up), torsoLean and torsoTwist.
  */
 import * as THREE from 'three';
-import { PALETTE } from '../config';
+import { COLORS, PALETTE } from '../config';
+import type { CharacterKind } from '../assets/characters';
 import { damp } from '../core/math';
 import { geo, mesh, toon } from './materials';
 
@@ -191,6 +192,11 @@ export class CharacterRig {
     this.root.scale.setScalar(opts.scale ?? 1);
   }
 
+  /** Top of the head/hat above the feet, in world units (speech bubbles float above it). */
+  get height(): number {
+    return 1.75 * (this.opts.scale ?? 1);
+  }
+
   /** Hold both arms forward under a carried stack (instead of swinging them). */
   setCarrying(carrying: boolean): void {
     this.carrying = carrying;
@@ -278,5 +284,24 @@ export class CharacterRig {
     const splay = lerp(0.12 + 0.03 * breathe, -0.1, carry) + cheerW * 0.35;
     this.armL.rotation.z = -splay;
     this.armR.rotation.z = splay;
+  }
+}
+
+export type { CharacterKind };
+
+/**
+ * Entry point for the player and NPC code: the animated rig for a character kind (the meshes come
+ * from AssetFactory assets/characters.ts). `variant` varies tints / headwear across a crowd.
+ */
+export function createCharacterRig(kind: CharacterKind, variant = 0): CharacterRig {
+  switch (kind) {
+    case 'player':
+      return new CharacterRig({ body: PALETTE.playerShirt, pants: PALETTE.playerPants, hat: 'beanie', hatColor: PALETTE.playerHat });
+    case 'customer':
+      return new CharacterRig({ body: variant % 2 === 0 ? PALETTE.customer : PALETTE.customerDark, hat: 'none', scale: 0.9 });
+    case 'courier':
+      return new CharacterRig({ body: PALETTE.trike, hat: 'cap', hatColor: COLORS.COURIER_YELLOW, scale: 0.9 });
+    case 'driver':
+      return new CharacterRig({ body: variant % 2 === 0 ? PALETTE.truckBlue : PALETTE.truckRed, hat: 'cap', hatColor: PALETTE.accent, scale: 0.9 });
   }
 }

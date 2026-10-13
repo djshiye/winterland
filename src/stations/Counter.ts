@@ -1,24 +1,28 @@
 /**
- * [B5 — commerce] Wooden sales counter with an item pile on top. STUB (functional baseline without
- * visuals): replace/extend, keep the public API.
+ * [B5 — commerce] Wooden sales counter with an item pile on top. Functional baseline (plain box
+ * visual): replace/extend, keep the public API.
  *
- * - Model (local space, long axis along local X, front = local +Z faces the buyers OUTSIDE the yard
- *   for the walk-in counter... see note): sturdy plank top (PALETTE.plank) on a darker body
- *   (PALETTE.fenceDark), front panel planks, little awning or sign post with an icon (log / crate)
- *   telling what is sold here. Size opts.length × opts.height × opts.depth. Root at floor centre,
- *   rotated by opts.rotationY. Casts/receives shadows. Collider = footprint (account for rotation).
- *   Note: buyers stand on the far side from the player zone; you don't need to know which side —
- *   the player zone rect and the NPC queue positions come from config.
+ * - Model: AssetFactory counter table (art spec: wooden table 1.6 × 0.6 × 0.8 in FENCE_WOOD; sizes come
+ *   from opts). Long axis along local X. Root at floor centre, rotated by opts.rotationY. Casts/receives
+ *   shadows. Collider = footprint (account for rotation). Buyers stand on the far side from the player
+ *   zone; the player zone rect and the NPC queue positions come from config.
  * - pile: Pile on the top surface (parent = this.object, so rotation applies and appear() scales it).
- * - zone: player.arms → pile transfer zone (kinds [opts.accepts], TIMING.dropInterval, marker).
+ *   Holds `display` items; NPCs buy from here.
+ * - input: where deliveries go (player zone AND conveyors). It accepts `accepts` items. When `display`
+ *   differs from `accepts` (walk-in counter: logs in, plank bundles out), every arriving item is
+ *   CONVERTED ON LANDING: the flying log is released to the pool and a new `display` item pops into the
+ *   very slot that was reserved for it (pile capacity stays honest the whole time). Without conversion
+ *   `input === pile`.
+ * - zone: player.arms → input transfer zone (kinds [accepts], TIMING.dropInterval, marker).
  * - appear(): scale-bounce in (ctx.tweens.popIn) + emit 'built' { what: opts.id, position, object }.
  *   Counters created at level start call nothing (they are simply there).
  */
 import * as THREE from 'three';
-import { TIMING, rect, type PileGrid, type Rect } from '../config';
-import type { GameContext, ItemKind } from '../core/types';
+import { PALETTE, TIMING, rect, type PileGrid, type Rect } from '../config';
+import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 import { Pile } from '../items/Pile';
 import type { Zone } from '../items/Zones';
+import { geo, mesh, toon } from '../render/materials';
 
 export interface CounterOptions {
   /** Holder id of the top pile, e.g. 'counter:walkIn'. */
@@ -29,22 +33,32 @@ export interface CounterOptions {
   depth: number;
   height: number;
   rotationY: number;
+  /** Kind delivered by the player / conveyors. */
   accepts: ItemKind;
+  /** Kind shown on the counter and bought by NPCs (default: `accepts`). */
+  display?: ItemKind;
   grid: PileGrid;
   playerZone: Rect;
 }
 
 export class Counter {
   readonly object = new THREE.Group();
+  /** The items on the table (kind = display). NPCs take from here. */
   readonly pile: Pile;
+  /** Delivery target for the player zone and conveyors (kind = accepts). */
+  readonly input: ItemHolder;
   readonly zone: Zone;
+  /** What NPCs buy here. */
+  readonly displayKind: ItemKind;
 
   constructor(
     readonly ctx: GameContext,
     readonly opts: CounterOptions,
   ) {
+    this.displayKind = opts.display ?? opts.accepts;
     this.object.position.set(opts.x, 0, opts.z);
     this.object.rotation.y = opts.rotationY;
+    this.object.add(mesh(geo.boxBase(opts.length, opts.height, opts.depth), toon(PALETTE.fence)));
     ctx.scene.add(this.object);
     const alongZ = Math.abs(Math.sin(opts.rotationY)) > 0.5;
     ctx.colliders.addBox(
@@ -53,16 +67,20 @@ export class Counter {
     );
     this.pile = new Pile(ctx, {
       id: opts.id,
-      accepts: [opts.accepts],
+      accepts: [this.displayKind],
       position: new THREE.Vector3(0, opts.height, 0),
       parent: this.object,
       grid: opts.grid,
     });
+    this.input =
+      this.displayKind === opts.accepts
+        ? this.pile
+        : new ConvertingInput(ctx, `${opts.id}:input`, this.pile, opts.accepts, this.displayKind);
     this.zone = ctx.zones.addTransfer({
       id: `${opts.id}:drop`,
       area: opts.playerZone,
       from: ctx.player.arms,
-      to: this.pile,
+      to: this.input,
       kinds: [opts.accepts],
       interval: TIMING.dropInterval,
       marker: true,
@@ -76,5 +94,73 @@ export class Counter {
 
   appear(): void {
     this.ctx.tweens.popIn(this.object);
+    const position = this.object.getWorldPosition(new THREE.Vector3());
+    this.ctx.events.emit('built', { what: this.opts.id, position, object: this.object });
+  }
+}
+
+interface ConvertSlot extends Slot {
+  readonly inner: Slot;
+  readonly product: Item;
+}
+
+/**
+ * Delivery holder that converts on landing: reserves a pile slot for a hidden `to` item, and when the
+ * `from` item lands, releases it and drops the product into that slot.
+ */
+class ConvertingInput implements ItemHolder {
+  constructor(
+    readonly ctx: GameContext,
+    readonly id: string,
+    readonly pile: Pile,
+    readonly from: ItemKind,
+    readonly to: ItemKind,
+  ) {}
+
+  canAccept(kind: ItemKind): boolean {
+    return kind === this.from && this.pile.canAccept(this.to);
+  }
+
+  reserve(_item: Item): Slot {
+    const product = this.ctx.items.create(this.to);
+    product.object.visible = false;
+    const inner = this.pile.reserve(product);
+    const slot: ConvertSlot = { holder: this, inner, product };
+    return slot;
+  }
+
+  getSlotWorldPosition(slot: Slot, out: THREE.Vector3): THREE.Vector3 {
+    return this.pile.getSlotWorldPosition((slot as ConvertSlot).inner, out);
+  }
+
+  getSlotWorldQuaternion(slot: Slot, out: THREE.Quaternion): THREE.Quaternion {
+    return this.pile.getSlotWorldQuaternion((slot as ConvertSlot).inner, out);
+  }
+
+  receive(item: Item, slot: Slot): void {
+    const s = slot as ConvertSlot;
+    this.ctx.items.release(item);
+    s.product.object.visible = true;
+    this.pile.receive(s.product, s.inner);
+  }
+
+  cancel(slot: Slot): void {
+    const s = slot as ConvertSlot;
+    this.pile.cancel(s.inner);
+    this.ctx.items.release(s.product);
+  }
+
+  /** The input never holds anything itself. */
+  count(_kind?: ItemKind): number {
+    return 0;
+  }
+
+  take(_kind?: ItemKind): Item | null {
+    return null;
+  }
+
+  /** Lets transfer zones place the 'stack:full' hint on the counter top. */
+  topWorldPosition(out: THREE.Vector3): THREE.Vector3 {
+    return this.pile.topWorldPosition(out);
   }
 }

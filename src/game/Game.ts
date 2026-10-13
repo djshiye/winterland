@@ -35,6 +35,8 @@ const MAX_DT = 1 / 20;
 export interface DebugApi {
   game: Game;
   ctx: GameContext;
+  /** Gameplay composition root (stations, NPC queues, pads, progression). */
+  level: Level;
   state(): Record<string, unknown>;
   pause(): void;
   resume(): void;
@@ -210,6 +212,7 @@ export class Game {
     window.__WINTERLAND__ = {
       game: this,
       ctx,
+      level: this.level,
       state: () => this.snapshot(),
       pause: () => {
         this.paused = true;

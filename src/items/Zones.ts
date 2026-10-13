@@ -206,7 +206,7 @@ class TransferZone extends Zone {
   }
 }
 
-const ALL_KINDS: readonly ItemKind[] = ['log', 'crate', 'cash'];
+const ALL_KINDS: readonly ItemKind[] = ['log', 'plank', 'crate', 'cash'];
 
 interface HasTop {
   topWorldPosition(out: THREE.Vector3): THREE.Vector3;

@@ -25,7 +25,7 @@
  *   in the target zone; go quiet once everything is automated except for affordable pads.
  */
 import type { GameContext, PadId, Phase } from '../core/types';
-import type { Level } from '../level/GameLevel';
+import type { Level } from '../level/Level';
 
 const ORDER: PadId[] = ['harvester', 'processor', 'westConveyor', 'eastConveyor', 'megaSaw'];
 
