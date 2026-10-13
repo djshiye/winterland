@@ -177,6 +177,16 @@ export class CarryStack implements ItemHolder {
   }
 
   // --- extras ---------------------------------------------------------------
+  /** Dollars in the landed cash bundles (a cashier's load). */
+  totalValue(): number {
+    let v = 0;
+    for (let i = 0; i < this.entries.length; i++) {
+      const item = this.entries[i]!.item;
+      if (item && item.kind === 'cash') v += item.value;
+    }
+    return v;
+  }
+
   /** Landed + reserved items. */
   get size(): number {
     return this.entries.length;

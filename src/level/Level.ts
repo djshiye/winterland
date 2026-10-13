@@ -251,18 +251,23 @@ export class Level {
   /** What lies in the world, for the save (counts include items still flying toward each pile). */
   snapshotWorld(): WorldSnapshot {
     const arms = this.ctx.player.arms;
+    // What the crew carries goes back where it came from (helpers respawn empty-handed at their posts).
+    const runner = this.crew.get('crateRunner')?.stack;
+    const hauler = this.crew.get('logHauler')?.stack;
+    const cashier = this.crew.get('cashier')?.stack;
     return {
       piles: {
         // Logs riding the belts go back to the drop zone on load.
-        dropZone: this.dropZone.pile.total + (this.westConveyor?.load ?? 0) + (this.eastConveyor?.load ?? 0),
+        dropZone:
+          this.dropZone.pile.total + (this.westConveyor?.load ?? 0) + (this.eastConveyor?.load ?? 0) + (hauler?.count('log') ?? 0),
         walkIn: this.walkInCounter.pile.total,
         hopper: this.processor?.input.total ?? 0,
-        bench: this.processor?.output.total ?? 0,
+        bench: (this.processor?.output.total ?? 0) + (runner?.count('crate') ?? 0),
         se: this.seCounter?.pile.total ?? 0,
         truck: this.truckCounter?.pile.total ?? 0,
       },
       cash: {
-        walkIn: this.walkInCash.value,
+        walkIn: this.walkInCash.value + (cashier?.totalValue() ?? 0),
         se: this.seCash?.value ?? 0,
         truck: this.truckCash?.value ?? 0,
       },
