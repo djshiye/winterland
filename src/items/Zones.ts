@@ -190,7 +190,7 @@ class TransferZone extends Zone {
       if (!item) {
         this.timer = 0;
         this.interval = this.base; // nothing to move: next burst starts slow again
-        this.checkFull(ctx);
+        if (!t.cashAmount) this.checkFull(ctx); // a full / fully reserved pad is not a "full stack"
         break;
       }
       moved++;

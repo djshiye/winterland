@@ -68,7 +68,7 @@ export function transferCash(
   amount: number,
   opts?: FlightOptions,
 ): Item | null {
-  if (amount < 1 || !to.canAccept('cash')) return null;
+  if (!(amount >= 1) || !to.canAccept('cash')) return null;
   const item = from.takeValue(amount);
   if (!item) return null;
   if (item.object.parent !== ctx.scene) ctx.scene.attach(item.object);

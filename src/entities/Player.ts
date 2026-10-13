@@ -82,7 +82,14 @@ export class Player {
     this.axe = createAxe(0);
     this.rig.handR.add(this.axe);
     this.axe.visible = false;
-    this.arms = new CarryStack(ctx, { id: 'player.arms', accepts: ['log', 'crate'], capacity: ctx.upgrades.value('carry'), anchor: this.rig.armsAnchor });
+    // Tall loads split into columns (25 logs → 2 columns, 25 crates → a 2×2 block) so the stack stays readable.
+    this.arms = new CarryStack(ctx, {
+      id: 'player.arms',
+      accepts: ['log', 'crate'],
+      capacity: ctx.upgrades.value('carry'),
+      anchor: this.rig.armsAnchor,
+      columnHeight: 3.4,
+    });
     this.back = new CashStack(ctx, { id: 'player.back', anchor: this.rig.backAnchor, maxVisual: PLAYER.cashVisualCap });
     this.syncUpgrades();
   }

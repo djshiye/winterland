@@ -63,15 +63,20 @@ export class SwaySpring {
     }
   }
 
-  /** Horizontal bend profile at anchor-local height `y`: 0 at the base, 1 at SWAY_REF_HEIGHT. */
+  /**
+   * Horizontal bend profile at anchor-local height `y`: 0 at the base, 1 at SWAY_REF_HEIGHT, then growing only
+   * gently (tall columns must not whip around).
+   */
   static profile(y: number): number {
     const r = y / SWAY_REF_HEIGHT;
-    return r <= 0 ? 0 : Math.pow(r, 1.5);
+    if (r <= 0) return 0;
+    return r <= 1 ? Math.pow(r, 1.5) : 1 + 0.45 * (r - 1);
   }
 
   /** Slope of the profile (rad of tilt per unit lean) at height `y`. */
   static slope(y: number): number {
     const r = y / SWAY_REF_HEIGHT;
-    return r <= 0 ? 0 : (1.5 * Math.sqrt(r)) / SWAY_REF_HEIGHT;
+    if (r <= 0) return 0;
+    return (r <= 1 ? 1.5 * Math.sqrt(r) : 0.45) / SWAY_REF_HEIGHT;
   }
 }
