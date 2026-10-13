@@ -7,7 +7,7 @@
  *   → camera → shadow focus → HUD (projects world anchors) → render
  */
 import * as THREE from 'three';
-import { ECONOMY } from '../config';
+import { ECONOMY, LAYOUT, PADS, PLAYER, TIMING } from '../config';
 import { EventBus } from '../core/EventBus';
 import { Economy } from '../core/Economy';
 import { TweenManager } from '../core/Tween';
@@ -37,6 +37,8 @@ export interface DebugApi {
   ctx: GameContext;
   /** Gameplay composition root (stations, NPC queues, pads, progression). */
   level: Level;
+  /** Read-only tuning tables (bots/tests derive positions from these instead of hard-coding). */
+  config: { LAYOUT: typeof LAYOUT; PADS: typeof PADS; ECONOMY: typeof ECONOMY; PLAYER: typeof PLAYER; TIMING: typeof TIMING };
   state(): Record<string, unknown>;
   pause(): void;
   resume(): void;
@@ -213,6 +215,7 @@ export class Game {
       game: this,
       ctx,
       level: this.level,
+      config: { LAYOUT, PADS, ECONOMY, PLAYER, TIMING },
       state: () => this.snapshot(),
       pause: () => {
         this.paused = true;

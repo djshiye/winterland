@@ -137,7 +137,7 @@ try {
           return String(v);
         }
       }, arg);
-      log(`eval ${arg} →`, result);
+      log(`eval ${arg.length > 160 ? `${arg.slice(0, 120).replace(/\s+/g, ' ')}…` : arg} →`, result);
     } else if (kind === 'state') {
       const s = await page.evaluate(() => JSON.stringify(window.__WINTERLAND__.state(), null, 1));
       log('state', s.replace(/\n\s*/g, ' '));

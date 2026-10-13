@@ -2,13 +2,14 @@
   "name": "winterland",
   "private": true,
   "version": "0.1.0",
-  "description": "Winterland — a 3D isometric arcade-idle lumber mill game (Three.js + TypeScript + Vite)",
+  "description": "Winterland \u2014 a 3D isometric arcade-idle lumber mill game (Three.js + TypeScript + Vite)",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "playtest": "node scripts/playtest.mjs"
   },
   "dependencies": {
     "three": "0.186.1"
