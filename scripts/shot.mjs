@@ -101,8 +101,8 @@ try {
     const t = msg.type();
     if (t === 'error' || t === 'warning') {
       const text = msg.text();
-      // Fonts are optional in headless/offline runs.
-      if (/fonts\.(googleapis|gstatic)\.com|ERR_NAME_NOT_RESOLVED|Failed to load resource/.test(text)) return;
+      // Web fonts are optional in headless/offline runs.
+      if (/fonts\.(googleapis|gstatic)\.com/.test(`${text} ${msg.location()?.url ?? ''}`)) return;
       console.log(`[page ${t}] ${text}`);
       if (t === 'error') errors.push(text);
     }

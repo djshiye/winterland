@@ -57,6 +57,11 @@ export interface Slot {
  *   5. on arrival: to.receive(item, slot)  → holder re-parents and places the item
  */
 export interface ItemHolder {
+  /**
+   * Stable id. Convention: 'player.arms', 'player.back', 'pad:<padId>', 'pile:<name>',
+   * 'counter:<name>', 'conveyor:<name>', 'npc:<kind>:<n>'. To tell holders apart prefer identity
+   * (holder === ctx.player.arms); the prefix is a fallback.
+   */
   readonly id: string;
   /** True if one more item of `kind` fits right now (counting in-flight reservations). */
   canAccept(kind: ItemKind): boolean;
@@ -166,8 +171,8 @@ export interface GameEvents {
   'pad:shown': { id: PadId; position: THREE.Vector3 };
   'pad:paid': { id: PadId; remaining: number; cost: number; position: THREE.Vector3 };
   'pad:unlocked': { id: PadId; position: THREE.Vector3 };
-  /** Something new was constructed (pad effect); `object` is its root for squash/pop effects. */
-  built: { what: string; position: THREE.Vector3 };
+  /** Something new was constructed (pad effect). `object` (if given) is its root, for extra squash/pop effects. */
+  built: { what: string; position: THREE.Vector3; object?: THREE.Object3D };
   'phase:changed': { phase: Phase };
   'intro:crash': { position: THREE.Vector3 };
   'intro:done': Record<string, never>;

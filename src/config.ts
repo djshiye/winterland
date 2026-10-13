@@ -468,8 +468,3 @@ export const LAYOUT = {
   /** Cosy cabin in the yard's -Z/+X corner (solid). */
   cabin: rect(7.8, -7.8, 3.6, 3.0),
 } as const;
-
-/** Distance at which world pickups / drop-offs consider the player "near" (zones handle most cases). */
-export const INTERACT = {
-  zoneMarkerColor: PALETTE.zoneMarker,
-} as const;

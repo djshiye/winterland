@@ -1,5 +1,5 @@
 /**
- * [B3 — world & juice] DOM overlay HUD. STUB: replace bodies, keep the public API.
+ * [B4 — juice & HUD] DOM overlay HUD. STUB: replace bodies, keep the public API.
  *
  * Styles live in your own CSS file imported by this module (e.g. src/ui/hud.css). Chunky rounded
  * "mobile game" look: font GAME_FONT (Fredoka, loaded by index.html), white text with dark outline /

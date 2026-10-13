@@ -1,5 +1,5 @@
 /**
- * [B3 — world & juice] Procedural WebAudio sound effects (no audio files). STUB: replace bodies,
+ * [B4 — juice & HUD] Procedural WebAudio sound effects (no audio files). STUB: replace bodies,
  * keep the public API.
  *
  * - One AudioContext, created lazily; unlock() resumes it (called on the first user gesture).

@@ -1,5 +1,5 @@
 /**
- * [B3 — world & juice] Turns game events into feel: sounds, particles, floating text, camera shake.
+ * [B4 — juice & HUD] Turns game events into feel: sounds, particles, floating text, camera shake.
  * STUB: replace bodies, keep the public API. Gameplay code only emits events (types.ts GameEvents);
  * this class decides how they look and sound, so juice can be tuned in one place.
  *

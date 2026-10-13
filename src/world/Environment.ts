@@ -1,5 +1,5 @@
 /**
- * [B3 — world & juice] Static scenery + ambient animation. STUB: replace bodies, keep the public API.
+ * [B3 — world] Static scenery + ambient animation. STUB: replace bodies, keep the public API.
  *
  * Builds (all procedural primitives, toon materials from materials.ts, PALETTE colours, receive
  * shadows; tall props cast shadows; merge/instance repeated props — trees, fence posts, rocks):

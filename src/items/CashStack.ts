@@ -13,6 +13,9 @@
  *   Afterwards the visuals re-sync (if money still exceeds the cap the stack stays full).
  * - sync() also runs on every 'money:changed' event (e.g. debug addMoney) — new bundles pop in,
  *   surplus ones pop out. Same sway behaviour as CarryStack (share code if you like).
+ * - RE-ENTRANCY: economy.add()/spend() emit 'money:changed' SYNCHRONOUSLY, which triggers sync().
+ *   In receive()/take(), append/detach the visual bundle FIRST and only then touch the economy (or
+ *   guard sync() with a flag) — otherwise sync() adds/removes a bundle and you end up off by one.
  */
 import type * as THREE from 'three';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';

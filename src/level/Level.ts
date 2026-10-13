@@ -39,7 +39,7 @@ export class Level {
     const slab = mesh(geo.boxBase(dz.slab.w, 0.08, dz.slab.d), toon(PALETTE.dropSlab), { cast: false });
     slab.position.set(dz.x, 0, dz.z);
     ctx.scene.add(slab);
-    const dropZone = new Pile(ctx, { id: 'dropZone', accepts: ['log'], position: new THREE.Vector3(dz.x, 0.08, dz.z), grid: dz.grid });
+    const dropZone = new Pile(ctx, { id: 'pile:dropZone', accepts: ['log'], position: new THREE.Vector3(dz.x, 0.08, dz.z), grid: dz.grid });
     dropZone.fill('log', 12);
     ctx.colliders.addBox(dz.collider, 'dropZone');
     ctx.zones.addTransfer({ id: 'dropZone>arms', area: dz.zone, from: dropZone, to: ctx.player.arms, kinds: ['log'], marker: true });
@@ -51,7 +51,7 @@ export class Level {
     table.position.set(wc.x, 0, wc.z);
     ctx.scene.add(table);
     ctx.colliders.addBox(rect(wc.x, wc.z, wc.length, wc.depth), 'walkInCounter');
-    const counter = new Pile(ctx, { id: 'walkInCounter', accepts: ['log'], position: new THREE.Vector3(wc.x, wc.height, wc.z), grid: wc.grid });
+    const counter = new Pile(ctx, { id: 'counter:walkIn', accepts: ['log'], position: new THREE.Vector3(wc.x, wc.height, wc.z), grid: wc.grid });
     ctx.zones.addTransfer({
       id: 'arms>walkInCounter',
       area: wc.playerZone,
@@ -66,7 +66,7 @@ export class Level {
     // Cash pile next to the counter.
     const wcash = L.walkInCash;
     const cash = new Pile(ctx, {
-      id: 'walkInCash',
+      id: 'pile:walkInCash',
       accepts: ['cash'],
       position: new THREE.Vector3(wcash.x, 0, wcash.z),
       grid: wcash.grid,
