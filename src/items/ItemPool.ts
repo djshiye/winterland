@@ -100,6 +100,10 @@ function buildVisual(kind: ItemKind): THREE.Group {
     const ring = toon(PALETTE.woodRing);
     const end = toon(PALETTE.woodEnd);
     g.add(shadowed(new THREE.Mesh(p.caps, [ring, end, ring, end])));
+  } else if (kind === 'plank') {
+    // Placeholder until the AssetFactory plank bundle lands.
+    const { w, h, d } = ITEM_SIZE.plank;
+    g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), toon(PALETTE.plank))));
   } else if (kind === 'crate') {
     const p = getCrateParts();
     g.add(shadowed(new THREE.Mesh(p.body, toon(PALETTE.crate))));
@@ -117,7 +121,7 @@ function buildVisual(kind: ItemKind): THREE.Group {
 
 export class ItemPool {
   private nextId = 1;
-  private readonly free: Record<ItemKind, Item[]> = { log: [], crate: [], cash: [] };
+  private readonly free: Record<ItemKind, Item[]> = { log: [], plank: [], crate: [], cash: [] };
   private readonly live = new Set<Item>();
 
   constructor(readonly ctx: GameContext) {}

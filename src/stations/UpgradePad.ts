@@ -6,12 +6,17 @@
  * the player stands on a pad while carrying Cash, cash bundles fly from the player's stack into the pad,
  * counting down the cost to 0 and triggering the unlock with a scale-bounce animation."
  *
- * - Model: slightly raised rounded tile (def.size², PALETTE.padBase) with a white border; a canvas
- *   texture on top showing the icon (def.icon drawn procedurally: saw blade / factory / conveyor / giant
- *   saw) and the remaining cost "$100" in big chunky text (GAME_FONT), redrawn when it changes; a
- *   progress fill (PALETTE.padFill) that grows with the paid fraction (e.g. border filling up or a fill
- *   rising across the tile); the label (def.label) on a small floating sign/billboard. Idle: soft pulse;
- *   while being paid: each bundle landing punches the tile (ctx.tweens.punchScale small).
+ * Art spec — the tile face is AssetFactory createPadTexture(iconType, costText, progressRatio) in
+ * assets/pads.ts (yours): 256×256 offscreen canvas; dark grey #4A4A4A rounded rect with a white border
+ * (lineWidth 10); a green #2ECC71 fill rising bottom-to-top with progressRatio (paid fraction); a white
+ * silhouette icon in the upper half (chainsaw/claw for the harvester, factory box for the processor,
+ * conveyor arrows for belts, giant blade for the mega saw — def.icon); a green bill icon bottom-left +
+ * bold 56px white text with the remaining amount. RE-RENDER whenever the cost decrements (redraw the
+ * same canvas, texture.needsUpdate = true — don't allocate a new texture per bundle).
+ *
+ * - Model: slightly raised tile (def.size²) carrying that texture on top; the label (def.label) on a
+ *   small floating sign/billboard is nice. Idle: soft pulse; while being paid: each bundle landing
+ *   punches the tile (ctx.tweens.punchScale small).
  * - ItemHolder (id 'pad:<id>'): accepts 'cash' while visible, not unlocked and remaining − pending > 0.
  *   reserve() adds item.value to pending; receive() subtracts it from remaining, releases the bundle to
  *   the pool, emits 'pad:paid'; at 0 → unlock: big scale-bounce, then pop out; mark unlocked and emit

@@ -8,22 +8,26 @@
  * they swing an axe automatically. Chopped wood pieces fly out and land neatly in the grey 'Raw Log
  * Drop Zone' pile."
  *
- * - Model (LAYOUT.giantLog, axis along world Z): huge bark cylinder (PALETTE.bark) with darker bark
- *   ridges/strips, knots and a couple of broken branch stubs, snow lying along the top, end caps with
- *   light wood + concentric growth rings (canvas texture). Floats: slow bob + slight roll; a white
- *   foam/ripple ring where it meets the water (y = LAYOUT.river.waterY).
+ * Art spec (AssetFactory createGiantLog in assets/machines.ts — yours): cylinder r 1.8, length 12 in
+ * LOG_BARK lying along world Z on the river (LAYOUT.giantLog); END CAPS r 1.65 in LOG_CORE with 3
+ * concentric darker rings; a lighter yellow CUT BAND (LOG_CUT_BAND #F7D070) around the trunk at the
+ * active chopping section (LAYOUT.giantLog.cutZ) — the notch the axe is biting into. Extra bark detail
+ * (ridges, knots, a snow strip on top) is welcome as long as the palette holds. Floats: slow bob +
+ * slight roll; a foam ring (RIVER_FOAM) where it meets the water (y = LAYOUT.river.waterY).
+ *
  * - playIntro(onCrash, onSettled): start at introStartZ, float +Z (speeding up a little) for
- *   introDuration, hit the gate: emit 'intro:crash' { position: gate contact point }, call onCrash,
- *   bounce back ~0.7 and settle with a damped spring (~1 s), then call onSettled. (Camera work is the
- *   caller's.) placeAtRest(): skip straight to the resting pose.
+ *   introDuration, hit the gate (gateZ): emit 'intro:crash' { position: gate contact point }, call
+ *   onCrash, bounce back ~0.7 and settle with a damped spring (~1 s), then call onSettled. (Camera work
+ *   is the caller's.) placeAtRest(): skip straight to the resting pose.
  * - Chopping: a zone over LAYOUT.chopZone (marker on) that, while enabled (setChoppable) and the player
  *   is inside, calls ctx.player.setChopTarget(surfacePoint(player position)) every step — or null when
- *   the drop zone is full; onExit → setChopTarget(null). Listen to 'player:chopHit' → chopPiece(point,
- *   'player') (only while choppable).
+ *   the drop zone is full; onExit → setChopTarget(null). surfacePoint aims at the cut band (cutZ) on
+ *   the trunk side facing the yard. Listen to 'player:chopHit' → chopPiece(point, 'player') (only while
+ *   choppable). NOTE: the chopHit `position` is a vector reused by Player — copy it if you keep it.
  * - chopPiece(from, source): if the drop zone pile can accept a log → launchNew('log', from, pile,
  *   { duration: TIMING.launchTime, arcHeight: TIMING.launchHeight, spin: 1 }); emit 'log:chopped';
- *   stats.logsChopped++; a small punch/wobble of the trunk; return true. Else false.
- *   Used by the player, the Harvester and the MegaSaw.
+ *   stats.logsChopped++; a small punch/wobble of the trunk + a flash of the cut band; return true.
+ *   Else false. Used by the player, the Harvester and the MegaSaw.
  */
 import * as THREE from 'three';
 import { LAYOUT, PALETTE, TIMING } from '../config';
@@ -85,11 +89,11 @@ export class GiantLog {
     if (!on) this.ctx.player.setChopTarget(null);
   }
 
-  /** Point on the trunk surface nearest to `near` (at roughly chest height). */
+  /** Strike point on the cut band (trunk side facing the yard, roughly chest height). */
   surfacePoint(near: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
     const g = LAYOUT.giantLog;
     const p = this.object.position;
-    const z = clamp(near.z, p.z - g.length / 2 + 0.4, p.z + g.length / 2 - 0.4);
+    const z = clamp(near.z, g.cutZ - 0.6, g.cutZ + 0.6);
     return out.set(p.x + g.radius * 0.85, 0.8, z);
   }
 

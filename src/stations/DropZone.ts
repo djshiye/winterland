@@ -5,12 +5,12 @@
  * Spec: "a grey rectangular 'Raw Log Drop Zone' on the ground"; "Chopped wood pieces fly out and land
  * neatly in the grey 'Raw Log Drop Zone' pile"; "Player walks over the Raw Log Drop Zone to pick up
  * logs into their vertical carry stack."
- * - Slab: LAYOUT.dropZone.slab size, PALETTE.dropSlab with a darker bevelled edge (dropSlabEdge),
+ * - Art spec (AssetFactory createDropZoneSlab in assets/machines.ts — yours): low slab in
+ *   DROP_ZONE_GREY (#8E969E) with a lighter DROP_ZONE_BORDER (#D6DCDF) rim, LAYOUT.dropZone.slab size;
  *   maybe painted corner marks / a faint log icon. Pile sits on the slab top.
- * - pile id 'pile:dropZone', accepts ['log'], LAYOUT.dropZone.grid (capacity 60).
+ * - pile id 'pile:dropZone', accepts ['log'], LAYOUT.dropZone.grid (capacity 84).
  * - zone: pile → player.arms (kinds ['log'], TIMING.pickupInterval, marker) over LAYOUT.dropZone.zone.
  * - Collider LAYOUT.dropZone.collider (the pile is solid; the player picks up from beside it).
- * - While full: a "FULL" badge (canvas sprite) above the pile, gently bobbing.
  */
 import * as THREE from 'three';
 import { LAYOUT, PALETTE, TIMING } from '../config';

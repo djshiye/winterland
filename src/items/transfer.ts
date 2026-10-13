@@ -5,7 +5,7 @@ import type * as THREE from 'three';
 import type { GameContext, Item, ItemHolder, ItemKind } from '../core/types';
 import type { FlightOptions } from './FlightSystem';
 
-const ALL_KINDS: readonly ItemKind[] = ['log', 'crate', 'cash'];
+const ALL_KINDS: readonly ItemKind[] = ['log', 'plank', 'crate', 'cash'];
 
 /**
  * Move one item from `from` to `to` with a flight. Tries `kinds` in order (default: every kind);

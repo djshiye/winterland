@@ -1,128 +1,251 @@
 /**
- * [MAIN — wave-1 sandbox] Temporary level used to integrate and test the wave-1 systems (piles,
- * carry stacks, flights, zones, chopping) at their real layout positions. Wave 2 replaces this file
- * with the real game level — the public API (constructor, start, update, skipIntro, forceUnlock,
- * snapshot) must stay the same because game/Game.ts calls it.
+ * [MAIN] Gameplay composition root: creates every station / NPC system at its layout position and
+ * builds what each upgrade pad unlocks. Owned by the main session.
+ *
+ * Split of responsibilities:
+ * - Level (this file): construction + the *effects* of unlocks (applyUnlock, idempotent).
+ * - UpgradePad: payment + the unlock moment; emits 'pad:unlocked'.
+ * - Progression: *when* pads appear, phases, intro cinematic, tutorial guide, camera moments.
  */
 import * as THREE from 'three';
-import { LAYOUT, PALETTE, TIMING, rect } from '../config';
-import { clamp } from '../core/math';
+import { CAMERA, LAYOUT, PADS, type PadIdConst, type XZ } from '../config';
 import type { GameContext, PadId } from '../core/types';
-import { Pile } from '../items/Pile';
-import { launchNew } from '../items/transfer';
-import { geo, mesh, toon } from '../render/materials';
+import { CustomerQueue } from '../npc/CustomerQueue';
+import { TricycleQueue } from '../npc/TricycleQueue';
+import { TruckQueue } from '../npc/TruckQueue';
+import { Progression } from '../progression/Progression';
+import { CashPile } from '../stations/CashPile';
+import { Conveyor } from '../stations/Conveyor';
+import { Counter } from '../stations/Counter';
+import { DropZone } from '../stations/DropZone';
+import { GiantLog } from '../stations/GiantLog';
+import { Harvester } from '../stations/Harvester';
+import { MegaSaw } from '../stations/MegaSaw';
+import { Processor } from '../stations/Processor';
+import { UpgradePad } from '../stations/UpgradePad';
 
 export class Level {
-  private dropZone: Pile | null = null;
-  private counter: Pile | null = null;
-  private cash: Pile | null = null;
-  private sellTimer = 0;
-  private readonly chopPoint = new THREE.Vector3();
-  private readonly tmp = new THREE.Vector3();
+  readonly dropZone: DropZone;
+  readonly giantLog: GiantLog;
+  readonly walkInCounter: Counter;
+  readonly walkInCash: CashPile;
+  readonly customers: CustomerQueue;
+  readonly pads: Record<PadId, UpgradePad>;
+  readonly progression: Progression;
 
-  constructor(readonly ctx: GameContext) {}
+  harvester: Harvester | null = null;
+  processor: Processor | null = null;
+  seCounter: Counter | null = null;
+  seCash: CashPile | null = null;
+  tricycles: TricycleQueue | null = null;
+  westConveyor: Conveyor | null = null;
+  eastConveyor: Conveyor | null = null;
+  megaSaw: MegaSaw | null = null;
+  truckCounter: Counter | null = null;
+  truckCash: CashPile | null = null;
+  trucks: TruckQueue | null = null;
+
+  constructor(readonly ctx: GameContext) {
+    // Level reacts to unlocks before Progression does (Progression reads ctx.state.unlocked).
+    ctx.events.on('pad:unlocked', ({ id }) => this.applyUnlock(id));
+
+    this.dropZone = new DropZone(ctx);
+    this.giantLog = new GiantLog(ctx, { dropZone: this.dropZone });
+
+    const wc = LAYOUT.walkInCounter;
+    this.walkInCounter = new Counter(ctx, {
+      id: 'counter:walkIn',
+      x: wc.x,
+      z: wc.z,
+      length: wc.length,
+      depth: wc.depth,
+      height: wc.height,
+      rotationY: wc.rotationY,
+      // Logs are delivered; each one becomes a plank bundle on landing. Customers buy planks.
+      accepts: 'log',
+      display: 'plank',
+      grid: wc.grid,
+      playerZone: wc.playerZone,
+    });
+    const wcash = LAYOUT.walkInCash;
+    this.walkInCash = new CashPile(ctx, { id: 'pile:walkInCash', x: wcash.x, z: wcash.z, grid: wcash.grid, zone: wcash.zone });
+    this.customers = new CustomerQueue(ctx, { counter: this.walkInCounter, cash: this.walkInCash });
+
+    const pads = {} as Record<PadId, UpgradePad>;
+    for (const id of Object.keys(PADS) as PadIdConst[]) pads[id] = new UpgradePad(ctx, PADS[id]);
+    this.pads = pads;
+
+    this.progression = new Progression(ctx, this);
+  }
 
   start(): void {
-    const ctx = this.ctx;
-    const L = LAYOUT;
-    ctx.state.phase = 'manual';
-
-    // Giant log stand-in (wave 2 builds the real one with its intro).
-    const g = L.giantLog;
-    const log = mesh(geo.cylinder(g.radius, g.radius, g.length, 20), toon(PALETTE.bark));
-    log.rotation.x = Math.PI / 2;
-    log.position.set(g.x, g.y, g.z);
-    ctx.scene.add(log);
-
-    // Raw log drop zone: grey slab + pile + pickup zone.
-    const dz = L.dropZone;
-    const slab = mesh(geo.boxBase(dz.slab.w, 0.08, dz.slab.d), toon(PALETTE.dropSlab), { cast: false });
-    slab.position.set(dz.x, 0, dz.z);
-    ctx.scene.add(slab);
-    const dropZone = new Pile(ctx, { id: 'pile:dropZone', accepts: ['log'], position: new THREE.Vector3(dz.x, 0.08, dz.z), grid: dz.grid });
-    dropZone.fill('log', 12);
-    ctx.colliders.addBox(dz.collider, 'dropZone');
-    ctx.zones.addTransfer({ id: 'dropZone>arms', area: dz.zone, from: dropZone, to: ctx.player.arms, kinds: ['log'], marker: true });
-    this.dropZone = dropZone;
-
-    // Walk-in counter: table + pile on top + drop-off zone.
-    const wc = L.walkInCounter;
-    const table = mesh(geo.boxBase(wc.length, wc.height, wc.depth), toon(PALETTE.plank));
-    table.position.set(wc.x, 0, wc.z);
-    ctx.scene.add(table);
-    ctx.colliders.addBox(rect(wc.x, wc.z, wc.length, wc.depth), 'walkInCounter');
-    const counter = new Pile(ctx, { id: 'counter:walkIn', accepts: ['log'], position: new THREE.Vector3(wc.x, wc.height, wc.z), grid: wc.grid });
-    ctx.zones.addTransfer({
-      id: 'arms>walkInCounter',
-      area: wc.playerZone,
-      from: ctx.player.arms,
-      to: counter,
-      kinds: ['log'],
-      interval: TIMING.dropInterval,
-      marker: true,
-    });
-    this.counter = counter;
-
-    // Cash pile next to the counter.
-    const wcash = L.walkInCash;
-    const cash = new Pile(ctx, {
-      id: 'pile:walkInCash',
-      accepts: ['cash'],
-      position: new THREE.Vector3(wcash.x, 0, wcash.z),
-      grid: wcash.grid,
-      overflowMerge: true,
-    });
-    cash.fill('cash', 6);
-    ctx.zones.addTransfer({ id: 'walkInCash>back', area: wcash.zone, from: cash, to: ctx.player.back, kinds: ['cash'], marker: true });
-    this.cash = cash;
-
-    // Chop zone on the river bank.
-    ctx.zones.add({
-      id: 'chop',
-      area: L.chopZone,
-      marker: true,
-      onStay: () => {
-        const z = clamp(ctx.player.position.z, g.z - g.length / 2 + 0.5, g.z + g.length / 2 - 0.5);
-        this.chopPoint.set(g.x + g.radius * 0.85, 0.8, z);
-        ctx.player.setChopTarget(dropZone.canAccept('log') ? this.chopPoint : null);
-      },
-      onExit: () => ctx.player.setChopTarget(null),
-    });
-    ctx.events.on('player:chopHit', ({ position }) => {
-      const item = launchNew(ctx, 'log', position, dropZone, {
-        duration: TIMING.launchTime,
-        arcHeight: TIMING.launchHeight,
-        spin: 1,
-      });
-      if (item) {
-        ctx.state.stats.logsChopped++;
-        ctx.events.emit('log:chopped', { position, source: 'player' });
-      }
-    });
+    this.progression.start();
   }
 
   update(dt: number): void {
-    // Stand-in for customers: one log off the counter every 0.6 s becomes a $5 bundle on the cash pile.
-    this.sellTimer += dt;
-    if (this.sellTimer < 0.6 || !this.counter || !this.cash) return;
-    this.sellTimer = 0;
-    const item = this.counter.take('log');
-    if (!item) return;
-    this.counter.topWorldPosition(this.tmp);
-    this.ctx.items.release(item);
-    launchNew(this.ctx, 'cash', this.tmp, this.cash);
-    this.ctx.state.stats.logsSold++;
+    this.dropZone.update(dt);
+    this.giantLog.update(dt);
+    this.customers.update(dt);
+    for (const id in this.pads) this.pads[id as PadId].update(dt);
+    this.harvester?.update(dt);
+    this.processor?.update(dt);
+    this.tricycles?.update(dt);
+    this.westConveyor?.update(dt);
+    this.eastConveyor?.update(dt);
+    this.megaSaw?.update(dt);
+    this.trucks?.update(dt);
+    this.progression.update(dt);
   }
 
-  skipIntro(): void {}
+  /** Build whatever pad `id` unlocks. Idempotent; called from the 'pad:unlocked' event. */
+  applyUnlock(id: PadId): void {
+    const s = this.ctx.state;
+    if (s.unlocked[id]) return;
+    s.unlocked[id] = true;
+    switch (id) {
+      case 'harvester':
+        this.harvester = new Harvester(this.ctx, { log: this.giantLog });
+        this.harvester.build();
+        break;
+      case 'processor':
+        this.ensureProcessor();
+        break;
+      case 'westConveyor':
+        this.westConveyor = new Conveyor(this.ctx, {
+          id: 'conveyor:west',
+          ...LAYOUT.westConveyor,
+          from: this.dropZone.pile,
+          to: this.walkInCounter.input,
+          kind: 'log',
+          itemYaw: 0,
+        });
+        this.westConveyor.build();
+        break;
+      case 'eastConveyor': {
+        const processor = this.ensureProcessor();
+        this.eastConveyor = new Conveyor(this.ctx, {
+          id: 'conveyor:east',
+          ...LAYOUT.eastConveyor,
+          from: this.dropZone.pile,
+          to: processor.input,
+          kind: 'log',
+          itemYaw: Math.PI / 2,
+        });
+        this.eastConveyor.build();
+        break;
+      }
+      case 'megaSaw':
+        this.buildExpansion();
+        break;
+    }
+  }
 
-  forceUnlock(_id: PadId): void {}
+  /** Processor + SE counter + SE cash pile + tricycle queue (built together by the processor pad). */
+  private ensureProcessor(): Processor {
+    if (this.processor) return this.processor;
+    if (!this.ctx.state.unlocked.processor) this.pads.processor.forceUnlock();
+    const ctx = this.ctx;
+    const processor = new Processor(ctx);
+    processor.build();
+    this.processor = processor;
+    const se = LAYOUT.seCounter;
+    this.seCounter = new Counter(ctx, {
+      id: 'counter:se',
+      x: se.x,
+      z: se.z,
+      length: se.length,
+      depth: se.depth,
+      height: se.height,
+      rotationY: se.rotationY,
+      accepts: 'crate',
+      grid: se.grid,
+      playerZone: se.playerZone,
+    });
+    this.seCounter.appear();
+    const sc = LAYOUT.seCash;
+    this.seCash = new CashPile(ctx, { id: 'pile:seCash', x: sc.x, z: sc.z, grid: sc.grid, zone: sc.zone });
+    this.tricycles = new TricycleQueue(ctx, { counter: this.seCounter, cash: this.seCash });
+    return processor;
+  }
+
+  /** Phase 5: mega saw, yard expansion north, trucks on the highway, camera zooms out. */
+  private buildExpansion(): void {
+    const ctx = this.ctx;
+    this.megaSaw = new MegaSaw(ctx, { log: this.giantLog });
+    this.megaSaw.build();
+    ctx.state.expanded = true;
+    ctx.events.emit('expansion:start', {});
+    ctx.environment.expand();
+    ctx.cameraRig.setZoom(CAMERA.expansionZoom, 1.6);
+    const ex = LAYOUT.expansion;
+    const tc = ex.truckCounter;
+    this.truckCounter = new Counter(ctx, {
+      id: 'counter:truck',
+      x: tc.x,
+      z: tc.z,
+      length: tc.length,
+      depth: tc.depth,
+      height: tc.height,
+      rotationY: tc.rotationY,
+      accepts: 'log',
+      grid: tc.grid,
+      playerZone: tc.playerZone,
+    });
+    this.truckCounter.appear();
+    const tcash = ex.truckCash;
+    this.truckCash = new CashPile(ctx, { id: 'pile:truckCash', x: tcash.x, z: tcash.z, grid: tcash.grid, zone: tcash.zone });
+    this.trucks = new TruckQueue(ctx, { counter: this.truckCounter, cash: this.truckCash });
+  }
+
+  /** Where the thing pad `id` builds stands (camera moments, guide arrows). */
+  anchorOf(id: PadId, out = new THREE.Vector3()): THREE.Vector3 {
+    switch (id) {
+      case 'harvester':
+        return out.set(LAYOUT.harvester.railX, 0, (LAYOUT.harvester.minTravelZ + LAYOUT.harvester.maxTravelZ) / 2);
+      case 'processor':
+        return out.set(LAYOUT.processor.x, 0, LAYOUT.processor.z);
+      case 'westConveyor':
+        return pathMidpoint(LAYOUT.westConveyor.path, out);
+      case 'eastConveyor':
+        return pathMidpoint(LAYOUT.eastConveyor.path, out);
+      case 'megaSaw':
+        return out.set(LAYOUT.megaSaw.x, 0, LAYOUT.megaSaw.z);
+    }
+  }
+
+  skipIntro(): void {
+    this.progression.skipIntro();
+  }
+
+  forceUnlock(id: PadId): void {
+    this.pads[id].forceUnlock();
+  }
 
   snapshot(): Record<string, unknown> {
+    const remaining: Partial<Record<PadId, number>> = {};
+    for (const id in this.pads) remaining[id as PadId] = this.pads[id as PadId].remaining;
     return {
-      dropZone: this.dropZone?.count() ?? 0,
-      counter: this.counter?.count() ?? 0,
-      cashPile: this.cash?.count() ?? 0,
+      dropZone: this.dropZone.pile.count(),
+      walkInCounter: this.walkInCounter.pile.count(),
+      walkInCash: this.walkInCash.value,
+      customersWaiting: this.customers.waiting,
+      hopper: this.processor?.input.count() ?? null,
+      processorOut: this.processor?.output.count() ?? null,
+      seCounter: this.seCounter?.pile.count() ?? null,
+      seCash: this.seCash?.value ?? null,
+      tricyclesWaiting: this.tricycles?.waiting ?? null,
+      westBelt: this.westConveyor?.load ?? null,
+      eastBelt: this.eastConveyor?.load ?? null,
+      truckCounter: this.truckCounter?.pile.count() ?? null,
+      truckCash: this.truckCash?.value ?? null,
+      padsRemaining: remaining,
     };
   }
+}
+
+/** Midpoint between a path's first and last points. */
+function pathMidpoint(path: readonly XZ[], out: THREE.Vector3): THREE.Vector3 {
+  const a = path[0]!;
+  const b = path[path.length - 1]!;
+  return out.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
 }

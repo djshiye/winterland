@@ -158,9 +158,9 @@ export const CAMERA = {
   /** Distance from target (orthographic: only matters for near/far clipping). */
   distance: 70,
   /** World units visible vertically at zoom 1. */
-  viewHeight: 21,
+  viewHeight: 16,
   /** On narrow (portrait) screens never show fewer than this many units across. */
-  minViewWidth: 15,
+  minViewWidth: 12,
   /** Exponential damping rate for follow (higher = snappier). */
   followLambda: 5,
   /** Phase-5 zoom multiplier (<1 shows more of the world). */
@@ -177,7 +177,7 @@ export const LIGHTING = {
   hemiIntensity: 1.35,
   shadowMapSize: 2048,
   /** Half-size of the orthographic shadow camera box (world units). */
-  shadowExtent: 26,
+  shadowExtent: 22,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -188,7 +188,8 @@ export const PLAYER = {
   speed: 6.4,
   accel: 45,
   decel: 60,
-  radius: 0.42,
+  /** Collision radius (body capsule r 0.35 + a hair). */
+  radius: 0.36,
   /** Exponential rate for turning toward movement direction. */
   turnLambda: 14,
   /** Max goods (logs + crates) carried in the arms. */
@@ -202,11 +203,19 @@ export const PLAYER = {
 // Items
 // ---------------------------------------------------------------------------
 
-/** Item dimensions. Item meshes are centred on their origin. Logs lie along local X. */
+/**
+ * Item dimensions (art spec). Item meshes are centred on their origin. Logs lie along local X;
+ * planks and cash have their long side along local X. stackHeight = vertical pitch when stacked.
+ */
 export const ITEM_SIZE = {
-  log: { length: 1.0, radius: 0.19, stackHeight: 0.4 },
-  crate: { size: 0.56, stackHeight: 0.58 },
-  cash: { w: 0.5, h: 0.12, d: 0.27, stackHeight: 0.13 },
+  /** Small log: r 0.12, length 0.6, LOG_CORE end caps. */
+  log: { length: 0.6, radius: 0.12, stackHeight: 0.24 },
+  /** Plank bundle (what the walk-in counter displays / sells): 0.5 × 0.12 × 0.3, PLANK_WOOD. */
+  plank: { w: 0.5, h: 0.12, d: 0.3, stackHeight: 0.125 },
+  /** Crate: 0.45 cube, CRATE_BOX with CRATE_STRIP crossbars. */
+  crate: { size: 0.45, stackHeight: 0.46 },
+  /** Cash bundle: 0.35 × 0.12 × 0.2, CASH_GREEN with a white band 0.1 × 0.125 × 0.21. */
+  cash: { w: 0.35, h: 0.12, d: 0.2, stackHeight: 0.125 },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -242,11 +251,12 @@ export const ECONOMY = {
   /** Every physical cash bundle is worth this many dollars. All prices are multiples of it. */
   cashBundleValue: 5,
   startMoney: 0,
-  logPrice: 5, // walk-in customers, per log
+  plankPrice: 5, // walk-in customers, per plank bundle (each made from one log)
   cratePrice: 15, // cargo tricycles, per crate
   truckLogPrice: 10, // phase-5 pickup trucks, per log (bulk)
   customerWant: [2, 4] as [number, number],
-  tricycleWant: [3, 5] as [number, number],
+  /** Tricycle cargo tray holds up to 6 crates. */
+  tricycleWant: [3, 6] as [number, number],
   truckWant: [8, 12] as [number, number],
 } as const;
 
@@ -279,9 +289,12 @@ export const PADS: Record<PadIdConst, PadDef> = {
 // World layout (all world units; see header for axis → screen mapping)
 // ---------------------------------------------------------------------------
 
-const LOG_GRID_SPACING = { x: 1.08, y: 0.4, z: 0.44 };
-const CRATE_GRID_SPACING = { x: 0.62, y: 0.58, z: 0.62 };
-const CASH_GRID: PileGrid = { cols: 3, rows: 3, layers: 20, spacing: { x: 0.56, y: 0.13, z: 0.32 } };
+const LOG_GRID_SPACING = { x: 0.66, y: 0.24, z: 0.26 };
+const PLANK_GRID_SPACING = { x: 0.52, y: 0.125, z: 0.31 };
+const CRATE_GRID_SPACING = { x: 0.48, y: 0.46, z: 0.48 };
+const CASH_GRID: PileGrid = { cols: 3, rows: 3, layers: 20, spacing: { x: 0.37, y: 0.125, z: 0.22 } };
+/** Every sales counter is the art-spec wooden table: 1.6 long × 0.6 deep × 0.8 high (FENCE_WOOD). */
+const COUNTER_SIZE = { length: 1.6, depth: 0.6, height: 0.8 };
 
 export const LAYOUT = {
   /** Walkable yard (the player is clamped inside). The -X edge is the river bank (no fence). */
@@ -301,52 +314,61 @@ export const LAYOUT = {
     flowSpeed: 1.2,
   },
 
+  /** Art spec: cylinder r 1.8, length 12, LOG_BARK; end caps r 1.65 LOG_CORE with 3 darker rings. */
   giantLog: {
     x: -12.6,
-    y: -0.05,
-    /** Resting centre Z (after it crashes into the gate). Spans z ∈ [-10, 6]. */
+    /** Centre height: floats half-submerged (water at -0.35), top at y = 1.55. */
+    y: -0.25,
+    /** Resting centre Z (after it crashes into the gate). Spans z ∈ [-8, 4]. */
     z: -2,
-    length: 16,
-    radius: 1.6,
+    length: 12,
+    radius: 1.8,
+    /** End-cap disc radius (a bark rim shows around it). */
+    capRadius: 1.65,
+    /** Z of the active chopping section: LOG_CUT_BAND band + where the axe strikes. */
+    cutZ: 2.0,
     /** Intro: the log's centre starts here and floats +Z until it hits the gate. */
     introStartZ: -80,
-    /** Wooden gate / fence spanning the river just downstream of the log. */
-    gateZ: 6.6,
+    /** Wooden gate / fence spanning the river just downstream of the log's +Z end. */
+    gateZ: 4.6,
     introDuration: 3.2,
   },
 
-  /** Player stands here (river bank) to auto-swing the axe at the giant log. */
-  chopZone: rect(-9.05, 3.2, 2.3, 5.2),
+  /** Player stands here (river bank, beside the cut band) to auto-swing the axe at the giant log. */
+  chopZone: rect(-9.05, 2.0, 2.3, 3.6),
 
-  /** Grey slab where all raw logs land. Logs lie along X. Capacity 2*5*6 = 60. */
+  /** Grey slab (DROP_ZONE_GREY, DROP_ZONE_BORDER rim) where all raw logs land. Capacity 3*7*4 = 84. */
   dropZone: {
     x: -5.2,
     z: -0.4,
-    slab: { w: 3.2, d: 3.1 },
-    grid: { cols: 2, rows: 5, layers: 6, spacing: LOG_GRID_SPACING } as PileGrid,
+    slab: { w: 2.8, d: 2.7 },
+    grid: { cols: 3, rows: 7, layers: 4, spacing: LOG_GRID_SPACING } as PileGrid,
     /** Player pickup area (pile footprint is solid; stand next to it). */
-    zone: rect(-5.2, -0.4, 4.6, 4.4),
-    collider: rect(-5.2, -0.4, 2.3, 2.3),
+    zone: rect(-5.2, -0.4, 3.8, 3.7),
+    collider: rect(-5.2, -0.4, 2.1, 2.0),
   },
 
+  /**
+   * Straddles the south fence. The player delivers LOGS (inside the yard, -Z side); each one turns
+   * into a PLANK BUNDLE on landing; customers (outside, +Z side) buy the planks.
+   */
   walkInCounter: {
     x: -4.0,
     z: 9.9,
     /** Long axis along X. */
-    length: 3.4,
-    depth: 1.1,
-    height: 0.95,
+    ...COUNTER_SIZE,
     rotationY: 0,
-    grid: { cols: 2, rows: 2, layers: 6, spacing: LOG_GRID_SPACING } as PileGrid,
+    /** Plank bundles on the table top. Capacity 36. */
+    grid: { cols: 3, rows: 2, layers: 6, spacing: PLANK_GRID_SPACING } as PileGrid,
     /** Player stands here (inside the yard) to drop logs on the counter. */
-    playerZone: rect(-3.4, 8.55, 2.8, 1.5),
+    playerZone: rect(-4.0, 9.0, 2.2, 1.4),
   },
 
   customers: {
     /** Front of the queue (customer faces -Z toward the counter). */
-    front: { x: -4.0, z: 11.4 } as XZ,
+    front: { x: -4.0, z: 10.95 } as XZ,
     /** Each further customer stands this much further +Z. */
-    spacing: 1.3,
+    spacing: 1.1,
     maxQueue: 5,
     spawn: { x: -4.0, z: 32 } as XZ,
     /** After paying, customers walk this path and despawn at the end. */
@@ -359,57 +381,61 @@ export const LAYOUT = {
     walkSpeed: 3.2,
   },
 
+  /** Cash grid right beside the walk-in counter (inside the yard). */
   walkInCash: {
-    x: -0.9,
-    z: 8.6,
+    x: -2.0,
+    z: 8.8,
     grid: CASH_GRID,
-    zone: rect(-0.9, 8.6, 3.7, 3.0),
+    zone: rect(-2.0, 8.8, 2.2, 2.0),
   },
 
   processor: {
-    /** Machine body (blue box). */
+    /**
+     * Art spec: blue tunnel box 1.6 (X) × 1.5 (high) × 1.4 (Z). Logs enter the dark -X opening,
+     * crates leave through the +X opening onto the workbench.
+     */
     x: 4.4,
     z: -0.4,
-    w: 2.6,
-    d: 2.4,
-    h: 2.3,
-    /** Input hopper/bin on the machine's west face. Logs lie along Z inside it. */
+    w: 1.6,
+    d: 1.4,
+    h: 1.5,
+    /** Infeed tray in front of the -X opening. Logs lie along X (pointing into the tunnel). */
     hopper: {
-      x: 2.55,
+      x: 3.05,
+      z: -0.4,
+      w: 0.9,
+      d: 1.0,
+      h: 0.4,
+      rotationY: 0,
+      grid: { cols: 1, rows: 3, layers: 5, spacing: LOG_GRID_SPACING } as PileGrid,
+    },
+    /** Wooden output workbench (FENCE_WOOD) in front of the +X opening. */
+    outputTable: {
+      x: 5.95,
       z: -0.4,
       w: 1.1,
-      d: 1.4,
-      h: 0.9,
-      rotationY: Math.PI / 2,
-      grid: { cols: 1, rows: 2, layers: 6, spacing: LOG_GRID_SPACING } as PileGrid,
-    },
-    /** Output table on the machine's south (+Z) face. */
-    outputTable: {
-      x: 4.4,
-      z: 1.95,
-      w: 1.6,
-      d: 1.5,
+      d: 1.1,
       h: 0.75,
-      grid: { cols: 2, rows: 2, layers: 4, spacing: CRATE_GRID_SPACING } as PileGrid,
+      grid: { cols: 2, rows: 2, layers: 3, spacing: CRATE_GRID_SPACING } as PileGrid,
     },
     /** Player feeds logs while standing here. */
-    inputZone: rect(2.5, -0.4, 2.2, 4.6),
+    inputZone: rect(2.6, -0.4, 2.4, 2.8),
     /** Player picks crates up while standing here. */
-    outputZone: rect(4.4, 2.45, 2.8, 2.9),
+    outputZone: rect(6.1, -0.4, 2.4, 2.8),
     /** Seconds to turn one log into one crate. */
     cycleTime: 1.0,
   },
 
+  /** Straddles the east fence; tricycles stop on the road outside it. */
   seCounter: {
     x: 9.9,
     z: 3.6,
     /** Long axis along Z. */
-    length: 3.4,
-    depth: 1.1,
-    height: 0.95,
+    ...COUNTER_SIZE,
     rotationY: Math.PI / 2,
-    grid: { cols: 4, rows: 1, layers: 4, spacing: { x: 0.66, y: 0.58, z: 0.62 } } as PileGrid,
-    playerZone: rect(8.6, 3.6, 1.6, 3.6),
+    /** Crates on the table top. Capacity 12. */
+    grid: { cols: 3, rows: 1, layers: 4, spacing: CRATE_GRID_SPACING } as PileGrid,
+    playerZone: rect(9.0, 3.6, 1.4, 2.4),
   },
 
   tricycles: {
@@ -422,15 +448,17 @@ export const LAYOUT = {
     spawnZ: -45,
     exitZ: 48,
     driveSpeed: 6,
-    cargoGrid: { cols: 2, rows: 2, layers: 2, spacing: CRATE_GRID_SPACING } as PileGrid,
+    /** Art spec: open-top cargo tray 0.9 × 0.3 × 0.9, up to 6 crates (2 × 2 base, 2 layers). */
+    cargoGrid: { cols: 2, rows: 2, layers: 2, spacing: { x: 0.46, y: 0.46, z: 0.46 } } as PileGrid,
     road: { minX: 10.8, maxX: 14.8, minZ: -70, maxZ: 70 } as Rect,
   },
 
+  /** Cash grid beside the SE counter. */
   seCash: {
-    x: 7.4,
-    z: 7.0,
+    x: 8.9,
+    z: 6.0,
     grid: CASH_GRID,
-    zone: rect(7.4, 7.0, 3.7, 3.0),
+    zone: rect(8.9, 6.0, 2.0, 1.8),
   },
 
   harvester: {
@@ -445,34 +473,35 @@ export const LAYOUT = {
     interval: 0.75,
   },
 
+  /** Conveyors have no collider: the player may walk across the rollers. */
   westConveyor: {
-    /** Drop zone → walk-in counter (travels +Z). Logs ride oriented along X. */
+    /** Drop zone → walk-in counter (travels +Z). Logs ride across the belt (along X). */
     path: [
-      { x: -5.2, z: 1.0 },
-      { x: -5.2, z: 8.95 },
+      { x: -4.4, z: 1.05 },
+      { x: -4.4, z: 9.2 },
     ] as XZ[],
-    width: 0.95,
-    beltY: 0.55,
+    width: 0.8,
+    beltY: 0.5,
     speed: 2.6,
-    spacing: 0.55,
+    spacing: 0.4,
   },
 
   eastConveyor: {
-    /** Drop zone → processor hopper (travels +X). Logs ride oriented along Z. */
+    /** Drop zone → processor infeed tray (travels +X). Logs ride across the belt (along Z). */
     path: [
-      { x: -3.95, z: -0.4 },
-      { x: 1.95, z: -0.4 },
+      { x: -3.8, z: -0.4 },
+      { x: 2.5, z: -0.4 },
     ] as XZ[],
-    width: 0.95,
-    beltY: 0.55,
+    width: 0.8,
+    beltY: 0.5,
     speed: 2.6,
-    spacing: 0.55,
+    spacing: 0.4,
   },
 
   megaSaw: {
-    /** Giant blade over the river near the log's upstream end. */
+    /** Giant blade over the river at the log's upstream (-Z) end (the log spans z ∈ [-8, 4]). */
     x: -12.6,
-    z: -9.0,
+    z: -8.6,
     bladeRadius: 2.3,
     /** Yard-side machine base (solid). */
     base: rect(-9.3, -9.0, 1.8, 1.8),
@@ -482,15 +511,14 @@ export const LAYOUT = {
 
   /** Phase 5: yard grows north (-Z) to LAYOUT.expandedMinZ. */
   expansion: {
+    /** Straddles the new north fence; trucks (raw-log buyers) stop on the highway beyond it. */
     truckCounter: {
       x: 1.0,
       z: -19.9,
-      length: 3.4,
-      depth: 1.1,
-      height: 0.95,
+      ...COUNTER_SIZE,
       rotationY: 0,
       grid: { cols: 2, rows: 2, layers: 6, spacing: LOG_GRID_SPACING } as PileGrid,
-      playerZone: rect(1.0, -18.55, 3.4, 1.5),
+      playerZone: rect(1.0, -19.0, 2.2, 1.4),
     },
     trucks: {
       /** Trucks drive -X along the highway lane; queue extends toward +X (the tunnel). */
@@ -502,7 +530,7 @@ export const LAYOUT = {
       exitX: -48,
       driveSpeed: 7,
     },
-    truckCash: { x: 4.8, z: -18.0, grid: CASH_GRID, zone: rect(4.8, -18.0, 3.7, 3.0) },
+    truckCash: { x: 2.9, z: -18.6, grid: CASH_GRID, zone: rect(2.9, -18.6, 2.0, 1.8) },
   },
 
   /** Background scenery (visual only). */

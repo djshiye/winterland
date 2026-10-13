@@ -23,7 +23,8 @@ import type { HUD } from '../ui/HUD';
 // Items
 // ---------------------------------------------------------------------------
 
-export type ItemKind = 'log' | 'crate' | 'cash';
+/** log: raw small log · plank: plank bundle (made from a log at the walk-in counter) · crate · cash. */
+export type ItemKind = 'log' | 'plank' | 'crate' | 'cash';
 
 /** A physical, visible item. Created/recycled only through ItemPool. */
 export interface Item {
