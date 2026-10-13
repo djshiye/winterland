@@ -1,6 +1,5 @@
 /**
  * [B6 — machines] Phase 3: blue wood processing machine (logs → square wooden crates).
- * Functional BASELINE (piles + zones + instant conversion, no visuals): replace/extend, keep the API.
  *
  * Spec: "Builds a blue Wood Processing Machine ... Player picks up raw logs from the Drop Zone and
  * feeds them into the input hopper of the Processing Machine. The machine converts raw logs into
@@ -25,23 +24,52 @@
  * - build(): popIn + squash, emit 'built' { what: 'processor', position, object }.
  */
 import * as THREE from 'three';
-import { LAYOUT, TIMING } from '../config';
-import type { GameContext } from '../core/types';
+import { LAYOUT, TIMING, rect } from '../config';
+import { createProcessor, type ProcessorModel } from '../assets/machines';
+import { damp, smoothstep } from '../core/math';
+import type { GameContext, Item } from '../core/types';
 import { Pile } from '../items/Pile';
 import { launchNew } from '../items/transfer';
 import type { Zone } from '../items/Zones';
 
+/** Timeline (seconds after a log is taken): slide to the mouth, slide in, chew, crate pops out. */
+const T_MOUTH = 0.22;
+const T_IN = 0.5;
+const T_POP = 0.85;
+/** Log height while travelling into the tunnel. */
+const LOG_Y = 0.6;
+
+type State = 'idle' | 'busy' | 'blocked' | 'cooldown';
+
 export class Processor {
   readonly object = new THREE.Group();
+  readonly model: ProcessorModel;
   readonly input: Pile;
   readonly output: Pile;
   readonly inputZone: Zone;
   readonly outputZone: Zone;
-  private baselineClock = 0;
+
+  private built = false;
+  private state: State = 'idle';
+  private t = 0;
+  private cur: Item | null = null;
+  private swallowed = false;
+  private puffClock = 0;
+  private lamp = 0;
+  private readonly start = new THREE.Vector3();
+  private readonly mouth = new THREE.Vector3();
+  private readonly inside = new THREE.Vector3();
   private readonly tmp = new THREE.Vector3();
 
   constructor(readonly ctx: GameContext) {
     const P = LAYOUT.processor;
+    this.model = createProcessor();
+    this.object.add(this.model.root);
+    this.object.position.set(P.x, 0, P.z);
+    ctx.scene.add(this.object);
+    this.mouth.set(P.x - P.w / 2 - 0.3, LOG_Y, P.z);
+    this.inside.set(P.x - 0.1, LOG_Y, P.z);
+
     this.input = new Pile(ctx, {
       id: 'pile:processorIn',
       accepts: ['log'],
@@ -75,21 +103,95 @@ export class Processor {
     });
   }
 
-  build(): void {}
+  /** Pop in with a squash, register the colliders, announce. */
+  build(): void {
+    if (this.built) return;
+    this.built = true;
+    const ctx = this.ctx;
+    const P = LAYOUT.processor;
+    ctx.colliders.addBox(rect(P.x, P.z, P.w, P.d), 'processor');
+    ctx.colliders.addBox(rect(P.hopper.x, P.hopper.z, P.hopper.w, P.hopper.d), 'processor:tray');
+    ctx.colliders.addBox(rect(P.outputTable.x, P.outputTable.z, P.outputTable.w, P.outputTable.d), 'processor:bench');
+    ctx.tweens.popIn(this.object, { duration: 0.5 });
+    ctx.tweens.delay(0.55, () => ctx.tweens.squash(this.model.body, 0.15, 0.4));
+    ctx.events.emit('built', { what: 'processor', position: new THREE.Vector3(P.x, 0, P.z), object: this.object });
+  }
 
   update(dt: number): void {
-    // BASELINE (replace): instant log → crate conversion every cycleTime.
+    if (!this.built) return;
     const P = LAYOUT.processor;
-    this.baselineClock = Math.min(this.baselineClock + dt, P.cycleTime);
-    if (this.baselineClock < P.cycleTime) return;
-    if (this.input.count('log') === 0 || !this.output.canAccept('crate')) return;
+    const body = this.model.body;
+
+    if (this.state === 'idle') {
+      if (this.input.count('log') > 0 && this.output.canAccept('crate')) this.startCycle();
+    } else {
+      this.t += dt;
+      this.advance();
+    }
+
+    // chew shudder + status lamp + chimney smoke while busy
+    const chewing = this.state === 'busy' && this.t >= T_IN && this.t < T_POP;
+    body.position.x = chewing ? Math.sin(this.t * 70) * 0.014 : 0;
+    this.lamp = damp(this.lamp, this.state === 'idle' ? 0 : 1, 10, dt);
+    this.model.lampMaterial.emissiveIntensity = this.lamp * 1.3;
+    if (this.state !== 'idle') {
+      this.puffClock -= dt;
+      if (this.puffClock <= 0) {
+        this.puffClock = 0.28;
+        this.tmp.set(P.x + this.model.chimney.x, this.model.chimney.y, P.z + this.model.chimney.z);
+        this.ctx.particles.puff(this.tmp, { count: 2, size: 0.32, life: 0.9 });
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+
+  private startCycle(): void {
     const log = this.input.take('log');
     if (!log) return;
-    this.baselineClock = 0;
-    this.ctx.items.release(log);
-    this.tmp.set(P.x + P.w / 2, P.h * 0.4, P.z);
-    launchNew(this.ctx, 'crate', this.tmp, this.output, { duration: 0.3, arcHeight: 0.6 });
-    this.ctx.state.stats.cratesMade++;
-    this.ctx.events.emit('crate:made', { position: this.tmp });
+    this.cur = log;
+    this.swallowed = false;
+    this.start.copy(log.object.position);
+    log.object.quaternion.identity();
+    this.state = 'busy';
+    this.t = 0;
+    this.puffClock = 0;
+  }
+
+  /** Move the slide / fire the pop according to the timeline. */
+  private advance(): void {
+    const P = LAYOUT.processor;
+    const cur = this.cur;
+    if (cur && !this.swallowed) {
+      if (this.t < T_MOUTH) {
+        const k = smoothstep(0, T_MOUTH, this.t);
+        cur.object.position.lerpVectors(this.start, this.mouth, k);
+        cur.object.position.y += Math.sin(k * Math.PI) * 0.15;
+      } else if (this.t < T_IN) {
+        const k = smoothstep(T_MOUTH, T_IN, this.t);
+        cur.object.position.lerpVectors(this.mouth, this.inside, k);
+      } else {
+        // fully inside: eaten
+        this.swallowed = true;
+        this.ctx.tweens.killTweensOf(cur.object);
+        this.ctx.items.release(cur);
+        this.cur = null;
+        this.ctx.tweens.squash(this.model.body, 0.14, 0.4);
+      }
+    }
+    if ((this.state === 'busy' || this.state === 'blocked') && this.t >= T_POP) {
+      this.tmp.set(P.x + P.w / 2 - 0.2, 0.72, P.z);
+      const crate = launchNew(this.ctx, 'crate', this.tmp, this.output, { duration: 0.38, arcHeight: 0.5, scaleFrom: 0.5 });
+      if (crate) {
+        this.ctx.state.stats.cratesMade++;
+        this.tmp.x += 0.3;
+        this.ctx.events.emit('crate:made', { position: this.tmp });
+        this.ctx.tweens.punchScale(this.model.body, 0.05, 0.2);
+        this.state = 'cooldown';
+      } else {
+        this.state = 'blocked';
+      }
+    }
+    if (this.state === 'cooldown' && this.t >= P.cycleTime) this.state = 'idle';
   }
 }

@@ -1,6 +1,5 @@
 /**
- * [B6 — machines] Grey "Raw Log Drop Zone" slab + the log pile on it. STUB (functional baseline):
- * replace/extend, keep the public API.
+ * [B6 — machines] Grey "Raw Log Drop Zone" slab + the log pile on it.
  *
  * Spec: "a grey rectangular 'Raw Log Drop Zone' on the ground"; "Chopped wood pieces fly out and land
  * neatly in the grey 'Raw Log Drop Zone' pile"; "Player walks over the Raw Log Drop Zone to pick up
@@ -13,11 +12,11 @@
  * - Collider LAYOUT.dropZone.collider (the pile is solid; the player picks up from beside it).
  */
 import * as THREE from 'three';
-import { LAYOUT, PALETTE, TIMING } from '../config';
+import { LAYOUT, TIMING } from '../config';
+import { createDropZoneSlab } from '../assets/machines';
 import type { GameContext } from '../core/types';
 import { Pile } from '../items/Pile';
 import type { Zone } from '../items/Zones';
-import { geo, mesh, toon } from '../render/materials';
 
 /** Height of the slab top (the pile's base plane). */
 export const DROP_SLAB_HEIGHT = 0.08;
@@ -29,8 +28,7 @@ export class DropZone {
 
   constructor(readonly ctx: GameContext) {
     const dz = LAYOUT.dropZone;
-    const slab = mesh(geo.boxBase(dz.slab.w, DROP_SLAB_HEIGHT, dz.slab.d), toon(PALETTE.dropSlab), { cast: false });
-    this.object.add(slab);
+    this.object.add(createDropZoneSlab(dz.slab.w, dz.slab.d));
     this.object.position.set(dz.x, 0, dz.z);
     ctx.scene.add(this.object);
     this.pile = new Pile(ctx, {

@@ -1,33 +1,38 @@
 /**
  * [B6 — machines] Phase 4: roller conveyor that carries items from one holder to another.
- * Functional BASELINE (no belt: hops one item straight from `from` to `to` every spacing/speed s):
- * replace the body, keep the public API.
  *
  * Spec: "West Conveyor: Builds a conveyor belt directly from the Raw Log Drop Zone to the Walk-in
  * Customer Counter. Logs now flow automatically to walk-in customers, generating passive cash piles."
  * "East Conveyor: Builds a conveyor belt from the Raw Log Drop Zone directly into the Wood Processing
  * Machine, fully automating crate production."
  *
- * Art spec (AssetFactory createRollerConveyor in assets/machines.ts — yours): ROLLER conveyor — steel
- * (MACHINE_STEEL) side rails with CLOSELY SPACED dark grey ROLLER CYLINDERS (that visibly spin), short
- * legs; items follow a WAYPOINT SPLINE through `path` (polyline in XZ; may have more than 2 points —
- * round the corners, e.g. CatmullRom or arc fillets). Top of the rollers at beltY. NO collider (the
- * player may walk across).
+ * Model: assets/machines.ts createRollerConveyor — steel side rails on legs, closely spaced dark grey
+ * rollers (one InstancedMesh, spinning at belt speed), a blue drive motor. NO collider (walkable).
  *
- * - Mechanics: the conveyor is itself an ItemHolder (id opts.id). Each step: if the last item on the
- *   belt has moved ≥ spacing from the start and `to` will be able to take more (items on belt <
- *   max-on-belt), pull one item from `from` with transferOne(ctx, from, this, [kind]) so it hops onto
- *   the belt start; items ride along the spline at `speed` (logs lying across the belt at itemYaw
- *   relative to the travel direction) and queue behind each other (spacing) when the end is blocked.
- *   An item at the end is handed over with transferOne(ctx, this, to, [kind]).
- * - `to` may be a converting holder (walk-in counter input: logs in, planks out) — just transfer into it.
- * - build(): segments pop in one after another from start to end (staggered popIn), then emit
- *   'built' { what: opts.id, position: midpoint, object }. Inactive before build().
+ * Mechanics: the conveyor is itself an ItemHolder (id opts.id).
+ * - Items ride a waypoint spline (BeltPath: polyline through `path` with rounded corners). `s` is the
+ *   arclength; items move at `speed`, keep `spacing` to the item ahead and queue at the end when `to`
+ *   refuses.
+ * - Loading: when nothing is in flight to the belt, the last item is ≥ spacing past the start, the belt
+ *   is not saturated and `to` can take more (or fewer than a few logs are queued), one item is pulled
+ *   from `from` with transferOne(ctx, from, this, [kind]) (a short hop onto the belt start).
+ * - Unloading: the lead item at the end of the belt is handed over with transferOne(ctx, this, to, [kind])
+ *   as soon as `to.canAccept(kind)`.
+ * - ItemHolder deviations (belt semantics): count(kind) only reports the lead item once it has reached
+ *   the exit (so transferOne never yanks things off mid-belt) and take(kind) returns that lead (oldest)
+ *   item rather than the most recently landed one. `load` counts everything on / heading to the belt.
+ * - Logs lie across the belt at `itemYaw` (relative turning follows the path) and roll while they ride.
+ * - build(): the segments pop in one after another from start to end (staggered back-out scale), then
+ *   emit 'built' { what: opts.id, position: midpoint, object }. Inactive and invisible before build().
  */
 import * as THREE from 'three';
-import type { XZ } from '../config';
-import type { GameContext, ItemHolder, ItemKind } from '../core/types';
+import { ITEM_SIZE, type XZ } from '../config';
+import { createRollerConveyor, type RollerConveyorModel } from '../assets/machines';
+import { UP } from '../core/math';
+import { Ease } from '../core/Tween';
+import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 import { transferOne } from '../items/transfer';
+import { BeltPath } from './beltPath';
 
 export interface ConveyorOptions {
   /** Holder id, e.g. 'conveyor:west'. */
@@ -44,31 +49,206 @@ export interface ConveyorOptions {
   itemYaw: number;
 }
 
-export class Conveyor {
+interface BeltItem {
+  item: Item;
+  /** Arclength from the belt start. */
+  s: number;
+}
+
+class BeltSlot implements Slot {
+  constructor(readonly holder: ItemHolder) {}
+}
+
+/** Seconds between the pop-in of consecutive segments, and the pop duration. */
+const POP_STAGGER = 0.12;
+const POP_TIME = 0.4;
+/** Hop durations onto / off the belt. */
+const LOAD_FLIGHT = { duration: 0.18, arcHeight: 0.55 } as const;
+const UNLOAD_FLIGHT = { duration: 0.2, arcHeight: 0.5 } as const;
+
+export class Conveyor implements ItemHolder {
+  readonly id: string;
   readonly object = new THREE.Group();
+  readonly model: RollerConveyorModel;
+  readonly path: BeltPath;
+
   private active = false;
-  private baselineClock = 0;
+  private built = false;
+  private buildT = 0;
+  private readonly items: BeltItem[] = [];
+  private pending = 0;
+  private spin = 0;
+  private spinRate = 0;
+  private readonly maxOnBelt: number;
+  private readonly segScale: Float32Array;
+  private readonly sample = BeltPath.makeSample();
+  private readonly yaw0: number;
+  private readonly qYaw = new THREE.Quaternion();
+  private readonly qRoll = new THREE.Quaternion();
+  private readonly axisX = new THREE.Vector3(1, 0, 0);
+  private readonly itemY: number;
 
   constructor(
     readonly ctx: GameContext,
     readonly opts: ConveyorOptions,
-  ) {}
+  ) {
+    this.id = opts.id;
+    this.model = createRollerConveyor(opts.path, opts.width, opts.beltY);
+    this.path = this.model.path;
+    this.object.add(this.model.root);
+    this.object.visible = false;
+    ctx.scene.add(this.object);
+    this.maxOnBelt = Math.max(1, Math.floor(this.path.length / opts.spacing));
+    this.segScale = new Float32Array(this.model.segments.length);
+    this.yaw0 = this.path.sample(0, this.sample).yaw;
+    this.itemY = opts.beltY + ITEM_SIZE[opts.kind].stackHeight / 2;
+  }
 
-  /** Items currently riding the belt. */
+  /** Items currently riding the belt (or in the air heading for its start). */
   get load(): number {
-    return 0;
+    return this.items.length + this.pending;
+  }
+
+  /** Belt length along the spline. */
+  get length(): number {
+    return this.path.length;
   }
 
   build(): void {
+    if (this.active) return;
     this.active = true;
+    this.buildT = 0;
+    this.object.visible = true;
+    this.applyBuild();
   }
 
+  // --- ItemHolder -------------------------------------------------------------
+  canAccept(kind: ItemKind): boolean {
+    if (!this.active || kind !== this.opts.kind) return false;
+    if (this.pending > 0 || this.items.length + this.pending >= this.maxOnBelt) return false;
+    const last = this.items[this.items.length - 1];
+    return !last || last.s >= this.opts.spacing - 1e-4;
+  }
+
+  reserve(_item: Item): Slot {
+    this.pending++;
+    return new BeltSlot(this);
+  }
+
+  getSlotWorldPosition(_slot: Slot, out: THREE.Vector3): THREE.Vector3 {
+    this.path.sample(0, this.sample);
+    return out.set(this.sample.x, this.itemY, this.sample.z);
+  }
+
+  getSlotWorldQuaternion(_slot: Slot, out: THREE.Quaternion): THREE.Quaternion {
+    return out.setFromAxisAngle(UP, this.opts.itemYaw);
+  }
+
+  receive(item: Item, _slot: Slot): void {
+    this.pending = Math.max(0, this.pending - 1);
+    const b: BeltItem = { item, s: 0 };
+    this.items.push(b);
+    if (item.object.parent !== this.ctx.scene) this.ctx.scene.add(item.object);
+    item.object.visible = true;
+    this.place(b);
+  }
+
+  cancel(_slot: Slot): void {
+    this.pending = Math.max(0, this.pending - 1);
+  }
+
+  count(kind?: ItemKind): number {
+    const head = this.items[0];
+    if (!head || (kind !== undefined && head.item.kind !== kind)) return 0;
+    return head.s >= this.path.length - 0.02 ? 1 : 0;
+  }
+
+  take(kind?: ItemKind): Item | null {
+    const head = this.items[0];
+    if (!head || (kind !== undefined && head.item.kind !== kind)) return null;
+    if (head.s < this.path.length - 0.02) return null; // only items that reached the exit leave the belt
+    this.items.shift();
+    if (head.item.object.parent !== this.ctx.scene) this.ctx.scene.attach(head.item.object);
+    return head.item;
+  }
+
+  // --- simulation ---------------------------------------------------------------
   update(dt: number): void {
-    // BASELINE (replace): teleport-hop items without a belt.
     if (!this.active) return;
-    this.baselineClock += dt;
-    if (this.baselineClock < this.opts.spacing / this.opts.speed) return;
-    this.baselineClock = 0;
-    transferOne(this.ctx, this.opts.from, this.opts.to, [this.opts.kind]);
+    const o = this.opts;
+    if (!this.built) {
+      this.buildT += dt;
+      this.applyBuild();
+      if (this.buildT >= (this.segScale.length - 1) * POP_STAGGER + POP_TIME) {
+        this.built = true;
+        const p = this.path.sample(this.path.length / 2, this.sample);
+        this.ctx.events.emit('built', {
+          what: o.id,
+          position: new THREE.Vector3(p.x, 0, p.z),
+          object: this.object,
+        });
+      }
+      return;
+    }
+
+    // ride + queue
+    const L = this.path.length;
+    const step = o.speed * dt;
+    let moving = false;
+    for (let i = 0; i < this.items.length; i++) {
+      const b = this.items[i]!;
+      const limit = i === 0 ? L : this.items[i - 1]!.s - o.spacing;
+      const next = Math.min(b.s + step, limit);
+      if (next > b.s + 1e-6) {
+        b.s = next;
+        moving = true;
+      }
+      this.place(b);
+    }
+
+    // hand over the lead item
+    const head = this.items[0];
+    if (head && head.s >= L - 0.02 && o.to.canAccept(o.kind)) {
+      transferOne(this.ctx, this, o.to, [o.kind], UNLOAD_FLIGHT);
+    }
+
+    // pull the next item from the source
+    if (this.canAccept(o.kind) && (o.to.canAccept(o.kind) || this.items.length < 3) && o.from.count(o.kind) > 0) {
+      transferOne(this.ctx, o.from, this, [o.kind], LOAD_FLIGHT);
+    }
+
+    // rollers: spin at belt speed while anything moves, idle slowly otherwise
+    const target = moving || this.pending > 0 ? o.speed / this.model.rollerRadius : (o.speed / this.model.rollerRadius) * 0.25;
+    this.spinRate += (target - this.spinRate) * Math.min(1, dt * 6);
+    this.spin += this.spinRate * dt;
+    this.model.setRollers(this.spin);
+  }
+
+  // ---------------------------------------------------------------------------
+
+  /** Pop the segments in sequence (also drives the roller scale). */
+  private applyBuild(): void {
+    const segs = this.model.segments;
+    for (let i = 0; i < segs.length; i++) {
+      const raw = Math.min(1, Math.max(0, (this.buildT - i * POP_STAGGER) / POP_TIME));
+      const k = raw <= 0 ? 0.0001 : Ease.backOut(raw);
+      this.segScale[i] = k;
+      segs[i]!.scale.setScalar(Math.max(0.0001, k));
+    }
+    this.model.setRollers(this.spin, this.segScale);
+  }
+
+  /** Position + orientation of a riding item. */
+  private place(b: BeltItem): void {
+    const p = this.path.sample(b.s, this.sample);
+    const o = b.item.object;
+    o.position.set(p.x, this.itemY, p.z);
+    this.qYaw.setFromAxisAngle(UP, this.opts.itemYaw + (p.yaw - this.yaw0));
+    if (b.item.kind === 'log') {
+      this.qRoll.setFromAxisAngle(this.axisX, b.s / ITEM_SIZE.log.radius);
+      o.quaternion.copy(this.qYaw).multiply(this.qRoll);
+    } else {
+      o.quaternion.copy(this.qYaw);
+    }
   }
 }
