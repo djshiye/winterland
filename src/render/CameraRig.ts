@@ -24,6 +24,10 @@ export class CameraRig {
   zoom = 1;
   private followed: THREE.Object3D | null = null;
   private aspect = 16 / 9;
+  private viewW = 1280;
+  private viewH = 720;
+  private readonly ndc = new THREE.Vector3();
+  private readonly tmp2 = new THREE.Vector2();
 
   constructor(readonly camera: THREE.OrthographicCamera) {}
 
@@ -48,6 +52,8 @@ export class CameraRig {
   shake(_intensity = 0.3, _duration = 0.3): void {}
 
   resize(width: number, height: number): void {
+    this.viewW = width;
+    this.viewH = height;
     this.aspect = width / Math.max(1, height);
     let h = CAMERA.viewHeight / this.zoom;
     if (h * this.aspect < CAMERA.minViewWidth / this.zoom) h = CAMERA.minViewWidth / this.zoom / this.aspect;
@@ -73,19 +79,23 @@ export class CameraRig {
     this.camera.lookAt(this.target);
   }
 
-  /** Screen-space vector (x right, y up) → normalised world XZ direction (y = 0) scaled by input length. */
+  /** Screen-space vector (x right, y up) → world XZ direction (y = 0) scaled by input length. */
   screenToWorldDir(v: THREE.Vector2, out: THREE.Vector3): THREE.Vector3 {
-    return out.set(v.x, 0, -v.y);
+    const yaw = THREE.MathUtils.degToRad(CAMERA.yawDeg);
+    // forward (screen up) = (-sin, 0, -cos); right = (cos, 0, -sin)
+    return out.set(Math.cos(yaw) * v.x - Math.sin(yaw) * v.y, 0, -Math.sin(yaw) * v.x - Math.cos(yaw) * v.y);
   }
 
   /** World point → CSS pixel coordinates relative to the canvas. Returns false if not projectable. */
-  worldToScreen(_p: THREE.Vector3, out: THREE.Vector2): boolean {
-    out.set(0, 0);
-    return false;
+  worldToScreen(p: THREE.Vector3, out: THREE.Vector2): boolean {
+    this.ndc.copy(p).project(this.camera);
+    out.set((this.ndc.x * 0.5 + 0.5) * this.viewW, (-this.ndc.y * 0.5 + 0.5) * this.viewH);
+    return this.ndc.z > -1 && this.ndc.z < 1;
   }
 
   /** True if the world point projects inside the viewport shrunk by `marginPx`. */
-  isOnScreen(_p: THREE.Vector3, _marginPx = 0): boolean {
-    return true;
+  isOnScreen(p: THREE.Vector3, marginPx = 0): boolean {
+    if (!this.worldToScreen(p, this.tmp2)) return false;
+    return this.tmp2.x >= marginPx && this.tmp2.x <= this.viewW - marginPx && this.tmp2.y >= marginPx && this.tmp2.y <= this.viewH - marginPx;
   }
 }
