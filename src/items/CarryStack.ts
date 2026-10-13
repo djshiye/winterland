@@ -12,7 +12,12 @@
  *   (lean opposite to acceleration, trailing behind motion); each item's horizontal offset grows
  *   with its height (~ (h/H)^1.5) and items tilt slightly along the bend. Settles with a little
  *   overshoot wobble when the carrier stops.
- * - While full, show a small "MAX" badge (sprite / canvas texture) floating above the top item.
+ * - While full, show a small "MAX" badge (sprite / canvas texture) floating above the tallest column.
+ * - Tall stacks: with `columnHeight` (metres) and/or `columnSize` (items) set, a column that would grow past the
+ *   limit continues in a new column beside it: two columns side by side across the carrier's arms (COLUMN_PITCH
+ *   apart), further columns in a second row in front (ROW_PITCH deeper), so 25 crates become a compact 2×2 block. Columns fill in order; take() always removes the most recently added item. Each
+ *   column sways like a normal stack; column positions glide when the column count changes. Defaults: unlimited
+ *   (one column), so NPC stacks are unchanged.
  * - capacity counts landed + reserved items.
  *
  * Placement is correct even if update() is never called (items are positioned in receive());
@@ -29,6 +34,10 @@ export interface CarryStackOptions {
   accepts: readonly ItemKind[];
   capacity: number;
   anchor: THREE.Object3D;
+  /** Start a new column once a column would exceed this height in metres (default: unlimited). */
+  columnHeight?: number;
+  /** Start a new column once a column holds this many items (default: unlimited). */
+  columnSize?: number;
 }
 
 /** One stack position: a landed item, or a placeholder (item === null) for one still in flight. */
@@ -37,6 +46,12 @@ class Entry implements Slot {
   /** Current centre height (anchor-local), eased toward targetY. */
   y = 0;
   targetY = 0;
+  /** Column index (0 = first) and the column's anchor-local X / Z offset (current / target). */
+  col = 0;
+  x = 0;
+  tx = 0;
+  z = 0;
+  tz = 0;
   constructor(
     readonly holder: ItemHolder,
     readonly kind: ItemKind,
@@ -47,6 +62,10 @@ class Entry implements Slot {
 
 const SETTLE_LAMBDA = 30;
 const YAW_JITTER = (6 * Math.PI) / 180;
+/** Distance between neighbouring columns (anchor-local X): fits a 0.6 m log or a 0.45 m crate with a small gap. */
+const COLUMN_PITCH = 0.66;
+/** Distance between rows of columns (anchor-local Z, away from the carrier's chest): fits a 0.45 m crate. */
+const ROW_PITCH = 0.52;
 
 const tmpEuler = new THREE.Euler();
 const tmpQa = new THREE.Quaternion();
@@ -61,6 +80,11 @@ export class CarryStack implements ItemHolder {
   private lastUpdateFrame = -100;
   private badge: THREE.Sprite | null = null;
   private time = 0;
+  private columnHeight: number;
+  private columnSize: number;
+  /** Per-column stacked height (anchor-local), rebuilt by layout(). */
+  private colTop: number[] = [0];
+  private columns = 1;
 
   constructor(
     readonly ctx: GameContext,
@@ -68,6 +92,8 @@ export class CarryStack implements ItemHolder {
   ) {
     this.id = opts.id;
     this.capacity = opts.capacity;
+    this.columnHeight = opts.columnHeight ?? Infinity;
+    this.columnSize = opts.columnSize ?? Infinity;
   }
 
   // --- ItemHolder -----------------------------------------------------------
@@ -77,10 +103,7 @@ export class CarryStack implements ItemHolder {
 
   reserve(item: Item): Slot {
     this.snapIfIdle();
-    const e = new Entry(this, item.kind, this.ctx.items.stackHeight(item.kind), randRange(-YAW_JITTER, YAW_JITTER));
-    this.entries.push(e);
-    this.layout();
-    e.y = e.targetY;
+    const e = this.push(item.kind);
     this.updateBadge();
     return e;
   }
@@ -88,7 +111,7 @@ export class CarryStack implements ItemHolder {
   getSlotWorldPosition(slot: Slot, out: THREE.Vector3): THREE.Vector3 {
     const e = slot as Entry;
     this.opts.anchor.updateWorldMatrix(true, false);
-    return this.localPos(e.targetY, out).applyMatrix4(this.opts.anchor.matrixWorld);
+    return this.localPos(e.tx, e.tz, e.targetY, out).applyMatrix4(this.opts.anchor.matrixWorld);
   }
 
   getSlotWorldQuaternion(slot: Slot, out: THREE.Quaternion): THREE.Quaternion {
@@ -106,12 +129,12 @@ export class CarryStack implements ItemHolder {
         this.ctx.items.release(item);
         return;
       }
-      e = new Entry(this, item.kind, this.ctx.items.stackHeight(item.kind), randRange(-YAW_JITTER, YAW_JITTER));
-      this.entries.push(e);
-      this.layout();
+      e = this.push(item.kind);
     }
     e.item = item;
     e.y = e.targetY;
+    e.x = e.tx;
+    e.z = e.tz;
     this.opts.anchor.add(item.object);
     item.object.scale.set(1, 1, 1);
     this.apply(e);
@@ -166,7 +189,8 @@ export class CarryStack implements ItemHolder {
   /** World position just above the top of the stack (base when empty). */
   topWorldPosition(out: THREE.Vector3): THREE.Vector3 {
     this.opts.anchor.updateWorldMatrix(true, false);
-    return this.localPos(this.topY(), out).applyMatrix4(this.opts.anchor.matrixWorld);
+    const c = this.tallestColumn();
+    return this.localPos(this.columnX(c), this.columnZ(c), this.colTop[c]!, out).applyMatrix4(this.opts.anchor.matrixWorld);
   }
 
   /** Sway spring + smooth re-stacking. Call every frame with the carrier's world velocity. */
@@ -179,6 +203,11 @@ export class CarryStack implements ItemHolder {
       if (e.y !== e.targetY) {
         e.y = damp(e.y, e.targetY, SETTLE_LAMBDA, dt);
         if (Math.abs(e.y - e.targetY) < 0.0005) e.y = e.targetY;
+      }
+      if (e.x !== e.tx) {
+        e.x = damp(e.x, e.tx, SETTLE_LAMBDA, dt);
+        if (Math.abs(e.x - e.tx) < 0.0005) e.x = e.tx;
+    e.z = e.tz;
       }
       if (e.item) this.apply(e);
     }
@@ -194,14 +223,28 @@ export class CarryStack implements ItemHolder {
     this.updateBadge();
   }
 
+  /** Change the column limits at runtime (see CarryStackOptions); omit / Infinity = unlimited. Re-lays out the stack. */
+  setColumnLimit(height?: number, size?: number): void {
+    this.columnHeight = height ?? Infinity;
+    this.columnSize = size ?? Infinity;
+    this.layout();
+    this.updateBadge();
+  }
+
+  /** Number of columns currently in use (1 for a normal stack). */
+  get columnCount(): number {
+    return this.columns;
+  }
+
   /** Restore path: place `item` on top at once (no flight, no punch). False (item untouched) if full or not accepted. */
   addImmediate(item: Item): boolean {
     if (!this.canAccept(item.kind)) return false;
-    const e = new Entry(this, item.kind, this.ctx.items.stackHeight(item.kind), randRange(-YAW_JITTER, YAW_JITTER));
-    this.entries.push(e);
-    this.layout();
+    this.snapIfIdle();
+    const e = this.push(item.kind);
     e.item = item;
     e.y = e.targetY;
+    e.x = e.tx;
+    e.z = e.tz;
     this.opts.anchor.add(item.object);
     item.object.scale.set(1, 1, 1);
     this.apply(e);
@@ -220,20 +263,60 @@ export class CarryStack implements ItemHolder {
   }
 
   // --- internals ------------------------------------------------------------
-  /** Recompute each entry's resting height from the stack order. */
+  /** Append a new entry for `kind` and re-lay out the columns; the new entry starts at rest. */
+  private push(kind: ItemKind): Entry {
+    const e = new Entry(this, kind, this.ctx.items.stackHeight(kind), randRange(-YAW_JITTER, YAW_JITTER));
+    this.entries.push(e);
+    this.layout();
+    e.y = e.targetY;
+    e.x = e.tx;
+    e.z = e.tz;
+    return e;
+  }
+
+  /** Recompute every entry's column, resting height and target X from the stack order. */
   private layout(): void {
+    const entries = this.entries;
+    let col = 0;
     let y = 0;
-    for (let i = 0; i < this.entries.length; i++) {
-      const e = this.entries[i]!;
+    let inCol = 0;
+    this.colTop[0] = 0;
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i]!;
+      if (inCol > 0 && (y + e.h > this.columnHeight + 1e-6 || inCol >= this.columnSize)) {
+        col++;
+        y = 0;
+        inCol = 0;
+      }
+      e.col = col;
       e.targetY = y + e.h / 2;
       y += e.h;
+      inCol++;
+      this.colTop[col] = y;
+    }
+    this.columns = col + 1;
+    this.colTop.length = this.columns;
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i]!;
+      e.tx = this.columnX(e.col);
+      e.tz = this.columnZ(e.col);
     }
   }
 
-  private topY(): number {
-    let y = 0;
-    for (let i = 0; i < this.entries.length; i++) y += this.entries[i]!.h;
-    return y;
+  /** Anchor-local X of column `c`: a single column sits on the anchor, otherwise two per row (left / right). */
+  private columnX(c: number): number {
+    return this.columns === 1 ? 0 : (c % 2 === 0 ? -0.5 : 0.5) * COLUMN_PITCH;
+  }
+
+  /** Anchor-local Z of column `c`: rows of two, the first row closest to the carrier. */
+  private columnZ(c: number): number {
+    return (c >> 1) * ROW_PITCH;
+  }
+
+  private tallestColumn(): number {
+    let best = 0;
+    for (let c = 1; c < this.columns; c++) if (this.colTop[c]! > this.colTop[best]!) best = c;
+    return best;
   }
 
   /** If nobody drives update() (no carrier loop yet) snap instead of gliding, so layouts stay correct. */
@@ -241,17 +324,19 @@ export class CarryStack implements ItemHolder {
     if (this.ctx.time.frame - this.lastUpdateFrame <= 3) return;
     for (let i = 0; i < this.entries.length; i++) {
       const e = this.entries[i]!;
-      if (e.y !== e.targetY) {
+      if (e.y !== e.targetY || e.x !== e.tx || e.z !== e.tz) {
         e.y = e.targetY;
+        e.x = e.tx;
+        e.z = e.tz;
         if (e.item) this.apply(e);
       }
     }
   }
 
-  /** Anchor-local position of a stack point at height y (bent by the current lean). */
-  private localPos(y: number, out: THREE.Vector3): THREE.Vector3 {
+  /** Anchor-local position of a stack point at column offset `cx`, height y (bent by the current lean). */
+  private localPos(cx: number, cz: number, y: number, out: THREE.Vector3): THREE.Vector3 {
     const p = SwaySpring.profile(y);
-    return out.set(this.sway.x * p, y, this.sway.z * p);
+    return out.set(cx + this.sway.x * p, y, cz + this.sway.z * p);
   }
 
   /** Anchor-local orientation: yaw jitter, then tilt along the bend. */
@@ -263,7 +348,7 @@ export class CarryStack implements ItemHolder {
 
   private apply(e: Entry): void {
     const o = e.item!.object;
-    this.localPos(e.y, o.position);
+    this.localPos(e.x, e.z, e.y, o.position);
     this.localQuat(e.y, e.yaw, o.quaternion);
   }
 
@@ -278,9 +363,10 @@ export class CarryStack implements ItemHolder {
   private animateBadge(): void {
     const b = this.badge;
     if (!b || !b.visible) return;
-    const top = this.topY() + 0.55 + Math.sin(this.time * 6) * 0.05;
+    const c = this.tallestColumn();
+    const top = this.colTop[c]! + 0.55 + Math.sin(this.time * 6) * 0.05;
     const p = SwaySpring.profile(top);
-    b.position.set(this.sway.x * p, top, this.sway.z * p);
+    b.position.set(this.columnX(c) + this.sway.x * p, top, this.columnZ(c) + this.sway.z * p);
   }
 
   private createBadge(): THREE.Sprite {

@@ -15,7 +15,7 @@
  * parents (tricycle beds) carry their items along.
  */
 import * as THREE from 'three';
-import { ITEM_SIZE, type PileGrid } from '../config';
+import { ECONOMY, ITEM_SIZE, type PileGrid } from '../config';
 import { UP } from '../core/math';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 
@@ -199,14 +199,37 @@ export class Pile implements ItemHolder {
     return true;
   }
 
-  /** Create `n` items of `kind` from the pool and addImmediate them (setup / tests). */
-  fill(kind: ItemKind, n: number): void {
+  /** Create `n` items of `kind` from the pool and addImmediate them (setup / tests / restore). */
+  fill(kind: ItemKind, n: number, value?: number): void {
     for (let k = 0; k < n; k++) {
-      const item = this.ctx.items.create(kind);
+      const item = this.ctx.items.create(kind, value);
       if (!this.addImmediate(item)) {
         this.ctx.items.release(item);
         return;
       }
+    }
+  }
+
+  /**
+   * Restore helper for cash piles: add bundles until the pile's value (landed + merged) reaches `target`.
+   * Every bundle is worth ECONOMY.cashBundleValue; once the grid is full (or the target is not a multiple of a
+   * bundle) the remainder is merged into the top bundle, exactly like overflow merging. No-op if already >= target.
+   */
+  fillValue(target: number): void {
+    const unit = ECONOMY.cashBundleValue;
+    let need = target - this.totalValue();
+    while (need >= unit && this.landedTotal + this.reservedTotal < this.capacity) {
+      const item = this.ctx.items.create('cash', unit);
+      if (!this.addImmediate(item)) {
+        this.ctx.items.release(item);
+        break;
+      }
+      need -= unit;
+    }
+    if (need > 0) {
+      const top = this.hi >= 0 ? this.landed[this.hi] : null;
+      if (top) top.value += need;
+      else this.pendingValue += need;
     }
   }
 
