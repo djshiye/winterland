@@ -1,69 +1,88 @@
 /**
  * [B5 — commerce] Blue cargo tricycles queueing on the SE road next to the SE counter.
- * Functional BASELINE (an invisible buyer pays for one crate every 0.6 s): replace the body, keep the
- * public API.
  *
  * Spec: "delivery NPCs on blue 3-wheeled cargo bikes queue up next to a secondary counter ... Player
  * transfers crates to the South-East counter, where NPCs on blue cargo tricycles load them up, drive
  * off, and leave larger stacks of Green Cash Bundles."
  *
- * Art spec (AssetFactory createTricycle in assets/vehicles.ts — yours):
- * - Blue (MACHINE_BLUE) front fork, ONE front wheel r 0.25 in dark grey, rear flatbed axle with TWO
- *   wheels; open-top blue cargo tray 0.9 × 0.3 × 0.9 with a `cargoPivot` holding up to 6 crates
- *   (LAYOUT.tricycles.cargoGrid). Wheels spin with distance travelled; slight bounce while riding.
- * - Rider: createCharacterRig('courier') (yellow COURIER_YELLOW helmet; owned by B1), setSeated(true).
- * - Faces +Z (travel direction), ~2.4 long.
- *
- * Behaviour (LAYOUT.tricycles, ECONOMY.tricycleWant / cratePrice):
- * - Keep up to maxQueue trikes. Spawn at (laneX, spawnZ), drive +Z (accelerate/brake smoothly) to the
- *   first free slot (slot i at z = frontZ − i·spacing). The front trike parks beside the SE counter.
- * - Front trike shows a speech bubble (crate icon + "0/4") and loads crates from counter.pile into its
- *   cargo Pile (parent = cargoPivot) one every ~npcTakeInterval·1.3 via transferOne.
- * - When loaded: cash.pay(want · cratePrice, trike position); emit 'sale' { buyer:'tricycle',
- *   kind:'crate', ... }; stats.cratesSold += want; stats.tricyclesServed++; bubble → ✓; rider cheers;
- *   drive off +Z to exitZ and despawn (release crates + model). Queue advances.
+ * Model: AssetFactory createTricycle (assets/vehicles.ts) + createCharacterRig('courier') seated on it.
+ * Behaviour (LAYOUT.tricycles, ECONOMY.tricycleWant / cratePrice) lives in npc/VehicleQueue.ts: trikes spawn
+ * at (laneX, spawnZ), drive +Z with smooth accel / braking to slot i (z = frontZ − i·spacing; the front
+ * trike's cargo tray parks beside the SE counter), the front one shows a crate bubble ("0/4") and loads
+ * crates from counter.pile into its tray one every ~npcTakeInterval·1.3, then pays want · cratePrice, emits
+ * 'sale' { buyer: 'tricycle' }, cheers, drives off +Z to exitZ and returns to the pool.
  */
-import * as THREE from 'three';
-import { ECONOMY } from '../config';
+import { ECONOMY, LAYOUT, TIMING } from '../config';
 import type { GameContext } from '../core/types';
+import { createTricycleWithRider, TRIKE_WHEEL_RADIUS } from '../assets/vehicles';
 import type { Counter } from '../stations/Counter';
 import type { CashPile } from '../stations/CashPile';
+import { Vehicle, VehicleQueue, type VehicleParts } from './VehicleQueue';
 
 export interface TricycleQueueOptions {
   counter: Counter;
   cash: CashPile;
 }
 
-/** BASELINE: seconds between invisible purchases. */
-const BASELINE_INTERVAL = 0.6;
+/** Tray-floor centre offset along the trike's length: root.z = (cargo z) + this. */
+const TRAY_OFFSET = 0.6;
 
-export class TricycleQueue {
-  private baselineTimer = 0;
-  private readonly tmp = new THREE.Vector3();
-
+export class TricycleQueue extends VehicleQueue {
   constructor(
-    readonly ctx: GameContext,
+    ctx: GameContext,
     readonly opts: TricycleQueueOptions,
-  ) {}
-
-  /** Trikes currently queued (including the one loading). */
-  get waiting(): number {
-    return 0;
+  ) {
+    const T = LAYOUT.tricycles;
+    super(ctx, opts.counter, opts.cash, {
+      kind: 'crate',
+      buyer: 'tricycle',
+      icon: 'crate',
+      price: ECONOMY.cratePrice,
+      want: ECONOMY.tricycleWant,
+      maxQueue: T.maxQueue,
+      driveSpeed: T.driveSpeed,
+      spawnU: T.spawnZ,
+      exitU: T.exitZ,
+      slotU: (i) => T.frontZ + TRAY_OFFSET - i * T.spacing,
+      spawnGap: [2.5, 4],
+      takeInterval: TIMING.npcTakeInterval * 1.3,
+      accel: 7,
+      decel: 9,
+      variants: 1,
+      idPrefix: 'npc:tricycle',
+      cargoGrid: T.cargoGrid,
+      bubbleScale: 1.15,
+    });
   }
 
-  update(dt: number): void {
-    // BASELINE (replace): an invisible trike buys one crate at a time.
-    this.baselineTimer -= dt;
-    if (this.baselineTimer > 0) return;
-    this.baselineTimer = BASELINE_INTERVAL;
-    const item = this.opts.counter.pile.take('crate');
-    if (!item) return;
-    item.object.getWorldPosition(this.tmp);
-    this.ctx.items.release(item);
-    const amount = ECONOMY.cratePrice;
-    this.opts.cash.pay(amount, this.tmp);
-    this.ctx.state.stats.cratesSold++;
-    this.ctx.state.stats.tricyclesServed++;
-    this.ctx.events.emit('sale', { buyer: 'tricycle', kind: 'crate', count: 1, amount, position: this.tmp });
+  protected buildParts(variant: number): VehicleParts {
+    const { model, rig } = createTricycleWithRider(variant);
+    return {
+      root: model.root,
+      body: model.body,
+      wheels: model.wheels,
+      wheelRadius: TRIKE_WHEEL_RADIUS,
+      spinAxis: 'x',
+      pitchAxis: 'x',
+      cargoParent: model.cargoPivot,
+      bubbleY: model.bubbleY,
+      rig,
+    };
+  }
+
+  protected pose(v: Vehicle): void {
+    v.parts.root.position.set(LAYOUT.tricycles.laneX, 0, v.u);
+  }
+
+  protected recordSale(v: Vehicle): void {
+    const stats = this.ctx.state.stats;
+    stats.cratesSold += v.want;
+    stats.tricyclesServed++;
+  }
+
+  /** True while the front trike is parked at the counter wanting crates. */
+  get frontLoading(): boolean {
+    const v = this.queue[0];
+    return !!v && v.mode === 'queue' && v.atSlot;
   }
 }

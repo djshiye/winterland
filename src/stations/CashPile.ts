@@ -10,11 +10,12 @@
  *   launchNew (arc ~0.35 s, height ~1.5) so the pile visibly grows. The caller emits 'sale'.
  */
 import * as THREE from 'three';
-import { ECONOMY, type PileGrid, type Rect } from '../config';
+import { COLORS, ECONOMY, PALETTE, type PileGrid, type Rect } from '../config';
 import type { GameContext } from '../core/types';
 import { Pile } from '../items/Pile';
 import { launchNew } from '../items/transfer';
 import type { Zone } from '../items/Zones';
+import { basic, geo, mesh } from '../render/materials';
 
 export interface CashPileOptions {
   /** Holder id, e.g. 'pile:walkInCash'. */
@@ -40,6 +41,20 @@ export class CashPile {
       grid: opts.grid,
       overflowMerge: true,
     });
+    // Subtle ground marker under the grid: a soft white plate with a green rim.
+    const gw = opts.grid.cols * opts.grid.spacing.x + 0.3;
+    const gd = opts.grid.rows * opts.grid.spacing.z + 0.3;
+    const rim = mesh(geo.ground(gw + 0.1, gd + 0.1), basic(COLORS.CASH_GREEN, { transparent: true, opacity: 0.4, depthWrite: false }), {
+      cast: false,
+    });
+    const plate = mesh(geo.ground(gw, gd), basic(PALETTE.zoneMarker, { transparent: true, opacity: 0.16, depthWrite: false }), {
+      cast: false,
+    });
+    rim.position.y = 0.03;
+    plate.position.y = 0.036;
+    rim.renderOrder = 1;
+    plate.renderOrder = 2;
+    this.pile.root.add(rim, plate);
     this.zone = ctx.zones.addTransfer({
       id: `${opts.id}:collect`,
       area: opts.zone,
