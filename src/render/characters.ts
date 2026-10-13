@@ -1,68 +1,58 @@
 /**
- * [B1 — engine] Capsule-people model + procedural animation, shared by the player and NPCs
- * (walk-in customers, tricycle riders, truck drivers).
- *
- * Look: chunky low-poly toy style — capsule body (bodyColor), sphere head (skin) with two tiny dark
- * eyes, optional hat (beanie with pom-pom for the lumberjack, cap for NPCs), short capsule arms,
- * stubby legs/feet. ~1.7 units tall. Built only from materials.ts helpers (toon + geo cache).
+ * [B1 — engine] CharacterRig: procedural animation for any CharacterModel (assets/characters.ts), shared
+ * by the player and NPCs (walk-in customers, tricycle couriers, truck drivers).
  *
  * Conventions:
  * - root origin at the feet, character faces local +Z.
- * - armsAnchor: in front of the chest (~y 0.95, z +0.45) — carried goods stack upward from here.
- * - backAnchor: behind the back (~y 0.9, z -0.4) — cash bundles stack upward from here.
- * - handR: right-hand attach point (the player's axe is parented here). It sits at the tip of the +X arm
- *   and its local -Y axis points along the arm, away from the shoulder.
- * - The anchors live on the animated torso (they bob and lean with it) but are never scaled by the
- *   walk squash, so carried items keep their proportions.
+ * - armsAnchor = model.carryPivot: carried goods stack upward from it (player: (0, 0.5, 0.45)).
+ * - backAnchor = model.backPivot: cash bundles stack upward from it.
+ * - handR: right-hand attach point (the player's axe). Its local -Y axis points along the arm.
+ * - The anchors live on the animated torso pivot (they bob and lean with it) but are never scaled by
+ *   the walk squash, so carried items keep their proportions.
  *
- * animate(dt, speed01): walk cycle (bob, foot shuffle, arm swing, slight forward lean, tiny
- * squash on each step); idle breathing when speed01≈0. setCarrying(true) holds both arms forward
- * (under the stack) instead of swinging. setSeated(true) bends legs forward (trike/truck rider).
- * cheer(): little hop + arms up (customer happy after buying).
+ * animate(dt, speed01): walk cycle (bob, waddle, boot shuffle, arm swing, forward lean, tiny squash on
+ * each step); idle breathing when speed01≈0. setCarrying(true) holds both arms forward around the
+ * stack instead of swinging. setSeated(true) bends the legs forward and drops the body (courier /
+ * driver). cheer(): little hop + arms up (customer happy after buying).
  *
  * Extra hooks for scripted poses (e.g. the player's axe swing): armRAngle / armLAngle (radians about X,
  * 0 = hanging, negative = forward/up, ±π = straight up), torsoLean and torsoTwist.
  */
 import * as THREE from 'three';
-import { COLORS, PALETTE } from '../config';
-import type { CharacterKind } from '../assets/characters';
+import {
+  CHARACTER_HIP_Y as HIP,
+  characterScale,
+  createCourierModel,
+  createCustomerModel,
+  createDriverModel,
+  createPlayerModel,
+  type CharacterKind,
+  type CharacterModel,
+} from '../assets/characters';
 import { damp } from '../core/math';
-import { geo, mesh, toon } from './materials';
 
-export interface CharacterOptions {
-  body: number;
-  skin?: number;
-  pants?: number;
-  hat?: 'beanie' | 'cap' | 'none';
-  hatColor?: number;
-  scarf?: number;
-  scale?: number;
-}
-
-// Skeleton measurements (unscaled units; feet at y = 0).
-const HIP_Y = 0.46;
-const SHOULDER_Y = 0.93;
-const SHOULDER_X = 0.37;
-const HEAD_Y = 1.31;
-const HEAD_R = 0.27;
-const ARM_LEN = 0.36;
-const CARRY_ARM = -1.22;
+const CARRY_ARM = -1.15;
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
+export interface CharacterRigOptions {
+  /** Uniform scale applied to the root (crowd variety). */
+  scale?: number;
+}
+
 export class CharacterRig {
-  readonly root = new THREE.Group();
-  readonly armsAnchor = new THREE.Object3D();
-  readonly backAnchor = new THREE.Object3D();
-  readonly handR = new THREE.Object3D();
+  readonly root: THREE.Group;
+  readonly armsAnchor: THREE.Object3D;
+  readonly backAnchor: THREE.Object3D;
+  readonly handR: THREE.Object3D;
 
   /** Pivot of the whole upper body (bob / lean / twist). Child of root at hip height. */
-  readonly torso = new THREE.Group();
+  readonly torso: THREE.Group;
   /** Pivot at the +X shoulder (the axe arm). */
-  readonly armR = new THREE.Group();
+  readonly armR: THREE.Group;
   /** Pivot at the -X shoulder. */
-  readonly armL = new THREE.Group();
-  readonly head = new THREE.Group();
+  readonly armL: THREE.Group;
+  readonly head: THREE.Group;
 
   /** Scripted override (radians about X) for the +X arm; null = automatic. */
   armRAngle: number | null = null;
@@ -73,10 +63,11 @@ export class CharacterRig {
   /** Extra torso yaw twist (radians). */
   torsoTwist = 0;
 
-  private readonly squashGroup = new THREE.Group();
-  private readonly legL = new THREE.Group();
-  private readonly legR = new THREE.Group();
-  private readonly hat = new THREE.Group();
+  private readonly squashGroup: THREE.Group;
+  private readonly legL: THREE.Group;
+  private readonly legR: THREE.Group;
+  private readonly hat: THREE.Object3D | null;
+  private readonly scale: number;
 
   private carrying = false;
   private seated = false;
@@ -87,117 +78,32 @@ export class CharacterRig {
   private time = Math.random() * 10;
   private cheerT = -1;
 
-  constructor(readonly opts: CharacterOptions) {
-    const bodyMat = toon(opts.body);
-    const skinMat = toon(opts.skin ?? PALETTE.skin);
-    const pantsMat = toon(opts.pants ?? PALETTE.playerPants);
-    const eyeMat = toon(0x1c2230);
-    const bootMat = toon(0x3a2a22);
-
-    // --- legs (pivot at hip, hang down) --------------------------------------
-    for (const [leg, sx] of [
-      [this.legL, -0.17],
-      [this.legR, 0.17],
-    ] as const) {
-      leg.position.set(sx, HIP_Y, 0);
-      const l = mesh(geo.capsule(0.125, 0.14, 4, 10), pantsMat);
-      l.position.y = -0.2;
-      const foot = mesh(geo.box(0.24, 0.12, 0.34), bootMat);
-      foot.position.set(0, -0.4, 0.06);
-      leg.add(l, foot);
-      this.root.add(leg);
-    }
-
-    // --- torso pivot ---------------------------------------------------------
-    this.torso.position.y = HIP_Y;
-    this.root.add(this.torso);
-    this.torso.add(this.squashGroup);
-
-    const chest = mesh(geo.capsule(0.33, 0.2, 5, 14), bodyMat);
-    chest.position.y = 0.26;
-    this.squashGroup.add(chest);
-
-    if (opts.scarf !== undefined) {
-      const scarf = mesh(geo.torus(0.27, 0.075, 8, 16), toon(opts.scarf));
-      scarf.rotation.x = Math.PI / 2;
-      scarf.position.y = 0.72;
-      this.squashGroup.add(scarf);
-    }
-
-    // --- head ----------------------------------------------------------------
-    this.head.position.y = HEAD_Y - HIP_Y;
-    this.squashGroup.add(this.head);
-    this.head.add(mesh(geo.sphere(HEAD_R, 18, 14), skinMat));
-    for (const sx of [-0.1, 0.1]) {
-      const eye = mesh(geo.sphere(0.045, 8, 6), eyeMat, { cast: false });
-      eye.position.set(sx, 0.0, 0.235);
-      eye.scale.set(1, 1.25, 0.7);
-      this.head.add(eye);
-    }
-    const nose = mesh(geo.sphere(0.045, 8, 6), toon(0xe9a98a), { cast: false });
-    nose.position.set(0, -0.06, 0.262);
-    this.head.add(nose);
-
-    const hatKind = opts.hat ?? 'none';
-    if (hatKind !== 'none') {
-      const hc = toon(opts.hatColor ?? PALETTE.playerHat);
-      this.head.add(this.hat);
-      if (hatKind === 'beanie') {
-        const dome = mesh(geo.sphere(0.292, 16, 12), hc);
-        dome.scale.set(1, 0.82, 1);
-        dome.position.y = 0.2;
-        const cuff = mesh(geo.cylinder(0.295, 0.295, 0.1, 16), toon(0xffffff));
-        cuff.position.y = 0.15;
-        const pom = mesh(geo.sphere(0.1, 10, 8), toon(0xffffff));
-        pom.position.y = 0.46;
-        this.hat.add(dome, cuff, pom);
-        // little beard
-        const beard = mesh(geo.sphere(0.2, 12, 10), toon(0x7a4a2a));
-        beard.scale.set(1, 0.6, 0.6);
-        beard.position.set(0, -0.2, 0.13);
-        this.head.add(beard);
-      } else {
-        const dome = mesh(geo.sphere(0.285, 16, 12), hc);
-        dome.scale.set(1, 0.7, 1);
-        dome.position.y = 0.16;
-        const brim = mesh(geo.box(0.36, 0.045, 0.22), hc);
-        brim.position.set(0, 0.12, 0.27);
-        brim.rotation.x = 0.12;
-        this.hat.add(dome, brim);
-      }
-    }
-
-    // --- arms (pivot at shoulder, hang down) ---------------------------------
-    const armGeo = geo.capsule(0.095, 0.2, 4, 10);
-    for (const [arm, sx] of [
-      [this.armL, -SHOULDER_X],
-      [this.armR, SHOULDER_X],
-    ] as const) {
-      arm.position.set(sx, SHOULDER_Y - HIP_Y, 0);
-      const a = mesh(armGeo, bodyMat);
-      a.position.y = -0.2;
-      const hand = mesh(geo.sphere(0.1, 10, 8), skinMat);
-      hand.position.y = -ARM_LEN;
-      arm.add(a, hand);
-      this.squashGroup.add(arm);
-    }
-    this.handR.position.set(0, -ARM_LEN, 0);
-    this.armR.add(this.handR);
-
-    // --- anchors (on the torso so they bob/lean, outside the squash group) ----
-    this.armsAnchor.position.set(0, 0.95 - HIP_Y, 0.45);
-    this.backAnchor.position.set(0, 0.9 - HIP_Y, -0.4);
-    this.torso.add(this.armsAnchor, this.backAnchor);
-
-    this.root.scale.setScalar(opts.scale ?? 1);
+  constructor(
+    readonly model: CharacterModel,
+    readonly opts: CharacterRigOptions = {},
+  ) {
+    this.root = model.root;
+    this.armsAnchor = model.carryPivot;
+    this.backAnchor = model.backPivot;
+    this.handR = model.handR;
+    this.torso = model.body;
+    this.armR = model.armR;
+    this.armL = model.armL;
+    this.head = model.head;
+    this.squashGroup = model.squash;
+    this.legL = model.legL;
+    this.legR = model.legR;
+    this.hat = model.hat;
+    this.scale = opts.scale ?? 1;
+    this.root.scale.setScalar(this.scale);
   }
 
   /** Top of the head/hat above the feet, in world units (speech bubbles float above it). */
   get height(): number {
-    return 1.75 * (this.opts.scale ?? 1);
+    return this.model.height * this.scale;
   }
 
-  /** Hold both arms forward under a carried stack (instead of swinging them). */
+  /** Hold both arms forward around a carried stack (instead of swinging them). */
   setCarrying(carrying: boolean): void {
     this.carrying = carrying;
   }
@@ -221,8 +127,7 @@ export class CharacterRig {
     this.seatBlend = damp(this.seatBlend, this.seated ? 1 : 0, 14, dt);
     const seat = this.seatBlend;
 
-    const moving = s > 0.03;
-    if (moving) this.phase += dt * (7.5 + 5.5 * s);
+    if (s > 0.03) this.phase += dt * (7.5 + 5.5 * s);
     // walk amplitude saturates quickly so slow NPC strolls still read as steps
     const a = Math.min(1, s * 2.2) * (1 - seat);
     const sinP = Math.sin(this.phase);
@@ -237,33 +142,35 @@ export class CharacterRig {
       if (k >= 1) this.cheerT = -1;
       else {
         cheerW = Math.min(1, Math.sin(k * Math.PI) * 2.2);
-        hop = Math.abs(Math.sin(k * Math.PI * 2)) * 0.3 * (1 - k);
+        hop = Math.abs(Math.sin(k * Math.PI * 2)) * 0.28 * (1 - k);
       }
     }
 
-    // legs
-    const legAmp = 0.85 * a;
-    this.legL.rotation.x = lerp(sinP * legAmp, -1.45, seat);
-    this.legR.rotation.x = lerp(-sinP * legAmp, -1.45, seat);
-    const hipDrop = 0.17 * seat;
-    this.legL.position.y = this.legR.position.y = HIP_Y - hipDrop + hop * 0.5;
+    // boots
+    const legAmp = 0.95 * a;
+    this.legL.rotation.x = lerp(sinP * legAmp, -1.25, seat);
+    this.legR.rotation.x = lerp(-sinP * legAmp, -1.25, seat);
+    const hipDrop = 0.09 * seat;
+    this.legL.position.y = this.legR.position.y = HIP - hipDrop + hop * 0.5;
 
-    // torso: bob, lean, sway, twist
+    // torso: bob, lean, waddle, twist
     const breathe = Math.sin(this.time * 2.4) * (1 - Math.min(1, s * 4));
-    this.torso.position.y = HIP_Y - hipDrop + q * 0.11 * a + hop;
-    this.torso.rotation.x = 0.2 * s * (1 - seat) + this.torsoLean;
-    this.torso.rotation.z = sinP * 0.06 * a;
-    this.torso.rotation.y = -sinP * 0.14 * a + this.torsoTwist;
+    this.torso.position.y = HIP - hipDrop + q * 0.09 * a + hop;
+    this.torso.rotation.x = 0.17 * s * (1 - seat) + this.torsoLean;
+    this.torso.rotation.z = sinP * 0.1 * a;
+    this.torso.rotation.y = -sinP * 0.12 * a + this.torsoTwist;
     const stepSquash = (1 - q) * a;
     this.squashGroup.scale.set(
-      1 + 0.03 * stepSquash + 0.012 * breathe,
-      1 - 0.05 * stepSquash - 0.018 * breathe,
-      1 + 0.03 * stepSquash + 0.012 * breathe,
+      1 + 0.04 * stepSquash + 0.014 * breathe,
+      1 - 0.06 * stepSquash - 0.02 * breathe,
+      1 + 0.04 * stepSquash + 0.014 * breathe,
     );
     this.head.rotation.x = -0.1 * s - this.torsoLean * 0.4;
     this.head.rotation.z = Math.sin(this.time * 1.3) * 0.03 * (1 - s);
-    this.hat.rotation.x = -sinP * 0.04 * a;
-    this.hat.rotation.z = Math.cos(this.phase * 2) * 0.04 * a;
+    if (this.hat) {
+      this.hat.rotation.x = -sinP * 0.04 * a;
+      this.hat.rotation.z = Math.cos(this.phase * 2) * 0.04 * a;
+    }
 
     // arms
     const swing = sinP * 0.95 * a;
@@ -281,7 +188,7 @@ export class CharacterRig {
     this.armL.rotation.x = armL;
     this.armR.rotation.x = armR;
     // splay outward at rest, tuck in while carrying
-    const splay = lerp(0.12 + 0.03 * breathe, -0.1, carry) + cheerW * 0.35;
+    const splay = lerp(0.14 + 0.03 * breathe, -0.1, carry) + cheerW * 0.35;
     this.armL.rotation.z = -splay;
     this.armR.rotation.z = splay;
   }
@@ -291,17 +198,17 @@ export type { CharacterKind };
 
 /**
  * Entry point for the player and NPC code: the animated rig for a character kind (the meshes come
- * from AssetFactory assets/characters.ts). `variant` varies tints / headwear across a crowd.
+ * from AssetFactory assets/characters.ts). `variant` varies shade / scarf / scale (±6%) across a crowd.
  */
 export function createCharacterRig(kind: CharacterKind, variant = 0): CharacterRig {
   switch (kind) {
     case 'player':
-      return new CharacterRig({ body: PALETTE.playerShirt, pants: PALETTE.playerPants, hat: 'beanie', hatColor: PALETTE.playerHat });
+      return new CharacterRig(createPlayerModel());
     case 'customer':
-      return new CharacterRig({ body: variant % 2 === 0 ? PALETTE.customer : PALETTE.customerDark, hat: 'none', scale: 0.9 });
+      return new CharacterRig(createCustomerModel(variant), { scale: characterScale(variant) });
     case 'courier':
-      return new CharacterRig({ body: PALETTE.trike, hat: 'cap', hatColor: COLORS.COURIER_YELLOW, scale: 0.9 });
+      return new CharacterRig(createCourierModel(), { scale: characterScale(variant + 101) });
     case 'driver':
-      return new CharacterRig({ body: variant % 2 === 0 ? PALETTE.truckBlue : PALETTE.truckRed, hat: 'cap', hatColor: PALETTE.accent, scale: 0.9 });
+      return new CharacterRig(createDriverModel(variant), { scale: characterScale(variant + 211) });
   }
 }
