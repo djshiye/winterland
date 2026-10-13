@@ -18,10 +18,13 @@
  * Conventions: root origin at the feet, character faces local +Z. `body` is an upper-body pivot at hip
  * height (HIP_Y) that CharacterRig bobs / leans; `squash` (child of body) is the only thing that gets
  * scaled, so the anchors (carryPivot / backPivot, children of body) never deform carried items.
+ * Draw calls: each animated pivot (torso, head, each arm, each boot) holds ONE baked vertex-coloured mesh
+ * (render/batch.ts bake), so a character is 6 meshes and the axe is 1. Headwear is baked into the head.
  * handR sits at the end of armR; its local -Y axis points along the arm, away from the shoulder.
  */
 import * as THREE from 'three';
 import { COLORS, PALETTE } from '../config';
+import { bake } from '../render/batch';
 import { geo, mesh, toon } from '../render/materials';
 
 export type CharacterKind = 'player' | 'customer' | 'courier' | 'driver';
@@ -38,7 +41,7 @@ export interface CharacterModel {
   /** Scaled for squash & stretch; holds torso, head and arms (but not the anchors). Child of body. */
   squash: THREE.Group;
   head: THREE.Group;
-  /** Headwear pivot (child of head) for a little wobble; null when there is none. */
+  /** Separate headwear pivot for a wobble; null now that headwear is baked into the head mesh. */
   hat: THREE.Object3D | null;
   armL: THREE.Group;
   armR: THREE.Group;
@@ -66,6 +69,10 @@ interface PawnSpec {
   hand: number;
   boot: number;
   carryZ: number;
+  /** Extra torso parts (collars, scarf, stripes), in body-local space (y up from the hips). */
+  torsoExtras?: (g: THREE.Group, topY: number) => void;
+  /** Extra head parts (beard, hat), in head-local space. */
+  headExtras?: (g: THREE.Group) => void;
 }
 
 const BASE_Y = 0.12;
@@ -76,7 +83,7 @@ export const CHARACTER_ARM_REACH = 0.33;
 
 const eyeColor = (): number => PALETTE.rubber;
 
-/** Skeleton + body + head + arms + boots; kind-specific details are added by the callers. */
+/** Skeleton + body + head + arms + boots (each animated pivot is baked to one mesh); kind-specific parts via spec callbacks. */
 function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: number } {
   const root = new THREE.Group();
   const body = new THREE.Group();
@@ -86,30 +93,37 @@ function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: number 
 
   const bodyMat = toon(s.bodyColor);
   const topY = BASE_Y + s.bodyH;
+
+  // torso (+ collars / scarf / stripes): one mesh
+  const torsoG = new THREE.Group();
   const torso = s.capsule
     ? mesh(geo.capsule(s.bodyR, s.bodyH - s.bodyR * 2, 6, 14), bodyMat)
     : mesh(geo.cylinder(s.bodyR * 0.93, s.bodyR, s.bodyH, 18), bodyMat);
   torso.position.y = BASE_Y + s.bodyH / 2 - HIP;
-  squash.add(torso);
+  torsoG.add(torso);
+  s.torsoExtras?.(torsoG, topY);
+  squash.add(bake(torsoG, { name: 'torso' }));
 
-  // head
+  // head (+ eyes, beard, hat): pivot group with one mesh
   const headY = topY + s.headR * 0.6;
   const head = new THREE.Group();
   head.position.y = headY - HIP;
-  head.add(mesh(geo.sphere(s.headR, 18, 14), toon(s.skin)));
+  const headG = new THREE.Group();
+  headG.add(mesh(geo.sphere(s.headR, 18, 14), toon(s.skin)));
   const eyeMat = toon(eyeColor());
   const ex = s.headR * 0.32;
   const ez = Math.sqrt(Math.max(0, s.headR * s.headR - ex * ex)) - 0.012;
   for (const sx of [-ex, ex]) {
-    const eye = mesh(geo.sphere(0.036, 8, 6), eyeMat, { cast: false });
+    const eye = mesh(geo.sphere(0.036, 8, 6), eyeMat);
     eye.scale.set(1, 1.3, 0.7);
     eye.position.set(sx, 0.0, ez);
-    head.add(eye);
+    headG.add(eye);
   }
+  s.headExtras?.(headG);
+  head.add(bake(headG, { name: 'head' }));
   squash.add(head);
 
-  // arms: pivot at the shoulder, hanging down
-  const armMat = bodyMat;
+  // arms: pivot at the shoulder, hanging down; each is one mesh (sleeve + mitten)
   const handMat = toon(s.hand);
   const sx = s.bodyR + 0.03;
   const shoulder = topY - 0.14 - HIP;
@@ -117,11 +131,13 @@ function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: number 
   for (const side of [-1, 1]) {
     const arm = new THREE.Group();
     arm.position.set(side * sx, shoulder, 0);
-    const a = mesh(geo.capsule(ARM_R, ARM_LEN, 4, 10), armMat);
+    const ag = new THREE.Group();
+    const a = mesh(geo.capsule(ARM_R, ARM_LEN, 4, 10), bodyMat);
     a.position.y = -ARM_LEN / 2 - ARM_R * 0.8;
     const h = mesh(geo.sphere(0.1, 10, 8), handMat);
     h.position.y = -CHARACTER_ARM_REACH;
-    arm.add(a, h);
+    ag.add(a, h);
+    arm.add(bake(ag, { name: 'arm' }));
     squash.add(arm);
     arms.push(arm);
   }
@@ -137,9 +153,11 @@ function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: number 
   for (const side of [-1, 1]) {
     const leg = new THREE.Group();
     leg.position.set(side * s.bodyR * 0.5, HIP, 0);
+    const lg = new THREE.Group();
     const boot = mesh(geo.box(0.22, 0.2, 0.32), bootMat);
     boot.position.set(0, -0.15, 0.05);
-    leg.add(boot);
+    lg.add(boot);
+    leg.add(bake(lg, { name: 'boot' }));
     root.add(leg);
     legs.push(leg);
   }
@@ -203,27 +221,26 @@ export function createPlayerModel(): CharacterModel {
     hand: COLORS.PLAYER_TRIM,
     boot: PALETTE.playerPants,
     carryZ: 0.45,
+    torsoExtras: (g, topY) => {
+      // white torus collars at the base and at the neck
+      g.add(torusRing(0.35, 0.055, COLORS.PLAYER_TRIM, BASE_Y + 0.05 - HIP));
+      g.add(torusRing(0.325, 0.065, COLORS.PLAYER_TRIM, topY - 0.02 - HIP));
+    },
+    headExtras: (g) => {
+      // white beard: flattened sphere over the lower face
+      const beard = mesh(geo.sphere(0.255, 14, 10), toon(COLORS.PLAYER_TRIM));
+      beard.scale.set(1, 0.52, 0.66);
+      beard.position.set(0, -0.14, 0.17);
+      // blue beanie: r 0.29 dome + darker cuff
+      const dome = mesh(geo.sphere(0.29, 18, 12), toon(COLORS.PLAYER_COAT));
+      dome.scale.set(1, 0.78, 1);
+      dome.position.y = 0.13;
+      const cuff = mesh(geo.torus(0.265, 0.05, 8, 20), toon(PALETTE.playerPants));
+      cuff.rotation.x = Math.PI / 2;
+      cuff.position.y = 0.1;
+      g.add(beard, dome, cuff);
+    },
   });
-  const sq = m.squash;
-  // white torus collars at the base and at the neck
-  sq.add(torusRing(0.35, 0.055, COLORS.PLAYER_TRIM, BASE_Y + 0.05 - HIP));
-  sq.add(torusRing(0.325, 0.065, COLORS.PLAYER_TRIM, m.topY - 0.02 - HIP));
-  // white beard: flattened sphere over the lower face
-  const beard = mesh(geo.sphere(0.255, 14, 10), toon(COLORS.PLAYER_TRIM));
-  beard.scale.set(1, 0.52, 0.66);
-  beard.position.set(0, -0.14, 0.17);
-  m.head.add(beard);
-  // blue beanie: r 0.29 dome + darker cuff
-  const hat = new THREE.Group();
-  const dome = mesh(geo.sphere(0.29, 18, 12), toon(COLORS.PLAYER_COAT));
-  dome.scale.set(1, 0.78, 1);
-  dome.position.y = 0.13;
-  const cuff = mesh(geo.torus(0.265, 0.05, 8, 20), toon(PALETTE.playerPants));
-  cuff.rotation.x = Math.PI / 2;
-  cuff.position.y = 0.1;
-  hat.add(dome, cuff);
-  m.head.add(hat);
-  m.hat = hat;
   m.height = m.headY + 0.13 + 0.29 * 0.78;
   return m;
 }
@@ -235,7 +252,13 @@ export function createPlayerModel(): CharacterModel {
 const CUSTOMER_SHADES = [COLORS.CUSTOMER_BLUE, PALETTE.customerDark, 0x7ec2fb] as const;
 const SCARVES = [-1, COLORS.PLAYER_TRIM, COLORS.COURIER_YELLOW, COLORS.SAW_GLOW] as const;
 
-function npcBody(color: number, skin = COLORS.PLAYER_SKIN, hand: number = skin): ReturnType<typeof buildPawn> {
+function npcBody(
+  color: number,
+  skin: number,
+  hand: number,
+  torsoExtras?: PawnSpec['torsoExtras'],
+  headExtras?: PawnSpec['headExtras'],
+): ReturnType<typeof buildPawn> {
   return buildPawn({
     bodyColor: color,
     bodyR: 0.3,
@@ -246,57 +269,74 @@ function npcBody(color: number, skin = COLORS.PLAYER_SKIN, hand: number = skin):
     hand,
     boot: PALETTE.rubber,
     carryZ: 0.4,
+    torsoExtras,
+    headExtras,
   });
 }
 
 export function createCustomerModel(variant = 0): CharacterModel {
   const h = hash(variant);
   const color = CUSTOMER_SHADES[h % CUSTOMER_SHADES.length]!;
-  const m = npcBody(color);
-  // hood: a body-coloured sphere behind / above the face (the skin head pokes out of the front)
-  const hood = mesh(geo.sphere(0.27, 16, 12), toon(color));
-  hood.scale.set(1, 0.95, 1);
-  hood.position.set(0, 0.04, -0.09);
-  const hat = new THREE.Group();
-  hat.add(hood);
-  m.head.add(hat);
-  m.hat = hat;
   const scarf = SCARVES[(h >>> 4) % SCARVES.length]!;
-  if (scarf >= 0) m.squash.add(torusRing(0.265, 0.06, scarf, m.topY - 0.02 - HIP));
+  const m = npcBody(
+    color,
+    COLORS.PLAYER_SKIN,
+    COLORS.PLAYER_SKIN,
+    (g, topY) => {
+      if (scarf >= 0) g.add(torusRing(0.265, 0.06, scarf, topY - 0.02 - HIP));
+    },
+    (g) => {
+      // hood: a body-coloured sphere behind / above the face (the skin head pokes out of the front)
+      const hood = mesh(geo.sphere(0.27, 16, 12), toon(color));
+      hood.scale.set(1, 0.95, 1);
+      hood.position.set(0, 0.04, -0.09);
+      g.add(hood);
+    },
+  );
   m.height = m.headY + 0.04 + 0.27 * 0.95;
   return m;
 }
 
 export function createCourierModel(): CharacterModel {
-  const m = npcBody(PALETTE.playerPants, COLORS.PLAYER_SKIN, COLORS.COURIER_YELLOW);
-  m.squash.add(torusRing(0.305, 0.05, COLORS.COURIER_YELLOW, BASE_Y + 0.38 - HIP)); // hi-vis stripe
-  const hat = new THREE.Group();
-  const helmet = mesh(geo.sphere(0.26, 18, 12), toon(COLORS.COURIER_YELLOW));
-  helmet.scale.set(1, 0.82, 1);
-  helmet.position.y = 0.1;
-  const visor = mesh(geo.box(0.34, 0.04, 0.16), toon(COLORS.COURIER_YELLOW));
-  visor.position.set(0, 0.075, 0.24);
-  visor.rotation.x = 0.15;
-  hat.add(helmet, visor);
-  m.head.add(hat);
-  m.hat = hat;
+  const m = npcBody(
+    PALETTE.playerPants,
+    COLORS.PLAYER_SKIN,
+    COLORS.COURIER_YELLOW,
+    (g) => {
+      g.add(torusRing(0.305, 0.05, COLORS.COURIER_YELLOW, BASE_Y + 0.38 - HIP)); // hi-vis stripe
+    },
+    (g) => {
+      const helmet = mesh(geo.sphere(0.26, 18, 12), toon(COLORS.COURIER_YELLOW));
+      helmet.scale.set(1, 0.82, 1);
+      helmet.position.y = 0.1;
+      const visor = mesh(geo.box(0.34, 0.04, 0.16), toon(COLORS.COURIER_YELLOW));
+      visor.position.set(0, 0.075, 0.24);
+      visor.rotation.x = 0.15;
+      g.add(helmet, visor);
+    },
+  );
   m.height = m.headY + 0.1 + 0.26 * 0.82;
   return m;
 }
 
 export function createDriverModel(variant = 0): CharacterModel {
   const jacket = variant % 2 === 0 ? COLORS.CRATE_STRIP : COLORS.MACHINE_STEEL;
-  const m = npcBody(jacket, COLORS.PLAYER_SKIN, PALETTE.rubber);
-  m.squash.add(torusRing(0.305, 0.045, COLORS.SAW_GLOW, m.topY - 0.02 - HIP)); // orange scarf
-  const hat = new THREE.Group();
-  const dome = mesh(geo.sphere(0.245, 16, 10), toon(PALETTE.metalDark));
-  dome.scale.set(1, 0.6, 1);
-  dome.position.y = 0.11;
-  const brim = mesh(geo.box(0.36, 0.04, 0.2), toon(PALETTE.metalDark));
-  brim.position.set(0, 0.075, 0.24);
-  hat.add(dome, brim);
-  m.head.add(hat);
-  m.hat = hat;
+  const m = npcBody(
+    jacket,
+    COLORS.PLAYER_SKIN,
+    PALETTE.rubber,
+    (g, topY) => {
+      g.add(torusRing(0.305, 0.045, COLORS.SAW_GLOW, topY - 0.02 - HIP)); // orange scarf
+    },
+    (g) => {
+      const dome = mesh(geo.sphere(0.245, 16, 10), toon(PALETTE.metalDark));
+      dome.scale.set(1, 0.6, 1);
+      dome.position.y = 0.11;
+      const brim = mesh(geo.box(0.36, 0.04, 0.2), toon(PALETTE.metalDark));
+      brim.position.set(0, 0.075, 0.24);
+      g.add(dome, brim);
+    },
+  );
   m.height = m.headY + 0.11 + 0.245 * 0.6;
   return m;
 }
@@ -320,7 +360,9 @@ export function createAxe(): THREE.Group {
   head.position.set(0, -0.6, -0.03);
   const knob = mesh(geo.sphere(0.048, 8, 6), toon(COLORS.LOG_BARK));
   knob.position.y = 0.1;
-  g.add(handle, head, knob);
+  const body = new THREE.Group();
+  body.add(handle, head, knob);
+  g.add(bake(body, { name: 'axe' }));
   return g;
 }
 
