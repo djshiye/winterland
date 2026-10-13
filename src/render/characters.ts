@@ -210,5 +210,8 @@ export function createCharacterRig(kind: CharacterKind, variant = 0): CharacterR
       return new CharacterRig(createCourierModel(), { scale: characterScale(variant + 101) });
     case 'driver':
       return new CharacterRig(createDriverModel(variant), { scale: characterScale(variant + 211) });
+    case 'worker':
+      // Placeholder until the crew model exists (B1).
+      return new CharacterRig(createCourierModel(), { scale: characterScale(variant + 307) });
   }
 }

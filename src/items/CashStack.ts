@@ -146,6 +146,32 @@ export class CashStack implements ItemHolder {
     return item;
   }
 
+  /**
+   * Chunked payments (big pad costs): spend min(amount, money) at once and return ONE bundle carrying that value
+   * (null if amount < 1 or money < 1). Visually identical to take().
+   */
+  takeValue(amount: number): Item | null {
+    const value = Math.floor(Math.min(amount, this.ctx.economy.money));
+    if (value < 1) return null;
+    // Detach the visual FIRST, then spend (spend() re-enters sync()).
+    let item = this.visuals.pop() ?? null;
+    if (item) {
+      this.cancelAnim(item);
+      this.ctx.tweens.killTweensOf(item.object);
+      item.object.scale.set(1, 1, 1);
+      this.ctx.scene.attach(item.object);
+    } else {
+      item = this.ctx.items.create('cash');
+      this.getSlotWorldPosition(new CashSlot(this, this.opts.maxVisual - 1), item.object.position);
+    }
+    item.value = value;
+    if (!this.ctx.economy.spend(value)) {
+      this.ctx.items.release(item);
+      return null;
+    }
+    return item;
+  }
+
   // --- extras ---------------------------------------------------------------
   /** Number of bundles currently drawn. */
   get visualCount(): number {

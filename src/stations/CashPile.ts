@@ -79,7 +79,8 @@ export class CashPile {
     }
   }
 
-  appear(): void {
+  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. TODO(owner): honour it. */
+  appear(instant = false): void {
     this.ctx.tweens.popIn(this.pile.root);
   }
 }

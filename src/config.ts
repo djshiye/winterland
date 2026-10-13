@@ -241,6 +241,10 @@ export const TIMING = {
   chopInterval: 0.4,
   /** NPC takes one item from its counter every N seconds. */
   npcTakeInterval: 0.14,
+  /** Seconds the player must stand on a pad before cash starts flying (walking across one pays nothing). */
+  padHoldDelay: 0.25,
+  /** A pad payment takes about this many flights, whatever the cost (each bundle carries cost / N, a multiple of 5). */
+  padFlights: 24,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -254,9 +258,11 @@ export const ECONOMY = {
   plankPrice: 5, // walk-in customers, per plank bundle (each made from one log)
   cratePrice: 15, // cargo tricycles, per crate
   truckLogPrice: 10, // phase-5 pickup trucks, per log (bulk)
+  /** @deprecated Village level 0 of DEMAND (core/demand.ts demandOf) — read that instead. */
   customerWant: [2, 4] as [number, number],
-  /** Tricycle cargo tray holds up to 6 crates. */
+  /** @deprecated See DEMAND. */
   tricycleWant: [3, 6] as [number, number],
+  /** @deprecated See DEMAND. */
   truckWant: [8, 12] as [number, number],
 } as const;
 
@@ -278,11 +284,11 @@ export interface PadDef {
 }
 
 export const PADS: Record<PadIdConst, PadDef> = {
-  harvester: { id: 'harvester', cost: 100, x: -6.6, z: -4.8, size: 2.2, label: 'HARVESTER', icon: 'saw' },
-  processor: { id: 'processor', cost: 200, x: 6.4, z: 6.6, size: 2.2, label: 'PROCESSOR', icon: 'factory' },
-  westConveyor: { id: 'westConveyor', cost: 150, x: -2.4, z: 4.6, size: 2.2, label: 'CONVEYOR', icon: 'conveyor' },
-  eastConveyor: { id: 'eastConveyor', cost: 150, x: -0.8, z: -3.0, size: 2.2, label: 'CONVEYOR', icon: 'conveyor' },
-  megaSaw: { id: 'megaSaw', cost: 200, x: -6.4, z: -8.2, size: 2.2, label: 'MEGA SAWMILL', icon: 'megasaw' },
+  harvester: { id: 'harvester', cost: 150, x: -6.6, z: -4.8, size: 2.2, label: 'HARVESTER', icon: 'saw' },
+  processor: { id: 'processor', cost: 700, x: 6.4, z: 6.6, size: 2.2, label: 'PROCESSOR', icon: 'factory' },
+  westConveyor: { id: 'westConveyor', cost: 1200, x: -2.4, z: 4.6, size: 2.2, label: 'CONVEYOR', icon: 'conveyor' },
+  eastConveyor: { id: 'eastConveyor', cost: 1200, x: -0.8, z: -3.0, size: 2.2, label: 'CONVEYOR', icon: 'conveyor' },
+  megaSaw: { id: 'megaSaw', cost: 4000, x: -6.4, z: -8.2, size: 2.2, label: 'MEGA SAWMILL', icon: 'megasaw' },
 };
 
 // ---------------------------------------------------------------------------
@@ -541,4 +547,310 @@ export const LAYOUT = {
   mountains: { z: -34 },
   /** Cosy cabin in the yard's -Z/+X corner (solid). */
   cabin: rect(7.8, -7.8, 3.6, 3.0),
+
+  /** Upgrade shop: a doormat in front of the cabin door (+Z face, door near x ≈ 7). Standing on it opens the shop panel. */
+  shop: {
+    mat: rect(7.2, -4.8, 2.2, 1.6),
+    /** Where crew members appear when hired and where the cashier drops its cash (the cabin door). */
+    door: { x: 7.0, z: -5.9 } as XZ,
+  },
+
+  /**
+   * Winter village outside the south fence, between the customer path (fence at x = −1) and the tricycle road
+   * (x ≥ 10.8). A street runs +Z from a gate in the yard's south fence; plots line both sides of it and the
+   * Great Lodge closes its far end. See VILLAGE for costs and levels.
+   */
+  village: {
+    /** Whole village footprint (decor keep-out, village fence). */
+    area: { minX: -0.4, maxX: 9.6, minZ: 10.8, maxZ: 31.8 } as Rect,
+    /** Gate: a gap in the yard's south fence (z = 10.4), closed until the village is revealed. */
+    gate: { minX: 3.4, maxX: 5.8 },
+    /** Packed-snow street between the two plot rows. */
+    street: { minX: 2.6, maxX: 6.6, minZ: 10.4, maxZ: 27.6 } as Rect,
+    /**
+     * Extra walkable areas for the player's CENTRE (ColliderWorld.addBounds, no radius shrink): the gate corridor
+     * (overlaps the yard) and the street (overlaps the corridor). The player never walks onto the plots.
+     */
+    walk: [
+      { minX: 3.8, maxX: 5.4, minZ: 9.0, maxZ: 11.8 },
+      { minX: 2.95, maxX: 6.25, minZ: 11.2, maxZ: 27.3 },
+    ] as Rect[],
+    /** Square lot size; a building's footprint stays within it (lodge ≈ 2.8 m). */
+    plotSize: 3.0,
+    /**
+     * Plot centres, in unlock order (VILLAGE.plotLevels): rows grow away from the gate. side −1 = west row (the
+     * door faces +X), +1 = east row (the door faces −X).
+     */
+    plots: [
+      { x: 1.1, z: 13.4, side: -1 },
+      { x: 8.1, z: 13.4, side: 1 },
+      { x: 1.1, z: 17.0, side: -1 },
+      { x: 8.1, z: 17.0, side: 1 },
+      { x: 1.1, z: 20.6, side: -1 },
+      { x: 8.1, z: 20.6, side: 1 },
+      { x: 1.1, z: 24.2, side: -1 },
+      { x: 8.1, z: 24.2, side: 1 },
+    ] as { x: number; z: number; side: -1 | 1 }[],
+    /** Each plot's construction pad sits in the street: plot centre + (−side × padOffset) along X. */
+    padOffset: 2.2,
+    padSize: 1.4,
+    /** The Great Lodge (finale building) at the end of the street, its pad in front of it. */
+    greatLodge: { x: 4.6, z: 29.6, w: 6.0, d: 3.6, pad: { x: 4.6, z: 26.3 } as XZ, padSize: 1.8 },
+  },
+} as const;
+
+// ---------------------------------------------------------------------------
+// Upgrades (core/Upgrades.ts). Levels are 0-based and live in GameState.upgrades.
+// ---------------------------------------------------------------------------
+
+export type UpgradeIdConst =
+  | 'carry'
+  | 'speed'
+  | 'axe'
+  | 'harvester'
+  | 'processor'
+  | 'megaSaw'
+  | 'crateRunner'
+  | 'cashier'
+  | 'logHauler';
+
+/** lumberjack + crew: bought in the cabin shop panel · machine: the machine's own pad re-arms as a level pad. */
+export type UpgradeGroup = 'lumberjack' | 'machine' | 'crew';
+
+export interface UpgradeRequirement {
+  /** Minimum village level (index into VILLAGE.levels). */
+  villageLevel?: number;
+  /** Pad that must already be unlocked. */
+  unlocked?: PadIdConst;
+}
+
+export interface UpgradeDef {
+  id: UpgradeIdConst;
+  group: UpgradeGroup;
+  label: string;
+  /** One line for the shop card. */
+  blurb: string;
+  /**
+   * Effect at each level (index = level). The last index is the max level.
+   * - lumberjack: the raw stat (carry count, walk speed m/s, axe swing interval s).
+   * - machine: seconds per cycle (harvester interval, processor / mega-saw cycleTime).
+   * - crew: level 0 = not hired (value 0); otherwise a work multiplier on CREW base speed / capacity.
+   */
+  values: readonly number[];
+  /** costs[n] = price to go from level n to n + 1 (length = values.length − 1). Multiples of 5. */
+  costs: readonly number[];
+  /** Upgrades.describe(): 'count' → "16 items", 'speed' → "7.4 m/s", 'rate' → items per second from an interval, 'crew' → "×1.3". */
+  display: 'count' | 'speed' | 'rate' | 'crew';
+  /** For display 'rate': items produced per cycle (mega saw: 3 logs per cut). Default 1. */
+  perCycle?: number;
+  /** Unit word for 'count' / 'rate' ("items", "logs/s", "chops/s"). */
+  unit?: string;
+  requires?: UpgradeRequirement;
+}
+
+export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
+  carry: {
+    id: 'carry',
+    group: 'lumberjack',
+    label: 'Strong Arms',
+    blurb: 'Carry more logs and crates',
+    values: [10, 13, 16, 19, 22, 25],
+    costs: [100, 300, 800, 2000, 5000],
+    display: 'count',
+    unit: 'items',
+  },
+  speed: {
+    id: 'speed',
+    group: 'lumberjack',
+    label: 'Snow Boots',
+    blurb: 'Walk faster',
+    values: [6.4, 6.9, 7.4, 7.9, 8.4, 9.0],
+    costs: [80, 250, 700, 1800, 4500],
+    display: 'speed',
+  },
+  axe: {
+    id: 'axe',
+    group: 'lumberjack',
+    label: 'Sharp Axe',
+    blurb: 'Chop the giant log faster',
+    values: [0.4, 0.35, 0.31, 0.27, 0.24, 0.21],
+    costs: [120, 350, 900, 2200, 5500],
+    display: 'rate',
+    unit: 'chops/s',
+  },
+  harvester: {
+    id: 'harvester',
+    group: 'machine',
+    label: 'Harvester',
+    blurb: 'Saws logs faster',
+    values: [0.75, 0.62, 0.52, 0.44, 0.37],
+    costs: [400, 1200, 3000, 7500],
+    display: 'rate',
+    unit: 'logs/s',
+    requires: { unlocked: 'harvester' },
+  },
+  processor: {
+    id: 'processor',
+    group: 'machine',
+    label: 'Processor',
+    blurb: 'Makes crates faster',
+    values: [1.0, 0.84, 0.71, 0.6, 0.5],
+    costs: [1000, 2800, 7000, 16000],
+    display: 'rate',
+    unit: 'crates/s',
+    requires: { unlocked: 'processor' },
+  },
+  megaSaw: {
+    id: 'megaSaw',
+    group: 'machine',
+    label: 'Mega Sawmill',
+    blurb: 'Cuts the giant log faster',
+    values: [1.4, 1.2, 1.03, 0.89, 0.77],
+    costs: [7000, 15000, 30000, 55000],
+    display: 'rate',
+    perCycle: 3,
+    unit: 'logs/s',
+    requires: { unlocked: 'megaSaw' },
+  },
+  crateRunner: {
+    id: 'crateRunner',
+    group: 'crew',
+    label: 'Crate Runner',
+    blurb: 'Carries crates from the processor to the tricycle counter',
+    values: [0, 1, 1.3, 1.65, 2.0],
+    costs: [800, 2000, 5000, 11000],
+    display: 'crew',
+    requires: { villageLevel: 1, unlocked: 'processor' },
+  },
+  cashier: {
+    id: 'cashier',
+    group: 'crew',
+    label: 'Cashier',
+    blurb: 'Collects the cash piles for you',
+    values: [0, 1, 1.3, 1.65, 2.0],
+    costs: [2500, 6000, 13000, 26000],
+    display: 'crew',
+    requires: { villageLevel: 2 },
+  },
+  logHauler: {
+    id: 'logHauler',
+    group: 'crew',
+    label: 'Log Hauler',
+    blurb: 'Carries logs to the trucks',
+    values: [0, 1, 1.3, 1.65, 2.0],
+    costs: [6000, 12000, 24000, 45000],
+    display: 'crew',
+    requires: { villageLevel: 3, unlocked: 'megaSaw' },
+  },
+};
+
+/** Crew base stats at work multiplier 1 (UPGRADES[id].values[level] scales them; capacity rounds down). */
+export const CREW = {
+  crateRunner: { walkSpeed: 3.0, capacity: 4 },
+  /** Capacity in cash bundles. */
+  cashier: { walkSpeed: 3.4, capacity: 16 },
+  logHauler: { walkSpeed: 3.0, capacity: 6 },
+} as const;
+
+// ---------------------------------------------------------------------------
+// Village: shelters, population, levels (village/Village.ts) and the demand they drive (core/demand.ts)
+// ---------------------------------------------------------------------------
+
+export type ShelterTierId = 'tent' | 'hut' | 'cabin' | 'lodge';
+
+export interface ShelterTier {
+  id: ShelterTierId;
+  label: string;
+  /** Logs delivered from the player's arms. */
+  logs: number;
+  /** Dollars paid from the player's cash. */
+  cash: number;
+  /** Villagers living in it (replaces the previous tier's count). */
+  residents: number;
+  /** Village level needed before this tier can be built. */
+  requiresLevel: number;
+}
+
+export interface VillageLevelDef {
+  name: string;
+  /** Population needed to reach this level. */
+  minPopulation: number;
+  /** Shown on the level-up toast. */
+  perks: readonly string[];
+}
+
+export const VILLAGE = {
+  tiers: [
+    { id: 'tent', label: 'Tent', logs: 6, cash: 60, residents: 2, requiresLevel: 0 },
+    { id: 'hut', label: 'Hut', logs: 12, cash: 350, residents: 4, requiresLevel: 1 },
+    { id: 'cabin', label: 'Cabin', logs: 24, cash: 1800, residents: 7, requiresLevel: 2 },
+    { id: 'lodge', label: 'Lodge', logs: 40, cash: 7000, residents: 12, requiresLevel: 3 },
+  ] as readonly ShelterTier[],
+  /** plotLevels[i]: village level at which plot i (LAYOUT.village.plots[i]) is offered. */
+  plotLevels: [0, 0, 1, 1, 2, 2, 3, 3] as readonly number[],
+  /**
+   * Levels by population. The last one ("Winterland") is never reached by population: it is granted when the Great
+   * Lodge is built (the finale).
+   */
+  levels: [
+    { name: 'Camp', minPopulation: 0, perks: [] },
+    { name: 'Hamlet', minPopulation: 4, perks: ['Customers buy more', 'Huts', 'Crate Runner for hire'] },
+    { name: 'Village', minPopulation: 14, perks: ['Bigger orders, better prices', 'Cabins', 'Cashier for hire'] },
+    { name: 'Town', minPopulation: 36, perks: ['Busier roads', 'Lodges', 'Log Hauler for hire'] },
+    { name: 'Winter City', minPopulation: 80, perks: ['Top prices', 'Build the Great Lodge!'] },
+    { name: 'Winterland', minPopulation: Number.POSITIVE_INFINITY, perks: ['Everyone loves your mill'] },
+  ] as readonly VillageLevelDef[],
+  greatLodge: { label: 'GREAT LODGE', logs: 120, cash: 40000, requiresLevel: 4 },
+} as const;
+
+/** What buyers do at each village level (index = GameState.village.level). Read live at spawn / pay time. */
+export interface DemandLevel {
+  /** Seconds between walk-in customer spawns. */
+  customerGap: readonly [number, number];
+  customerQueue: number;
+  /** Planks per customer. */
+  customerWant: readonly [number, number];
+  trikeGap: readonly [number, number];
+  /** Crates per tricycle (cargo tray holds at most 8). */
+  trikeWant: readonly [number, number];
+  truckGap: readonly [number, number];
+  /** Logs per truck (bed holds at most 20). */
+  truckWant: readonly [number, number];
+  /** Every sale's amount is multiplied by this, then rounded to a multiple of cashBundleValue. */
+  priceMult: number;
+}
+
+export const DEMAND: readonly DemandLevel[] = [
+  // Camp: the original phase 1–5 tuning.
+  { customerGap: [1.0, 1.5], customerQueue: 5, customerWant: [2, 4], trikeGap: [2.5, 4], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], priceMult: 1 },
+  { customerGap: [0.9, 1.35], customerQueue: 6, customerWant: [2, 5], trikeGap: [2.3, 3.6], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], priceMult: 1.2 },
+  { customerGap: [0.8, 1.2], customerQueue: 6, customerWant: [3, 6], trikeGap: [2.1, 3.3], trikeWant: [4, 7], truckGap: [2.8, 4.5], truckWant: [9, 13], priceMult: 1.45 },
+  { customerGap: [0.7, 1.05], customerQueue: 7, customerWant: [3, 7], trikeGap: [1.9, 3.0], trikeWant: [4, 8], truckGap: [2.6, 4.2], truckWant: [10, 15], priceMult: 1.75 },
+  { customerGap: [0.6, 0.9], customerQueue: 7, customerWant: [4, 8], trikeGap: [1.7, 2.7], trikeWant: [5, 8], truckGap: [2.4, 3.8], truckWant: [11, 17], priceMult: 2.1 },
+  { customerGap: [0.55, 0.8], customerQueue: 7, customerWant: [4, 9], trikeGap: [1.6, 2.5], trikeWant: [5, 8], truckGap: [2.2, 3.5], truckWant: [12, 18], priceMult: 2.5 },
+];
+
+// ---------------------------------------------------------------------------
+// Save / offline earnings (core/Save.ts)
+// ---------------------------------------------------------------------------
+
+export const SAVE = {
+  /** localStorage key (bump the version suffix together with `version` when the schema changes). */
+  key: 'winterland.save.v1',
+  version: 1,
+  /** Autosave cadence in simulation seconds (also saved when the tab is hidden or closed). */
+  interval: 5,
+} as const;
+
+export const OFFLINE = {
+  /** Offline time counted at most (seconds). */
+  maxSeconds: 2 * 60 * 60,
+  /** Fraction of the recent sales rate earned while away. */
+  efficiency: 0.5,
+  /** Shorter absences earn nothing (seconds). */
+  minSeconds: 60,
+  /** Smaller amounts are not worth a card. */
+  minAmount: 25,
+  /** Window of the rolling sales-rate sample (simulation seconds). */
+  window: 300,
 } as const;

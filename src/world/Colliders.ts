@@ -1,7 +1,9 @@
 /**
  * [B1 — engine] Static 2D (XZ) collision world for the player.
  *
- * - Bounds: the walkable yard rectangle; the player circle is clamped inside it.
+ * - Bounds: the walkable yard rectangle (the player circle is clamped inside it), plus any number of extra
+ *   walkable rects for the player's CENTRE (addBounds, e.g. the village gate + street). The walkable area is the
+ *   union; outside it the centre moves to the nearest point of the union.
  * - Obstacles: axis-aligned boxes and circles registered by stations/decor; resolveCircle pushes a
  *   circle out of every overlapping obstacle (minimum translation, several iterations) so the player
  *   slides along walls instead of sticking.
@@ -35,12 +37,19 @@ const ITERATIONS = 4;
 
 export class ColliderWorld {
   bounds: Rect = { minX: -1e9, maxX: 1e9, minZ: -1e9, maxZ: 1e9 };
+  /** Extra walkable rects (centre space: no radius shrink). Overlap them with the yard / each other to connect. */
+  private readonly extra: Rect[] = [];
   private readonly colliders: Collider[] = [];
   private nextId = 1;
 
   /** Replace the walkable rectangle. */
   setBounds(r: Rect): void {
     this.bounds = { ...r };
+  }
+
+  /** Add a walkable rect for the player's centre (union with the yard bounds). */
+  addBounds(r: Rect): void {
+    this.extra.push({ ...r });
   }
 
   /** Register a solid axis-aligned box. */
@@ -156,9 +165,41 @@ export class ColliderWorld {
 
   private clampToBounds(pos: THREE.Vector3, radius: number): void {
     const b = this.bounds;
-    if (pos.x < b.minX + radius) pos.x = b.minX + radius;
-    else if (pos.x > b.maxX - radius) pos.x = b.maxX - radius;
-    if (pos.z < b.minZ + radius) pos.z = b.minZ + radius;
-    else if (pos.z > b.maxZ - radius) pos.z = b.maxZ - radius;
+    const minX = b.minX + radius;
+    const maxX = b.maxX - radius;
+    const minZ = b.minZ + radius;
+    const maxZ = b.maxZ - radius;
+    if (this.extra.length === 0 || (pos.x >= minX && pos.x <= maxX && pos.z >= minZ && pos.z <= maxZ)) {
+      clampInto(pos, minX, maxX, minZ, maxZ);
+      return;
+    }
+    // Outside the yard: fine if inside any extra rect, else snap to the nearest point of the union.
+    let bestD = distTo(pos, minX, maxX, minZ, maxZ);
+    let best: Rect | null = null;
+    for (let i = 0; i < this.extra.length; i++) {
+      const r = this.extra[i]!;
+      const d = distTo(pos, r.minX, r.maxX, r.minZ, r.maxZ);
+      if (d === 0) return;
+      if (d < bestD) {
+        bestD = d;
+        best = r;
+      }
+    }
+    if (best) clampInto(pos, best.minX, best.maxX, best.minZ, best.maxZ);
+    else clampInto(pos, minX, maxX, minZ, maxZ);
   }
+}
+
+function clampInto(pos: THREE.Vector3, minX: number, maxX: number, minZ: number, maxZ: number): void {
+  if (pos.x < minX) pos.x = minX;
+  else if (pos.x > maxX) pos.x = maxX;
+  if (pos.z < minZ) pos.z = minZ;
+  else if (pos.z > maxZ) pos.z = maxZ;
+}
+
+/** Squared distance from pos to the rect (0 inside). */
+function distTo(pos: THREE.Vector3, minX: number, maxX: number, minZ: number, maxZ: number): number {
+  const dx = pos.x < minX ? minX - pos.x : pos.x > maxX ? pos.x - maxX : 0;
+  const dz = pos.z < minZ ? minZ - pos.z : pos.z > maxZ ? pos.z - maxZ : 0;
+  return dx * dx + dz * dz;
 }

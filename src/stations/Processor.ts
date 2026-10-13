@@ -104,7 +104,8 @@ export class Processor {
   }
 
   /** Pop in with a squash, register the colliders, announce. */
-  build(): void {
+  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. TODO(owner): honour it. */
+  build(instant = false): void {
     if (this.built) return;
     this.built = true;
     const ctx = this.ctx;
