@@ -4,8 +4,8 @@
  * Spec: "expands the yard northward toward the highway with pickup trucks waiting for bulk orders."
  *
  * Model: AssetFactory createPickupTruck (assets/vehicles.ts, red / blue alternating) with a seated
- * createCharacterRig('driver') in the open cab. Behaviour (LAYOUT.expansion.trucks, ECONOMY.truckWant /
- * truckLogPrice) lives in npc/VehicleQueue.ts: trucks spawn at (spawnX, laneZ) on the tunnel side, drive −X
+ * createCharacterRig('driver') in the open cab. Behaviour (LAYOUT.expansion.trucks, DEMAND truckGap / truckWant,
+ * ECONOMY.truckLogPrice) lives in npc/VehicleQueue.ts: trucks spawn at (spawnX, laneZ) on the tunnel side, drive −X
  * (y from ctx.environment.highwayY every frame, pitched along the bridge ramps) to slot i (the front
  * truck's bed lines up with the truck counter), show a log bubble ("0/10"), load RAW LOGS from counter.pile
  * into the bed, pay want · truckLogPrice, emit 'sale' { buyer: 'truck', kind: 'log' }, honk-bounce, drive
@@ -37,15 +37,15 @@ export class TruckQueue extends VehicleQueue {
       kind: 'log',
       buyer: 'truck',
       icon: 'log',
-      price: ECONOMY.truckLogPrice,
-      want: ECONOMY.truckWant,
+      unitPrice: ECONOMY.truckLogPrice,
+      demand: (d) => ({ gap: d.truckGap, want: d.truckWant }),
+      maxWant: 20,
       maxQueue: T.maxQueue,
       driveSpeed: T.driveSpeed,
       // travel coordinate u = −x (trucks drive −X)
       spawnU: -T.spawnX,
       exitU: -T.exitX,
       slotU: (i) => -(T.frontX - TRUCK_BED_X + i * T.spacing),
-      spawnGap: [3, 5],
       takeInterval: TIMING.npcTakeInterval,
       accel: 6,
       decel: 8,

@@ -1,0 +1,475 @@
+/**
+ * [B5 — crew] The three hired helpers ('worker' characters) behind npc/Crew.ts. Each one is a small state machine
+ * that walks scripted waypoint routes (no colliders; conveyors and pads are walkable) and moves items only through
+ * items/transfer.ts. Speed, capacity and transfer cadence are read live from ctx.upgrades.value(id), so a level-up
+ * applies at once.
+ *
+ * - CrateRunner: processor bench (level.processor.output) → SE counter (level.seCounter.input) → back.
+ * - Cashier: the richest cash pile → cabin door, where the bundles fly into a DepositSink (money += value).
+ * - LogHauler: drop-zone pile → truck counter (when it exists and has room) else the walk-in counter.
+ */
+import * as THREE from 'three';
+import { CREW, LAYOUT, PLAYER, type XZ } from '../config';
+import { approach, dampAngle, yawFromDir } from '../core/math';
+import type { GameContext, Item, ItemHolder, ItemKind, Slot, UpgradeId } from '../core/types';
+import { CarryStack } from '../items/CarryStack';
+import { transferOne } from '../items/transfer';
+import { createCharacterRig, type CharacterRig } from '../render/characters';
+import type { Level } from '../level/Level';
+import type { CashPile } from '../stations/CashPile';
+
+export type CrewId = Extract<UpgradeId, 'crateRunner' | 'cashier' | 'logHauler'>;
+export const CREW_IDS: readonly CrewId[] = ['crateRunner', 'cashier', 'logHauler'];
+
+const ACCEL = 12;
+const TURN_LAMBDA = 12;
+/** Base seconds between two item moves at work multiplier 1 (divided by the multiplier). */
+const BASE_INTERVAL = 0.11;
+/** Seconds without new work before a partly loaded helper sets off anyway. */
+const PATIENCE = 1.1;
+/** Seconds a helper waits at a full destination before giving up and walking back. */
+const BLOCKED_GIVE_UP = 3;
+const FLY = { duration: 0.2, arcHeight: 1.4 } as const;
+
+// --- scripted routes ------------------------------------------------------------------------
+const DOOR = LAYOUT.shop.door;
+/** Where each helper waits, plus the point it faces there. */
+const BENCH_POST: XZ = { x: 5.95, z: 0.85 };
+const BENCH_LOOK: XZ = { x: 5.95, z: -0.4 };
+const SE_POST: XZ = { x: 9.0, z: 3.4 };
+const SE_LOOK: XZ = { x: 9.9, z: 3.6 };
+const CASHIER_HOME: XZ = { x: 7.0, z: -5.0 };
+const DOOR_LOOK: XZ = { x: 7.0, z: -6.4 };
+const DROP_POST: XZ = { x: -3.0, z: 1.4 };
+const DROP_LOOK: XZ = { x: -5.2, z: -0.4 };
+const WALKIN_POST: XZ = { x: -4.0, z: 8.6 };
+const WALKIN_LOOK: XZ = { x: -4.0, z: 9.9 };
+const TRUCK_POST: XZ = { x: 1.0, z: -18.8 };
+const TRUCK_LOOK: XZ = { x: 1.0, z: -19.9 };
+
+/** Door → home post, used when a helper is hired. */
+const HOME_ROUTE: Record<CrewId, XZ[]> = {
+  crateRunner: [{ x: 7.4, z: -2.0 }, { x: 7.4, z: 0.85 }, BENCH_POST],
+  cashier: [CASHIER_HOME],
+  logHauler: [{ x: 4.8, z: -5.3 }, { x: -1.5, z: -4.6 }, DROP_POST],
+};
+const HOME: Record<CrewId, XZ> = { crateRunner: BENCH_POST, cashier: CASHIER_HOME, logHauler: DROP_POST };
+const HOME_LOOK: Record<CrewId, XZ> = { crateRunner: BENCH_LOOK, cashier: DOOR_LOOK, logHauler: DROP_LOOK };
+
+// --- the deposit sink ---------------------------------------------------------------------------
+/** Where the cashier's bundles land: the cabin door. receive() banks the value and recycles the bundle. */
+export class DepositSink implements ItemHolder {
+  readonly id = 'npc:crew:deposit';
+  constructor(readonly ctx: GameContext) {}
+  canAccept(kind: ItemKind): boolean {
+    return kind === 'cash';
+  }
+  reserve(_item: Item): Slot {
+    return { holder: this };
+  }
+  getSlotWorldPosition(_slot: Slot, out: THREE.Vector3): THREE.Vector3 {
+    return out.set(DOOR.x, 1.1, DOOR.z - 0.2);
+  }
+  getSlotWorldQuaternion(_slot: Slot, out: THREE.Quaternion): THREE.Quaternion {
+    return out.identity();
+  }
+  receive(item: Item, _slot: Slot): void {
+    this.ctx.economy.add(item.value);
+    this.ctx.items.release(item);
+  }
+  cancel(_slot: Slot): void {}
+  count(_kind?: ItemKind): number {
+    return 0;
+  }
+  take(_kind?: ItemKind): Item | null {
+    return null;
+  }
+}
+
+// --- base helper ---------------------------------------------------------------------------------
+export abstract class Helper {
+  readonly group = new THREE.Group();
+  readonly rig: CharacterRig;
+  readonly stack: CarryStack;
+  protected readonly velocity = new THREE.Vector3();
+  protected yaw = Math.PI;
+  protected speed = 0;
+  protected route: XZ[] = [];
+  protected routeIdx = 0;
+  protected look: XZ | null = null;
+  /** Cadence timer between item moves. */
+  protected timer = 0;
+  /** Seconds since the last useful action (patience). */
+  protected idle = 0;
+  protected blocked = 0;
+  private capacityNow = -1;
+
+  constructor(
+    readonly ctx: GameContext,
+    readonly level: Level,
+    readonly id: CrewId,
+    variant: number,
+    accepts: readonly ItemKind[],
+  ) {
+    this.rig = createCharacterRig('worker', variant);
+    this.group.add(this.rig.root);
+    this.group.name = `crew:${id}`;
+    this.stack = new CarryStack(ctx, { id: `npc:crew:${id}`, accepts, capacity: 1, anchor: this.rig.armsAnchor });
+    this.applyLevel();
+    ctx.scene.add(this.group);
+  }
+
+  /** Work multiplier (0 = not hired). */
+  get mult(): number {
+    return this.ctx.upgrades.value(this.id);
+  }
+
+  protected get interval(): number {
+    return BASE_INTERVAL / Math.max(0.5, this.mult);
+  }
+
+  protected get capacity(): number {
+    return Math.max(1, Math.floor(CREW[this.id].capacity * this.mult));
+  }
+
+  get moving(): boolean {
+    return this.routeIdx < this.route.length;
+  }
+
+  placeAt(p: XZ, look: XZ | null): void {
+    this.group.position.set(p.x, 0, p.z);
+    this.look = look;
+    if (look) this.yaw = yawFromDir(look.x - p.x, look.z - p.z);
+    this.rig.root.rotation.y = this.yaw;
+  }
+
+  /** Walk the given waypoints (the last one is an eased stop). */
+  go(points: readonly XZ[]): void {
+    this.route = points.slice();
+    this.routeIdx = 0;
+    this.look = null;
+  }
+
+  goReverse(points: readonly XZ[], end: XZ): void {
+    this.go([...points].reverse().concat([end]));
+  }
+
+  update(dt: number): void {
+    if (dt <= 0) return;
+    this.applyLevel();
+    this.timer -= dt;
+    this.think(dt);
+    this.step(dt);
+    this.rig.setCarrying(this.stack.size > 0);
+    this.rig.animate(dt, this.speed / PLAYER.speed);
+    this.stack.update(dt, this.velocity);
+  }
+
+  /** Release everything and leave the world. */
+  dispose(): void {
+    this.stack.clear();
+    this.group.removeFromParent();
+  }
+
+  protected abstract think(dt: number): void;
+
+  private applyLevel(): void {
+    const cap = this.capacity;
+    if (cap !== this.capacityNow) {
+      this.capacityNow = cap;
+      this.stack.setCapacity(cap);
+    }
+  }
+
+  /** Fly one item between holders at this helper's pace; true if one moved. */
+  protected move(from: ItemHolder, to: ItemHolder, kind: ItemKind): boolean {
+    if (this.timer > 0) return false;
+    if (!transferOne(this.ctx, from, to, [kind], FLY)) return false;
+    this.timer = this.interval;
+    this.idle = 0;
+    return true;
+  }
+
+  /** Nothing in flight in the hands: size counts reservations, count() only landed items. */
+  protected get settled(): boolean {
+    return this.stack.size === this.stack.count();
+  }
+
+  private step(dt: number): void {
+    const p = this.group.position;
+    this.velocity.set(0, 0, 0);
+    if (this.moving) {
+      const last = this.routeIdx === this.route.length - 1;
+      const goal = this.route[this.routeIdx]!;
+      const dx = goal.x - p.x;
+      const dz = goal.z - p.z;
+      const dist = Math.hypot(dx, dz);
+      const max = CREW[this.id].walkSpeed * Math.max(0.5, this.mult);
+      const target = last ? Math.min(max, 1.2 + dist * 4) : max;
+      this.speed = approach(this.speed, target, ACCEL * dt);
+      const stepLen = this.speed * dt;
+      if (dist < 0.02 || stepLen >= dist) {
+        p.x = goal.x;
+        p.z = goal.z;
+        this.routeIdx++;
+        if (last) this.speed = 0;
+        this.velocity.set(0, 0, 0);
+      } else {
+        const nx = dx / dist;
+        const nz = dz / dist;
+        p.x += nx * stepLen;
+        p.z += nz * stepLen;
+        this.velocity.set(nx * this.speed, 0, nz * this.speed);
+        this.yaw = dampAngle(this.yaw, yawFromDir(dx, dz), TURN_LAMBDA, dt);
+      }
+    } else {
+      this.speed = 0;
+      if (this.look) this.yaw = dampAngle(this.yaw, yawFromDir(this.look.x - p.x, this.look.z - p.z), TURN_LAMBDA, dt);
+    }
+    this.rig.root.rotation.y = this.yaw;
+  }
+}
+
+// --- crate runner --------------------------------------------------------------------------------
+type RunnerPhase = 'load' | 'go' | 'unload' | 'return';
+const RUNNER_ROUTE: XZ[] = [SE_POST];
+
+export class CrateRunner extends Helper {
+  private phase: RunnerPhase = 'load';
+
+  constructor(ctx: GameContext, level: Level) {
+    super(ctx, level, 'crateRunner', 0, ['crate']);
+  }
+
+  protected think(dt: number): void {
+    const counter = this.level.seCounter;
+    switch (this.phase) {
+      case 'load': {
+        this.look = BENCH_LOOK;
+        if (this.moving) return; // still walking to the bench
+        const out = this.level.processor?.output;
+        if (out && out.count('crate') > 0 && this.move(out, this.stack, 'crate')) return;
+        this.idle += dt;
+        const has = this.stack.count('crate') > 0;
+        if (has && counter && this.settled && (this.stack.size >= this.capacity || this.idle > PATIENCE)) {
+          this.go(RUNNER_ROUTE);
+          this.phase = 'go';
+        }
+        return;
+      }
+      case 'go':
+        if (this.moving) return;
+        this.look = SE_LOOK;
+        this.phase = 'unload';
+        this.blocked = 0;
+        return;
+      case 'unload': {
+        if (this.stack.size === 0) {
+          this.goReverse([], BENCH_POST);
+          this.phase = 'return';
+          return;
+        }
+        if (counter && this.stack.count('crate') > 0 && counter.input.canAccept('crate')) {
+          this.blocked = 0;
+          this.move(this.stack, counter.input, 'crate');
+        } else if (this.settled) {
+          this.blocked += dt;
+          if (this.blocked > BLOCKED_GIVE_UP) {
+            this.goReverse([], BENCH_POST);
+            this.phase = 'return';
+            this.idle = -2; // do not set off again at once with the same crates
+          }
+        }
+        return;
+      }
+      case 'return':
+        if (!this.moving) this.phase = 'load';
+        return;
+    }
+  }
+}
+
+// --- cashier --------------------------------------------------------------------------------------
+type CashierPhase = 'idle' | 'go' | 'collect' | 'back' | 'deposit';
+
+interface PileStop {
+  route: XZ[];
+  post: XZ;
+  look: XZ;
+  pile: () => CashPile | null;
+}
+
+export class Cashier extends Helper {
+  private phase: CashierPhase = 'idle';
+  private stop: PileStop | null = null;
+  private pickTimer = 0;
+  private readonly sink: DepositSink;
+  private readonly stops: PileStop[];
+
+  constructor(ctx: GameContext, level: Level, sink: DepositSink) {
+    super(ctx, level, 'cashier', 1, ['cash']);
+    this.sink = sink;
+    this.stops = [
+      {
+        route: [{ x: 2.5, z: -4.6 }],
+        post: { x: -2.0, z: 7.5 },
+        look: { x: -2.0, z: 8.8 },
+        pile: () => level.walkInCash,
+      },
+      {
+        route: [],
+        post: { x: 8.9, z: 4.8 },
+        look: { x: 8.9, z: 6.0 },
+        pile: () => level.seCash,
+      },
+      {
+        route: [{ x: 4.8, z: -5.3 }, { x: 3.4, z: -12 }],
+        post: { x: 2.9, z: -17.3 },
+        look: { x: 2.9, z: -18.6 },
+        pile: () => level.truckCash,
+      },
+    ];
+  }
+
+  protected think(dt: number): void {
+    switch (this.phase) {
+      case 'idle': {
+        this.look = DOOR_LOOK;
+        if (this.moving) return;
+        this.pickTimer -= dt;
+        if (this.pickTimer > 0) return;
+        this.pickTimer = 0.4;
+        const stop = this.pickStop();
+        if (!stop) return;
+        this.stop = stop;
+        this.go([...stop.route, stop.post]);
+        this.phase = 'go';
+        return;
+      }
+      case 'go':
+        if (this.moving) return;
+        this.look = this.stop!.look;
+        this.phase = 'collect';
+        this.idle = 0;
+        return;
+      case 'collect': {
+        const src = this.stop!.pile();
+        if (src && src.pile.count('cash') > 0 && this.move(src.pile, this.stack, 'cash')) return;
+        const empty = !src || src.pile.count('cash') === 0;
+        if (this.settled && (this.stack.size >= this.capacity || empty)) this.leave();
+        return;
+      }
+      case 'back':
+        if (this.moving) return;
+        this.look = DOOR_LOOK;
+        this.phase = 'deposit';
+        return;
+      case 'deposit':
+        if (this.stack.count('cash') > 0) this.move(this.stack, this.sink, 'cash');
+        else if (this.stack.size === 0) this.phase = 'idle';
+        return;
+    }
+  }
+
+  private leave(): void {
+    this.goReverse(this.stop!.route, CASHIER_HOME);
+    this.phase = 'back';
+  }
+
+  /** Richest pile (value, discounted by distance) holding at least two bundles' worth. */
+  private pickStop(): PileStop | null {
+    let best: PileStop | null = null;
+    let bestScore = 0;
+    const p = this.group.position;
+    for (const s of this.stops) {
+      const src = s.pile();
+      if (!src || src.pile.count('cash') === 0 || src.value < 10) continue;
+      const d = Math.hypot(s.post.x - p.x, s.post.z - p.z);
+      const score = src.value / (1 + d * 0.04);
+      if (score > bestScore) {
+        bestScore = score;
+        best = s;
+      }
+    }
+    return best;
+  }
+}
+
+// --- log hauler -----------------------------------------------------------------------------------
+type HaulerPhase = 'load' | 'go' | 'unload' | 'return';
+type HaulDest = 'truck' | 'walkIn';
+
+const TRUCK_ROUTE: XZ[] = [{ x: -1.5, z: -3.0 }, { x: 0.5, z: -9 }, TRUCK_POST];
+const WALKIN_ROUTE: XZ[] = [WALKIN_POST];
+
+export class LogHauler extends Helper {
+  private phase: HaulerPhase = 'load';
+  private dest: HaulDest = 'walkIn';
+
+  constructor(ctx: GameContext, level: Level) {
+    super(ctx, level, 'logHauler', 2, ['log']);
+  }
+
+  private holder(d: HaulDest): ItemHolder | null {
+    return d === 'truck' ? (this.level.truckCounter?.input ?? null) : this.level.walkInCounter.input;
+  }
+
+  /** Truck counter when it has room, else the walk-in counter when it has room. */
+  private pickDest(): HaulDest | null {
+    if (this.holder('truck')?.canAccept('log')) return 'truck';
+    if (this.holder('walkIn')?.canAccept('log')) return 'walkIn';
+    return null;
+  }
+
+  protected think(dt: number): void {
+    switch (this.phase) {
+      case 'load': {
+        this.look = DROP_LOOK;
+        if (this.moving) return;
+        const dz = this.level.dropZone.pile;
+        if (dz.count('log') > 0 && this.move(dz, this.stack, 'log')) return;
+        this.idle += dt;
+        if (this.stack.count('log') > 0 && this.settled && (this.stack.size >= this.capacity || this.idle > PATIENCE)) {
+          const d = this.pickDest();
+          if (d) {
+            this.dest = d;
+            this.go(d === 'truck' ? TRUCK_ROUTE : WALKIN_ROUTE);
+            this.phase = 'go';
+          }
+        }
+        return;
+      }
+      case 'go':
+        if (this.moving) return;
+        this.look = this.dest === 'truck' ? TRUCK_LOOK : WALKIN_LOOK;
+        this.phase = 'unload';
+        this.blocked = 0;
+        return;
+      case 'unload': {
+        if (this.stack.size === 0) return this.back();
+        const to = this.holder(this.dest);
+        if (to && this.stack.count('log') > 0 && to.canAccept('log')) {
+          this.blocked = 0;
+          this.move(this.stack, to, 'log');
+        } else if (this.settled) {
+          this.blocked += dt;
+          if (this.blocked > BLOCKED_GIVE_UP) {
+            this.idle = -2;
+            this.back();
+          }
+        }
+        return;
+      }
+      case 'return':
+        if (!this.moving) this.phase = 'load';
+        return;
+    }
+  }
+
+  private back(): void {
+    this.goReverse(this.dest === 'truck' ? TRUCK_ROUTE.slice(0, -1) : [], DROP_POST);
+    this.phase = 'return';
+  }
+}
+
+export { HOME, HOME_LOOK, HOME_ROUTE };

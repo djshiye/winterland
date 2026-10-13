@@ -7,7 +7,7 @@
  *
  * - Customers are built ONLY with createCharacterRig('customer', variant) and its public API; the speech
  *   bubble comes from assets/shop.ts (plank icon + "n/want" while first in line, a green check when done).
- * - Up to LAYOUT.customers.maxQueue customers; spawned every ~1–1.5 s at `spawn`, they walk to the first
+ * - Up to demand.customerQueue customers (core/demand.ts, read live); spawned every demand.customerGap seconds at `spawn`, they walk to the first
  *   free queue slot (slot i = front + i·spacing along +Z) and shuffle forward as slots free up.
  * - The customer at slot 0 pulls PLANK BUNDLES from the counter pile into its own CarryStack (anchor =
  *   rig.armsAnchor) one every TIMING.npcTakeInterval; when it holds `want` planks it pays
@@ -18,6 +18,7 @@
 import * as THREE from 'three';
 import { ECONOMY, LAYOUT, PLAYER, TIMING } from '../config';
 import { approach, dampAngle, randInt, randRange, yawFromDir } from '../core/math';
+import { demandOf, salePrice } from '../core/demand';
 import type { GameContext } from '../core/types';
 import { CarryStack } from '../items/CarryStack';
 import { transferOne } from '../items/transfer';
@@ -40,7 +41,6 @@ const CHECK_HOLD = 1.0;
 const ACCEL = 14;
 const TURN_LAMBDA = 14;
 const BOB_RATE = 4.5;
-const SPAWN_GAP: [number, number] = [1.0, 1.5];
 const VARIANTS = 4;
 
 const tmpV = new THREE.Vector3();
@@ -121,15 +121,16 @@ export class CustomerQueue {
   private spawnStep(dt: number): void {
     this.spawnTimer -= dt;
     if (this.spawnTimer > 0) return;
-    if (this.queue.length >= LAYOUT.customers.maxQueue || this.ctx.state.phase === 'intro') {
+    const dm = demandOf(this.ctx.state);
+    if (this.queue.length >= dm.customerQueue || this.ctx.state.phase === 'intro') {
       this.spawnTimer = 0.25;
       return;
     }
-    this.spawnTimer = randRange(SPAWN_GAP[0], SPAWN_GAP[1]);
-    this.spawn();
+    this.spawnTimer = randRange(dm.customerGap[0], dm.customerGap[1]);
+    this.spawn(dm.customerWant);
   }
 
-  private spawn(): void {
+  private spawn(want: readonly [number, number]): void {
     let c = this.pool.pop();
     if (!c) {
       c = new Customer(this.ctx, this.created, this.created % VARIANTS);
@@ -139,8 +140,8 @@ export class CustomerQueue {
     c.rig.root.scale.setScalar(c.baseScale * f);
     c.bubbleBase = c.bubbleY * f;
     c.bubble.sprite.position.set(0, c.bubbleBase, 0);
-    c.want = randInt(ECONOMY.customerWant[0], ECONOMY.customerWant[1]);
-    c.stack.capacity = c.want + 1; // never "full": no MAX badge over a happy customer
+    c.want = randInt(want[0], want[1]);
+    c.stack.setCapacity(c.want + 1); // never "full": no MAX badge over a happy customer
     c.mode = 'queue';
     c.atSlot = false;
     c.speed = 0;
@@ -217,12 +218,12 @@ export class CustomerQueue {
   }
 
   private pay(c: Customer): void {
-    const amount = c.want * ECONOMY.plankPrice;
+    const amount = salePrice(this.ctx.state, ECONOMY.plankPrice, c.want);
     c.rig.armsAnchor.getWorldPosition(tmpV);
     tmpV.y += 0.2;
     this.opts.cash.pay(amount, tmpV);
     const stats = this.ctx.state.stats;
-    stats.logsSold += c.want;
+    stats.planksSold += c.want;
     stats.customersServed++;
     this.ctx.events.emit('sale', {
       buyer: 'customer',

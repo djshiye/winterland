@@ -258,12 +258,7 @@ export const ECONOMY = {
   plankPrice: 5, // walk-in customers, per plank bundle (each made from one log)
   cratePrice: 15, // cargo tricycles, per crate
   truckLogPrice: 10, // phase-5 pickup trucks, per log (bulk)
-  /** @deprecated Village level 0 of DEMAND (core/demand.ts demandOf) — read that instead. */
-  customerWant: [2, 4] as [number, number],
-  /** @deprecated See DEMAND. */
-  tricycleWant: [3, 6] as [number, number],
-  /** @deprecated See DEMAND. */
-  truckWant: [8, 12] as [number, number],
+  // How many buyers come and how much they take depends on the village level: see DEMAND.
 } as const;
 
 // ---------------------------------------------------------------------------

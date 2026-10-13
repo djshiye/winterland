@@ -6,10 +6,10 @@
  * off, and leave larger stacks of Green Cash Bundles."
  *
  * Model: AssetFactory createTricycle (assets/vehicles.ts) + createCharacterRig('courier') seated on it.
- * Behaviour (LAYOUT.tricycles, ECONOMY.tricycleWant / cratePrice) lives in npc/VehicleQueue.ts: trikes spawn
+ * Behaviour (LAYOUT.tricycles, DEMAND trikeGap / trikeWant, ECONOMY.cratePrice) lives in npc/VehicleQueue.ts: trikes spawn
  * at (laneX, spawnZ), drive +Z with smooth accel / braking to slot i (z = frontZ − i·spacing; the front
  * trike's cargo tray parks beside the SE counter), the front one shows a crate bubble ("0/4") and loads
- * crates from counter.pile into its tray one every ~npcTakeInterval·1.3, then pays want · cratePrice, emits
+ * crates from counter.pile into its tray one every ~npcTakeInterval·1.3, then pays salePrice(want · cratePrice), emits
  * 'sale' { buyer: 'tricycle' }, cheers, drives off +Z to exitZ and returns to the pool.
  */
 import { ECONOMY, LAYOUT, TIMING } from '../config';
@@ -37,14 +37,14 @@ export class TricycleQueue extends VehicleQueue {
       kind: 'crate',
       buyer: 'tricycle',
       icon: 'crate',
-      price: ECONOMY.cratePrice,
-      want: ECONOMY.tricycleWant,
+      unitPrice: ECONOMY.cratePrice,
+      demand: (d) => ({ gap: d.trikeGap, want: d.trikeWant }),
+      maxWant: 8,
       maxQueue: T.maxQueue,
       driveSpeed: T.driveSpeed,
       spawnU: T.spawnZ,
       exitU: T.exitZ,
       slotU: (i) => T.frontZ + TRAY_OFFSET - i * T.spacing,
-      spawnGap: [2.5, 4],
       takeInterval: TIMING.npcTakeInterval * 1.3,
       accel: 7,
       decel: 9,

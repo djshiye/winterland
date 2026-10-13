@@ -1,11 +1,10 @@
 /**
  * [B5 — commerce] Pile of green cash bundles beside a counter that the player walks over to collect.
- * STUB (functional baseline): replace/extend, keep the public API.
  *
  * - pile: cash Pile (overflowMerge) on the ground at (x, z), neat grid from config.
  * - zone: pile → player.back transfer zone (kinds ['cash'], TIMING.pickupInterval, no marker needed;
  *   a subtle ground ring is nice).
- * - pay(amount, from): split `amount` into ECONOMY.cashBundleValue bundles and launch them one after
+ * - pay(amount, from): split `amount` into at most 12 bundles (multiples of 5) and launch them one after
  *   another (~0.04 s apart, simulation time via ctx.tweens.delay) from `from` into the pile with
  *   launchNew (arc ~0.35 s, height ~1.5) so the pile visibly grows. The caller emits 'sale'.
  */
@@ -69,43 +68,55 @@ export class CashPile {
     return this.pile.totalValue();
   }
 
+  /**
+   * Pay `amount` dollars into the pile as at most MAX_PAY_BUNDLES bundles (values are multiples of
+   * ECONOMY.cashBundleValue, the remainder spread over the first ones): fewer items, same total.
+   */
   pay(amount: number, from: THREE.Vector3): void {
-    const n = Math.max(1, Math.round(amount / ECONOMY.cashBundleValue));
+    const values = splitBundles(amount, MAX_PAY_BUNDLES);
     const start = from.clone();
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < values.length; i++) {
+      const value = values[i]!;
       this.ctx.tweens.delay(i * 0.04, () => {
-        launchNew(this.ctx, 'cash', start, this.pile, { duration: 0.35, arcHeight: 1.5 });
+        launchNew(this.ctx, 'cash', start, this.pile, { duration: 0.35, arcHeight: 1.5, value });
       });
     }
   }
 
   /**
    * Restoring a save: put `value` dollars in the pile at once (no flights, no events) as at most `capacity`
-   * bundles whose values are multiples of 5. CONTRACT for B5; STUB: $5 bundles up to capacity, the rest merged.
+   * bundles whose values are multiples of 5 (the total is preserved).
    */
   restoreValue(value: number): void {
-    const b = ECONOMY.cashBundleValue;
-    let left = Math.floor(value / b) * b;
-    while (left > 0 && !this.pile.isFull()) {
-      const item = this.ctx.items.create('cash', b);
+    this.pile.clear();
+    for (const v of splitBundles(value, this.pile.capacity)) {
+      const item = this.ctx.items.create('cash', v);
       if (!this.pile.addImmediate(item)) {
         this.ctx.items.release(item);
         break;
       }
-      left -= b;
-    }
-    if (left > 0) {
-      // Pile full: fold the rest into the top bundle.
-      const top = this.pile.take('cash');
-      if (top) {
-        top.value += left;
-        this.pile.addImmediate(top);
-      }
     }
   }
 
-  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. TODO(owner): honour it. */
+  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. */
   appear(instant = false): void {
+    this.pile.root.visible = true;
+    if (instant) return;
     this.ctx.tweens.popIn(this.pile.root);
   }
+}
+
+const MAX_PAY_BUNDLES = 12;
+
+/** Split `amount` dollars into at most `maxCount` bundle values (multiples of the bundle value, summing to it). */
+function splitBundles(amount: number, maxCount: number): number[] {
+  const b = ECONOMY.cashBundleValue;
+  const units = Math.max(0, Math.floor(amount / b));
+  if (units === 0) return [];
+  const n = Math.max(1, Math.min(maxCount, units));
+  const per = Math.floor(units / n);
+  const extra = units - per * n;
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) out.push((per + (i < extra ? 1 : 0)) * b);
+  return out;
 }

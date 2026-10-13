@@ -11,7 +11,9 @@
  * detached.
  */
 import * as THREE from 'three';
+import type { DemandLevel } from '../config';
 import { approach, randRange } from '../core/math';
+import { demandOf, salePrice } from '../core/demand';
 import type { Buyer, GameContext, ItemKind } from '../core/types';
 import { Pile } from '../items/Pile';
 import { transferOne } from '../items/transfer';
@@ -40,16 +42,18 @@ export interface VehicleQueueConfig {
   kind: ItemKind;
   buyer: Buyer;
   icon: BubbleIcon;
-  /** Price per unit. */
-  price: number;
-  want: readonly [number, number];
+  /** Unit price (ECONOMY.*Price); the sale amount is salePrice(state, unitPrice, want), read at pay time. */
+  unitPrice: number;
+  /** Live demand: spawn gap and order size for the current village level (read at spawn, never cached). */
+  demand: (d: DemandLevel) => { gap: readonly [number, number]; want: readonly [number, number] };
+  /** Hard cap for an order (the cargo holds this many). */
+  maxWant: number;
   maxQueue: number;
   driveSpeed: number;
   spawnU: number;
   exitU: number;
   /** Travel coordinate where the i-th vehicle in line stops. */
   slotU: (index: number) => number;
-  spawnGap: readonly [number, number];
   /** Seconds between two loaded units. */
   takeInterval: number;
   accel: number;
@@ -151,7 +155,8 @@ export abstract class VehicleQueue {
       this.spawnTimer = 0.5;
       return;
     }
-    this.spawnTimer = randRange(this.cfg.spawnGap[0], this.cfg.spawnGap[1]);
+    const dm = this.cfg.demand(demandOf(this.ctx.state));
+    this.spawnTimer = randRange(dm.gap[0], dm.gap[1]);
     const variant = this.spawned++ % this.cfg.variants;
     let v = this.pools[variant]!.pop();
     if (!v) v = new Vehicle(this.ctx, this.buildParts(variant), variant, `${this.cfg.idPrefix}:${this.spawned}`, this.cfg);
@@ -159,7 +164,7 @@ export abstract class VehicleQueue {
     v.u = this.cfg.spawnU;
     v.speed = this.cfg.driveSpeed * 0.8;
     v.accelNow = 0;
-    v.want = Math.round(randRange(this.cfg.want[0] - 0.49, this.cfg.want[1] + 0.49));
+    v.want = Math.min(this.cfg.maxWant, Math.round(randRange(dm.want[0] - 0.49, dm.want[1] + 0.49)));
     v.atSlot = false;
     v.bubbleOn = false;
     v.bubbleTimer = 0;
@@ -245,7 +250,7 @@ export abstract class VehicleQueue {
   }
 
   private pay(v: Vehicle): void {
-    const amount = v.want * this.cfg.price;
+    const amount = salePrice(this.ctx.state, this.cfg.unitPrice, v.want);
     v.cargo.root.getWorldPosition(tmpV);
     tmpV.y += 0.7;
     this.cash.pay(amount, tmpV);
