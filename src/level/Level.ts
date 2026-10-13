@@ -9,7 +9,9 @@
  */
 import * as THREE from 'three';
 import { CAMERA, LAYOUT, PADS, type PadIdConst, type XZ } from '../config';
-import type { GameContext, PadId } from '../core/types';
+import type { WorldSnapshot } from '../core/Save';
+import type { GameContext, ItemKind, PadId } from '../core/types';
+import type { Pile } from '../items/Pile';
 import { Crew } from '../npc/Crew';
 import { CustomerQueue } from '../npc/CustomerQueue';
 import { TricycleQueue } from '../npc/TricycleQueue';
@@ -246,6 +248,55 @@ export class Level {
     this.progression.skipIntro();
   }
 
+  /** What lies in the world, for the save (counts include items still flying toward each pile). */
+  snapshotWorld(): WorldSnapshot {
+    const arms = this.ctx.player.arms;
+    return {
+      piles: {
+        // Logs riding the belts go back to the drop zone on load.
+        dropZone: this.dropZone.pile.total + (this.westConveyor?.load ?? 0) + (this.eastConveyor?.load ?? 0),
+        walkIn: this.walkInCounter.pile.total,
+        hopper: this.processor?.input.total ?? 0,
+        bench: this.processor?.output.total ?? 0,
+        se: this.seCounter?.pile.total ?? 0,
+        truck: this.truckCounter?.pile.total ?? 0,
+      },
+      cash: {
+        walkIn: this.walkInCash.value,
+        se: this.seCash?.value ?? 0,
+        truck: this.truckCash?.value ?? 0,
+      },
+      arms: { log: arms.count('log'), crate: arms.count('crate') },
+    };
+  }
+
+  /** Refill the piles, cash piles and the player's arms from a save (after every station was built from state). */
+  restoreWorld(w: WorldSnapshot): void {
+    fillPile(this.dropZone.pile, 'log', w.piles.dropZone);
+    fillPile(this.walkInCounter.pile, this.walkInCounter.displayKind, w.piles.walkIn);
+    if (this.processor) {
+      fillPile(this.processor.input, 'log', w.piles.hopper);
+      fillPile(this.processor.output, 'crate', w.piles.bench);
+    }
+    if (this.seCounter) fillPile(this.seCounter.pile, 'crate', w.piles.se);
+    if (this.truckCounter) fillPile(this.truckCounter.pile, 'log', w.piles.truck);
+    if (w.cash.walkIn > 0) this.walkInCash.restoreValue(w.cash.walkIn);
+    if (w.cash.se > 0) this.seCash?.restoreValue(w.cash.se);
+    if (w.cash.truck > 0) this.truckCash?.restoreValue(w.cash.truck);
+    const arms = this.ctx.player.arms;
+    const add = (kind: ItemKind, n: number) => {
+      for (let i = 0; i < n; i++) {
+        const item = this.ctx.items.create(kind);
+        if (!arms.addImmediate(item)) {
+          this.ctx.items.release(item);
+          return;
+        }
+      }
+    };
+    add('log', w.arms.log);
+    add('crate', w.arms.crate);
+  }
+
   forceUnlock(id: PadId): void {
     this.pads[id].forceUnlock();
   }
@@ -270,6 +321,10 @@ export class Level {
       padsRemaining: remaining,
     };
   }
+}
+
+function fillPile(pile: Pile, kind: ItemKind, n: number): void {
+  pile.fill(kind, Math.max(0, Math.min(n, pile.capacity - pile.total)));
 }
 
 /** Midpoint between a path's first and last points. */
