@@ -1,0 +1,43 @@
+/* [B1] Floating virtual joystick (visual only; events are handled on the canvas). */
+.wl-joy {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+  will-change: transform, opacity;
+}
+
+.wl-joy.is-active {
+  opacity: 1;
+}
+
+.wl-joy__base {
+  position: absolute;
+  left: -64px;
+  top: -64px;
+  width: 128px;
+  height: 128px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.75);
+  background: radial-gradient(circle, rgba(40, 70, 110, 0.10) 0%, rgba(40, 70, 110, 0.26) 100%);
+  box-shadow: 0 2px 10px rgba(30, 60, 100, 0.25), inset 0 0 12px rgba(255, 255, 255, 0.25);
+}
+
+.wl-joy__knob {
+  position: absolute;
+  left: -29px;
+  top: -29px;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #e4f1ff 55%, #b9d6f2 100%);
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 3px 8px rgba(30, 60, 100, 0.35);
+  will-change: transform;
+}
