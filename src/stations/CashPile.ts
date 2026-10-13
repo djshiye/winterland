@@ -79,6 +79,31 @@ export class CashPile {
     }
   }
 
+  /**
+   * Restoring a save: put `value` dollars in the pile at once (no flights, no events) as at most `capacity`
+   * bundles whose values are multiples of 5. CONTRACT for B5; STUB: $5 bundles up to capacity, the rest merged.
+   */
+  restoreValue(value: number): void {
+    const b = ECONOMY.cashBundleValue;
+    let left = Math.floor(value / b) * b;
+    while (left > 0 && !this.pile.isFull()) {
+      const item = this.ctx.items.create('cash', b);
+      if (!this.pile.addImmediate(item)) {
+        this.ctx.items.release(item);
+        break;
+      }
+      left -= b;
+    }
+    if (left > 0) {
+      // Pile full: fold the rest into the top bundle.
+      const top = this.pile.take('cash');
+      if (top) {
+        top.value += left;
+        this.pile.addImmediate(top);
+      }
+    }
+  }
+
   /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. TODO(owner): honour it. */
   appear(instant = false): void {
     this.ctx.tweens.popIn(this.pile.root);
