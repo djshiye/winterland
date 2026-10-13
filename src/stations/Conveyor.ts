@@ -181,6 +181,7 @@ export class Conveyor implements ItemHolder {
       this.applyBuild();
       if (this.buildT >= (this.segScale.length - 1) * POP_STAGGER + POP_TIME) {
         this.built = true;
+        this.model.finalize();
         const p = this.path.sample(this.path.length / 2, this.sample);
         this.ctx.events.emit('built', {
           what: o.id,

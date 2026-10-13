@@ -22,6 +22,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { COLORS, LAYOUT, PALETTE, type XZ } from '../config';
+import { Batch, bake, vcMat } from '../render/batch';
 import { geo, mesh, toon, toonUnique } from '../render/materials';
 import { BeltPath, type BeltSample } from '../stations/beltPath';
 
@@ -78,35 +79,6 @@ function lcg(seed: number): () => number {
   };
 }
 
-interface BoxPart {
-  w: number;
-  h: number;
-  d: number;
-  x: number;
-  y: number;
-  z: number;
-  yaw?: number;
-}
-
-/** Merge many boxes into one geometry (static, one draw call). */
-function mergeBoxes(parts: readonly BoxPart[]): THREE.BufferGeometry | null {
-  if (parts.length === 0) return null;
-  const m4 = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const up = new THREE.Vector3(0, 1, 0);
-  const geos: THREE.BufferGeometry[] = [];
-  for (const p of parts) {
-    const g = new THREE.BoxGeometry(p.w, p.h, p.d);
-    q.setFromAxisAngle(up, p.yaw ?? 0);
-    m4.compose(new THREE.Vector3(p.x, p.y, p.z), q, new THREE.Vector3(1, 1, 1));
-    g.applyMatrix4(m4);
-    geos.push(g);
-  }
-  const merged = mergeGeometries(geos, false);
-  for (const g of geos) g.dispose();
-  return merged;
-}
-
 // ---------------------------------------------------------------------------
 // Toothed saw blade (shared by the harvester and the mega saw)
 // ---------------------------------------------------------------------------
@@ -149,20 +121,22 @@ function sawDiscGeometry(radius: number, teeth: number, thickness: number): THRE
  */
 export function createSawBlade(radius: number, teeth: number, thickness: number): THREE.Group {
   const g = new THREE.Group();
-  g.add(mesh(sawDiscGeometry(radius, teeth, thickness), toon(COLORS.MACHINE_STEEL)));
+  const s = new THREE.Group();
+  s.add(mesh(sawDiscGeometry(radius, teeth, thickness), toon(COLORS.MACHINE_STEEL)));
   // dark flange both sides
-  addCyl(g, radius * 0.56, thickness + 0.04, PALETTE.metalDark, 'z', 0, 0, 0, 20);
+  addCyl(s, radius * 0.56, thickness + 0.04, PALETTE.metalDark, 'z', 0, 0, 0, 20);
   // glowing accent ring on the disc
   const ring = mesh(geo.torus(radius * 0.74, radius * 0.03, 5, 36), toon(COLORS.SAW_GLOW));
   ring.scale.z = 0.8;
-  g.add(ring);
+  s.add(ring);
   // hub
-  addCyl(g, radius * 0.22, thickness + 0.1, COLORS.SAW_GLOW, 'z', 0, 0, 0, 14);
+  addCyl(s, radius * 0.22, thickness + 0.1, COLORS.SAW_GLOW, 'z', 0, 0, 0, 14);
   // bolts
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2;
-    addCyl(g, radius * 0.06, thickness + 0.08, PALETTE.rubber, 'z', Math.cos(a) * radius * 0.4, Math.sin(a) * radius * 0.4, 0, 8);
+    addCyl(s, radius * 0.06, thickness + 0.08, PALETTE.rubber, 'z', Math.cos(a) * radius * 0.4, Math.sin(a) * radius * 0.4, 0, 8);
   }
+  g.add(bake(s));
   return g;
 }
 
@@ -200,6 +174,8 @@ export function createGiantLog(): GiantLogModel {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
+  /** Everything static on the trunk, baked into one mesh at the end. */
+  const stat = new THREE.Group();
 
   const barkMat = toon(COLORS.LOG_BARK);
   const cutMaterial = toonUnique(COLORS.LOG_CUT_BAND, { emissive: COLORS.SNOW_WHITE, emissiveIntensity: 0 });
@@ -213,16 +189,22 @@ export function createGiantLog(): GiantLogModel {
   };
 
   // trunk in two halves around the notch
-  body.add(piece(-half, cutZ - BAND_HALF, R, R, barkMat));
-  body.add(piece(cutZ + BAND_HALF, half, R, R, barkMat));
+  stat.add(piece(-half, cutZ - BAND_HALF, R, R, barkMat));
+  stat.add(piece(cutZ + BAND_HALF, half, R, R, barkMat));
 
-  // the cut band: a recessed yellow groove with chamfered flanks (the axe bites into it)
+  // the cut band: a recessed yellow groove with chamfered flanks (the axe bites into it), one mesh on the
+  // flashable unique material
   const cutBand = new THREE.Group();
-  cutBand.add(
-    piece(cutZ - BAND_HALF, cutZ - BAND_HALF + 0.2, R, GROOVE_R, cutMaterial),
-    piece(cutZ - BAND_HALF + 0.2, cutZ + BAND_HALF - 0.2, GROOVE_R, GROOVE_R, cutMaterial),
-    piece(cutZ + BAND_HALF - 0.2, cutZ + BAND_HALF, GROOVE_R, R, cutMaterial),
-  );
+  {
+    const cb = new Batch();
+    const addPiece = (z0: number, z1: number, rA: number, rB: number): void => {
+      cb.add(geo.cylinder(rB, rA, z1 - z0, SEG), COLORS.LOG_CUT_BAND, 0, 0, (z0 + z1) / 2, { rx: Math.PI / 2 });
+    };
+    addPiece(cutZ - BAND_HALF, cutZ - BAND_HALF + 0.2, R, GROOVE_R);
+    addPiece(cutZ - BAND_HALF + 0.2, cutZ + BAND_HALF - 0.2, GROOVE_R, GROOVE_R);
+    addPiece(cutZ + BAND_HALF - 0.2, cutZ + BAND_HALF, GROOVE_R, R);
+    cutBand.add(cb.mesh({ material: cutMaterial }));
+  }
   body.add(cutBand);
 
   // saw mark (harvester)
@@ -238,24 +220,24 @@ export function createGiantLog(): GiantLogModel {
     const cap = mesh(geo.cylinder(g.capRadius, g.capRadius, 0.04, 36), capMat);
     cap.rotation.x = Math.PI / 2;
     cap.position.z = sgn * (half + 0.01);
-    body.add(cap);
+    stat.add(cap);
     const zf = sgn * (half + 0.035);
     for (const rr of [1.36, 0.9, 0.46]) {
       const ring = mesh(geo.torus(rr, 0.04, 5, 40), ringMat, { receive: false });
       ring.scale.z = 0.5;
       ring.position.z = zf;
-      body.add(ring);
+      stat.add(ring);
     }
     const pith = mesh(geo.cylinder(0.11, 0.11, 0.05, 12), ringMat);
     pith.rotation.x = Math.PI / 2;
     pith.position.z = zf;
-    body.add(pith);
+    stat.add(pith);
     for (let i = 0; i < 3; i++) {
       const a = 0.7 + i * 2.1;
       const crack = mesh(geo.box(0.05, 0.62, 0.03), ringMat, { cast: false });
       crack.position.set(Math.cos(a) * 0.95, Math.sin(a) * 0.95, zf);
       crack.rotation.z = a - Math.PI / 2;
-      body.add(crack);
+      stat.add(crack);
     }
   }
 
@@ -271,7 +253,7 @@ export function createGiantLog(): GiantLogModel {
     const ridge = mesh(geo.box(0.12, 0.34, len), ridgeMat);
     ridge.position.set(R, 0, zc);
     pivot.add(ridge);
-    body.add(pivot);
+    stat.add(pivot);
   }
   for (let i = 0; i < 5; i++) {
     const zc = -half + 1 + rnd() * (g.length - 2);
@@ -282,7 +264,7 @@ export function createGiantLog(): GiantLogModel {
     knot.scale.set(0.7, 1, 1);
     knot.position.set(R, 0, zc);
     pivot.add(knot);
-    body.add(pivot);
+    stat.add(pivot);
   }
   for (const [zc, ang] of [[-3.4, 0.15], [-0.6, 0.55], [1.4, 0.1]] as const) {
     const pivot = new THREE.Group();
@@ -291,15 +273,17 @@ export function createGiantLog(): GiantLogModel {
     stub.rotation.z = -Math.PI / 2;
     stub.position.set(R + 0.14, 0, zc);
     pivot.add(stub);
-    body.add(pivot);
+    stat.add(pivot);
   }
   const snowMat = toon(COLORS.SNOW_WHITE);
   for (const [zc, len, w] of [[-4.6, 1.5, 0.6], [-2.2, 2.0, 0.7], [0.4, 1.4, 0.5], [-5.5, 0.8, 0.45]] as const) {
     const s = mesh(geo.sphere(1, 12, 6), snowMat);
     s.scale.set(w, 0.16, len);
     s.position.set(0.1, R - 0.02, zc);
-    body.add(s);
+    stat.add(s);
   }
+
+  body.add(bake(stat));
 
   // foam ring at the waterline (stadium outline hugging the trunk)
   const foam = new THREE.Group();
@@ -369,27 +353,29 @@ const SLAB_TOP = 0.08;
 /** Origin = floor centre. Grey slab (top at 0.08) with a raised light-grey rim. */
 export function createDropZoneSlab(w: number, d: number): THREE.Group {
   const g = new THREE.Group();
+  const s = new THREE.Group();
   const rim = 0.16;
   // light base plate (shows as a thin bevel around the grey top)
-  addBox(g, w, 0.05, d, COLORS.DROP_ZONE_BORDER, 0, 0.025, 0, false);
+  addBox(s, w, 0.05, d, COLORS.DROP_ZONE_BORDER, 0, 0.025, 0, false);
   // grey top
-  addBox(g, w - rim * 2, SLAB_TOP - 0.02, d - rim * 2, COLORS.DROP_ZONE_GREY, 0, (SLAB_TOP + 0.02) / 2 + 0.005, 0, false);
+  addBox(s, w - rim * 2, SLAB_TOP - 0.02, d - rim * 2, COLORS.DROP_ZONE_GREY, 0, (SLAB_TOP + 0.02) / 2 + 0.005, 0, false);
   // raised rim
   const rimH = 0.13;
-  addBox(g, w, rimH, rim, COLORS.DROP_ZONE_BORDER, 0, rimH / 2, d / 2 - rim / 2);
-  addBox(g, w, rimH, rim, COLORS.DROP_ZONE_BORDER, 0, rimH / 2, -d / 2 + rim / 2);
-  addBox(g, rim, rimH, d - rim * 2, COLORS.DROP_ZONE_BORDER, w / 2 - rim / 2, rimH / 2, 0);
-  addBox(g, rim, rimH, d - rim * 2, COLORS.DROP_ZONE_BORDER, -w / 2 + rim / 2, rimH / 2, 0);
+  addBox(s, w, rimH, rim, COLORS.DROP_ZONE_BORDER, 0, rimH / 2, d / 2 - rim / 2);
+  addBox(s, w, rimH, rim, COLORS.DROP_ZONE_BORDER, 0, rimH / 2, -d / 2 + rim / 2);
+  addBox(s, rim, rimH, d - rim * 2, COLORS.DROP_ZONE_BORDER, w / 2 - rim / 2, rimH / 2, 0);
+  addBox(s, rim, rimH, d - rim * 2, COLORS.DROP_ZONE_BORDER, -w / 2 + rim / 2, rimH / 2, 0);
   // corner bolts
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
-      addCyl(g, 0.06, 0.03, PALETTE.metalDark, 'y', sx * (w / 2 - rim / 2), rimH + 0.012, sz * (d / 2 - rim / 2), 8);
+      addCyl(s, 0.06, 0.03, PALETTE.metalDark, 'y', sx * (w / 2 - rim / 2), rimH + 0.012, sz * (d / 2 - rim / 2), 8);
     }
   }
   // painted log-stack hint: three little bars on the +Z rim
   for (let i = -1; i <= 1; i++) {
-    addBox(g, 0.34, 0.012, 0.05, COLORS.DROP_ZONE_BORDER, i * 0.5, SLAB_TOP + 0.002, d / 2 - rim - 0.12, false);
+    addBox(s, 0.34, 0.012, 0.05, COLORS.DROP_ZONE_BORDER, i * 0.5, SLAB_TOP + 0.002, d / 2 - rim - 0.12, false);
   }
+  g.add(bake(s));
   return g;
 }
 
@@ -424,85 +410,94 @@ export function createHarvester(railLength: number): HarvesterModel {
   const root = new THREE.Group();
   const railX = 0.68;
 
-  // --- rails + sleepers + buffers (static) ---
+  // --- rails + sleepers + buffers (static, baked) ---
+  const rs = new THREE.Group();
   for (const sx of [-1, 1]) {
-    addBox(root, 0.14, 0.14, railLength + 0.2, PALETTE.metalDark, sx * railX, 0.21, 0);
-    addBox(root, 0.08, 0.04, railLength + 0.2, COLORS.MACHINE_STEEL, sx * railX, 0.29, 0, false);
+    addBox(rs, 0.14, 0.14, railLength + 0.2, PALETTE.metalDark, sx * railX, 0.21, 0);
+    addBox(rs, 0.08, 0.04, railLength + 0.2, COLORS.MACHINE_STEEL, sx * railX, 0.29, 0, false);
   }
   const sleeperPartsLen = Math.floor(railLength / 0.5);
   for (let i = 0; i <= sleeperPartsLen; i++) {
     const z = -railLength / 2 + 0.1 + i * ((railLength - 0.2) / sleeperPartsLen);
-    addBox(root, 1.9, 0.1, 0.22, PALETTE.trunk, 0, 0.05, z);
+    addBox(rs, 1.9, 0.1, 0.22, PALETTE.trunk, 0, 0.05, z);
   }
   for (const sz of [-1, 1]) {
-    addBox(root, 1.5, 0.4, 0.18, PALETTE.accent, 0, 0.3, sz * (railLength / 2 + 0.2));
-    addBox(root, 1.5, 0.1, 0.2, PALETTE.rubber, 0, 0.16, sz * (railLength / 2 + 0.2), false);
+    addBox(rs, 1.5, 0.4, 0.18, PALETTE.accent, 0, 0.3, sz * (railLength / 2 + 0.2));
+    addBox(rs, 1.5, 0.1, 0.2, PALETTE.rubber, 0, 0.16, sz * (railLength / 2 + 0.2), false);
   }
 
-  // --- chassis ---
+  root.add(bake(rs));
+
+  // --- chassis (static parts baked into one mesh) ---
   const chassis = new THREE.Group();
   root.add(chassis);
+  const cs = new THREE.Group();
   // wheels + bogie bars
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
-      const wheel = addCyl(chassis, 0.2, 0.16, PALETTE.metalDark, 'x', sx * railX, 0.4, sz * 0.52, 14);
-      wheel.castShadow = true;
-      addCyl(chassis, 0.08, 0.2, PALETTE.accent, 'x', sx * railX, 0.4, sz * 0.52, 8);
+      addCyl(cs, 0.2, 0.16, PALETTE.metalDark, 'x', sx * railX, 0.4, sz * 0.52, 14);
+      addCyl(cs, 0.08, 0.2, PALETTE.accent, 'x', sx * railX, 0.4, sz * 0.52, 8);
     }
-    addBox(chassis, 0.22, 0.14, 1.45, PALETTE.metalDark, sx * railX, 0.6, 0);
+    addBox(cs, 0.22, 0.14, 1.45, PALETTE.metalDark, sx * railX, 0.6, 0);
   }
   // deck + underframe
-  addBox(chassis, 1.9, 0.14, 1.7, PALETTE.machineDark, 0, 0.7, 0);
-  addBox(chassis, 1.8, 0.4, 1.6, COLORS.MACHINE_BLUE, 0, 0.97, 0);
+  addBox(cs, 1.9, 0.14, 1.7, PALETTE.machineDark, 0, 0.7, 0);
+  addBox(cs, 1.8, 0.4, 1.6, COLORS.MACHINE_BLUE, 0, 0.97, 0);
   // front hood (toward the log) between the boom mounts
-  addBox(chassis, 0.7, 0.34, 1.0, COLORS.MACHINE_BLUE, -0.45, 1.34, 0);
+  addBox(cs, 0.7, 0.34, 1.0, COLORS.MACHINE_BLUE, -0.45, 1.34, 0);
   // cab at the rear (+X)
-  addBox(chassis, 0.9, 0.78, 1.15, COLORS.MACHINE_BLUE, 0.4, 1.57, 0);
-  addBox(chassis, 1.0, 0.08, 1.25, PALETTE.machineDark, 0.4, 2.0, 0);
+  addBox(cs, 0.9, 0.78, 1.15, COLORS.MACHINE_BLUE, 0.4, 1.57, 0);
+  addBox(cs, 1.0, 0.08, 1.25, PALETTE.machineDark, 0.4, 2.0, 0);
   // windows (dark glass) on the +X and ±Z faces
-  addBox(chassis, 0.04, 0.4, 0.8, PALETTE.rubber, 0.86, 1.67, 0, false);
-  addBox(chassis, 0.6, 0.38, 0.04, PALETTE.rubber, 0.35, 1.67, 0.59, false);
-  addBox(chassis, 0.6, 0.38, 0.04, PALETTE.rubber, 0.35, 1.67, -0.59, false);
+  addBox(cs, 0.04, 0.4, 0.8, PALETTE.rubber, 0.86, 1.67, 0, false);
+  addBox(cs, 0.6, 0.38, 0.04, PALETTE.rubber, 0.35, 1.67, 0.59, false);
+  addBox(cs, 0.6, 0.38, 0.04, PALETTE.rubber, 0.35, 1.67, -0.59, false);
   // exhaust + beacon
-  addCyl(chassis, 0.07, 0.5, COLORS.MACHINE_STEEL, 'y', 0.7, 2.3, -0.42, 10);
+  addCyl(cs, 0.07, 0.5, COLORS.MACHINE_STEEL, 'y', 0.7, 2.3, -0.42, 10);
   const beacon = new THREE.Group();
   beacon.position.set(0.4, 2.09, 0);
+  const bs = new THREE.Group();
   const lamp = mesh(geo.sphere(0.14, 10, 8), toon(COLORS.SAW_GLOW));
   lamp.position.y = 0.1;
-  beacon.add(lamp);
-  addBox(beacon, 0.34, 0.04, 0.05, COLORS.COURIER_YELLOW, 0, 0.1, 0, false);
+  bs.add(lamp);
+  addBox(bs, 0.34, 0.04, 0.05, COLORS.COURIER_YELLOW, 0, 0.1, 0, false);
+  beacon.add(bake(bs));
   chassis.add(beacon);
   // ladder-ish side detail: hazard strip on the deck edge
   for (let i = 0; i < 6; i++) {
-    addBox(chassis, 0.2, 0.2, 0.03, i % 2 === 0 ? PALETTE.accent : PALETTE.rubber, -0.7 + i * 0.28, 0.97, 0.82, false);
+    addBox(cs, 0.2, 0.2, 0.03, i % 2 === 0 ? PALETTE.accent : PALETTE.rubber, -0.7 + i * 0.28, 0.97, 0.82, false);
   }
-  // shoulder mounts (steel brackets)
-  const upperGroups: THREE.Group[] = [];
-  const foreGroups: THREE.Group[] = [];
+  // shoulder mounts (steel brackets) + the two boom forks. Both forks flex identically, so one upper-arm
+  // pivot and one forearm pivot each carry BOTH sides (one mesh per pivot).
+  const upper = new THREE.Group();
+  upper.position.set(HV_SHOULDER.x, HV_SHOULDER.y, 0);
+  const fore = new THREE.Group();
+  fore.position.set(HV_UPPER, 0, 0);
+  const us = new THREE.Group();
+  const fs = new THREE.Group();
   for (const sz of [-1, 1]) {
     const z = sz * HV_FORK_Z;
-    addBox(chassis, 0.4, 0.5, 0.2, PALETTE.metalDark, HV_SHOULDER.x, HV_SHOULDER.y - 0.2, z);
-    const upper = new THREE.Group();
-    upper.position.set(HV_SHOULDER.x, HV_SHOULDER.y, z);
-    addBox(upper, HV_UPPER, 0.26, 0.2, COLORS.MACHINE_BLUE, HV_UPPER / 2, 0, 0);
-    addCyl(upper, 0.17, 0.26, COLORS.MACHINE_STEEL, 'z', 0, 0, 0, 12);
-    const fore = new THREE.Group();
-    fore.position.set(HV_UPPER, 0, 0);
-    addBox(fore, HV_FORE, 0.22, 0.18, COLORS.MACHINE_BLUE, HV_FORE / 2, 0, 0);
-    addCyl(fore, 0.15, 0.3, COLORS.MACHINE_STEEL, 'z', 0, 0, 0, 12);
+    addBox(cs, 0.4, 0.5, 0.2, PALETTE.metalDark, HV_SHOULDER.x, HV_SHOULDER.y - 0.2, z);
+    addBox(us, HV_UPPER, 0.26, 0.2, COLORS.MACHINE_BLUE, HV_UPPER / 2, 0, z);
+    addCyl(us, 0.17, 0.26, COLORS.MACHINE_STEEL, 'z', 0, 0, z, 12);
+    addBox(fs, HV_FORE, 0.22, 0.18, COLORS.MACHINE_BLUE, HV_FORE / 2, 0, z);
+    addCyl(fs, 0.15, 0.3, COLORS.MACHINE_STEEL, 'z', 0, 0, z, 12);
     // glowing accent stripe along the forearm
-    addBox(fore, HV_FORE * 0.6, 0.05, 0.2, COLORS.SAW_GLOW, HV_FORE * 0.45, 0.1, 0, false);
-    upper.add(fore);
-    chassis.add(upper);
-    upperGroups.push(upper);
-    foreGroups.push(fore);
+    addBox(fs, HV_FORE * 0.6, 0.05, 0.2, COLORS.SAW_GLOW, HV_FORE * 0.45, 0.1, z, false);
   }
+  upper.add(bake(us));
+  fore.add(bake(fs));
+  upper.add(fore);
+  chassis.add(upper);
+  chassis.add(bake(cs));
 
   // --- saw head ---
   const sawHead = new THREE.Group();
   chassis.add(sawHead);
-  addCyl(sawHead, 0.1, HV_FORK_Z * 2 + 0.3, COLORS.MACHINE_STEEL, 'z', 0, 0, 0, 10);
-  for (const sz of [-1, 1]) addBox(sawHead, 0.34, 0.34, 0.16, PALETTE.machineDark, 0, 0, sz * HV_FORK_Z);
+  const hs = new THREE.Group();
+  addCyl(hs, 0.1, HV_FORK_Z * 2 + 0.3, COLORS.MACHINE_STEEL, 'z', 0, 0, 0, 10);
+  for (const sz of [-1, 1]) addBox(hs, 0.34, 0.34, 0.16, PALETTE.machineDark, 0, 0, sz * HV_FORK_Z);
+  sawHead.add(bake(hs));
   const saw = createSawBlade(HV_SAW_R, 14, 0.12);
   sawHead.add(saw);
 
@@ -524,10 +519,8 @@ export function createHarvester(railLength: number): HarvesterModel {
     const ex = HV_SHOULDER.x + Math.cos(phi1) * HV_UPPER;
     const ey = HV_SHOULDER.y + Math.sin(phi1) * HV_UPPER;
     const phi2 = Math.atan2(hy - ey, hx - ex);
-    for (let i = 0; i < 2; i++) {
-      upperGroups[i]!.rotation.z = phi1;
-      foreGroups[i]!.rotation.z = phi2 - phi1;
-    }
+    upper.rotation.z = phi1;
+    fore.rotation.z = phi2 - phi1;
     sawHead.position.set(hx, hy, 0);
   };
   setBoom(restReach.x, restReach.y);
@@ -570,12 +563,13 @@ export function createProcessor(): ProcessorModel {
   const WALL = 0.16;
   const blue = COLORS.MACHINE_BLUE;
 
+  const ps = new THREE.Group();
   // skid plate
-  addBox(body, W + 0.14, 0.08, D + 0.14, PALETTE.metalDark, 0, 0.04, 0);
+  addBox(ps, W + 0.14, 0.08, D + 0.14, PALETTE.metalDark, 0, 0.04, 0);
   // shell around the tunnel: floor, ceiling, two side walls
-  addBox(body, W, FLOOR - 0.08, D, blue, 0, 0.08 + (FLOOR - 0.08) / 2, 0);
-  addBox(body, W, H - CEIL, D, blue, 0, CEIL + (H - CEIL) / 2, 0);
-  for (const sz of [-1, 1]) addBox(body, W, CEIL - FLOOR, WALL, blue, 0, (CEIL + FLOOR) / 2, sz * (D / 2 - WALL / 2));
+  addBox(ps, W, FLOOR - 0.08, D, blue, 0, 0.08 + (FLOOR - 0.08) / 2, 0);
+  addBox(ps, W, H - CEIL, D, blue, 0, CEIL + (H - CEIL) / 2, 0);
+  for (const sz of [-1, 1]) addBox(ps, W, CEIL - FLOOR, WALL, blue, 0, (CEIL + FLOOR) / 2, sz * (D / 2 - WALL / 2));
   // dark liner seen through the two openings
   const liner = mesh(geo.box(W - 0.04, CEIL - FLOOR - 0.02, D - WALL * 2 - 0.02), toon(PALETTE.rubber, { side: THREE.BackSide }), {
     cast: false,
@@ -585,63 +579,69 @@ export function createProcessor(): ProcessorModel {
   // portal frames (darker blue) around both openings
   for (const sx of [-1, 1]) {
     const x = sx * (W / 2 + 0.012);
-    addBox(body, 0.05, 0.1, D - WALL * 2 + 0.2, PALETTE.machineDark, x, CEIL - 0.05, 0, false);
-    addBox(body, 0.05, 0.1, D - WALL * 2 + 0.2, PALETTE.machineDark, x, FLOOR + 0.05, 0, false);
-    for (const sz of [-1, 1]) addBox(body, 0.05, CEIL - FLOOR, 0.1, PALETTE.machineDark, x, (CEIL + FLOOR) / 2, sz * (D / 2 - WALL - 0.05), false);
+    addBox(ps, 0.05, 0.1, D - WALL * 2 + 0.2, PALETTE.machineDark, x, CEIL - 0.05, 0, false);
+    addBox(ps, 0.05, 0.1, D - WALL * 2 + 0.2, PALETTE.machineDark, x, FLOOR + 0.05, 0, false);
+    for (const sz of [-1, 1]) addBox(ps, 0.05, CEIL - FLOOR, 0.1, PALETTE.machineDark, x, (CEIL + FLOOR) / 2, sz * (D / 2 - WALL - 0.05), false);
   }
   // hazard stripes along the lower +Z/-Z faces
   for (const sz of [-1, 1]) {
     for (let i = 0; i < 8; i++) {
-      const s = addBox(body, 0.13, 0.3, 0.025, i % 2 === 0 ? PALETTE.accent : PALETTE.rubber, -0.66 + i * 0.19, 0.2, sz * (D / 2 + 0.012), false);
+      const s = addBox(ps, 0.13, 0.3, 0.025, i % 2 === 0 ? PALETTE.accent : PALETTE.rubber, -0.66 + i * 0.19, 0.2, sz * (D / 2 + 0.012), false);
       s.rotation.z = 0.55;
     }
   }
   // louver slats on the side walls
   for (const sz of [-1, 1]) {
     for (let i = 0; i < 4; i++) {
-      addBox(body, 1.1, 0.06, 0.06, PALETTE.machineDark, 0, 0.55 + i * 0.16, sz * (D / 2 + 0.02), false);
+      addBox(ps, 1.1, 0.06, 0.06, PALETTE.machineDark, 0, 0.55 + i * 0.16, sz * (D / 2 + 0.02), false);
     }
   }
   // roof louvers + chimney + status lamp
-  for (let i = 0; i < 5; i++) addBox(body, 0.7, 0.04, 0.07, PALETTE.machineDark, 0.25, H + 0.02, -0.4 + i * 0.2, false);
+  for (let i = 0; i < 5; i++) addBox(ps, 0.7, 0.04, 0.07, PALETTE.machineDark, 0.25, H + 0.02, -0.4 + i * 0.2, false);
   const chimneyX = -0.45;
   const chimneyZ = -0.42;
-  addCyl(body, 0.11, 0.5, COLORS.MACHINE_STEEL, 'y', chimneyX, H + 0.25, chimneyZ, 12);
-  addCyl(body, 0.15, 0.08, PALETTE.metalDark, 'y', chimneyX, H + 0.52, chimneyZ, 12);
-  addBox(body, 0.34, 0.2, 0.34, PALETTE.machineDark, 0.5, H + 0.1, 0.4);
+  addCyl(ps, 0.11, 0.5, COLORS.MACHINE_STEEL, 'y', chimneyX, H + 0.25, chimneyZ, 12);
+  addCyl(ps, 0.15, 0.08, PALETTE.metalDark, 'y', chimneyX, H + 0.52, chimneyZ, 12);
+  addBox(ps, 0.34, 0.2, 0.34, PALETTE.machineDark, 0.5, H + 0.1, 0.4);
   const lampMaterial = toonUnique(COLORS.SAW_GLOW, { emissive: COLORS.SAW_GLOW, emissiveIntensity: 0 });
   const lamp = mesh(geo.sphere(0.12, 10, 8), lampMaterial);
   lamp.position.set(0.5, H + 0.28, 0.4);
   body.add(lamp);
   // control panel on the +Z wall
-  addBox(body, 0.34, 0.22, 0.05, PALETTE.rubber, 0.55, 1.2, D / 2 + 0.035, false);
-  addBox(body, 0.1, 0.1, 0.04, COLORS.SAW_GLOW, 0.5, 1.2, D / 2 + 0.07, false);
-  addBox(body, 0.1, 0.1, 0.04, COLORS.CASH_GREEN, 0.64, 1.2, D / 2 + 0.07, false);
+  addBox(ps, 0.34, 0.22, 0.05, PALETTE.rubber, 0.55, 1.2, D / 2 + 0.035, false);
+  addBox(ps, 0.1, 0.1, 0.04, COLORS.SAW_GLOW, 0.5, 1.2, D / 2 + 0.07, false);
+  addBox(ps, 0.1, 0.1, 0.04, COLORS.CASH_GREEN, 0.64, 1.2, D / 2 + 0.07, false);
+
+  body.add(bake(ps));
 
   // --- infeed tray (steel) ---
   const hp = P.hopper;
   const tray = new THREE.Group();
+  const ts = new THREE.Group();
   tray.position.set(hp.x - P.x, 0, hp.z - P.z);
-  addBox(tray, hp.w, hp.h - 0.1, hp.d, COLORS.MACHINE_STEEL, 0, (hp.h - 0.1) / 2, 0);
-  addBox(tray, hp.w, 0.1, hp.d, PALETTE.metalDark, 0, hp.h - 0.05, 0);
-  for (const sz of [-1, 1]) addBox(tray, hp.w, 0.2, 0.07, COLORS.MACHINE_STEEL, 0, hp.h + 0.1, sz * (hp.d / 2 - 0.035));
-  addBox(tray, 0.07, 0.2, hp.d, COLORS.MACHINE_STEEL, -hp.w / 2 + 0.035, hp.h + 0.1, 0);
+  addBox(ts, hp.w, hp.h - 0.1, hp.d, COLORS.MACHINE_STEEL, 0, (hp.h - 0.1) / 2, 0);
+  addBox(ts, hp.w, 0.1, hp.d, PALETTE.metalDark, 0, hp.h - 0.05, 0);
+  for (const sz of [-1, 1]) addBox(ts, hp.w, 0.2, 0.07, COLORS.MACHINE_STEEL, 0, hp.h + 0.1, sz * (hp.d / 2 - 0.035));
+  addBox(ts, 0.07, 0.2, hp.d, COLORS.MACHINE_STEEL, -hp.w / 2 + 0.035, hp.h + 0.1, 0);
   // ramp plate bridging tray and tunnel
-  addBox(tray, 0.3, 0.05, hp.d - 0.2, PALETTE.metalDark, hp.w / 2 + 0.05, hp.h - 0.06, 0);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) addBox(tray, 0.16, 0.06, 0.16, PALETTE.rubber, sx * (hp.w / 2 - 0.1), 0.03, sz * (hp.d / 2 - 0.1), false);
+  addBox(ts, 0.3, 0.05, hp.d - 0.2, PALETTE.metalDark, hp.w / 2 + 0.05, hp.h - 0.06, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) addBox(ts, 0.16, 0.06, 0.16, PALETTE.rubber, sx * (hp.w / 2 - 0.1), 0.03, sz * (hp.d / 2 - 0.1), false);
+  tray.add(bake(ts));
   root.add(tray);
 
   // --- output workbench (FENCE_WOOD) ---
   const ot = P.outputTable;
   const bench = new THREE.Group();
+  const bs = new THREE.Group();
   bench.position.set(ot.x - P.x, 0, ot.z - P.z);
-  addBox(bench, ot.w, 0.12, ot.d, COLORS.FENCE_WOOD, 0, ot.h - 0.06, 0);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) addBox(bench, 0.13, ot.h - 0.12, 0.13, PALETTE.fenceDark, sx * (ot.w / 2 - 0.1), (ot.h - 0.12) / 2, sz * (ot.d / 2 - 0.1));
-  for (const sz of [-1, 1]) addBox(bench, ot.w - 0.3, 0.1, 0.07, PALETTE.fenceDark, 0, ot.h - 0.2, sz * (ot.d / 2 - 0.1));
-  for (const sx of [-1, 1]) addBox(bench, 0.07, 0.1, ot.d - 0.3, PALETTE.fenceDark, sx * (ot.w / 2 - 0.1), ot.h - 0.2, 0);
+  addBox(bs, ot.w, 0.12, ot.d, COLORS.FENCE_WOOD, 0, ot.h - 0.06, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) addBox(bs, 0.13, ot.h - 0.12, 0.13, PALETTE.fenceDark, sx * (ot.w / 2 - 0.1), (ot.h - 0.12) / 2, sz * (ot.d / 2 - 0.1));
+  for (const sz of [-1, 1]) addBox(bs, ot.w - 0.3, 0.1, 0.07, PALETTE.fenceDark, 0, ot.h - 0.2, sz * (ot.d / 2 - 0.1));
+  for (const sx of [-1, 1]) addBox(bs, 0.07, 0.1, ot.d - 0.3, PALETTE.fenceDark, sx * (ot.w / 2 - 0.1), ot.h - 0.2, 0);
   // low rim so crates don't look like they are sliding off
-  for (const sz of [-1, 1]) addBox(bench, ot.w, 0.05, 0.06, PALETTE.fenceDark, 0, ot.h + 0.025, sz * (ot.d / 2 - 0.03), false);
-  addBox(bench, 0.06, 0.05, ot.d, PALETTE.fenceDark, ot.w / 2 - 0.03, ot.h + 0.025, 0, false);
+  for (const sz of [-1, 1]) addBox(bs, ot.w, 0.05, 0.06, PALETTE.fenceDark, 0, ot.h + 0.025, sz * (ot.d / 2 - 0.03), false);
+  addBox(bs, 0.06, 0.05, ot.d, PALETTE.fenceDark, ot.w / 2 - 0.03, ot.h + 0.025, 0, false);
+  bench.add(bake(bs));
   root.add(bench);
 
   return {
@@ -675,6 +675,11 @@ export interface RollerConveyorModel {
    * (optional) scales the rollers of segment i (pop-in).
    */
   setRollers(spin: number, segmentScale?: ArrayLike<number>): void;
+  /**
+   * Call once the pop-in is over: merges every segment mesh into ONE mesh (the segment groups are removed,
+   * so `segments` must not be used afterwards). Idempotent.
+   */
+  finalize(): void;
 }
 
 const ROLLER_R = 0.07;
@@ -705,13 +710,16 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
   const segLen = total / nSeg;
   const sm = BeltPath.makeSample();
   const half = width / 2 + 0.045;
-  const railMat = toon(COLORS.MACHINE_STEEL);
-  const legMat = toon(PALETTE.metalDark);
-  const deckMat = toon(PALETTE.rubber);
   const railH = 0.24;
   const legH = beltY - 0.2;
+  const unit = geo.box(1, 1, 1);
+  /** Add a (rotated) box to a segment batch. */
+  const part = (bt: Batch, color: number, w: number, h: number, d: number, x: number, y: number, z: number, yaw: number): void => {
+    bt.add(unit, color, x, y, z, { ry: yaw, sx: w, sy: h, sz: d });
+  };
 
   const segments: THREE.Group[] = [];
+  const batches: Batch[] = [];
   for (let i = 0; i < nSeg; i++) {
     const s0 = i * segLen;
     const s1 = (i + 1) * segLen;
@@ -720,9 +728,7 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
     const oz = sm.z;
     const seg = new THREE.Group();
     seg.position.set(ox, 0, oz);
-    const rails: BoxPart[] = [];
-    const legs: BoxPart[] = [];
-    const deck: BoxPart[] = [];
+    const bt = new Batch();
     const steps = Math.max(1, Math.ceil(segLen / 0.4));
     const a = new THREE.Vector2();
     const b = new THREE.Vector2();
@@ -743,19 +749,11 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
       const mz = (az + bz) / 2 - oz;
       const chordLen = Math.hypot(bx - ax, bz - az) + 0.03;
       const yaw = Math.atan2(bx - ax, bz - az);
-      deck.push({ w: width, h: 0.04, d: chordLen, x: mx, y: beltY - 0.17, z: mz, yaw });
+      part(bt, PALETTE.rubber, width, 0.04, chordLen, mx, beltY - 0.17, mz, yaw);
       for (const side of [-1, 1]) {
         a.set(ax + nax * half * side - ox, az + naz * half * side - oz);
         b.set(bx + nbx * half * side - ox, bz + nbz * half * side - oz);
-        rails.push({
-          w: 0.09,
-          h: railH,
-          d: a.distanceTo(b) + 0.03,
-          x: (a.x + b.x) / 2,
-          y: beltY - railH / 2 + 0.03,
-          z: (a.y + b.y) / 2,
-          yaw: Math.atan2(b.x - a.x, b.y - a.y),
-        });
+        part(bt, COLORS.MACHINE_STEEL, 0.09, railH, a.distanceTo(b) + 0.03, (a.x + b.x) / 2, beltY - railH / 2 + 0.03, (a.y + b.y) / 2, Math.atan2(b.x - a.x, b.y - a.y));
       }
     }
     // legs: one pair near the middle of every second segment, plus the very ends
@@ -764,23 +762,13 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
       for (const side of [-1, 1]) {
         const lx = sm.x + sm.dz * half * side - ox;
         const lz = sm.z - sm.dx * half * side - oz;
-        legs.push({ w: 0.09, h: legH, d: 0.09, x: lx, y: legH / 2, z: lz, yaw: sm.yaw });
-        legs.push({ w: 0.24, h: 0.04, d: 0.24, x: lx, y: 0.02, z: lz, yaw: sm.yaw });
+        part(bt, PALETTE.metalDark, 0.09, legH, 0.09, lx, legH / 2, lz, sm.yaw);
+        part(bt, PALETTE.metalDark, 0.24, 0.04, 0.24, lx, 0.02, lz, sm.yaw);
       }
-      legs.push({ w: width + 0.2, h: 0.06, d: 0.07, x: 0, y: beltY - 0.27, z: 0, yaw: sm.yaw });
+      part(bt, PALETTE.metalDark, width + 0.2, 0.06, 0.07, 0, beltY - 0.27, 0, sm.yaw);
     }
-    const addMerged = (parts: BoxPart[], mat: THREE.Material): void => {
-      const g = mergeBoxes(parts);
-      if (!g) return;
-      const m = new THREE.Mesh(g, mat);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      seg.add(m);
-    };
-    addMerged(rails, railMat);
-    addMerged(legs, legMat);
-    addMerged(deck, deckMat);
     segments.push(seg);
+    batches.push(bt);
   }
 
   // drive motor at the start (blue housing + glow light) on the left side of the first segment
@@ -790,15 +778,18 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
     const off = half + 0.28;
     const mx = sm.x + sm.dz * off - seg0.position.x;
     const mz = sm.z - sm.dx * off - seg0.position.z;
-    const motor = new THREE.Group();
-    motor.position.set(mx, 0, mz);
-    motor.rotation.y = sm.yaw;
-    addBox(motor, 0.36, 0.34, 0.5, COLORS.MACHINE_BLUE, 0, beltY - 0.3, 0);
-    addBox(motor, 0.2, 0.06, 0.4, PALETTE.machineDark, 0, beltY - 0.09, 0);
-    addBox(motor, 0.1, 0.1, 0.1, COLORS.SAW_GLOW, 0, beltY - 0.04, 0.12, false);
-    addBox(motor, 0.1, 0.34, 0.1, PALETTE.metalDark, 0, (beltY - 0.3) / 2 - 0.02, -0.12);
-    seg0.add(motor);
+    const yaw = sm.yaw;
+    const c = Math.cos(yaw);
+    const sn = Math.sin(yaw);
+    const motorPart = (color: number, w: number, h: number, d: number, lx: number, ly: number, lz: number): void => {
+      part(batches[0]!, color, w, h, d, mx + lx * c + lz * sn, ly, mz - lx * sn + lz * c, yaw);
+    };
+    motorPart(COLORS.MACHINE_BLUE, 0.36, 0.34, 0.5, 0, beltY - 0.3, 0);
+    motorPart(PALETTE.machineDark, 0.2, 0.06, 0.4, 0, beltY - 0.09, 0);
+    motorPart(COLORS.SAW_GLOW, 0.1, 0.1, 0.1, 0, beltY - 0.04, 0.12);
+    motorPart(PALETTE.metalDark, 0.1, 0.34, 0.1, 0, (beltY - 0.3) / 2 - 0.02, -0.12);
   }
+  for (let i = 0; i < nSeg; i++) segments[i]!.add(batches[i]!.mesh());
 
   // rollers
   const rollerLen = width - 0.02;
@@ -850,7 +841,28 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
   setRollers(0);
 
   for (const s of segments) root.add(s);
-  return { root, path, segments, rollers, rollerRadius: ROLLER_R, setRollers };
+  let finalized = false;
+  const finalize = (): void => {
+    if (finalized) return;
+    finalized = true;
+    const parts: THREE.BufferGeometry[] = [];
+    for (const seg of segments) {
+      seg.updateMatrix();
+      for (const child of seg.children) {
+        const m = child as THREE.Mesh;
+        if (m.isMesh) parts.push(m.geometry.clone().applyMatrix4(seg.matrix));
+      }
+      root.remove(seg);
+      for (const child of seg.children) (child as THREE.Mesh).geometry.dispose();
+    }
+    const merged = mergeGeometries(parts, false);
+    for (const g of parts) g.dispose();
+    const mesh1 = new THREE.Mesh(merged, vcMat());
+    mesh1.castShadow = true;
+    mesh1.receiveShadow = true;
+    root.add(mesh1);
+  };
+  return { root, path, segments, rollers, rollerRadius: ROLLER_R, setRollers, finalize };
 }
 
 export type { BeltSample };
@@ -889,58 +901,63 @@ export function createMegaSaw(bladeRadius: number): MegaSawModel {
   const cutY = 1.15;
   const blue = COLORS.MACHINE_BLUE;
 
+  const ms = new THREE.Group();
   // yard-side base (solid) + column
-  addBox(root, M.base.maxX - M.base.minX, 1.3, M.base.maxZ - M.base.minZ, blue, yardX, 0.65, baseZ);
-  addBox(root, M.base.maxX - M.base.minX + 0.2, 0.18, M.base.maxZ - M.base.minZ + 0.2, PALETTE.metalDark, yardX, 0.09, baseZ);
-  addBox(root, 1.85, 0.12, 1.85, PALETTE.machineDark, yardX, 1.36, baseZ, false);
-  addBox(root, 0.7, beamY - 1.3, 0.7, COLORS.MACHINE_STEEL, yardX, 1.3 + (beamY - 1.3) / 2, POST_Z);
+  addBox(ms, M.base.maxX - M.base.minX, 1.3, M.base.maxZ - M.base.minZ, blue, yardX, 0.65, baseZ);
+  addBox(ms, M.base.maxX - M.base.minX + 0.2, 0.18, M.base.maxZ - M.base.minZ + 0.2, PALETTE.metalDark, yardX, 0.09, baseZ);
+  addBox(ms, 1.85, 0.12, 1.85, PALETTE.machineDark, yardX, 1.36, baseZ, false);
+  addBox(ms, 0.7, beamY - 1.3, 0.7, COLORS.MACHINE_STEEL, yardX, 1.3 + (beamY - 1.3) / 2, POST_Z);
   // far-bank leg
-  addBox(root, 1.3, 0.18, 1.3, PALETTE.metalDark, farX, 0.09, POST_Z);
-  addBox(root, 0.9, 0.9, 0.9, blue, farX, 0.63, POST_Z);
-  addBox(root, 0.6, beamY - 1.0, 0.6, COLORS.MACHINE_STEEL, farX, 1.0 + (beamY - 1.0) / 2, POST_Z);
+  addBox(ms, 1.3, 0.18, 1.3, PALETTE.metalDark, farX, 0.09, POST_Z);
+  addBox(ms, 0.9, 0.9, 0.9, blue, farX, 0.63, POST_Z);
+  addBox(ms, 0.6, beamY - 1.0, 0.6, COLORS.MACHINE_STEEL, farX, 1.0 + (beamY - 1.0) / 2, POST_Z);
   // diagonal braces
   for (const [bx, dir] of [[yardX, -1], [farX, 1]] as const) {
     const len = Math.hypot(1.8, 2.6);
-    const brace = addBox(root, 0.2, len, 0.2, PALETTE.metalDark, bx + dir * 0.9, beamY - 1.55, POST_Z);
+    const brace = addBox(ms, 0.2, len, 0.2, PALETTE.metalDark, bx + dir * 0.9, beamY - 1.55, POST_Z);
     brace.rotation.z = -dir * Math.atan2(1.8, 2.6);
   }
   // beam + end housings
   const beamLen = yardX - farX + 0.9;
-  addBox(root, beamLen, 0.55, 0.9, COLORS.MACHINE_STEEL, (yardX + farX) / 2, beamY, POST_Z);
-  addBox(root, beamLen, 0.1, 1.0, PALETTE.metalDark, (yardX + farX) / 2, beamY + 0.32, POST_Z);
-  addBox(root, 1.3, 0.8, 1.2, blue, yardX, beamY + 0.1, POST_Z);
-  addBox(root, 1.1, 0.8, 1.2, blue, farX, beamY + 0.1, POST_Z);
+  addBox(ms, beamLen, 0.55, 0.9, COLORS.MACHINE_STEEL, (yardX + farX) / 2, beamY, POST_Z);
+  addBox(ms, beamLen, 0.1, 1.0, PALETTE.metalDark, (yardX + farX) / 2, beamY + 0.32, POST_Z);
+  addBox(ms, 1.3, 0.8, 1.2, blue, yardX, beamY + 0.1, POST_Z);
+  addBox(ms, 1.1, 0.8, 1.2, blue, farX, beamY + 0.1, POST_Z);
   const beacons: THREE.Object3D[] = [];
   for (const bx of [yardX, farX]) {
     const b = new THREE.Group();
     b.position.set(bx, beamY + 0.65, POST_Z);
-    const lamp = mesh(geo.sphere(0.2, 10, 8), toon(COLORS.SAW_GLOW));
-    b.add(lamp);
-    addBox(b, 0.5, 0.05, 0.06, COLORS.COURIER_YELLOW, 0, 0, 0, false);
+    const bs = new THREE.Group();
+    bs.add(mesh(geo.sphere(0.2, 10, 8), toon(COLORS.SAW_GLOW)));
+    addBox(bs, 0.5, 0.05, 0.06, COLORS.COURIER_YELLOW, 0, 0, 0, false);
+    b.add(bake(bs));
     root.add(b);
     beacons.push(b);
   }
   // trolley under the beam (blue) with glow stripe
-  addBox(root, 1.8, 0.7, 1.1, blue, 0, beamY - 0.62, POST_Z);
-  addBox(root, 1.84, 0.1, 1.14, COLORS.SAW_GLOW, 0, beamY - 0.5, POST_Z, false);
-  addBox(root, 1.6, 0.14, 1.0, PALETTE.machineDark, 0, beamY - 1.0, POST_Z);
+  addBox(ms, 1.8, 0.7, 1.1, blue, 0, beamY - 0.62, POST_Z);
+  addBox(ms, 1.84, 0.1, 1.14, COLORS.SAW_GLOW, 0, beamY - 0.5, POST_Z, false);
+  addBox(ms, 1.6, 0.14, 1.0, PALETTE.machineDark, 0, beamY - 1.0, POST_Z);
   // vertical guide rails
   for (const sx of [-1, 1]) {
-    addBox(root, 0.14, beamY - 1.0 - 0.25, 0.14, PALETTE.metalDark, sx * 0.85, 0.25 + (beamY - 1.25) / 2, POST_Z + 0.55);
-    addBox(root, 0.14, beamY - 1.0 - 0.25, 0.14, PALETTE.metalDark, sx * 0.85, 0.25 + (beamY - 1.25) / 2, POST_Z - 0.55);
+    addBox(ms, 0.14, beamY - 1.0 - 0.25, 0.14, PALETTE.metalDark, sx * 0.85, 0.25 + (beamY - 1.25) / 2, POST_Z + 0.55);
+    addBox(ms, 0.14, beamY - 1.0 - 0.25, 0.14, PALETTE.metalDark, sx * 0.85, 0.25 + (beamY - 1.25) / 2, POST_Z - 0.55);
   }
-  addBox(root, 2.1, 0.14, 1.4, PALETTE.metalDark, 0, 0.2, POST_Z, false);
+  addBox(ms, 2.1, 0.14, 1.4, PALETTE.metalDark, 0, 0.2, POST_Z, false);
+  root.add(bake(ms));
 
   // carriage: motor housing + yoke + blade
   const carriage = new THREE.Group();
   carriage.position.set(0, restY, 0);
-  addBox(carriage, 1.4, 1.2, 0.9, blue, 0, 0, POST_Z);
-  addBox(carriage, 1.44, 0.14, 0.94, COLORS.SAW_GLOW, 0, 0.3, POST_Z, false);
-  addBox(carriage, 1.2, 0.2, 1.0, PALETTE.machineDark, 0, 0.7, POST_Z);
+  const cs = new THREE.Group();
+  addBox(cs, 1.4, 1.2, 0.9, blue, 0, 0, POST_Z);
+  addBox(cs, 1.44, 0.14, 0.94, COLORS.SAW_GLOW, 0, 0.3, POST_Z, false);
+  addBox(cs, 1.2, 0.2, 1.0, PALETTE.machineDark, 0, 0.7, POST_Z);
   for (const sx of [-1, 1]) {
-    addBox(carriage, 0.18, 0.7, 1.4, COLORS.MACHINE_STEEL, sx * 0.8, 0, POST_Z);
+    addBox(cs, 0.18, 0.7, 1.4, COLORS.MACHINE_STEEL, sx * 0.8, 0, POST_Z);
   }
-  addCyl(carriage, 0.22, BLADE_Z - POST_Z + 0.3, COLORS.MACHINE_STEEL, 'z', 0, 0, (BLADE_Z + POST_Z) / 2 - 0.1, 14);
+  addCyl(cs, 0.22, BLADE_Z - POST_Z + 0.3, COLORS.MACHINE_STEEL, 'z', 0, 0, (BLADE_Z + POST_Z) / 2 - 0.1, 14);
+  carriage.add(bake(cs));
   const blade = createSawBlade(bladeRadius, 34, 0.14);
   blade.position.z = BLADE_Z;
   carriage.add(blade);
@@ -975,8 +992,8 @@ export const machineCatalog: Record<string, () => THREE.Object3D> = {
   dropZoneSlab: () => createDropZoneSlab(LAYOUT.dropZone.slab.w, LAYOUT.dropZone.slab.d),
   harvester: () => createHarvester(LAYOUT.harvester.railMaxZ - LAYOUT.harvester.railMinZ).root,
   processor: () => createProcessor().root,
-  conveyor: () =>
-    createRollerConveyor(
+  conveyor: () => {
+    const model = createRollerConveyor(
       [
         { x: 0, z: 0 },
         { x: 0, z: 3.4 },
@@ -984,6 +1001,9 @@ export const machineCatalog: Record<string, () => THREE.Object3D> = {
       ],
       0.8,
       0.5,
-    ).root,
+    );
+    model.finalize();
+    return model.root;
+  },
   megaSaw: () => createMegaSaw(LAYOUT.megaSaw.bladeRadius).root,
 };
