@@ -7,9 +7,19 @@
  *   → camera → shadow focus → HUD (projects world anchors) → render
  */
 import * as THREE from 'three';
-import { CREW, DEMAND, ECONOMY, LAYOUT, PADS, PLAYER, TIMING, UPGRADES, VILLAGE } from '../config';
+import { CREW, DEMAND, ECONOMY, LAYOUT, PADS, PLAYER, SAVE, TIMING, UPGRADES, VILLAGE } from '../config';
 import { EventBus } from '../core/EventBus';
 import { Economy } from '../core/Economy';
+import {
+  SalesMeter,
+  clearSave,
+  freshRequested,
+  loadSave,
+  mergeState,
+  offlineEarnings,
+  writeSave,
+  type SaveData,
+} from '../core/Save';
 import { TweenManager } from '../core/Tween';
 import { Upgrades } from '../core/Upgrades';
 import {
@@ -79,6 +89,14 @@ export interface DebugApi {
   revealVillage(): void;
   /** Set plot `plot` (−1 = Great Lodge) to `tier` at once (tests). */
   buildPlot(plot: number, tier: number): void;
+  /** Write the save now; returns what was written (null when saving is off: `?fresh`, reset, no storage). */
+  save(): SaveData | null;
+  /** The save that would be written now (not written). */
+  saveData(): SaveData;
+  /** Delete the save (the running game keeps going; the next autosave writes a new one). */
+  clearSave(): void;
+  /** Offline earnings this game would get after `seconds` away (for tests). */
+  offlinePreview(seconds: number): { amount: number; seconds: number };
 }
 
 declare global {
@@ -96,13 +114,22 @@ export class Game {
   private running = false;
   private paused = false;
   private lastTime = 0;
+  /** Saving is off for `?fresh` pages and after a reset (until the reload). */
+  private saving: boolean;
+  private saveTimer: number = SAVE.interval;
+  private readonly sales: SalesMeter;
 
   constructor(container: HTMLElement, hudRoot: HTMLElement) {
     const renderer = new Renderer(container);
     const events = new EventBus<GameEvents>();
     const tweens = new TweenManager();
+    // Load BEFORE anything is built: every system initialises itself from state (see docs/DESIGN.md).
+    const fresh = freshRequested();
+    this.saving = !fresh;
+    const save = fresh ? null : loadSave();
     const state = createGameState();
-    const economy = new Economy(events, state, ECONOMY.startMoney);
+    if (save) mergeState(state, save.state);
+    const economy = new Economy(events, state, save ? save.money : ECONOMY.startMoney);
     const upgrades = new Upgrades(state, economy, events);
     const colliders = new ColliderWorld();
     const input = new Input(renderer.domElement);
@@ -142,6 +169,8 @@ export class Game {
     ctx.player = new Player(ctx);
     this.juice = new JuiceDirector(ctx);
     this.level = new Level(ctx);
+    if (save) this.level.restoreWorld(save.world);
+    this.sales = new SalesMeter(ctx, save?.salesRate ?? 0);
 
     input.onFirstGesture(() => ctx.audio.unlock());
     cameraRig.follow(ctx.player.object);
@@ -151,8 +180,50 @@ export class Game {
 
     window.addEventListener('resize', () => this.resize());
     window.visualViewport?.addEventListener('resize', () => this.resize());
+    window.addEventListener('pagehide', () => this.save());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.save();
+    });
+    events.on('game:reset', () => this.reset());
     this.installDebugApi();
     this.level.start();
+
+    if (save) {
+      const away = offlineEarnings(save, Date.now());
+      if (away.amount > 0) {
+        ctx.hud.showOfflineEarnings(away.amount, away.seconds, () => {
+          ctx.economy.add(away.amount);
+          ctx.events.emit('offline:collected', { amount: away.amount });
+        });
+      }
+    }
+  }
+
+  /** The save as it would be written now. */
+  saveData(): SaveData {
+    const c = this.ctx;
+    return {
+      v: SAVE.version,
+      savedAt: Date.now(),
+      money: c.economy.money,
+      state: c.state,
+      world: this.level.snapshotWorld(),
+      salesRate: this.sales.rate,
+    };
+  }
+
+  /** Write the save (no-op when saving is off). */
+  save(): SaveData | null {
+    if (!this.saving) return null;
+    const data = this.saveData();
+    return writeSave(data) ? data : null;
+  }
+
+  /** Settings → Reset: wipe the save and start over. */
+  private reset(): void {
+    this.saving = false;
+    clearSave();
+    location.reload();
   }
 
   /** Start the real-time loop. */
@@ -176,6 +247,7 @@ export class Game {
     const c = this.ctx;
     c.time.elapsed += dt;
     c.time.frame++;
+    c.state.playTime += dt;
 
     c.input.update();
     c.player.update(dt);
@@ -195,6 +267,12 @@ export class Game {
     c.cameraRig.update(dt);
     c.renderer.setShadowFocus(c.cameraRig.target);
     c.hud.update(dt);
+
+    this.saveTimer -= dt;
+    if (this.saveTimer <= 0) {
+      this.saveTimer = SAVE.interval;
+      this.save();
+    }
   }
 
   /** Fast-forward the simulation (tests). */
@@ -276,6 +354,11 @@ export class Game {
       setUpgrade: (id: UpgradeId, level: number) => ctx.upgrades.setLevel(id, level),
       revealVillage: () => this.level.village.reveal(),
       buildPlot: (plot: number, tier: number) => this.level.village.debugBuild(plot, tier),
+      save: () => this.save(),
+      saveData: () => this.saveData(),
+      clearSave: () => clearSave(),
+      offlinePreview: (seconds: number) =>
+        offlineEarnings({ ...this.saveData(), savedAt: Date.now() - seconds * 1000 }, Date.now()),
     };
   }
 }

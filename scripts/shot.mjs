@@ -13,6 +13,7 @@
  *   eval:<js>          evaluate JS in the page (window.__WINTERLAND__ = debug API); prints the result
  *   state              print __WINTERLAND__.state()
  *   shot:<file.png>    render + save a screenshot (path relative to the current directory)
+ *   reload             reload the page (same browser profile, so the save survives), wait for the game, pause
  *
  * Options:
  *   --size WxH         viewport (default 1280x720)
@@ -138,6 +139,11 @@ try {
         }
       }, arg);
       log(`eval ${arg.length > 160 ? `${arg.slice(0, 120).replace(/\s+/g, ' ')}…` : arg} →`, result);
+    } else if (kind === 'reload') {
+      await page.reload({ waitUntil: 'load', timeout: opts.timeout });
+      await page.waitForFunction(() => !!window.__WINTERLAND__, null, { timeout: opts.timeout });
+      if (!opts.live) await page.evaluate(() => window.__WINTERLAND__.pause());
+      log('reloaded');
     } else if (kind === 'state') {
       const s = await page.evaluate(() => JSON.stringify(window.__WINTERLAND__.state(), null, 1));
       log('state', s.replace(/\n\s*/g, ' '));
