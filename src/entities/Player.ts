@@ -5,7 +5,8 @@
  *   `autopilot` when set); accelerate/decelerate (PLAYER.accel/decel) for responsive-but-smooth feel;
  *   resolve against ctx.colliders (radius PLAYER.radius); face movement direction with
  *   dampAngle(PLAYER.turnLambda). inputEnabled=false → decelerate to a stop.
- * - Visual: CharacterRig (red shirt, dark pants, yellow beanie) + an axe (wood handle, grey head)
+ * - Visual: createCharacterRig('player') (blue coat pawn with white collars, white beard, blue beanie) + the
+ *   AssetFactory axe (brown handle, silver wedge head)
  *   parented to rig.handR, visible only while chopping. rig.setCarrying(arms.size > 0).
  * - Stacks: `arms` = CarryStack(accepts log+crate, PLAYER.armsCapacity, anchor rig.armsAnchor);
  *   `back` = CashStack(anchor rig.backAnchor, PLAYER.cashVisualCap). Both are updated every frame with
@@ -17,27 +18,24 @@
  * - Small snow puffs at the feet while running (ctx.particles.puff, throttled).
  */
 import * as THREE from 'three';
-import { PALETTE, PLAYER, TIMING } from '../config';
+import { PLAYER, TIMING } from '../config';
 import type { GameContext } from '../core/types';
-import { Ease } from '../core/Tween';
 import { approach, clamp, dampAngle } from '../core/math';
-import { CharacterRig } from '../render/characters';
-import { geo, mesh, toon } from '../render/materials';
+import { createAxe } from '../assets/characters';
+import { createCharacterRig, type CharacterRig } from '../render/characters';
 import { CarryStack } from '../items/CarryStack';
 import { CashStack } from '../items/CashStack';
 
-// Axe swing keyframes: right-arm angle about X (see CharacterRig: 0 hangs, ±π is straight up,
-// -π/2 ≡ 3π/2 is forward). The arc runs up and over the head: wind-up (behind) → strike (forward-down).
+// Axe swing: right-arm angle about X (see CharacterRig: 0 hangs, ±π is straight up). A sine runs between the
+// wind-up (behind/above the head) and the strike (forward-down); the blade connects at the sine's peak.
 /** Hanging arm, expressed as a full turn so the raise runs forward and over the head. */
 const REST_ANGLE = Math.PI * 2;
-const SWING_START = 3.0;
 const SWING_WINDUP = 2.35;
 const SWING_STRIKE = 5.35;
-const SWING_RECOIL = 5.1;
-/** Fraction of the swing period at which the blade connects. */
-const STRIKE_AT = 0.58;
-const WINDUP_AT = 0.3;
-const RECOIL_AT = 0.72;
+const SWING_MID = (SWING_WINDUP + SWING_STRIKE) / 2;
+const SWING_AMP = (SWING_STRIKE - SWING_WINDUP) / 2;
+/** Fraction of the swing period at which the blade connects (the sine's maximum). */
+const STRIKE_AT = 0.5;
 /** Above this fraction of full speed the player is "running", not chopping. */
 const CHOP_MAX_SPEED01 = 0.35;
 const PUFF_INTERVAL = 0.13;
@@ -56,7 +54,7 @@ export class Player {
   /** Debug/test autopilot: walk toward this XZ point (y ignored); cleared on arrival. */
   autopilot: THREE.Vector3 | null = null;
 
-  private readonly axe = new THREE.Group();
+  private readonly axe = createAxe();
   private readonly chopTarget = new THREE.Vector3();
   private readonly chopPos = new THREE.Vector3();
   private hasChopTarget = false;
@@ -74,11 +72,10 @@ export class Player {
   private readonly puffOpts = { count: 2, size: 0.3, life: 0.55, color: 0xffffff };
 
   constructor(readonly ctx: GameContext) {
-    this.rig = new CharacterRig({ body: PALETTE.playerShirt, pants: PALETTE.playerPants, hat: 'beanie', hatColor: PALETTE.playerHat });
+    this.rig = createCharacterRig('player');
     this.object.add(this.rig.root);
     this.object.position.set(PLAYER.spawn.x, 0, PLAYER.spawn.z);
     ctx.scene.add(this.object);
-    this.buildAxe();
     this.rig.handR.add(this.axe);
     this.axe.visible = false;
     this.arms = new CarryStack(ctx, { id: 'player.arms', accepts: ['log', 'crate'], capacity: PLAYER.armsCapacity, anchor: this.rig.armsAnchor });
@@ -258,7 +255,7 @@ export class Player {
     } else if (this.chopBlend > 0.02) {
       // eased exit: relax the scripted pose back to rest
       const w = this.chopBlend;
-      rig.armRAngle = lerp(REST_ANGLE, SWING_RECOIL, w);
+      rig.armRAngle = lerp(REST_ANGLE, SWING_STRIKE - 0.25, w);
       rig.armLAngle = -1.0 * w;
       rig.torsoLean = 0.3 * w;
     } else {
@@ -268,29 +265,11 @@ export class Player {
     }
     this.axe.visible = this.swinging || this.chopBlend > 0.05;
   }
-
-  private buildAxe(): void {
-    // handR's local -Y runs along the arm, away from the shoulder; the blade leads the swing (local -Z).
-    const wood = toon(PALETTE.plank);
-    const steel = toon(PALETTE.metal);
-    const handle = mesh(geo.cylinder(0.035, 0.04, 0.95, 8), wood);
-    handle.position.y = -0.38;
-    const head = mesh(geo.box(0.07, 0.3, 0.24), steel);
-    head.position.set(0, -0.78, -0.1);
-    const edge = mesh(geo.box(0.045, 0.36, 0.05), toon(PALETTE.metalDark));
-    edge.position.set(0, -0.78, -0.24);
-    const knob = mesh(geo.sphere(0.05, 8, 6), wood);
-    knob.position.y = 0.1;
-    this.axe.add(handle, head, edge, knob);
-  }
 }
 
-/** Right-arm angle through one swing period, k ∈ [0,1): raise → wind-up → strike → recoil → lift. */
+/** Right-arm angle through one swing period: a sine with its wind-up at k = 0 and its strike at k = STRIKE_AT. */
 function swingAngle(k: number): number {
-  if (k < WINDUP_AT) return lerp(SWING_START, SWING_WINDUP, Ease.quadOut(k / WINDUP_AT));
-  if (k < STRIKE_AT) return lerp(SWING_WINDUP, SWING_STRIKE, Ease.quadIn((k - WINDUP_AT) / (STRIKE_AT - WINDUP_AT)));
-  if (k < RECOIL_AT) return lerp(SWING_STRIKE, SWING_RECOIL, Ease.quadOut((k - STRIKE_AT) / (RECOIL_AT - STRIKE_AT)));
-  return lerp(SWING_RECOIL, SWING_START, Ease.sineInOut((k - RECOIL_AT) / (1 - RECOIL_AT)));
+  return SWING_MID + SWING_AMP * Math.sin((k - STRIKE_AT / 2) * Math.PI * 2);
 }
 
 function lerp(a: number, b: number, t: number): number {
