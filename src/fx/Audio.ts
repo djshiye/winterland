@@ -1,17 +1,17 @@
 /**
- * [B4 — juice & HUD] Procedural WebAudio sound effects (no audio files). STUB: replace bodies,
- * keep the public API.
+ * [B4 — juice & HUD] Procedural WebAudio sound effects (no audio files).
  *
  * - One AudioContext, created lazily; unlock() resumes it (called on the first user gesture).
- *   Before unlock / when muted / when WebAudio is unavailable, play() is a silent no-op — never throw.
- * - Short synthesized sounds (oscillators + noise buffers + envelopes, master compressor/gain):
+ *   Before unlock / when muted / when WebAudio is unavailable, play() is a silent no-op — never throws.
+ * - Short synthesized sounds (oscillators + noise buffers + envelopes) through a master
+ *   compressor + gain (~0.5):
  *   pop (item into stack, bright bubbly blip), drop (soft wooden knock), chop (axe thunk + crack),
- *   cash (coin/bill "ching"), pay (fast tick into a pad), unlock (rising arpeggio fanfare),
- *   build (whoosh + thump), splash, crash (heavy wooden boom), whoosh, machine (short mechanical
- *   chug), sell (cheerful two-note), full (dull "nope" buzz), step (very soft snow crunch),
- *   click (UI).
- * - combo: repeats of the same sound within ~0.35 s rise in pitch (semitone steps, capped ~1 octave)
- *   — the classic stacking pickup feel. Volume-limit rapid repeats so streams don't clip.
+ *   cash (coin "ching"), pay (fast tick into a pad), unlock (rising arpeggio fanfare),
+ *   build (whoosh + thump), splash, crash (heavy wooden boom), whoosh, machine (mechanical chug),
+ *   sell (cheerful two-note), full (dull "nope" buzz), step (soft snow crunch), click (UI).
+ * - combo: repeats of the same sound within ~0.35 s rise in pitch (semitone steps, capped at +12)
+ *   — the classic stacking pickup feel. Rapid repeats are rate-limited per sound and the number of
+ *   simultaneous voices is capped, so streams never clip.
  * - Mute state persists in localStorage ('winterland:muted'), wrapped in try/catch.
  */
 
@@ -41,20 +41,296 @@ export interface PlayOptions {
   combo?: boolean;
 }
 
+const STORAGE_KEY = 'winterland:muted';
+const MASTER_GAIN = 0.5;
+const COMBO_WINDOW = 0.35;
+const COMBO_MAX = 12;
+const MAX_VOICES = 28;
+
+/** Minimum seconds between two instances of the same sound (voice-steal / rate limit). */
+const MIN_GAP: Record<SfxName, number> = {
+  pop: 0.035,
+  drop: 0.07,
+  chop: 0.08,
+  cash: 0.04,
+  pay: 0.03,
+  unlock: 0.5,
+  build: 0.3,
+  splash: 0.3,
+  crash: 0.5,
+  whoosh: 0.12,
+  machine: 0.15,
+  sell: 0.08,
+  full: 0.25,
+  step: 0.12,
+  click: 0.05,
+};
+
+type AudioCtor = typeof AudioContext;
+
 export class AudioFX {
   muted = false;
 
-  unlock(): void {}
+  private ac: AudioContext | null = null;
+  private master: GainNode | null = null;
+  private noise: AudioBuffer | null = null;
+  private compIn: DynamicsCompressorNode | null = null;
+  private failed = false;
+  private voices = 0;
+  private readonly lastCall = new Map<SfxName, number>();
+  private readonly lastSound = new Map<SfxName, number>();
+  private readonly comboStep = new Map<SfxName, number>();
 
-  play(_name: SfxName, _opts?: PlayOptions): void {}
+  constructor() {
+    try {
+      this.muted = localStorage.getItem(STORAGE_KEY) === '1';
+    } catch {
+      /* storage unavailable */
+    }
+  }
+
+  /** Create (first call) and resume the AudioContext. Safe to call repeatedly and never throws. */
+  unlock(): void {
+    try {
+      if (this.failed) return;
+      if (!this.ac) this.init();
+      const ac = this.ac;
+      if (ac && ac.state !== 'running') void ac.resume().catch(() => undefined);
+    } catch {
+      this.failed = true;
+    }
+  }
+
+  /** Play a sound. No-op before unlock(), when muted or when WebAudio is unavailable. */
+  play(name: SfxName, opts?: PlayOptions): void {
+    try {
+      const ac = this.ac;
+      if (this.muted || this.failed || !ac || !this.master || ac.state !== 'running') return;
+      const now = ac.currentTime;
+
+      let pitch = opts?.pitch ?? 1;
+      const last = this.lastCall.get(name);
+      this.lastCall.set(name, now);
+      if (opts?.combo) {
+        // The combo clock advances on every call, even rate-limited ones, so a fast stream keeps rising.
+        const prev = this.comboStep.get(name) ?? 0;
+        const step = last !== undefined && now - last < COMBO_WINDOW ? Math.min(COMBO_MAX, prev + 1) : 0;
+        this.comboStep.set(name, step);
+        pitch *= Math.pow(2, step / 12);
+      }
+      const played = this.lastSound.get(name);
+      if (played !== undefined && now - played < MIN_GAP[name]) return;
+      if (this.voices >= MAX_VOICES) return;
+      this.lastSound.set(name, now);
+      this.synth(name, now + 0.005, pitch, Math.max(0, Math.min(1, opts?.volume ?? 1)));
+    } catch {
+      /* audio must never break the game */
+    }
+  }
 
   setMuted(m: boolean): void {
     this.muted = m;
+    try {
+      localStorage.setItem(STORAGE_KEY, m ? '1' : '0');
+    } catch {
+      /* storage unavailable */
+    }
+    if (this.master && this.ac) {
+      this.master.gain.setTargetAtTime(m ? 0 : MASTER_GAIN, this.ac.currentTime, 0.02);
+    }
   }
 
   /** Returns the new muted state. */
   toggleMute(): boolean {
     this.setMuted(!this.muted);
     return this.muted;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Internals
+  // ---------------------------------------------------------------------------------------------
+
+  private init(): void {
+    const w = window as unknown as { AudioContext?: AudioCtor; webkitAudioContext?: AudioCtor };
+    const Ctor = w.AudioContext ?? w.webkitAudioContext;
+    if (!Ctor) {
+      this.failed = true;
+      return;
+    }
+    const ac = new Ctor({ latencyHint: 'interactive' });
+    const comp = ac.createDynamicsCompressor();
+    comp.threshold.value = -16;
+    comp.knee.value = 12;
+    comp.ratio.value = 5;
+    comp.attack.value = 0.004;
+    comp.release.value = 0.16;
+    const master = ac.createGain();
+    master.gain.value = this.muted ? 0 : MASTER_GAIN;
+    comp.connect(master);
+    master.connect(ac.destination);
+
+    // 1 s of white noise, shared by every noise voice.
+    const len = ac.sampleRate;
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+
+    this.ac = ac;
+    this.master = master;
+    this.noise = buf;
+    this.compIn = comp;
+  }
+
+  /** Track a voice's end so MAX_VOICES stays honest, and release its nodes. */
+  private track(src: AudioScheduledSourceNode, ...nodes: AudioNode[]): void {
+    this.voices++;
+    src.onended = () => {
+      this.voices = Math.max(0, this.voices - 1);
+      for (const n of nodes) {
+        try {
+          n.disconnect();
+        } catch {
+          /* already disconnected */
+        }
+      }
+    };
+  }
+
+  /** Oscillator voice with an attack/decay envelope and optional frequency glide. */
+  private tone(
+    t: number, type: OscillatorType, f0: number, f1: number, dur: number, vol: number,
+    attack = 0.004, lowpass = 0,
+  ): void {
+    const ac = this.ac!;
+    const osc = ac.createOscillator();
+    osc.type = type;
+    osc.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) osc.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g);
+    let f: BiquadFilterNode | null = null;
+    if (lowpass > 0) {
+      f = ac.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = lowpass;
+      g.connect(f);
+      f.connect(this.compIn!);
+    } else {
+      g.connect(this.compIn!);
+    }
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+    if (f) this.track(osc, g, f);
+    else this.track(osc, g);
+  }
+
+  /** Filtered noise voice; the filter sweeps f0 -> f1 over `dur`. */
+  private hiss(
+    t: number, ftype: BiquadFilterType, f0: number, f1: number, dur: number, vol: number,
+    attack = 0.005, q = 0.8,
+  ): void {
+    const ac = this.ac!;
+    const src = ac.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const f = ac.createBiquadFilter();
+    f.type = ftype;
+    f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f);
+    f.connect(g);
+    g.connect(this.compIn!);
+    src.start(t, Math.random() * 0.8);
+    src.stop(t + dur + 0.02);
+    this.track(src, f, g);
+  }
+
+  private synth(name: SfxName, t: number, p: number, v: number): void {
+    switch (name) {
+      case 'pop':
+        this.tone(t, 'sine', 520 * p, 980 * p, 0.09, 0.3 * v);
+        this.tone(t, 'triangle', 1040 * p, 1500 * p, 0.05, 0.08 * v);
+        break;
+      case 'drop':
+        this.tone(t, 'sine', 210 * p, 95 * p, 0.09, 0.3 * v);
+        this.hiss(t, 'bandpass', 1100 * p, 700 * p, 0.04, 0.12 * v, 0.002, 1.2);
+        break;
+      case 'chop':
+        this.hiss(t, 'lowpass', 2600 * p, 380 * p, 0.14, 0.5 * v, 0.002);
+        this.tone(t, 'sine', 170 * p, 55 * p, 0.16, 0.45 * v, 0.002);
+        this.hiss(t, 'highpass', 3200, 2200, 0.03, 0.18 * v, 0.001);
+        break;
+      case 'cash':
+        this.tone(t, 'triangle', 1318 * p, 1318 * p, 0.2, 0.2 * v, 0.003);
+        this.tone(t + 0.055, 'triangle', 1760 * p, 1760 * p, 0.26, 0.17 * v, 0.003);
+        this.tone(t + 0.055, 'sine', 3520 * p, 3520 * p, 0.12, 0.04 * v, 0.003);
+        break;
+      case 'pay':
+        this.tone(t, 'triangle', 760 * p, 1100 * p, 0.05, 0.2 * v, 0.002);
+        this.hiss(t, 'highpass', 4000, 4000, 0.015, 0.05 * v, 0.001);
+        break;
+      case 'unlock': {
+        const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+        for (let i = 0; i < notes.length; i++) {
+          const n = notes[i]! * p;
+          const at = t + i * 0.085;
+          const last = i === notes.length - 1;
+          this.tone(at, 'triangle', n, n, last ? 0.7 : 0.28, 0.2 * v, 0.006);
+          this.tone(at, 'sine', n * 2, n * 2, last ? 0.5 : 0.18, 0.06 * v, 0.006);
+        }
+        this.tone(t, 'sine', 261.6 * p, 261.6 * p, 0.7, 0.14 * v, 0.01);
+        break;
+      }
+      case 'build':
+        this.hiss(t, 'bandpass', 260 * p, 2200 * p, 0.32, 0.3 * v, 0.1, 0.9);
+        this.tone(t + 0.22, 'sine', 140 * p, 42 * p, 0.3, 0.5 * v, 0.004);
+        this.hiss(t + 0.22, 'lowpass', 900, 200, 0.12, 0.25 * v, 0.003);
+        break;
+      case 'splash':
+        this.hiss(t, 'bandpass', 1500 * p, 500 * p, 0.55, 0.4 * v, 0.02, 0.6);
+        this.hiss(t, 'highpass', 4500, 2500, 0.3, 0.14 * v, 0.01);
+        this.tone(t, 'sine', 300 * p, 110 * p, 0.2, 0.2 * v, 0.004);
+        break;
+      case 'crash':
+        this.hiss(t, 'lowpass', 1100 * p, 120 * p, 0.9, 0.7 * v, 0.003);
+        this.tone(t, 'sine', 100 * p, 32 * p, 0.7, 0.7 * v, 0.003);
+        this.tone(t, 'sawtooth', 130 * p, 50 * p, 0.35, 0.2 * v, 0.003, 700);
+        this.tone(t + 0.09, 'triangle', 90 * p, 45 * p, 0.3, 0.25 * v, 0.003);
+        this.hiss(t, 'highpass', 3000, 1500, 0.06, 0.25 * v, 0.001);
+        break;
+      case 'whoosh':
+        this.hiss(t, 'bandpass', 450 * p, 1800 * p, 0.16, 0.22 * v, 0.07, 0.8);
+        this.hiss(t + 0.16, 'bandpass', 1800 * p, 500 * p, 0.2, 0.18 * v, 0.01, 0.8);
+        break;
+      case 'machine':
+        for (let i = 0; i < 3; i++) {
+          this.tone(t + i * 0.075, 'sawtooth', 95 * p, 70 * p, 0.07, 0.18 * v, 0.003, 520);
+          this.hiss(t + i * 0.075, 'bandpass', 700, 500, 0.04, 0.07 * v, 0.002, 1.5);
+        }
+        break;
+      case 'sell':
+        this.tone(t, 'sine', 659 * p, 659 * p, 0.16, 0.26 * v, 0.004);
+        this.tone(t + 0.09, 'sine', 988 * p, 988 * p, 0.3, 0.26 * v, 0.004);
+        this.tone(t + 0.09, 'triangle', 1976 * p, 1976 * p, 0.15, 0.06 * v, 0.004);
+        break;
+      case 'full':
+        this.tone(t, 'sawtooth', 170 * p, 120 * p, 0.2, 0.22 * v, 0.006, 620);
+        this.tone(t + 0.09, 'sawtooth', 150 * p, 100 * p, 0.2, 0.2 * v, 0.006, 560);
+        break;
+      case 'step':
+        this.hiss(t, 'bandpass', 2400 * p, 1400 * p, 0.06, 0.07 * v, 0.003, 0.7);
+        break;
+      case 'click':
+        this.tone(t, 'sine', 900 * p, 600 * p, 0.05, 0.2 * v, 0.002);
+        break;
+    }
   }
 }

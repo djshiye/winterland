@@ -1,23 +1,25 @@
 /**
- * [B4 — juice & HUD] DOM overlay HUD. STUB: replace bodies, keep the public API.
+ * [B4 — juice & HUD] DOM overlay HUD.
  *
- * Styles live in your own CSS file imported by this module (e.g. src/ui/hud.css). Chunky rounded
- * "mobile game" look: font GAME_FONT (Fredoka, loaded by index.html), white text with dark outline /
- * drop shadow, bright pills. Must work from 320 px wide phones to desktop (safe-area insets).
- * - Money pill top-left: green cash icon (CSS/SVG) + "$123"; the number counts up/down smoothly
- *   toward the real value and the pill bumps (scale pop) on increase. Subscribes to 'money:changed'.
- * - floatText: world-anchored text ("+$15", "MAX", "FULL") that rises ~1.2 units and fades over
- *   ~0.9 s; reprojected every frame via ctx.cameraRig.worldToScreen. Pool the DOM nodes.
- * - setObjective: small banner top-centre with the current hint ("Chop the giant log!"); animate
- *   in/out on change; null hides.
- * - setGuideTarget: a bouncing 3D arrow (toon cone + shaft, PALETTE.accent with white outline feel)
- *   hovering above the world point; when the point is off-screen, a DOM arrow at the screen edge
- *   points toward it instead. null hides both.
- * - toast: big centred title + optional subtitle that pops in and fades out (unlock celebrations).
- * - Mute toggle button top-right (calls ctx.audio.toggleMute(), shows state).
+ * Styles live in hud.css (imported below). Chunky rounded "mobile game" look using GAME_FONT
+ * (Fredoka, loaded by index.html), white text with dark outline / drop shadow, bright pills; works
+ * from 320 px phones to desktop (safe-area insets). All motion is driven from update(dt) on
+ * simulation time (never CSS animations / timers) so the headless fast-forward is deterministic.
+ * - Money pill top-left: green cash icon + "$123"; the number counts up/down smoothly toward the
+ *   real value and the pill bumps (scale pop) on increase. Subscribes to 'money:changed'.
+ * - floatText: pooled world-anchored text ("+$15", "MAX", "FULL") that rises and fades; reprojected
+ *   every frame via ctx.cameraRig.worldToScreen.
+ * - setObjective: top-centre banner with the current hint; animates out/in on change; null hides.
+ * - setGuideTarget: a bouncing 3D arrow hovering above the world point; when the point is
+ *   off-screen, a DOM arrow pinned to the screen edge points toward it. null hides both.
+ * - toast: big centred title + optional subtitle that pops in and fades out.
+ * - Mute toggle button top-right (calls ctx.audio.toggleMute()).
  */
-import type * as THREE from 'three';
+import * as THREE from 'three';
+import { PALETTE } from '../config';
+import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
+import './hud.css';
 
 export interface FloatTextOptions {
   color?: string;
@@ -28,21 +30,421 @@ export interface FloatTextOptions {
   rise?: number;
 }
 
+interface FloatSlot {
+  el: HTMLDivElement;
+  active: boolean;
+  age: number;
+  dur: number;
+  rise: number;
+  ox: number;
+  world: THREE.Vector3;
+}
+
+const FLOAT_POOL = 28;
+/** World-size multiplier of the 3D guide arrow (iso camera looks down on it, so it needs to be chunky). */
+const ARROW_SCALE = 1.5;
+
+const backOut = (t: number): number => {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+};
+const cubicOut = (t: number): number => 1 - Math.pow(1 - t, 3);
+
+const ICON_CASH = `<svg viewBox="0 0 40 40" aria-hidden="true">
+  <rect x="2" y="9" width="36" height="22" rx="5" fill="#2e9c48" stroke="#fff" stroke-width="2.5"/>
+  <rect x="6" y="13" width="28" height="14" rx="3" fill="#46c35f"/>
+  <circle cx="20" cy="20" r="6.5" fill="#f3fff0" stroke="#2e9c48" stroke-width="1.5"/>
+  <text x="20" y="24.6" text-anchor="middle" font-family="${GAME_FONT.replace(/"/g, "'")}" font-weight="700" font-size="11" fill="#2e9c48">$</text>
+</svg>`;
+
+const ICON_SPEAKER = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="#fff" stroke="#fff" stroke-width="1.6"/>
+  <g class="wl-waves" stroke="#fff" stroke-width="2.2"><path d="M15.2 9.2a4 4 0 0 1 0 5.6"/><path d="M17.8 6.6a7.6 7.6 0 0 1 0 10.8"/></g>
+  <path class="wl-slash" d="M15.5 9.5l5 5m0-5l-5 5" stroke="#ff7a6b" stroke-width="2.4"/>
+</svg>`;
+
+const ICON_EDGE_ARROW = `<svg viewBox="0 0 52 52" aria-hidden="true">
+  <path d="M8 16h18V6l20 20-20 20V36H8z" fill="#f6c343" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+</svg>`;
+
 export class HUD {
+  // --- DOM ---
+  private readonly moneyEl: HTMLDivElement;
+  private readonly moneyValue: HTMLSpanElement;
+  private readonly objectiveEl: HTMLDivElement;
+  private readonly muteBtn: HTMLButtonElement;
+  private readonly toastEl: HTMLDivElement;
+  private readonly toastTitle: HTMLDivElement;
+  private readonly toastSub: HTMLDivElement;
+  private readonly edgeEl: HTMLDivElement;
+  private readonly floats: FloatSlot[] = [];
+
+  // --- money ---
+  private moneyTarget = 0;
+  private moneyShown = 0;
+  private moneyText = '';
+  private bump = 0;
+
+  // --- objective ---
+  private objWant: string | null = null;
+  private objShown: string | null = null;
+  private objK = 0;
+
+  // --- toast ---
+  private toastAge = 0;
+  private toastDur = 0;
+  private toastActive = false;
+
+  // --- guide ---
+  private readonly arrow: THREE.Group;
+  private readonly guideTarget = new THREE.Vector3();
+  private readonly guidePos = new THREE.Vector3();
+  private hasGuide = false;
+  private guideScale = 0;
+  private guideTime = 0;
+  private guideSnap = true;
+
+  private readonly tmp2 = new THREE.Vector2();
+  private readonly tmp3 = new THREE.Vector3();
+
   constructor(
     readonly ctx: GameContext,
     readonly root: HTMLElement,
-  ) {}
+  ) {
+    const layer = document.createElement('div');
+    layer.className = 'wl-hud';
+    root.appendChild(layer);
 
-  setMoney(_value: number, _animate = true): void {}
+    // money pill
+    this.moneyEl = document.createElement('div');
+    this.moneyEl.className = 'wl-money';
+    this.moneyEl.innerHTML = `<span class="wl-money-icon">${ICON_CASH}</span>`;
+    this.moneyValue = document.createElement('span');
+    this.moneyValue.className = 'wl-money-value';
+    this.moneyValue.textContent = '$0';
+    this.moneyEl.appendChild(this.moneyValue);
+    layer.appendChild(this.moneyEl);
 
-  floatText(_world: THREE.Vector3, _text: string, _opts?: FloatTextOptions): void {}
+    // objective banner
+    this.objectiveEl = document.createElement('div');
+    this.objectiveEl.className = 'wl-objective';
+    layer.appendChild(this.objectiveEl);
 
-  setObjective(_text: string | null): void {}
+    // mute
+    this.muteBtn = document.createElement('button');
+    this.muteBtn.type = 'button';
+    this.muteBtn.className = 'wl-mute';
+    this.muteBtn.setAttribute('aria-label', 'Toggle sound');
+    this.muteBtn.innerHTML = ICON_SPEAKER;
+    this.muteBtn.classList.toggle('is-muted', ctx.audio.muted);
+    const stop = (e: Event) => e.stopPropagation();
+    this.muteBtn.addEventListener('pointerdown', stop);
+    this.muteBtn.addEventListener('touchstart', stop, { passive: true });
+    this.muteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ctx.audio.unlock();
+      const muted = ctx.audio.toggleMute();
+      this.muteBtn.classList.toggle('is-muted', muted);
+      if (!muted) ctx.audio.play('click');
+    });
+    layer.appendChild(this.muteBtn);
 
-  setGuideTarget(_world: THREE.Vector3 | null): void {}
+    // toast
+    this.toastEl = document.createElement('div');
+    this.toastEl.className = 'wl-toast';
+    this.toastTitle = document.createElement('div');
+    this.toastTitle.className = 'wl-toast-title';
+    this.toastSub = document.createElement('div');
+    this.toastSub.className = 'wl-toast-sub wl-outline';
+    this.toastEl.append(this.toastTitle, this.toastSub);
+    layer.appendChild(this.toastEl);
 
-  toast(_title: string, _opts?: { sub?: string; duration?: number }): void {}
+    // edge arrow
+    this.edgeEl = document.createElement('div');
+    this.edgeEl.className = 'wl-edge';
+    this.edgeEl.innerHTML = ICON_EDGE_ARROW;
+    layer.appendChild(this.edgeEl);
 
-  update(_dt: number): void {}
+    // float pool
+    for (let i = 0; i < FLOAT_POOL; i++) {
+      const el = document.createElement('div');
+      el.className = 'wl-float wl-outline';
+      layer.appendChild(el);
+      this.floats.push({ el, active: false, age: 0, dur: 1, rise: 1.2, ox: 0, world: new THREE.Vector3() });
+    }
+
+    // 3D guide arrow (origin = centre of the arrow; points down)
+    this.arrow = HUD.buildArrow();
+    this.arrow.visible = false;
+    ctx.scene.add(this.arrow);
+
+    ctx.events.on('money:changed', (e) => this.setMoney(e.money, true));
+  }
+
+  private static buildArrow(): THREE.Group {
+    const g = new THREE.Group();
+    const fill = toon(PALETTE.accent, { emissive: PALETTE.accent, emissiveIntensity: 0.25 });
+    const outline = basic(0xffffff, { side: THREE.BackSide });
+    const coneGeo = geo.cone(0.8, 0.95, 4);
+    const shaftGeo = geo.box(0.38, 1.05, 0.38);
+    const parts: Array<[THREE.BufferGeometry, number, boolean]> = [
+      [coneGeo, -0.5, true],
+      [shaftGeo, 0.47, false],
+    ];
+    for (const [gm, y, flip] of parts) {
+      for (const hull of [false, true]) {
+        const m = new THREE.Mesh(gm, hull ? outline : fill);
+        m.position.y = y;
+        if (flip) m.rotation.set(Math.PI, Math.PI / 4, 0);
+        else m.rotation.y = Math.PI / 4;
+        if (hull) m.scale.setScalar(1.2);
+        m.castShadow = false;
+        m.receiveShadow = false;
+        g.add(m);
+      }
+    }
+    return g;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------------------------------
+
+  /** Set the money readout. `animate` counts toward the value and bumps the pill on gains. */
+  setMoney(value: number, animate = true): void {
+    if (animate && value > this.moneyTarget) this.bump = 1;
+    this.moneyTarget = value;
+    if (!animate) {
+      this.moneyShown = value;
+      this.writeMoney();
+    }
+  }
+
+  /** World-anchored text that rises and fades (e.g. "+$15", "MAX"). */
+  floatText(world: THREE.Vector3, text: string, opts?: FloatTextOptions): void {
+    let slot: FloatSlot | undefined;
+    let oldest = this.floats[0]!;
+    for (const s of this.floats) {
+      if (!s.active) {
+        slot = s;
+        break;
+      }
+      if (s.age / s.dur > oldest.age / oldest.dur) oldest = s;
+    }
+    slot ??= oldest;
+    slot.active = true;
+    slot.age = 0;
+    slot.dur = opts?.duration ?? 0.9;
+    slot.rise = opts?.rise ?? 1.2;
+    slot.ox = (Math.random() - 0.5) * 14;
+    slot.world.copy(world);
+    const el = slot.el;
+    el.textContent = text;
+    el.style.color = opts?.color ?? '#5ee07a';
+    el.style.fontSize = `${opts?.size ?? 26}px`;
+    el.style.display = 'block';
+    el.style.opacity = '0';
+  }
+
+  /** Show the current hint in the top-centre banner (null hides it). */
+  setObjective(text: string | null): void {
+    this.objWant = text;
+  }
+
+  /** Point the guide arrows at a world position (null hides them). */
+  setGuideTarget(world: THREE.Vector3 | null): void {
+    if (!world) {
+      this.hasGuide = false;
+      return;
+    }
+    this.guideTarget.copy(world);
+    if (!this.hasGuide && this.guideScale < 0.05) this.guideSnap = true;
+    this.hasGuide = true;
+  }
+
+  /** Big centred celebration text that pops in and fades out. */
+  toast(title: string, opts?: { sub?: string; duration?: number }): void {
+    this.toastTitle.textContent = title;
+    this.toastSub.textContent = opts?.sub ?? '';
+    this.toastSub.style.display = opts?.sub ? 'block' : 'none';
+    this.toastDur = opts?.duration ?? 2.2;
+    this.toastAge = 0;
+    this.toastActive = true;
+    this.toastEl.style.display = 'block';
+    this.toastEl.style.opacity = '0';
+  }
+
+  update(dt: number): void {
+    this.updateMoney(dt);
+    this.updateObjective(dt);
+    this.updateFloats(dt);
+    this.updateToast(dt);
+    this.updateGuide(dt);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Per-frame pieces
+  // ---------------------------------------------------------------------------------------------
+
+  private writeMoney(): void {
+    const text = `$${Math.round(this.moneyShown).toLocaleString('en-US')}`;
+    if (text !== this.moneyText) {
+      this.moneyText = text;
+      this.moneyValue.textContent = text;
+    }
+  }
+
+  private updateMoney(dt: number): void {
+    const diff = this.moneyTarget - this.moneyShown;
+    if (Math.abs(diff) > 0.4) {
+      const step = Math.max(Math.abs(diff) * (1 - Math.exp(-9 * dt)), 45 * dt);
+      this.moneyShown += Math.sign(diff) * Math.min(step, Math.abs(diff));
+    } else {
+      this.moneyShown = this.moneyTarget;
+    }
+    this.writeMoney();
+
+    if (this.bump > 0) {
+      this.bump = Math.max(0, this.bump - dt / 0.32);
+      const s = 1 + 0.22 * Math.sin(Math.PI * (1 - this.bump));
+      this.moneyEl.style.transform = `scale(${s.toFixed(3)})`;
+    } else if (this.moneyEl.style.transform) {
+      this.moneyEl.style.transform = '';
+    }
+  }
+
+  private updateObjective(dt: number): void {
+    const el = this.objectiveEl;
+    if (this.objShown !== this.objWant) {
+      if (this.objShown === null) {
+        this.objShown = this.objWant;
+        this.objK = 0;
+        el.textContent = this.objShown;
+      } else {
+        this.objK -= dt / 0.16;
+        if (this.objK <= 0) {
+          this.objK = 0;
+          this.objShown = this.objWant;
+          if (this.objShown !== null) el.textContent = this.objShown;
+        }
+      }
+    } else if (this.objShown !== null) {
+      this.objK = Math.min(1, this.objK + dt / 0.38);
+    }
+    if (this.objShown === null) {
+      if (el.style.visibility !== 'hidden') el.style.visibility = 'hidden';
+      return;
+    }
+    const k = this.objK;
+    const e = backOut(Math.min(1, k));
+    el.style.visibility = 'visible';
+    el.style.opacity = String(Math.min(1, k * 2.5));
+    el.style.transform = `translate(-50%, ${((1 - e) * -26).toFixed(1)}px) scale(${(0.8 + 0.2 * e).toFixed(3)})`;
+  }
+
+  private updateFloats(dt: number): void {
+    const rig = this.ctx.cameraRig;
+    for (const s of this.floats) {
+      if (!s.active) continue;
+      s.age += dt;
+      const k = s.age / s.dur;
+      if (k >= 1) {
+        s.active = false;
+        s.el.style.display = 'none';
+        continue;
+      }
+      this.tmp3.copy(s.world);
+      this.tmp3.y += s.rise * cubicOut(k);
+      if (!rig.worldToScreen(this.tmp3, this.tmp2)) {
+        s.el.style.opacity = '0';
+        continue;
+      }
+      const pop = s.age < 0.16 ? 0.45 + 0.55 * backOut(s.age / 0.16) : 1;
+      const fade = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
+      s.el.style.opacity = fade.toFixed(3);
+      s.el.style.transform = `translate3d(${(this.tmp2.x + s.ox).toFixed(1)}px, ${this.tmp2.y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${pop.toFixed(3)})`;
+    }
+  }
+
+  private updateToast(dt: number): void {
+    if (!this.toastActive) return;
+    this.toastAge += dt;
+    const a = this.toastAge;
+    const d = this.toastDur;
+    if (a >= d) {
+      this.toastActive = false;
+      this.toastEl.style.display = 'none';
+      return;
+    }
+    const popK = Math.min(1, a / 0.4);
+    const s = 0.2 + 0.8 * backOut(popK);
+    const fadeStart = d - 0.45;
+    const op = a < 0.08 ? a / 0.08 : a > fadeStart ? 1 - (a - fadeStart) / 0.45 : 1;
+    const lift = a > fadeStart ? -((a - fadeStart) / 0.45) * 24 : 0;
+    this.toastEl.style.opacity = op.toFixed(3);
+    this.toastEl.style.transform = `translate(-50%, calc(-50% + ${lift.toFixed(1)}px)) scale(${s.toFixed(3)})`;
+  }
+
+  private updateGuide(dt: number): void {
+    const target = this.hasGuide ? 1 : 0;
+    this.guideScale += (target - this.guideScale) * (1 - Math.exp(-12 * dt));
+    if (Math.abs(target - this.guideScale) < 0.01) this.guideScale = target;
+
+    if (this.guideScale <= 0) {
+      this.arrow.visible = false;
+      this.edgeEl.style.display = 'none';
+      return;
+    }
+
+    this.guideTime += dt;
+    if (this.guideSnap) {
+      this.guidePos.copy(this.guideTarget);
+      this.guideSnap = false;
+    } else {
+      this.guidePos.lerp(this.guideTarget, 1 - Math.exp(-8 * dt));
+    }
+
+    // 3D bouncing arrow
+    const bob = Math.abs(Math.sin(this.guideTime * 3.4)) * 0.55;
+    this.arrow.visible = true;
+    this.arrow.position.set(this.guidePos.x, this.guidePos.y + 3.3 + bob, this.guidePos.z);
+    this.arrow.rotation.y = this.guideTime * 1.8;
+    const sq = 1 + 0.05 * Math.sin(this.guideTime * 6.8);
+    const big = this.guideScale * ARROW_SCALE;
+    this.arrow.scale.set(big * sq, big / sq, big * sq);
+
+    // screen-edge arrow when the target is off-screen
+    const rig = this.ctx.cameraRig;
+    this.tmp3.copy(this.guidePos);
+    this.tmp3.y += 1;
+    if (this.hasGuide && !rig.isOnScreen(this.tmp3, 28)) {
+      rig.worldToScreen(this.tmp3, this.tmp2);
+      const w = this.ctx.renderer.width;
+      const h = this.ctx.renderer.height;
+      const cx = w / 2;
+      const cy = h / 2;
+      const dx = this.tmp2.x - cx;
+      const dy = this.tmp2.y - cy;
+      const mx = 40;
+      const myTop = 96;
+      const myBottom = 44;
+      // limit along the ray from the centre to the (asymmetric) inner rectangle
+      const tx = dx === 0 ? Infinity : (dx > 0 ? w - mx - cx : cx - mx) / Math.abs(dx);
+      const ty = dy === 0 ? Infinity : (dy > 0 ? h - myBottom - cy : cy - myTop) / Math.abs(dy);
+      const t = Math.min(tx, ty);
+      const px = cx + dx * t;
+      const py = cy + dy * t;
+      const ang = Math.atan2(dy, dx);
+      const pulse = 1 + 0.12 * Math.sin(this.guideTime * 7);
+      const nudge = 4 * Math.sin(this.guideTime * 7);
+      const ox = Math.cos(ang) * nudge;
+      const oy = Math.sin(ang) * nudge;
+      const e = this.edgeEl.style;
+      e.display = 'block';
+      e.transform = `translate3d(${(px + ox).toFixed(1)}px, ${(py + oy).toFixed(1)}px, 0) rotate(${ang.toFixed(3)}rad) scale(${(pulse * this.guideScale).toFixed(3)})`;
+    } else {
+      this.edgeEl.style.display = 'none';
+    }
+  }
 }
