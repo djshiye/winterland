@@ -1,5 +1,5 @@
 /**
- * [B3 — world & juice] Pooled particle effects. STUB: replace bodies, keep the public API.
+ * [B4 — juice & HUD] Pooled particle effects. STUB: replace bodies, keep the public API.
  *
  * Cheap and juicy: pooled meshes or InstancedMesh (preferred) with per-particle velocity, gravity,
  * spin, life and scale-out; toon/basic materials; no allocations per spawn in steady state.

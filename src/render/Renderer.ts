@@ -23,12 +23,18 @@ export class Renderer {
 
   constructor(readonly container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.shadowMap.enabled = true;
     this.domElement = this.renderer.domElement;
     container.appendChild(this.domElement);
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(PALETTE.sky);
     this.camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 400);
     this.sun = new THREE.DirectionalLight(0xffffff, 2);
+    this.sun.position.set(-12, 24, 4);
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(1024, 1024);
+    Object.assign(this.sun.shadow.camera, { left: -26, right: 26, top: 26, bottom: -26, near: 1, far: 120 });
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.2);
     this.scene.add(this.sun, this.sun.target, this.hemi);
     this.resize();
@@ -44,7 +50,10 @@ export class Renderer {
   }
 
   /** Keep the shadow camera centred on `focus`. */
-  setShadowFocus(_focus: THREE.Vector3): void {}
+  setShadowFocus(focus: THREE.Vector3): void {
+    this.sun.target.position.copy(focus);
+    this.sun.position.set(focus.x - 12, focus.y + 24, focus.z + 4);
+  }
 
   /** Match the drawing buffer to the container (CameraRig.resize handles the frustum). */
   resize(): void {

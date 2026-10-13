@@ -59,7 +59,8 @@ if you need a change there, say so in your report instead of editing.
 | **main** | `config.ts`, `core/types.ts`, `core/EventBus.ts`, `core/Economy.ts`, `core/math.ts`, `render/materials.ts`, `game/Game.ts`, `main.ts`, `style.css`, `index.html`, `scripts/*` |
 | **B1 engine** | `core/Tween.ts`, `render/Renderer.ts`, `render/CameraRig.ts`, `render/characters.ts`, `input/*`, `world/Colliders.ts`, `entities/*` |
 | **B2 items** | `items/*` (`ItemPool`, `Pile`, `CarryStack`, `CashStack`, `FlightSystem`, `transfer`, `Zones`) |
-| **B3 world & juice** | `world/Environment.ts` (+ `world/env/*`), `fx/*`, `ui/*` |
+| **B3 world** | `world/Environment.ts` (+ new files under `world/env/`) |
+| **B4 juice & HUD** | `fx/*` (`Particles`, `Audio`, `JuiceDirector`), `ui/*` |
 | **wave 2 (NPC)** | `stations/Counter.ts`, `stations/CashPile.ts`, `npc/*` |
 | **wave 2 (machines)** | `stations/*` (rest), `progression/*`, `level/*` |
 
@@ -95,6 +96,12 @@ upgrade pads (cash sinks), NPC buyers.
 
 New items enter the world with `launchNew(ctx, kind, fromWorldPos, to, opts)` (chopping, processor output, NPC payments).
 Consuming items (customers taking logs away, pads eating cash): the holder's `receive()` releases them to the pool.
+
+### Holder identity
+Holder ids follow `player.arms`, `player.back`, `pad:<padId>`, `pile:<name>`, `counter:<name>`, `conveyor:<name>`,
+`npc:<kind>:<n>`. To react to *where* an item landed, compare identity first (`holder === ctx.player.arms` → pickup
+"pop", `holder === ctx.player.back` → cash "ching"), use the `pad:paid` event for pad payments, and treat anything else
+as a pile/counter/machine drop.
 
 ### Money
 `ctx.economy.money` is the truth; the cash stack on the player's back visualises it

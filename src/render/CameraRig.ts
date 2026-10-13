@@ -16,17 +16,25 @@
  *   using the camera yaw — "up" on screen moves the player away from the camera.
  */
 import * as THREE from 'three';
+import { CAMERA } from '../config';
 
 export class CameraRig {
   /** Current (smoothed) look-at point on the ground. */
   readonly target = new THREE.Vector3();
   zoom = 1;
+  private followed: THREE.Object3D | null = null;
+  private aspect = 16 / 9;
 
   constructor(readonly camera: THREE.OrthographicCamera) {}
 
-  follow(_obj: THREE.Object3D | null): void {}
+  follow(obj: THREE.Object3D | null): void {
+    this.followed = obj;
+  }
 
-  snapToTarget(): void {}
+  snapToTarget(): void {
+    if (this.followed) this.target.copy(this.followed.position);
+    this.place();
+  }
 
   focus(
     _point: THREE.Vector3 | THREE.Object3D,
@@ -39,9 +47,31 @@ export class CameraRig {
 
   shake(_intensity = 0.3, _duration = 0.3): void {}
 
-  resize(_width: number, _height: number): void {}
+  resize(width: number, height: number): void {
+    this.aspect = width / Math.max(1, height);
+    let h = CAMERA.viewHeight / this.zoom;
+    if (h * this.aspect < CAMERA.minViewWidth / this.zoom) h = CAMERA.minViewWidth / this.zoom / this.aspect;
+    const w = h * this.aspect;
+    Object.assign(this.camera, { left: -w / 2, right: w / 2, top: h / 2, bottom: -h / 2 });
+    this.camera.updateProjectionMatrix();
+  }
 
-  update(_dt: number): void {}
+  update(dt: number): void {
+    if (this.followed) this.target.lerp(this.followed.position, 1 - Math.exp(-CAMERA.followLambda * dt));
+    this.place();
+  }
+
+  private place(): void {
+    const yaw = THREE.MathUtils.degToRad(CAMERA.yawDeg);
+    const pitch = THREE.MathUtils.degToRad(CAMERA.pitchDeg);
+    const d = CAMERA.distance;
+    this.camera.position.set(
+      this.target.x + Math.sin(yaw) * Math.cos(pitch) * d,
+      this.target.y + Math.sin(pitch) * d,
+      this.target.z + Math.cos(yaw) * Math.cos(pitch) * d,
+    );
+    this.camera.lookAt(this.target);
+  }
 
   /** Screen-space vector (x right, y up) → normalised world XZ direction (y = 0) scaled by input length. */
   screenToWorldDir(v: THREE.Vector2, out: THREE.Vector3): THREE.Vector3 {
