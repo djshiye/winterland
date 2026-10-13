@@ -342,7 +342,7 @@ export class Progression {
       if (feed && proc) {
         this.setGoal('Feed the processor', proc.inputZone.area);
       } else {
-        this.setGoal('Sell logs to customers', L.walkInCounter.zone.area);
+        this.setGoal('Stock the counter with logs', L.walkInCounter.zone.area);
       }
       return;
     }
