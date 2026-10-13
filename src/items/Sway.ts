@@ -14,7 +14,7 @@ const K_ACC = 0.003; // lean per m/s² of acceleration
 const MAX_ACC = 140;
 const MAX_LEAN = 0.34;
 /** Height (m, anchor-local) at which a stack item moves by exactly the lean amount. */
-export const SWAY_REF_HEIGHT = 3.6;
+export const SWAY_REF_HEIGHT = 2.4;
 
 export class SwaySpring {
   /** Current lean (anchor-local X / Z). */
