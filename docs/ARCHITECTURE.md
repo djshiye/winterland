@@ -63,8 +63,8 @@ if you need a change there, say so in your report instead of editing.
 | **B2 items** | `items/*` (`ItemPool`, `Pile`, `CarryStack`, `CashStack`, `FlightSystem`, `transfer`, `Zones`), `assets/items.ts`, `debug/*` |
 | **B3 world** | `world/Environment.ts`, `world/env/*`, `assets/scenery.ts` |
 | **B4 juice & HUD** | `fx/*` (`Particles`, `Audio`, `JuiceDirector`), `ui/*` |
-| **B5 commerce** | `stations/Counter.ts`, `stations/CashPile.ts`, `npc/*`, `assets/vehicles.ts`, `assets/shop.ts` |
-| **B6 machines** | `stations/DropZone.ts`, `stations/GiantLog.ts`, `stations/Harvester.ts`, `stations/Processor.ts`, `stations/Conveyor.ts`, `stations/MegaSaw.ts`, `assets/machines.ts` |
+| **B5 commerce** | `stations/Counter.ts`, `stations/CashPile.ts`, `npc/*` (customers; tricycles + trucks share `VehicleQueue`), `assets/vehicles.ts`, `assets/shop.ts` |
+| **B6 machines** | `stations/DropZone.ts`, `stations/GiantLog.ts`, `stations/Harvester.ts`, `stations/Processor.ts`, `stations/Conveyor.ts`, `stations/beltPath.ts`, `stations/MegaSaw.ts`, `assets/machines.ts` |
 | **B7 progression** | `stations/UpgradePad.ts`, `progression/*`, `assets/pads.ts` |
 
 Stub files contain the public API with JSDoc requirements. **Keep every public signature exactly** (you may add
@@ -110,6 +110,9 @@ Holder ids follow `player.arms`, `player.back`, `pad:<padId>`, `pile:<name>`, `c
 `npc:<kind>:<n>`. To react to *where* an item landed, compare identity first (`holder === ctx.player.arms` → pickup
 "pop", `holder === ctx.player.back` → cash "ching"), use the `pad:paid` event for pad payments, and treat anything else
 as a pile/counter/machine drop.
+
+A conveyor is an `ItemHolder` too, with belt semantics: `count(kind)` and `take()` only see the lead item once it has
+reached the exit, and its load is the items riding plus those in flight onto it.
 
 ### Money
 `ctx.economy.money` is the truth; the cash stack on the player's back visualises it
@@ -157,6 +160,9 @@ read by anyone.
   (the Level instance: stations, queues, pads, progression), `ctx`.
 * Handy spots: chop (−9, 2), drop-zone pickup (−6.6, 0), walk-in counter (−4, 9), walk-in cash (−2, 8.6), processor
   tray (2.0, −0.4), workbench (6.9, −0.4), SE counter (9, 3.6), SE cash (8.9, 6).
+* `npm run playtest [outDir] [--mobile]` injects `scripts/playtest-bot.js`, an in-page bot that plays the real economy
+  through all five phases (teleporting between stations, stepping the sim), screenshots each milestone and prints the
+  unlock timeline, action counts and renderer cost (`__bot.perf()`: draw calls, triangles, live items).
 
 ## 7. Gameplay spec (summary — phases 1–5)
 1. **Intro + manual:** giant trunk floats down the river and crashes into the gate. Standing in the chop zone swings the

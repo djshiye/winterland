@@ -143,7 +143,11 @@ export class Level {
   /** Processor + SE counter + SE cash pile + tricycle queue (built together by the processor pad). */
   private ensureProcessor(): Processor {
     if (this.processor) return this.processor;
-    if (!this.ctx.state.unlocked.processor) this.pads.processor.forceUnlock();
+    if (!this.ctx.state.unlocked.processor) {
+      // Unlocking the pad re-enters applyUnlock('processor') synchronously, which builds it.
+      this.pads.processor.forceUnlock();
+      if (this.processor) return this.processor;
+    }
     const ctx = this.ctx;
     const processor = new Processor(ctx);
     processor.build();

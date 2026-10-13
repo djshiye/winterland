@@ -529,6 +529,8 @@ export const LAYOUT = {
       spawnX: 42,
       exitX: -48,
       driveSpeed: 7,
+      /** Logs in the pickup bed, lying along the truck: 2 × 5 × 2 = 20 ≥ the biggest order (ECONOMY.truckWant). */
+      bedGrid: { cols: 2, rows: 5, layers: 2, spacing: LOG_GRID_SPACING } as PileGrid,
     },
     truckCash: { x: 2.9, z: -18.6, grid: CASH_GRID, zone: rect(2.9, -18.6, 2.0, 1.8) },
   },

@@ -38,8 +38,10 @@ const steps = [
   ...milestone('automation', 400, '04-automation.png', 'westConveyor'),
   ...milestone('bothConveyors', 400, '05-conveyors.png', 'eastConveyor'),
   ...milestone('expansion', 500, '06-expansion.png', 'megaSaw'),
+  'eval:JSON.stringify(__bot.perf())',
   'eval:JSON.stringify(__bot.runFor(90))',
   `shot:${join(out, '07-late.png')}`,
+  'eval:JSON.stringify(__bot.perf())',
   'eval:JSON.stringify(__bot.report())',
 ];
 

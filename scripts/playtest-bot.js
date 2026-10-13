@@ -4,7 +4,7 @@
 // simulation without rendering. Every position comes from the live config, so layout changes are fine.
 //
 //   __bot.runUntil(goal, budgetSeconds) → { ok, goal, simSeconds, state }   goal: phase name | 'bothConveyors'
-//   __bot.runFor(seconds) · __bot.frame(stationId) · __bot.report()
+//   __bot.runFor(seconds) · __bot.frame(stationId) · __bot.perf() · __bot.report()
 (() => {
   const W = window.__WINTERLAND__;
   const { LAYOUT, PADS } = W.config;
@@ -61,18 +61,21 @@
         return;
       }
     }
-    // 2. Collect cash lying around.
-    for (const [pile, spot] of [
+    const cashSpots = [
       [level.walkInCash, spots.walkInCash],
       [level.seCash, spots.seCash],
       [level.truckCash, spots.truckCash],
-    ]) {
-      if (pile && pile.value >= 15) {
-        act('collect', spot, 1.5);
-        return;
+    ];
+    const collect = (min) => {
+      for (const [pile, spot] of cashSpots) {
+        if (pile && pile.value >= min) {
+          act('collect', spot, 1.5);
+          return true;
+        }
       }
-    }
-    // 3. Deliver what we carry.
+      return false;
+    };
+    // 2. Deliver what we carry.
     if (count(arms, 'crate') > 0 && level.seCounter && room(level.seCounter.pile)) {
       act('deliver:crates', spots.se, 2);
       return;
@@ -95,16 +98,28 @@
         return;
       }
     }
-    // 4. Fetch crates for the trikes.
+    // 3. A big cash pile is worth a trip.
+    if (collect(40)) return;
+    // 4. Phase 5: only the player feeds the trucks, so an emptying truck counter comes first.
+    const logsReady = count(level.dropZone.pile, 'log') >= 4 && arms.size < arms.capacity;
+    if (level.truckCounter && count(level.truckCounter.pile) < 6 && logsReady) {
+      act('fetch:logs', spots.pickup, 1.5);
+      return;
+    }
+    // 5. Fetch crates for the trikes.
     if (level.processor && count(level.processor.output, 'crate') >= 3 && level.seCounter && room(level.seCounter.pile) && arms.size < arms.capacity) {
       act('fetch:crates', spots.bench, 1.5);
       return;
     }
-    // 5. Fetch logs, or chop more.
-    if (count(level.dropZone.pile, 'log') >= 4 && arms.size < arms.capacity) {
+    // 6. Fetch logs while something still needs them carried by hand.
+    const truckWantsLogs = !!level.truckCounter && count(level.truckCounter.pile) < 12;
+    const needLogs = truckWantsLogs || !s.unlocked.westConveyor || !s.unlocked.eastConveyor;
+    if (needLogs && logsReady) {
       act('fetch:logs', spots.pickup, 1.5);
       return;
     }
+    // 7. Small change, or chop more.
+    if (collect(5)) return;
     act('chop', spots.chop, 3);
   }
 
@@ -142,6 +157,13 @@
     sim(0.6);
   }
 
-  window.__bot = { runUntil, runFor, frame, turn, spots, report: () => ({ timeline, actions, state: snapshot() }) };
+  /** Renderer cost of the current view: renders one frame, returns three.js render/memory counters. */
+  function perf() {
+    W.simulate(DT, DT);
+    const info = ctx.renderer.renderer.info;
+    return { calls: info.render.calls, triangles: info.render.triangles, geometries: info.memory.geometries, textures: info.memory.textures, liveItems: W.state().liveItems };
+  }
+
+  window.__bot = { runUntil, runFor, frame, turn, spots, perf, report: () => ({ timeline, actions, state: snapshot() }) };
   return 'bot ready';
 })()

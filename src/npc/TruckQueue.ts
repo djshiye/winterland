@@ -11,7 +11,7 @@
  * into the bed, pay want · truckLogPrice, emit 'sale' { buyer: 'truck', kind: 'log' }, honk-bounce, drive
  * off −X to exitX and return to the pool.
  */
-import { ECONOMY, LAYOUT, PALETTE, TIMING, type PileGrid } from '../config';
+import { ECONOMY, LAYOUT, PALETTE, TIMING } from '../config';
 import type { GameContext } from '../core/types';
 import { createPickupTruckWithDriver, TRUCK_BED_X, TRUCK_WHEEL_RADIUS } from '../assets/vehicles';
 import type { Counter } from '../stations/Counter';
@@ -23,8 +23,6 @@ export interface TruckQueueOptions {
   cash: CashPile;
 }
 
-/** Logs lie along the truck's length; 2 × 5 × 2 = 20 ≥ the biggest order (12). */
-const BED_GRID: PileGrid = { cols: 2, rows: 5, layers: 2, spacing: { x: 0.66, y: 0.24, z: 0.26 } };
 /** Wheel contact points along the truck (local X) used to pitch it on the bridge ramps. */
 const FRONT_WHEEL_X = -1.05;
 const REAR_WHEEL_X = 1.2;
@@ -53,7 +51,7 @@ export class TruckQueue extends VehicleQueue {
       decel: 8,
       variants: 2,
       idPrefix: 'npc:truck',
-      cargoGrid: BED_GRID,
+      cargoGrid: LAYOUT.expansion.trucks.bedGrid,
       bubbleScale: 1.3,
     });
   }
