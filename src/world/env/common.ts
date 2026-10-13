@@ -3,9 +3,7 @@
  * instancing, and the keep-out / occlusion rules that keep decor off every gameplay area.
  */
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LAYOUT, PADS, inflate, rect, type Rect } from '../../config';
-import { toonUnique } from '../../render/materials';
 
 /** Deterministic PRNG (mulberry32) so screenshots are reproducible. */
 export class Rng {
@@ -38,83 +36,8 @@ export interface EnvPart {
   update?(dt: number): void;
 }
 
-let vertexColorMaterial: THREE.MeshToonMaterial | null = null;
-
-/** Shared toon material that multiplies per-vertex colours (and instance colours). */
-export function vcMat(): THREE.MeshToonMaterial {
-  if (!vertexColorMaterial) {
-    vertexColorMaterial = toonUnique(0xffffff);
-    vertexColorMaterial.vertexColors = true;
-  }
-  return vertexColorMaterial;
-}
-
-export interface PartOpts {
-  rx?: number;
-  ry?: number;
-  rz?: number;
-  sx?: number;
-  sy?: number;
-  sz?: number;
-}
-
-const _m = new THREE.Matrix4();
-const _q = new THREE.Quaternion();
-const _e = new THREE.Euler();
-const _p = new THREE.Vector3();
-const _s = new THREE.Vector3();
-const _c = new THREE.Color();
-
-/** Collects coloured primitives and merges them into one vertex-coloured BufferGeometry. */
-export class Batch {
-  private readonly parts: THREE.BufferGeometry[] = [];
-
-  /** Add a transformed copy of `g` painted `color`. `g` is never modified (safe for cached geometry). */
-  add(g: THREE.BufferGeometry, color: THREE.ColorRepresentation, x: number, y: number, z: number, o?: PartOpts): this {
-    const src = g.index ? g.toNonIndexed() : g.clone();
-    if (src.getAttribute('uv')) src.deleteAttribute('uv');
-    _e.set(o?.rx ?? 0, o?.ry ?? 0, o?.rz ?? 0);
-    _q.setFromEuler(_e);
-    _s.set(o?.sx ?? 1, o?.sy ?? 1, o?.sz ?? 1);
-    _p.set(x, y, z);
-    src.applyMatrix4(_m.compose(_p, _q, _s));
-    const n = src.getAttribute('position').count;
-    const arr = new Float32Array(n * 3);
-    _c.set(color);
-    for (let i = 0; i < n; i++) {
-      arr[i * 3] = _c.r;
-      arr[i * 3 + 1] = _c.g;
-      arr[i * 3 + 2] = _c.b;
-    }
-    src.setAttribute('color', new THREE.BufferAttribute(arr, 3));
-    this.parts.push(src);
-    return this;
-  }
-
-  get empty(): boolean {
-    return this.parts.length === 0;
-  }
-
-  /** Merge into a single geometry (the batch is consumed). */
-  geometry(flat = false): THREE.BufferGeometry {
-    const merged = mergeGeometries(this.parts, false);
-    // Parts are non-indexed, so recomputing normals gives crisp per-face (faceted) shading.
-    if (flat) merged.computeVertexNormals();
-    for (const p of this.parts) p.dispose();
-    this.parts.length = 0;
-    merged.computeBoundingSphere();
-    merged.computeBoundingBox();
-    return merged;
-  }
-
-  /** Merge into a mesh. */
-  mesh(opts?: { cast?: boolean; receive?: boolean; material?: THREE.Material; flat?: boolean }): THREE.Mesh {
-    const m = new THREE.Mesh(this.geometry(opts?.flat), opts?.material ?? vcMat());
-    m.castShadow = opts?.cast ?? true;
-    m.receiveShadow = opts?.receive ?? true;
-    return m;
-  }
-}
+// Vertex-colour batching lives in render/batch.ts (shared with the AssetFactory); re-exported for env builders.
+export { Batch, vcMat, type PartOpts } from '../../render/batch';
 
 export interface Placement {
   x: number;

@@ -3,7 +3,8 @@
  *
  * - COUNTER: wooden table (length × depth × height; FENCE_WOOD), long axis along local X, origin at floor
  *   centre. Sturdy top slab with plank grooves, a beam under it, four legs, vertical-plank aprons on both
- *   long sides and a low shelf. Built from cached primitives (shared geometry + materials).
+ *   long sides and a low shelf. Built from cached primitives, then baked into ONE vertex-coloured mesh
+ *   (render/batch.ts): about 30 parts, 2 draw calls.
  * - SPEECH BUBBLE: camera-facing THREE.Sprite whose CanvasTexture is drawn on an offscreen canvas: white
  *   rounded bubble with a tail, an item icon (wood PLANK bundle, CRATE, LOG) with an optional count
  *   ("1/3") or a green check mark when the order is fulfilled. One canvas per bubble, redrawn in place
@@ -11,6 +12,7 @@
  */
 import * as THREE from 'three';
 import { COLORS, PALETTE } from '../config';
+import { bake } from '../render/batch';
 import { GAME_FONT, geo, makeCanvasTexture, mesh, toon } from '../render/materials';
 
 // ---------------------------------------------------------------------------
@@ -20,7 +22,6 @@ import { GAME_FONT, geo, makeCanvasTexture, mesh, toon } from '../render/materia
 /** Wooden sales table. Origin = floor centre, long axis = local X. */
 export function createCounterModel(length: number, depth: number, height: number): THREE.Group {
   const g = new THREE.Group();
-  g.name = 'counterModel';
   const wood = toon(COLORS.FENCE_WOOD);
   const dark = toon(PALETTE.fenceDark);
   const light = toon(COLORS.PLANK_WOOD);
@@ -81,7 +82,10 @@ export function createCounterModel(length: number, depth: number, height: number
       g.add(rail);
     }
   }
-  return g;
+  const model = new THREE.Group();
+  model.name = 'counterModel';
+  model.add(bake(g));
+  return model;
 }
 
 // ---------------------------------------------------------------------------
