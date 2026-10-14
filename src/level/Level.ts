@@ -348,7 +348,8 @@ export class Level {
         truck: this.truckCounter?.pile.total ?? 0,
         // Pine hauler's load goes back to the deck.
         deck: (this.treeFeller?.deck.total ?? 0) + crew.carried('pineHauler', 'log'),
-        platform: this.platformCounter?.pile.total ?? 0,
+        // Logs on a loading train go back onto the platform counter.
+        platform: (this.platformCounter?.pile.total ?? 0) + (this.trains?.loadedLogs ?? 0),
       },
       cash: {
         walkIn: this.walkInCash.value + crew.carriedValue('cashier'),

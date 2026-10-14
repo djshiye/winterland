@@ -16,6 +16,7 @@ import { buildDecor, type ClearItem } from './env/decor';
 import { buildFences } from './env/fences';
 import { buildGate, type GatePart } from './env/gate';
 import { buildGround } from './env/ground';
+import { buildRidgeGate, type RidgeGatePart } from './env/ridgeGate';
 import { buildMountains } from './env/mountains';
 import { buildRiver } from './env/river';
 import { buildRoads, highwayY } from './env/roads';
@@ -49,6 +50,7 @@ export class Environment {
   private readonly fences: ReturnType<typeof buildFences>;
   private readonly ground: ReturnType<typeof buildGround>;
   private readonly gate: GatePart;
+  private readonly ridgeGate: RidgeGatePart;
   private readonly strip: StripState[] = [];
   private readonly chimney: THREE.Vector3;
   private readonly tmp = new THREE.Vector3();
@@ -72,9 +74,10 @@ export class Environment {
     const buildings = buildBuildings(ctx);
     this.snowfall = buildSnowfall(ctx, rng);
     this.gate = buildGate();
+    this.ridgeGate = buildRidgeGate();
     this.chimney = buildings.chimney;
 
-    for (const p of [this.ground, this.river, this.fences, this.gate, roads, mountains, decor, buildings, this.snowfall]) {
+    for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, roads, mountains, decor, buildings, this.snowfall]) {
       this.parts.push(p);
       this.root.add(p.group);
     }
@@ -85,12 +88,18 @@ export class Environment {
     ctx.colliders.setBounds(LAYOUT.yard);
     // A restored game: the state is the truth, build the final scenery at once and silently.
     if (ctx.state.village.revealed) this.gate.open(true);
+    if (ctx.state.unlocked.ridge) this.ridgeGate.open(true);
     if (ctx.state.expanded) this.expand(true);
   }
 
   /** Swing the village gate open (instant: no animation). Idempotent. */
   openVillageGate(instant = false): void {
     this.gate.open(instant);
+  }
+
+  /** Swing the Timber Ridge gate open (instant: no animation). Idempotent. */
+  openRidgeGate(instant = false): void {
+    this.ridgeGate.open(instant);
   }
 
   /** Highway road-surface height at world X (raised over the river bridge). */
@@ -106,6 +115,7 @@ export class Environment {
   update(dt: number): void {
     this.river.update?.(dt);
     this.gate.update?.(dt);
+    this.ridgeGate.update?.(dt);
     this.snowfall.update?.(dt);
 
     this.smokeTimer -= dt;

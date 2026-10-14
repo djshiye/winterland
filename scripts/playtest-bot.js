@@ -11,12 +11,12 @@
 //
 //   __bot.runUntil(goal, budgetSeconds) → { ok, goal, simSeconds, state }
 //       goal: phase name | pad id | 'bothConveyors' | 'shop' | 'village' | 'vl:<n>' (village level ≥ n) |
-//             'hired:<crew id>' | 'finale'
+//             'hired:<crew id>' | 'q:<tier>' (bunkhouse tier ≥ n) | 'finale'
 //   __bot.runFor(seconds) · __bot.frame(stationId | 'village' | 'shop') · __bot.perf() · __bot.report()
 //   __bot.milestones() → first time (minutes) of every milestone seen, in order
 (() => {
   const W = window.__WINTERLAND__;
-  const { LAYOUT, PADS, VILLAGE } = W.config;
+  const { LAYOUT, PADS, VILLAGE, QUARTERS } = W.config;
   const ctx = W.ctx;
   const level = W.level;
   const up = ctx.upgrades;
@@ -43,6 +43,9 @@
     truck: mid(LAYOUT.expansion.truckCounter.playerZone),
     truckCash: mid(LAYOUT.expansion.truckCash.zone),
     shop: mid(LAYOUT.shop.mat),
+    deck: mid(LAYOUT.ridge.deck.zone),
+    platform: mid(LAYOUT.ridge.platform.playerZone),
+    platformCash: mid(LAYOUT.ridge.platformCash.zone),
   };
 
   // --- timeline + milestones ---------------------------------------------------------------------------------
@@ -66,6 +69,7 @@
   on('village:revealed', () => (note({ reveal: 'village' }), mark('village')));
   on('village:levelUp', ({ level: lv }) => (note({ villageLevel: lv }), mark(VILLAGE.levels[lv]?.name ?? `vl:${lv}`)));
   on('reveal', ({ what }) => (note({ reveal: what }), mark(`reveal:${what}`)));
+  on('quarters:built', ({ tier }) => (note({ quarters: tier }), mark(`quarters:${tier}`)));
   on('finale:start', () => (note({ finale: true }), mark('finale')));
 
   // --- primitives --------------------------------------------------------------------------------------------
@@ -124,6 +128,7 @@
   // --- village -----------------------------------------------------------------------------------------------
   /** The offered pad of plot `plot` (−1 = Great Lodge): where to stand and what it still needs; null if none. */
   function plotInfo(plot) {
+    if (plot === 'q') return quartersInfo();
     const village = level.village;
     const spot = village && village.padSpot(plot);
     if (!spot) return null;
@@ -134,10 +139,19 @@
     return { plot, spot, logsLeft: Math.max(0, def.logs - p.logs), cashLeft: Math.max(0, def.cash - p.cash) };
   }
 
+  /** The crew bunkhouse's next tier on Timber Ridge (plot id 'q'), same shape as plotInfo. */
+  function quartersInfo() {
+    const spot = level.quarters && level.quarters.padSpot();
+    const q = ctx.state.quarters;
+    const def = QUARTERS.tiers[q.tier + 1];
+    if (!spot || !def) return null;
+    return { plot: 'q', spot, logsLeft: Math.max(0, def.logs - q.logs), cashLeft: Math.max(0, def.cash - q.cash) };
+  }
+
   /** Plot being built and the tier it started from (kept across turns until that tier completes). */
   let build = null;
   let buildTier = 0;
-  const tierOf = (plot) => (plot < 0 ? ctx.state.village.greatLodge.tier : ctx.state.village.plots[plot].tier);
+  const tierOf = (plot) => (plot === 'q' ? ctx.state.quarters.tier : plot < 0 ? ctx.state.village.greatLodge.tier : ctx.state.village.plots[plot].tier);
   const startBuild = (plot, info) => ((build = plot), (buildTier = tierOf(plot)), buildTurn(info));
 
   /** One step toward finishing `info`; false when there is nothing useful to do for it right now. */
@@ -146,16 +160,19 @@
     const logs = count(arms, 'log');
     if (info.logsLeft > 0 && logs === 0) {
       if (held(arms) >= arms.capacity) return false; // arms full of something else: let the loop clear them
-      const pile = level.dropZone.pile;
+      // The bunkhouse stands on the ridge: the log deck is the nearer source when it has logs.
+      const deck = level.treeFeller && level.treeFeller.deck;
+      const fromDeck = info.plot === 'q' && count(deck, 'log') > 0;
+      const pile = fromDeck ? deck : level.dropZone.pile;
       if (count(pile, 'log') > 0) {
-        act('build:fetch', spots.pickup, 4, () => held(arms) >= arms.capacity || count(pile, 'log') === 0 || count(arms, 'log') >= info.logsLeft);
+        act('build:fetch', fromDeck ? spots.deck : spots.pickup, 4, () => held(arms) >= arms.capacity || count(pile, 'log') === 0 || count(arms, 'log') >= info.logsLeft);
       } else {
         act('chop', spots.chop, 3);
       }
       return true;
     }
     if (info.logsLeft === 0 && money() < info.cashLeft) return false; // logs done; earn the rest first
-    act(info.plot < 0 ? 'build:greatLodge' : 'build:plot', info.spot, 10, () => {
+    act(info.plot === 'q' ? 'build:quarters' : info.plot < 0 ? 'build:greatLodge' : 'build:plot', info.spot, 10, () => {
       const now = plotInfo(info.plot);
       return !now || tierOf(info.plot) !== buildTier || ((now.logsLeft === 0 || count(arms, 'log') === 0) && (now.cashLeft === 0 || money() < 5));
     });
@@ -209,6 +226,8 @@
     if (build === null && s.village.revealed) {
       const lodge = plotInfo(-1);
       if (lodge && lodge.cashLeft <= cash) options.push({ rank: -1, run: () => startBuild(-1, lodge) });
+      const q = quartersInfo();
+      if (q && ok(q.cashLeft)) options.push({ rank: q.cashLeft + q.logsLeft * LOG_VALUE, run: () => startBuild('q', q) });
       if (s.village.level < WINTER_CITY) {
         for (let i = 0; i < VILLAGE.plotLevels.length; i++) {
           const info = plotInfo(i);
@@ -255,6 +274,7 @@
       [level.walkInCash, spots.walkInCash],
       [level.seCash, spots.seCash],
       [level.truckCash, spots.truckCash],
+      [level.platformCash, spots.platformCash],
     ];
     const collect = (min) => {
       for (const [pile, spot] of cashSpots) {
@@ -270,7 +290,10 @@
     const proc = level.processor;
     const walkIn = level.walkInCounter;
     const drop = (name, spot, pile) => act(name, spot, 4, () => count(arms, 'log') === 0 || !room(pile));
+    const platform = level.platformCounter;
     if (count(arms, 'log') > 0) {
+      // Trains pay the most per log; the walk across the ridge is the price.
+      if (platform && room(platform.pile) && count(platform.pile) < 10) return drop('deliver:platform', spots.platform, platform.pile);
       if (truck && room(truck.pile) && count(truck.pile) < 12) return drop('deliver:truck', spots.truck, truck.pile);
       if (proc && !s.unlocked.eastConveyor && room(proc.input) && count(walkIn.pile) >= 6) return drop('deliver:processor', spots.feed, proc.input);
       if (room(walkIn.pile)) return drop('deliver:walkIn', spots.walkIn, walkIn.pile);
@@ -282,14 +305,20 @@
     const dz = level.dropZone.pile;
     const fetchLogs = () => act('fetch:logs', spots.pickup, 4, () => held(arms) >= arms.capacity || count(dz, 'log') === 0);
     const logsReady = count(dz, 'log') >= 4 && held(arms) < arms.capacity;
-    if (truck && count(truck.pile) < 6 && logsReady) return fetchLogs();
+    if (truck && count(truck.pile) < 6 && logsReady && !level.truckLoader) return fetchLogs();
+    // 7b. Pine logs from the ridge deck to the train (until the pine hauler does it).
+    const deck = level.treeFeller && level.treeFeller.deck;
+    if (platform && count(deck, 'log') >= 4 && count(platform.pile) < 6 && held(arms) < arms.capacity && !up.isHired('pineHauler')) {
+      act('fetch:pine', spots.deck, 4, () => held(arms) >= arms.capacity || count(deck, 'log') === 0);
+      return;
+    }
     // 8. Fetch crates for the trikes.
     if (proc && count(proc.output, 'crate') >= 3 && se && room(se.pile) && held(arms) < arms.capacity) {
       act('fetch:crates', spots.bench, 4, () => held(arms) >= arms.capacity || count(proc.output, 'crate') === 0);
       return;
     }
     // 9. Fetch logs while something still needs them carried by hand.
-    const needLogs = (!!truck && count(truck.pile) < 12) || !s.unlocked.westConveyor || !s.unlocked.eastConveyor;
+    const needLogs = (!!truck && count(truck.pile) < 12 && !level.truckLoader) || (!!platform && count(platform.pile) < 6) || !s.unlocked.westConveyor || !s.unlocked.eastConveyor;
     if (needLogs && logsReady) return fetchLogs();
     // 10. Small change, or chop more.
     if (collect(5)) return;
@@ -305,6 +334,7 @@
     if (goal === 'village') return () => s.village.revealed;
     if (goal === 'finale') return () => s.village.greatLodge.tier >= 0;
     if (goal.startsWith('vl:')) return () => s.village.level >= Number(goal.slice(3));
+    if (goal.startsWith('q:')) return () => s.quarters.tier >= Number(goal.slice(2));
     if (goal.startsWith('hired:')) return () => up.isHired(goal.slice(6));
     if (PHASES.includes(goal)) return () => s.phase === goal || (goal !== 'expansion' && PHASES.indexOf(s.phase) > PHASES.indexOf(goal));
     if (goal in PADS) return () => !!s.unlocked[goal];
@@ -323,6 +353,7 @@
       upgrades: { ...ctx.state.upgrades },
       village: { level: ctx.state.village.level, population: ctx.state.village.population, plots: ctx.state.village.plots.map((p) => p.tier) },
       crew: level.crew ? level.crew.size : 0,
+      quarters: ctx.state.quarters.tier,
     };
   }
 
