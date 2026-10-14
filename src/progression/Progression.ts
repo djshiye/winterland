@@ -53,6 +53,11 @@ const PHASE_OF_PAD: Record<PadId, Phase> = {
   westConveyor: 'automation',
   eastConveyor: 'automation',
   megaSaw: 'expansion',
+  // Wave 7 pads come after the expansion and don't change the phase.
+  ridge: 'expansion',
+  treeFeller: 'expansion',
+  truckLoader: 'expansion',
+  cashTubes: 'expansion',
 };
 
 type IntroState = 'pending' | 'playing' | 'done';

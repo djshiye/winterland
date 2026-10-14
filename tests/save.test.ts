@@ -5,8 +5,9 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { OFFLINE, SAVE } from '../src/config';
-import { mergeState, offlineEarnings, type SaveData } from '../src/core/Save';
+import { OFFLINE, PRESTIGE, SAVE } from '../src/config';
+import { salePrice } from '../src/core/demand';
+import { mergeState, newSeasonSave, offlineEarnings, sanitizeWorld, type SaveData } from '../src/core/Save';
 import { createGameState } from '../src/core/types';
 
 const fixture = (): SaveData => JSON.parse(readFileSync(new URL('./fixtures/save-v1-town.json', import.meta.url), 'utf8'));
@@ -70,5 +71,41 @@ describe('offline earnings', () => {
     const capped = offlineEarnings(...save(1000, 20000, 3600)).amount;
     expect(capped).toBeLessThanOrEqual(20000 * OFFLINE.maxShareOfEarned);
     expect(capped % 5).toBe(0);
+  });
+});
+
+describe('older world snapshots', () => {
+  it('load with empty Timber Ridge piles', () => {
+    const world = fixture().world;
+    const raw = JSON.parse(JSON.stringify(world));
+    expect(raw.piles.deck).toBeUndefined();
+    expect(sanitizeWorld(raw).piles.deck).toBe(0);
+    expect(sanitizeWorld(raw).cash.platform).toBe(0);
+    expect(sanitizeWorld(raw).piles.dropZone).toBe(world.piles.dropZone);
+  });
+});
+
+describe('new season (prestige)', () => {
+  it('resets progress, keeps hints and stats, counts the season', () => {
+    const prev = createGameState();
+    mergeState(prev, fixture().state);
+    prev.flags['seen:shop'] = true;
+    prev.prestige.season = 1;
+    const next = newSeasonSave(prev, 1000);
+    expect(next.state.prestige.season).toBe(2);
+    expect(next.money).toBe(PRESTIGE.startMoneyPerSeason * 2);
+    expect(next.state.unlocked).toEqual(createGameState().unlocked);
+    expect(next.state.upgrades).toEqual(createGameState().upgrades);
+    expect(next.state.flags.introDone).toBe(prev.flags.introDone);
+    expect(next.state.flags['seen:shop']).toBe(true);
+    expect(next.state.stats.moneyEarned).toBe(prev.stats.moneyEarned);
+    expect(next.world.piles.dropZone).toBe(0);
+  });
+
+  it('raises every sale price by the season bonus', () => {
+    const s = createGameState();
+    const base = salePrice(s, 'plank', 5, 20);
+    s.prestige.season = 2;
+    expect(salePrice(s, 'plank', 5, 20)).toBe(Math.round((base * (1 + 2 * PRESTIGE.bonusPerSeason)) / 5) * 5);
   });
 });

@@ -13,7 +13,8 @@
  */
 import * as THREE from 'three';
 import { LAYOUT } from '../config';
-import type { GameContext } from '../core/types';
+import type { CrewRole } from '../core/crew';
+import type { GameContext, ItemKind } from '../core/types';
 import type { Level } from '../level/Level';
 import {
   CREW_IDS,
@@ -51,6 +52,18 @@ export class Crew {
 
   get(id: CrewId): Helper | undefined {
     return this.helpers.get(id);
+  }
+
+  /**
+   * CONTRACT (wave 7, used by the save): items of `kind` carried by every helper of `role` (several per role once
+   * the bunkhouse allows it, core/crew.ts crewSlots), and the dollar value they carry.
+   */
+  carried(role: CrewRole, kind: ItemKind): number {
+    return this.helpers.get(role as CrewId)?.stack.count(kind) ?? 0;
+  }
+
+  carriedValue(role: CrewRole): number {
+    return this.helpers.get(role as CrewId)?.stack.totalValue() ?? 0;
   }
 
   update(dt: number): void {

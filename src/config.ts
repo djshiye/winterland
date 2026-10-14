@@ -258,6 +258,7 @@ export const ECONOMY = {
   plankPrice: 5, // walk-in customers, per plank bundle (each made from one log)
   cratePrice: 15, // cargo tricycles, per crate
   truckLogPrice: 10, // phase-5 pickup trucks, per log (bulk)
+  pinePrice: 20, // Timber Ridge freight trains, per log
   // How many buyers come and how much they take depends on the village level: see DEMAND.
 } as const;
 
@@ -265,7 +266,17 @@ export const ECONOMY = {
 // Upgrade pads
 // ---------------------------------------------------------------------------
 
-export type PadIdConst = 'harvester' | 'processor' | 'westConveyor' | 'eastConveyor' | 'megaSaw';
+export type PadIdConst =
+  | 'harvester'
+  | 'processor'
+  | 'westConveyor'
+  | 'eastConveyor'
+  | 'megaSaw'
+  // wave 7: Timber Ridge + advanced automation
+  | 'ridge'
+  | 'treeFeller'
+  | 'truckLoader'
+  | 'cashTubes';
 
 export interface PadDef {
   id: PadIdConst;
@@ -275,7 +286,7 @@ export interface PadDef {
   size: number;
   label: string;
   /** Icon key drawn on the pad (UpgradePad draws these procedurally on a canvas). */
-  icon: 'saw' | 'factory' | 'conveyor' | 'megasaw';
+  icon: 'saw' | 'factory' | 'conveyor' | 'megasaw' | 'ridge' | 'feller' | 'loader' | 'tubes';
 }
 
 export const PADS: Record<PadIdConst, PadDef> = {
@@ -284,6 +295,15 @@ export const PADS: Record<PadIdConst, PadDef> = {
   westConveyor: { id: 'westConveyor', cost: 900, x: -2.4, z: 4.6, size: 2.2, label: 'CONVEYOR', icon: 'conveyor' },
   eastConveyor: { id: 'eastConveyor', cost: 900, x: -0.8, z: -3.0, size: 2.2, label: 'CONVEYOR', icon: 'conveyor' },
   megaSaw: { id: 'megaSaw', cost: 3200, x: -6.4, z: -8.2, size: 2.2, label: 'MEGA SAWMILL', icon: 'megasaw' },
+  // Wave 7. Spots are proposals: the owning builders validate them against colliders / zones / paths.
+  /** In front of the east-fence gate: opens Timber Ridge (LAYOUT.ridge). */
+  ridge: { id: 'ridge', cost: 12000, x: 8.4, z: -1.7, size: 1.8, label: 'TIMBER RIDGE', icon: 'ridge' },
+  /** On the ridge, by the forest: the tracked tree feller that cuts pines onto the log deck. */
+  treeFeller: { id: 'treeFeller', cost: 9000, x: 19.6, z: -9.6, size: 2.0, label: 'TREE FELLER', icon: 'feller' },
+  /** Expanded north yard: a belt from the drop zone to the truck counter. */
+  truckLoader: { id: 'truckLoader', cost: 10000, x: -1.2, z: -12.5, size: 2.0, label: 'TRUCK LOADER', icon: 'loader' },
+  /** Beside the cabin: pneumatic tubes that bank every cash pile. */
+  cashTubes: { id: 'cashTubes', cost: 14000, x: 4.0, z: -7.6, size: 2.0, label: 'CASH TUBES', icon: 'tubes' },
 };
 
 // ---------------------------------------------------------------------------
@@ -536,6 +556,39 @@ export const LAYOUT = {
     truckCash: { x: 2.9, z: -18.6, grid: CASH_GRID, zone: rect(2.9, -18.6, 2.0, 1.8) },
   },
 
+  /**
+   * Timber Ridge (wave 7): open snow east of the tricycle road (lane x ≈ 11.9), reached through a gate in the yard's
+   * east fence and a crossing over the road. Pines in `forest` (the tree feller's work area), a log deck by the
+   * feller, a rail platform where freight trains buy pine logs, and the crew bunkhouse.
+   * Spots are proposals: the owning builders validate them and report changes.
+   */
+  ridge: {
+    area: { minX: 13.4, maxX: 34, minZ: -18, maxZ: 8 } as Rect,
+    /** Gap in the yard's east fence (x = yard.maxX). */
+    gate: { minZ: -2.8, maxZ: -0.6 },
+    /** Walkable additions once open (centre-space rects, ColliderWorld.addBounds): crossing, then the ridge. */
+    walk: [
+      { minX: 9.6, maxX: 14.6, minZ: -2.4, maxZ: -1.0 },
+      { minX: 14.2, maxX: 32.4, minZ: -16.4, maxZ: 6.4 },
+    ] as Rect[],
+    forest: { minX: 22, maxX: 32.6, minZ: -16.6, maxZ: -3.2 } as Rect,
+    /** Pine logs land here from the feller (pile; player / pine hauler pick up from `zone`). */
+    deck: { x: 19.6, z: -5.6, grid: { cols: 3, rows: 4, layers: 4, spacing: LOG_GRID_SPACING } as PileGrid, zone: rect(19.6, -3.9, 2.6, 1.4) },
+    /** Freight line along the east edge, trains run along Z (arrive from −Z, leave toward +Z). */
+    rail: { x: 33.6, spawnZ: -60, exitZ: 60, stopZ: 0.2 },
+    platform: {
+      x: 31.4,
+      z: 0.2,
+      ...COUNTER_SIZE,
+      rotationY: Math.PI / 2,
+      grid: { cols: 2, rows: 3, layers: 5, spacing: LOG_GRID_SPACING } as PileGrid,
+      playerZone: rect(30.1, 0.2, 1.4, 2.4),
+    },
+    platformCash: { x: 30.4, z: 3.6, grid: CASH_GRID, zone: rect(30.4, 3.6, 2.0, 1.8) },
+    /** Crew bunkhouse: building footprint centre + its construction pad in front of it. */
+    quarters: { x: 18.2, z: 4.4, w: 5.0, d: 3.2, pad: { x: 18.2, z: 1.4 }, padSize: 1.8 },
+  },
+
   /** Background scenery (visual only). */
   highway: { z: -23, width: 4.4, minX: -90, maxX: 90 },
   tunnel: { x: 30, z: -23 },
@@ -610,7 +663,12 @@ export type UpgradeIdConst =
   | 'logHauler'
   | 'plankQuality'
   | 'crateQuality'
-  | 'bulkDeals';
+  | 'bulkDeals'
+  // wave 7
+  | 'treeFeller'
+  | 'cashTubes'
+  | 'pineHauler'
+  | 'pineContracts';
 
 /**
  * lumberjack + crew + sales: bought in the cabin shop panel (one tab each) · machine: the machine's own pad re-arms
@@ -619,13 +677,15 @@ export type UpgradeIdConst =
 export type UpgradeGroup = 'lumberjack' | 'machine' | 'crew' | 'sales';
 
 /** What a sale is for (sales upgrades multiply one product's price). */
-export type ProductId = 'plank' | 'crate' | 'log';
+export type ProductId = 'plank' | 'crate' | 'log' | 'pine';
 
 export interface UpgradeRequirement {
   /** Minimum village level (index into VILLAGE.levels). */
   villageLevel?: number;
   /** Pad that must already be unlocked. */
   unlocked?: PadIdConst;
+  /** Minimum crew bunkhouse tier (GameState.quarters.tier; 0 = the first tier built). */
+  quarters?: number;
 }
 
 export interface UpgradeDef {
@@ -782,6 +842,53 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     product: 'log',
     requires: { unlocked: 'megaSaw' },
   },
+  // --- wave 7 ---
+  treeFeller: {
+    id: 'treeFeller',
+    group: 'machine',
+    label: 'Tree Feller',
+    blurb: 'Fells pines faster',
+    /** Seconds per tree (drive + cut + topple); each tree yields RIDGE.logsPerTree logs. */
+    values: [6, 5.1, 4.3, 3.6, 3.0, 2.5],
+    costs: [12000, 24000, 42000, 70000, 110000],
+    display: 'rate',
+    perCycle: 4,
+    unit: 'logs/s',
+    requires: { unlocked: 'treeFeller' },
+  },
+  cashTubes: {
+    id: 'cashTubes',
+    group: 'machine',
+    label: 'Cash Tubes',
+    blurb: 'Banks the cash piles faster',
+    /** Seconds per bundle sucked from each cash pile. */
+    values: [0.9, 0.7, 0.55, 0.42, 0.32, 0.24],
+    costs: [16000, 30000, 50000, 80000, 120000],
+    display: 'rate',
+    unit: 'bundles/s',
+    requires: { unlocked: 'cashTubes' },
+  },
+  pineHauler: {
+    id: 'pineHauler',
+    group: 'crew',
+    label: 'Pine Hauler',
+    blurb: 'Carries pine logs from the log deck to the train',
+    values: [0, 1, 1.3, 1.65, 2.0, 2.4, 2.8],
+    costs: [7000, 15000, 30000, 50000, 75000, 105000],
+    display: 'crew',
+    requires: { unlocked: 'treeFeller', quarters: 0 },
+  },
+  pineContracts: {
+    id: 'pineContracts',
+    group: 'sales',
+    label: 'Rail Contracts',
+    blurb: 'Trains pay more for every pine log',
+    values: [1, 1.15, 1.3, 1.5, 1.75, 2.0],
+    costs: [8000, 25000, 55000, 100000, 180000],
+    display: 'mult',
+    product: 'pine',
+    requires: { unlocked: 'treeFeller' },
+  },
 };
 
 /** Crew base stats at work multiplier 1 (UPGRADES[id].values[level] scales them; capacity rounds down). */
@@ -790,6 +897,43 @@ export const CREW = {
   /** Capacity in cash bundles. */
   cashier: { walkSpeed: 3.4, capacity: 16 },
   logHauler: { walkSpeed: 3.0, capacity: 6 },
+  pineHauler: { walkSpeed: 3.0, capacity: 6 },
+} as const;
+
+/**
+ * Crew bunkhouse ("living quarters") on Timber Ridge, built like a shelter (logs + cash on a construction pad,
+ * ridge/Quarters.ts). Each tier houses more helpers: `crew[role]` = how many of that role may work (index = tier + 1,
+ * so [0] applies before the bunkhouse exists). Read through core/crew.ts crewSlots().
+ */
+export const QUARTERS = {
+  tiers: [
+    { id: 'bunkhouse', label: 'Bunkhouse', logs: 30, cash: 8000 },
+    { id: 'lodge', label: 'Crew Lodge', logs: 50, cash: 25000 },
+    { id: 'hall', label: 'Crew Hall', logs: 80, cash: 60000 },
+  ],
+  crew: {
+    crateRunner: [1, 2, 2, 3],
+    cashier: [1, 1, 2, 3],
+    logHauler: [1, 1, 2, 3],
+    pineHauler: [1, 1, 2, 3],
+  },
+} as const;
+
+/** Timber Ridge (wave 7): the forest the tree feller works, trains, the bunkhouse. Layout in LAYOUT.ridge. */
+export const RIDGE = {
+  /** Pine logs per felled tree. */
+  logsPerTree: 4,
+  /** Seconds before a felled tree's stump grows back into a full pine. */
+  regrowSeconds: 40,
+} as const;
+
+/**
+ * New Season (prestige, after the finale): the run restarts from scratch, the season count survives. Every season
+ * adds `bonusPerSeason` to all sale prices (core/demand.ts) and `startMoneyPerSeason` to the starting money.
+ */
+export const PRESTIGE = {
+  bonusPerSeason: 0.25,
+  startMoneyPerSeason: 250,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -856,18 +1000,21 @@ export interface DemandLevel {
   truckGap: readonly [number, number];
   /** Logs per truck (bed holds at most 20). */
   truckWant: readonly [number, number];
+  /** Freight trains on Timber Ridge (wave 7): seconds between trains and pine logs per train. */
+  trainGap: readonly [number, number];
+  trainWant: readonly [number, number];
   /** Every sale's amount is multiplied by this, then rounded to a multiple of cashBundleValue. */
   priceMult: number;
 }
 
 export const DEMAND: readonly DemandLevel[] = [
   // Camp: the original phase 1–5 tuning.
-  { customerGap: [1.0, 1.5], customerQueue: 5, customerWant: [2, 4], trikeGap: [2.5, 4], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], priceMult: 1 },
-  { customerGap: [0.9, 1.35], customerQueue: 6, customerWant: [2, 5], trikeGap: [2.3, 3.6], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], priceMult: 1.2 },
-  { customerGap: [0.8, 1.2], customerQueue: 6, customerWant: [3, 6], trikeGap: [2.1, 3.3], trikeWant: [4, 7], truckGap: [2.8, 4.5], truckWant: [9, 13], priceMult: 1.45 },
-  { customerGap: [0.7, 1.05], customerQueue: 7, customerWant: [3, 7], trikeGap: [1.9, 3.0], trikeWant: [4, 8], truckGap: [2.6, 4.2], truckWant: [10, 15], priceMult: 1.75 },
-  { customerGap: [0.6, 0.9], customerQueue: 7, customerWant: [4, 8], trikeGap: [1.7, 2.7], trikeWant: [5, 8], truckGap: [2.4, 3.8], truckWant: [11, 17], priceMult: 2.1 },
-  { customerGap: [0.55, 0.8], customerQueue: 7, customerWant: [4, 9], trikeGap: [1.6, 2.5], trikeWant: [5, 8], truckGap: [2.2, 3.5], truckWant: [12, 18], priceMult: 2.5 },
+  { customerGap: [1.0, 1.5], customerQueue: 5, customerWant: [2, 4], trikeGap: [2.5, 4], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], trainGap: [9, 13], trainWant: [16, 24], priceMult: 1 },
+  { customerGap: [0.9, 1.35], customerQueue: 6, customerWant: [2, 5], trikeGap: [2.3, 3.6], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], trainGap: [9, 13], trainWant: [16, 24], priceMult: 1.2 },
+  { customerGap: [0.8, 1.2], customerQueue: 6, customerWant: [3, 6], trikeGap: [2.1, 3.3], trikeWant: [4, 7], truckGap: [2.8, 4.5], truckWant: [9, 13], trainGap: [8, 12], trainWant: [18, 26], priceMult: 1.45 },
+  { customerGap: [0.7, 1.05], customerQueue: 7, customerWant: [3, 7], trikeGap: [1.9, 3.0], trikeWant: [4, 8], truckGap: [2.6, 4.2], truckWant: [10, 15], trainGap: [7.5, 11], trainWant: [20, 28], priceMult: 1.75 },
+  { customerGap: [0.6, 0.9], customerQueue: 7, customerWant: [4, 8], trikeGap: [1.7, 2.7], trikeWant: [5, 8], truckGap: [2.4, 3.8], truckWant: [11, 17], trainGap: [7, 10], trainWant: [22, 30], priceMult: 2.1 },
+  { customerGap: [0.55, 0.8], customerQueue: 7, customerWant: [4, 9], trikeGap: [1.6, 2.5], trikeWant: [5, 8], truckGap: [2.2, 3.5], truckWant: [12, 18], trainGap: [6.5, 9], trainWant: [24, 32], priceMult: 2.5 },
 ];
 
 // ---------------------------------------------------------------------------
