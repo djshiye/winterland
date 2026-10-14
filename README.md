@@ -29,16 +29,22 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
    cargo tricycles), two conveyors $900 each, and the mega sawmill $3,200 (the yard expands to the highway
    and trucks arrive). Unlocked machines come back as **LV n** pads that make them faster.
 4. **Upgrade shop** on the red cabin's doormat: carry capacity, walk speed and axe speed, plus three hired
-   helpers (crate runner, cashier, log hauler).
+   helpers (crate runner, cashier, log hauler) and a **Sales** tab of price upgrades.
 5. **The village** behind the south gate: carry logs and cash to the plots to raise tents, huts, cabins and
    lodges. More villagers mean a higher village level (Camp → Hamlet → Village → Town → Winter City), which
    brings more customers, bigger orders, better prices and new hires.
-6. **The finale:** at Winter City, build the Great Lodge for a celebration and a stats card. Play goes on after.
+6. **Late yard:** a **truck loader** belt and **cash tubes** take over the hauling and collecting.
+   **Timber Ridge** lies through the east gate. It has a pine forest that a tree feller cuts onto a log deck,
+   freight trains that buy logs at the rail platform, and the crew **bunkhouse**. Each bunkhouse tier lets more
+   helpers of every role work, and adds a pine hauler.
+7. **The finale:** at Winter City, build the Great Lodge for a celebration and a stats card. Play goes on after, or start a **New Season**. Everything resets, but every sale pays 25%
+   more for each season played.
 
 The game saves itself. A refresh resumes where you were, and coming back later pays part of what your
-mill earned while you were away. Settings (the gear) has sound and a reset.
+mill earned while you were away. Settings (the gear) has sound, music, graphics quality (Low turns off shadows for slower
+computers), an FPS readout, New Season (after the finale) and a reset.
 
-A whole game takes the autoplay bot about 50 minutes (targets in [docs/DESIGN.md](docs/DESIGN.md)).
+A whole game takes the autoplay bot about 56 minutes (targets in [docs/DESIGN.md](docs/DESIGN.md)).
 
 ## Desktop app (Linux and Windows)
 
@@ -74,14 +80,20 @@ npm run preview                   # serve dist/ on the LAN
 node scripts/shot.mjs sim:2 shot:shots/now.png   # headless screenshot after 2 s of play
 npm run playtest -- shots/playtest              # an autoplay bot plays the whole game; screenshots each milestone
 node scripts/balance.mjs                        # the same bot without screenshots: milestone times + every purchase
+npm test                                        # vitest: upgrade tables, sale prices, old-save compatibility, layout
+node scripts/check-reveals.mjs                  # headless check of the pad reveal order and its save/restore
 ```
+
+GitHub Actions: every push runs the typecheck, the tests, a build and a bot run to the processor
+(`.github/workflows/ci.yml`). Pushing a `v*` tag builds the Linux and Windows zips and attaches them to a GitHub
+release (`release.yml`).
 
 Open `http://localhost:5173/?gallery` to see every AssetFactory model and canvas texture, one row per domain.
 Use `?gallery=items` or `?gallery=crate` to focus on a domain or a single asset, and add `&spin` for a turntable.
 
 `window.__WINTERLAND__` exposes a debug/test API in the browser console: `state()`, `simulate(seconds)`,
 `teleport(x, z)`, `moveTo(x, z)`, `addMoney(n)`, `unlock('harvester')`, `skipIntro()`, `buy('carry')`,
-`setUpgrade(id, level)`, `revealVillage()`, `buildPlot(plot, tier)`, `save()`, `clearSave()` and more.
+`setUpgrade(id, level)`, `revealVillage()`, `buildPlot(plot, tier)`, `buildQuarters(tier)`, `newSeason()`, `save()`, `clearSave()` and more.
 Add `?fresh` to the URL to ignore the save.
 
 Architecture, coordinates and module ownership are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md);
