@@ -8,7 +8,10 @@
  *   pop (item into stack, bright bubbly blip), drop (soft wooden knock), chop (axe thunk + crack),
  *   cash (coin "ching"), pay (fast tick into a pad), unlock (rising arpeggio fanfare),
  *   build (whoosh + thump), splash, crash (heavy wooden boom), whoosh, machine (mechanical chug),
- *   sell (cheerful two-note), full (dull "nope" buzz), step (soft snow crunch), click (UI).
+ *   sell (cheerful two-note), full (dull "nope" buzz), step (soft snow crunch), click (UI),
+ *   upgrade (bright rising "level up" sweep), chime (soft bell triad: reveals, shelters), fanfare (brass-ish
+ *   major arpeggio: village level-up, finale), cheer (crowd "yay" for a new hire), thunk (light wood knock: a log
+ *   into a construction pad), firework (crackle + thud).
  * - combo: repeats of the same sound within ~0.35 s rise in pitch (semitone steps, capped at +12)
  *   — the classic stacking pickup feel. Rapid repeats are rate-limited per sound and the number of
  *   simultaneous voices is capped, so streams never clip.
@@ -30,7 +33,13 @@ export type SfxName =
   | 'sell'
   | 'full'
   | 'step'
-  | 'click';
+  | 'click'
+  | 'upgrade'
+  | 'chime'
+  | 'fanfare'
+  | 'cheer'
+  | 'thunk'
+  | 'firework';
 
 export interface PlayOptions {
   /** Playback-rate / frequency multiplier (1 = normal). */
@@ -64,6 +73,12 @@ const MIN_GAP: Record<SfxName, number> = {
   full: 0.25,
   step: 0.12,
   click: 0.05,
+  upgrade: 0.15,
+  chime: 0.25,
+  fanfare: 1.0,
+  cheer: 0.6,
+  thunk: 0.05,
+  firework: 0.07,
 };
 
 type AudioCtor = typeof AudioContext;
@@ -330,6 +345,64 @@ export class AudioFX {
         break;
       case 'click':
         this.tone(t, 'sine', 900 * p, 600 * p, 0.05, 0.2 * v, 0.002);
+        break;
+      case 'upgrade':
+        // quick rising two-step with a shimmer on top
+        this.tone(t, 'triangle', 600 * p, 900 * p, 0.12, 0.24 * v, 0.004);
+        this.tone(t + 0.09, 'triangle', 900 * p, 1350 * p, 0.14, 0.24 * v, 0.004);
+        this.tone(t + 0.18, 'triangle', 1350 * p, 1350 * p, 0.34, 0.24 * v, 0.004);
+        this.tone(t + 0.18, 'sine', 2700 * p, 2700 * p, 0.22, 0.07 * v, 0.004);
+        this.hiss(t + 0.14, 'highpass', 6000, 8000, 0.25, 0.04 * v, 0.02);
+        break;
+      case 'chime': {
+        // soft bell triad (C6 E6 G6), slightly staggered, long tail
+        const bells = [1046.5, 1318.5, 1568];
+        for (let i = 0; i < bells.length; i++) {
+          const n = bells[i]! * p;
+          const at = t + i * 0.07;
+          this.tone(at, 'sine', n, n, 0.7, 0.16 * v, 0.004);
+          this.tone(at, 'sine', n * 2.76, n * 2.76, 0.25, 0.04 * v, 0.004);
+        }
+        break;
+      }
+      case 'fanfare': {
+        // brass-ish: filtered saws on a rising major figure, ending on a held chord
+        const seq: Array<[number, number, number]> = [
+          [392, 0, 0.14], [523.25, 0.14, 0.14], [659.25, 0.28, 0.14], [783.99, 0.42, 0.14],
+        ];
+        for (const [f, at, dur] of seq) {
+          this.tone(t + at, 'sawtooth', f * p, f * p, dur + 0.05, 0.16 * v, 0.01, 1800);
+          this.tone(t + at, 'triangle', f * p * 2, f * p * 2, dur, 0.06 * v, 0.01);
+        }
+        for (const f of [523.25, 659.25, 783.99, 1046.5]) {
+          this.tone(t + 0.58, 'sawtooth', f * p, f * p, 1.1, 0.12 * v, 0.02, 2200);
+          this.tone(t + 0.58, 'sine', f * p, f * p, 1.1, 0.08 * v, 0.02);
+        }
+        this.tone(t + 0.58, 'sine', 261.6 * p, 261.6 * p, 1.1, 0.16 * v, 0.02);
+        this.hiss(t + 0.58, 'highpass', 5000, 7000, 0.4, 0.04 * v, 0.01);
+        break;
+      }
+      case 'cheer':
+        // crowd "yay": band-passed noise swelling upward + a few vowel-ish rising tones
+        this.hiss(t, 'bandpass', 900 * p, 1800 * p, 0.55, 0.28 * v, 0.06, 1.4);
+        this.hiss(t + 0.03, 'bandpass', 1500 * p, 2600 * p, 0.45, 0.16 * v, 0.05, 1.8);
+        this.tone(t, 'sawtooth', 320 * p, 520 * p, 0.45, 0.07 * v, 0.05, 1500);
+        this.tone(t + 0.04, 'sawtooth', 410 * p, 640 * p, 0.4, 0.06 * v, 0.05, 1500);
+        this.tone(t + 0.1, 'triangle', 880 * p, 1320 * p, 0.3, 0.1 * v, 0.02);
+        this.tone(t + 0.2, 'triangle', 1320 * p, 1760 * p, 0.3, 0.1 * v, 0.02);
+        break;
+      case 'thunk':
+        // light wooden knock
+        this.tone(t, 'sine', 330 * p, 150 * p, 0.07, 0.3 * v, 0.002);
+        this.hiss(t, 'bandpass', 1500 * p, 800 * p, 0.035, 0.1 * v, 0.001, 1.4);
+        break;
+      case 'firework':
+        // distant crackle + soft thud
+        this.tone(t, 'sine', 120 * p, 45 * p, 0.28, 0.4 * v, 0.003);
+        this.hiss(t, 'lowpass', 2400, 400, 0.3, 0.3 * v, 0.003);
+        for (let i = 0; i < 4; i++) {
+          this.hiss(t + 0.08 + i * 0.07 + Math.random() * 0.04, 'highpass', 4500 + Math.random() * 2500, 3500, 0.03, 0.1 * v, 0.001);
+        }
         break;
     }
   }

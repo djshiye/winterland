@@ -11,6 +11,7 @@
  * - splash: water droplets + foam puffs + ring on the river (intro crash).
  * - sparkle: small twinkling stars (cash landing, crate made).
  * - ring: flat expanding ground ring/shockwave that fades (building spawn, pad unlock).
+ * - rocket / firework: a rising spark trail that bursts into a coloured star shell (finale fireworks).
  * All timing runs on the simulation dt passed to update().
  */
 import * as THREE from 'three';
@@ -232,6 +233,21 @@ class Pool {
   }
 }
 
+/** A firework rocket climbing to its burst point. */
+interface Rocket {
+  active: boolean;
+  fx: number; fy: number; fz: number;
+  /** Horizontal drift over the whole flight. */
+  dx: number; dz: number;
+  height: number;
+  t: number;
+  dur: number;
+  trail: number;
+  color: number;
+  color2: number;
+  onBurst: (() => void) | null;
+}
+
 /** One expanding ground ring. */
 interface RingSlot {
   mesh: THREE.Mesh;
@@ -251,9 +267,11 @@ export class Particles {
   private readonly stars: Pool;
   private readonly rings: RingSlot[] = [];
   private ringCursor = 0;
+  private readonly rockets: Rocket[] = [];
 
   private readonly tmpColor = new THREE.Color();
   private readonly tmpDir = new THREE.Vector3();
+  private readonly tmp3 = new THREE.Vector3();
   private readonly tmpU = new THREE.Vector3();
   private readonly tmpV = new THREE.Vector3();
   private static readonly UP = new THREE.Vector3(0, 1, 0);
@@ -270,7 +288,7 @@ export class Particles {
     const flat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
     this.confettiPool = new Pool(geo.plane(1, 0.62), flat, 260, scene);
     const star = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
-    this.stars = new Pool(Particles.starGeometry(), star, 120, scene);
+    this.stars = new Pool(Particles.starGeometry(), star, 220, scene);
 
     const ringGeo = geo.ringGround(0.8, 1, 48);
     for (let i = 0; i < 10; i++) {
@@ -410,6 +428,96 @@ export class Particles {
     }
   }
 
+  /**
+   * Launch a firework rocket from `from`: a spark trail climbs `height` units in ~0.8 s, then bursts in `color`
+   * (inner ring in `color2`). `onBurst` fires at the burst (the juice plays the bang there).
+   */
+  rocket(
+    from: THREE.Vector3,
+    opts?: { height?: number; color?: number; color2?: number; drift?: THREE.Vector3; onBurst?: () => void },
+  ): void {
+    let r = this.rockets.find((k) => !k.active);
+    if (!r) {
+      r = {
+        active: false, fx: 0, fy: 0, fz: 0, dx: 0, dz: 0, height: 8, t: 0, dur: 0.8, trail: 0,
+        color: 0xffffff, color2: 0xffffff, onBurst: null,
+      };
+      this.rockets.push(r);
+    }
+    r.active = true;
+    r.fx = from.x; r.fy = from.y; r.fz = from.z;
+    r.dx = opts?.drift?.x ?? 0;
+    r.dz = opts?.drift?.z ?? 0;
+    r.height = opts?.height ?? 8;
+    r.t = 0;
+    r.dur = 0.7 + Math.random() * 0.2;
+    r.trail = 0;
+    r.color = opts?.color ?? 0xffd84a;
+    r.color2 = opts?.color2 ?? 0xffffff;
+    r.onBurst = opts?.onBurst ?? null;
+  }
+
+  /** A firework shell burst at `pos`: a big sphere of stars in `color`, a smaller ring in `color2`, and glitter. */
+  firework(pos: THREE.Vector3, color = 0xffd84a, color2 = 0xffffff): void {
+    const shell = (n: number, speed: number, hex: number, size: number, life: number): void => {
+      this.tmpColor.setHex(hex);
+      for (let i = 0; i < n; i++) {
+        const z = Math.random() * 2 - 1;
+        const a = Math.random() * Math.PI * 2;
+        const rr = Math.sqrt(1 - z * z);
+        const sp = speed * (0.85 + Math.random() * 0.3);
+        this.stars.spawn(
+          pos.x, pos.y, pos.z,
+          Math.cos(a) * rr * sp, z * sp, Math.sin(a) * rr * sp,
+          this.tmpColor,
+          size * (0.8 + Math.random() * 0.4), life * (0.8 + Math.random() * 0.4), 4.5,
+          3, Scale.Shrink, 1.6, -50,
+        );
+      }
+    };
+    shell(26, 7.5, color, 0.7, 1.5);
+    shell(14, 4.2, color2, 0.55, 1.3);
+    // drifting glitter
+    this.tmpColor.setHex(0xffffff);
+    for (let i = 0; i < 8; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 1 + Math.random() * 4;
+      this.sphere.spawn(
+        pos.x, pos.y, pos.z,
+        Math.cos(a) * sp, (Math.random() - 0.3) * 4, Math.sin(a) * sp,
+        this.tmpColor, 0.12, 1.1 + Math.random() * 0.6, 3.5, 0, Scale.Shrink, 1.2, -50,
+      );
+    }
+  }
+
+  private updateRockets(dt: number): void {
+    for (const r of this.rockets) {
+      if (!r.active) continue;
+      r.t += dt;
+      const k = Math.min(1, r.t / r.dur);
+      const e = 1 - (1 - k) * (1 - k); // decelerating climb
+      const x = r.fx + r.dx * k;
+      const y = r.fy + r.height * e;
+      const z = r.fz + r.dz * k;
+      r.trail -= dt;
+      while (r.trail <= 0) {
+        r.trail += 0.022;
+        this.tmpColor.setHex(Math.random() < 0.5 ? 0xffe9a8 : r.color);
+        this.sphere.spawn(
+          x + (Math.random() - 0.5) * 0.15, y, z + (Math.random() - 0.5) * 0.15,
+          (Math.random() - 0.5) * 0.8, -0.8 - Math.random(), (Math.random() - 0.5) * 0.8,
+          this.tmpColor, 0.2 + Math.random() * 0.1, 0.35 + Math.random() * 0.2, 2, 0, Scale.Shrink, 1, -50,
+        );
+      }
+      if (k >= 1) {
+        r.active = false;
+        this.tmp3.set(x, y, z);
+        this.firework(this.tmp3, r.color, r.color2);
+        r.onBurst?.();
+      }
+    }
+  }
+
   /** Flat expanding ground ring that fades out. */
   ring(pos: THREE.Vector3, opts?: { color?: number; radius?: number; life?: number }): void {
     let slot: RingSlot | undefined;
@@ -443,6 +551,7 @@ export class Particles {
     this.puffs.update(dt);
     this.confettiPool.update(dt);
     this.stars.update(dt);
+    this.updateRockets(dt);
     for (let i = 0; i < this.rings.length; i++) {
       const r = this.rings[i]!;
       if (!r.active) continue;

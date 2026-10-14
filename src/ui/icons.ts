@@ -1,0 +1,116 @@
+/** [B4] Inline SVG icons (no image files). All use a 48x48 viewBox unless noted. */
+import type { UpgradeIdConst } from '../config';
+
+const svg = (inner: string, vb = '0 0 48 48'): string =>
+  `<svg viewBox="${vb}" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+
+const OUT = '#1f2b46';
+
+const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
+  // three stacked logs
+  carry: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="6" y="26" width="26" height="11" rx="5.5" fill="#a8693a"/><circle cx="32" cy="31.5" r="5.5" fill="#f3d9a4"/><circle cx="32" cy="31.5" r="2.4" fill="#d9aa66"/>
+      <rect x="14" y="14" width="26" height="11" rx="5.5" fill="#b87a45"/><circle cx="40" cy="19.5" r="5.5" fill="#f3d9a4"/><circle cx="40" cy="19.5" r="2.4" fill="#d9aa66"/>
+      <rect x="8" y="38" width="26" height="7" rx="3.5" fill="#8f5530"/>
+    </g>`),
+  // winter boot
+  speed: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M14 6h13v17c0 3 2 4 5 5l9 3c2 .7 3 2 3 4v4H9V6z" fill="#3fa7ff"/>
+      <rect x="12" y="6" width="17" height="8" rx="3" fill="#ffffff"/>
+      <path d="M9 38h35v4a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2z" fill="#f3f7ff"/>
+    </g>
+    <path d="M3 22h6M2 29h7M4 15h5" stroke="#9fd0ff" stroke-width="2.6"/>`),
+  // axe
+  axe: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M12 42L33 14" stroke-width="7" stroke="${OUT}"/>
+      <path d="M12 42L33 14" stroke-width="3.6" stroke="#c98a4b"/>
+      <path d="M26 8c8-3 15 0 17 7-5 4-11 6-17 4-3-1-5-3-6-5 1-3 3-5 6-6z" fill="#cfd8e6"/>
+      <path d="M30 11c4-1 8 0 10 3" fill="none" stroke="#fff" stroke-width="2"/>
+    </g>`),
+  // machines (not shown in the shop, but handy for toasts)
+  harvester: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="6" y="22" width="36" height="16" rx="5" fill="#3fa7ff"/>
+      <circle cx="24" cy="18" r="9" fill="#e8eef7"/><circle cx="24" cy="18" r="3" fill="#7d8aa3"/>
+      <rect x="4" y="38" width="40" height="6" rx="3" fill="#2a3652"/>
+    </g>`),
+  processor: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="4" y="14" width="40" height="24" rx="6" fill="#3fa7ff"/>
+      <rect x="12" y="20" width="24" height="12" rx="4" fill="#1f2b46"/>
+      <rect x="18" y="38" width="12" height="6" rx="2" fill="#d9aa66"/>
+    </g>`),
+  megaSaw: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <circle cx="24" cy="24" r="17" fill="#e8eef7"/>
+      <circle cx="24" cy="24" r="6" fill="#ff7a6b"/>
+      <path d="M24 3v6M24 39v6M3 24h6M39 24h6M9 9l4 4M35 35l4 4M39 9l-4 4M13 35l-4 4" stroke="#7d8aa3" stroke-width="3.5"/>
+    </g>`),
+  // wooden crate with motion lines
+  crateRunner: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="14" y="12" width="28" height="28" rx="4" fill="#d9aa66"/>
+      <path d="M14 22h28M14 31h28" stroke="#a8693a" stroke-width="3"/>
+      <path d="M14 12l28 28M42 12L14 40" stroke="#a8693a" stroke-width="2.2"/>
+    </g>
+    <path d="M3 20h7M2 27h8M4 34h6" stroke="#9fd0ff" stroke-width="2.8"/>`),
+  // cash bill + coin
+  cashier: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="4" y="12" width="34" height="20" rx="4" fill="#46c35f"/>
+      <circle cx="21" cy="22" r="6" fill="#f3fff0"/>
+      <circle cx="35" cy="33" r="10" fill="#ffd84a"/>
+      <circle cx="35" cy="33" r="6" fill="none" stroke="#e8a21c" stroke-width="2"/>
+    </g>
+    <text x="21" y="26" text-anchor="middle" font-family="Fredoka, system-ui, sans-serif" font-weight="700" font-size="10" fill="#2e9c48">$</text>`),
+  // pickup truck with logs
+  logHauler: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="3" y="20" width="24" height="14" rx="3" fill="#a8693a"/>
+      <rect x="6" y="14" width="20" height="8" rx="4" fill="#b87a45"/>
+      <path d="M27 24h8l7 6v8H27z" fill="#e8553e"/>
+      <path d="M31 27h4l4 4h-8z" fill="#cdeeff" stroke-width="1.5"/>
+      <circle cx="13" cy="38" r="5" fill="#2a3652"/><circle cx="35" cy="38" r="5" fill="#2a3652"/>
+    </g>`),
+};
+
+export function upgradeIcon(id: UpgradeIdConst): string {
+  return UPGRADE_ICONS[id];
+}
+
+export const ICON_LOCK = svg(
+  `<rect x="9" y="21" width="30" height="21" rx="5" fill="#ffd84a" stroke="${OUT}" stroke-width="3"/>
+   <path d="M15 21v-5a9 9 0 0 1 18 0v5" fill="none" stroke="${OUT}" stroke-width="4"/>
+   <circle cx="24" cy="31" r="3.2" fill="${OUT}"/>`,
+);
+
+export const ICON_CLOSE = svg(`<path d="M12 12l24 24M36 12L12 36" stroke="#fff" stroke-width="7"/>`);
+
+export const ICON_GEAR = svg(
+  `<path fill="#fff" d="M24 4l3.2 4.4 5.4-1.2 1.6 5.3 5.4 1.4-.9 5.5L43 22.7l-3.8 4 2.2 5.2-4.8 2.8-.3 5.6-5.5-.4L27.4 44l-5-2.6-5 2.6-2.8-4.9-5.5.4-.3-5.6L4 31.9l2.2-5.2-3.8-4 3.9-3.3-.9-5.5 5.4-1.4 1.6-5.3 5.4 1.2z" transform="translate(0 -1) scale(.98) translate(.5 .5)"/>
+   <circle cx="24" cy="24" r="7" fill="#2a3652"/>`,
+);
+
+export const ICON_HOUSE = svg(
+  `<path d="M8 24L24 8l16 16v16a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z" fill="#f3d9a4" stroke="${OUT}" stroke-width="3"/>
+   <path d="M3 25L24 5l21 20" fill="none" stroke="#e8553e" stroke-width="6"/>
+   <rect x="19" y="28" width="10" height="14" rx="2" fill="#a8693a" stroke="${OUT}" stroke-width="2.4"/>
+   <rect x="31" y="14" width="6" height="9" fill="#a8693a" stroke="${OUT}" stroke-width="2.4"/>`,
+);
+
+export const ICON_PERSON = svg(
+  `<circle cx="24" cy="14" r="8" fill="#fff"/>
+   <path d="M8 42c0-10 7-16 16-16s16 6 16 16z" fill="#fff"/>`,
+);
+
+export const ICON_COIN = svg(
+  `<circle cx="24" cy="24" r="19" fill="#ffd84a" stroke="${OUT}" stroke-width="3"/>
+   <circle cx="24" cy="24" r="12" fill="none" stroke="#e8a21c" stroke-width="3"/>`,
+);
+
+export const ICON_STAR = svg(
+  `<path d="M24 4l6.2 12.8 14 1.8-10.3 9.7 2.6 13.9L24 35.6 11.5 42.2l2.6-13.9L3.8 18.6l14-1.8z" fill="#ffd84a" stroke="${OUT}" stroke-width="3"/>`,
+);

@@ -216,3 +216,749 @@
   display: block;
   filter: drop-shadow(0 3px 0 rgba(20, 30, 55, 0.45));
 }
+
+/* ======================================================================================================
+   Wave 4: shop, settings, offline / finale cards, village badge. All show / hide motion is driven from
+   HUD.update() (simulation time) through --k and inline opacity / transform; CSS only does static looks.
+   ====================================================================================================== */
+
+.wl-hud button {
+  font-family: inherit;
+  font-weight: 700;
+  color: inherit;
+}
+
+.wl-hud svg {
+  overflow: visible;
+}
+
+/* ---- gear (sits left of the mute button) ----------------------------------------------------------- */
+
+.wl-gear {
+  position: absolute;
+  top: max(var(--wl-pad), env(safe-area-inset-top));
+  right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 52px);
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: linear-gradient(#3f4f6e, #2a3652);
+  box-shadow: 0 4px 0 rgba(20, 30, 55, 0.5), 0 6px 14px rgba(20, 30, 55, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.18);
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-gear:active {
+  transform: translateY(2px) scale(0.94);
+}
+
+.wl-gear svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+/* ---- shared buttons / cards ------------------------------------------------------------------------ */
+
+.wl-modal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.wl-modal-dim {
+  background: rgba(20, 30, 55, 0.55);
+}
+
+.wl-card {
+  position: relative;
+  width: min(360px, 100%);
+  max-height: 100%;
+  box-sizing: border-box;
+  padding: 18px 20px 20px;
+  border-radius: 26px;
+  background: linear-gradient(#4a5b7d, #2a3652);
+  border: 4px solid #fff;
+  box-shadow: 0 8px 0 rgba(20, 30, 55, 0.5), 0 14px 30px rgba(20, 30, 55, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.18);
+  text-align: center;
+  overflow-y: auto;
+  touch-action: pan-y;
+  will-change: transform;
+}
+
+.wl-card-title {
+  font-size: 30px;
+  line-height: 1.1;
+  margin-bottom: 12px;
+}
+
+.wl-title-gold {
+  color: #ffd84a;
+  --wl-outline: #7a3b0c;
+  font-size: clamp(26px, 7vw, 36px);
+}
+
+.wl-card-x {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  padding: 6px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #e8553e;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.wl-card-x svg,
+.wl-shop-close svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-btn {
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 24px;
+  border: 3px solid #fff;
+  font-size: 20px;
+  line-height: 1;
+  color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 4px 0 rgba(20, 30, 55, 0.5);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.wl-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(20, 30, 55, 0.5);
+}
+
+.wl-btn-green {
+  background: linear-gradient(#5ee07a, #2e9c48);
+}
+
+.wl-btn-danger {
+  background: linear-gradient(#ff7a6b, #d6432f);
+}
+
+.wl-btn-grey {
+  background: linear-gradient(#8a97b3, #5b6a8a);
+}
+
+.wl-btn-big {
+  min-height: 60px;
+  padding: 0 40px;
+  font-size: 28px;
+  border-radius: 32px;
+}
+
+.wl-btn-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.wl-btn-row .wl-btn {
+  flex: 1;
+}
+
+/* ---- settings -------------------------------------------------------------------------------------- */
+
+.wl-settings {
+  width: min(320px, 100%);
+}
+
+.wl-settings-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wl-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.wl-row-label {
+  font-size: 22px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.wl-switch {
+  position: relative;
+  width: 64px;
+  height: 36px;
+  padding: 0;
+  border-radius: 18px;
+  border: 3px solid #fff;
+  background: #6c7893;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.wl-switch i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.wl-switch.is-on {
+  background: #38b957;
+}
+
+.wl-switch.is-on i {
+  left: 30px;
+}
+
+.wl-confirm-text {
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 8px 8px 20px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* ---- offline card ---------------------------------------------------------------------------------- */
+
+.wl-offline-coin {
+  width: 64px;
+  height: 64px;
+  margin: -42px auto 6px;
+  filter: drop-shadow(0 4px 0 rgba(20, 30, 55, 0.4));
+}
+
+.wl-offline-coin svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-offline-sub {
+  font-size: 17px;
+  opacity: 0.92;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.wl-offline-label {
+  margin-top: 10px;
+  font-size: 17px;
+  opacity: 0.92;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.wl-offline-amount {
+  margin: 2px 0 18px;
+  font-size: 52px;
+  line-height: 1.1;
+  color: #5ee07a;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 3px 0 rgba(20, 60, 30, 0.7), 0 0 18px rgba(94, 224, 122, 0.45);
+}
+
+.wl-offline {
+  overflow: visible;
+  padding-top: 34px;
+}
+
+/* ---- finale card ----------------------------------------------------------------------------------- */
+
+.wl-finale {
+  width: min(460px, 100%);
+}
+
+.wl-finale-stars {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 6px;
+  height: 38px;
+  margin-bottom: 4px;
+}
+
+.wl-finale-stars svg {
+  width: 38px;
+  height: 38px;
+  display: block;
+  filter: drop-shadow(0 3px 0 rgba(20, 30, 55, 0.4));
+}
+
+.wl-finale-stars svg:nth-child(2) {
+  width: 50px;
+  height: 50px;
+}
+
+.wl-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 8px;
+  margin-bottom: 16px;
+}
+
+.wl-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px 5px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  min-width: 0;
+}
+
+.wl-stat b {
+  font-size: 22px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.wl-stat span {
+  font-size: 12px;
+  opacity: 0.8;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.wl-stat.is-hot b {
+  color: #5ee07a;
+}
+
+@media (min-width: 560px) {
+  .wl-stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-height: 520px) {
+  .wl-finale-stars {
+    display: none;
+  }
+  .wl-stats {
+    grid-template-columns: repeat(4, 1fr);
+    margin-bottom: 10px;
+  }
+  .wl-card-title {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+}
+
+/* ---- village badge --------------------------------------------------------------------------------- */
+
+.wl-village {
+  position: absolute;
+  top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px);
+  left: max(var(--wl-pad), env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 168px;
+  box-sizing: border-box;
+  padding: 5px 12px 6px 6px;
+  border-radius: 18px;
+  background: linear-gradient(#3f4f6e, #2a3652);
+  border: 3px solid #fff;
+  box-shadow: 0 4px 0 rgba(20, 30, 55, 0.5), 0 6px 14px rgba(20, 30, 55, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.18);
+  transform-origin: 15% 50%;
+  will-change: transform, opacity;
+}
+
+.wl-village-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.3));
+}
+
+.wl-village-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-village-mid {
+  flex: 1;
+  min-width: 0;
+}
+
+.wl-village-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 16px;
+  line-height: 1.15;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+}
+
+.wl-village-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wl-village-pop {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: #bfe8ff;
+}
+
+.wl-village-person {
+  width: 13px;
+  height: 13px;
+  display: inline-block;
+}
+
+.wl-village-person svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.4));
+}
+
+.wl-village-bar {
+  margin-top: 3px;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(10, 18, 36, 0.6);
+  overflow: hidden;
+}
+
+.wl-village-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(#8be8ff, #3fa7ff);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+.wl-village.is-max .wl-village-fill {
+  background: linear-gradient(#ffe680, #f0a81c);
+}
+
+/* the objective banner drops below the village badge on phones */
+@media (max-width: 640px) {
+  .wl-hud.has-village .wl-objective {
+    top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 50px);
+  }
+}
+
+/* ---- shop ------------------------------------------------------------------------------------------ */
+
+.wl-shop {
+  --k: 0;
+  position: absolute;
+  left: max(8px, env(safe-area-inset-left));
+  right: max(8px, env(safe-area-inset-right));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  max-height: min(44vh, 380px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 8px 8px 8px;
+  border-radius: 22px;
+  background: linear-gradient(#4a5b7d, #2a3652);
+  border: 3px solid #fff;
+  box-shadow: 0 6px 0 rgba(20, 30, 55, 0.5), 0 10px 26px rgba(20, 30, 55, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.18);
+  pointer-events: auto;
+  touch-action: manipulation;
+  transform: translateY(calc((1 - var(--k)) * 115%));
+  will-change: transform, opacity;
+}
+
+.wl-shop-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.wl-shop-title {
+  font-size: 20px;
+  line-height: 1;
+  padding-left: 6px;
+}
+
+.wl-shop-tabs {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.wl-shop-tab {
+  position: relative;
+  flex: 1;
+  min-height: 34px;
+  padding: 0 6px;
+  border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(10, 18, 36, 0.35);
+  font-size: 15px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.wl-shop-tab.is-on {
+  background: #3fa7ff;
+  border-color: #fff;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.wl-shop-tab .wl-dot {
+  display: none;
+  position: absolute;
+  top: -5px;
+  right: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #5ee07a;
+  border: 2px solid #fff;
+}
+
+.wl-shop-tab.has-hint .wl-dot {
+  display: block;
+}
+
+.wl-shop-close {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 6px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #e8553e;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.wl-shop-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 1px 1px 3px;
+}
+
+.wl-shop-card {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 16px;
+  background: #f1f6ff;
+  color: #2a3652;
+  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+}
+
+.wl-shop-card.is-locked .wl-shop-icon {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.wl-shop-card.is-locked {
+  background: #dfe5f0;
+}
+
+.wl-shop-card.is-maxed {
+  background: #fff6d6;
+}
+
+.wl-shop-icon {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: #dbe8fb;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.wl-shop-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-shop-mid {
+  flex: 1;
+  min-width: 0;
+}
+
+.wl-shop-name {
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+.wl-shop-blurb {
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 500;
+  color: #5b6a8a;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.wl-pips {
+  display: flex;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.wl-pip {
+  width: 14px;
+  height: 7px;
+  border-radius: 4px;
+  background: #c3cde0;
+}
+
+.wl-pip.on {
+  background: linear-gradient(#ffe680, #f0a81c);
+}
+
+.wl-shop-delta {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.1;
+  color: #2e7fd1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wl-shop-buy {
+  flex: none;
+  min-width: 84px;
+  max-width: 116px;
+  min-height: 42px;
+  padding: 3px 8px;
+  border-radius: 14px;
+  border: 3px solid #fff;
+  font-size: 17px;
+  line-height: 1.05;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 3px 0 rgba(20, 30, 55, 0.45);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  color: #fff;
+}
+
+.wl-shop-buy small {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.wl-shop-buy:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(20, 30, 55, 0.45);
+}
+
+.wl-shop-buy.is-buy {
+  background: linear-gradient(#5ee07a, #2e9c48);
+}
+
+.wl-shop-buy.is-poor {
+  background: linear-gradient(#9aa6bf, #6c7893);
+  cursor: default;
+}
+
+.wl-shop-buy.is-max {
+  background: linear-gradient(#ffd84a, #e8a21c);
+  color: #6b3a05;
+  text-shadow: none;
+  cursor: default;
+}
+
+.wl-shop-buy.is-lock {
+  flex-direction: row;
+  gap: 4px;
+  background: #8591ab;
+  font-size: 12px;
+  cursor: default;
+  text-shadow: none;
+}
+
+.wl-shop-buy .wl-lock {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.wl-shop-buy .wl-lock svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-shop-buy .wl-req {
+  text-align: left;
+  word-spacing: 2px;
+}
+
+/* wide screens: a side card under the top-right buttons */
+@media (min-width: 700px) {
+  .wl-shop {
+    left: auto;
+    right: max(12px, env(safe-area-inset-right));
+    top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 60px);
+    bottom: auto;
+    width: 352px;
+    max-height: calc(100% - 140px);
+    padding: 10px;
+    transform: translateX(calc((1 - var(--k)) * 115%));
+  }
+  .wl-shop-title {
+    font-size: 24px;
+  }
+}
