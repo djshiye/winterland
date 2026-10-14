@@ -13,12 +13,21 @@
  * - setGuideTarget: a bouncing 3D arrow hovering above the world point; when the point is
  *   off-screen, a DOM arrow pinned to the screen edge points toward it. null hides both.
  * - toast: big centred title + optional subtitle that pops in and fades out.
- * - Mute toggle button top-right (calls ctx.audio.toggleMute()).
+ * - Mute toggle button top-right (calls ctx.audio.toggleMute()); a gear button next to it opens Settings
+ *   (sound switch, reset progress with an in-page confirmation).
+ * - ShopPanel (opens on 'shop:open'), VillageBadge, OfflineCard (showOfflineEarnings), FinaleCard ('finale:start').
+ * - toast() queues briefly: a toast arriving < 1 s after another waits its turn (max 2 waiting, dropped after 3 s).
  */
 import * as THREE from 'three';
 import { PALETTE } from '../config';
 import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
+import { FinaleCard } from './FinaleCard';
+import { OfflineCard } from './OfflineCard';
+import { SettingsPanel } from './SettingsPanel';
+import { ShopPanel } from './ShopPanel';
+import { VillageBadge } from './VillageBadge';
+import { formatMoney } from './format';
 import './hud.css';
 
 export interface FloatTextOptions {
@@ -41,6 +50,8 @@ interface FloatSlot {
 }
 
 const FLOAT_POOL = 28;
+/** Queued toasts older than this (seconds since toast() was called) are dropped. */
+const TOAST_STALE = 3;
 /** World-size multiplier of the 3D guide arrow (iso camera looks down on it, so it needs to be chunky). */
 const ARROW_SCALE = 1.5;
 
@@ -79,6 +90,12 @@ export class HUD {
   private readonly toastSub: HTMLDivElement;
   private readonly edgeEl: HTMLDivElement;
   private readonly floats: FloatSlot[] = [];
+  private readonly layer: HTMLDivElement;
+  private readonly shop: ShopPanel;
+  private readonly settings: SettingsPanel;
+  private readonly offline: OfflineCard;
+  private readonly village: VillageBadge;
+  private readonly finale: FinaleCard;
 
   // --- money ---
   private moneyTarget = 0;
@@ -95,6 +112,8 @@ export class HUD {
   private toastAge = 0;
   private toastDur = 0;
   private toastActive = false;
+  private hasVillage = false;
+  private readonly toastQueue: Array<{ title: string; sub: string; dur: number; at: number }> = [];
 
   // --- guide ---
   private readonly arrow: THREE.Group;
@@ -115,6 +134,7 @@ export class HUD {
     const layer = document.createElement('div');
     layer.className = 'wl-hud';
     root.appendChild(layer);
+    this.layer = layer;
 
     // money pill
     this.moneyEl = document.createElement('div');
@@ -146,9 +166,18 @@ export class HUD {
       ctx.audio.unlock();
       const muted = ctx.audio.toggleMute();
       this.muteBtn.classList.toggle('is-muted', muted);
+      this.settings.sync();
       if (!muted) ctx.audio.play('click');
     });
     layer.appendChild(this.muteBtn);
+
+    // settings (gear button sits left of the mute button)
+    this.settings = new SettingsPanel(ctx, layer);
+    this.settings.onSoundChanged = () => this.muteBtn.classList.toggle('is-muted', ctx.audio.muted);
+
+    // village badge, shop
+    this.village = new VillageBadge(ctx, layer);
+    this.shop = new ShopPanel(ctx, layer);
 
     // toast
     this.toastEl = document.createElement('div');
@@ -174,12 +203,20 @@ export class HUD {
       this.floats.push({ el, active: false, age: 0, dur: 1, rise: 1.2, ox: 0, world: new THREE.Vector3() });
     }
 
+    // modal cards go on top of everything else
+    this.offline = new OfflineCard(ctx, layer);
+    this.finale = new FinaleCard(ctx, layer);
+
     // 3D guide arrow (origin = centre of the arrow; points down)
     this.arrow = HUD.buildArrow();
     this.arrow.visible = false;
     ctx.scene.add(this.arrow);
 
     ctx.events.on('money:changed', (e) => this.setMoney(e.money, true));
+    ctx.events.on('finale:start', () => {
+      this.toastQueue.length = 0;
+      this.finale.schedule();
+    });
   }
 
   private static buildArrow(): THREE.Group {
@@ -263,21 +300,46 @@ export class HUD {
     this.hasGuide = true;
   }
 
-  /** Big centred celebration text that pops in and fades out. */
   /**
-   * Welcome-back card: "While you were away your mill earned $amount" (seconds = time away) with a Collect
-   * button; calls onCollect() once when pressed. CONTRACT for B4; STUB: collects at once.
+   * Welcome-back card: "While you were away (1 h 20 min) your mill earned $amount" with a Collect button; calls
+   * onCollect() exactly once when pressed (the caller adds the money and emits 'offline:collected').
    */
-  showOfflineEarnings(amount: number, _seconds: number, onCollect: () => void): void {
-    onCollect();
-    this.toast(`+$${amount}`, { sub: 'earned while you were away' });
+  showOfflineEarnings(amount: number, seconds: number, onCollect: () => void): void {
+    this.offline.show(amount, seconds, onCollect);
   }
 
+  /** Shop panel (tests / debug). */
+  get shopPanel(): ShopPanel {
+    return this.shop;
+  }
+
+  /** Settings panel (tests / debug). */
+  get settingsPanel(): SettingsPanel {
+    return this.settings;
+  }
+
+  /** Finale stats card (tests / debug). */
+  get finaleCard(): FinaleCard {
+    return this.finale;
+  }
+
+  /** Centred celebration text that pops in and fades out. Toasts arriving right after another one queue up. */
   toast(title: string, opts?: { sub?: string; duration?: number }): void {
-    this.toastTitle.textContent = title;
-    this.toastSub.textContent = opts?.sub ?? '';
-    this.toastSub.style.display = opts?.sub ? 'block' : 'none';
-    this.toastDur = opts?.duration ?? 2.2;
+    const t = { title, sub: opts?.sub ?? '', dur: opts?.duration ?? 2.2, at: this.ctx.time.elapsed };
+    // a toast that arrives while another is still fresh waits its turn instead of wiping it (briefly: queued
+    // toasts expire TOAST_STALE s after they were asked for, so a burst never drips out for many seconds)
+    if (this.toastActive && this.toastAge < 1.0 && this.toastQueue.length < 2) {
+      this.toastQueue.push(t);
+      return;
+    }
+    this.showToast(t);
+  }
+
+  private showToast(t: { title: string; sub: string; dur: number; at: number }): void {
+    this.toastTitle.textContent = t.title;
+    this.toastSub.textContent = t.sub;
+    this.toastSub.style.display = t.sub ? 'block' : 'none';
+    this.toastDur = t.dur;
     this.toastAge = 0;
     this.toastActive = true;
     this.toastEl.style.display = 'block';
@@ -290,6 +352,15 @@ export class HUD {
     this.updateFloats(dt);
     this.updateToast(dt);
     this.updateGuide(dt);
+    this.shop.update(dt);
+    this.settings.update(dt);
+    this.offline.update(dt);
+    this.finale.update(dt);
+    const hasVillage = this.village.update(dt);
+    if (hasVillage !== this.hasVillage) {
+      this.hasVillage = hasVillage;
+      this.layer.classList.toggle('has-village', hasVillage);
+    }
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -297,7 +368,7 @@ export class HUD {
   // ---------------------------------------------------------------------------------------------
 
   private writeMoney(): void {
-    const text = `$${Math.round(this.moneyShown).toLocaleString('en-US')}`;
+    const text = formatMoney(this.moneyShown);
     if (text !== this.moneyText) {
       this.moneyText = text;
       this.moneyValue.textContent = text;
@@ -384,6 +455,10 @@ export class HUD {
     if (a >= d) {
       this.toastActive = false;
       this.toastEl.style.display = 'none';
+      const now = this.ctx.time.elapsed;
+      let next = this.toastQueue.shift();
+      while (next && now - next.at > TOAST_STALE) next = this.toastQueue.shift();
+      if (next) this.showToast(next);
       return;
     }
     const popK = Math.min(1, a / 0.4);
