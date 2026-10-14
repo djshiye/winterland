@@ -196,7 +196,7 @@ export class Level {
         this.treeFeller.build(instant);
         break;
       case 'truckLoader': {
-        if (!this.truckCounter) this.buildStation('megaSaw', instant);
+        if (!this.truckCounter) this.pads.megaSaw.forceUnlock(); // its pad only appears after the mega saw
         this.truckLoader = new TruckLoader(this.ctx, { from: this.dropZone.pile, to: this.truckCounter!.input });
         this.truckLoader.build(instant);
         break;
