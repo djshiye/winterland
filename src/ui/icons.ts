@@ -6,11 +6,35 @@ const svg = (inner: string, vb = '0 0 48 48'): string =>
 
 const OUT = '#1f2b46';
 
-const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
-  // Placeholders until the Sales icons are drawn (reuse the coin-ish crew icons).
-  get plankQuality() { return UPGRADE_ICONS.cashier; },
-  get crateQuality() { return UPGRADE_ICONS.crateRunner; },
-  get bulkDeals() { return UPGRADE_ICONS.logHauler; },
+const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
+  // sales: a smooth plank with a gold star
+  plankQuality: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="4" y="16" width="40" height="19" rx="4" fill="#e0b070"/>
+      <path d="M4 25h40" stroke="#c98a4b" stroke-width="2.4" fill="none"/>
+      <path d="M9 20h10M27 31h12" stroke="#f6dca8" stroke-width="2.2" fill="none"/>
+      <path d="M34 4l2.7 5.6 6.1.8-4.5 4.2 1.1 6-5.4-2.9-5.4 2.9 1.1-6-4.5-4.2 6.1-.8z" fill="#ffd84a"/>
+    </g>`),
+  // sales: a crate tied with a red ribbon and a star
+  crateQuality: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="6" y="14" width="34" height="30" rx="4" fill="#d9aa66"/>
+      <path d="M6 24h34M6 34h34" stroke="#a8693a" stroke-width="2.6" fill="none"/>
+      <rect x="19" y="14" width="8" height="30" fill="#e8553e"/>
+      <path d="M23 14c-4-8-11-6-9-2s9 2 9 2zM23 14c4-8 11-6 9-2s-9 2-9 2z" fill="#ff7a6b"/>
+      <path d="M37 3l2.4 5 5.4.7-4 3.7 1 5.3-4.8-2.6-4.8 2.6 1-5.3-4-3.7 5.4-.7z" fill="#ffd84a"/>
+    </g>`),
+  // sales: a log end with a red "%" price tag
+  bulkDeals: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="4" y="22" width="30" height="16" rx="8" fill="#a8693a"/>
+      <circle cx="34" cy="30" r="8" fill="#f3d9a4"/><circle cx="34" cy="30" r="3.4" fill="#d9aa66"/>
+      <rect x="6" y="9" width="22" height="14" rx="7" fill="#b87a45"/>
+      <circle cx="28" cy="16" r="7" fill="#f3d9a4"/><circle cx="28" cy="16" r="3" fill="#d9aa66"/>
+      <path d="M26 31h14l6 8-6 8H26a3 3 0 0 1-3-3V34a3 3 0 0 1 3-3z" fill="#e8553e"/>
+      <circle cx="29" cy="39" r="2" fill="#fff" stroke-width="1.6"/>
+    </g>
+    <text x="36" y="43" text-anchor="middle" font-family="Fredoka, system-ui, sans-serif" font-weight="700" font-size="11" fill="#fff">%</text>`),
   // three stacked logs
   carry: svg(`
     <g stroke="${OUT}" stroke-width="2.5">
@@ -81,8 +105,16 @@ const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
     </g>`),
 };
 
+/** Upgrades without a drawn icon of their own borrow a sibling's. */
+const ICON_FALLBACK: Record<string, UpgradeIdConst | undefined> = {
+  treeFeller: 'harvester',
+  cashTubes: 'processor',
+  pineHauler: 'logHauler',
+  pineContracts: 'bulkDeals',
+};
+
 export function upgradeIcon(id: UpgradeIdConst): string {
-  return UPGRADE_ICONS[id];
+  return UPGRADE_ICONS[id] ?? UPGRADE_ICONS[ICON_FALLBACK[id] ?? 'carry'] ?? ICON_COIN;
 }
 
 export const ICON_LOCK = svg(
