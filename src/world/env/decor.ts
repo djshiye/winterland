@@ -98,7 +98,7 @@ export function buildDecor(rng: Rng): DecorPart {
   for (let z = -60; z < 66; z += rng.range(2.6, 4.2)) {
     if (z > -29 && z < -17) continue;
     mounds.push({ x: road.maxX + 0.9 + rng.range(0, 0.4), z, ry: Math.PI / 2, sx: rng.range(1.1, 1.5), sy: rng.range(0.7, 1), sz: rng.range(1.5, 2.2), tint: 1 });
-    if (z < LAYOUT.expandedMinZ - 1.5 || z > 12.5) {
+    if (z < LAYOUT.expandedMinZ - 1.5 || z > LAYOUT.village.area.maxZ + 2.5) {
       mounds.push({ x: road.minX - 0.55, z, ry: Math.PI / 2, sx: 0.75, sy: 0.55, sz: rng.range(1.3, 1.8), tint: 0.95 });
     }
   }
