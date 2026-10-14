@@ -1,0 +1,34 @@
+# Every push and pull request: type-check, unit tests (save compatibility), production build, and a headless
+# bot run that must reach the processor (catches crashes and broken progression).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx vite build
+      - name: Headless browser
+        run: npx playwright install --with-deps chromium
+      - name: Bot playthrough to the processor
+        run: node scripts/balance.mjs --goal processor --budget 900
