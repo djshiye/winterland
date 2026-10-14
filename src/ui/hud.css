@@ -1059,3 +1059,166 @@
     font-size: 24px;
   }
 }
+
+/* ---- wave 7: new season ---------------------------------------------------------------------------- */
+
+.wl-btn-gold {
+  background: linear-gradient(#ffd84a, #e8a21c);
+  color: #4a2a05;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* season chip: under the money pill, below the village badge once that is revealed */
+.wl-season {
+  position: absolute;
+  top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px);
+  left: max(var(--wl-pad), env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100vw - 2 * var(--wl-pad) - 120px);
+  height: 26px;
+  box-sizing: border-box;
+  padding: 0 11px 0 6px;
+  border-radius: 13px;
+  background: linear-gradient(#ffd84a, #e8a21c);
+  border: 2px solid #fff;
+  box-shadow: 0 3px 0 rgba(20, 30, 55, 0.45), 0 4px 10px rgba(20, 30, 55, 0.25);
+  color: #4a2a05;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.wl-season-star {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.wl-season-star svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-season-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wl-season-label b {
+  color: #1d6b2e;
+}
+
+.wl-season-dot {
+  opacity: 0.6;
+}
+
+.wl-hud.has-village .wl-season {
+  top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 56px);
+}
+
+/* phone: the objective banner (centred, full width) drops below the chip too */
+@media (max-width: 640px) {
+  .wl-hud.has-season .wl-objective {
+    top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 32px);
+  }
+  .wl-hud.has-season.has-village .wl-objective {
+    top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 56px + 32px);
+  }
+}
+
+.wl-finale-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.wl-finale-new {
+  min-height: 44px;
+  font-size: 18px;
+  padding: 0 24px;
+}
+
+.wl-season-confirm {
+  display: flex;
+  flex-direction: column;
+}
+
+.wl-season-head {
+  font-size: 26px;
+  line-height: 1.1;
+  color: #ffd84a;
+  --wl-outline: #7a3b0c;
+  margin-bottom: 2px;
+}
+
+.wl-season-text {
+  margin: 6px 4px 16px;
+  font-size: 19px;
+}
+
+.wl-season-text b {
+  color: #5ee07a;
+}
+
+.wl-season-text small {
+  display: block;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 500;
+  color: #c9d6ee;
+}
+
+.wl-settings-main .wl-btn-gold {
+  min-height: 44px;
+  font-size: 18px;
+}
+
+@media (max-height: 520px) {
+  .wl-finale-actions {
+    flex-direction: row;
+    justify-content: center;
+    gap: 12px;
+  }
+  .wl-finale .wl-btn-big {
+    min-height: 48px;
+    padding: 0 26px;
+    font-size: 22px;
+  }
+  .wl-finale-new {
+    min-height: 48px;
+    font-size: 17px;
+    padding: 0 18px;
+  }
+  .wl-season-text {
+    margin-bottom: 10px;
+    font-size: 17px;
+  }
+}
+
+/* shop crew cards: "2 helpers" */
+.wl-pips:has(.wl-slots) {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.wl-slots {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: #3fa7ff;
+  font-size: 11px;
+  line-height: 1.25;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.wl-slots:empty {
+  display: none;
+}

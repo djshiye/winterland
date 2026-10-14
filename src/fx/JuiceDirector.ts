@@ -25,14 +25,20 @@
  * - village:revealed / reveal → whoosh / soft chime + toast. village:levelUp → fanfare, confetti, toast with perks.
  * - finale:start → fanfare, a volley of firework rockets for ~4 s (the stats card is the HUD's job).
  * - offline:collected → cash burst + coin sounds.
+ *
+ * Wave 7 (Timber Ridge):
+ * - tree:felled → snow puff + wood crack / thud, only when the tree is on screen or near the player, throttled
+ *   (trees fall every few seconds). quarters:built → like shelter:built plus fanfare, confetti and the "More crew can
+ *   work now" toast. sale from a 'train' → the usual sale sound / popup plus a train whistle (rate-limited in Audio).
  * 'stack:full' from upgrade / construction pads ('pad:' ids) is ignored.
  */
 import * as THREE from 'three';
-import { PADS, PALETTE, UPGRADES, VILLAGE } from '../config';
+import { PADS, PALETTE, QUARTERS, UPGRADES, VILLAGE } from '../config';
 import type { GameContext, ItemHolder } from '../core/types';
 import { formatMoney } from '../ui/format';
 
 const WOOD_CHIPS = [PALETTE.bark, PALETTE.barkDark, PALETTE.woodEnd, PALETTE.woodRing, PALETTE.plank];
+const SNOW = [0xffffff, 0xeaf4ff, 0xd4e6fa];
 const SAWDUST = [PALETTE.woodEnd, PALETTE.woodRing, 0xf6e3bd];
 const CASH_COLORS = [0x46c35f, 0x5ee07a, 0xffd84a, 0xffffff];
 /** Firework shell colours: [main, inner]. */
@@ -54,6 +60,7 @@ export class JuiceDirector {
   private lastSparkle = 0;
   private lastDropFx = 0;
   private lastPadFx = 0;
+  private lastFell = -10;
   /** Delayed one-shots (simulation time), e.g. the splash a beat after the crash. */
   private readonly pending: Array<{ at: number; fn: () => void }> = [];
 
@@ -110,6 +117,7 @@ export class JuiceDirector {
       this.tmp.y += 1.8;
       ctx.hud.floatText(this.tmp, `+${formatMoney(e.amount)}`, { color: '#5ee07a', size: 28 });
       ctx.particles.sparkle(e.position, 0xaaffbb);
+      if (e.buyer === 'train') ctx.audio.play('whistle', { volume: 0.7 });
     });
 
     ev.on('stack:full', (e) => {
@@ -226,6 +234,38 @@ export class JuiceDirector {
       } else if (what === 'greatLodge') {
         ctx.hud.toast('The Great Lodge awaits!', { sub: 'Build it at the end of the street' });
       }
+    });
+
+    // ------------------------------------------------------------------------------------------------
+    // Wave 7: Timber Ridge
+    // ------------------------------------------------------------------------------------------------
+
+    ev.on('tree:felled', (e) => {
+      const now = ctx.time.elapsed;
+      if (now - this.lastFell < 0.45) return;
+      // only worth the sound and particles when the player can see or is near it
+      const near = ctx.cameraRig.isOnScreen(e.position, 24) || ctx.player.position.distanceTo(e.position) < 14;
+      if (!near) return;
+      this.lastFell = now;
+      ctx.audio.play('timber', { pitch: 0.92 + Math.random() * 0.16, volume: 0.85 });
+      const at = this.tmp.copy(e.position);
+      at.y = Math.max(0, at.y) + 0.3;
+      ctx.particles.puff(at, { color: 0xffffff, count: 5, size: 0.85, life: 0.9 });
+      ctx.particles.burst(at, { colors: SNOW, count: 10, speed: 3.2, size: 0.16, spread: 1.4, life: 0.7, gravity: 6, shape: 'sphere' });
+    });
+
+    ev.on('quarters:built', (e) => {
+      ctx.audio.play('pop', { pitch: 0.7, volume: 1 });
+      ctx.audio.play('fanfare', { volume: 0.85 });
+      ctx.particles.puff(e.position, { count: 9, size: 1.0, life: 1.0 });
+      ctx.particles.ring(e.position, { color: 0xffffff, radius: 3.6, life: 0.65 });
+      ctx.particles.ring(e.position, { color: PALETTE.padFill, radius: 2.4, life: 0.5 });
+      ctx.particles.burst(e.position, { colors: SAWDUST, count: 12, speed: 4.5, size: 0.2, spread: 1.3, shape: 'cube' });
+      ctx.particles.confetti(this.tmp2.copy(e.position), 60);
+      this.later(0.25, () => ctx.particles.confetti(this.tmp3.copy(e.position), 36));
+      ctx.cameraRig.shake(0.12, 0.22);
+      const tier = QUARTERS.tiers[e.tier];
+      ctx.hud.toast(tier ? tier.label : 'Crew quarters', { sub: 'More crew can work now', duration: 3 });
     });
 
     ev.on('village:levelUp', (e) => {

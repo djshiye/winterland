@@ -11,7 +11,8 @@
  *   sell (cheerful two-note), full (dull "nope" buzz), step (soft snow crunch), click (UI),
  *   upgrade (bright rising "level up" sweep), chime (soft bell triad: reveals, shelters), fanfare (brass-ish
  *   major arpeggio: village level-up, finale), cheer (crowd "yay" for a new hire), thunk (light wood knock: a log
- *   into a construction pad), firework (crackle + thud).
+ *   into a construction pad), firework (crackle + thud), timber (a pine falling: wood crack + soft thud), whistle
+ *   (two-tone freight-train horn).
  * - combo: repeats of the same sound within ~0.35 s rise in pitch (semitone steps, capped at +12)
  *   — the classic stacking pickup feel. Rapid repeats are rate-limited per sound and the number of
  *   simultaneous voices is capped, so streams never clip.
@@ -43,7 +44,9 @@ export type SfxName =
   | 'fanfare'
   | 'cheer'
   | 'thunk'
-  | 'firework';
+  | 'firework'
+  | 'timber'
+  | 'whistle';
 
 export interface PlayOptions {
   /** Playback-rate / frequency multiplier (1 = normal). */
@@ -57,7 +60,7 @@ export interface PlayOptions {
 const STORAGE_KEY = 'winterland:muted';
 const MUSIC_KEY = 'winterland:music';
 /** SFX loud enough to dip the music under them. */
-const DUCKS = new Set<SfxName>(['fanfare', 'unlock', 'upgrade', 'cheer', 'crash']);
+const DUCKS = new Set<SfxName>(['fanfare', 'unlock', 'upgrade', 'cheer', 'crash', 'whistle']);
 const MASTER_GAIN = 0.5;
 const COMBO_WINDOW = 0.35;
 const COMBO_MAX = 12;
@@ -86,6 +89,9 @@ const MIN_GAP: Record<SfxName, number> = {
   cheer: 0.6,
   thunk: 0.05,
   firework: 0.07,
+  timber: 0.5,
+  /** A train sale can fire per item in a burst: one whistle per ~3 s. */
+  whistle: 3,
 };
 
 type AudioCtor = typeof AudioContext;
@@ -450,6 +456,24 @@ export class AudioFX {
         // light wooden knock
         this.tone(t, 'sine', 330 * p, 150 * p, 0.07, 0.3 * v, 0.002);
         this.hiss(t, 'bandpass', 1500 * p, 800 * p, 0.035, 0.1 * v, 0.001, 1.4);
+        break;
+      case 'timber':
+        // trunk cracking through, then a soft muffled thud as the pine lands in the snow
+        this.hiss(t, 'bandpass', 1800 * p, 500 * p, 0.09, 0.32 * v, 0.002, 1.6);
+        this.tone(t, 'sawtooth', 240 * p, 90 * p, 0.12, 0.12 * v, 0.002, 900);
+        this.tone(t + 0.22, 'sine', 110 * p, 40 * p, 0.32, 0.5 * v, 0.004);
+        this.hiss(t + 0.22, 'lowpass', 700, 150, 0.22, 0.28 * v, 0.004);
+        break;
+      case 'whistle':
+        // freight horn: a minor-third pair, a short toot then a long one that sags a little at the end
+        for (const [f, at, dur] of [[311, 0, 0.3], [311, 0.38, 1.0]] as const) {
+          for (const m of [1, 1.26]) {
+            const n = f * m * p;
+            this.tone(t + at, 'sawtooth', n * 0.96, n, dur, 0.1 * v, 0.04, 1500);
+            this.tone(t + at, 'triangle', n * 2, n * 2, dur * 0.8, 0.03 * v, 0.04);
+          }
+        }
+        this.hiss(t, 'bandpass', 1200, 1200, 0.5, 0.025 * v, 0.05, 1.2);
         break;
       case 'firework':
         // distant crackle + soft thud

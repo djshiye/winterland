@@ -6,7 +6,7 @@ const svg = (inner: string, vb = '0 0 48 48'): string =>
 
 const OUT = '#1f2b46';
 
-const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
+const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
   // sales: a smooth plank with a gold star
   plankQuality: svg(`
     <g stroke="${OUT}" stroke-width="2.5">
@@ -103,18 +103,54 @@ const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
       <path d="M31 27h4l4 4h-8z" fill="#cdeeff" stroke-width="1.5"/>
       <circle cx="13" cy="38" r="5" fill="#2a3652"/><circle cx="35" cy="38" r="5" fill="#2a3652"/>
     </g>`),
-};
-
-/** Upgrades without a drawn icon of their own borrow a sibling's. */
-const ICON_FALLBACK: Record<string, UpgradeIdConst | undefined> = {
-  treeFeller: 'harvester',
-  cashTubes: 'processor',
-  pineHauler: 'logHauler',
-  pineContracts: 'bulkDeals',
+  // wave 7: a pine toppling over a round saw blade
+  treeFeller: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <g transform="rotate(24 26 40)">
+        <rect x="23.5" y="30" width="5" height="12" rx="1.5" fill="#a8693a"/>
+        <path d="M26 2l7 9h-3.6l6.6 9h-4.5l6.5 9H13.5l6.5-9h-4.5l6.6-9H19z" fill="#2e9c48"/>
+        <path d="M26 7l3.4 4.4M26 18l5 6.6" stroke="#5ee07a" stroke-width="2" fill="none"/>
+      </g>
+      <circle cx="15" cy="37" r="10" fill="#e8eef7"/>
+      <circle cx="15" cy="37" r="3.4" fill="#ff7a6b"/>
+      <path d="M15 24.5v3.5M15 46v3M2.5 37h3.5M24 37h3.5M6.2 28.2l2.4 2.4M21.4 43.4l2.4 2.4M6.2 45.8l2.4-2.4M21.4 30.6l2.4-2.4" stroke="#7d8aa3" stroke-width="3"/>
+    </g>`),
+  // wave 7: a glass pneumatic tube carrying a banknote up, with a base
+  cashTubes: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="7" y="4" width="16" height="36" rx="8" fill="#cdeeff"/>
+      <rect x="27" y="4" width="16" height="36" rx="8" fill="#cdeeff"/>
+      <rect x="10" y="12" width="10" height="7" rx="2" fill="#46c35f" stroke-width="2"/>
+      <rect x="30" y="24" width="10" height="7" rx="2" fill="#46c35f" stroke-width="2"/>
+      <rect x="4" y="38" width="40" height="8" rx="4" fill="#3fa7ff"/>
+    </g>
+    <path d="M15 33v-8M12 28l3-3.5 3 3.5M35 12v8M32 17l3 3.5 3-3.5" fill="none" stroke="#3fa7ff" stroke-width="2.6"/>
+    <path d="M12.5 15.5h5M32.5 27.5h5" stroke="#f3fff0" stroke-width="2"/>`),
+  // wave 7: a hand cart piled with pine logs, a pine standing on the load
+  pineHauler: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="4" y="27" width="31" height="9" rx="4.5" fill="#a8693a"/><circle cx="35" cy="31.5" r="4.5" fill="#f3d9a4"/><circle cx="35" cy="31.5" r="1.8" fill="#d9aa66"/>
+      <rect x="15" y="18" width="22" height="9" rx="4.5" fill="#b87a45"/><circle cx="37" cy="22.5" r="4.5" fill="#f3d9a4"/><circle cx="37" cy="22.5" r="1.8" fill="#d9aa66"/>
+      <path d="M10 3l6 8h-3l5 7H2l5-7H4z" fill="#2e9c48" stroke-width="2.2"/>
+      <path d="M2 36h38l-3 5H5z" fill="#8f5530"/>
+      <path d="M40 34l6-11" stroke-width="3.5"/>
+      <circle cx="14" cy="43" r="4.8" fill="#2a3652"/><circle cx="30" cy="43" r="4.8" fill="#2a3652"/>
+    </g>`),
+  // wave 7: a signed rail contract with a pine and a gold seal
+  pineContracts: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="8" y="3" width="30" height="38" rx="4" fill="#f6ecd2"/>
+      <path d="M23 8l6 8h-3.4l4.4 6H16l4.4-6H17z" fill="#2e9c48" stroke-width="2"/>
+      <rect x="21.5" y="22" width="3" height="4" fill="#a8693a" stroke-width="1.6"/>
+      <path d="M13 30h20M13 35h12" stroke="#b79a64" stroke-width="2.4" fill="none"/>
+      <path d="M4 44h40M10 41v5M20 41v5M30 41v5M40 41v5" stroke="#7d8aa3" stroke-width="2.4" fill="none"/>
+      <circle cx="35" cy="33" r="7.5" fill="#ffd84a"/>
+      <path d="M31.5 33l2.6 2.8 4.4-5" fill="none" stroke="#c97a10" stroke-width="2.6"/>
+    </g>`),
 };
 
 export function upgradeIcon(id: UpgradeIdConst): string {
-  return UPGRADE_ICONS[id] ?? UPGRADE_ICONS[ICON_FALLBACK[id] ?? 'carry'] ?? ICON_COIN;
+  return UPGRADE_ICONS[id];
 }
 
 export const ICON_LOCK = svg(

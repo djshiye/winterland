@@ -6,7 +6,8 @@
  * The cards are built once; refresh() only rewrites what changed and runs at most once per frame (from update())
  * while the panel is visible, because 'money:changed' fires for every cash bundle.
  */
-import type { UpgradeGroup, UpgradeIdConst } from '../config';
+import { QUARTERS, type UpgradeGroup, type UpgradeIdConst } from '../config';
+import { crewSlots, type CrewRole } from '../core/crew';
 import type { GameContext } from '../core/types';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
@@ -20,9 +21,11 @@ interface Card {
   /** "Lv 4/9" label, only on long upgrade ladders (the pips shrink there). */
   lv: HTMLSpanElement | null;
   delta: HTMLDivElement;
+  /** "N helpers" tag on crew cards (the bunkhouse allows several of one role). */
+  slots: HTMLSpanElement | null;
   btn: HTMLButtonElement;
   /** Last written values, to skip redundant DOM writes. */
-  shown: { pips: number; delta: string; btn: string; cls: string };
+  shown: { pips: number; delta: string; btn: string; cls: string; slots: string };
   bump: number;
 }
 
@@ -113,6 +116,8 @@ export class ShopPanel {
       if (c) c.bump = 1;
     });
     ev.on('village:changed', mark);
+    // crewSlots() reads state.quarters.tier
+    ev.on('quarters:built', mark);
     // requirement() also reads state.unlocked (e.g. the Crate Runner needs the Processor)
     ev.on('pad:unlocked', mark);
   }
@@ -161,6 +166,8 @@ export class ShopPanel {
     }
     const lv = compact ? h('span', 'wl-lv') : null;
     if (lv) pipRow.appendChild(lv);
+    const slots = group === 'crew' && id in QUARTERS.crew ? h('span', 'wl-slots') : null;
+    if (slots) pipRow.appendChild(slots);
     mid.appendChild(pipRow);
     const delta = h('div', 'wl-shop-delta');
     mid.appendChild(delta);
@@ -169,7 +176,7 @@ export class ShopPanel {
     btn.type = 'button';
     root.appendChild(btn);
     this.list.appendChild(root);
-    const card: Card = { id, group, root, pips, lv, delta, btn, shown: { pips: -1, delta: '', btn: '', cls: '' }, bump: 0 };
+    const card: Card = { id, group, root, pips, lv, delta, slots, btn, shown: { pips: -1, delta: '', btn: '', cls: '', slots: '' }, bump: 0 };
     onTap(btn, () => this.buy(card));
     return card;
   }
@@ -206,6 +213,19 @@ export class ShopPanel {
       if (delta !== c.shown.delta) {
         c.shown.delta = delta;
         c.delta.textContent = delta;
+      }
+
+      if (c.slots) {
+        // hired: the live count; not hired yet: what the bunkhouse will allow (only worth saying above one)
+        const role = id as CrewRole;
+        const row = QUARTERS.crew[role];
+        const tier = this.ctx.state.quarters.tier;
+        const n = lvl > 0 ? crewSlots(this.ctx.state, role) : row[Math.max(0, Math.min(row.length - 1, tier + 1))]!;
+        const txt = n > 1 ? `${lvl > 0 ? '' : 'up to '}${n} helpers` : '';
+        if (txt !== c.shown.slots) {
+          c.shown.slots = txt;
+          c.slots.textContent = txt;
+        }
       }
 
       let btnHtml: string;

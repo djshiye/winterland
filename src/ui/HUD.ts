@@ -16,7 +16,7 @@
  * - Mute toggle button top-right (calls ctx.audio.toggleMute()); a gear button next to it opens Settings
  *   (sound / music / graphics / show-FPS switches, reset progress with an in-page confirmation). PerfOverlay is the
  *   bottom-left FPS / draw-call readout.
- * - ShopPanel (opens on 'shop:open'), VillageBadge, OfflineCard (showOfflineEarnings), FinaleCard ('finale:start').
+ * - ShopPanel (opens on 'shop:open'), VillageBadge, SeasonBadge ("Season N · +X% prices" chip after a New Season), OfflineCard (showOfflineEarnings), FinaleCard ('finale:start').
  * - toast() queues briefly: a toast arriving < 1 s after another waits its turn (max 2 waiting, dropped after 3 s).
  */
 import * as THREE from 'three';
@@ -26,6 +26,7 @@ import type { GameContext } from '../core/types';
 import { FinaleCard } from './FinaleCard';
 import { OfflineCard } from './OfflineCard';
 import { PerfOverlay } from './PerfOverlay';
+import { SeasonBadge } from './SeasonBadge';
 import { SettingsPanel } from './SettingsPanel';
 import { ShopPanel } from './ShopPanel';
 import { VillageBadge } from './VillageBadge';
@@ -98,6 +99,7 @@ export class HUD {
   private readonly perf: PerfOverlay;
   private readonly offline: OfflineCard;
   private readonly village: VillageBadge;
+  private readonly seasonBadge: SeasonBadge;
   private readonly finale: FinaleCard;
 
   // --- money ---
@@ -116,6 +118,7 @@ export class HUD {
   private toastDur = 0;
   private toastActive = false;
   private hasVillage = false;
+  private hasSeason = false;
   private readonly toastQueue: Array<{ title: string; sub: string; dur: number; at: number }> = [];
 
   // --- guide ---
@@ -181,6 +184,7 @@ export class HUD {
 
     // village badge, shop
     this.village = new VillageBadge(ctx, layer);
+    this.seasonBadge = new SeasonBadge(ctx, layer);
     this.shop = new ShopPanel(ctx, layer);
 
     // toast
@@ -369,6 +373,11 @@ export class HUD {
     if (hasVillage !== this.hasVillage) {
       this.hasVillage = hasVillage;
       this.layer.classList.toggle('has-village', hasVillage);
+    }
+    const hasSeason = this.seasonBadge.update();
+    if (hasSeason !== this.hasSeason) {
+      this.hasSeason = hasSeason;
+      this.layer.classList.toggle('has-season', hasSeason);
     }
   }
 

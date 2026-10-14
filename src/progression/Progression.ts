@@ -17,13 +17,18 @@
  *   (mega saw), set ctx.state.phase + emit 'phase:changed' (only ever moves forward). On each unlock: a
  *   camera focus on the new station (level.anchorOf(id)) then back. JuiceDirector already toasts
  *   "<LABEL> UNLOCKED!", so no second toast here.
+ * - Wave 7 (after the mega saw): truck loader pad after a few truck sales; Timber Ridge pad once the loader is bought
+ *   (or the village reaches Town); tree feller pad once the ridge is open; cash tubes pad a little later. The ridge
+ *   unlock plays a two-stop camera moment (east gate, then the ridge). The guide walks the player through the east
+ *   gate, to the bunkhouse pad (Level.quarters.padSpot()), pine logs from the deck to the rail platform, and hiring
+ *   the pine hauler.
  * - Guide (re-evaluated ~4×/s): one objective at a time via ctx.hud.setObjective(text) +
  *   ctx.hud.setGuideTarget(world point) — chop → pick up → sell → collect cash → build pad → feed the
  *   processor → grab the crates → load the tricycles / trucks. The arrow is hidden while the player already
  *   stands in the target zone; the guide goes quiet once everything is automated.
  */
 import * as THREE from 'three';
-import { LAYOUT, VILLAGE, rect, type Rect, type XZ } from '../config';
+import { LAYOUT, QUARTERS, VILLAGE, rect, type Rect, type XZ } from '../config';
 import type { FlagId, GameContext, PadId, Phase } from '../core/types';
 import type { Level } from '../level/Level';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
@@ -35,8 +40,26 @@ const PICKUP_STAY_UNTIL = 6;
 /** Seconds between "visit the cabin" reminders once the shop has been visited. */
 const SHOP_REMINDER = 120;
 const RULE_INTERVAL = 0.2;
+/** With the cash tubes built, "Collect your cash" only shows for a pile worth at least this much. */
+const CASH_BACKLOG = 300;
 
-const PAD_ORDER = ['harvester', 'processor', 'westConveyor', 'eastConveyor', 'megaSaw'] as const;
+const PAD_ORDER = [
+  'harvester',
+  'processor',
+  'westConveyor',
+  'eastConveyor',
+  'megaSaw',
+  'truckLoader',
+  'ridge',
+  'treeFeller',
+  'cashTubes',
+] as const;
+
+/** Pad button text: what the player does there (everything else reads "Build the <Label>"). */
+const PAD_VERB: Partial<Record<PadId, string>> = { ridge: 'Open', cashTubes: 'Install the' };
+const PAD_NOUN: Partial<Record<PadId, string>> = { ridge: 'Timber Ridge', cashTubes: 'Cash Tubes' };
+
+const fmtMoney = (n: number): string => `$${Math.round(n).toLocaleString('en-US')}`;
 
 const PHASE_RANK: Record<Phase, number> = {
   intro: 0,
@@ -65,12 +88,15 @@ type IntroState = 'pending' | 'playing' | 'done';
 const titleCase = (s: string): string => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 const centerOf = (r: Rect, out: THREE.Vector3): THREE.Vector3 => out.set((r.minX + r.maxX) / 2, 0, (r.minZ + r.maxZ) / 2);
 
-/** What the village guide goal points at. */
-interface VillageNeed {
-  great: boolean;
+/** What a log-and-cash build goal (village shelter, Great Lodge, crew bunkhouse) points at. */
+interface BuildNeed {
   spot: XZ;
   logsLeft: number;
   cashLeft: number;
+  /** The call to action once the logs are in hand ('Build the Great Lodge!', 'Bring logs to the village', ...). */
+  text: string;
+  /** Shown while fetching logs. */
+  pick: string;
 }
 
 export class Progression {
@@ -86,6 +112,9 @@ export class Progression {
   private readonly revealedAt = new Map<string, number>();
   private readonly readySince = new Map<string, number>();
   private ruleAcc = 0;
+  /** Invalidates a pending second stop of the ridge camera moment when another moment takes over. */
+  private momentToken = 0;
+  private readonly tmpGate = new THREE.Vector3();
   private lastShopVisit = 0;
 
   // guide
@@ -107,6 +136,7 @@ export class Progression {
       state: ctx.state,
       sinceUnlock: (id) => ctx.time.elapsed - (this.unlockedAt.get(id) ?? Number.NEGATIVE_INFINITY),
       sinceReveal: (id) => ctx.time.elapsed - (this.revealedAt.get(id) ?? Number.NEGATIVE_INFINITY),
+      cashPiles: () => level.cashPiles().length,
     };
 
     ctx.events.on('intro:crash', () => {
@@ -262,9 +292,33 @@ export class Progression {
     this.setPhase(PHASE_OF_PAD[id]);
     // Camera moment on the freshly built station.
     if (this.intro === 'done') {
+      if (id === 'ridge') {
+        this.ridgeMoment();
+        return;
+      }
       const anchor = this.level.anchorOf(id, this.tmpPoint);
-      this.ctx.cameraRig.focus(anchor, { duration: 0.8, hold: id === 'megaSaw' ? 2.0 : 1.4 });
+      // The feller is a smaller beat than the big unlocks.
+      const hold = id === 'megaSaw' ? 2.0 : id === 'treeFeller' ? 1.0 : 1.4;
+      this.ctx.cameraRig.focus(anchor, { duration: id === 'treeFeller' ? 0.7 : 0.8, hold });
     }
+  }
+
+  /** Timber Ridge opens: pan to the east gate, then out across the ridge, then back to the player. */
+  private ridgeMoment(): void {
+    const ctx = this.ctx;
+    const rig = ctx.cameraRig;
+    const g = LAYOUT.ridge.gate;
+    const gate = this.tmpGate.set(LAYOUT.yard.maxX, 0, (g.minZ + g.maxZ) / 2).clone();
+    const far = this.level.anchorOf('ridge', new THREE.Vector3());
+    const token = ++this.momentToken;
+    rig.focus(gate, {
+      duration: 0.8,
+      hold: 1.2,
+      onArrive: () =>
+        ctx.tweens.delay(0.55, () => {
+          if (token === this.momentToken) rig.focus(far, { duration: 1.0, hold: 1.5 });
+        }),
+    });
   }
 
   /** Check the reveal table; fires at most one rule per call. */
@@ -352,6 +406,7 @@ export class Progression {
   /** A short camera look at something new (never during the intro / for restored state). */
   private moment(point: THREE.Vector3, hold: number): void {
     if (this.intro !== 'done') return;
+    this.momentToken++;
     this.ctx.cameraRig.focus(point, { duration: 0.75, hold });
   }
 
@@ -405,7 +460,7 @@ export class Progression {
   }
 
   /** The most useful village pad right now: the Great Lodge, else the first plot whose cash part is affordable. */
-  private villageNeed(): VillageNeed | null {
+  private villageNeed(): BuildNeed | null {
     const ctx = this.ctx;
     const v = ctx.state.village;
     if (!v.revealed) return null;
@@ -415,7 +470,7 @@ export class Progression {
       const gl = VILLAGE.greatLodge;
       const cashLeft = gl.cash - v.greatLodge.cash;
       if (v.greatLodge.tier < 0 && (cashLeft <= 0 || money >= cashLeft * 0.25)) {
-        return { great: true, spot: great, logsLeft: gl.logs - v.greatLodge.logs, cashLeft };
+        return { spot: great, logsLeft: gl.logs - v.greatLodge.logs, cashLeft, text: 'Build the Great Lodge!', pick: 'Pick up logs for the Great Lodge' };
       }
     }
     for (let i = 0; i < v.plots.length; i++) {
@@ -425,9 +480,63 @@ export class Progression {
       const tier = VILLAGE.tiers[plot.tier + 1];
       if (!tier) continue;
       const cashLeft = tier.cash - plot.cash;
-      if (cashLeft <= 0 || money >= cashLeft) return { great: false, spot, logsLeft: tier.logs - plot.logs, cashLeft };
+      if (cashLeft <= 0 || money >= cashLeft) {
+        const logsLeft = tier.logs - plot.logs;
+        return {
+          spot,
+          logsLeft,
+          cashLeft,
+          text: logsLeft > 0 ? 'Bring logs to the village' : `Pay for the shelter (${fmtMoney(cashLeft)})`,
+          pick: 'Pick up logs for the village',
+        };
+      }
     }
     return null;
+  }
+
+  /** The crew bunkhouse pad (Timber Ridge) when it is offered and its cash part is affordable. */
+  private quartersNeed(): BuildNeed | null {
+    const spot = this.level.quarters.padSpot();
+    if (!spot) return null;
+    const q = this.ctx.state.quarters;
+    const tier = QUARTERS.tiers[q.tier + 1];
+    if (!tier) return null;
+    const cashLeft = tier.cash - q.cash;
+    if (cashLeft > 0 && this.ctx.economy.money < cashLeft) return null;
+    const name = tier.label.toLowerCase();
+    const logsLeft = tier.logs - q.logs;
+    return {
+      spot,
+      logsLeft,
+      cashLeft,
+      text: logsLeft > 0 ? `Bring logs to the ${name}` : `Pay for the ${name} (${fmtMoney(cashLeft)})`,
+      pick: `Pick up logs for the ${name}`,
+    };
+  }
+
+  /**
+   * Walk a log-and-cash build goal: fetch logs (from whichever stocked pile is nearest the pad), carry them over,
+   * pay. Returns false when nothing useful can be said right now (the caller falls through to other hints).
+   */
+  private pursue(need: BuildNeed): boolean {
+    const L = this.level;
+    const arms = this.ctx.player.arms;
+    const armsLogs = arms.count('log');
+    const want = Math.min(need.logsLeft, arms.capacity);
+    if (need.logsLeft <= 0 || armsLogs >= want) {
+      const spotArea = rect(need.spot.x, need.spot.z, 2.4, 2.4);
+      this.setGoal(need.text, spotArea, this.tmpPoint.set(need.spot.x, 0, need.spot.z));
+      return true;
+    }
+    if (arms.count() >= arms.capacity) return false;
+    const sources: Rect[] = [];
+    if (L.dropZone.pile.count('log') > 0) sources.push(L.dropZone.zone.area);
+    if ((L.treeFeller?.deck.count('log') ?? 0) > 0) sources.push(LAYOUT.ridge.deck.zone);
+    const dist = (a: Rect): number => Math.hypot((a.minX + a.maxX) / 2 - need.spot.x, (a.minZ + a.maxZ) / 2 - need.spot.z);
+    sources.sort((a, b) => dist(a) - dist(b));
+    if (!sources[0]) return false;
+    this.setGoal(need.pick, sources[0]);
+    return true;
   }
 
   private evaluateGuide(): void {
@@ -449,7 +558,9 @@ export class Progression {
     for (const id of PAD_ORDER) {
       const pad = L.pads[id];
       if (!pad.levelMode && padPayable(pad)) {
-        this.setGoal(`Build the ${titleCase(pad.def.label)} ($${pad.remaining})`, pad.zone.area);
+        const verb = PAD_VERB[id] ?? 'Build the';
+        const noun = PAD_NOUN[id] ?? titleCase(pad.def.label);
+        this.setGoal(`${verb} ${noun} (${fmtMoney(pad.remaining)})`, pad.zone.area);
         return;
       }
     }
@@ -460,34 +571,58 @@ export class Progression {
       return;
     }
 
-    // 3. The village: bring logs, pay the shelter, build the Great Lodge.
-    const need = this.villageNeed();
-    let fetchLogs = false;
-    if (need) {
-      const spotArea = rect(need.spot.x, need.spot.z, 2.4, 2.4);
-      const spotPoint = this.tmpPoint.set(need.spot.x, 0, need.spot.z);
-      const want = Math.min(need.logsLeft, arms.capacity);
-      if (need.logsLeft <= 0 || armsLogs >= want) {
-        const text = need.great
-          ? 'Build the Great Lodge!'
-          : need.logsLeft > 0
-            ? 'Bring logs to the village'
-            : `Pay for the shelter ($${need.cashLeft})`;
-        this.setGoal(text, spotArea, spotPoint);
-        return;
-      }
-      fetchLogs = !armsFull && dropCount > 0;
-      if (fetchLogs) {
-        this.setGoal(need.great ? 'Pick up logs for the Great Lodge' : 'Pick up logs for the village', L.dropZone.zone.area);
+    // 2b. Timber Ridge is open but the player has not been through the east gate yet.
+    if (s.unlocked.ridge && !s.unlocked.treeFeller && !s.flags['seen:ridge']) {
+      if (inArea(LAYOUT.ridge.walk[1]!)) {
+        s.flags['seen:ridge'] = true;
+      } else {
+        const g = LAYOUT.ridge.gate;
+        const gate = this.tmpPoint.set(LAYOUT.yard.maxX, 0, (g.minZ + g.maxZ) / 2);
+        this.setGoal('Walk through the east gate to Timber Ridge', LAYOUT.ridge.walk[0]!, gate);
         return;
       }
     }
 
-    // 4. Logs in hand (keep picking up while standing at a stocked drop zone).
+    // 3. Log-and-cash builds. The first bunkhouse tier comes first (it unlocks more crew), then the village (bring
+    // logs, pay the shelter, build the Great Lodge), then the later bunkhouse tiers.
+    const quarters = this.quartersNeed();
+    if (quarters && s.quarters.tier < 0 && this.pursue(quarters)) return;
+    // 3a. The pine hauler (needs the tree feller and the bunkhouse): hire it until it is done
+    // (above the village so a busy village never starves it).
+    if (L.shopMat.visible && !ctx.upgrades.isHired('pineHauler') && ctx.upgrades.canBuy('pineHauler')) {
+      this.setGoal('Hire the Pine Hauler at the cabin', LAYOUT.shop.mat);
+      return;
+    }
+
+    const need = this.villageNeed();
+    if (need && this.pursue(need)) return;
+    if (quarters && this.pursue(quarters)) return;
+
+    // 4. Pine logs. Keep picking up while standing at a stocked deck; logs in hand on the ridge go to the train.
+    const deck = L.treeFeller?.deck;
+    const deckLogs = deck?.count('log') ?? 0;
+    const pickingDeck = !!deck && inArea(LAYOUT.ridge.deck.zone) && deckLogs > 0 && !armsFull && armsLogs < PICKUP_STAY_UNTIL;
+    if (pickingDeck) {
+      this.setGoal('Pick up pine logs', LAYOUT.ridge.deck.zone);
+      return;
+    }
+    // Keep picking up while standing at a stocked drop zone.
     const pickingUp = inArea(L.dropZone.zone.area) && dropCount > 0 && !armsFull && armsLogs < PICKUP_STAY_UNTIL;
+    if (armsLogs > 0 && L.platformCounter) {
+      // Trains pay the most per log (the platform takes any log): on the ridge always; from the yard only as the
+      // first nudge, until the feller is built and the platform has a few logs to sell.
+      const onRidge = inArea(LAYOUT.ridge.area);
+      const nudge = !pickingUp && !s.unlocked.treeFeller && L.platformCounter.pile.count('log') < 8;
+      if (onRidge || nudge) {
+        this.setGoal('Load the freight train', L.platformCounter.zone.area);
+        return;
+      }
+    }
+
+    // 4b. Logs in hand.
     if (armsLogs > 0 && !pickingUp) {
       const proc = L.processor;
-      if (s.phase === 'expansion' && L.truckCounter && trucksWaiting > 0) {
+      if (s.phase === 'expansion' && L.truckCounter && trucksWaiting > 0 && !L.truckLoader) {
         this.setGoal('Load the trucks', L.truckCounter.zone.area);
         return;
       }
@@ -505,11 +640,17 @@ export class Progression {
     }
 
     // 5. Cash waiting (the bigger pile first).
-    const seCash = L.seCash?.value ?? 0;
-    const wiCash = L.walkInCash.value;
-    if (seCash > 0 || wiCash > 0) {
-      const pile = seCash > wiCash && L.seCash ? L.seCash : L.walkInCash;
+    // Once the cash tubes bank the piles themselves, only point at a big backlog.
+    let pile = L.walkInCash;
+    for (const p of L.cashPiles()) if (p.value > pile.value) pile = p;
+    if (pile.value > (L.cashTubes ? CASH_BACKLOG : 0)) {
       this.setGoal('Collect your cash', pile.zone.area);
+      return;
+    }
+
+    // 5b. Pine logs waiting on the deck and nobody hired to haul them.
+    if (deckLogs >= 4 && !armsFull && L.platformCounter && !ctx.upgrades.isHired('pineHauler')) {
+      this.setGoal('Carry pine logs to the train', LAYOUT.ridge.deck.zone);
       return;
     }
 
@@ -532,7 +673,7 @@ export class Progression {
     for (const id of PAD_ORDER) {
       const pad = L.pads[id];
       if (pad.levelMode && padPayable(pad)) {
-        this.setGoal(`Upgrade the ${titleCase(pad.def.label)} ($${pad.remaining})`, pad.zone.area);
+        this.setGoal(`Upgrade the ${titleCase(pad.def.label)} (${fmtMoney(pad.remaining)})`, pad.zone.area);
         return;
       }
     }
@@ -540,7 +681,7 @@ export class Progression {
     // 9. Logs waiting in the drop zone (unless both belts carry them away).
     const belts = !!L.westConveyor && !!L.eastConveyor;
     const chopping = inArea(L.giantLog.chopZone.area) && !L.dropZone.isFull && dropCount < 4 && !s.unlocked.harvester;
-    if ((!belts || trucksWaiting > 0) && !armsFull && dropCount > 0 && !chopping) {
+    if ((!belts || (trucksWaiting > 0 && !L.truckLoader)) && !armsFull && dropCount > 0 && !chopping) {
       this.setGoal('Pick up the logs', L.dropZone.zone.area);
       return;
     }

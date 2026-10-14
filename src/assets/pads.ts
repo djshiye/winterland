@@ -190,16 +190,166 @@ function drawMegaSaw(g: CanvasRenderingContext2D): void {
   g.fill('evenodd');
 }
 
+/** Timber Ridge: a snow-capped mountain with a pine beside it. Local box ≈ ±60. */
+function drawRidge(g: CanvasRenderingContext2D): void {
+  // mountain; the snow line is a zig-zag band cut out (even-odd) just under the summit
+  g.beginPath();
+  g.moveTo(-16, 50);
+  g.lineTo(24, -52);
+  g.lineTo(64, 50);
+  g.closePath();
+  g.moveTo(10, -14);
+  g.lineTo(17, -6);
+  g.lineTo(24, -14);
+  g.lineTo(31, -5);
+  g.lineTo(38, -14);
+  g.lineTo(42, -8);
+  g.lineTo(31, 3);
+  g.lineTo(24, -6);
+  g.lineTo(17, 4);
+  g.lineTo(6, -8);
+  g.closePath();
+  g.fill('evenodd');
+  // a lower shoulder peak
+  g.beginPath();
+  g.moveTo(34, 50);
+  g.lineTo(52, 12);
+  g.lineTo(70, 50);
+  g.closePath();
+  g.fill();
+  // pine tree (three tiers + trunk), clear of the mountain
+  g.beginPath();
+  g.moveTo(-42, -56);
+  g.lineTo(-30, -30);
+  g.lineTo(-37, -30);
+  g.lineTo(-25, -6);
+  g.lineTo(-33, -6);
+  g.lineTo(-20, 28);
+  g.lineTo(-36, 28);
+  g.lineTo(-36, 50);
+  g.lineTo(-48, 50);
+  g.lineTo(-48, 28);
+  g.lineTo(-64, 28);
+  g.lineTo(-51, -6);
+  g.lineTo(-59, -6);
+  g.lineTo(-47, -30);
+  g.lineTo(-54, -30);
+  g.closePath();
+  g.fill();
+}
+
+/** Tree feller: a tracked forestry machine with a felling boom and a round saw head. Local box ≈ ±60. */
+function drawFeller(g: CanvasRenderingContext2D): void {
+  // tracks with three wheel cut-outs
+  g.beginPath();
+  addRoundedRect(g, -58, 28, 100, 26, 13);
+  for (const x of [-38, -8, 22]) {
+    g.moveTo(x + 6, 41);
+    g.arc(x, 41, 6, 0, Math.PI * 2, true);
+  }
+  g.fill('evenodd');
+  // body + cab window
+  g.beginPath();
+  addRoundedRect(g, -48, -6, 64, 30, 9);
+  addRoundedRect(g, -40, 0, 22, 14, 4);
+  g.fill('evenodd');
+  // exhaust stack
+  g.fillRect(-14, -22, 7, 18);
+  // boom arm (two segments) reaching up to the head
+  g.lineWidth = 11;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.beginPath();
+  g.moveTo(6, 6);
+  g.lineTo(28, -26);
+  g.lineTo(48, -30);
+  g.stroke();
+  // saw head: toothed disc with an arbor hole
+  g.beginPath();
+  const cx = 50;
+  const cy = -34;
+  const teeth = 9;
+  for (let i = 0; i < teeth; i++) {
+    const a0 = (i / teeth) * Math.PI * 2;
+    const a1 = ((i + 0.75) / teeth) * Math.PI * 2;
+    const a2 = ((i + 1) / teeth) * Math.PI * 2;
+    if (i === 0) g.moveTo(cx + Math.cos(a0) * 11, cy + Math.sin(a0) * 11);
+    g.lineTo(cx + Math.cos(a1) * 18, cy + Math.sin(a1) * 18);
+    g.lineTo(cx + Math.cos(a1 + 0.04) * 11, cy + Math.sin(a1 + 0.04) * 11);
+    g.lineTo(cx + Math.cos(a2) * 11, cy + Math.sin(a2) * 11);
+  }
+  g.closePath();
+  g.moveTo(cx + 5, cy);
+  g.arc(cx, cy, 5, 0, Math.PI * 2, true);
+  g.fill('evenodd');
+}
+
+/** Truck loader: an inclined belt carrying a log (with end rings), on two legs. Local box ≈ ±60. */
+function drawLoader(g: CanvasRenderingContext2D): void {
+  g.save();
+  g.rotate(-0.2);
+  // belt body with an inner slot and rollers
+  g.beginPath();
+  addRoundedRect(g, -60, 12, 120, 26, 13);
+  addRoundedRect(g, -48, 20, 96, 10, 5);
+  g.fill('evenodd');
+  for (let i = 0; i < 4; i++) {
+    g.beginPath();
+    g.arc(-33 + i * 22, 25, 4, 0, Math.PI * 2);
+    g.fill();
+  }
+  // the log riding on it: a long rounded bar with a growth-ring end and a bark notch
+  g.beginPath();
+  addRoundedRect(g, -34, -24, 68, 32, 16);
+  g.moveTo(-14 + 8, -8);
+  g.arc(-14, -8, 8, 0, Math.PI * 2, true);
+  g.moveTo(-14 + 3, -8);
+  g.arc(-14, -8, 3, 0, Math.PI * 2, false);
+  g.fill('evenodd');
+  g.restore();
+  // legs
+  g.fillRect(-46, 44, 10, 14);
+  g.fillRect(36, 32, 10, 20);
+}
+
+/** Cash tubes: a pneumatic tube with a capsule (marked $) shooting through it. Local box ≈ ±60. */
+function drawTubes(g: CanvasRenderingContext2D): void {
+  // tube: rounded outer wall, hollow inside (even-odd), and the capsule sitting in the hollow (filled again)
+  g.beginPath();
+  addRoundedRect(g, -60, -22, 120, 52, 26);
+  addRoundedRect(g, -51, -13, 102, 34, 17);
+  addRoundedRect(g, -20, -9, 56, 26, 13); // capsule
+  g.fill('evenodd');
+  // clamp rings
+  g.fillRect(-44, -30, 9, 68);
+  g.fillRect(38, -30, 9, 68);
+  // dollar sign cut into the capsule
+  g.save();
+  g.fillStyle = hex(COLORS.PAD_BG);
+  g.font = `700 24px ${GAME_FONT}`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('$', 8, 5);
+  g.restore();
+  // little intake funnel + stand under the tube
+  g.beginPath();
+  g.moveTo(-18, 36);
+  g.lineTo(18, 36);
+  g.lineTo(8, 56);
+  g.lineTo(-8, 56);
+  g.closePath();
+  g.fill();
+}
+
 const ICONS: Record<PadIcon, (g: CanvasRenderingContext2D) => void> = {
   saw: drawSaw,
   factory: drawFactory,
   conveyor: drawConveyor,
   megasaw: drawMegaSaw,
-  // Wave 7 placeholders until their icons are drawn.
-  ridge: drawSaw,
-  feller: drawSaw,
-  loader: drawConveyor,
-  tubes: drawFactory,
+  ridge: drawRidge,
+  feller: drawFeller,
+  loader: drawLoader,
+  tubes: drawTubes,
 };
 
 
@@ -803,6 +953,10 @@ export const padCatalog: Record<string, () => THREE.Object3D> = {
   padProcessor: () => createPadModel(2.2, createPadTexture('factory', '$200', 0)),
   padConveyor: () => createPadModel(2.2, createPadTexture('conveyor', '$150', 0.7)),
   padMegaSaw: () => createPadModel(2.2, createPadTexture('megasaw', '$200', 1)),
+  padRidge: () => createPadModel(1.8, createPadTexture('ridge', '$12k', 0.3)),
+  padFeller: () => createPadModel(2.0, createPadTexture('feller', '$9000', 0.6)),
+  padLoader: () => createPadModel(2.0, createPadTexture('loader', '$10k', 0)),
+  padTubes: () => createPadModel(2.0, createPadTexture('tubes', '$14k', 0.2)),
   padHarvesterLevel: () => createPadModel(2.2, createPadTexture('saw', '$400', 0.4, undefined, 'LV 2')),
   padHut: () => createPadModel(1.4, createConstructionTexture('hut', { left: 8, total: 12 }, { left: 350, total: 350 })),
   padGreatLodge: () => createPadModel(1.8, createConstructionTexture('greatLodge', { left: 120, total: 120 }, { left: 40000, total: 40000 })),
