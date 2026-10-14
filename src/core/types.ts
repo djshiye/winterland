@@ -176,6 +176,10 @@ export interface GameState {
   padPaid: Record<string, number>;
   /** Simulation seconds played, across sessions. */
   playTime: number;
+  /** Crew bunkhouse on Timber Ridge (wave 7): tier −1 = not built, plus progress toward the next tier. */
+  quarters: PlotState;
+  /** New Season prestige: survives a season reset (core/Save.ts newSeason). season 0 = the first run. */
+  prestige: { season: number };
 }
 
 /** Must match LAYOUT.village.plots.length (kept literal so this file only imports types from config). */
@@ -217,6 +221,9 @@ export function createGameState(): GameState {
       crateRunner: 0,
       cashier: 0,
       logHauler: 0,
+      plankQuality: 0,
+      crateQuality: 0,
+      bulkDeals: 0,
     },
     village: {
       revealed: false,
@@ -228,6 +235,8 @@ export function createGameState(): GameState {
     flags: {},
     padPaid: {},
     playTime: 0,
+    quarters: { tier: -1, logs: 0, cash: 0 },
+    prestige: { season: 0 },
   };
 }
 

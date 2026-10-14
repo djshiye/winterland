@@ -138,7 +138,8 @@ export function offlineEarnings(save: SaveData, now: number): { amount: number; 
   if (!(away >= OFFLINE.minSeconds)) return { amount: 0, seconds: 0 };
   const seconds = Math.min(away, OFFLINE.maxSeconds);
   const b = ECONOMY.cashBundleValue;
-  const amount = Math.floor((save.salesRate * seconds * OFFLINE.efficiency) / b) * b;
+  const cap = (save.state.stats?.moneyEarned ?? 0) * OFFLINE.maxShareOfEarned;
+  const amount = Math.floor(Math.min(save.salesRate * seconds * OFFLINE.efficiency, cap) / b) * b;
   return amount >= OFFLINE.minAmount ? { amount, seconds } : { amount: 0, seconds: 0 };
 }
 

@@ -166,12 +166,18 @@ export class Village {
     const p = plot < 0 ? v.greatLodge : v.plots[plot];
     if (!p) return;
     const site = plot < 0 ? this.lodge : this.sites[plot]!;
+    const built = tier > p.tier ? tier - p.tier : 0;
     p.tier = tier;
     p.logs = 0;
     p.cash = 0;
     site.padTier = -1; // force a re-arm
-    this.recompute(true);
     this.refreshLook(site, false);
+    // Same bookkeeping as a paid tier, so stats and the finale (shelter:built with plot −1) work from debug too.
+    if (built > 0) {
+      this.ctx.state.stats.sheltersBuilt += built;
+      this.ctx.events.emit('shelter:built', { plot, tier, position: site.group.position.clone(), object: site.model ?? site.group });
+    }
+    this.recompute(true);
   }
 
   /**

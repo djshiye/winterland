@@ -1,0 +1,143 @@
+{
+ "v": 1,
+ "savedAt": 1791988118224,
+ "money": 70,
+ "state": {
+  "phase": "expansion",
+  "unlocked": {
+   "harvester": true,
+   "processor": true,
+   "westConveyor": true,
+   "eastConveyor": true,
+   "megaSaw": true
+  },
+  "padsVisible": {
+   "harvester": false,
+   "processor": false,
+   "westConveyor": false,
+   "eastConveyor": false,
+   "megaSaw": false
+  },
+  "expanded": true,
+  "stats": {
+   "logsChopped": 2778,
+   "logsSold": 11,
+   "planksSold": 2064,
+   "cratesMade": 422,
+   "cratesSold": 407,
+   "moneyEarned": 21380,
+   "customersServed": 524,
+   "tricyclesServed": 76,
+   "trucksServed": 1,
+   "sheltersBuilt": 16,
+   "upgradesBought": 13
+  },
+  "upgrades": {
+   "carry": 3,
+   "speed": 3,
+   "axe": 3,
+   "harvester": 2,
+   "processor": 1,
+   "megaSaw": 0,
+   "crateRunner": 1,
+   "cashier": 0,
+   "logHauler": 0
+  },
+  "village": {
+   "revealed": true,
+   "plots": [
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    }
+   ],
+   "greatLodge": {
+    "tier": -1,
+    "logs": 0,
+    "cash": 0
+   },
+   "population": 36,
+   "level": 3
+  },
+  "flags": {
+   "introDone": true,
+   "firstCustomerSale": true,
+   "reveal:harvesterPad": true,
+   "reveal:processorPad": true,
+   "shopRevealed": true,
+   "reveal:village": true,
+   "shopVisited": true,
+   "reveal:levelPad:harvester": true,
+   "seen:levelPadToast": true,
+   "conveyorsRevealed": true,
+   "firstTrikeSale": true,
+   "reveal:megaSawPad": true,
+   "reveal:levelPad:processor": true,
+   "reveal:levelPad:megaSaw": true
+  },
+  "padPaid": {
+   "pad:harvester": 0,
+   "pad:processor": 0,
+   "pad:westConveyor": 0,
+   "pad:eastConveyor": 0,
+   "pad:megaSaw": 0
+  },
+  "playTime": 1201.0174599992379
+ },
+ "world": {
+  "piles": {
+   "dropZone": 19,
+   "walkIn": 36,
+   "hopper": 15,
+   "bench": 13,
+   "se": 0,
+   "truck": 0
+  },
+  "cash": {
+   "walkIn": 360,
+   "se": 675,
+   "truck": 160
+  },
+  "arms": {
+   "log": 3,
+   "crate": 0
+  }
+ },
+ "salesRate": 36.93333333333333
+}

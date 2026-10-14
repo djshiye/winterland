@@ -7,6 +7,10 @@ const svg = (inner: string, vb = '0 0 48 48'): string =>
 const OUT = '#1f2b46';
 
 const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
+  // Placeholders until the Sales icons are drawn (reuse the coin-ish crew icons).
+  get plankQuality() { return UPGRADE_ICONS.cashier; },
+  get crateQuality() { return UPGRADE_ICONS.crateRunner; },
+  get bulkDeals() { return UPGRADE_ICONS.logHauler; },
   // three stacked logs
   carry: svg(`
     <g stroke="${OUT}" stroke-width="2.5">
