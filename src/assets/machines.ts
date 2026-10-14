@@ -21,7 +21,7 @@
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { COLORS, LAYOUT, PALETTE, type XZ } from '../config';
+import { COLORS, LAYOUT, PALETTE, UPGRADES, type XZ } from '../config';
 import { Batch, bake, vcMat } from '../render/batch';
 import { geo, mesh, toon, toonUnique } from '../render/materials';
 import { BeltPath, type BeltSample } from '../stations/beltPath';
@@ -398,6 +398,8 @@ export interface HarvesterModel {
   setBoom(x: number, y: number): void;
   /** Rest saw-hub position (chassis space). */
   readonly restReach: { x: number; y: number };
+  /** Level plate on the cab (rides with the chassis). */
+  badge: LevelBadge;
 }
 
 const HV_UPPER = 1.3;
@@ -525,7 +527,11 @@ export function createHarvester(railLength: number): HarvesterModel {
   };
   setBoom(restReach.x, restReach.y);
 
-  return { root, chassis, saw, beacon, sawHead, setBoom, restReach };
+  const badge = createLevelBadge(UPGRADES.harvester.values.length - 1);
+  badge.mesh.position.set(0.88, 1.3, 0);
+  badge.mesh.rotation.y = Math.PI / 2;
+  chassis.add(badge.mesh);
+  return { root, chassis, saw, beacon, sawHead, setBoom, restReach, badge };
 }
 
 // ---------------------------------------------------------------------------
@@ -547,6 +553,8 @@ export interface ProcessorModel {
   intake: THREE.Vector3;
   exit: THREE.Vector3;
   chimney: THREE.Vector3;
+  /** Level plate on the front (+Z) of the body. */
+  badge: LevelBadge;
 }
 
 export function createProcessor(): ProcessorModel {
@@ -613,6 +621,9 @@ export function createProcessor(): ProcessorModel {
   addBox(ps, 0.1, 0.1, 0.04, COLORS.CASH_GREEN, 0.64, 1.2, D / 2 + 0.07, false);
 
   body.add(bake(ps));
+  const badge = createLevelBadge(UPGRADES.processor.values.length - 1);
+  badge.mesh.position.set(-0.2, 1.33, D / 2 + 0.03);
+  body.add(badge.mesh);
 
   // --- infeed tray (steel) ---
   const hp = P.hopper;
@@ -653,6 +664,7 @@ export function createProcessor(): ProcessorModel {
     intake: new THREE.Vector3(-W / 2, 0.58, 0),
     exit: new THREE.Vector3(W / 2, 0.58, 0),
     chimney: new THREE.Vector3(chimneyX, H + 0.6, chimneyZ),
+    badge,
   };
 }
 
@@ -886,6 +898,8 @@ export interface MegaSawModel {
   updateRods(): void;
   /** Warning beacons (spin / pulse). */
   beacons: THREE.Object3D[];
+  /** Level plate on the yard-side base. */
+  badge: LevelBadge;
 }
 
 export function createMegaSaw(bladeRadius: number): MegaSawModel {
@@ -980,7 +994,12 @@ export function createMegaSaw(bladeRadius: number): MegaSawModel {
   };
   updateRods();
 
-  return { root, carriage, blade, bladeZ: BLADE_Z, restY, cutY, updateRods, beacons };
+  const badge = createLevelBadge(UPGRADES.megaSaw.values.length - 1);
+  badge.mesh.position.set(yardX + 0.93, 0.75, baseZ);
+  badge.mesh.rotation.y = Math.PI / 2;
+  badge.mesh.scale.setScalar(1.7);
+  root.add(badge.mesh);
+  return { root, carriage, blade, bladeZ: BLADE_Z, restY, cutY, updateRods, beacons, badge };
 }
 
 // ---------------------------------------------------------------------------
@@ -1007,3 +1026,46 @@ export const machineCatalog: Record<string, () => THREE.Object3D> = {
   },
   megaSaw: () => createMegaSaw(LAYOUT.megaSaw.bladeRadius).root,
 };
+
+// ---------------------------------------------------------------------------
+// Level badge (harvester / processor / mega saw)
+// ---------------------------------------------------------------------------
+
+export interface LevelBadge {
+  /** ONE vertex-coloured mesh; its geometry is swapped by setLevel. Faces +Z, origin = plate centre. */
+  mesh: THREE.Mesh;
+  /** Show `level` (0-based): level + 1 lit pips out of maxLevel + 1. No-op when unchanged. */
+  setLevel(level: number): void;
+}
+
+/** A small dark plate with one pip per level (lit = COURIER_YELLOW, unlit = dim steel); the trim turns SAW_GLOW at max. */
+export function createLevelBadge(maxLevel: number): LevelBadge {
+  const m = new THREE.Mesh(new THREE.BufferGeometry(), vcMat());
+  m.castShadow = false;
+  m.receiveShadow = true;
+  let shown = -1;
+  const pips = maxLevel + 1;
+  const pitch = 0.13;
+  const w = pips * pitch + 0.1;
+  const setLevel = (level: number): void => {
+    if (level === shown) return;
+    shown = level;
+    const b = new Batch();
+    const maxed = level >= maxLevel;
+    b.add(geo.box(1, 1, 1), PALETTE.rubber, 0, 0, 0, { sx: w, sy: 0.24, sz: 0.05 });
+    b.add(geo.box(1, 1, 1), maxed ? COLORS.SAW_GLOW : PALETTE.metalDark, 0, 0.125, 0.004, { sx: w + 0.03, sy: 0.03, sz: 0.052 });
+    for (let i = 0; i < pips; i++) {
+      const lit = i <= level;
+      b.add(geo.box(1, 1, 1), lit ? COLORS.COURIER_YELLOW : PALETTE.metalDark, (i - (pips - 1) / 2) * pitch, 0, 0.03, {
+        sx: 0.09,
+        sy: 0.12,
+        sz: lit ? 0.04 : 0.02,
+      });
+    }
+    const old = m.geometry;
+    m.geometry = b.geometry();
+    old.dispose();
+  };
+  setLevel(0);
+  return { mesh: m, setLevel };
+}

@@ -29,7 +29,7 @@ export interface HarvesterOptions {
   log: GiantLog;
 }
 
-/** Seconds for one full back-and-forth trip. */
+/** Seconds for one full back-and-forth trip at level 0 (shorter when upgraded). */
 const SHUTTLE_PERIOD = 9;
 const CHIP_INTERVAL = 0.045;
 const CHIP_COLORS = [COLORS.LOG_CORE, COLORS.LOG_CUT_BAND, PALETTE.woodRing];
@@ -64,44 +64,65 @@ export class Harvester {
     ctx.scene.add(this.object);
   }
 
-  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. TODO(owner): honour it. */
+  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. */
   build(instant = false): void {
     if (this.active) return;
     const ctx = this.ctx;
     this.active = true;
-    this.startAt = ctx.time.elapsed + 0.7;
     ctx.colliders.addBox(LAYOUT.harvester.collider, 'harvester');
+    this.model.badge.setLevel(ctx.upgrades.level('harvester'));
+    ctx.events.on('upgrade:bought', ({ id }) => {
+      if (id !== 'harvester') return;
+      ctx.tweens.squash(this.object, 0.14, 0.45);
+      this.tmp.set(LAYOUT.harvester.railX, 1.6, this.midZ + this.model.chassis.position.z);
+      ctx.particles.puff(this.tmp, { count: 6, size: 0.6, life: 0.8 });
+    });
+    if (instant) {
+      this.object.visible = true;
+      this.startAt = ctx.time.elapsed;
+      this.work = 1;
+      return;
+    }
+    this.startAt = ctx.time.elapsed + 0.7;
     ctx.tweens.popIn(this.object, { duration: 0.5 });
     ctx.tweens.delay(0.55, () => ctx.tweens.squash(this.object, 0.12, 0.35));
     ctx.events.emit('built', { what: 'harvester', position: new THREE.Vector3(LAYOUT.harvester.railX, 0, this.midZ), object: this.object });
   }
 
+  /** Seconds between launched logs at the current level (read live). */
+  get interval(): number {
+    return this.ctx.upgrades.value('harvester');
+  }
+
   update(dt: number): void {
     if (!this.active) return;
     const ctx = this.ctx;
-    const H = LAYOUT.harvester;
     const m = this.model;
     const t = ctx.time.elapsed;
-    m.beacon.rotation.y += dt * 5;
+    const interval = this.interval;
+    // everything keeps up with the launch rate: 1 at level 0, ~2 at max
+    const speed = LAYOUT.harvester.interval / interval;
+    m.badge.setLevel(ctx.upgrades.level('harvester'));
+    m.beacon.rotation.y += dt * 5 * speed;
 
     const running = t >= this.startAt;
     const canWork = running && !this.opts.log.opts.dropZone.isFull;
     this.work = damp(this.work, canWork ? 1 : 0, canWork ? 4 : 2.5, dt);
 
     // shuttle along the rails (eased turnarounds), slows to a stop when idle
-    this.phase += dt * this.work * ((Math.PI * 2) / SHUTTLE_PERIOD);
+    this.phase += dt * this.work * speed * ((Math.PI * 2) / SHUTTLE_PERIOD);
     this.placeChassis();
 
     // blade
-    this.bladeRate = damp(this.bladeRate, 4 + 24 * this.work, 5, dt);
+    this.bladeRate = damp(this.bladeRate, (4 + 24 * this.work) * (0.6 + 0.4 * speed), 5, dt);
     m.saw.rotation.z -= this.bladeRate * dt;
 
     // booms: plunge on every cut, small continuous flex
-    this.kick = Math.max(0, this.kick - dt * 4);
+    this.kick = Math.max(0, this.kick - dt * 4 * speed);
     const flex = this.work;
     m.setBoom(
-      m.restReach.x - 0.1 * this.kick + 0.04 * flex * Math.sin(t * 9),
-      m.restReach.y + 0.05 * flex * Math.sin(t * 5.3) + 0.07 * this.kick,
+      m.restReach.x - 0.1 * this.kick + 0.04 * flex * Math.sin(t * 9 * speed),
+      m.restReach.y + 0.05 * flex * Math.sin(t * 5.3 * speed) + 0.07 * this.kick,
     );
 
     if (this.work < 0.35) {
@@ -110,8 +131,8 @@ export class Harvester {
 
     // chips (continuous) at the blade
     this.chipClock += dt;
-    if (this.chipClock >= CHIP_INTERVAL) {
-      this.chipClock -= CHIP_INTERVAL;
+    if (this.chipClock >= CHIP_INTERVAL / speed) {
+      this.chipClock = 0;
       this.sawWorld(this.chipPos);
       this.chipPos.x += 0.55;
       this.chipPos.y += 0.1;
@@ -130,16 +151,16 @@ export class Harvester {
 
     // launch a log every interval
     this.cutClock += dt;
-    if (this.cutClock >= H.interval) {
+    if (this.cutClock >= interval) {
       this.sawWorld(this.tmp);
       this.tmp.x += 0.6;
       this.tmp.y += 0.35;
       if (this.opts.log.chopPiece(this.tmp, 'harvester')) {
         this.cutClock = 0;
         this.kick = 1;
-        ctx.tweens.punchScale(m.chassis, 0.02, 0.18);
+        ctx.tweens.punchScale(m.chassis, 0.02, Math.min(0.18, interval * 0.5));
       } else {
-        this.cutClock = H.interval;
+        this.cutClock = interval;
       }
     }
   }
