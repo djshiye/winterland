@@ -97,7 +97,9 @@ const cashGeo = lazy(() => {
 
 function itemMesh(geometry: THREE.BufferGeometry, name: string): THREE.Mesh {
   const m = new THREE.Mesh(geometry, vcMat());
-  m.castShadow = true;
+  // No shadow casting: hundreds of items sit in piles late game and each caster costs a second draw call
+  // (wave-7 draw-call ceiling). They still receive shadows.
+  m.castShadow = false;
   m.receiveShadow = true;
   m.name = name;
   return m;
