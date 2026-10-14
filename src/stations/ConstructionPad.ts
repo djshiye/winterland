@@ -14,15 +14,22 @@
  * - rearm(target) switches to the next tier's totals (paidLogs/paidCash restore partial progress).
  * - show(instant) pops in (instant: no animation, no sound, no event); hide() pops out.
  *
- * STUB (main session): a functional baseline (plain tile, no juice) so the village can be built end to end.
+ * B7 implementation: the tile shows the shelter icon (tent / hut / cabin / lodge / great lodge drawn on the canvas),
+ * a log icon + logs left and a bill icon + cash left (a finished requirement shows a check mark), a floating sign
+ * with the label, a pulse while the player can pay something, a punch per landing, pop-in / pop-out (instant =
+ * silent). Each kind's zone turns off as soon as that requirement is met (landed + in flight).
  */
 import * as THREE from 'three';
-import { TIMING, rect } from '../config';
+import { PALETTE, TIMING, rect } from '../config';
+import { Ease } from '../core/Tween';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 import type { Zone } from '../items/Zones';
-import { createPadModel, createPadTexture } from '../assets/pads';
+import { createConstructionTexture, createPadModel, createPadSign, setPadSignLabel, type ShelterIcon } from '../assets/pads';
 
-export type ConstructionIcon = 'tent' | 'hut' | 'cabin' | 'lodge' | 'greatLodge';
+export type ConstructionIcon = ShelterIcon;
+
+const SIGN_HEIGHT = 1.7;
+const SIGN_SCALE = 0.72;
 
 export interface ConstructionTarget {
   /** Floating sign text, e.g. 'HUT'. */
@@ -69,6 +76,10 @@ export class ConstructionPad implements ItemHolder {
   private readonly texture: THREE.CanvasTexture;
   private readonly logZone: Zone;
   private readonly cashZone: Zone;
+  private readonly pulse = new THREE.Group();
+  private readonly model: THREE.Group;
+  private readonly sign: THREE.Mesh;
+  private readonly tmpPos = new THREE.Vector3();
 
   constructor(
     readonly ctx: GameContext,
@@ -77,11 +88,19 @@ export class ConstructionPad implements ItemHolder {
     this.id = `pad:${opts.key}`;
     this.key = opts.key;
     this.target = fill(opts);
-    this.texture = createPadTexture('factory', this.text(), 0);
-    this.object.add(createPadModel(opts.size, this.texture));
+    this.texture = this.makeTexture();
+    this.model = createPadModel(opts.size, this.texture);
+    this.pulse.add(this.model);
+    this.object.add(this.pulse);
+    this.sign = createPadSign(this.target.label);
+    this.sign.scale.setScalar(SIGN_SCALE);
+    this.sign.position.set(0, SIGN_HEIGHT, 0);
+    this.object.add(this.sign);
     this.object.position.set(opts.x, 0, opts.z);
     this.object.visible = false;
     ctx.scene.add(this.object);
+    // The Village may not tick its pads: register ourselves (billboard sign, pulse). Calling update twice is harmless.
+    ctx.addUpdatable(this);
     const area = rect(opts.x, opts.z, opts.size * 1.2, opts.size * 1.2);
     this.logZone = ctx.zones.addTransfer({
       id: `${this.id}:logs`,
@@ -122,17 +141,40 @@ export class ConstructionPad implements ItemHolder {
     return this.object.position;
   }
 
-  show(_instant = false): void {
+  show(instant = false): void {
     if (this.shown) return;
     this.shown = true;
-    this.object.visible = true;
     this.syncZones();
+    const tw = this.ctx.tweens;
+    tw.killTweensOf(this.object);
+    this.object.scale.setScalar(1);
+    this.object.visible = true;
+    if (instant) return;
+    tw.popIn(this.object, { duration: 0.5 });
+    this.ctx.particles.ring(this.object.position, { color: PALETTE.padFill, radius: 1.8, life: 0.5 });
+    this.ctx.audio.play('whoosh', { volume: 0.4 });
   }
 
   hide(): void {
+    const was = this.shown;
     this.shown = false;
-    this.object.visible = false;
     this.syncZones();
+    const tw = this.ctx.tweens;
+    tw.killTweensOf(this.object);
+    if (!was || !this.object.visible) {
+      this.object.visible = false;
+      return;
+    }
+    tw.run({
+      duration: 0.25,
+      ease: Ease.quadIn,
+      onUpdate: (k) => this.object.scale.setScalar(Math.max(0.0001, 1 - k)),
+      onComplete: () => {
+        if (this.shown) return;
+        this.object.visible = false;
+        this.object.scale.setScalar(1);
+      },
+    });
   }
 
   /** Switch to a new target (the next tier). Keeps the shown / hidden state. */
@@ -141,11 +183,24 @@ export class ConstructionPad implements ItemHolder {
     this.pendingLogs = 0;
     this.pendingCash = 0;
     this.completed = false;
+    setPadSignLabel(this.sign, this.target.label);
     this.redraw();
     this.syncZones();
   }
 
-  update(_dt: number): void {}
+  update(_dt: number): void {
+    if (!this.shown) return;
+    const t = this.ctx.time.elapsed;
+    const arms = this.ctx.player.arms;
+    const eager =
+      (this.logsLeft - this.pendingLogs > 0 && arms.count('log') > 0) ||
+      (this.cashLeft - this.pendingCash > 0 && this.ctx.economy.money >= 5);
+    const amp = eager ? 0.05 : 0.02;
+    const s = 1 + amp * Math.sin(t * (eager ? 5.5 : 3));
+    this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
+    this.sign.quaternion.copy(this.ctx.camera.quaternion);
+    this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.opts.x) * 0.05;
+  }
 
   // --- ItemHolder -----------------------------------------------------------
   canAccept(kind: ItemKind): boolean {
@@ -159,6 +214,7 @@ export class ConstructionPad implements ItemHolder {
     if (item.kind === 'log') this.pendingLogs++;
     else this.pendingCash += item.value;
     const slot: ConstructionSlot = { holder: this, kind: item.kind, value: item.value, live: true };
+    this.syncZones();
     return slot;
   }
 
@@ -183,12 +239,13 @@ export class ConstructionPad implements ItemHolder {
     this.ctx.items.release(item);
     this.redraw();
     this.syncZones();
+    if (this.shown) this.ctx.tweens.punchScale(this.model, 0.08, 0.14);
     this.ctx.events.emit('construction:paid', {
       key: this.key,
       kind: kind === 'log' ? 'log' : 'cash',
       logsLeft: this.logsLeft,
       cashLeft: this.cashLeft,
-      position: this.object.position.clone(),
+      position: this.tmpPos.copy(this.object.position),
     });
     this.opts.onProgress?.(this.target.paidLogs, this.target.paidCash);
     if (!this.completed && this.logsLeft <= 0 && this.cashLeft <= 0) {
@@ -204,6 +261,7 @@ export class ConstructionPad implements ItemHolder {
     s.live = false;
     if (s.kind === 'log') this.pendingLogs = Math.max(0, this.pendingLogs - 1);
     else this.pendingCash = Math.max(0, this.pendingCash - s.value);
+    this.syncZones();
   }
 
   count(_kind?: ItemKind): number {
@@ -222,19 +280,24 @@ export class ConstructionPad implements ItemHolder {
     return Math.min(chunk, left);
   }
 
+  /** A requirement's zone is on only while something of it is still missing (landed + in flight). */
   private syncZones(): void {
-    this.logZone.setEnabled(this.shown && this.logsLeft > 0);
-    this.cashZone.setEnabled(this.shown && this.cashLeft > 0);
+    this.logZone.setEnabled(this.shown && this.logsLeft - this.pendingLogs > 0);
+    this.cashZone.setEnabled(this.shown && this.cashLeft - this.pendingCash > 0);
   }
 
-  private text(): string {
-    return `${this.logsLeft} logs $${this.cashLeft}`;
+  private makeTexture(target?: THREE.CanvasTexture): THREE.CanvasTexture {
+    const t = this.target;
+    return createConstructionTexture(
+      t.icon,
+      { left: this.logsLeft, total: t.logs },
+      { left: this.cashLeft, total: t.cash },
+      target,
+    );
   }
 
   private redraw(): void {
-    const total = this.target.logs + this.target.cash / 50;
-    const done = this.target.paidLogs + this.target.paidCash / 50;
-    createPadTexture('factory', this.text(), total > 0 ? done / total : 1, this.texture);
+    this.makeTexture(this.texture);
   }
 }
 

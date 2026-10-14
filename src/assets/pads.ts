@@ -10,6 +10,9 @@
  *   processor ('factory'), conveyor arrows for belts ('conveyor'), giant blade for the mega saw
  *   ('megasaw').
  * - Green bill icon bottom-left + bold 56px white text (GAME_FONT) with the remaining amount.
+ * - Level pads (machines with upgrade levels) draw a gold border and an "LV n" badge (`badge` argument).
+ * - createConstructionTexture: the village construction pads (shelter icon, logs left + cash left rows).
+ * - createShopSign / createMatTexture / createPadSign: the doormat sign + rug and the floating label signs.
  * - Cheap to RE-RENDER whenever the cost decrements: pass `target` to redraw an existing texture's
  *   canvas in place (texture.needsUpdate = true) instead of allocating a new one. Fredoka may load after
  *   the first draw, so every texture redraws itself once when the font is ready.
@@ -194,10 +197,170 @@ const ICONS: Record<PadIcon, (g: CanvasRenderingContext2D) => void> = {
   megasaw: drawMegaSaw,
 };
 
-/** Little banknote: CASH_GREEN with a white band, white outline so it reads on grey AND on the green fill. */
-function drawBill(g: CanvasRenderingContext2D, x: number, y: number): void {
+
+// --- shelter icons (village construction pads) -------------------------------------------------------------
+
+export type ShelterIcon = 'tent' | 'hut' | 'cabin' | 'lodge' | 'greatLodge';
+
+/** Add a closed polygon sub-path. */
+function poly(g: CanvasRenderingContext2D, pts: readonly (readonly [number, number])[]): void {
+  g.moveTo(pts[0]![0], pts[0]![1]);
+  for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0], pts[i]![1]);
+  g.closePath();
+}
+
+function drawTent(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  poly(g, [[-60, 50], [0, -42], [60, 50]]);
+  poly(g, [[-17, 50], [0, 4], [17, 50]]); // door
+  g.fill('evenodd');
+  g.fillRect(-64, 50, 128, 7); // ground
+  g.fillRect(-2.5, -62, 5, 24); // pole
+  g.beginPath();
+  poly(g, [[2, -62], [26, -54], [2, -46]]); // pennant
+  g.fill();
+}
+
+function drawHut(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  poly(g, [[-60, 0], [0, -46], [60, 0]]); // roof
+  g.fill();
+  g.fillRect(28, -48, 13, 26); // chimney
+  g.beginPath();
+  addRoundedRect(g, -46, 6, 92, 46, 4);
+  addRoundedRect(g, -13, 20, 26, 32, 4); // door
+  addRoundedRect(g, 20, 16, 18, 16, 3); // window
+  addRoundedRect(g, -40, 16, 18, 16, 3);
+  g.fill('evenodd');
+}
+
+function drawCabin(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  poly(g, [[-64, -2], [-36, -42], [36, -42], [64, -2]]); // roof
+  g.fill();
+  g.fillRect(30, -56, 15, 24); // chimney
+  g.beginPath();
+  addRoundedRect(g, -56, 4, 112, 50, 4);
+  addRoundedRect(g, -12, 22, 24, 32, 4); // door
+  addRoundedRect(g, 24, 16, 20, 18, 3); // windows
+  addRoundedRect(g, -44, 16, 20, 18, 3);
+  g.fill('evenodd');
+  // log seams
+  g.fillStyle = hex(COLORS.PAD_BG);
+  g.fillRect(-56, 40, 112, 3);
+  g.fillStyle = '#ffffff';
+}
+
+function drawLodge(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  poly(g, [[-42, -22], [0, -58], [42, -22]]); // upper roof
+  g.fill();
+  g.beginPath();
+  addRoundedRect(g, -34, -18, 68, 32, 3); // upper floor
+  addRoundedRect(g, -8, -10, 16, 16, 8); // round window
+  g.fill('evenodd');
+  g.beginPath();
+  poly(g, [[-66, 20], [-50, 8], [50, 8], [66, 20]]); // porch roof
+  g.fill();
+  g.beginPath();
+  addRoundedRect(g, -56, 22, 112, 32, 3);
+  addRoundedRect(g, -10, 28, 20, 26, 10); // arched door
+  addRoundedRect(g, 24, 28, 20, 14, 3);
+  addRoundedRect(g, -44, 28, 20, 14, 3);
+  g.fill('evenodd');
+  g.fillRect(34, -56, 12, 20); // chimney
+}
+
+function drawGreatLodge(g: CanvasRenderingContext2D): void {
+  // wings
+  for (const sx of [-1, 1]) {
+    g.save();
+    g.scale(sx, 1);
+    g.beginPath();
+    poly(g, [[28, 4], [46, -18], [66, 4]]);
+    g.fill();
+    g.beginPath();
+    addRoundedRect(g, 28, 8, 38, 46, 3);
+    addRoundedRect(g, 38, 20, 18, 16, 3);
+    g.fill('evenodd');
+    g.restore();
+  }
+  // centre hall
+  g.beginPath();
+  poly(g, [[-30, -22], [0, -58], [30, -22]]);
+  g.fill();
+  g.beginPath();
+  addRoundedRect(g, -26, -18, 52, 72, 3);
+  addRoundedRect(g, -11, 22, 22, 32, 11); // arched door
+  addRoundedRect(g, -8, -8, 16, 20, 8); // tall window
+  g.fill('evenodd');
+  g.fillRect(-2.5, -76, 5, 22); // flagpole
+  g.beginPath();
+  poly(g, [[2, -76], [24, -69], [2, -62]]);
+  g.fill();
+  g.fillRect(-70, 54, 140, 6);
+}
+
+const SHELTER_ICONS: Record<ShelterIcon, (g: CanvasRenderingContext2D) => void> = {
+  tent: drawTent,
+  hut: drawHut,
+  cabin: drawCabin,
+  lodge: drawLodge,
+  greatLodge: drawGreatLodge,
+};
+
+/** A small log lying on its side: bark body, LOG_CORE end cap with a ring. */
+function drawLogIcon(g: CanvasRenderingContext2D, x: number, y: number, k = 1): void {
   g.save();
   g.translate(x, y);
+  g.scale(k, k);
+  g.rotate(-0.14);
+  roundedRectPath(g, -34, -15, 62, 30, 12);
+  g.fillStyle = hex(COLORS.LOG_BARK);
+  g.fill();
+  g.lineWidth = 5;
+  g.strokeStyle = '#ffffff';
+  g.stroke();
+  g.fillStyle = hex(COLORS.LOG_CORE);
+  g.beginPath();
+  g.ellipse(26, 0, 11, 15, 0, 0, Math.PI * 2);
+  g.fill();
+  g.lineWidth = 3;
+  g.strokeStyle = hex(PALETTE.woodRing);
+  g.beginPath();
+  g.ellipse(26, 0, 5, 8, 0, 0, Math.PI * 2);
+  g.stroke();
+  g.restore();
+}
+
+/** White check mark (a requirement that is complete). */
+function drawCheck(g: CanvasRenderingContext2D, x: number, y: number): void {
+  g.save();
+  g.lineWidth = 12;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.strokeStyle = '#ffffff';
+  g.beginPath();
+  g.moveTo(x, y);
+  g.lineTo(x + 14, y + 14);
+  g.lineTo(x + 40, y - 16);
+  g.stroke();
+  g.restore();
+}
+
+/** "$4000" / "$16k" / "$12.5k": keeps big prices inside the 56 px text slot. */
+export function formatCost(n: number): string {
+  const v = Math.max(0, Math.round(n));
+  if (v < 10000) return `$${v}`;
+  const k = v / 1000;
+  return `$${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+}
+
+/** Little banknote: CASH_GREEN with a white band, white outline so it reads on grey AND on the green fill. */
+function drawBill(g: CanvasRenderingContext2D, x: number, y: number, k = 1): void {
+  g.save();
+  g.translate(x, y);
+  g.scale(k, k);
   g.rotate(-0.12);
   roundedRectPath(g, -40, -24, 80, 48, 9);
   g.fillStyle = hex(COLORS.CASH_GREEN);
@@ -215,15 +378,22 @@ function drawBill(g: CanvasRenderingContext2D, x: number, y: number): void {
 }
 
 interface PadTextureParams {
-  icon: PadIcon;
+  kind: 'pad' | 'construction';
+  icon: PadIcon | ShelterIcon;
   text: string;
   ratio: number;
+  /** Level pads: "LV 2" badge + gold border. */
+  badge?: string | undefined;
+  /** Construction pads: requirement rows. */
+  logs?: { left: number; total: number };
+  cash?: { left: number; total: number };
 }
 
 const params = new WeakMap<THREE.CanvasTexture, PadTextureParams>();
 const fontHooked = new WeakSet<THREE.CanvasTexture>();
 
 function draw(texture: THREE.CanvasTexture, p: PadTextureParams): void {
+  if (p.kind === 'construction') return drawConstruction(texture, p);
   const canvas = texture.image as HTMLCanvasElement;
   const g = canvas.getContext('2d')!;
   const ratio = Math.min(1, Math.max(0, p.ratio));
@@ -253,17 +423,31 @@ function draw(texture: THREE.CanvasTexture, p: PadTextureParams): void {
   // border
   roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
   g.lineWidth = BORDER;
-  g.strokeStyle = hex(COLORS.PAD_BORDER);
+  g.strokeStyle = hex(p.badge ? PALETTE.accent : COLORS.PAD_BORDER);
   g.stroke();
 
-  // white silhouette icon, upper half
+  // white silhouette icon, upper half (shifted left/down a little when the level badge is drawn)
   g.save();
-  g.translate(128, 90);
-  g.scale(1.04, 1.04);
+  g.translate(p.badge ? 112 : 128, p.badge ? 96 : 90);
+  g.scale(p.badge ? 0.9 : 1.04, p.badge ? 0.9 : 1.04);
   g.fillStyle = '#ffffff';
   g.strokeStyle = '#ffffff';
-  ICONS[p.icon](g);
+  ICONS[p.icon as PadIcon](g);
   g.restore();
+
+  if (p.badge) {
+    roundedRectPath(g, 160, 22, 80, 40, 14);
+    g.fillStyle = hex(PALETTE.accent);
+    g.fill();
+    g.lineWidth = 4;
+    g.strokeStyle = '#ffffff';
+    g.stroke();
+    g.font = `700 28px ${GAME_FONT}`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = hex(COLORS.PAD_BG);
+    g.fillText(p.badge, 200, 43, 70);
+  }
 
   // bill icon (bottom-left) + remaining amount
   drawBill(g, 56, 196);
@@ -288,9 +472,94 @@ export function createPadTexture(
   costText: string,
   progressRatio: number,
   target?: THREE.CanvasTexture,
+  badge?: string,
 ): THREE.CanvasTexture {
   const texture = target ?? makeCanvasTexture(SIZE, SIZE).texture;
-  const p: PadTextureParams = { icon: iconType, text: costText, ratio: progressRatio };
+  const p: PadTextureParams = { kind: 'pad', icon: iconType, text: costText, ratio: progressRatio, badge };
+  params.set(texture, p);
+  draw(texture, p);
+  hookFont(texture);
+  return texture;
+}
+
+
+function drawConstructionRow(
+  g: CanvasRenderingContext2D,
+  y: number,
+  kind: 'log' | 'cash',
+  req: { left: number; total: number },
+): void {
+  if (kind === 'log') drawLogIcon(g, 58, y, 0.95);
+  else drawBill(g, 56, y, 0.75);
+  if (req.left <= 0) {
+    drawCheck(g, 108, y);
+    return;
+  }
+  g.font = `700 50px ${GAME_FONT}`;
+  g.textAlign = 'left';
+  g.textBaseline = 'middle';
+  g.lineJoin = 'round';
+  g.lineWidth = 9;
+  g.strokeStyle = hex(COLORS.PAD_BG);
+  g.fillStyle = '#ffffff';
+  const text = kind === 'log' ? `${req.left}` : formatCost(req.left);
+  const maxW = SIZE - BORDER - 14 - 104;
+  g.strokeText(text, 104, y + 2, maxW);
+  g.fillText(text, 104, y + 2, maxW);
+}
+
+function drawConstruction(texture: THREE.CanvasTexture, p: PadTextureParams): void {
+  const g = (texture.image as HTMLCanvasElement).getContext('2d')!;
+  const ratio = Math.min(1, Math.max(0, p.ratio));
+  g.clearRect(0, 0, SIZE, SIZE);
+  const inset = BORDER / 2;
+  roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
+  g.fillStyle = hex(COLORS.PAD_BG);
+  g.fill();
+  if (ratio > 0) {
+    g.save();
+    roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
+    g.clip();
+    const top = SIZE - SIZE * ratio;
+    g.fillStyle = hex(COLORS.PAD_FILL);
+    g.fillRect(0, top, SIZE, SIZE - top);
+    if (ratio < 1) {
+      g.fillStyle = 'rgba(255,255,255,0.4)';
+      g.fillRect(0, top, SIZE, 4);
+    }
+    g.restore();
+  }
+  roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
+  g.lineWidth = BORDER;
+  g.strokeStyle = hex(COLORS.PAD_BORDER);
+  g.stroke();
+
+  g.save();
+  g.translate(128, 76);
+  g.scale(0.78, 0.78);
+  g.fillStyle = '#ffffff';
+  g.strokeStyle = '#ffffff';
+  SHELTER_ICONS[p.icon as ShelterIcon](g);
+  g.restore();
+
+  if (p.logs) drawConstructionRow(g, 158, 'log', p.logs);
+  if (p.cash) drawConstructionRow(g, 208, 'cash', p.cash);
+  texture.needsUpdate = true;
+}
+
+/**
+ * Construction pad face: shelter icon on top, then "log icon + logs left" and "bill icon + cash left" rows (a
+ * finished requirement shows a check mark). The fill rises with the combined progress. Redraws `target` in place.
+ */
+export function createConstructionTexture(
+  icon: ShelterIcon,
+  logs: { left: number; total: number },
+  cash: { left: number; total: number },
+  target?: THREE.CanvasTexture,
+): THREE.CanvasTexture {
+  const texture = target ?? makeCanvasTexture(SIZE, SIZE).texture;
+  const part = (r: { left: number; total: number }): number => (r.total > 0 ? 1 - r.left / r.total : 1);
+  const p: PadTextureParams = { kind: 'construction', icon, text: '', ratio: (part(logs) + part(cash)) / 2, logs, cash };
   params.set(texture, p);
   draw(texture, p);
   hookFont(texture);
@@ -374,24 +643,27 @@ export function createPadModel(size: number, texture: THREE.Texture, opts: PadMo
   return holder;
 }
 
+const signPainters = new WeakMap<THREE.Mesh, (label: string) => void>();
+
 /** Floating label sign ("HARVESTER"): rounded dark plate, white border + bold text. Face it to the camera. */
-export function createPadSign(label: string): THREE.Mesh {
+export function createPadSign(label: string, gold = false): THREE.Mesh {
   const w = 512;
   const h = 128;
   const { ctx: g, texture } = makeCanvasTexture(w, h);
+  let text = label;
   const paint = (): void => {
     g.clearRect(0, 0, w, h);
     roundedRectPath(g, 5, 5, w - 10, h - 10, 36);
     g.fillStyle = hex(COLORS.PAD_BG);
     g.fill();
     g.lineWidth = 8;
-    g.strokeStyle = hex(COLORS.PAD_BORDER);
+    g.strokeStyle = gold ? hex(PALETTE.accent) : hex(COLORS.PAD_BORDER);
     g.stroke();
     g.font = `700 64px ${GAME_FONT}`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillStyle = '#ffffff';
-    g.fillText(label, w / 2, h / 2 + 4, w - 60);
+    g.fillText(text, w / 2, h / 2 + 4, w - 60);
     texture.needsUpdate = true;
   };
   paint();
@@ -405,7 +677,120 @@ export function createPadSign(label: string): THREE.Mesh {
   m.renderOrder = 4;
   m.castShadow = false;
   m.receiveShadow = false;
+  signPainters.set(m, (l) => {
+    if (l === text) return;
+    text = l;
+    paint();
+  });
   return m;
+}
+
+/** Repaint a sign made by createPadSign with a new label (no-op when unchanged). */
+export function setPadSignLabel(sign: THREE.Mesh, label: string): void {
+  signPainters.get(sign)?.(label);
+}
+
+/** The cabin doormat's floating sign: green up-arrow + "UPGRADES" on a dark plate with a gold rim. */
+export function createShopSign(): THREE.Mesh {
+  const w = 512;
+  const h = 160;
+  const { ctx: g, texture } = makeCanvasTexture(w, h);
+  const paint = (): void => {
+    g.clearRect(0, 0, w, h);
+    roundedRectPath(g, 5, 5, w - 10, h - 10, 40);
+    g.fillStyle = hex(COLORS.PAD_BG);
+    g.fill();
+    g.lineWidth = 9;
+    g.strokeStyle = hex(PALETTE.accent);
+    g.stroke();
+    // up arrow
+    g.save();
+    g.translate(86, 82);
+    g.beginPath();
+    poly(g, [[0, -46], [38, -4], [16, -4], [16, 44], [-16, 44], [-16, -4], [-38, -4]]);
+    g.fillStyle = hex(COLORS.PAD_FILL);
+    g.fill();
+    g.lineWidth = 7;
+    g.lineJoin = 'round';
+    g.strokeStyle = '#ffffff';
+    g.stroke();
+    g.restore();
+    g.font = `700 70px ${GAME_FONT}`;
+    g.textAlign = 'left';
+    g.textBaseline = 'middle';
+    g.fillStyle = '#ffffff';
+    g.fillText('UPGRADES', 148, h / 2 + 5, w - 170);
+    texture.needsUpdate = true;
+  };
+  paint();
+  if (typeof document !== 'undefined' && document.fonts) {
+    void document.fonts
+      .load(`700 70px ${GAME_FONT}`)
+      .catch(() => undefined)
+      .then(paint);
+  }
+  const m = new THREE.Mesh(geo.plane(2.6, 0.8125), basic(0xffffff, { map: texture, transparent: true, depthWrite: false }));
+  m.renderOrder = 4;
+  m.castShadow = false;
+  m.receiveShadow = false;
+  return m;
+}
+
+/** Cosy striped doormat (w × d metres, axis-aligned): red wool, cream border + stripes, chevrons pointing at the door. */
+export function createMatModel(w: number, d: number): THREE.Group {
+  const pw = 352;
+  const ph = Math.round((352 * d) / w);
+  const { ctx: g, texture } = makeCanvasTexture(pw, ph);
+  const paint = (): void => {
+    g.clearRect(0, 0, pw, ph);
+    const red = hex(PALETTE.truckRed);
+    const redDark = '#b8352d';
+    const cream = hex(COLORS.SNOW_WHITE);
+    roundedRectPath(g, 4, 4, pw - 8, ph - 8, 34);
+    g.fillStyle = cream;
+    g.fill();
+    roundedRectPath(g, 20, 20, pw - 40, ph - 40, 22);
+    g.fillStyle = red;
+    g.fill();
+    // woven stripes
+    g.save();
+    roundedRectPath(g, 20, 20, pw - 40, ph - 40, 22);
+    g.clip();
+    g.fillStyle = redDark;
+    for (let x = 36; x < pw - 20; x += 22) g.fillRect(x, 20, 7, ph - 40);
+    g.restore();
+    // fringe line
+    roundedRectPath(g, 34, 34, pw - 68, ph - 68, 14);
+    g.lineWidth = 5;
+    g.strokeStyle = cream;
+    g.stroke();
+    // chevrons pointing toward the door (-Z = up the texture)
+    g.lineWidth = 16;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.strokeStyle = cream;
+    for (const oy of [0.1, 0.32]) {
+      g.beginPath();
+      g.moveTo(pw / 2 - 38, ph * (0.5 + oy) - 8);
+      g.lineTo(pw / 2, ph * (0.5 + oy) - 40);
+      g.lineTo(pw / 2 + 38, ph * (0.5 + oy) - 8);
+      g.stroke();
+    }
+    texture.needsUpdate = true;
+  };
+  paint();
+  const group = new THREE.Group();
+  group.name = 'shopMat';
+  const under = mesh(geo.boxBase(w * 0.93, 0.05, d * 0.9), toon(0x8c2a24), { cast: false });
+  group.add(under);
+  const top = mesh(geo.ground(w, d), basic(0xffffff, { map: texture, transparent: true, depthWrite: false }), {
+    cast: false,
+    receive: false,
+  });
+  top.position.y = 0.056;
+  top.renderOrder = 3;
+  group.add(top);
+  return group;
 }
 
 export const padCatalog: Record<string, () => THREE.Object3D> = {
@@ -413,6 +798,10 @@ export const padCatalog: Record<string, () => THREE.Object3D> = {
   padProcessor: () => createPadModel(2.2, createPadTexture('factory', '$200', 0)),
   padConveyor: () => createPadModel(2.2, createPadTexture('conveyor', '$150', 0.7)),
   padMegaSaw: () => createPadModel(2.2, createPadTexture('megasaw', '$200', 1)),
+  padHarvesterLevel: () => createPadModel(2.2, createPadTexture('saw', '$400', 0.4, undefined, 'LV 2')),
+  padHut: () => createPadModel(1.4, createConstructionTexture('hut', { left: 8, total: 12 }, { left: 350, total: 350 })),
+  padGreatLodge: () => createPadModel(1.8, createConstructionTexture('greatLodge', { left: 120, total: 120 }, { left: 40000, total: 40000 })),
+  shopMat: () => createMatModel(2.2, 1.6),
   padSign: () => {
     // Tilted to face the gallery's isometric camera (the in-game sign copies the camera quaternion instead).
     const sign = createPadSign('MEGA SAWMILL');
