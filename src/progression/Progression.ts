@@ -23,18 +23,20 @@
  *   stands in the target zone; the guide goes quiet once everything is automated.
  */
 import * as THREE from 'three';
-import { LAYOUT, PLAYER, type Rect } from '../config';
-import type { GameContext, PadId, Phase } from '../core/types';
+import { LAYOUT, VILLAGE, rect, type Rect, type XZ } from '../config';
+import type { FlagId, GameContext, PadId, Phase } from '../core/types';
 import type { Level } from '../level/Level';
+import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
 
-/** Seconds after the processor unlocks before the conveyor pads appear even without a tricycle sale. */
-const CONVEYOR_FALLBACK = 25;
-/** Pause between a unlock's camera moment and the next pad appearing. */
-const NEXT_PAD_DELAY = 3.4;
 const GUIDE_INTERVAL = 0.25;
 /** Minimum time an objective stays on screen before it may change. */
 const GUIDE_DWELL = 0.7;
 const PICKUP_STAY_UNTIL = 6;
+/** Seconds between "visit the cabin" reminders once the shop has been visited. */
+const SHOP_REMINDER = 120;
+const RULE_INTERVAL = 0.2;
+
+const PAD_ORDER = ['harvester', 'processor', 'westConveyor', 'eastConveyor', 'megaSaw'] as const;
 
 const PHASE_RANK: Record<Phase, number> = {
   intro: 0,
@@ -58,6 +60,14 @@ type IntroState = 'pending' | 'playing' | 'done';
 const titleCase = (s: string): string => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 const centerOf = (r: Rect, out: THREE.Vector3): THREE.Vector3 => out.set((r.minX + r.maxX) / 2, 0, (r.minZ + r.maxZ) / 2);
 
+/** What the village guide goal points at. */
+interface VillageNeed {
+  great: boolean;
+  spot: XZ;
+  logsLeft: number;
+  cashLeft: number;
+}
+
 export class Progression {
   private intro: IntroState = 'pending';
   /** Bumped whenever the intro ends so stale delayed callbacks do nothing. */
@@ -66,10 +76,12 @@ export class Progression {
   /** Invisible object the intro camera tracks (follows the log until it is near the gate). */
   private readonly introCam = new THREE.Object3D();
 
-  private readonly scheduled = new Set<PadId>();
-  private conveyorTimer: number | null = null;
-  private conveyorsRevealed = false;
-  private firstTrikeSale = false;
+  // Clocks only (never one-shots: those live in ctx.state.flags). They restart after a reload.
+  private readonly unlockedAt = new Map<PadId, number>();
+  private readonly revealedAt = new Map<string, number>();
+  private readonly readySince = new Map<string, number>();
+  private ruleAcc = 0;
+  private lastShopVisit = 0;
 
   // guide
   private guideAcc = 0;
@@ -78,22 +90,53 @@ export class Progression {
   private readonly guidePoint = new THREE.Vector3();
   private readonly tmpPoint = new THREE.Vector3();
 
+  private readonly query: RevealQuery;
+
   constructor(
     readonly ctx: GameContext,
     readonly level: Level,
   ) {
+    const now = ctx.time.elapsed;
+    this.lastShopVisit = now;
+    this.query = {
+      state: ctx.state,
+      sinceUnlock: (id) => ctx.time.elapsed - (this.unlockedAt.get(id) ?? Number.NEGATIVE_INFINITY),
+      sinceReveal: (id) => ctx.time.elapsed - (this.revealedAt.get(id) ?? Number.NEGATIVE_INFINITY),
+    };
+
     ctx.events.on('intro:crash', () => {
       this.sawCrash = true;
     });
     ctx.events.on('sale', ({ buyer }) => {
-      if (buyer === 'customer') {
-        this.schedulePad('harvester', 1.6);
-      } else if (buyer === 'tricycle' && !this.firstTrikeSale) {
-        this.firstTrikeSale = true;
-        if (ctx.state.unlocked.processor) this.revealConveyors(2.0);
-      }
+      if (buyer === 'customer') ctx.state.flags.firstCustomerSale = true;
+      else if (buyer === 'tricycle') ctx.state.flags.firstTrikeSale = true;
     });
     ctx.events.on('pad:unlocked', ({ id }) => this.onUnlocked(id));
+    ctx.events.on('shop:close', () => {
+      this.lastShopVisit = ctx.time.elapsed;
+    });
+    ctx.events.on('village:levelUp', ({ level }) => {
+      if (level === VILLAGE.greatLodge.requiresLevel) this.onGreatLodgeOffered();
+    });
+    ctx.events.on('shelter:built', ({ plot }) => {
+      if (plot < 0) this.onFinale();
+    });
+
+    // A restored game: clocks restart, fired reveals are re-applied silently, the intro is skipped silently.
+    for (const id of PAD_ORDER) if (ctx.state.unlocked[id]) this.unlockedAt.set(id, now);
+    for (const rule of REVEALS) {
+      if (!ctx.state.flags[flagOf(rule)]) continue;
+      this.revealedAt.set(rule.id, now);
+      this.apply(rule.action, true);
+    }
+    if (ctx.state.flags.introDone) {
+      this.intro = 'done';
+      level.giantLog.placeAtRest();
+      level.giantLog.setChoppable(true);
+      ctx.player.inputEnabled = true;
+      if (PHASE_RANK[ctx.state.phase] < PHASE_RANK.manual) ctx.state.phase = 'manual';
+      this.guideAcc = GUIDE_INTERVAL;
+    }
   }
 
   start(): void {
@@ -145,21 +188,17 @@ export class Progression {
 
   update(dt: number): void {
     if (this.intro === 'playing') this.updateIntroCam();
+    if (this.intro !== 'done') return;
 
-    if (this.conveyorTimer !== null) {
-      this.conveyorTimer -= dt;
-      if (this.conveyorTimer <= 0) {
-        this.conveyorTimer = null;
-        this.revealConveyors(0);
-      }
+    this.ruleAcc += dt;
+    if (this.ruleAcc >= RULE_INTERVAL) {
+      this.ruleAcc = 0;
+      this.evaluateReveals();
     }
-
-    if (this.intro === 'done') {
-      this.guideAcc += dt;
-      if (this.guideAcc >= GUIDE_INTERVAL) {
-        this.guideAcc = 0;
-        this.evaluateGuide();
-      }
+    this.guideAcc += dt;
+    if (this.guideAcc >= GUIDE_INTERVAL) {
+      this.guideAcc = 0;
+      this.evaluateGuide();
     }
   }
 
@@ -195,13 +234,14 @@ export class Progression {
     ctx.player.inputEnabled = true;
     this.level.giantLog.setChoppable(true);
     this.setPhase('manual');
+    ctx.state.flags.introDone = true;
     ctx.events.emit('intro:done', {});
     this.guideAcc = GUIDE_INTERVAL;
     this.objectiveSince = -10;
   }
 
   // ---------------------------------------------------------------------------
-  // Phases + pad sequencing
+  // Phases + reveal timeline (data in ./reveals.ts)
   // ---------------------------------------------------------------------------
 
   /** Phases only ever move forward (debug unlocks can arrive out of order). */
@@ -213,62 +253,123 @@ export class Progression {
   }
 
   private onUnlocked(id: PadId): void {
-    const ctx = this.ctx;
+    this.unlockedAt.set(id, this.ctx.time.elapsed);
     this.setPhase(PHASE_OF_PAD[id]);
-
     // Camera moment on the freshly built station.
     if (this.intro === 'done') {
       const anchor = this.level.anchorOf(id, this.tmpPoint);
-      ctx.cameraRig.focus(anchor, { duration: 0.8, hold: id === 'megaSaw' ? 2.0 : 1.4 });
-    }
-
-    switch (id) {
-      case 'harvester':
-        this.schedulePad('processor', NEXT_PAD_DELAY);
-        break;
-      case 'processor':
-        if (this.firstTrikeSale) this.revealConveyors(NEXT_PAD_DELAY);
-        else if (!this.conveyorsRevealed && this.conveyorTimer === null) this.conveyorTimer = CONVEYOR_FALLBACK;
-        break;
-      case 'westConveyor':
-      case 'eastConveyor':
-        if (ctx.state.unlocked.westConveyor && ctx.state.unlocked.eastConveyor) this.schedulePad('megaSaw', NEXT_PAD_DELAY);
-        break;
-      case 'megaSaw':
-        break;
+      this.ctx.cameraRig.focus(anchor, { duration: 0.8, hold: id === 'megaSaw' ? 2.0 : 1.4 });
     }
   }
 
-  /** Show a pad after `delay` seconds of simulation time (once). */
-  private schedulePad(id: PadId, delay: number): void {
-    const pad = this.level.pads[id];
-    if (this.scheduled.has(id) || pad.visible || pad.unlocked) return;
-    this.scheduled.add(id);
-    this.ctx.tweens.delay(delay, () => this.revealPad(id));
-  }
-
-  private revealPad(id: PadId): void {
-    const pad = this.level.pads[id];
-    if (pad.visible || pad.unlocked) return;
-    pad.show();
-    if (this.intro === 'done') this.ctx.cameraRig.focus(pad.position, { duration: 0.7, hold: 0.9 });
-  }
-
-  /** Both conveyor pads appear together, with one camera nudge between them. */
-  private revealConveyors(delay: number): void {
-    if (this.conveyorsRevealed) return;
-    this.conveyorsRevealed = true;
-    this.conveyorTimer = null;
-    this.ctx.tweens.delay(delay, () => {
-      const w = this.level.pads.westConveyor;
-      const e = this.level.pads.eastConveyor;
-      w.show();
-      e.show();
-      if (this.intro === 'done') {
-        const mid = new THREE.Vector3().addVectors(w.position, e.position).multiplyScalar(0.5);
-        this.ctx.cameraRig.focus(mid, { duration: 0.8, hold: 1.2 });
+  /** Check the reveal table; fires at most one rule per call. */
+  private evaluateReveals(): void {
+    const ctx = this.ctx;
+    const now = ctx.time.elapsed;
+    for (const rule of REVEALS) {
+      const flag = flagOf(rule);
+      if (ctx.state.flags[flag]) continue;
+      if (rule.satisfied?.(this.query)) {
+        ctx.state.flags[flag] = true;
+        this.revealedAt.set(rule.id, now);
+        continue;
       }
-    });
+      if (!rule.ready(this.query)) {
+        this.readySince.delete(rule.id);
+        continue;
+      }
+      const since = this.readySince.get(rule.id) ?? now;
+      this.readySince.set(rule.id, since);
+      if (now - since < rule.delay) continue;
+      ctx.state.flags[flag] = true;
+      this.revealedAt.set(rule.id, now);
+      this.readySince.delete(rule.id);
+      this.apply(rule.action, false);
+      return;
+    }
+  }
+
+  /** Do what a reveal says. instant (restored game): silent, no camera. */
+  private apply(action: RevealAction, instant: boolean): void {
+    const L = this.level;
+    switch (action.kind) {
+      case 'pad': {
+        const pad = L.pads[action.id];
+        if (pad.unlocked || pad.visible) return;
+        pad.show(instant);
+        if (!instant) this.moment(pad.position, 0.9);
+        return;
+      }
+      case 'conveyors': {
+        const w = L.pads.westConveyor;
+        const e = L.pads.eastConveyor;
+        w.show(instant);
+        e.show(instant);
+        if (!instant) this.moment(this.tmpPoint.addVectors(w.position, e.position).multiplyScalar(0.5), 1.2);
+        return;
+      }
+      case 'levelPad': {
+        const pad = L.pads[action.id];
+        pad.showLevel(instant);
+        if (!instant) {
+          this.ctx.events.emit('reveal', { what: `levelPad:${action.id}`, position: pad.position.clone() });
+          this.moment(pad.position, 0.9);
+        }
+        return;
+      }
+      case 'shop': {
+        const mat = LAYOUT.shop.mat;
+        L.shopMat.show(instant);
+        if (!instant) {
+          const at = new THREE.Vector3((mat.minX + mat.maxX) / 2, 0, (mat.minZ + mat.maxZ) / 2);
+          this.ctx.events.emit('reveal', { what: 'shop', position: at });
+          this.moment(at, 1.4);
+        }
+        return;
+      }
+      case 'village': {
+        if (L.village.revealed && instant) {
+          L.village.reveal(true);
+          return;
+        }
+        const g = LAYOUT.village.gate;
+        const at = new THREE.Vector3((g.minX + g.maxX) / 2, 0, 10.4);
+        L.village.reveal(instant);
+        if (!instant) {
+          this.ctx.events.emit('reveal', { what: 'village', position: at });
+          this.moment(at, 1.8);
+        }
+        return;
+      }
+    }
+  }
+
+  /** A short camera look at something new (never during the intro / for restored state). */
+  private moment(point: THREE.Vector3, hold: number): void {
+    if (this.intro !== 'done') return;
+    this.ctx.cameraRig.focus(point, { duration: 0.75, hold });
+  }
+
+  /** Village level 4 (Winter City): the Great Lodge pad is offered. */
+  private onGreatLodgeOffered(): void {
+    const flags = this.ctx.state.flags;
+    if (flags['reveal:greatLodge']) return;
+    flags['reveal:greatLodge'] = true;
+    const pad = LAYOUT.village.greatLodge.pad;
+    const at = new THREE.Vector3(pad.x, 0, pad.z);
+    this.ctx.events.emit('reveal', { what: 'greatLodge', position: at.clone() });
+    this.moment(at, 2.0);
+  }
+
+  /** The Great Lodge is complete: the finale. */
+  private onFinale(): void {
+    const flags = this.ctx.state.flags;
+    if (flags.finale) return;
+    flags.finale = true;
+    const g = LAYOUT.village.greatLodge;
+    const at = new THREE.Vector3(g.x, 0, g.z);
+    this.ctx.events.emit('finale:start', { position: at.clone() });
+    if (this.intro === 'done') this.ctx.cameraRig.focus(at, { duration: 1.0, hold: 3.0 });
   }
 
   // ---------------------------------------------------------------------------
@@ -298,6 +399,32 @@ export class Progression {
     ctx.hud.setGuideTarget(this.guidePoint);
   }
 
+  /** The most useful village pad right now: the Great Lodge, else the first plot whose cash part is affordable. */
+  private villageNeed(): VillageNeed | null {
+    const ctx = this.ctx;
+    const v = ctx.state.village;
+    if (!v.revealed) return null;
+    const money = ctx.economy.money;
+    const great = this.level.village.padSpot(-1);
+    if (great) {
+      const gl = VILLAGE.greatLodge;
+      const cashLeft = gl.cash - v.greatLodge.cash;
+      if (v.greatLodge.tier < 0 && (cashLeft <= 0 || money >= cashLeft * 0.25)) {
+        return { great: true, spot: great, logsLeft: gl.logs - v.greatLodge.logs, cashLeft };
+      }
+    }
+    for (let i = 0; i < v.plots.length; i++) {
+      const spot = this.level.village.padSpot(i);
+      if (!spot) continue;
+      const plot = v.plots[i]!;
+      const tier = VILLAGE.tiers[plot.tier + 1];
+      if (!tier) continue;
+      const cashLeft = tier.cash - plot.cash;
+      if (cashLeft <= 0 || money >= cashLeft) return { great: false, spot, logsLeft: tier.logs - plot.logs, cashLeft };
+    }
+    return null;
+  }
+
   private evaluateGuide(): void {
     const ctx = this.ctx;
     const L = this.level;
@@ -306,14 +433,17 @@ export class Progression {
     const arms = ctx.player.arms;
     const armsLogs = arms.count('log');
     const armsCrates = arms.count('crate');
-    const armsFull = arms.count() >= PLAYER.armsCapacity;
+    const armsFull = arms.count() >= arms.capacity;
     const trucksWaiting = L.trucks?.waiting ?? 0;
     const inArea = (r: Rect): boolean => ctx.zones.isPlayerIn(r);
+    const dropCount = L.dropZone.pile.count('log');
+    const padPayable = (pad: (typeof L.pads)[PadId]): boolean =>
+      pad.visible && pad.remaining > 0 && (money >= pad.remaining || (inArea(pad.zone.area) && money > 0));
 
-    // 1. A pad we can pay right now.
-    for (const id of ['harvester', 'processor', 'westConveyor', 'eastConveyor', 'megaSaw'] as const) {
+    // 1. An unlock pad we can pay right now.
+    for (const id of PAD_ORDER) {
       const pad = L.pads[id];
-      if (pad.visible && pad.remaining > 0 && (money >= pad.remaining || (inArea(pad.zone.area) && money > 0))) {
+      if (!pad.levelMode && padPayable(pad)) {
         this.setGoal(`Build the ${titleCase(pad.def.label)} ($${pad.remaining})`, pad.zone.area);
         return;
       }
@@ -325,8 +455,30 @@ export class Progression {
       return;
     }
 
-    // 3. Logs in hand (keep picking up while standing at a stocked drop zone).
-    const dropCount = L.dropZone.pile.count('log');
+    // 3. The village: bring logs, pay the shelter, build the Great Lodge.
+    const need = this.villageNeed();
+    let fetchLogs = false;
+    if (need) {
+      const spotArea = rect(need.spot.x, need.spot.z, 2.4, 2.4);
+      const spotPoint = this.tmpPoint.set(need.spot.x, 0, need.spot.z);
+      const want = Math.min(need.logsLeft, arms.capacity);
+      if (need.logsLeft <= 0 || armsLogs >= want) {
+        const text = need.great
+          ? 'Build the Great Lodge!'
+          : need.logsLeft > 0
+            ? 'Bring logs to the village'
+            : `Pay for the shelter ($${need.cashLeft})`;
+        this.setGoal(text, spotArea, spotPoint);
+        return;
+      }
+      fetchLogs = !armsFull && dropCount > 0;
+      if (fetchLogs) {
+        this.setGoal(need.great ? 'Pick up logs for the Great Lodge' : 'Pick up logs for the village', L.dropZone.zone.area);
+        return;
+      }
+    }
+
+    // 4. Logs in hand (keep picking up while standing at a stocked drop zone).
     const pickingUp = inArea(L.dropZone.zone.area) && dropCount > 0 && !armsFull && armsLogs < PICKUP_STAY_UNTIL;
     if (armsLogs > 0 && !pickingUp) {
       const proc = L.processor;
@@ -342,12 +494,12 @@ export class Progression {
       if (feed && proc) {
         this.setGoal('Feed the processor', proc.inputZone.area);
       } else {
-        this.setGoal('Stock the counter with logs', L.walkInCounter.zone.area);
+        this.setGoal('Sell logs to customers', L.walkInCounter.zone.area);
       }
       return;
     }
 
-    // 4. Cash waiting (the bigger pile first).
+    // 5. Cash waiting (the bigger pile first).
     const seCash = L.seCash?.value ?? 0;
     const wiCash = L.walkInCash.value;
     if (seCash > 0 || wiCash > 0) {
@@ -356,13 +508,31 @@ export class Progression {
       return;
     }
 
-    // 5. Crates ready on the workbench.
+    // 6. Crates ready on the workbench.
     if (L.processor && !armsFull && L.processor.output.count('crate') > 0) {
       this.setGoal('Grab the crates', L.processor.outputZone.area);
       return;
     }
 
-    // 6. Logs waiting in the drop zone (unless both belts carry them away).
+    // 7. The cabin shop, when something is affordable (first visit, then a reminder now and then).
+    if (L.shopMat.visible && L.shopMat.hasAffordable) {
+      const due = !s.flags.shopVisited || ctx.time.elapsed - this.lastShopVisit > SHOP_REMINDER;
+      if (due) {
+        this.setGoal('Visit the cabin to upgrade', LAYOUT.shop.mat);
+        return;
+      }
+    }
+
+    // 8. A machine level pad we can pay.
+    for (const id of PAD_ORDER) {
+      const pad = L.pads[id];
+      if (pad.levelMode && padPayable(pad)) {
+        this.setGoal(`Upgrade the ${titleCase(pad.def.label)} ($${pad.remaining})`, pad.zone.area);
+        return;
+      }
+    }
+
+    // 9. Logs waiting in the drop zone (unless both belts carry them away).
     const belts = !!L.westConveyor && !!L.eastConveyor;
     const chopping = inArea(L.giantLog.chopZone.area) && !L.dropZone.isFull && dropCount < 4 && !s.unlocked.harvester;
     if ((!belts || trucksWaiting > 0) && !armsFull && dropCount > 0 && !chopping) {
@@ -370,7 +540,7 @@ export class Progression {
       return;
     }
 
-    // 7. Nothing in the yard yet: chop (only until the harvester does it for us).
+    // 10. Nothing in the yard yet: chop (only until the harvester does it for us).
     if (!s.unlocked.harvester && !L.dropZone.isFull) {
       this.setGoal('Chop the giant log!', L.giantLog.chopZone.area);
       return;
@@ -379,4 +549,8 @@ export class Progression {
     // Everything runs by itself: quiet.
     this.setGoal(null, null);
   }
+}
+
+function flagOf(rule: RevealRule): FlagId {
+  return rule.flag ?? `reveal:${rule.id}`;
 }
