@@ -11,7 +11,7 @@
  * detached.
  */
 import * as THREE from 'three';
-import type { DemandLevel } from '../config';
+import type { DemandLevel, ProductId } from '../config';
 import { approach, randRange } from '../core/math';
 import { demandOf, salePrice } from '../core/demand';
 import type { Buyer, GameContext, ItemKind } from '../core/types';
@@ -42,7 +42,9 @@ export interface VehicleQueueConfig {
   kind: ItemKind;
   buyer: Buyer;
   icon: BubbleIcon;
-  /** Unit price (ECONOMY.*Price); the sale amount is salePrice(state, unitPrice, want), read at pay time. */
+  /** What is sold (Sales upgrades) and its unit price (ECONOMY.*Price); the sale amount is
+   *  salePrice(state, product, unitPrice, want), read at pay time. */
+  product: ProductId;
   unitPrice: number;
   /** Live demand: spawn gap and order size for the current village level (read at spawn, never cached). */
   demand: (d: DemandLevel) => { gap: readonly [number, number]; want: readonly [number, number] };
@@ -250,7 +252,7 @@ export abstract class VehicleQueue {
   }
 
   private pay(v: Vehicle): void {
-    const amount = salePrice(this.ctx.state, this.cfg.unitPrice, v.want);
+    const amount = salePrice(this.ctx.state, this.cfg.product, this.cfg.unitPrice, v.want);
     v.cargo.root.getWorldPosition(tmpV);
     tmpV.y += 0.7;
     this.cash.pay(amount, tmpV);

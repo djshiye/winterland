@@ -37,6 +37,7 @@ export class TricycleQueue extends VehicleQueue {
       kind: 'crate',
       buyer: 'tricycle',
       icon: 'crate',
+      product: 'crate',
       unitPrice: ECONOMY.cratePrice,
       demand: (d) => ({ gap: d.trikeGap, want: d.trikeWant }),
       maxWant: 8,

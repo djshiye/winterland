@@ -2,7 +2,7 @@
  * [MAIN] Village → demand helpers. Pure functions of GameState and the config tables, so every reader stays live
  * (call them at spawn / pay time; never cache the result).
  */
-import { DEMAND, ECONOMY, VILLAGE, type DemandLevel } from '../config';
+import { DEMAND, ECONOMY, UPGRADES, VILLAGE, type DemandLevel, type ProductId } from '../config';
 import type { GameState } from './types';
 
 /** Buyer behaviour for the current village level. */
@@ -10,13 +10,25 @@ export function demandOf(state: GameState): DemandLevel {
   return DEMAND[Math.max(0, Math.min(DEMAND.length - 1, state.village.level))]!;
 }
 
+/** Price multiplier from the Sales upgrades for one product (1 when none applies). */
+export function productMult(state: GameState, product: ProductId): number {
+  let m = 1;
+  for (const d of Object.values(UPGRADES)) {
+    if (d.group !== 'sales' || d.product !== product) continue;
+    m *= d.values[Math.min(state.upgrades[d.id] ?? 0, d.values.length - 1)]!;
+  }
+  return m;
+}
+
 /**
- * What a buyer pays for `count` items at `unitPrice` (ECONOMY.plankPrice / cratePrice / truckLogPrice): times the
- * village price multiplier, rounded to the nearest whole cash bundle (never below one bundle).
+ * What a buyer pays for `count` items of `product` at `unitPrice` (ECONOMY.plankPrice / cratePrice / truckLogPrice):
+ * times the village price multiplier and the product's Sales upgrades, rounded to the nearest whole cash bundle
+ * (never below one bundle).
  */
-export function salePrice(state: GameState, unitPrice: number, count: number): number {
+export function salePrice(state: GameState, product: ProductId, unitPrice: number, count: number): number {
   const b = ECONOMY.cashBundleValue;
-  return Math.max(b, Math.round((unitPrice * count * demandOf(state).priceMult) / b) * b);
+  const mult = demandOf(state).priceMult * productMult(state, product);
+  return Math.max(b, Math.round((unitPrice * count * mult) / b) * b);
 }
 
 /** Residents of every built shelter (the Great Lodge houses nobody). */

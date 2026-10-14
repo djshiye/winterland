@@ -120,6 +120,8 @@ export class Upgrades {
         return `${((d.perCycle ?? 1) / v).toFixed(1)} ${d.unit ?? '/s'}`;
       case 'crew':
         return v <= 0 ? 'Not hired' : `×${Math.round(v * 100) / 100} speed`;
+      case 'mult':
+        return `×${Math.round(v * 100) / 100} price`;
     }
   }
 }

@@ -37,6 +37,7 @@ export class TruckQueue extends VehicleQueue {
       kind: 'log',
       buyer: 'truck',
       icon: 'log',
+      product: 'log',
       unitPrice: ECONOMY.truckLogPrice,
       demand: (d) => ({ gap: d.truckGap, want: d.truckWant }),
       maxWant: 20,

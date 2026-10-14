@@ -15,8 +15,8 @@ const ROOF_RED_DARK = 0x9e3524;
 const WARM = 0xffd978;
 
 /** Lamp post spots: yard corners, clear of every zone / pad / path. */
+// (The SE-corner lamp is gone: from the camera it stood right in front of the processor pad's sign.)
 const LAMPS: Array<[number, number]> = [
-  [9.45, 9.3],
   [-9.6, 7.3],
   [9.4, -3.6],
 ];

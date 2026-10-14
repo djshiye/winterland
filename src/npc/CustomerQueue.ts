@@ -218,7 +218,7 @@ export class CustomerQueue {
   }
 
   private pay(c: Customer): void {
-    const amount = salePrice(this.ctx.state, ECONOMY.plankPrice, c.want);
+    const amount = salePrice(this.ctx.state, 'plank', ECONOMY.plankPrice, c.want);
     c.rig.armsAnchor.getWorldPosition(tmpV);
     tmpV.y += 0.2;
     this.opts.cash.pay(amount, tmpV);

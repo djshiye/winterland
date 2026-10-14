@@ -607,10 +607,19 @@ export type UpgradeIdConst =
   | 'megaSaw'
   | 'crateRunner'
   | 'cashier'
-  | 'logHauler';
+  | 'logHauler'
+  | 'plankQuality'
+  | 'crateQuality'
+  | 'bulkDeals';
 
-/** lumberjack + crew: bought in the cabin shop panel · machine: the machine's own pad re-arms as a level pad. */
-export type UpgradeGroup = 'lumberjack' | 'machine' | 'crew';
+/**
+ * lumberjack + crew + sales: bought in the cabin shop panel (one tab each) · machine: the machine's own pad re-arms
+ * as a level pad.
+ */
+export type UpgradeGroup = 'lumberjack' | 'machine' | 'crew' | 'sales';
+
+/** What a sale is for (sales upgrades multiply one product's price). */
+export type ProductId = 'plank' | 'crate' | 'log';
 
 export interface UpgradeRequirement {
   /** Minimum village level (index into VILLAGE.levels). */
@@ -630,12 +639,15 @@ export interface UpgradeDef {
    * - lumberjack: the raw stat (carry count, walk speed m/s, axe swing interval s).
    * - machine: seconds per cycle (harvester interval, processor / mega-saw cycleTime).
    * - crew: level 0 = not hired (value 0); otherwise a work multiplier on CREW base speed / capacity.
+   * - sales: a price multiplier for `product` (core/demand.ts salePrice).
    */
   values: readonly number[];
   /** costs[n] = price to go from level n to n + 1 (length = values.length − 1). Multiples of 5. */
   costs: readonly number[];
   /** Upgrades.describe(): 'count' → "16 items", 'speed' → "7.4 m/s", 'rate' → items per second from an interval, 'crew' → "×1.3". */
-  display: 'count' | 'speed' | 'rate' | 'crew';
+  display: 'count' | 'speed' | 'rate' | 'crew' | 'mult';
+  /** sales: the product whose price this multiplies. */
+  product?: ProductId;
   /** For display 'rate': items produced per cycle (mega saw: 3 logs per cut). Default 1. */
   perCycle?: number;
   /** Unit word for 'count' / 'rate' ("items", "logs/s", "chops/s"). */
@@ -649,8 +661,8 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     group: 'lumberjack',
     label: 'Strong Arms',
     blurb: 'Carry more logs and crates',
-    values: [10, 13, 16, 19, 22, 25],
-    costs: [100, 300, 800, 2000, 5000],
+    values: [10, 13, 16, 19, 22, 25, 28, 31, 35, 40],
+    costs: [100, 300, 800, 2000, 5000, 9000, 15000, 24000, 38000],
     display: 'count',
     unit: 'items',
   },
@@ -659,8 +671,8 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     group: 'lumberjack',
     label: 'Snow Boots',
     blurb: 'Walk faster',
-    values: [6.4, 6.9, 7.4, 7.9, 8.4, 9.0],
-    costs: [80, 250, 700, 1800, 4500],
+    values: [6.4, 6.9, 7.4, 7.9, 8.4, 9.0, 9.5, 10.0, 10.5, 11.0],
+    costs: [80, 250, 700, 1800, 4500, 8000, 13000, 21000, 34000],
     display: 'speed',
   },
   axe: {
@@ -668,8 +680,8 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     group: 'lumberjack',
     label: 'Sharp Axe',
     blurb: 'Chop the giant log faster',
-    values: [0.4, 0.35, 0.31, 0.27, 0.24, 0.21],
-    costs: [120, 350, 900, 2200, 5500],
+    values: [0.4, 0.35, 0.31, 0.27, 0.24, 0.21, 0.19, 0.17, 0.15, 0.13],
+    costs: [120, 350, 900, 2200, 5500, 9500, 16000, 26000, 40000],
     display: 'rate',
     unit: 'chops/s',
   },
@@ -678,8 +690,8 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     group: 'machine',
     label: 'Harvester',
     blurb: 'Saws logs faster',
-    values: [0.75, 0.62, 0.52, 0.44, 0.37],
-    costs: [400, 1200, 3000, 7500],
+    values: [0.75, 0.62, 0.52, 0.44, 0.37, 0.32, 0.28, 0.25],
+    costs: [400, 1200, 3000, 7500, 13000, 22000, 36000],
     display: 'rate',
     unit: 'logs/s',
     requires: { unlocked: 'harvester' },
@@ -689,8 +701,8 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     group: 'machine',
     label: 'Processor',
     blurb: 'Makes crates faster',
-    values: [1.0, 0.84, 0.71, 0.6, 0.5],
-    costs: [1000, 2800, 7000, 16000],
+    values: [1.0, 0.84, 0.71, 0.6, 0.5, 0.43, 0.37, 0.32],
+    costs: [1000, 2800, 7000, 16000, 26000, 40000, 60000],
     display: 'rate',
     unit: 'crates/s',
     requires: { unlocked: 'processor' },
@@ -700,8 +712,8 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     group: 'machine',
     label: 'Mega Sawmill',
     blurb: 'Cuts the giant log faster',
-    values: [1.4, 1.2, 1.03, 0.89, 0.77],
-    costs: [7000, 15000, 30000, 55000],
+    values: [1.4, 1.2, 1.03, 0.89, 0.77, 0.67, 0.59, 0.52],
+    costs: [7000, 15000, 30000, 55000, 80000, 110000, 150000],
     display: 'rate',
     perCycle: 3,
     unit: 'logs/s',
@@ -712,8 +724,8 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     group: 'crew',
     label: 'Crate Runner',
     blurb: 'Carries crates from the processor to the tricycle counter',
-    values: [0, 1, 1.3, 1.65, 2.0],
-    costs: [800, 2000, 5000, 11000],
+    values: [0, 1, 1.3, 1.65, 2.0, 2.4, 2.8],
+    costs: [800, 2000, 5000, 11000, 20000, 34000],
     display: 'crew',
     requires: { villageLevel: 1, unlocked: 'processor' },
   },
@@ -722,8 +734,8 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     group: 'crew',
     label: 'Cashier',
     blurb: 'Collects the cash piles for you',
-    values: [0, 1, 1.3, 1.65, 2.0],
-    costs: [1800, 5000, 12000, 24000],
+    values: [0, 1, 1.3, 1.65, 2.0, 2.4, 2.8],
+    costs: [1200, 4000, 10000, 22000, 36000, 52000],
     display: 'crew',
     requires: { villageLevel: 2 },
   },
@@ -732,10 +744,43 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     group: 'crew',
     label: 'Log Hauler',
     blurb: 'Carries logs to the trucks',
-    values: [0, 1, 1.3, 1.65, 2.0],
-    costs: [6000, 12000, 24000, 45000],
+    values: [0, 1, 1.3, 1.65, 2.0, 2.4, 2.8],
+    costs: [3500, 9000, 20000, 40000, 60000, 85000],
     display: 'crew',
     requires: { villageLevel: 3, unlocked: 'megaSaw' },
+  },
+  plankQuality: {
+    id: 'plankQuality',
+    group: 'sales',
+    label: 'Fine Planks',
+    blurb: 'Customers pay more for every plank',
+    values: [1, 1.15, 1.3, 1.5, 1.75, 2.0],
+    costs: [300, 1500, 6000, 18000, 45000],
+    display: 'mult',
+    product: 'plank',
+    requires: { villageLevel: 1 },
+  },
+  crateQuality: {
+    id: 'crateQuality',
+    group: 'sales',
+    label: 'Sturdy Crates',
+    blurb: 'Tricycles pay more for every crate',
+    values: [1, 1.15, 1.3, 1.5, 1.75, 2.0],
+    costs: [800, 4000, 14000, 35000, 80000],
+    display: 'mult',
+    product: 'crate',
+    requires: { unlocked: 'processor' },
+  },
+  bulkDeals: {
+    id: 'bulkDeals',
+    group: 'sales',
+    label: 'Bulk Deals',
+    blurb: 'Trucks pay more for every log',
+    values: [1, 1.15, 1.3, 1.5, 1.75, 2.0],
+    costs: [3000, 12000, 30000, 60000, 120000],
+    display: 'mult',
+    product: 'log',
+    requires: { unlocked: 'megaSaw' },
   },
 };
 
@@ -842,6 +887,8 @@ export const OFFLINE = {
   maxSeconds: 2 * 60 * 60,
   /** Fraction of the recent sales rate earned while away. */
   efficiency: 0.25,
+  /** …and never more than this share of everything earned so far (stats.moneyEarned), so an absence can't skip the game. */
+  maxShareOfEarned: 0.2,
   /** Shorter absences earn nothing (seconds). */
   minSeconds: 60,
   /** Smaller amounts are not worth a card. */
