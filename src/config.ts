@@ -281,9 +281,9 @@ export interface PadDef {
 export const PADS: Record<PadIdConst, PadDef> = {
   harvester: { id: 'harvester', cost: 150, x: -6.6, z: -4.8, size: 2.2, label: 'HARVESTER', icon: 'saw' },
   processor: { id: 'processor', cost: 700, x: 6.4, z: 6.6, size: 2.2, label: 'PROCESSOR', icon: 'factory' },
-  westConveyor: { id: 'westConveyor', cost: 1200, x: -2.4, z: 4.6, size: 2.2, label: 'CONVEYOR', icon: 'conveyor' },
-  eastConveyor: { id: 'eastConveyor', cost: 1200, x: -0.8, z: -3.0, size: 2.2, label: 'CONVEYOR', icon: 'conveyor' },
-  megaSaw: { id: 'megaSaw', cost: 4000, x: -6.4, z: -8.2, size: 2.2, label: 'MEGA SAWMILL', icon: 'megasaw' },
+  westConveyor: { id: 'westConveyor', cost: 900, x: -2.4, z: 4.6, size: 2.2, label: 'CONVEYOR', icon: 'conveyor' },
+  eastConveyor: { id: 'eastConveyor', cost: 900, x: -0.8, z: -3.0, size: 2.2, label: 'CONVEYOR', icon: 'conveyor' },
+  megaSaw: { id: 'megaSaw', cost: 3200, x: -6.4, z: -8.2, size: 2.2, label: 'MEGA SAWMILL', icon: 'megasaw' },
 };
 
 // ---------------------------------------------------------------------------
@@ -723,7 +723,7 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     label: 'Cashier',
     blurb: 'Collects the cash piles for you',
     values: [0, 1, 1.3, 1.65, 2.0],
-    costs: [2500, 6000, 13000, 26000],
+    costs: [1800, 5000, 12000, 24000],
     display: 'crew',
     requires: { villageLevel: 2 },
   },
@@ -778,8 +778,8 @@ export const VILLAGE = {
   tiers: [
     { id: 'tent', label: 'Tent', logs: 6, cash: 60, residents: 2, requiresLevel: 0 },
     { id: 'hut', label: 'Hut', logs: 12, cash: 350, residents: 4, requiresLevel: 1 },
-    { id: 'cabin', label: 'Cabin', logs: 24, cash: 1800, residents: 7, requiresLevel: 2 },
-    { id: 'lodge', label: 'Lodge', logs: 40, cash: 7000, residents: 12, requiresLevel: 3 },
+    { id: 'cabin', label: 'Cabin', logs: 24, cash: 1500, residents: 7, requiresLevel: 2 },
+    { id: 'lodge', label: 'Lodge', logs: 36, cash: 4500, residents: 12, requiresLevel: 3 },
   ] as readonly ShelterTier[],
   /** plotLevels[i]: village level at which plot i (LAYOUT.village.plots[i]) is offered. */
   plotLevels: [0, 0, 1, 1, 2, 2, 3, 3] as readonly number[],
@@ -795,7 +795,7 @@ export const VILLAGE = {
     { name: 'Winter City', minPopulation: 80, perks: ['Top prices', 'Build the Great Lodge!'] },
     { name: 'Winterland', minPopulation: Number.POSITIVE_INFINITY, perks: ['Everyone loves your mill'] },
   ] as readonly VillageLevelDef[],
-  greatLodge: { label: 'GREAT LODGE', logs: 120, cash: 40000, requiresLevel: 4 },
+  greatLodge: { label: 'GREAT LODGE', logs: 100, cash: 25000, requiresLevel: 4 },
 } as const;
 
 /** What buyers do at each village level (index = GameState.village.level). Read live at spawn / pay time. */

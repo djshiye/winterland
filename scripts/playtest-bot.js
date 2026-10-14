@@ -1,16 +1,33 @@
 // In-page autoplay bot for Winterland (a single expression: shot.mjs evaluates `return (<code>)`). Injected by scripts/playtest.mjs (via shot.mjs `eval:`); it is
-// plain browser JS, not part of the bundle. It plays the real economy loop — chop, carry, sell, collect,
-// pay pads — teleporting between stations (walking is covered by other tests) and stepping the
-// simulation without rendering. Every position comes from the live config, so layout changes are fine.
+// plain browser JS, not part of the bundle. It plays the whole game like a decent player — chop, carry, sell,
+// collect, pay unlock and level pads, shop, carry logs to the village plots, build the Great Lodge — and steps the
+// simulation without rendering. Walking is modelled, not animated: the player waits on a zone-free spot for
+// distance × DETOUR / walk speed (so speed upgrades count), then appears at the destination and stays until the job
+// there is done. Every position comes from the live config, so layout changes are fine.
 //
-//   __bot.runUntil(goal, budgetSeconds) → { ok, goal, simSeconds, state }   goal: phase name | 'bothConveyors'
-//   __bot.runFor(seconds) · __bot.frame(stationId) · __bot.perf() · __bot.report()
+// Spending policy: unlock pads first (as soon as affordable); otherwise the cheapest affordable purchase (level pad,
+// shop item, next shelter tier), but while saving for a visible unlock pad / the Great Lodge only purchases up to
+// SPEND_SHARE of what that goal still costs. Shelters stop at Winter City (more villagers change nothing).
+//
+//   __bot.runUntil(goal, budgetSeconds) → { ok, goal, simSeconds, state }
+//       goal: phase name | pad id | 'bothConveyors' | 'shop' | 'village' | 'vl:<n>' (village level ≥ n) |
+//             'hired:<crew id>' | 'finale'
+//   __bot.runFor(seconds) · __bot.frame(stationId | 'village' | 'shop') · __bot.perf() · __bot.report()
+//   __bot.milestones() → first time (minutes) of every milestone seen, in order
 (() => {
   const W = window.__WINTERLAND__;
-  const { LAYOUT, PADS } = W.config;
+  const { LAYOUT, PADS, VILLAGE } = W.config;
   const ctx = W.ctx;
   const level = W.level;
+  const up = ctx.upgrades;
   const DT = 1 / 60;
+  /** Walking is never a straight line (machines, fences, turning). */
+  const DETOUR = 1.3;
+  /** While saving for a goal, purchases up to this share of what the goal still costs are fine. */
+  const SPEND_SHARE = 0.3;
+  /** Only to rank purchases: a log carried to a plot is worth this many dollars. */
+  const LOG_VALUE = 10;
+  const WINTER_CITY = VILLAGE.levels.findIndex((l) => l.name === 'Winter City');
 
   const mid = (r) => ({ x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 });
   const P = LAYOUT.processor;
@@ -25,42 +42,215 @@
     seCash: mid(LAYOUT.seCash.zone),
     truck: mid(LAYOUT.expansion.truckCounter.playerZone),
     truckCash: mid(LAYOUT.expansion.truckCash.zone),
+    shop: mid(LAYOUT.shop.mat),
   };
 
+  // --- timeline + milestones ---------------------------------------------------------------------------------
   const timeline = [];
+  const marks = {};
   const stamp = () => Math.round(ctx.time.elapsed * 10) / 10;
-  ctx.events.on('phase:changed', ({ phase }) => timeline.push({ t: stamp(), phase, money: ctx.economy.money }));
-  ctx.events.on('pad:shown', ({ id }) => timeline.push({ t: stamp(), padShown: id }));
-  ctx.events.on('pad:unlocked', ({ id }) => timeline.push({ t: stamp(), unlocked: id }));
+  const note = (entry) => timeline.push({ t: stamp(), money: ctx.economy.money, ...entry });
+  const mark = (name) => {
+    if (marks[name] === undefined) marks[name] = stamp();
+  };
+  const on = (event, fn) => ctx.events.on(event, fn);
+  on('phase:changed', ({ phase }) => (note({ phase }), mark(`phase:${phase}`)));
+  on('pad:shown', ({ id }) => note({ padShown: id }));
+  on('pad:unlocked', ({ id }) => (note({ unlocked: id }), mark(id)));
+  on('upgrade:bought', ({ id, level: lv }) => {
+    note({ bought: `${id} ${lv}` });
+    if (up.def(id).group === 'crew' && lv === 1) mark(`hire:${id}`);
+    mark(`${id}:${lv}`);
+  });
+  on('shelter:built', ({ plot, tier }) => (note({ built: plot, tier }), plot < 0 && mark('greatLodge')));
+  on('village:revealed', () => (note({ reveal: 'village' }), mark('village')));
+  on('village:levelUp', ({ level: lv }) => (note({ villageLevel: lv }), mark(VILLAGE.levels[lv]?.name ?? `vl:${lv}`)));
+  on('reveal', ({ what }) => (note({ reveal: what }), mark(`reveal:${what}`)));
+  on('finale:start', () => (note({ finale: true }), mark('finale')));
 
+  // --- primitives --------------------------------------------------------------------------------------------
   const actions = {};
   const count = (holder, kind) => (holder ? holder.count(kind) : 0);
   const room = (pile) => !!pile && pile.total < pile.capacity;
+  const held = (stack) => stack.total ?? stack.size;
+  const money = () => ctx.economy.money;
 
   function sim(seconds) {
     const n = Math.round(seconds / DT);
     for (let i = 0; i < n; i++) W.game.step(DT);
   }
 
-  function act(name, spot, seconds) {
-    actions[name] = (actions[name] ?? 0) + 1;
-    W.teleport(spot.x, spot.z);
-    sim(seconds);
+  /** A walkable spot no zone covers (rechecked every call: pads and mats appear over time). */
+  let lobbyPos = null;
+  function lobby() {
+    const zones = ctx.zones.zones.filter((z) => !z.removed);
+    const free = (x, z) =>
+      !ctx.colliders.overlaps(x, z, 0.6) &&
+      !zones.some((zn) => x > zn.area.minX - 0.8 && x < zn.area.maxX + 0.8 && z > zn.area.minZ - 0.8 && z < zn.area.maxZ + 0.8);
+    if (lobbyPos && free(lobbyPos.x, lobbyPos.z)) return lobbyPos;
+    const Y = LAYOUT.yard;
+    for (let x = Y.minX + 1.5; x <= Y.maxX - 1.5; x += 0.5) {
+      for (let z = Y.minZ + 1.5; z <= Y.maxZ - 1.5; z += 0.5) if (free(x, z)) return (lobbyPos = { x, z });
+    }
+    return (lobbyPos = { x: 0, z: 0 });
   }
 
-  /** One decision + a few seconds of play. */
+  /** Walk to `spot`: time passes at walking speed while the player is out of every zone, then they arrive. */
+  function walkTo(spot) {
+    const p = ctx.player.position;
+    const d = Math.hypot(spot.x - p.x, spot.z - p.z) * DETOUR;
+    if (d > 0.8) {
+      const l = lobby();
+      W.teleport(l.x, l.z);
+      sim(d / up.value('speed'));
+    }
+    W.teleport(spot.x, spot.z);
+  }
+
+  /** Stand still until done() (checked every 0.1 s) or `max` seconds. */
+  function stay(max, done) {
+    for (let t = 0; t < max; t += 0.1) {
+      sim(0.1);
+      if (done && done()) return;
+    }
+  }
+
+  function act(name, spot, max, done) {
+    actions[name] = (actions[name] ?? 0) + 1;
+    walkTo(spot);
+    stay(max, done);
+  }
+
+  // --- village -----------------------------------------------------------------------------------------------
+  /** The offered pad of plot `plot` (−1 = Great Lodge): where to stand and what it still needs; null if none. */
+  function plotInfo(plot) {
+    const village = level.village;
+    const spot = village && village.padSpot(plot);
+    if (!spot) return null;
+    const v = ctx.state.village;
+    const p = plot < 0 ? v.greatLodge : v.plots[plot];
+    const def = plot < 0 ? VILLAGE.greatLodge : VILLAGE.tiers[p.tier + 1];
+    if (!p || !def) return null;
+    return { plot, spot, logsLeft: Math.max(0, def.logs - p.logs), cashLeft: Math.max(0, def.cash - p.cash) };
+  }
+
+  /** Plot being built and the tier it started from (kept across turns until that tier completes). */
+  let build = null;
+  let buildTier = 0;
+  const tierOf = (plot) => (plot < 0 ? ctx.state.village.greatLodge.tier : ctx.state.village.plots[plot].tier);
+  const startBuild = (plot, info) => ((build = plot), (buildTier = tierOf(plot)), buildTurn(info));
+
+  /** One step toward finishing `info`; false when there is nothing useful to do for it right now. */
+  function buildTurn(info) {
+    const arms = ctx.player.arms;
+    const logs = count(arms, 'log');
+    if (info.logsLeft > 0 && logs === 0) {
+      if (held(arms) >= arms.capacity) return false; // arms full of something else: let the loop clear them
+      const pile = level.dropZone.pile;
+      if (count(pile, 'log') > 0) {
+        act('build:fetch', spots.pickup, 4, () => held(arms) >= arms.capacity || count(pile, 'log') === 0 || count(arms, 'log') >= info.logsLeft);
+      } else {
+        act('chop', spots.chop, 3);
+      }
+      return true;
+    }
+    if (info.logsLeft === 0 && money() < info.cashLeft) return false; // logs done; earn the rest first
+    act(info.plot < 0 ? 'build:greatLodge' : 'build:plot', info.spot, 10, () => {
+      const now = plotInfo(info.plot);
+      return !now || tierOf(info.plot) !== buildTier || ((now.logsLeft === 0 || count(arms, 'log') === 0) && (now.cashLeft === 0 || money() < 5));
+    });
+    return true;
+  }
+
+  // --- spending ----------------------------------------------------------------------------------------------
+  /** What the visible unlock pads / the Great Lodge still cost (the cheapest), or null when nothing is saved for. */
+  function savingGoal() {
+    let goal = null;
+    for (const id of Object.keys(PADS)) {
+      const pad = level.pads[id];
+      if (pad && pad.visible && !pad.levelMode && !ctx.state.unlocked[id]) goal = goal === null ? pad.remaining : Math.min(goal, pad.remaining);
+    }
+    const lodge = plotInfo(-1);
+    if (lodge) goal = goal === null ? lodge.cashLeft : Math.min(goal, lodge.cashLeft);
+    return goal;
+  }
+
+  function shop(id) {
+    actions[`buy:${id}`] = (actions[`buy:${id}`] ?? 0) + 1;
+    walkTo(spots.shop);
+    stay(0.8);
+    up.buy(id);
+  }
+
+  function payLevel(id) {
+    const pad = level.pads[id];
+    const before = up.level(id);
+    act(`level:${id}`, PADS[id], 6, () => up.level(id) > before || !pad.visible);
+  }
+
+  /** Buy the cheapest worthwhile thing we can afford; false if nothing qualifies. */
+  function spendTurn() {
+    const s = ctx.state;
+    const cash = money();
+    const goal = savingGoal();
+    const ok = (cost) => cost <= cash && (goal === null || cost <= SPEND_SHARE * goal);
+    const options = [];
+    for (const id of Object.keys(PADS)) {
+      const pad = level.pads[id];
+      if (pad && pad.visible && pad.levelMode && ok(pad.remaining)) options.push({ rank: pad.remaining, run: () => payLevel(id) });
+    }
+    if (s.flags.shopRevealed) {
+      for (const id of up.ids) {
+        if (up.def(id).group === 'machine') continue; // machines level up on their pads
+        const cost = up.nextCost(id);
+        if (cost !== null && up.canBuy(id) && ok(cost)) options.push({ rank: cost, run: () => shop(id) });
+      }
+    }
+    if (build === null && s.village.revealed) {
+      const lodge = plotInfo(-1);
+      if (lodge && lodge.cashLeft <= cash) options.push({ rank: -1, run: () => startBuild(-1, lodge) });
+      if (s.village.level < WINTER_CITY) {
+        for (let i = 0; i < VILLAGE.plotLevels.length; i++) {
+          const info = plotInfo(i);
+          if (info && ok(info.cashLeft)) options.push({ rank: info.cashLeft + info.logsLeft * LOG_VALUE, run: () => startBuild(i, info) });
+        }
+      }
+    }
+    if (options.length === 0) return false;
+    options.sort((a, b) => a.rank - b.rank);
+    const r = options[0].run();
+    return r !== false;
+  }
+
+  // --- the economy loop --------------------------------------------------------------------------------------
+  /** One decision + the time it takes. */
   function turn() {
     const arms = ctx.player.arms;
     const s = ctx.state;
 
-    // 1. Pay any visible pad we can fully afford.
+    // 1. An unlock pad we can fully afford.
     for (const id of Object.keys(PADS)) {
       const pad = level.pads[id];
-      if (s.padsVisible[id] && !s.unlocked[id] && ctx.economy.money >= pad.remaining) {
-        act(`pay:${id}`, PADS[id], 4);
+      if (pad && pad.visible && !pad.levelMode && !s.unlocked[id] && money() >= pad.remaining) {
+        act(`pay:${id}`, PADS[id], 6, () => !!s.unlocked[id]);
         return;
       }
     }
+    // 2. Crates in hand go to the trikes.
+    const se = level.seCounter;
+    if (count(arms, 'crate') > 0 && se && room(se.pile)) {
+      act('deliver:crates', spots.se, 4, () => count(arms, 'crate') === 0 || !room(se.pile));
+      return;
+    }
+    // 3. The shelter being built.
+    if (build !== null) {
+      const info = plotInfo(build);
+      if (!info || tierOf(build) !== buildTier || (info.logsLeft === 0 && info.cashLeft === 0)) build = null;
+      else if (buildTurn(info)) return;
+    }
+    // 4. Spend.
+    if (spendTurn()) return;
+
     const cashSpots = [
       [level.walkInCash, spots.walkInCash],
       [level.seCash, spots.seCash],
@@ -69,78 +259,78 @@
     const collect = (min) => {
       for (const [pile, spot] of cashSpots) {
         if (pile && pile.value >= min) {
-          act('collect', spot, 1.5);
+          act('collect', spot, 3, () => pile.value === 0);
           return true;
         }
       }
       return false;
     };
-    // 2. Deliver what we carry.
-    if (count(arms, 'crate') > 0 && level.seCounter && room(level.seCounter.pile)) {
-      act('deliver:crates', spots.se, 2);
-      return;
-    }
+    // 5. Deliver the logs we carry.
+    const truck = level.truckCounter;
+    const proc = level.processor;
+    const walkIn = level.walkInCounter;
+    const drop = (name, spot, pile) => act(name, spot, 4, () => count(arms, 'log') === 0 || !room(pile));
     if (count(arms, 'log') > 0) {
-      if (level.truckCounter && room(level.truckCounter.pile) && count(level.truckCounter.pile) < 12) {
-        act('deliver:truck', spots.truck, 2);
-        return;
-      }
-      if (level.processor && !s.unlocked.eastConveyor && room(level.processor.input) && count(level.walkInCounter.pile) >= 6) {
-        act('deliver:processor', spots.feed, 2);
-        return;
-      }
-      if (room(level.walkInCounter.pile)) {
-        act('deliver:walkIn', spots.walkIn, 2);
-        return;
-      }
-      if (level.processor && room(level.processor.input)) {
-        act('deliver:processor', spots.feed, 2);
-        return;
-      }
+      if (truck && room(truck.pile) && count(truck.pile) < 12) return drop('deliver:truck', spots.truck, truck.pile);
+      if (proc && !s.unlocked.eastConveyor && room(proc.input) && count(walkIn.pile) >= 6) return drop('deliver:processor', spots.feed, proc.input);
+      if (room(walkIn.pile)) return drop('deliver:walkIn', spots.walkIn, walkIn.pile);
+      if (proc && room(proc.input)) return drop('deliver:processor', spots.feed, proc.input);
     }
-    // 3. A big cash pile is worth a trip.
+    // 6. A big cash pile is worth a trip.
     if (collect(40)) return;
-    // 4. Phase 5: only the player feeds the trucks, so an emptying truck counter comes first.
-    const logsReady = count(level.dropZone.pile, 'log') >= 4 && arms.size < arms.capacity;
-    if (level.truckCounter && count(level.truckCounter.pile) < 6 && logsReady) {
-      act('fetch:logs', spots.pickup, 1.5);
+    // 7. Phase 5: only the player (or the log hauler) feeds the trucks, so an emptying truck counter comes first.
+    const dz = level.dropZone.pile;
+    const fetchLogs = () => act('fetch:logs', spots.pickup, 4, () => held(arms) >= arms.capacity || count(dz, 'log') === 0);
+    const logsReady = count(dz, 'log') >= 4 && held(arms) < arms.capacity;
+    if (truck && count(truck.pile) < 6 && logsReady) return fetchLogs();
+    // 8. Fetch crates for the trikes.
+    if (proc && count(proc.output, 'crate') >= 3 && se && room(se.pile) && held(arms) < arms.capacity) {
+      act('fetch:crates', spots.bench, 4, () => held(arms) >= arms.capacity || count(proc.output, 'crate') === 0);
       return;
     }
-    // 5. Fetch crates for the trikes.
-    if (level.processor && count(level.processor.output, 'crate') >= 3 && level.seCounter && room(level.seCounter.pile) && arms.size < arms.capacity) {
-      act('fetch:crates', spots.bench, 1.5);
-      return;
-    }
-    // 6. Fetch logs while something still needs them carried by hand.
-    const truckWantsLogs = !!level.truckCounter && count(level.truckCounter.pile) < 12;
-    const needLogs = truckWantsLogs || !s.unlocked.westConveyor || !s.unlocked.eastConveyor;
-    if (needLogs && logsReady) {
-      act('fetch:logs', spots.pickup, 1.5);
-      return;
-    }
-    // 7. Small change, or chop more.
+    // 9. Fetch logs while something still needs them carried by hand.
+    const needLogs = (!!truck && count(truck.pile) < 12) || !s.unlocked.westConveyor || !s.unlocked.eastConveyor;
+    if (needLogs && logsReady) return fetchLogs();
+    // 10. Small change, or chop more.
     if (collect(5)) return;
     act('chop', spots.chop, 3);
   }
 
-  const goals = {
-    bothConveyors: () => ctx.state.unlocked.westConveyor && ctx.state.unlocked.eastConveyor,
-  };
+  // --- driver ------------------------------------------------------------------------------------------------
+  const PHASES = ['intro', 'manual', 'harvester', 'processor', 'automation', 'expansion'];
+  function reachedFn(goal) {
+    const s = ctx.state;
+    if (goal === 'bothConveyors') return () => s.unlocked.westConveyor && s.unlocked.eastConveyor;
+    if (goal === 'shop') return () => !!s.flags.shopRevealed;
+    if (goal === 'village') return () => s.village.revealed;
+    if (goal === 'finale') return () => s.village.greatLodge.tier >= 0;
+    if (goal.startsWith('vl:')) return () => s.village.level >= Number(goal.slice(3));
+    if (goal.startsWith('hired:')) return () => up.isHired(goal.slice(6));
+    if (PHASES.includes(goal)) return () => s.phase === goal || (goal !== 'expansion' && PHASES.indexOf(s.phase) > PHASES.indexOf(goal));
+    if (goal in PADS) return () => !!s.unlocked[goal];
+    throw new Error(`unknown goal ${goal}`);
+  }
 
   function snapshot() {
     const st = W.state();
-    return { t: st.t, phase: st.phase, money: st.money, liveItems: st.liveItems, stats: st.stats, level: st.level };
+    return {
+      t: st.t,
+      min: Math.round((ctx.time.elapsed / 60) * 10) / 10,
+      phase: st.phase,
+      money: st.money,
+      liveItems: st.liveItems,
+      stats: st.stats,
+      upgrades: { ...ctx.state.upgrades },
+      village: { level: ctx.state.village.level, population: ctx.state.village.population, plots: ctx.state.village.plots.map((p) => p.tier) },
+      crew: level.crew ? level.crew.size : 0,
+    };
   }
 
   function runUntil(goal, budget = 300) {
-    const reached = goals[goal] ?? (() => ctx.state.phase === goal || (goal !== 'expansion' && phaseIndex(ctx.state.phase) > phaseIndex(goal)));
+    const reached = reachedFn(goal);
     const t0 = ctx.time.elapsed;
     while (!reached() && ctx.time.elapsed - t0 < budget) turn();
     return { ok: reached(), goal, simSeconds: Math.round(ctx.time.elapsed - t0), state: snapshot() };
-  }
-
-  function phaseIndex(p) {
-    return ['intro', 'manual', 'harvester', 'processor', 'automation', 'expansion'].indexOf(p);
   }
 
   function runFor(seconds) {
@@ -149,11 +339,25 @@
     return snapshot();
   }
 
+  /** Milestones in the order they happened, in minutes of play. */
+  function milestones() {
+    return Object.entries(marks)
+      .sort((a, b) => a[1] - b[1])
+      .map(([name, t]) => `${(t / 60).toFixed(1).padStart(5)}  ${name}`);
+  }
+
   /** Park the player next to something worth photographing. */
   function frame(id) {
-    const p = new ctx.player.position.constructor();
-    level.anchorOf(id, p);
-    W.teleport(p.x + 2.5, p.z + 2.5);
+    if (id === 'village') {
+      const st = LAYOUT.village.street;
+      W.teleport((st.minX + st.maxX) / 2, 19);
+    } else if (id === 'shop') {
+      W.teleport(spots.shop.x, spots.shop.z + 1.5);
+    } else {
+      const p = new ctx.player.position.constructor();
+      level.anchorOf(id, p);
+      W.teleport(p.x + 2.5, p.z + 2.5);
+    }
     sim(0.6);
   }
 
@@ -164,6 +368,6 @@
     return { calls: info.render.calls, triangles: info.render.triangles, geometries: info.memory.geometries, textures: info.memory.textures, liveItems: W.state().liveItems };
   }
 
-  window.__bot = { runUntil, runFor, frame, turn, spots, perf, report: () => ({ timeline, actions, state: snapshot() }) };
+  window.__bot = { runUntil, runFor, frame, turn, spots, perf, milestones, report: () => ({ timeline, actions, marks, state: snapshot() }) };
   return 'bot ready';
 })()
