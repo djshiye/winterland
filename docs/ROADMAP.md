@@ -1,9 +1,10 @@
 # Winterland roadmap
 
-**Where it stands (2026-10-13).**
-- Phases 1–5 play end to end, and every model and texture is procedural (AssetFactory, canvas textures, synthesized sound).
-- The autoplay bot reaches the mega sawmill in about 2.5 minutes.
-- Late-game cost is about 430 draw calls on desktop and 505 at phone size; the budget is about 800.
+**Where it stands (2026-10-14).**
+- **The "make it a game" list (items 1–7 below) is done**, plus a winter village of buildable shelters that drives demand, and a Great Lodge finale. See `docs/DESIGN.md`.
+- The autoplay bot plays the whole game in about 50 minutes: harvester at 1 min, processor 4, conveyors 7, mega saw 16, Town 20, Winter City 35, finale 51.
+- Late-game cost is about 720 draw calls on desktop and 630 at phone size (budget ~800); the finale celebration peaks at about 1,240.
+- Saves resume exactly; offline earnings pay 25% of the recent sales rate for up to 2 hours.
 - A private artifact build exists for phone play.
 
 Effort sizes: **S** is a small slice. **M** is about one builder for a wave. **L** is several waves.
@@ -31,7 +32,10 @@ The original brief said "in the style of mobile playable ads". The two readings 
 
 Recommendation: **game**. The brief asked for something to play and test. An ad build can be a cheap side target later, because it reuses almost everything.
 
-## Next: make it a game
+## Done: make it a game (wave 4–5)
+
+Kept for reference. Deviations: the shop is one doormat that opens a panel (not pads), and the conveyors have no levels (belts are never the bottleneck).
+
 
 1. **Save and resume (M).**
    - What it saves: a versioned localStorage snapshot of money, unlocks, pad progress, the phase, and item counts per pile and counter.

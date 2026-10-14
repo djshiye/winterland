@@ -23,7 +23,7 @@ Read this together with `docs/ARCHITECTURE.md`, which covers coordinates, owners
    - Each plot grows Tent → Hut → Cabin → Lodge. Every tier costs **logs** (carried from the drop zone in your arms) **and cash**.
    - Shelters house villagers. The population sets the **village level**: Camp, Hamlet, Village, Town, Winter City.
    - Each level unlocks more plots, the next shelter tier and crew hires. It also raises **demand**: faster customers, bigger orders and better prices (`DEMAND[level]`).
-5. **Finale.** At Winter City the Great Lodge pad appears at the end of the street (120 logs + $40k). Building it brings:
+5. **Finale.** At Winter City the Great Lodge pad appears at the end of the street (100 logs + $25k). Building it brings:
    - a celebration;
    - a stats card;
    - "Winterland" as the final village level, with the best demand.
@@ -32,26 +32,30 @@ Read this together with `docs/ARCHITECTURE.md`, which covers coordinates, owners
 6. **Persistence.**
    - The game autosaves.
    - A refresh resumes exactly where you were.
-   - Coming back after a while shows "While you were away: $X". The amount is the recent sales rate × time away (capped at 2 h) × 0.5.
+   - Coming back after a while shows "While you were away: $X". The amount is the recent sales rate × time away (capped at 2 h) × 0.25.
    - Settings → Reset wipes everything.
 
-Target pacing, tuned in wave 5 with the bot:
+Pacing, tuned in wave 5 with the bot (`node scripts/balance.mjs`). The bot walks at the upgraded speed but plays
+efficiently; a real player is somewhat slower.
 
-| Milestone | Time |
-|---|---|
-| Harvester | ~1 min |
-| Shop | ~1:15 |
-| Village gate | ~2 |
-| Hamlet | ~3 |
-| Processor | ~4 |
-| Crate runner | ~5 |
-| Conveyors | ~8 |
-| Cashier | ~11 |
-| Mega saw | ~15 |
-| Town | ~22 |
-| Log hauler | ~25 |
-| Winter City | ~40 |
-| Finale | ~45–55 |
+| Milestone | Target | Bot (wave 5) |
+|---|---|---|
+| Harvester | ~1 min | 1.0 |
+| Shop | ~1:15 | 1.1 |
+| Village gate | ~2 | 1.3 |
+| Hamlet | ~3 | 2.3 |
+| Processor | ~4 | 4.1 |
+| Crate runner | ~5 | 13.6 |
+| Conveyors | ~8 | 7.0 |
+| Cashier | ~11 | 25.8 |
+| Mega saw | ~15 | 16.4 |
+| Town | ~22 | 20.5 |
+| Log hauler | ~25 | 40.5 |
+| Winter City | ~40 | 35.1 |
+| Finale | ~45–55 | 50.8 |
+
+Crew hires come later than planned because the bot saves for unlock pads first; that is fine, since they are a boost
+rather than a gate.
 
 ## State is the truth (save/restore rules)
 

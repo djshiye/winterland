@@ -58,14 +58,16 @@ if you need a change there, say so in your report instead of editing.
 
 | slice | files |
 |-------|-------|
-| **main** | `config.ts`, `core/types.ts`, `core/EventBus.ts`, `core/Economy.ts`, `core/math.ts`, `render/materials.ts`, `game/Game.ts`, `main.ts`, `style.css`, `index.html`, `scripts/*`, `level/Level.ts`, `assets/AssetFactory.ts` |
+| **main** | `config.ts`, `core/types.ts`, `core/EventBus.ts`, `core/Economy.ts`, `core/Upgrades.ts`, `core/demand.ts`, `core/Save.ts`, `core/math.ts`, `render/materials.ts`, `game/Game.ts`, `main.ts`, `style.css`, `index.html`, `scripts/*`, `level/Level.ts`, `assets/AssetFactory.ts` |
 | **B1 engine + characters** | `core/Tween.ts`, `render/Renderer.ts`, `render/CameraRig.ts`, `render/characters.ts`, `input/*`, `world/Colliders.ts`, `entities/*`, `assets/characters.ts` |
 | **B2 items** | `items/*` (`ItemPool`, `Pile`, `CarryStack`, `CashStack`, `FlightSystem`, `transfer`, `Zones`), `assets/items.ts`, `debug/*` |
-| **B3 world** | `world/Environment.ts`, `world/env/*`, `assets/scenery.ts` |
+| **B3 world + village** | `world/Environment.ts`, `world/env/*`, `assets/scenery.ts`, `village/*`, `assets/shelters.ts` |
 | **B4 juice & HUD** | `fx/*` (`Particles`, `Audio`, `JuiceDirector`), `ui/*` |
-| **B5 commerce** | `stations/Counter.ts`, `stations/CashPile.ts`, `npc/*` (customers; tricycles + trucks share `VehicleQueue`), `assets/vehicles.ts`, `assets/shop.ts` |
+| **B5 commerce** | `stations/Counter.ts`, `stations/CashPile.ts`, `npc/*` (customers; tricycles + trucks share `VehicleQueue`; hired crew in `Crew` + `crewHelpers`), `assets/vehicles.ts`, `assets/shop.ts` |
 | **B6 machines** | `stations/DropZone.ts`, `stations/GiantLog.ts`, `stations/Harvester.ts`, `stations/Processor.ts`, `stations/Conveyor.ts`, `stations/beltPath.ts`, `stations/MegaSaw.ts`, `assets/machines.ts` |
-| **B7 progression** | `stations/UpgradePad.ts`, `progression/*`, `assets/pads.ts` |
+| **B7 progression** | `stations/UpgradePad.ts`, `stations/ConstructionPad.ts`, `stations/ShopMat.ts`, `progression/*` (reveal rules in `reveals.ts`), `assets/pads.ts` |
+
+The full-game systems (save and restore rules, upgrades, demand, pads, village layout, events) are specified in `docs/DESIGN.md`.
 
 Stub files contain the public API with JSDoc requirements. **Keep every public signature exactly** (you may add
 members/options); other slices compile against them in parallel.
