@@ -319,7 +319,7 @@ export class Level {
       case 'truckLoader':
         return out.set(PADS.truckLoader.x, 0, PADS.truckLoader.z);
       case 'cashTubes':
-        return out.set(LAYOUT.cabin.minX + LAYOUT.cabin.maxX, 0, LAYOUT.cabin.minZ + LAYOUT.cabin.maxZ).multiplyScalar(0.5);
+        return out.set(9.1, 0, -5.6); // the receiver tower (stations/CashTubes.ts TOWER)
     }
   }
 
