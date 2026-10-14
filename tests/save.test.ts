@@ -86,7 +86,7 @@ describe('older world snapshots', () => {
 });
 
 describe('new season (prestige)', () => {
-  it('resets progress, keeps hints and stats, counts the season', () => {
+  it('resets progress and stats, keeps hints, counts the season', () => {
     const prev = createGameState();
     mergeState(prev, fixture().state);
     prev.flags['seen:shop'] = true;
@@ -98,7 +98,8 @@ describe('new season (prestige)', () => {
     expect(next.state.upgrades).toEqual(createGameState().upgrades);
     expect(next.state.flags.introDone).toBe(prev.flags.introDone);
     expect(next.state.flags['seen:shop']).toBe(true);
-    expect(next.state.stats.moneyEarned).toBe(prev.stats.moneyEarned);
+    expect(next.state.stats).toEqual(createGameState().stats);
+    expect(next.state.playTime).toBe(0);
     expect(next.world.piles.dropZone).toBe(0);
   });
 

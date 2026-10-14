@@ -89,6 +89,7 @@ export class Player {
       capacity: ctx.upgrades.value('carry'),
       anchor: this.rig.armsAnchor,
       columnHeight: 3.4,
+      castShadows: true,
     });
     this.back = new CashStack(ctx, { id: 'player.back', anchor: this.rig.backAnchor, maxVisual: PLAYER.cashVisualCap });
     this.syncUpgrades();

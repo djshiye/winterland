@@ -38,6 +38,8 @@ export interface CarryStackOptions {
   columnHeight?: number;
   /** Start a new column once a column holds this many items (default: unlimited). */
   columnSize?: number;
+  /** Held items cast shadows (the player's arms; default false: NPC stacks stay cheap). */
+  castShadows?: boolean;
 }
 
 /** One stack position: a landed item, or a placeholder (item === null) for one still in flight. */
@@ -136,6 +138,7 @@ export class CarryStack implements ItemHolder {
     e.x = e.tx;
     e.z = e.tz;
     this.opts.anchor.add(item.object);
+    setShadow(item, !!this.opts.castShadows);
     item.object.scale.set(1, 1, 1);
     this.apply(e);
     this.ctx.tweens.punchScale(item.object, 0.12, 0.18);
@@ -168,6 +171,7 @@ export class CarryStack implements ItemHolder {
       e.item = null;
       this.ctx.tweens.killTweensOf(item.object);
       this.ctx.scene.attach(item.object);
+      setShadow(item, false);
       this.entries.splice(i, 1);
       this.layout(); // entries above keep their current y and glide down in update()
       this.updateBadge();
@@ -256,6 +260,7 @@ export class CarryStack implements ItemHolder {
     e.x = e.tx;
     e.z = e.tz;
     this.opts.anchor.add(item.object);
+    setShadow(item, !!this.opts.castShadows);
     item.object.scale.set(1, 1, 1);
     this.apply(e);
     this.updateBadge();
@@ -409,4 +414,12 @@ export class CarryStack implements ItemHolder {
     this.opts.anchor.add(sprite);
     return sprite;
   }
+}
+
+/**
+ * Items cast no shadow by default (hundreds sit in piles; each caster is a second draw call). The player's
+ * stack (opts.castShadows) is small and moves, so it casts one while held; take() turns it off again.
+ */
+function setShadow(item: Item, on: boolean): void {
+  item.object.castShadow = on;
 }

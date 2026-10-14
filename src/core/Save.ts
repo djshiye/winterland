@@ -190,14 +190,12 @@ const EMPTY_WORLD: WorldSnapshot = {
 
 /**
  * Prestige: the save that starts the next season after the finale. Everything resets except the season count
- * (+1, a permanent price bonus, PRESTIGE.bonusPerSeason), lifetime stats and the one-shot UI hints (`seen:*`,
- * introDone: no intro replay). Starting money PRESTIGE.startMoneyPerSeason × season.
+ * (+1, a permanent price bonus, PRESTIGE.bonusPerSeason) and the one-shot UI hints (`seen:*`, introDone: no intro
+ * replay). Stats and play time start over too: reveal rules read them, and the finale card shows that season's run. Starting money PRESTIGE.startMoneyPerSeason × season.
  */
 export function newSeasonSave(prev: GameState, now: number): SaveData {
   const state = createGameState();
   state.prestige.season = prev.prestige.season + 1;
-  state.stats = { ...prev.stats };
-  state.playTime = prev.playTime;
   for (const [flag, on] of Object.entries(prev.flags)) {
     if (on && (flag === 'introDone' || flag.startsWith('seen:'))) state.flags[flag as FlagId] = true;
   }
