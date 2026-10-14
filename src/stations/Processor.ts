@@ -32,10 +32,14 @@ import { Pile } from '../items/Pile';
 import { launchNew } from '../items/transfer';
 import type { Zone } from '../items/Zones';
 
-/** Timeline (seconds after a log is taken): slide to the mouth, slide in, chew, crate pops out. */
-const T_MOUTH = 0.22;
-const T_IN = 0.5;
-const T_POP = 0.85;
+/**
+ * Timeline as fractions of the cycle (seconds after a log is taken = fraction × cycle time): slide to the mouth,
+ * slide in, chew, crate pops out. The cycle time is read live from the 'processor' upgrade (1.0 s → 0.5 s), so
+ * every phase stretches with it.
+ */
+const F_MOUTH = 0.22;
+const F_IN = 0.5;
+const F_POP = 0.85;
 /** Log height while travelling into the tunnel. */
 const LOG_Y = 0.6;
 
@@ -54,6 +58,8 @@ export class Processor {
   private t = 0;
   private cur: Item | null = null;
   private swallowed = false;
+  /** Cycle time of the cycle in progress (seconds). */
+  private cycle = 1;
   private puffClock = 0;
   private lamp = 0;
   private readonly start = new THREE.Vector3();
@@ -103,8 +109,7 @@ export class Processor {
     });
   }
 
-  /** Pop in with a squash, register the colliders, announce. */
-  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. TODO(owner): honour it. */
+  /** Register the colliders, pop in with a squash and announce. instant (restoring a save): final state at once — no animation, no 'built' event, no sound. */
   build(instant = false): void {
     if (this.built) return;
     this.built = true;
@@ -113,6 +118,14 @@ export class Processor {
     ctx.colliders.addBox(rect(P.x, P.z, P.w, P.d), 'processor');
     ctx.colliders.addBox(rect(P.hopper.x, P.hopper.z, P.hopper.w, P.hopper.d), 'processor:tray');
     ctx.colliders.addBox(rect(P.outputTable.x, P.outputTable.z, P.outputTable.w, P.outputTable.d), 'processor:bench');
+    this.model.badge.setLevel(ctx.upgrades.level('processor'));
+    ctx.events.on('upgrade:bought', ({ id }) => {
+      if (id !== 'processor') return;
+      ctx.tweens.squash(this.model.body, 0.16, 0.45);
+      this.tmp.set(P.x, P.h + 0.4, P.z);
+      ctx.particles.puff(this.tmp, { count: 6, size: 0.55, life: 0.8 });
+    });
+    if (instant) return;
     ctx.tweens.popIn(this.object, { duration: 0.5 });
     ctx.tweens.delay(0.55, () => ctx.tweens.squash(this.model.body, 0.15, 0.4));
     ctx.events.emit('built', { what: 'processor', position: new THREE.Vector3(P.x, 0, P.z), object: this.object });
@@ -122,23 +135,31 @@ export class Processor {
     if (!this.built) return;
     const P = LAYOUT.processor;
     const body = this.model.body;
+    this.model.badge.setLevel(this.ctx.upgrades.level('processor'));
+    const cyc = this.cycle;
 
     if (this.state === 'idle') {
       if (this.input.count('log') > 0 && this.output.canAccept('crate')) this.startCycle();
     } else {
       this.t += dt;
       this.advance();
+      // back-to-back cycles keep the exact cycle time: start the next one in the same frame, carrying the leftover
+      if (this.isIdle() && this.input.count('log') > 0 && this.output.canAccept('crate')) {
+        const over = this.t - cyc;
+        this.startCycle();
+        this.t = Math.max(0, over);
+      }
     }
 
     // chew shudder + status lamp + chimney smoke while busy
-    const chewing = this.state === 'busy' && this.t >= T_IN && this.t < T_POP;
+    const chewing = this.state === 'busy' && this.t >= F_IN * cyc && this.t < F_POP * cyc;
     body.position.x = chewing ? Math.sin(this.t * 70) * 0.014 : 0;
     this.lamp = damp(this.lamp, this.state === 'idle' ? 0 : 1, 10, dt);
     this.model.lampMaterial.emissiveIntensity = this.lamp * 1.3;
     if (this.state !== 'idle') {
       this.puffClock -= dt;
       if (this.puffClock <= 0) {
-        this.puffClock = 0.28;
+        this.puffClock = 0.28 * cyc;
         this.tmp.set(P.x + this.model.chimney.x, this.model.chimney.y, P.z + this.model.chimney.z);
         this.ctx.particles.puff(this.tmp, { count: 2, size: 0.32, life: 0.9 });
       }
@@ -147,6 +168,10 @@ export class Processor {
 
   // ---------------------------------------------------------------------------
 
+  private isIdle(): boolean {
+    return this.state === 'idle';
+  }
+
   private startCycle(): void {
     const log = this.input.take('log');
     if (!log) return;
@@ -154,6 +179,7 @@ export class Processor {
     this.swallowed = false;
     this.start.copy(log.object.position);
     log.object.quaternion.identity();
+    this.cycle = Math.max(0.1, this.ctx.upgrades.value('processor'));
     this.state = 'busy';
     this.t = 0;
     this.puffClock = 0;
@@ -163,13 +189,17 @@ export class Processor {
   private advance(): void {
     const P = LAYOUT.processor;
     const cur = this.cur;
+    const cyc = this.cycle;
+    const tMouth = F_MOUTH * cyc;
+    const tIn = F_IN * cyc;
+    const tPop = F_POP * cyc;
     if (cur && !this.swallowed) {
-      if (this.t < T_MOUTH) {
-        const k = smoothstep(0, T_MOUTH, this.t);
+      if (this.t < tMouth) {
+        const k = smoothstep(0, tMouth, this.t);
         cur.object.position.lerpVectors(this.start, this.mouth, k);
         cur.object.position.y += Math.sin(k * Math.PI) * 0.15;
-      } else if (this.t < T_IN) {
-        const k = smoothstep(T_MOUTH, T_IN, this.t);
+      } else if (this.t < tIn) {
+        const k = smoothstep(tMouth, tIn, this.t);
         cur.object.position.lerpVectors(this.mouth, this.inside, k);
       } else {
         // fully inside: eaten
@@ -177,22 +207,22 @@ export class Processor {
         this.ctx.tweens.killTweensOf(cur.object);
         this.ctx.items.release(cur);
         this.cur = null;
-        this.ctx.tweens.squash(this.model.body, 0.14, 0.4);
+        this.ctx.tweens.squash(this.model.body, 0.14, Math.max(0.18, 0.4 * cyc));
       }
     }
-    if ((this.state === 'busy' || this.state === 'blocked') && this.t >= T_POP) {
+    if ((this.state === 'busy' || this.state === 'blocked') && this.t >= tPop) {
       this.tmp.set(P.x + P.w / 2 - 0.2, 0.72, P.z);
-      const crate = launchNew(this.ctx, 'crate', this.tmp, this.output, { duration: 0.38, arcHeight: 0.5, scaleFrom: 0.5 });
+      const crate = launchNew(this.ctx, 'crate', this.tmp, this.output, { duration: Math.max(0.16, 0.38 * cyc), arcHeight: 0.5, scaleFrom: 0.5 });
       if (crate) {
         this.ctx.state.stats.cratesMade++;
         this.tmp.x += 0.3;
         this.ctx.events.emit('crate:made', { position: this.tmp });
-        this.ctx.tweens.punchScale(this.model.body, 0.05, 0.2);
+        this.ctx.tweens.punchScale(this.model.body, 0.05, Math.max(0.12, 0.2 * cyc));
         this.state = 'cooldown';
       } else {
         this.state = 'blocked';
       }
     }
-    if (this.state === 'cooldown' && this.t >= P.cycleTime) this.state = 'idle';
+    if (this.state === 'cooldown' && this.t >= cyc) this.state = 'idle';
   }
 }

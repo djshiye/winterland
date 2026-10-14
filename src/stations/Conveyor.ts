@@ -114,12 +114,19 @@ export class Conveyor implements ItemHolder {
     return this.path.length;
   }
 
-  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. TODO(owner): honour it. */
+  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. */
   build(instant = false): void {
     if (this.active) return;
     this.active = true;
     this.buildT = 0;
     this.object.visible = true;
+    if (instant) {
+      this.buildT = this.segScale.length * POP_STAGGER + POP_TIME;
+      this.applyBuild();
+      this.built = true;
+      this.model.finalize();
+      return;
+    }
     this.applyBuild();
   }
 

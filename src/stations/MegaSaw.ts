@@ -37,7 +37,8 @@ export class MegaSaw {
   readonly object = new THREE.Group();
   readonly model: MegaSawModel;
   private built = false;
-  private clock = 0;
+  /** Cycle phase 0…1 (0 = parked at the top). Advances by dt / cycle, so a level change never makes it jump. */
+  private phase = 0;
   private bladeRate = 0;
   private cutting = false;
   private readonly bladeWorldZ: number;
@@ -57,14 +58,25 @@ export class MegaSaw {
     ctx.scene.add(this.object);
   }
 
-  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. TODO(owner): honour it. */
+  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. */
   build(instant = false): void {
     if (this.built) return;
     this.built = true;
     const ctx = this.ctx;
     const M = LAYOUT.megaSaw;
     ctx.colliders.addBox(M.base, 'megaSaw');
-    this.clock = 0;
+    this.phase = 0;
+    this.model.badge.setLevel(ctx.upgrades.level('megaSaw'));
+    ctx.events.on('upgrade:bought', ({ id }) => {
+      if (id !== 'megaSaw') return;
+      ctx.tweens.squash(this.object, 0.06, 0.5);
+      this.tmp.set(M.x + 3.3, 2.2, M.z);
+      ctx.particles.puff(this.tmp, { count: 8, size: 0.9, life: 1 });
+    });
+    if (instant) {
+      this.object.visible = true;
+      return;
+    }
     ctx.tweens.popIn(this.object, { duration: 0.7 });
     ctx.tweens.delay(0.75, () => {
       ctx.tweens.squash(this.object, 0.08, 0.4);
@@ -73,20 +85,28 @@ export class MegaSaw {
     ctx.events.emit('built', { what: 'megaSaw', position: new THREE.Vector3(M.x, 0, M.z), object: this.object });
   }
 
+  /** Seconds per cut at the current level (read live). */
+  get cycleTime(): number {
+    return this.ctx.upgrades.value('megaSaw');
+  }
+
   update(dt: number): void {
     if (!this.built) return;
-    const M = LAYOUT.megaSaw;
     const m = this.model;
+    const cycle = this.cycleTime;
+    // 1 at level 0, ~1.8 at max: blade and beacons keep up with the cut rate
+    const speed = LAYOUT.megaSaw.cycleTime / cycle;
     const full = this.opts.log.opts.dropZone.isFull;
-    const atRest = this.clock >= M.cycleTime * P_RISE || this.clock === 0;
+    const atRest = this.phase >= P_RISE || this.phase === 0;
+    m.badge.setLevel(this.ctx.upgrades.level('megaSaw'));
 
     // advance the cycle (a new one only starts when the drop zone has room)
-    if (this.clock > 0 || !full) this.clock += dt;
-    if (this.clock >= M.cycleTime) {
-      this.clock = full ? 0 : this.clock - M.cycleTime;
+    if (this.phase > 0 || !full) this.phase += dt / cycle;
+    if (this.phase >= 1) {
+      this.phase = full ? 0 : this.phase - 1;
       this.cutting = false;
     }
-    const p = this.clock / M.cycleTime;
+    const p = this.phase;
 
     let y = m.restY;
     if (p > 0 && p < P_PLUNGE) y = lerp(m.restY, m.cutY, easeIn(p / P_PLUNGE));
@@ -97,20 +117,20 @@ export class MegaSaw {
 
     if (p >= P_PLUNGE && !this.cutting && p < P_HOLD) {
       this.cutting = true;
-      this.cut();
+      this.cut(cycle);
     }
 
     // blade + beacons
     const busy = p > 0 && p < P_RISE;
-    this.bladeRate = damp(this.bladeRate, busy ? 46 : atRest && full ? 4 : 14, busy ? 10 : 3, dt);
+    this.bladeRate = damp(this.bladeRate, (busy ? 46 : atRest && full ? 4 : 14) * (0.6 + 0.4 * speed), busy ? 10 : 3, dt);
     m.blade.rotation.z -= this.bladeRate * dt;
-    for (const b of m.beacons) b.rotation.y += dt * 4;
+    for (const b of m.beacons) b.rotation.y += dt * 4 * speed;
   }
 
   // ---------------------------------------------------------------------------
 
   /** Bottom of the plunge: launch the pieces, spray sawdust, shake the camera. */
-  private cut(): void {
+  private cut(cycle: number): void {
     const ctx = this.ctx;
     const M = LAYOUT.megaSaw;
     ctx.cameraRig.shake(0.08, 0.15);
@@ -124,7 +144,7 @@ export class MegaSaw {
         this.opts.log.chopPiece(this.tmp, 'megaSaw');
       };
       if (i === 0) fire();
-      else ctx.tweens.delay(i * STAGGER, fire);
+      else ctx.tweens.delay(i * STAGGER * (cycle / LAYOUT.megaSaw.cycleTime), fire);
     }
   }
 }
