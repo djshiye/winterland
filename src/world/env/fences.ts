@@ -76,7 +76,17 @@ export function buildFences(): FencesPart {
   group.add(
     run(
       [
-        { axis: 'x', at: Y.maxZ, from: Y.minX, to: Y.maxX, gaps: [[wc.x - half(wc), wc.x + half(wc)]] },
+        {
+          axis: 'x',
+          at: Y.maxZ,
+          from: Y.minX,
+          to: Y.maxX,
+          // the walk-in counter, and the village gate (closed by gate.ts until the village is revealed)
+          gaps: [
+            [wc.x - half(wc), wc.x + half(wc)],
+            [LAYOUT.village.gate.minX, LAYOUT.village.gate.maxX],
+          ],
+        },
         { axis: 'z', at: Y.maxX, from: Y.minZ, to: Y.maxZ, gaps: [[se.z - half(se), se.z + half(se)]] },
         // Customer path fences.
         { axis: 'z', at: LAYOUT.customers.path.minX, from: wc.z + wc.depth / 2, to: LAYOUT.customers.path.maxZ },

@@ -151,7 +151,7 @@ try {
       const file = path.resolve(process.cwd(), arg || 'shots/shot.png');
       fs.mkdirSync(path.dirname(file), { recursive: true });
       await page.evaluate(() => window.__WINTERLAND__.render());
-      await page.screenshot({ path: file });
+      await page.screenshot({ path: file, timeout: opts.timeout });
       log('saved', path.relative(process.cwd(), file));
     } else {
       throw new Error(`unknown step "${step}"`);

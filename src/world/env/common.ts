@@ -112,6 +112,7 @@ const KEEP_OUT: Rect[] = [
   inflate({ ...LAYOUT.river }, 0.7),
   inflate({ ...LAYOUT.customers.path, maxZ: 46, minZ: 8.5 }, 1.6),
   inflate(LAYOUT.tricycles.road, 1.2),
+  inflate(LAYOUT.village.area, 1.4),
   // highway corridor + bridge ramps
   { minX: -95, maxX: W.spur.minX, minZ: LAYOUT.highway.z - 4.6, maxZ: LAYOUT.highway.z + 4.0 },
   { minX: W.spur.minX - 2, maxX: W.spur.maxX + 2, minZ: W.spur.minZ - 2, maxZ: W.spur.maxZ + 2 },
@@ -123,6 +124,7 @@ const PROTECT: Rect[] = [
   inflate({ minX: W.yardMinX, maxX: W.yardMaxX, minZ: -10.4, maxZ: W.yardMaxZ }, 0.6),
   inflate({ ...LAYOUT.customers.path, maxZ: 40, minZ: 9 }, 0.9),
   inflate(LAYOUT.tricycles.road, 0.6),
+  inflate(LAYOUT.village.area, 0.5),
   { minX: -2, maxX: 16, minZ: -26, maxZ: -9 },
 ];
 

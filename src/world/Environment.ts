@@ -14,6 +14,7 @@ import { buildBuildings } from './env/buildings';
 import { Rng, type EnvPart } from './env/common';
 import { buildDecor, type ClearItem } from './env/decor';
 import { buildFences } from './env/fences';
+import { buildGate, type GatePart } from './env/gate';
 import { buildGround } from './env/ground';
 import { buildMountains } from './env/mountains';
 import { buildRiver } from './env/river';
@@ -47,6 +48,7 @@ export class Environment {
   private readonly snowfall: EnvPart;
   private readonly fences: ReturnType<typeof buildFences>;
   private readonly ground: ReturnType<typeof buildGround>;
+  private readonly gate: GatePart;
   private readonly strip: StripState[] = [];
   private readonly chimney: THREE.Vector3;
   private readonly tmp = new THREE.Vector3();
@@ -69,9 +71,10 @@ export class Environment {
     const decor = buildDecor(rng);
     const buildings = buildBuildings(ctx);
     this.snowfall = buildSnowfall(ctx, rng);
+    this.gate = buildGate();
     this.chimney = buildings.chimney;
 
-    for (const p of [this.ground, this.river, this.fences, roads, mountains, decor, buildings, this.snowfall]) {
+    for (const p of [this.ground, this.river, this.fences, this.gate, roads, mountains, decor, buildings, this.snowfall]) {
       this.parts.push(p);
       this.root.add(p.group);
     }
@@ -80,6 +83,14 @@ export class Environment {
     });
 
     ctx.colliders.setBounds(LAYOUT.yard);
+    // A restored game: the state is the truth, build the final scenery at once and silently.
+    if (ctx.state.village.revealed) this.gate.open(true);
+    if (ctx.state.expanded) this.expand(true);
+  }
+
+  /** Swing the village gate open (instant: no animation). Idempotent. */
+  openVillageGate(instant = false): void {
+    this.gate.open(instant);
   }
 
   /** Highway road-surface height at world X (raised over the river bridge). */
@@ -94,6 +105,7 @@ export class Environment {
 
   update(dt: number): void {
     this.river.update?.(dt);
+    this.gate.update?.(dt);
     this.snowfall.update?.(dt);
 
     this.smokeTimer -= dt;
@@ -111,14 +123,18 @@ export class Environment {
    * the strip decor is cleared with puffs, the dirt extends, the new fence (with a gap for the
    * truck counter) pops in, and the collider bounds are widened.
    */
-  /** instant (restoring a save): final state at once — no animation, no 'built' event, no sound. TODO(owner): honour it. */
+  /** `instant` (restoring a save): final state at once, no animation, no puffs. */
   expand(instant = false): void {
     if (this.expanding || this.expanded) return;
-    this.expanding = true;
-    this.expandT = 0;
     this.ctx.colliders.setBounds({ ...LAYOUT.yard, minZ: LAYOUT.expandedMinZ });
     this.ground.dirtExtension.visible = true;
     this.fences.expansion.visible = true;
+    if (instant) {
+      this.finishExpansion();
+      return;
+    }
+    this.expanding = true;
+    this.expandT = 0;
   }
 
   private puffAt(x: number, z: number, size = 0.9): void {
@@ -165,15 +181,18 @@ export class Environment {
     const fk = clamp01((t - 1.0) / 0.55);
     if (fk > 0) this.fences.expansion.scale.y = Math.max(0.001, backOut(fk));
 
-    if (t >= EXPAND_TIME) {
-      this.expanding = false;
-      this.expanded = true;
-      this.ground.dirtExtension.scale.z = 1;
-      this.fences.expansion.scale.y = 1;
-      north.visible = false;
-      this.root.remove(north);
-      for (const s of this.strip) s.item.object.removeFromParent();
-      this.strip.length = 0;
-    }
+    if (t >= EXPAND_TIME) this.finishExpansion();
+  }
+
+  /** The final (expanded) scenery state. */
+  private finishExpansion(): void {
+    this.expanding = false;
+    this.expanded = true;
+    this.ground.dirtExtension.scale.z = 1;
+    this.fences.expansion.scale.y = 1;
+    this.fences.north.visible = false;
+    this.root.remove(this.fences.north);
+    for (const s of this.strip) s.item.object.removeFromParent();
+    this.strip.length = 0;
   }
 }
