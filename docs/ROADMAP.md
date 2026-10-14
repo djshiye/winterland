@@ -1,11 +1,17 @@
 # Winterland roadmap
 
-**Where it stands (2026-10-14).**
-- **The "make it a game" list (items 1–7 below) is done**, plus a winter village of buildable shelters that drives demand, and a Great Lodge finale. See `docs/DESIGN.md`.
-- The autoplay bot plays the whole game in about 50 minutes: harvester at 1 min, processor 4, conveyors 7, mega saw 16, Town 20, Winter City 35, finale 51.
-- Late-game cost is about 720 draw calls on desktop and 630 at phone size (budget ~800); the finale celebration peaks at about 1,240.
-- Saves resume exactly; offline earnings pay 25% of the recent sales rate for up to 2 hours.
-- A private artifact build exists for phone play.
+**Where it stands (2026-10-14, v0.2.0).**
+- **The "make it a game" list (items 1–7 below) is done**, plus the winter village and the Great Lodge finale.
+- **Waves 6–7 are done** (see `docs/DESIGN.md`):
+  - longer upgrade ladders and a Sales tab;
+  - music, Graphics High/Low and an FPS overlay;
+  - vitest save/economy tests and CI/release workflows;
+  - Timber Ridge (gate, pine forest, tree feller, freight trains, pine hauler), a 3-tier crew bunkhouse that allows more helpers per role, a truck loader belt and cash tubes;
+  - a "New Season" prestige after the finale.
+- The autoplay bot finishes in about 56 minutes. Milestones: harvester 1 min, processor 4, conveyors 7, mega saw 16, Town 21, truck loader 29, ridge 32, bunkhouse 36, pine hauler 37, Winter City 51, finale 56.
+- Late-game draw calls at High quality peak at about 870 at the village and are about 530 elsewhere (ceiling ~950). Items no longer cast shadows. Low quality is about half that.
+- Saves resume exactly. Offline earnings pay 25% of the recent sales rate for up to 2 hours, capped at 20% of lifetime earnings.
+- A private artifact build exists for phone play, and desktop zips are built for Linux and Windows.
 
 Effort sizes: **S** is a small slice. **M** is about one builder for a wave. **L** is several waves.
 
@@ -60,9 +66,7 @@ Kept for reference. Deviations: the shop is one doormat that opens a panel (not 
 
 ## Then: polish and reach
 
-- **Music (S–M):** a procedural cozy loop in WebAudio, ducked under the sound effects, with its own toggle.
-- **Settings and pause (S):** sound, music, quality, haptics, reset progress.
-- **Quality tiers (S):** lower the pixel ratio and shadow-map size automatically when FPS drops, with a manual override.
+- **Auto quality (S):** drop to Low automatically when FPS stays low. The manual High/Low switch exists.
 - **Pile instancing (M):** settled items in each pile render as one InstancedMesh per kind, while items in flight stay individual. This turns the 182-mesh cash pile into 1 draw call and is the biggest perf lever left.
 - **Onboarding hand (S):** the genre's animated "drag to move" hand at the start, and a highlight on the first sale.
 - **Haptics (S):** `navigator.vibrate` on pickups and pad payments. Android only; iOS ignores it.
@@ -71,18 +75,16 @@ Kept for reference. Deviations: the shop is one doormat that opens a panel (not 
 ## Later: content (pick a few)
 
 - **A new product chain.** Either a firewood stand (logs into firewood bundles for cabin customers on snowmobiles) or a furniture workshop (planks into chairs and tables).
-- **A second zone across the river.** The bridge already exists. It could bring a new log type (birch or pine) and new buyers (dog sleds, or river barges at the spring thaw).
+- **A second zone across the river.** The bridge already exists. Timber Ridge (east) is done; the river zone could bring birch and river barges.
 - **Customer variety:** VIP orders with tips, rush hours, timed boosts.
 - **Day/night cycle:** the lamps and cabin windows glow, with an aurora at night.
 - **Quests and achievements:** short goals with cash rewards.
-- **Prestige:** sell the mill and restart in a new biome with a permanent multiplier.
+- **Prestige, deeper:** New Season exists (a permanent price bonus). It could add a new biome or perks per season.
 - **Seasonal events:** for example, Christmas tree deliveries.
 
 ## Engineering track (any time)
 
-- **Push to a private GitHub repo** (waiting on the owner's OK).
-- **CI (S):** a GitHub Action runs `tsc` and the autoplay playtest on every push, and fails if the milestone times regress.
-- **Unit tests (S–M):** vitest for the economy, Pile reservations and the transfer lifecycle.
+- **More unit tests (S–M):** Pile reservations and the transfer lifecycle. Economy and save tests exist, and CI runs them.
 - **Free hosting (S):** GitHub Pages or Cloudflare Pages, auto-deployed on push. That gives a public URL you control, while the artifact stays private. Add a PWA manifest for "Add to Home Screen". No recurring cost.
 - **Balance report (S):** run the bot with different strategies and produce a table of unlock times and income per minute.
 
