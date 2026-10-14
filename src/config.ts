@@ -571,7 +571,7 @@ export const LAYOUT = {
       { minX: 9.6, maxX: 14.6, minZ: -2.4, maxZ: -1.0 },
       { minX: 14.2, maxX: 32.4, minZ: -16.4, maxZ: 6.4 },
     ] as Rect[],
-    forest: { minX: 22, maxX: 32.6, minZ: -16.6, maxZ: -3.2 } as Rect,
+    forest: { minX: 22, maxX: 31.4, minZ: -16.6, maxZ: -3.2 } as Rect,
     /** Pine logs land here from the feller (pile; player / pine hauler pick up from `zone`). */
     deck: { x: 19.6, z: -5.6, grid: { cols: 3, rows: 4, layers: 4, spacing: LOG_GRID_SPACING } as PileGrid, zone: rect(19.6, -3.9, 2.6, 1.4) },
     /** Freight line along the east edge, trains run along Z (arrive from −Z, leave toward +Z). */
@@ -586,7 +586,7 @@ export const LAYOUT = {
     },
     platformCash: { x: 30.4, z: 3.6, grid: CASH_GRID, zone: rect(30.4, 3.6, 2.0, 1.8) },
     /** Crew bunkhouse: building footprint centre + its construction pad in front of it. */
-    quarters: { x: 18.2, z: 4.4, w: 5.0, d: 3.2, pad: { x: 18.2, z: 1.4 }, padSize: 1.8 },
+    quarters: { x: 18.2, z: 1.2, w: 5.0, d: 3.2, pad: { x: 18.2, z: 4.6 }, padSize: 1.8 },
   },
 
   /** Background scenery (visual only). */

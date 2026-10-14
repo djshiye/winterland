@@ -113,6 +113,9 @@ const KEEP_OUT: Rect[] = [
   inflate({ ...LAYOUT.customers.path, maxZ: 46, minZ: 8.5 }, 1.6),
   inflate(LAYOUT.tricycles.road, 1.2),
   inflate(LAYOUT.village.area, 1.4),
+  // Timber Ridge (its own forest / rocks / bushes live in ridge/Ridge.ts) + the rail corridor
+  inflate(LAYOUT.ridge.area, 1.2),
+  { minX: LAYOUT.ridge.rail.x - 2.4, maxX: LAYOUT.ridge.rail.x + 2.4, minZ: -70, maxZ: 70 },
   // highway corridor + bridge ramps
   { minX: -95, maxX: W.spur.minX, minZ: LAYOUT.highway.z - 4.6, maxZ: LAYOUT.highway.z + 4.0 },
   { minX: W.spur.minX - 2, maxX: W.spur.maxX + 2, minZ: W.spur.minZ - 2, maxZ: W.spur.maxZ + 2 },
@@ -125,6 +128,7 @@ const PROTECT: Rect[] = [
   inflate({ ...LAYOUT.customers.path, maxZ: 40, minZ: 9 }, 0.9),
   inflate(LAYOUT.tricycles.road, 0.6),
   inflate(LAYOUT.village.area, 0.5),
+  inflate(LAYOUT.ridge.area, 0.4),
   { minX: -2, maxX: 16, minZ: -26, maxZ: -9 },
 ];
 

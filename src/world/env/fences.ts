@@ -87,7 +87,17 @@ export function buildFences(): FencesPart {
             [LAYOUT.village.gate.minX, LAYOUT.village.gate.maxX],
           ],
         },
-        { axis: 'z', at: Y.maxX, from: Y.minZ, to: Y.maxZ, gaps: [[se.z - half(se), se.z + half(se)]] },
+        // the SE counter, and the Timber Ridge gate (closed by env/ridgeGate.ts until the ridge opens)
+        {
+          axis: 'z',
+          at: Y.maxX,
+          from: Y.minZ,
+          to: Y.maxZ,
+          gaps: [
+            [LAYOUT.ridge.gate.minZ, LAYOUT.ridge.gate.maxZ],
+            [se.z - half(se), se.z + half(se)],
+          ],
+        },
         // Customer path fences.
         { axis: 'z', at: LAYOUT.customers.path.minX, from: wc.z + wc.depth / 2, to: LAYOUT.customers.path.maxZ },
         { axis: 'z', at: LAYOUT.customers.path.maxX, from: Y.maxZ, to: LAYOUT.customers.path.maxZ },

@@ -17,6 +17,7 @@ import { COLORS, PALETTE } from '../config';
 import { createCharacterRig, type CharacterRig } from '../render/characters';
 import { Batch, bake } from '../render/batch';
 import { geo, mesh, toon } from '../render/materials';
+import { trainCatalog } from './train';
 
 export const TRIKE_WHEEL_RADIUS = 0.25;
 export const TRUCK_WHEEL_RADIUS = 0.38;
@@ -358,4 +359,5 @@ export const vehicleCatalog: Record<string, () => THREE.Object3D> = {
   tricycle: () => createTricycleWithRider().model.root,
   truckRed: () => createPickupTruckWithDriver(PALETTE.truckRed, 1).model.root,
   truckBlue: () => createPickupTruckWithDriver(PALETTE.truckBlue, 0).model.root,
+  ...trainCatalog,
 };

@@ -6,20 +6,27 @@
  *
  * - CrateRunner: processor bench (level.processor.output) → SE counter (level.seCounter.input) → back.
  * - Cashier: the richest cash pile → cabin door, where the bundles fly into a DepositSink (money += value).
- * - LogHauler: drop-zone pile → truck counter (when it exists and has room) else the walk-in counter.
+ * - LogHauler: drop-zone pile → truck counter (when it exists and has room) else the walk-in counter. It never
+ *   touches the Timber Ridge log deck.
+ * - PineHauler: Timber Ridge log deck (level.treeFeller.deck) → platform counter (level.platformCounter.input).
+ *   Rests near the quarters while the deck is empty. It never touches the drop zone.
+ *
+ * Several helpers of one role may work (core/crew.ts crewSlots): each has an `index`, a small lane offset on its
+ * posts, a staggered start, and `peers` (the role's helpers) so cashiers do not pile onto the same cash pile.
  */
 import * as THREE from 'three';
 import { CREW, LAYOUT, PLAYER, type XZ } from '../config';
 import { approach, dampAngle, yawFromDir } from '../core/math';
-import type { GameContext, Item, ItemHolder, ItemKind, Slot, UpgradeId } from '../core/types';
+import type { CrewRole } from '../core/crew';
+import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 import { CarryStack } from '../items/CarryStack';
 import { transferOne } from '../items/transfer';
 import { createCharacterRig, type CharacterRig } from '../render/characters';
 import type { Level } from '../level/Level';
 import type { CashPile } from '../stations/CashPile';
 
-export type CrewId = Extract<UpgradeId, 'crateRunner' | 'cashier' | 'logHauler'>;
-export const CREW_IDS: readonly CrewId[] = ['crateRunner', 'cashier', 'logHauler'];
+export type CrewId = CrewRole;
+export const CREW_IDS: readonly CrewId[] = ['crateRunner', 'cashier', 'logHauler', 'pineHauler'];
 
 const ACCEL = 12;
 const TURN_LAMBDA = 12;
@@ -47,14 +54,68 @@ const WALKIN_LOOK: XZ = { x: -4.0, z: 9.9 };
 const TRUCK_POST: XZ = { x: 1.0, z: -18.8 };
 const TRUCK_LOOK: XZ = { x: 1.0, z: -19.9 };
 
+// --- Timber Ridge: the crossing / gate come from LAYOUT.ridge so a layout change moves the routes -----------------
+const RIDGE = LAYOUT.ridge;
+const GATE_Z = (RIDGE.gate.minZ + RIDGE.gate.maxZ) / 2;
+const CROSS = RIDGE.walk[0]!;
+const CROSS_Z = (CROSS.minZ + CROSS.maxZ) / 2;
+/** Cabin door → through the east-fence gate → across the road → onto the ridge. */
+const TO_RIDGE: XZ[] = [
+  { x: 8.6, z: -3.4 },
+  { x: LAYOUT.yard.maxX - 0.8, z: GATE_Z },
+  { x: CROSS.maxX - 0.2, z: CROSS_Z },
+  { x: RIDGE.walk[1]!.minX + 1.4, z: CROSS_Z },
+];
+/** Rest point beside the quarters, and where the deck / platform are worked from. */
+const PINE_HOME: XZ = { x: 22.0, z: 3.6 };
+const PINE_HOME_LOOK: XZ = { x: RIDGE.quarters.x + RIDGE.quarters.w / 2, z: RIDGE.quarters.z };
+const PINE_JUNCTION: XZ = { x: 21.4, z: -1.2 };
+const DECK_POST: XZ = { x: RIDGE.deck.x, z: RIDGE.deck.z + 1.4 };
+const DECK_LOOK: XZ = { x: RIDGE.deck.x, z: RIDGE.deck.z };
+const PLATFORM_POST: XZ = { x: RIDGE.platform.playerZone.minX + 0.4, z: RIDGE.platform.z };
+const PLATFORM_LOOK: XZ = { x: RIDGE.platform.x, z: RIDGE.platform.z };
+const DECK_TO_PLATFORM: XZ[] = [PINE_JUNCTION, { x: 27.0, z: 0.2 }, PLATFORM_POST];
+
 /** Door → home post, used when a helper is hired. */
 const HOME_ROUTE: Record<CrewId, XZ[]> = {
   crateRunner: [{ x: 7.4, z: -2.0 }, { x: 7.4, z: 0.85 }, BENCH_POST],
   cashier: [CASHIER_HOME],
   logHauler: [{ x: 4.8, z: -5.3 }, { x: -1.5, z: -4.6 }, DROP_POST],
+  pineHauler: [...TO_RIDGE, PINE_JUNCTION, PINE_HOME],
 };
-const HOME: Record<CrewId, XZ> = { crateRunner: BENCH_POST, cashier: CASHIER_HOME, logHauler: DROP_POST };
-const HOME_LOOK: Record<CrewId, XZ> = { crateRunner: BENCH_LOOK, cashier: DOOR_LOOK, logHauler: DROP_LOOK };
+const HOME: Record<CrewId, XZ> = {
+  crateRunner: BENCH_POST,
+  cashier: CASHIER_HOME,
+  logHauler: DROP_POST,
+  pineHauler: PINE_HOME,
+};
+const HOME_LOOK: Record<CrewId, XZ> = {
+  crateRunner: BENCH_LOOK,
+  cashier: DOOR_LOOK,
+  logHauler: DROP_LOOK,
+  pineHauler: PINE_HOME_LOOK,
+};
+/** Base character variant per role (the index shifts it so twins look different). */
+const VARIANT: Record<CrewId, number> = { crateRunner: 0, cashier: 1, logHauler: 2, pineHauler: 1 };
+/**
+ * Lane steps for the 1st…4th helper of a role (metres). Every post is registered with the point its worker faces;
+ * the helper stands beside the post along the line perpendicular to that look direction, so a second helper
+ * never ends up inside the counter it works at. Intermediate waypoints are shared.
+ */
+const LANE_STEP = [0, 0.8, -0.8, 1.6] as const;
+const POST_LOOK = new WeakMap<XZ, XZ>();
+function registerPost(post: XZ, look: XZ): void {
+  POST_LOOK.set(post, look);
+}
+registerPost(BENCH_POST, BENCH_LOOK);
+registerPost(SE_POST, SE_LOOK);
+registerPost(CASHIER_HOME, DOOR_LOOK);
+registerPost(DROP_POST, DROP_LOOK);
+registerPost(WALKIN_POST, WALKIN_LOOK);
+registerPost(TRUCK_POST, TRUCK_LOOK);
+registerPost(PINE_HOME, PINE_HOME_LOOK);
+registerPost(DECK_POST, DECK_LOOK);
+registerPost(PLATFORM_POST, PLATFORM_LOOK);
 
 // --- the deposit sink ---------------------------------------------------------------------------
 /** Where the cashier's bundles land: the cabin door. receive() banks the value and recycles the bundle. */
@@ -103,18 +164,34 @@ export abstract class Helper {
   protected idle = 0;
   protected blocked = 0;
   private capacityNow = -1;
+  /** The role's other helpers (the same array for all of them, includes this one). Set by Crew. */
+  peers: readonly Helper[] = [];
+  /** Walk-out delay: invisible and frozen until it runs out, then `onRelease` fires (staggered arrivals). */
+  hold = 0;
+  onRelease: (() => void) | null = null;
+  /** Metres along the lane line (perpendicular to the post's look direction) this helper stands off the post. */
+  protected readonly laneStep: number;
 
   constructor(
     readonly ctx: GameContext,
     readonly level: Level,
     readonly id: CrewId,
-    variant: number,
+    readonly index: number,
     accepts: readonly ItemKind[],
   ) {
-    this.rig = createCharacterRig('worker', variant);
+    this.rig = createCharacterRig('worker', (VARIANT[id] + index) % 3);
+    this.laneStep = LANE_STEP[Math.min(index, LANE_STEP.length - 1)]!;
     this.group.add(this.rig.root);
-    this.group.name = `crew:${id}`;
-    this.stack = new CarryStack(ctx, { id: `npc:crew:${id}`, accepts, capacity: 1, anchor: this.rig.armsAnchor });
+    this.group.name = index === 0 ? `crew:${id}` : `crew:${id}:${index}`;
+    this.stack = new CarryStack(ctx, {
+      id: index === 0 ? `npc:crew:${id}` : `npc:crew:${id}:${index}`,
+      accepts,
+      capacity: 1,
+      anchor: this.rig.armsAnchor,
+    });
+    // stagger: later helpers start their cadence and patience a little behind the first
+    this.timer = index * 0.07;
+    this.idle = -index * 0.45;
     this.applyLevel();
     ctx.scene.add(this.group);
   }
@@ -136,16 +213,26 @@ export abstract class Helper {
     return this.routeIdx < this.route.length;
   }
 
-  placeAt(p: XZ, look: XZ | null): void {
-    this.group.position.set(p.x, 0, p.z);
+  /** The post shifted along its lane line (unchanged for index 0 or an unregistered point). */
+  protected lanePoint(p: XZ, look: XZ | null = POST_LOOK.get(p) ?? null): XZ {
+    if (!look || this.laneStep === 0) return p;
+    const dx = look.x - p.x;
+    const dz = look.z - p.z;
+    const len = Math.hypot(dx, dz) || 1;
+    return { x: p.x + (dz / len) * this.laneStep, z: p.z - (dx / len) * this.laneStep };
+  }
+
+  placeAt(p: XZ, look: XZ | null, lane = true): void {
+    const q = lane ? this.lanePoint(p, look) : p;
+    this.group.position.set(q.x, 0, q.z);
     this.look = look;
-    if (look) this.yaw = yawFromDir(look.x - p.x, look.z - p.z);
+    if (look) this.yaw = yawFromDir(look.x - this.group.position.x, look.z - this.group.position.z);
     this.rig.root.rotation.y = this.yaw;
   }
 
-  /** Walk the given waypoints (the last one is an eased stop). */
+  /** Walk the given waypoints (the last one is an eased stop; a registered post is shifted onto this helper's lane). */
   go(points: readonly XZ[]): void {
-    this.route = points.slice();
+    this.route = points.map((p) => this.lanePoint(p));
     this.routeIdx = 0;
     this.look = null;
   }
@@ -156,6 +243,15 @@ export abstract class Helper {
 
   update(dt: number): void {
     if (dt <= 0) return;
+    if (this.hold > 0) {
+      this.hold -= dt;
+      if (this.hold <= 0) {
+        this.group.visible = true;
+        this.onRelease?.();
+        this.onRelease = null;
+      }
+      return;
+    }
     this.applyLevel();
     this.timer -= dt;
     this.think(dt);
@@ -237,8 +333,8 @@ const RUNNER_ROUTE: XZ[] = [SE_POST];
 export class CrateRunner extends Helper {
   private phase: RunnerPhase = 'load';
 
-  constructor(ctx: GameContext, level: Level) {
-    super(ctx, level, 'crateRunner', 0, ['crate']);
+  constructor(ctx: GameContext, level: Level, index = 0) {
+    super(ctx, level, 'crateRunner', index, ['crate']);
   }
 
   protected think(dt: number): void {
@@ -306,8 +402,8 @@ export class Cashier extends Helper {
   private readonly sink: DepositSink;
   private readonly stops: PileStop[];
 
-  constructor(ctx: GameContext, level: Level, sink: DepositSink) {
-    super(ctx, level, 'cashier', 1, ['cash']);
+  constructor(ctx: GameContext, level: Level, sink: DepositSink, index = 0) {
+    super(ctx, level, 'cashier', index, ['cash']);
     this.sink = sink;
     this.stops = [
       {
@@ -328,7 +424,15 @@ export class Cashier extends Helper {
         look: { x: 2.9, z: -18.6 },
         pile: () => level.truckCash,
       },
+      {
+        // Timber Ridge: out through the east gate, over the crossing, along the ridge to the platform.
+        route: [...TO_RIDGE, PINE_JUNCTION, { x: 27.0, z: 1.2 }],
+        post: { x: 30.4, z: 2.3 },
+        look: { x: 30.4, z: 3.6 },
+        pile: () => level.platformCash,
+      },
     ];
+    for (const st of this.stops) registerPost(st.post, st.look);
   }
 
   protected think(dt: number): void {
@@ -376,12 +480,19 @@ export class Cashier extends Helper {
     this.phase = 'back';
   }
 
+  /** True while this cashier is on its way to / collecting from `s` (peers skip it). */
+  stopOf(s: PileStop): boolean {
+    return this.stop === s && (this.phase === 'go' || this.phase === 'collect');
+  }
+
   /** Richest pile (value, discounted by distance) holding at least two bundles' worth. */
   private pickStop(): PileStop | null {
     let best: PileStop | null = null;
     let bestScore = 0;
     const p = this.group.position;
     for (const s of this.stops) {
+      // a pile another cashier is already working is left to it
+      if (this.peers.some((o) => o !== this && o instanceof Cashier && o.stopOf(s))) continue;
       const src = s.pile();
       if (!src || src.pile.count('cash') === 0 || src.value < 10) continue;
       const d = Math.hypot(s.post.x - p.x, s.post.z - p.z);
@@ -406,8 +517,8 @@ export class LogHauler extends Helper {
   private phase: HaulerPhase = 'load';
   private dest: HaulDest = 'walkIn';
 
-  constructor(ctx: GameContext, level: Level) {
-    super(ctx, level, 'logHauler', 2, ['log']);
+  constructor(ctx: GameContext, level: Level, index = 0) {
+    super(ctx, level, 'logHauler', index, ['log']);
   }
 
   private holder(d: HaulDest): ItemHolder | null {
@@ -468,6 +579,103 @@ export class LogHauler extends Helper {
 
   private back(): void {
     this.goReverse(this.dest === 'truck' ? TRUCK_ROUTE.slice(0, -1) : [], DROP_POST);
+    this.phase = 'return';
+  }
+}
+
+// --- pine hauler ------------------------------------------------------------------------------------
+type PineHaulerPhase = 'rest' | 'toDeck' | 'load' | 'go' | 'unload' | 'return' | 'home';
+
+/** Seconds at an empty deck (with nothing in the arms) before walking back to the quarters. */
+const PINE_REST_AFTER = 5;
+
+export class PineHauler extends Helper {
+  private phase: PineHaulerPhase = 'rest';
+  private restTimer = 0;
+
+  constructor(ctx: GameContext, level: Level, index = 0) {
+    super(ctx, level, 'pineHauler', index, ['log']);
+  }
+
+  /** Timber Ridge log deck (exists once the tree feller pad is unlocked). Never the drop zone. */
+  private get deck(): ItemHolder | null {
+    return this.level.treeFeller?.deck ?? null;
+  }
+
+  private get platform(): ItemHolder | null {
+    return this.level.platformCounter?.input ?? null;
+  }
+
+  protected think(dt: number): void {
+    switch (this.phase) {
+      case 'rest': {
+        this.look = PINE_HOME_LOOK;
+        if (this.moving) return;
+        this.restTimer -= dt;
+        if (this.restTimer > 0) return;
+        this.restTimer = 0.4;
+        if ((this.deck?.count('log') ?? 0) > 0 && this.platform) {
+          this.go([PINE_JUNCTION, DECK_POST]);
+          this.phase = 'toDeck';
+        }
+        return;
+      }
+      case 'toDeck':
+        if (this.moving) return;
+        this.phase = 'load';
+        this.idle = Math.min(this.idle, 0);
+        return;
+      case 'load': {
+        this.look = DECK_LOOK;
+        if (this.moving) return;
+        const deck = this.deck;
+        if (deck && deck.count('log') > 0 && this.move(deck, this.stack, 'log')) return;
+        this.idle += dt;
+        const has = this.stack.count('log') > 0;
+        if (has && this.settled && (this.stack.size >= this.capacity || this.idle > PATIENCE)) {
+          if (this.platform?.canAccept('log')) {
+            this.go(DECK_TO_PLATFORM);
+            this.phase = 'go';
+          }
+        } else if (!has && this.stack.size === 0 && this.idle > PINE_REST_AFTER) {
+          this.goReverse([PINE_JUNCTION], PINE_HOME);
+          this.phase = 'home';
+        }
+        return;
+      }
+      case 'go':
+        if (this.moving) return;
+        this.look = PLATFORM_LOOK;
+        this.phase = 'unload';
+        this.blocked = 0;
+        return;
+      case 'unload': {
+        if (this.stack.size === 0) return this.back();
+        const to = this.platform;
+        if (to && this.stack.count('log') > 0 && to.canAccept('log')) {
+          this.blocked = 0;
+          this.move(this.stack, to, 'log');
+        } else if (this.settled) {
+          this.blocked += dt;
+          if (this.blocked > BLOCKED_GIVE_UP) {
+            this.idle = -2;
+            this.back();
+          }
+        }
+        return;
+      }
+      case 'return':
+        if (!this.moving) this.phase = 'load';
+        return;
+      case 'home':
+        if (this.moving) return;
+        this.phase = 'rest';
+        return;
+    }
+  }
+
+  private back(): void {
+    this.goReverse(DECK_TO_PLATFORM.slice(0, -1), DECK_POST);
     this.phase = 'return';
   }
 }
