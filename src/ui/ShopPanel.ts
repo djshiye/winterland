@@ -1,6 +1,6 @@
 /**
  * [B4] Upgrade shop panel. Opens on 'shop:open', closes on 'shop:close' (player on / off the cabin doormat); the X
- * button hides it until the next 'shop:open'. Two tabs (Lumberjack | Crew). Bottom sheet on phones (≤ 44 % of the
+ * button hides it until the next 'shop:open'. Three tabs (Lumberjack | Crew | Sales). Bottom sheet on phones (≤ 44 % of the
  * viewport height, the rest stays bare canvas for the floating joystick), side card on wide screens.
  *
  * The cards are built once; refresh() only rewrites what changed and runs at most once per frame (from update())
@@ -17,6 +17,8 @@ interface Card {
   group: UpgradeGroup;
   root: HTMLDivElement;
   pips: HTMLSpanElement[];
+  /** "Lv 4/9" label, only on long upgrade ladders (the pips shrink there). */
+  lv: HTMLSpanElement | null;
   delta: HTMLDivElement;
   btn: HTMLButtonElement;
   /** Last written values, to skip redundant DOM writes. */
@@ -24,10 +26,16 @@ interface Card {
   bump: number;
 }
 
-const TABS: Array<{ group: 'lumberjack' | 'crew'; label: string }> = [
+type Tab = 'lumberjack' | 'crew' | 'sales';
+
+const TABS: Array<{ group: Tab; label: string }> = [
   { group: 'lumberjack', label: 'Lumberjack' },
   { group: 'crew', label: 'Crew' },
+  { group: 'sales', label: 'Sales' },
 ];
+
+/** Ladders longer than this get small pips plus a "Lv n/max" label so the row still fits a phone card. */
+const COMPACT_PIPS = 6;
 
 export class ShopPanel {
   private readonly root: HTMLDivElement;
@@ -35,7 +43,7 @@ export class ShopPanel {
   private readonly tabEls = new Map<string, HTMLButtonElement>();
   private readonly cards: Card[] = [];
   private readonly slide = new Slide();
-  private tab: 'lumberjack' | 'crew' = 'lumberjack';
+  private tab: Tab = 'lumberjack';
   private wanted = false;
   private dismissed = false;
   private dirty = true;
@@ -78,7 +86,7 @@ export class ShopPanel {
     this.root.appendChild(this.list);
     layer.appendChild(this.root);
 
-    for (const group of ['lumberjack', 'crew'] as const) {
+    for (const { group } of TABS) {
       for (const id of ctx.upgrades.group(group)) this.cards.push(this.makeCard(id, group));
     }
     this.setTab('lumberjack');
@@ -126,7 +134,7 @@ export class ShopPanel {
     this.slide.open = this.wanted && !this.dismissed;
   }
 
-  private setTab(group: 'lumberjack' | 'crew'): void {
+  private setTab(group: Tab): void {
     this.tab = group;
     for (const [g, el] of this.tabEls) el.classList.toggle('is-on', g === group);
     for (const c of this.cards) c.root.style.display = c.group === group ? '' : 'none';
@@ -144,11 +152,15 @@ export class ShopPanel {
     const pipRow = h('div', 'wl-pips');
     const pips: HTMLSpanElement[] = [];
     const max = this.ctx.upgrades.maxLevel(id);
+    const compact = max > COMPACT_PIPS;
+    pipRow.classList.toggle('is-compact', compact);
     for (let i = 0; i < max; i++) {
       const p = h('span', 'wl-pip');
       pipRow.appendChild(p);
       pips.push(p);
     }
+    const lv = compact ? h('span', 'wl-lv') : null;
+    if (lv) pipRow.appendChild(lv);
     mid.appendChild(pipRow);
     const delta = h('div', 'wl-shop-delta');
     mid.appendChild(delta);
@@ -157,7 +169,7 @@ export class ShopPanel {
     btn.type = 'button';
     root.appendChild(btn);
     this.list.appendChild(root);
-    const card: Card = { id, group, root, pips, delta, btn, shown: { pips: -1, delta: '', btn: '', cls: '' }, bump: 0 };
+    const card: Card = { id, group, root, pips, lv, delta, btn, shown: { pips: -1, delta: '', btn: '', cls: '' }, bump: 0 };
     onTap(btn, () => this.buy(card));
     return card;
   }
@@ -175,7 +187,7 @@ export class ShopPanel {
 
   private refresh(): void {
     const up = this.ctx.upgrades;
-    let tabHint: Record<string, boolean> = { lumberjack: false, crew: false };
+    let tabHint: Record<string, boolean> = { lumberjack: false, crew: false, sales: false };
     for (const c of this.cards) {
       const id = c.id;
       const lvl = up.level(id);
@@ -188,6 +200,7 @@ export class ShopPanel {
       if (c.shown.pips !== lvl) {
         c.shown.pips = lvl;
         for (let i = 0; i < c.pips.length; i++) c.pips[i]!.classList.toggle('on', i < lvl);
+        if (c.lv) c.lv.textContent = `Lv ${lvl}/${c.pips.length}`;
       }
       const delta = isMax ? `${up.describe(id)} (max)` : `${up.describe(id)} → ${up.describe(id, lvl + 1)}`;
       if (delta !== c.shown.delta) {

@@ -69,6 +69,30 @@
   white-space: nowrap;
 }
 
+/* ---- FPS / draw-call readout (Settings -> Show FPS) --------------------------------------------------- */
+
+.wl-perf {
+  position: absolute;
+  left: max(var(--wl-pad), env(safe-area-inset-left));
+  bottom: max(var(--wl-pad), env(safe-area-inset-bottom));
+  padding: 3px 9px;
+  border-radius: 10px;
+  background: rgba(20, 30, 55, 0.62);
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #dff1ff;
+  pointer-events: none;
+}
+
+@media (max-width: 700px) {
+  .wl-hud.shop-open .wl-perf {
+    display: none;
+  }
+}
+
 /* ---- objective banner ---------------------------------------------------------------------- */
 
 .wl-objective {
@@ -435,6 +459,45 @@
 
 .wl-switch.is-on i {
   left: 30px;
+}
+
+.wl-row-label {
+  text-align: left;
+  min-width: 0;
+}
+
+.wl-row-name {
+  display: block;
+}
+
+.wl-row-hint {
+  display: block;
+  margin-top: 2px;
+  max-width: 170px;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 500;
+  color: #c9d6ee;
+}
+
+.wl-row .wl-switch {
+  flex: none;
+  margin-left: 10px;
+}
+
+@media (max-height: 520px) {
+  .wl-settings-main {
+    gap: 8px;
+  }
+  .wl-settings .wl-card-title {
+    margin-bottom: 8px;
+  }
+  .wl-row {
+    padding: 4px 12px;
+  }
+  .wl-row-label {
+    font-size: 19px;
+  }
 }
 
 .wl-confirm-text {
@@ -857,6 +920,26 @@
   background: #c3cde0;
 }
 
+.wl-pips.is-compact {
+  align-items: center;
+  gap: 2px;
+}
+
+.wl-pips.is-compact .wl-pip {
+  width: 9px;
+  height: 7px;
+  border-radius: 3px;
+}
+
+.wl-lv {
+  margin-left: 4px;
+  font-size: 11px;
+  line-height: 1;
+  color: #5b6a8a;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .wl-pip.on {
   background: linear-gradient(#ffe680, #f0a81c);
 }
@@ -945,6 +1028,19 @@
 .wl-shop-buy .wl-req {
   text-align: left;
   word-spacing: 2px;
+}
+
+@media (max-width: 420px) {
+  .wl-shop-tabs {
+    gap: 4px;
+  }
+  .wl-shop-tab {
+    font-size: 13px;
+    padding: 0 3px;
+  }
+  .wl-shop-title {
+    padding-left: 2px;
+  }
 }
 
 /* wide screens: a side card under the top-right buttons */

@@ -14,7 +14,8 @@
  *   off-screen, a DOM arrow pinned to the screen edge points toward it. null hides both.
  * - toast: big centred title + optional subtitle that pops in and fades out.
  * - Mute toggle button top-right (calls ctx.audio.toggleMute()); a gear button next to it opens Settings
- *   (sound switch, reset progress with an in-page confirmation).
+ *   (sound / music / graphics / show-FPS switches, reset progress with an in-page confirmation). PerfOverlay is the
+ *   bottom-left FPS / draw-call readout.
  * - ShopPanel (opens on 'shop:open'), VillageBadge, OfflineCard (showOfflineEarnings), FinaleCard ('finale:start').
  * - toast() queues briefly: a toast arriving < 1 s after another waits its turn (max 2 waiting, dropped after 3 s).
  */
@@ -24,6 +25,7 @@ import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
 import { FinaleCard } from './FinaleCard';
 import { OfflineCard } from './OfflineCard';
+import { PerfOverlay } from './PerfOverlay';
 import { SettingsPanel } from './SettingsPanel';
 import { ShopPanel } from './ShopPanel';
 import { VillageBadge } from './VillageBadge';
@@ -93,6 +95,7 @@ export class HUD {
   private readonly layer: HTMLDivElement;
   private readonly shop: ShopPanel;
   private readonly settings: SettingsPanel;
+  private readonly perf: PerfOverlay;
   private readonly offline: OfflineCard;
   private readonly village: VillageBadge;
   private readonly finale: FinaleCard;
@@ -172,7 +175,8 @@ export class HUD {
     layer.appendChild(this.muteBtn);
 
     // settings (gear button sits left of the mute button)
-    this.settings = new SettingsPanel(ctx, layer);
+    this.perf = new PerfOverlay(ctx, layer);
+    this.settings = new SettingsPanel(ctx, layer, this.perf);
     this.settings.onSoundChanged = () => this.muteBtn.classList.toggle('is-muted', ctx.audio.muted);
 
     // village badge, shop
@@ -356,6 +360,11 @@ export class HUD {
     this.settings.update(dt);
     this.offline.update(dt);
     this.finale.update(dt);
+    this.perf.update();
+    // on phones the shop is a bottom sheet over the FPS readout
+    if (this.layer.classList.contains('shop-open') !== this.shop.visible) {
+      this.layer.classList.toggle('shop-open', this.shop.visible);
+    }
     const hasVillage = this.village.update(dt);
     if (hasVillage !== this.hasVillage) {
       this.hasVillage = hasVillage;

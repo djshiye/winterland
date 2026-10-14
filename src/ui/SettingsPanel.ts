@@ -1,11 +1,13 @@
 /**
  * [B4] Settings: a gear button (next to the mute button) opening a small centred card with a Sound switch (same
- * state as the mute button) and "Reset progress" behind an in-page confirmation (no window.confirm). Confirming
+ * state as the mute button), a Music switch, a Graphics High / Low switch (Low = no shadows, pixel ratio 1), a
+ * Show FPS switch (PerfOverlay) and "Reset progress" behind an in-page confirmation (no window.confirm). Confirming
  * emits 'game:reset'; the main session wipes the save and reloads.
  */
 import type { GameContext } from '../core/types';
 import { backOut, h, onTap, shield, Slide } from './dom';
 import { ICON_CLOSE, ICON_GEAR } from './icons';
+import type { PerfOverlay } from './PerfOverlay';
 
 export class SettingsPanel {
   readonly button: HTMLButtonElement;
@@ -14,6 +16,9 @@ export class SettingsPanel {
   private readonly main: HTMLDivElement;
   private readonly confirm: HTMLDivElement;
   private readonly soundSwitch: HTMLButtonElement;
+  private readonly musicSwitch: HTMLButtonElement;
+  private readonly gfxSwitch: HTMLButtonElement;
+  private readonly fpsSwitch: HTMLButtonElement;
   private readonly slide = new Slide();
   private resetting = false;
 
@@ -23,6 +28,7 @@ export class SettingsPanel {
   constructor(
     private readonly ctx: GameContext,
     layer: HTMLElement,
+    private readonly perf: PerfOverlay,
   ) {
     this.button = h('button', 'wl-gear', ICON_GEAR);
     this.button.type = 'button';
@@ -51,26 +57,48 @@ export class SettingsPanel {
 
     // --- main view
     this.main = h('div', 'wl-settings-main');
-    const soundRow = h('div', 'wl-row');
-    soundRow.appendChild(h('span', 'wl-row-label', 'Sound'));
-    this.soundSwitch = h('button', 'wl-switch', '<i></i>');
-    this.soundSwitch.type = 'button';
-    this.soundSwitch.setAttribute('role', 'switch');
-    onTap(this.soundSwitch, () => {
-      ctx.audio.unlock();
+    const sw = (label: string, hint: string | null, tap: () => void): HTMLButtonElement => {
+      const row = h('div', 'wl-row');
+      const lab = h('span', 'wl-row-label', `<span class="wl-row-name">${label}</span>`);
+      if (hint) lab.appendChild(h('small', 'wl-row-hint', hint));
+      row.appendChild(lab);
+      const b = h('button', 'wl-switch', '<i></i>');
+      b.type = 'button';
+      b.setAttribute('role', 'switch');
+      b.setAttribute('aria-label', label);
+      onTap(b, () => {
+        ctx.audio.unlock();
+        tap();
+        this.sync();
+      });
+      row.appendChild(b);
+      this.main.appendChild(row);
+      return b;
+    };
+    this.soundSwitch = sw('Sound', null, () => {
       const muted = ctx.audio.toggleMute();
       if (!muted) ctx.audio.play('click');
-      this.sync();
       this.onSoundChanged?.();
     });
-    soundRow.appendChild(this.soundSwitch);
+    this.musicSwitch = sw('Music', null, () => {
+      if (ctx.audio.toggleMusic()) ctx.audio.play('click');
+    });
+    // on = High; the hint tells what Low does
+    this.gfxSwitch = sw('Graphics', 'Low turns off shadows for slower computers', () => {
+      ctx.audio.play('click');
+      ctx.renderer.setQuality(ctx.renderer.quality === 'high' ? 'low' : 'high');
+    });
+    this.fpsSwitch = sw('Show FPS', null, () => {
+      ctx.audio.play('click');
+      perf.enabled = !perf.enabled;
+    });
     const reset = h('button', 'wl-btn wl-btn-danger', 'Reset progress');
     reset.type = 'button';
     onTap(reset, () => {
       ctx.audio.play('click');
       this.showConfirm(true);
     });
-    this.main.append(soundRow, reset);
+    this.main.appendChild(reset);
 
     // --- confirm view
     this.confirm = h('div', 'wl-settings-confirm');
@@ -99,11 +127,19 @@ export class SettingsPanel {
     this.sync();
   }
 
-  /** Re-read the mute state (the HUD calls this when the mute button is pressed). */
+  /** Re-read every switch (the HUD calls this when the mute button is pressed). */
   sync(): void {
-    const on = !this.ctx.audio.muted;
-    this.soundSwitch.classList.toggle('is-on', on);
-    this.soundSwitch.setAttribute('aria-checked', String(on));
+    const { audio, renderer } = this.ctx;
+    const set = (el: HTMLButtonElement, on: boolean): void => {
+      el.classList.toggle('is-on', on);
+      el.setAttribute('aria-checked', String(on));
+    };
+    set(this.soundSwitch, !audio.muted);
+    set(this.musicSwitch, audio.musicOn);
+    set(this.gfxSwitch, renderer.quality === 'high');
+    set(this.fpsSwitch, this.perf.enabled);
+    const name = this.gfxSwitch.parentElement?.querySelector('.wl-row-name');
+    if (name) name.textContent = renderer.quality === 'high' ? 'Graphics: High' : 'Graphics: Low';
   }
 
   get isOpen(): boolean {

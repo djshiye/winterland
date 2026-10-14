@@ -16,7 +16,11 @@
  *   — the classic stacking pickup feel. Rapid repeats are rate-limited per sound and the number of
  *   simultaneous voices is capped, so streams never clip.
  * - Mute state persists in localStorage ('winterland:muted'), wrapped in try/catch.
+ * - Background music (fx/Music.ts) shares the AudioContext and the master gain: it starts after unlock(), runs only
+ *   while the music switch is on, sound isn't muted and the tab is visible, and dips ~40 % under loud SFX. Its own
+ *   on/off persists in 'winterland:music' (default on).
  */
+import { Music } from './Music';
 
 export type SfxName =
   | 'pop'
@@ -51,6 +55,9 @@ export interface PlayOptions {
 }
 
 const STORAGE_KEY = 'winterland:muted';
+const MUSIC_KEY = 'winterland:music';
+/** SFX loud enough to dip the music under them. */
+const DUCKS = new Set<SfxName>(['fanfare', 'unlock', 'upgrade', 'cheer', 'crash']);
 const MASTER_GAIN = 0.5;
 const COMBO_WINDOW = 0.35;
 const COMBO_MAX = 12;
@@ -85,11 +92,14 @@ type AudioCtor = typeof AudioContext;
 
 export class AudioFX {
   muted = false;
+  /** Music switch (independent of `muted`, which silences everything). */
+  musicOn = true;
 
   private ac: AudioContext | null = null;
   private master: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   private compIn: DynamicsCompressorNode | null = null;
+  private music: Music | null = null;
   private failed = false;
   private voices = 0;
   private readonly lastCall = new Map<SfxName, number>();
@@ -99,8 +109,14 @@ export class AudioFX {
   constructor() {
     try {
       this.muted = localStorage.getItem(STORAGE_KEY) === '1';
+      this.musicOn = localStorage.getItem(MUSIC_KEY) !== '0';
     } catch {
       /* storage unavailable */
+    }
+    try {
+      document.addEventListener('visibilitychange', () => this.syncMusic());
+    } catch {
+      /* no document */
     }
   }
 
@@ -110,7 +126,8 @@ export class AudioFX {
       if (this.failed) return;
       if (!this.ac) this.init();
       const ac = this.ac;
-      if (ac && ac.state !== 'running') void ac.resume().catch(() => undefined);
+      if (ac && ac.state !== 'running') void ac.resume().then(() => this.syncMusic()).catch(() => undefined);
+      this.syncMusic();
     } catch {
       this.failed = true;
     }
@@ -137,6 +154,7 @@ export class AudioFX {
       if (played !== undefined && now - played < MIN_GAP[name]) return;
       if (this.voices >= MAX_VOICES) return;
       this.lastSound.set(name, now);
+      if (DUCKS.has(name)) this.music?.dip();
       this.synth(name, now + 0.005, pitch, Math.max(0, Math.min(1, opts?.volume ?? 1)));
     } catch {
       /* audio must never break the game */
@@ -153,6 +171,23 @@ export class AudioFX {
     if (this.master && this.ac) {
       this.master.gain.setTargetAtTime(m ? 0 : MASTER_GAIN, this.ac.currentTime, 0.02);
     }
+    this.syncMusic();
+  }
+
+  setMusic(on: boolean): void {
+    this.musicOn = on;
+    try {
+      localStorage.setItem(MUSIC_KEY, on ? '1' : '0');
+    } catch {
+      /* storage unavailable */
+    }
+    this.syncMusic();
+  }
+
+  /** Returns the new music state. */
+  toggleMusic(): boolean {
+    this.setMusic(!this.musicOn);
+    return this.musicOn;
   }
 
   /** Returns the new muted state. */
@@ -164,6 +199,19 @@ export class AudioFX {
   // ---------------------------------------------------------------------------------------------
   // Internals
   // ---------------------------------------------------------------------------------------------
+
+  /** Start / stop the music to match: unlocked, switched on, not muted, tab visible. */
+  private syncMusic(): void {
+    try {
+      const m = this.music;
+      if (!m) return;
+      const want = this.musicOn && !this.muted && !this.failed && !document.hidden && this.ac?.state === 'running';
+      if (want) m.start();
+      else m.stop();
+    } catch {
+      /* music must never break the game */
+    }
+  }
 
   private init(): void {
     const w = window as unknown as { AudioContext?: AudioCtor; webkitAudioContext?: AudioCtor };
@@ -194,6 +242,13 @@ export class AudioFX {
     this.master = master;
     this.noise = buf;
     this.compIn = comp;
+    try {
+      // music goes straight to the master gain (not through the SFX compressor) so it never pumps the SFX
+      this.music = new Music(ac, master);
+      ac.onstatechange = () => this.syncMusic();
+    } catch {
+      this.music = null;
+    }
   }
 
   /** Track a voice's end so MAX_VOICES stays honest, and release its nodes. */
