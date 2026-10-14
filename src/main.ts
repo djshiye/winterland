@@ -1,3 +1,7 @@
+// Bundled font (latin subset), so the game looks the same offline (desktop builds) as on the web.
+import '@fontsource/fredoka/latin-500.css';
+import '@fontsource/fredoka/latin-600.css';
+import '@fontsource/fredoka/latin-700.css';
 import './style.css';
 import { Game } from './game/Game';
 

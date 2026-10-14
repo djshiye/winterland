@@ -40,6 +40,31 @@ mill earned while you were away. Settings (the gear) has sound and a reset.
 
 A whole game takes the autoplay bot about 50 minutes (targets in [docs/DESIGN.md](docs/DESIGN.md)).
 
+## Desktop app (Linux and Windows)
+
+The game also ships as a standalone desktop app (Electron). It runs fully offline, and the save lives in your
+user folder (`~/.config/Winterland` on Linux, `%APPDATA%\Winterland` on Windows).
+
+```bash
+npm install
+npm run desktop            # build and open it in a desktop window right away
+npm run package:desktop    # portable builds for linux-x64, linux-arm64 and win32-x64 → release/*.zip
+npm run package:linux      # only the Linux builds
+npm run package:win        # only the Windows build
+```
+
+You can package from Linux or Windows, and the build machine doesn't need Wine or an installer toolchain. The
+first run downloads the Electron runtime for each target (~100 MB each) and caches it.
+
+- **Windows:** unzip `Winterland-<version>-win32-x64.zip` anywhere and run `Winterland.exe`. The app is unsigned,
+  so SmartScreen may warn the first time: choose *More info → Run anyway*.
+- **Linux:** unzip the archive that matches your machine (`x64` for most PCs, `arm64` for e.g. a Raspberry Pi 5) and
+  run `./winterland`. On distributions that block Chromium's sandbox (some Ubuntu 24.04+ setups report
+  *"The SUID sandbox helper binary was found, but is not configured correctly"*), start it with
+  `./winterland --no-sandbox`.
+
+Keys in the desktop app: **F11** fullscreen, **Ctrl+R** reload, **F12** developer tools.
+
 ## Develop
 
 ```bash
