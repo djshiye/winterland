@@ -2,7 +2,7 @@
  * [MAIN] Village → demand helpers. Pure functions of GameState and the config tables, so every reader stays live
  * (call them at spawn / pay time; never cache the result).
  */
-import { DEMAND, ECONOMY, UPGRADES, VILLAGE, type DemandLevel, type ProductId } from '../config';
+import { DEMAND, ECONOMY, PRESTIGE, UPGRADES, VILLAGE, type DemandLevel, type ProductId } from '../config';
 import type { GameState } from './types';
 
 /** Buyer behaviour for the current village level. */
@@ -20,14 +20,19 @@ export function productMult(state: GameState, product: ProductId): number {
   return m;
 }
 
+/** Permanent price bonus from New Seasons (1 in the first season). */
+export function seasonMult(state: GameState): number {
+  return 1 + PRESTIGE.bonusPerSeason * Math.max(0, state.prestige.season);
+}
+
 /**
- * What a buyer pays for `count` items of `product` at `unitPrice` (ECONOMY.plankPrice / cratePrice / truckLogPrice):
- * times the village price multiplier and the product's Sales upgrades, rounded to the nearest whole cash bundle
- * (never below one bundle).
+ * What a buyer pays for `count` items of `product` at `unitPrice` (ECONOMY.plankPrice / cratePrice / truckLogPrice /
+ * pinePrice): times the village price multiplier, the product's Sales upgrades and the season bonus, rounded to the
+ * nearest whole cash bundle (never below one bundle).
  */
 export function salePrice(state: GameState, product: ProductId, unitPrice: number, count: number): number {
   const b = ECONOMY.cashBundleValue;
-  const mult = demandOf(state).priceMult * productMult(state, product);
+  const mult = demandOf(state).priceMult * productMult(state, product) * seasonMult(state);
   return Math.max(b, Math.round((unitPrice * count * mult) / b) * b);
 }
 

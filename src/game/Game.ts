@@ -7,7 +7,7 @@
  *   → camera → shadow focus → HUD (projects world anchors) → render
  */
 import * as THREE from 'three';
-import { CREW, DEMAND, ECONOMY, LAYOUT, PADS, PLAYER, SAVE, TIMING, UPGRADES, VILLAGE } from '../config';
+import { CREW, DEMAND, ECONOMY, LAYOUT, PADS, PLAYER, PRESTIGE, QUARTERS, RIDGE, SAVE, TIMING, UPGRADES, VILLAGE } from '../config';
 import { EventBus } from '../core/EventBus';
 import { Economy } from '../core/Economy';
 import {
@@ -16,6 +16,7 @@ import {
   freshRequested,
   loadSave,
   mergeState,
+  newSeasonSave,
   offlineEarnings,
   writeSave,
   type SaveData,
@@ -66,6 +67,9 @@ export interface DebugApi {
     CREW: typeof CREW;
     VILLAGE: typeof VILLAGE;
     DEMAND: typeof DEMAND;
+    QUARTERS: typeof QUARTERS;
+    RIDGE: typeof RIDGE;
+    PRESTIGE: typeof PRESTIGE;
   };
   state(): Record<string, unknown>;
   pause(): void;
@@ -89,6 +93,10 @@ export interface DebugApi {
   revealVillage(): void;
   /** Set plot `plot` (−1 = Great Lodge) to `tier` at once (tests). */
   buildPlot(plot: number, tier: number): void;
+  /** Set the crew bunkhouse to `tier` (−1 = none) at once (tests). */
+  buildQuarters(tier: number): void;
+  /** Start the next season (prestige) now: writes the new-season save and reloads. */
+  newSeason(): void;
   /** Write the save now; returns what was written (null when saving is off: `?fresh`, reset, no storage). */
   save(): SaveData | null;
   /** The save that would be written now (not written). */
@@ -185,6 +193,7 @@ export class Game {
       if (document.visibilityState === 'hidden') this.save();
     });
     events.on('game:reset', () => this.reset());
+    events.on('season:new', () => this.newSeason());
     this.installDebugApi();
     this.level.start();
 
@@ -223,6 +232,13 @@ export class Game {
   private reset(): void {
     this.saving = false;
     clearSave();
+    location.reload();
+  }
+
+  /** After the finale: start the next season (prestige) from a fresh save and reload. */
+  private newSeason(): void {
+    this.saving = false;
+    writeSave(newSeasonSave(this.ctx.state, Date.now()));
     location.reload();
   }
 
@@ -323,7 +339,7 @@ export class Game {
       game: this,
       ctx,
       level: this.level,
-      config: { LAYOUT, PADS, ECONOMY, PLAYER, TIMING, UPGRADES, CREW, VILLAGE, DEMAND },
+      config: { LAYOUT, PADS, ECONOMY, PLAYER, TIMING, UPGRADES, CREW, VILLAGE, DEMAND, QUARTERS, RIDGE, PRESTIGE },
       state: () => this.snapshot(),
       pause: () => {
         this.paused = true;
@@ -354,6 +370,8 @@ export class Game {
       setUpgrade: (id: UpgradeId, level: number) => ctx.upgrades.setLevel(id, level),
       revealVillage: () => this.level.village.reveal(),
       buildPlot: (plot: number, tier: number) => this.level.village.debugBuild(plot, tier),
+      buildQuarters: (tier: number) => this.level.quarters.debugBuild(tier),
+      newSeason: () => ctx.events.emit('season:new', {}),
       save: () => this.save(),
       saveData: () => this.saveData(),
       clearSave: () => clearSave(),

@@ -14,10 +14,14 @@ import type { GameContext, ItemKind, PadId } from '../core/types';
 import type { Pile } from '../items/Pile';
 import { Crew } from '../npc/Crew';
 import { CustomerQueue } from '../npc/CustomerQueue';
+import { TrainQueue } from '../npc/TrainQueue';
 import { TricycleQueue } from '../npc/TricycleQueue';
 import { TruckQueue } from '../npc/TruckQueue';
 import { Progression } from '../progression/Progression';
+import { Quarters } from '../ridge/Quarters';
+import { Ridge } from '../ridge/Ridge';
 import { CashPile } from '../stations/CashPile';
+import { CashTubes } from '../stations/CashTubes';
 import { Conveyor } from '../stations/Conveyor';
 import { Counter } from '../stations/Counter';
 import { DropZone } from '../stations/DropZone';
@@ -26,6 +30,8 @@ import { Harvester } from '../stations/Harvester';
 import { MegaSaw } from '../stations/MegaSaw';
 import { Processor } from '../stations/Processor';
 import { ShopMat } from '../stations/ShopMat';
+import { TreeFeller } from '../stations/TreeFeller';
+import { TruckLoader } from '../stations/TruckLoader';
 import { UpgradePad } from '../stations/UpgradePad';
 import { Village } from '../village/Village';
 
@@ -41,6 +47,9 @@ export class Level {
   readonly village: Village;
   readonly crew: Crew;
   readonly progression: Progression;
+  /** Timber Ridge (always constructed; hidden until the 'ridge' pad) and its crew bunkhouse. */
+  readonly ridge: Ridge;
+  readonly quarters: Quarters;
 
   harvester: Harvester | null = null;
   processor: Processor | null = null;
@@ -53,6 +62,12 @@ export class Level {
   truckCounter: Counter | null = null;
   truckCash: CashPile | null = null;
   trucks: TruckQueue | null = null;
+  platformCounter: Counter | null = null;
+  platformCash: CashPile | null = null;
+  trains: TrainQueue | null = null;
+  treeFeller: TreeFeller | null = null;
+  truckLoader: TruckLoader | null = null;
+  cashTubes: CashTubes | null = null;
 
   /** Pads whose station exists (built live, or at once from a restored state). */
   private readonly built = new Set<PadId>();
@@ -87,6 +102,10 @@ export class Level {
     for (const id of Object.keys(PADS) as PadIdConst[]) pads[id] = new UpgradePad(ctx, PADS[id]);
     this.pads = pads;
 
+    // Before the restore loop: the 'ridge' / 'treeFeller' builds need them.
+    this.ridge = new Ridge(ctx);
+    this.quarters = new Quarters(ctx);
+
     // A restored game: every unlocked station at once, silently, in unlock order.
     for (const id of Object.keys(PADS) as PadIdConst[]) if (ctx.state.unlocked[id]) this.buildStation(id, true);
 
@@ -112,6 +131,12 @@ export class Level {
     this.eastConveyor?.update(dt);
     this.megaSaw?.update(dt);
     this.trucks?.update(dt);
+    this.ridge.update(dt);
+    this.quarters.update(dt);
+    this.trains?.update(dt);
+    this.treeFeller?.update(dt);
+    this.truckLoader?.update(dt);
+    this.cashTubes?.update(dt);
     this.shopMat.update(dt);
     this.village.update(dt);
     this.crew.update(dt);
@@ -163,7 +188,53 @@ export class Level {
       case 'megaSaw':
         this.buildExpansion(instant);
         break;
+      case 'ridge':
+        this.buildRidge(instant);
+        break;
+      case 'treeFeller':
+        this.treeFeller = new TreeFeller(this.ctx, this.ridge);
+        this.treeFeller.build(instant);
+        break;
+      case 'truckLoader': {
+        if (!this.truckCounter) this.buildStation('megaSaw', instant);
+        this.truckLoader = new TruckLoader(this.ctx, { from: this.dropZone.pile, to: this.truckCounter!.input });
+        this.truckLoader.build(instant);
+        break;
+      }
+      case 'cashTubes':
+        this.cashTubes = new CashTubes(this.ctx, { piles: () => this.cashPiles() });
+        this.cashTubes.build(instant);
+        break;
     }
+  }
+
+  /** Every cash pile that exists right now. */
+  cashPiles(): CashPile[] {
+    return [this.walkInCash, this.seCash, this.truckCash, this.platformCash].filter((p): p is CashPile => p !== null);
+  }
+
+  /** Timber Ridge opens: gate + walkable land, rail platform + trains, bunkhouse pad. */
+  private buildRidge(instant: boolean): void {
+    const ctx = this.ctx;
+    this.ridge.reveal(instant);
+    const pl = LAYOUT.ridge.platform;
+    this.platformCounter = new Counter(ctx, {
+      id: 'counter:platform',
+      x: pl.x,
+      z: pl.z,
+      length: pl.length,
+      depth: pl.depth,
+      height: pl.height,
+      rotationY: pl.rotationY,
+      accepts: 'log',
+      grid: pl.grid,
+      playerZone: pl.playerZone,
+    });
+    this.platformCounter.appear(instant);
+    const pc = LAYOUT.ridge.platformCash;
+    this.platformCash = new CashPile(ctx, { id: 'pile:platformCash', x: pc.x, z: pc.z, grid: pc.grid, zone: pc.zone });
+    this.trains = new TrainQueue(ctx, { counter: this.platformCounter, cash: this.platformCash });
+    this.quarters.offer();
   }
 
   /** Processor + SE counter + SE cash pile + tricycle queue (built together by the processor pad). */
@@ -241,6 +312,14 @@ export class Level {
         return pathMidpoint(LAYOUT.eastConveyor.path, out);
       case 'megaSaw':
         return out.set(LAYOUT.megaSaw.x, 0, LAYOUT.megaSaw.z);
+      case 'ridge':
+        return out.set(LAYOUT.ridge.platform.x - 6, 0, LAYOUT.ridge.platform.z);
+      case 'treeFeller':
+        return out.set(LAYOUT.ridge.deck.x, 0, LAYOUT.ridge.deck.z);
+      case 'truckLoader':
+        return out.set(PADS.truckLoader.x, 0, PADS.truckLoader.z);
+      case 'cashTubes':
+        return out.set(LAYOUT.cabin.minX + LAYOUT.cabin.maxX, 0, LAYOUT.cabin.minZ + LAYOUT.cabin.maxZ).multiplyScalar(0.5);
     }
   }
 
@@ -252,24 +331,30 @@ export class Level {
   snapshotWorld(): WorldSnapshot {
     const arms = this.ctx.player.arms;
     // What the crew carries goes back where it came from (helpers respawn empty-handed at their posts).
-    const runner = this.crew.get('crateRunner')?.stack;
-    const hauler = this.crew.get('logHauler')?.stack;
-    const cashier = this.crew.get('cashier')?.stack;
+    const crew = this.crew;
     return {
       piles: {
         // Logs riding the belts go back to the drop zone on load.
         dropZone:
-          this.dropZone.pile.total + (this.westConveyor?.load ?? 0) + (this.eastConveyor?.load ?? 0) + (hauler?.count('log') ?? 0),
+          this.dropZone.pile.total +
+          (this.westConveyor?.load ?? 0) +
+          (this.eastConveyor?.load ?? 0) +
+          (this.truckLoader?.load ?? 0) +
+          crew.carried('logHauler', 'log'),
         walkIn: this.walkInCounter.pile.total,
         hopper: this.processor?.input.total ?? 0,
-        bench: (this.processor?.output.total ?? 0) + (runner?.count('crate') ?? 0),
+        bench: (this.processor?.output.total ?? 0) + crew.carried('crateRunner', 'crate'),
         se: this.seCounter?.pile.total ?? 0,
         truck: this.truckCounter?.pile.total ?? 0,
+        // Pine hauler's load goes back to the deck.
+        deck: (this.treeFeller?.deck.total ?? 0) + crew.carried('pineHauler', 'log'),
+        platform: this.platformCounter?.pile.total ?? 0,
       },
       cash: {
-        walkIn: this.walkInCash.value + (cashier?.totalValue() ?? 0),
+        walkIn: this.walkInCash.value + crew.carriedValue('cashier'),
         se: this.seCash?.value ?? 0,
         truck: this.truckCash?.value ?? 0,
+        platform: this.platformCash?.value ?? 0,
       },
       arms: { log: arms.count('log'), crate: arms.count('crate') },
     };
@@ -285,9 +370,12 @@ export class Level {
     }
     if (this.seCounter) fillPile(this.seCounter.pile, 'crate', w.piles.se);
     if (this.truckCounter) fillPile(this.truckCounter.pile, 'log', w.piles.truck);
+    if (this.treeFeller) fillPile(this.treeFeller.deck, 'log', w.piles.deck);
+    if (this.platformCounter) fillPile(this.platformCounter.pile, 'log', w.piles.platform);
     if (w.cash.walkIn > 0) this.walkInCash.restoreValue(w.cash.walkIn);
     if (w.cash.se > 0) this.seCash?.restoreValue(w.cash.se);
     if (w.cash.truck > 0) this.truckCash?.restoreValue(w.cash.truck);
+    if (w.cash.platform > 0) this.platformCash?.restoreValue(w.cash.platform);
     const arms = this.ctx.player.arms;
     const add = (kind: ItemKind, n: number) => {
       for (let i = 0; i < n; i++) {
@@ -323,6 +411,11 @@ export class Level {
       eastBelt: this.eastConveyor?.load ?? null,
       truckCounter: this.truckCounter?.pile.count() ?? null,
       truckCash: this.truckCash?.value ?? null,
+      deck: this.treeFeller?.deck.count() ?? null,
+      platformCounter: this.platformCounter?.pile.count() ?? null,
+      platformCash: this.platformCash?.value ?? null,
+      standingPines: this.ridge.trees.filter((t) => t.standing).length,
+      quartersTier: this.ctx.state.quarters.tier,
       padsRemaining: remaining,
     };
   }

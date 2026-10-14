@@ -192,6 +192,10 @@ export function createGameState(): GameState {
     westConveyor: false,
     eastConveyor: false,
     megaSaw: false,
+    ridge: false,
+    treeFeller: false,
+    truckLoader: false,
+    cashTubes: false,
   });
   return {
     phase: 'intro',
@@ -224,6 +228,10 @@ export function createGameState(): GameState {
       plankQuality: 0,
       crateQuality: 0,
       bulkDeals: 0,
+      treeFeller: 0,
+      cashTubes: 0,
+      pineHauler: 0,
+      pineContracts: 0,
     },
     village: {
       revealed: false,
@@ -244,7 +252,7 @@ export function createGameState(): GameState {
 // Events
 // ---------------------------------------------------------------------------
 
-export type Buyer = 'customer' | 'tricycle' | 'truck';
+export type Buyer = 'customer' | 'tricycle' | 'truck' | 'train';
 export type LogSource = 'player' | 'harvester' | 'megaSaw';
 
 /** Event name → payload. Emitted via ctx.events. Vectors in payloads are transient: copy if kept. */
@@ -303,6 +311,13 @@ export interface GameEvents {
   'offline:collected': { amount: number };
   /** Settings → Reset progress → confirmed. Game wipes the save and reloads the page. */
   'game:reset': Record<string, never>;
+  // --- wave 7 ---
+  /** The tree feller toppled pine `index` (its logs follow onto the deck). */
+  'tree:felled': { index: number; position: THREE.Vector3 };
+  /** A crew bunkhouse tier finished (state.quarters already updated). */
+  'quarters:built': { tier: number; position: THREE.Vector3 };
+  /** New Season confirmed (finale card / settings). Game writes the next season's fresh save and reloads. */
+  'season:new': Record<string, never>;
 }
 
 // ---------------------------------------------------------------------------

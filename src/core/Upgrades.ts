@@ -8,7 +8,7 @@
  * - levelUp(id, position): a machine's level pad, after the pad collected nextCost(id) itself.
  */
 import type * as THREE from 'three';
-import { UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
+import { QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
 import type { GameEvents, GameState, UpgradeId } from './types';
@@ -77,6 +77,9 @@ export class Upgrades {
     if (r.villageLevel !== undefined && this.state.village.level < r.villageLevel) {
       return `Needs ${VILLAGE.levels[r.villageLevel]!.name}`;
     }
+    if (r.quarters !== undefined && this.state.quarters.tier < r.quarters) {
+      return `Build the ${QUARTERS.tiers[r.quarters]!.label} first`;
+    }
     return null;
   }
 
@@ -134,6 +137,14 @@ function unlockName(id: string): string {
       return 'Processor';
     case 'megaSaw':
       return 'Mega Sawmill';
+    case 'treeFeller':
+      return 'Tree Feller';
+    case 'cashTubes':
+      return 'Cash Tubes';
+    case 'ridge':
+      return 'Timber Ridge gate';
+    case 'truckLoader':
+      return 'Truck Loader';
     default:
       return 'Conveyor';
   }

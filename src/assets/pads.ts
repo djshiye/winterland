@@ -195,6 +195,11 @@ const ICONS: Record<PadIcon, (g: CanvasRenderingContext2D) => void> = {
   factory: drawFactory,
   conveyor: drawConveyor,
   megasaw: drawMegaSaw,
+  // Wave 7 placeholders until their icons are drawn.
+  ridge: drawSaw,
+  feller: drawSaw,
+  loader: drawConveyor,
+  tubes: drawFactory,
 };
 
 

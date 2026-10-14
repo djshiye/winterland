@@ -9,8 +9,8 @@
  * Storage can be missing, full or blocked (private windows, embedded pages): every access is wrapped and the game
  * simply runs without saving. `?fresh` in the URL ignores (but does not delete) the save.
  */
-import { ECONOMY, OFFLINE, SAVE } from '../config';
-import type { GameContext, GameState } from './types';
+import { ECONOMY, OFFLINE, PRESTIGE, SAVE } from '../config';
+import { createGameState, type FlagId, type GameContext, type GameState } from './types';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
 export interface WorldSnapshot {
@@ -21,12 +21,16 @@ export interface WorldSnapshot {
     bench: number;
     se: number;
     truck: number;
+    /** Timber Ridge log deck and rail platform (wave 7; 0 in older saves). */
+    deck: number;
+    platform: number;
   };
   /** Dollars in each cash pile. */
   cash: {
     walkIn: number;
     se: number;
     truck: number;
+    platform: number;
   };
   arms: { log: number; crate: number };
 }
@@ -178,7 +182,36 @@ export class SalesMeter {
   }
 }
 
-function sanitizeWorld(w: unknown): WorldSnapshot {
+const EMPTY_WORLD: WorldSnapshot = {
+  piles: { dropZone: 0, walkIn: 0, hopper: 0, bench: 0, se: 0, truck: 0, deck: 0, platform: 0 },
+  cash: { walkIn: 0, se: 0, truck: 0, platform: 0 },
+  arms: { log: 0, crate: 0 },
+};
+
+/**
+ * Prestige: the save that starts the next season after the finale. Everything resets except the season count
+ * (+1, a permanent price bonus, PRESTIGE.bonusPerSeason), lifetime stats and the one-shot UI hints (`seen:*`,
+ * introDone: no intro replay). Starting money PRESTIGE.startMoneyPerSeason × season.
+ */
+export function newSeasonSave(prev: GameState, now: number): SaveData {
+  const state = createGameState();
+  state.prestige.season = prev.prestige.season + 1;
+  state.stats = { ...prev.stats };
+  state.playTime = prev.playTime;
+  for (const [flag, on] of Object.entries(prev.flags)) {
+    if (on && (flag === 'introDone' || flag.startsWith('seen:'))) state.flags[flag as FlagId] = true;
+  }
+  return {
+    v: SAVE.version,
+    savedAt: now,
+    money: PRESTIGE.startMoneyPerSeason * state.prestige.season,
+    state,
+    world: structuredClone(EMPTY_WORLD),
+    salesRate: 0,
+  };
+}
+
+export function sanitizeWorld(w: unknown): WorldSnapshot {
   const o = isObj(w) ? w : {};
   const piles = isObj(o.piles) ? o.piles : {};
   const cash = isObj(o.cash) ? o.cash : {};
@@ -192,8 +225,10 @@ function sanitizeWorld(w: unknown): WorldSnapshot {
       bench: n(piles.bench),
       se: n(piles.se),
       truck: n(piles.truck),
+      deck: n(piles.deck),
+      platform: n(piles.platform),
     },
-    cash: { walkIn: n(cash.walkIn), se: n(cash.se), truck: n(cash.truck) },
+    cash: { walkIn: n(cash.walkIn), se: n(cash.se), truck: n(cash.truck), platform: n(cash.platform) },
     arms: { log: n(arms.log), crate: n(arms.crate) },
   };
 }
