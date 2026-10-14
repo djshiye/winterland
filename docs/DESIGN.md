@@ -212,7 +212,7 @@ All slices run in parallel. Stubs for every cross-slice API are already in place
 - **Crew bunkhouse** (`ridge/Quarters.ts`, `QUARTERS`): a 3-tier construction pad on the ridge (logs + cash). Each tier allows more helpers per crew role (`core/crew.ts` `crewSlots`, read live). It is required to hire the pine hauler.
 - **Truck loader** (pad 'truckLoader'): a belt from the drop zone to the truck counter.
 - **Cash tubes** (pad 'cashTubes'): every cash pile banks one bundle every `value('cashTubes')` s.
-- **New Season** (prestige; `core/Save.ts` `newSeasonSave`): offered after the finale. It resets all progress, keeps lifetime stats, `introDone` and `seen:*` hints, and sets season + 1. Every sale then pays +`PRESTIGE.bonusPerSeason` per season, and the season starts with $`PRESTIGE.startMoneyPerSeason` × season.
+- **New Season** (prestige; `core/Save.ts` `newSeasonSave`): offered after the finale. It resets all progress, stats and play time (reveal rules read stats). It keeps the `introDone` and `seen:*` hints, and sets season + 1. Every sale then pays +`PRESTIGE.bonusPerSeason` per season, and the season starts with $`PRESTIGE.startMoneyPerSeason` × season.
 - **Save**: the world snapshot adds `piles.deck`, `piles.platform` and `cash.platform`. Older saves get 0 for these. `SAVE.version` is unchanged; every addition is additive.
 - **Draw-call ceiling**: ~950 at High quality in the late game.
 - **Ownership, wave 7**:

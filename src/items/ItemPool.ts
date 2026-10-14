@@ -29,6 +29,7 @@ export class ItemPool {
     o.quaternion.identity();
     o.scale.set(1, 1, 1);
     o.visible = true;
+    o.castShadow = false; // only carried stacks cast (items/CarryStack.ts)
     delete o.userData.baseScale;
     this.ctx.scene.add(o);
     this.live.add(item);
