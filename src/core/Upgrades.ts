@@ -73,12 +73,17 @@ export class Upgrades {
   requirement(id: UpgradeId): string | null {
     const r = UPGRADES[id].requires;
     if (!r) return null;
-    if (r.unlocked && !this.state.unlocked[r.unlocked]) return `Build the ${unlockName(r.unlocked)} first`;
+    const needQuarters = r.quarters !== undefined && this.state.quarters.tier < r.quarters;
+    if (r.unlocked && !this.state.unlocked[r.unlocked]) {
+      return needQuarters
+        ? `Needs the ${unlockName(r.unlocked)} and a ${QUARTERS.tiers[r.quarters!]!.label}`
+        : `Build the ${unlockName(r.unlocked)} first`;
+    }
     if (r.villageLevel !== undefined && this.state.village.level < r.villageLevel) {
       return `Needs ${VILLAGE.levels[r.villageLevel]!.name}`;
     }
-    if (r.quarters !== undefined && this.state.quarters.tier < r.quarters) {
-      return `Build the ${QUARTERS.tiers[r.quarters]!.label} first`;
+    if (needQuarters) {
+      return `Build the ${QUARTERS.tiers[r.quarters!]!.label} first`;
     }
     return null;
   }

@@ -17,6 +17,8 @@ export interface RevealQuery {
   sinceUnlock(id: PadId): number;
   /** Seconds since rule `ruleId` fired (live), or since this session started when it was restored as fired. */
   sinceReveal(ruleId: string): number;
+  /** Cash piles that exist right now (walk-in, SE, truck, platform): derived from built stations, so restore-safe. */
+  cashPiles(): number;
 }
 
 export type RevealAction =
@@ -40,6 +42,15 @@ export interface RevealRule {
 
 /** Pause between a unlock's camera moment and the next pad appearing. */
 const NEXT_PAD = 3.4;
+
+/** Truck sales before the truck loader is offered. */
+const TRUCK_LOADS_FOR_LOADER = 3;
+/** VILLAGE.levels index of "Town": opens the ridge even without the truck loader. */
+const TOWN_LEVEL = 3;
+/** Seconds after the ridge opens before the first ridge pad appears (the ridge camera moment lasts ~5 s). */
+const RIDGE_INTRO = 6;
+/** Extra seconds between the feller pad and the cash tubes pad. */
+const TUBES_AFTER_FELLER = 12;
 
 export const REVEALS: readonly RevealRule[] = [
   // Phase 1 → 2: the first customer sale shows the harvester pad.
@@ -84,6 +95,38 @@ export const REVEALS: readonly RevealRule[] = [
     action: { kind: 'pad', id: 'megaSaw' },
   },
   // Level pads: the machine's own pad comes back as "LV n".
+  // Wave 7 (after the mega saw), in the order the player meets them:
+  //   truck loader (a few truck sales) -> Timber Ridge (loader bought, or Town) -> tree feller -> cash tubes.
+  {
+    id: 'truckLoaderPad',
+    delay: NEXT_PAD,
+    ready: (q) => q.state.unlocked.megaSaw && q.state.stats.trucksServed >= TRUCK_LOADS_FOR_LOADER,
+    satisfied: (q) => q.state.unlocked.truckLoader,
+    action: { kind: 'pad', id: 'truckLoader' },
+  },
+  {
+    id: 'ridgePad',
+    delay: NEXT_PAD,
+    ready: (q) => q.state.unlocked.megaSaw && (q.state.unlocked.truckLoader || q.state.village.level >= TOWN_LEVEL),
+    satisfied: (q) => q.state.unlocked.ridge,
+    action: { kind: 'pad', id: 'ridge' },
+  },
+  // Wait out the ridge camera moment (gate pan + ridge pan) before the feller pad's own pan.
+  {
+    id: 'treeFellerPad',
+    delay: 0,
+    ready: (q) => q.state.unlocked.ridge && q.sinceUnlock('ridge') >= RIDGE_INTRO,
+    satisfied: (q) => q.state.unlocked.treeFeller,
+    action: { kind: 'pad', id: 'treeFeller' },
+  },
+  // Staggered behind the feller so two pads never pop in together.
+  {
+    id: 'cashTubesPad',
+    delay: 0,
+    ready: (q) => q.state.unlocked.ridge && q.cashPiles() >= 3 && q.sinceUnlock('ridge') >= RIDGE_INTRO + TUBES_AFTER_FELLER,
+    satisfied: (q) => q.state.unlocked.cashTubes,
+    action: { kind: 'pad', id: 'cashTubes' },
+  },
   { id: 'levelPad:harvester', delay: NEXT_PAD, ready: (q) => q.state.unlocked.harvester && q.state.unlocked.processor, action: { kind: 'levelPad', id: 'harvester' } },
   {
     id: 'levelPad:processor',
@@ -92,4 +135,6 @@ export const REVEALS: readonly RevealRule[] = [
     action: { kind: 'levelPad', id: 'processor' },
   },
   { id: 'levelPad:megaSaw', delay: 0, ready: (q) => q.state.unlocked.megaSaw && q.sinceUnlock('megaSaw') >= 30, action: { kind: 'levelPad', id: 'megaSaw' } },
+  { id: 'levelPad:treeFeller', delay: 0, ready: (q) => q.state.unlocked.treeFeller && q.sinceUnlock('treeFeller') >= 30, action: { kind: 'levelPad', id: 'treeFeller' } },
+  { id: 'levelPad:cashTubes', delay: 0, ready: (q) => q.state.unlocked.cashTubes && q.sinceUnlock('cashTubes') >= 30, action: { kind: 'levelPad', id: 'cashTubes' } },
 ];

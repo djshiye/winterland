@@ -195,3 +195,33 @@ All slices run in parallel. Stubs for every cross-slice API are already in place
 - Run `npx tsc --noEmit` after every change.
 - Run `node scripts/shot.mjs` only at milestones, one run at a time. The machine is a 4-core Pi shared by 7 builders.
 - Never edit another slice's files. If you need a change there or in a main file, say so in your report.
+
+## Waves 6–7: polish, Timber Ridge, bunkhouse, automation, prestige
+
+### Wave 6 (foundation)
+- **Upgrades**: Lumberjack ladders go to 10 levels, machines to 8 and crew to 7. A new **Sales** shop tab sells price multipliers per product: `plankQuality`, `crateQuality`, `bulkDeals` (logs), and later `pineContracts`. `salePrice(state, product, unit, count)` = demand × Sales upgrade × season bonus, rounded to $5.
+- **Offline earnings**: rate × time × 0.25, capped at `OFFLINE.maxShareOfEarned` of lifetime earnings.
+- **Settings**: Sound, Music (a procedural loop in `fx/Music.ts` that ducks under fanfares), Graphics High/Low (Low turns off shadows and uses pixel ratio 1) and Show FPS (the `ui/PerfOverlay.ts` readout of fps · draw calls · triangles). These choices persist in localStorage `winterland:*`, outside the save.
+- **Tests** (`npm test`, vitest): upgrade tables, sale prices, and save compatibility against `tests/fixtures/save-v1-town.json`. Every future state change must keep that fixture loading.
+- **CI** (`.github/workflows/ci.yml`): typecheck, tests, build and a headless bot run to the processor. **Release** (`release.yml`): a `v*` tag builds the Linux x64/arm64 and Windows x64 zips and attaches them to a GitHub release.
+
+### Wave 7 (content)
+- **Timber Ridge** (`ridge/Ridge.ts`, `LAYOUT.ridge`): the 'ridge' pad opens a gate in the east fence and a crossing over the tricycle road, leading to a pine forest, a log deck and a rail platform. Pines are not saved: the forest regrows after `RIDGE.regrowSeconds`, and a reload starts with a full forest.
+- **Tree feller** (pad 'treeFeller'): cuts a pine every `value('treeFeller')` s and stacks `RIDGE.logsPerTree` logs on the deck.
+- **Freight trains** (`npc/TrainQueue.ts`) buy logs at the platform for `ECONOMY.pinePrice`, twice the truck price. The price pays for the long walk. Pine is the same `'log'` item kind. The **pine hauler** (crew) only moves deck → platform; the log hauler never touches the deck.
+- **Crew bunkhouse** (`ridge/Quarters.ts`, `QUARTERS`): a 3-tier construction pad on the ridge (logs + cash). Each tier allows more helpers per crew role (`core/crew.ts` `crewSlots`, read live). It is required to hire the pine hauler.
+- **Truck loader** (pad 'truckLoader'): a belt from the drop zone to the truck counter.
+- **Cash tubes** (pad 'cashTubes'): every cash pile banks one bundle every `value('cashTubes')` s.
+- **New Season** (prestige; `core/Save.ts` `newSeasonSave`): offered after the finale. It resets all progress, keeps lifetime stats, `introDone` and `seen:*` hints, and sets season + 1. Every sale then pays +`PRESTIGE.bonusPerSeason` per season, and the season starts with $`PRESTIGE.startMoneyPerSeason` × season.
+- **Save**: the world snapshot adds `piles.deck`, `piles.platform` and `cash.platform`. Older saves get 0 for these. `SAVE.version` is unchanged; every addition is additive.
+- **Draw-call ceiling**: ~950 at High quality in the late game.
+- **Ownership, wave 7**:
+
+  | Builder | Area | Files |
+  |---|---|---|
+  | B3 | world | `ridge/*`, `world/env/*` |
+  | B6 | machines | `stations/TreeFeller`, `TruckLoader`, `CashTubes` |
+  | B5 | commerce | `npc/TrainQueue`, `Crew`, `crewHelpers` |
+  | B7 | progression | `progression/*`, `assets/pads.ts` |
+  | B4 | UI and effects | `ui/*`, `fx/*` |
+  | main | everything else | `config`, `core`, `level`, `game`, bot, docs |

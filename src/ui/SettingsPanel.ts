@@ -8,6 +8,7 @@ import type { GameContext } from '../core/types';
 import { backOut, h, onTap, shield, Slide } from './dom';
 import { ICON_CLOSE, ICON_GEAR } from './icons';
 import type { PerfOverlay } from './PerfOverlay';
+import { SeasonConfirm } from './SeasonConfirm';
 
 export class SettingsPanel {
   readonly button: HTMLButtonElement;
@@ -15,6 +16,8 @@ export class SettingsPanel {
   private readonly card: HTMLDivElement;
   private readonly main: HTMLDivElement;
   private readonly confirm: HTMLDivElement;
+  private readonly season: SeasonConfirm;
+  private readonly seasonBtn: HTMLButtonElement;
   private readonly soundSwitch: HTMLButtonElement;
   private readonly musicSwitch: HTMLButtonElement;
   private readonly gfxSwitch: HTMLButtonElement;
@@ -92,6 +95,15 @@ export class SettingsPanel {
       ctx.audio.play('click');
       perf.enabled = !perf.enabled;
     });
+    // prestige: only after the finale (open() shows / hides it, the flag can flip mid-session)
+    this.seasonBtn = h('button', 'wl-btn wl-btn-gold', 'Start a new season');
+    this.seasonBtn.type = 'button';
+    this.seasonBtn.style.display = 'none';
+    onTap(this.seasonBtn, () => {
+      ctx.audio.play('click');
+      this.showSeason(true);
+    });
+    this.main.appendChild(this.seasonBtn);
     const reset = h('button', 'wl-btn wl-btn-danger', 'Reset progress');
     reset.type = 'button';
     onTap(reset, () => {
@@ -121,7 +133,10 @@ export class SettingsPanel {
     buttons.append(cancel, go);
     this.confirm.appendChild(buttons);
 
-    this.card.append(x, title, this.main, this.confirm);
+    this.season = new SeasonConfirm(ctx, () => this.showSeason(false));
+    this.season.el.style.display = 'none';
+
+    this.card.append(x, title, this.main, this.confirm, this.season.el);
     this.backdrop.appendChild(this.card);
     layer.appendChild(this.backdrop);
     this.sync();
@@ -153,6 +168,7 @@ export class SettingsPanel {
 
   open(): void {
     this.sync();
+    this.seasonBtn.style.display = this.ctx.state.flags.finale ? '' : 'none';
     this.showConfirm(false);
     this.slide.open = true;
     this.backdrop.style.display = 'flex';
@@ -166,6 +182,15 @@ export class SettingsPanel {
   showConfirm(on: boolean): void {
     this.main.style.display = on ? 'none' : '';
     this.confirm.style.display = on ? '' : 'none';
+    this.season.el.style.display = 'none';
+  }
+
+  /** The New Season confirmation view (replaces the switches; Cancel returns to them). */
+  showSeason(on: boolean): void {
+    if (on) this.season.refresh();
+    this.main.style.display = on ? 'none' : '';
+    this.confirm.style.display = 'none';
+    this.season.el.style.display = on ? '' : 'none';
   }
 
   update(dt: number): void {

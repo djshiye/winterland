@@ -1,12 +1,14 @@
 /**
- * [B4] Finale stats card: "Winterland is complete!" with play time, money earned and the other stats, and a
- * "Keep playing" button. HUD calls schedule() on 'finale:start'; the card appears ~3 s later (simulation time) so the
+ * [B4] Finale stats card: "Winterland is complete!" with play time, money earned and the other stats, a
+ * "Keep playing" button and "Start a new season" (prestige: explains the permanent bonus, then asks for a confirm
+ * before emitting 'season:new'). HUD calls schedule() on 'finale:start'; the card appears ~3 s later (simulation time) so the
  * fireworks get the stage first.
  */
 import type { GameContext } from '../core/types';
 import { backOut, h, onTap, shield, Slide } from './dom';
 import { formatCount, formatDuration, formatMoney } from './format';
 import { ICON_STAR } from './icons';
+import { SeasonConfirm } from './SeasonConfirm';
 
 const DELAY = 3;
 
@@ -14,6 +16,9 @@ export class FinaleCard {
   private readonly backdrop: HTMLDivElement;
   private readonly card: HTMLDivElement;
   private readonly grid: HTMLDivElement;
+  private readonly actions: HTMLDivElement;
+  private readonly season: SeasonConfirm;
+  private readonly title: HTMLDivElement;
   private readonly slide = new Slide();
   private timer = -1;
 
@@ -26,9 +31,11 @@ export class FinaleCard {
     shield(this.backdrop);
     this.card = h('div', 'wl-card wl-finale');
     this.card.appendChild(h('div', 'wl-finale-stars', ICON_STAR + ICON_STAR + ICON_STAR));
-    this.card.appendChild(h('div', 'wl-card-title wl-title-gold wl-outline', 'Winterland is complete!'));
+    this.title = h('div', 'wl-card-title wl-title-gold wl-outline', 'Winterland is complete!');
+    this.card.appendChild(this.title);
     this.grid = h('div', 'wl-stats');
     this.card.appendChild(this.grid);
+    this.actions = h('div', 'wl-finale-actions');
     const btn = h('button', 'wl-btn wl-btn-big wl-btn-green', 'Keep playing');
     btn.type = 'button';
     onTap(btn, () => {
@@ -36,9 +43,30 @@ export class FinaleCard {
       ctx.audio.play('click');
       this.slide.open = false;
     });
-    this.card.appendChild(btn);
+    const again = h('button', 'wl-btn wl-btn-gold wl-finale-new', 'Start a new season');
+    again.type = 'button';
+    again.title = 'Prices go up for good, everything else starts over';
+    onTap(again, () => {
+      ctx.audio.unlock();
+      ctx.audio.play('click');
+      this.showSeason(true);
+    });
+    this.actions.append(btn, again);
+    this.card.appendChild(this.actions);
+    this.season = new SeasonConfirm(ctx, () => this.showSeason(false));
+    this.season.el.style.display = 'none';
+    this.card.appendChild(this.season.el);
     this.backdrop.appendChild(this.card);
     layer.appendChild(this.backdrop);
+  }
+
+  /** The prestige confirm step replaces the stats; Cancel brings them back. */
+  showSeason(on: boolean): void {
+    if (on) this.season.refresh();
+    this.grid.style.display = on ? 'none' : '';
+    this.actions.style.display = on ? 'none' : '';
+    this.season.el.style.display = on ? '' : 'none';
+    this.title.textContent = on ? 'A new season?' : 'Winterland is complete!';
   }
 
   /** Show the card after the celebration delay (seconds, simulation time). */
@@ -75,6 +103,7 @@ export class FinaleCard {
   /** Show immediately (tests). */
   showNow(): void {
     this.timer = -1;
+    this.showSeason(false);
     this.fill();
     this.backdrop.style.display = 'flex';
     this.slide.k = 0;
