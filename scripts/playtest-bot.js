@@ -27,6 +27,8 @@
   const SPEND_SHARE = 0.3;
   /** Only to rank purchases: a log carried to a plot is worth this many dollars. */
   const LOG_VALUE = 10;
+  /** Shelters also cost hand-carried logs (time), so an upgrade of similar price goes first. */
+  const SHELTER_WEIGHT = 1.6;
   const WINTER_CITY = VILLAGE.levels.findIndex((l) => l.name === 'Winter City');
 
   const mid = (r) => ({ x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 });
@@ -187,6 +189,9 @@
       const pad = level.pads[id];
       if (pad && pad.visible && !pad.levelMode && !ctx.state.unlocked[id]) goal = goal === null ? pad.remaining : Math.min(goal, pad.remaining);
     }
+    // The first bunkhouse tier opens the pine hauler and more crew: save for it like an unlock.
+    const q = quartersInfo();
+    if (q && ctx.state.quarters.tier < 0) goal = goal === null ? q.cashLeft : Math.min(goal, q.cashLeft);
     const lodge = plotInfo(-1);
     if (lodge) goal = goal === null ? lodge.cashLeft : Math.min(goal, lodge.cashLeft);
     return goal;
@@ -227,11 +232,12 @@
       const lodge = plotInfo(-1);
       if (lodge && lodge.cashLeft <= cash) options.push({ rank: -1, run: () => startBuild(-1, lodge) });
       const q = quartersInfo();
-      if (q && ok(q.cashLeft)) options.push({ rank: q.cashLeft + q.logsLeft * LOG_VALUE, run: () => startBuild('q', q) });
+      if (q && s.quarters.tier < 0 && q.cashLeft <= cash) options.push({ rank: -2, run: () => startBuild('q', q) });
+      else if (q && ok(q.cashLeft)) options.push({ rank: q.cashLeft + q.logsLeft * LOG_VALUE, run: () => startBuild('q', q) });
       if (s.village.level < WINTER_CITY) {
         for (let i = 0; i < VILLAGE.plotLevels.length; i++) {
           const info = plotInfo(i);
-          if (info && ok(info.cashLeft)) options.push({ rank: info.cashLeft + info.logsLeft * LOG_VALUE, run: () => startBuild(i, info) });
+          if (info && ok(info.cashLeft)) options.push({ rank: SHELTER_WEIGHT * (info.cashLeft + info.logsLeft * LOG_VALUE), run: () => startBuild(i, info) });
         }
       }
     }

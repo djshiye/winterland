@@ -874,7 +874,7 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     label: 'Pine Hauler',
     blurb: 'Carries pine logs from the log deck to the train',
     values: [0, 1, 1.3, 1.65, 2.0, 2.4, 2.8],
-    costs: [7000, 15000, 30000, 50000, 75000, 105000],
+    costs: [4000, 10000, 22000, 40000, 65000, 95000],
     display: 'crew',
     requires: { unlocked: 'treeFeller', quarters: 0 },
   },
