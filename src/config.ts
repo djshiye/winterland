@@ -841,7 +841,7 @@ export const OFFLINE = {
   /** Offline time counted at most (seconds). */
   maxSeconds: 2 * 60 * 60,
   /** Fraction of the recent sales rate earned while away. */
-  efficiency: 0.5,
+  efficiency: 0.25,
   /** Shorter absences earn nothing (seconds). */
   minSeconds: 60,
   /** Smaller amounts are not worth a card. */
