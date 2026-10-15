@@ -4,6 +4,10 @@
  * - WebGLRenderer (antialias, sRGB output, neutral tone mapping so palette colours stay vibrant,
  *   pixel ratio ≤ 2), canvas fills `container`.
  * - Scene background = PALETTE.sky; no fog needed (orthographic).
+ * - Day/night (wave 8): `setDarkness(d)` blends background, hemisphere and sun colour / intensity between the day
+ *   look (d = 0, exactly LIGHTING.* / PALETTE.sky), a warm dusk (d = 0.5) and a moonlit blue night (d = 1). The
+ *   sun keeps its position and shadow camera; only colour and intensity change. render() pulls the value from
+ *   `darknessSource` (set by the Environment) so a paused debug render() follows the clock too.
  * - HemisphereLight (LIGHTING.hemi*) + one DirectionalLight "sun" (LIGHTING.sun*) with PCF (soft) shadows (PCFSoftShadowMap was removed in three r18x),
  *   LIGHTING.shadowMapSize, orthographic shadow box ±LIGHTING.shadowExtent.
  * - setShadowFocus(p) moves the sun + its target so the shadow box stays centred on p, snapped to
@@ -18,6 +22,35 @@ import { LIGHTING, PALETTE } from '../config';
 export type Quality = 'high' | 'low';
 
 const QUALITY_KEY = 'winterland:quality';
+
+// Day / dusk / night looks (hex = sRGB). Day is the original LIGHTING / PALETTE look and stays untouched.
+const SKY = { day: PALETTE.sky, dusk: 0xf0967a, night: 0x131b45 };
+const HEMI_SKY = { day: LIGHTING.hemiSky, dusk: 0xffc4a6, night: 0x7a92e6 };
+const HEMI_GROUND = { day: LIGHTING.hemiGround, dusk: 0xc08294, night: 0x4a5aa0 };
+const SUN = { day: LIGHTING.sunColor, dusk: 0xff9c5e, night: 0xa4b8ff };
+const HEMI_I = { day: LIGHTING.hemiIntensity, dusk: 1.25, night: 1.3 };
+const SUN_I = { day: LIGHTING.sunIntensity, dusk: 1.9, night: 1.2 };
+
+/** Three cached colours (day / dusk / night) for one lit property. */
+class Tri {
+  readonly day: THREE.Color;
+  readonly dusk: THREE.Color;
+  readonly night: THREE.Color;
+  constructor(c: { day: number; dusk: number; night: number }) {
+    this.day = new THREE.Color(c.day);
+    this.dusk = new THREE.Color(c.dusk);
+    this.night = new THREE.Color(c.night);
+  }
+  /** `out` = day … dusk (d 0…0.5) … night (d 1); exactly `day` at d = 0. */
+  blend(out: THREE.Color, d: number): void {
+    if (d <= 0) out.copy(this.day);
+    else if (d < 0.5) out.lerpColors(this.day, this.dusk, d * 2);
+    else out.lerpColors(this.dusk, this.night, (d - 0.5) * 2);
+  }
+}
+
+const triNum = (t: { day: number; dusk: number; night: number }, d: number): number =>
+  d <= 0 ? t.day : d < 0.5 ? t.day + (t.dusk - t.day) * d * 2 : t.dusk + (t.night - t.dusk) * (d - 0.5) * 2;
 
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -34,6 +67,14 @@ export class Renderer {
   private readonly texel: number;
   private readonly snapped = new THREE.Vector3();
   private q: Quality = 'high';
+  /** Returns the current night amount (0 day … 1 night); the Environment sets it. Read once per render(). */
+  darknessSource: (() => number) | null = null;
+  private lastDark = -1;
+  private readonly darkListeners: Array<(d: number) => void> = [];
+  private readonly triSky = new Tri(SKY);
+  private readonly triHemiSky = new Tri(HEMI_SKY);
+  private readonly triHemiGround = new Tri(HEMI_GROUND);
+  private readonly triSun = new Tri(SUN);
 
   constructor(readonly container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -77,6 +118,34 @@ export class Renderer {
     this.texel = (2 * e) / LIGHTING.shadowMapSize;
 
     this.resize();
+  }
+
+  /** Current night amount applied to the lights (0 day … 1 night). */
+  get darkness(): number {
+    return Math.max(0, this.lastDark);
+  }
+
+  /** Be told whenever the night amount changes (glow materials, aurora). Called with the new value. */
+  onDarkness(fn: (d: number) => void): void {
+    this.darkListeners.push(fn);
+    if (this.lastDark >= 0) fn(this.lastDark);
+  }
+
+  /**
+   * Blend sky / hemisphere / sun from `d` (0 day … 1 night). No allocations; does nothing when `d` is unchanged.
+   * The sun's position and shadow camera are never touched.
+   */
+  setDarkness(d: number): void {
+    d = d < 0 ? 0 : d > 1 ? 1 : d;
+    if (d === this.lastDark) return;
+    this.lastDark = d;
+    this.triSky.blend(this.scene.background as THREE.Color, d);
+    this.triHemiSky.blend(this.hemi.color, d);
+    this.triHemiGround.blend(this.hemi.groundColor, d);
+    this.triSun.blend(this.sun.color, d);
+    this.hemi.intensity = triNum(HEMI_I, d);
+    this.sun.intensity = triNum(SUN_I, d);
+    for (const fn of this.darkListeners) fn(d);
   }
 
   /** Current graphics quality. */
@@ -153,6 +222,7 @@ export class Renderer {
   }
 
   render(): void {
+    if (this.darknessSource) this.setDarkness(this.darknessSource());
     this.renderer.render(this.scene, this.camera);
   }
 }

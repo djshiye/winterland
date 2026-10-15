@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { COLORS, LAYOUT, PALETTE, rect } from '../config';
 import { Batch, vcMat } from '../render/batch';
 import { toon } from '../render/materials';
+import { buildHalos, registerGlow, type HaloSpot } from '../world/env/glow';
 import { instanced, Rng, W, type Placement } from '../world/env/common';
 import { rockGeo } from '../world/env/props';
 import { bushGeo } from './ridge';
@@ -106,12 +107,14 @@ export function buildRidgeScenery(): RidgeScenery {
   // ---- things with height -------------------------------------------------------------------------------
   const body = new Batch();
   const glow = new Batch();
+  const halos: HaloSpot[] = [];
   // lamps + bollards on the platform deck, a sign post
   for (const z of [P.minZ + 0.1, P.maxZ - 0.1]) {
     body.add(new THREE.CylinderGeometry(0.06, 0.08, 2.0, 6), PALETTE.metalDark, P.maxX - 0.15, 1.0, z);
     body.add(new THREE.BoxGeometry(0.34, 0.06, 0.34), PALETTE.metalDark, P.maxX - 0.15, 2.04, z);
     body.add(new THREE.ConeGeometry(0.26, 0.22, 4), PALETTE.rubber, P.maxX - 0.15, 2.28, z, { ry: Math.PI / 4 });
     glow.add(new THREE.BoxGeometry(0.22, 0.28, 0.22), 0xffd978, P.maxX - 0.15, 1.88, z);
+    halos.push({ x: P.maxX - 0.15, y: 1.9, z });
   }
   for (const z of [-0.9, 1.5]) body.add(new THREE.CylinderGeometry(0.1, 0.12, 0.34, 6), PALETTE.fenceDark, P.maxX - 0.08, 0.17, z);
   // stacked logs at the north end of the platform (what the trains will take)
@@ -136,7 +139,8 @@ export function buildRidgeScenery(): RidgeScenery {
 
   const propsMesh = body.mesh({ cast: true, receive: true });
   props.add(propsMesh);
-  props.add(glow.mesh({ cast: false, receive: false, material: toon(0xffd978, { emissive: 0xffb347, emissiveIntensity: 0.8 }) }));
+  props.add(glow.mesh({ cast: false, receive: false, material: registerGlow(toon(0xffd978, { emissive: 0xffb347, emissiveIntensity: 0.8 })) }));
+  props.add(buildHalos(halos, { size: 1.7, pool: 4.2 }));
 
   // rocks + bushes (explicit spots: they frame the paths, the quarters and the forest edge)
   const rng = new Rng(4417);
