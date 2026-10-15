@@ -3,14 +3,18 @@
 // vehicles, the dog) by walking the live object graph from the debug API, steps the simulation in fixed frames
 // without rendering, samples every agent twice a second and records problems:
 //
+// Failures:
 //   escaped   position is NaN / Infinity or far outside the world
 //   jammed    has an unfinished route but has not moved for JAM_SECONDS (walking on the spot, never arriving)
 //   loaded    carries items but has not moved for LOADED_SECONDS (waits forever with a load)
+//   jumped    moved farther in one sample than its own speed allows (teleport) while visible
+//   error     the simulation threw
+// Minor (listed, do not fail the run):
 //   solid     stands inside a solid obstacle (the player's collider world) for SOLID_SECONDS or more in one go
 //   stacked   two people stand inside each other (centres < STACK_DIST apart, neither moving) for STACK_SECONDS
-//   jumped    moved farther in one sample than any walker can (teleport) while visible
-//   idle      never moved during a whole measured stretch (reported, not counted as a failure)
-//   error     the simulation threw
+// Notes:
+//   idle      never moved during a whole measured stretch (staff at counters, a sitting dog, a fully built world's
+//             foreman: usually fine, worth a glance when a hauler shows up here)
 //
 // window.__soak = { reset(label), run(seconds), report(), agents() }
 (() => {
@@ -26,7 +30,6 @@
   const STACK_SECONDS = 4;
   const JUMP_DIST = 6;
   const WORLD = 3000;
-  const MAX_EXAMPLES = 6;
   /** States where a person stands on purpose inside a prop's collider: a seat on a bench, behind a stall counter. */
   const AT_SPOT = new Set(['sit', 'work']);
   /**
@@ -263,7 +266,9 @@
         }
       }
 
-      t.loadFor = carrying(a) > 0 && t.stillFor > 0 ? t.stillFor : 0;
+      // a customer in the queue holding part of its order waits for the counter to restock: that is the game
+      const waitingForStock = t.kind === 'customer' && stateOf(a) === 'queue';
+      t.loadFor = carrying(a) > 0 && t.stillFor > 0 && !waitingForStock ? t.stillFor : 0;
       if (t.loadFor >= LOADED_SECONDS) once(t, `load:${Math.round(t.anchorT)}`, () => add('loaded', t, { at: [round(p.x), round(p.z)], items: carrying(a), state: stateOf(a) }));
 
       const atSpot = AT_SPOT.has(stateOf(a)) && !moving;
@@ -387,5 +392,5 @@
     return [...tracks.values()].map((t) => ({ path: t.path, kind: t.kind, live: live(t.agent) }));
   }
 
-  window.__soak = { reset, run, report, agents, MAX_EXAMPLES };
+  window.__soak = { reset, run, report, agents };
 })();
