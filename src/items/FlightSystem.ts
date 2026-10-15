@@ -15,7 +15,7 @@
 import * as THREE from 'three';
 import { TIMING } from '../config';
 import { TAU, arcPoint, clamp } from '../core/math';
-import type { GameContext, Item, ItemHolder, Slot } from '../core/types';
+import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 
 export interface FlightOptions {
   /** Seconds (default TIMING.arcTime). */
@@ -89,6 +89,29 @@ export class FlightSystem {
   /** Flights currently in the air. */
   get activeCount(): number {
     return this.flights.length;
+  }
+
+  /**
+   * Live flights heading for `holder` (optionally only items of `kind`). Items in the air belong to neither the
+   * source nor the destination yet, so a save snapshot must add this to the holder's own count.
+   */
+  inFlightTo(holder: ItemHolder, kind?: ItemKind): number {
+    let n = 0;
+    for (let i = 0; i < this.flights.length; i++) {
+      const f = this.flights[i]!;
+      if (f.to === holder && (kind === undefined || f.item.kind === kind)) n++;
+    }
+    return n;
+  }
+
+  /** Total cash value of the live flights heading for `holder`. */
+  valueInFlightTo(holder: ItemHolder): number {
+    let v = 0;
+    for (let i = 0; i < this.flights.length; i++) {
+      const f = this.flights[i]!;
+      if (f.to === holder && f.item.kind === 'cash') v += f.item.value;
+    }
+    return v;
   }
 
   update(dt: number): void {

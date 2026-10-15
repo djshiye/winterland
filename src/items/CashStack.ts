@@ -33,6 +33,8 @@ export interface CashStackOptions {
 }
 
 class CashSlot implements Slot {
+  /** Value this reservation added to inFlightValue (receive/cancel subtract exactly this, once). */
+  pending = 0;
   constructor(
     readonly holder: ItemHolder,
     readonly index: number,
@@ -64,6 +66,7 @@ export class CashStack implements ItemHolder {
   private readonly anims: Anim[] = [];
   private readonly sway = new SwaySpring();
   private reservedCount = 0;
+  private pendingValue = 0;
 
   constructor(
     readonly ctx: GameContext,
@@ -80,10 +83,26 @@ export class CashStack implements ItemHolder {
     return kind === 'cash';
   }
 
-  reserve(_item: Item): Slot {
+  reserve(item: Item): Slot {
     const s = new CashSlot(this, this.visuals.length + this.reservedCount);
     this.reservedCount++;
+    s.pending = item.value > 0 ? item.value : ECONOMY.cashBundleValue;
+    this.pendingValue += s.pending;
     return s;
+  }
+
+  /**
+   * Dollars reserved for this stack but not yet banked (bundles flying back to the wallet, e.g. collected from a
+   * cash pile). Money is only added in receive(), so a save must persist `money + inFlightValue`.
+   */
+  get inFlightValue(): number {
+    return this.pendingValue;
+  }
+
+  private settle(slot: Slot): void {
+    const s = slot as CashSlot;
+    this.pendingValue = Math.max(0, this.pendingValue - s.pending);
+    s.pending = 0;
   }
 
   getSlotWorldPosition(slot: Slot, out: THREE.Vector3): THREE.Vector3 {
@@ -99,9 +118,12 @@ export class CashStack implements ItemHolder {
     return out.multiply(this.localQuat(i, tmpQb));
   }
 
-  receive(item: Item, _slot: Slot): void {
+  receive(item: Item, slot: Slot): void {
+    // Bank exactly what reserve() counted as in flight (item.value may have been zeroed by a release meanwhile).
+    const reserved = (slot as CashSlot).pending;
+    this.settle(slot);
     this.reservedCount = Math.max(0, this.reservedCount - 1);
-    const value = item.value > 0 ? item.value : ECONOMY.cashBundleValue;
+    const value = reserved > 0 ? reserved : item.value > 0 ? item.value : ECONOMY.cashBundleValue;
     // Visual first, economy second (see RE-ENTRANCY above).
     if (this.visuals.length < this.opts.maxVisual) {
       item.value = ECONOMY.cashBundleValue;
@@ -113,7 +135,8 @@ export class CashStack implements ItemHolder {
     this.ctx.economy.add(value);
   }
 
-  cancel(_slot: Slot): void {
+  cancel(slot: Slot): void {
+    this.settle(slot);
     this.reservedCount = Math.max(0, this.reservedCount - 1);
   }
 

@@ -133,6 +133,16 @@ export abstract class VehicleQueue {
     return this.queue.length;
   }
 
+  /**
+   * Goods sitting on queued, still UNPAID vehicles (landed or in flight): taken off the counter pile but not sold yet.
+   * The save adds them back to the counter. Paid / leaving vehicles are excluded (already counted as sold).
+   */
+  get loadedUnits(): number {
+    let n = 0;
+    for (const v of this.queue) if (v.mode === 'queue') n += v.cargo.total;
+    return n;
+  }
+
   /** Subclass: build the model + rider for `variant` (rider already seated and attached). */
   protected abstract buildParts(variant: number): VehicleParts;
   /** Subclass: place the vehicle in the world for travel coordinate `v.u`. */

@@ -38,6 +38,8 @@ const WALK_OUT_STAGGER = 0.6;
 
 export class Crew {
   private readonly helpers = new Map<CrewId, Helper[]>();
+  /** Removed helpers still waiting for their inflight items to land (Helper.dispose). */
+  private readonly leaving: Helper[] = [];
   private readonly sink: DepositSink;
   private reconcileTimer = 0;
   /** Simulation time when the next walk-out may leave the door (staggers helpers across reconciles). */
@@ -80,12 +82,14 @@ export class Crew {
   carried(role: CrewRole, kind: ItemKind): number {
     let n = 0;
     for (const h of this.helpers.get(role) ?? []) n += h.stack.count(kind);
+    for (const h of this.leaving) if (h.id === role) n += h.stack.count(kind);
     return n;
   }
 
   carriedValue(role: CrewRole): number {
     let v = 0;
     for (const h of this.helpers.get(role) ?? []) v += h.stack.totalValue();
+    for (const h of this.leaving) if (h.id === role) v += h.stack.totalValue();
     return v;
   }
 
@@ -96,6 +100,11 @@ export class Crew {
       this.reconcile(false);
     }
     for (const list of this.helpers.values()) for (const h of list) h.update(dt);
+    for (let i = this.leaving.length - 1; i >= 0; i--) {
+      const h = this.leaving[i]!;
+      h.update(dt);
+      if (h.disposed) this.leaving.splice(i, 1);
+    }
   }
 
   /**
@@ -113,7 +122,11 @@ export class Crew {
         if (walkOut) this.walkOut(h, id);
         else h.placeAt(HOME[id], HOME_LOOK[id]);
       }
-      while (list.length > want) list.pop()!.dispose();
+      while (list.length > want) {
+        const h = list.pop()!;
+        h.dispose();
+        if (!h.disposed) this.leaving.push(h);
+      }
     }
   }
 

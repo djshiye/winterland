@@ -63,9 +63,20 @@ export class CashPile {
     });
   }
 
-  /** Dollars lying in the pile (landed bundles). */
+  /** Dollars paid in but not yet landed: bundles waiting in pay()'s stagger delays plus bundles in the air. */
+  private inFlight = 0;
+
+  /**
+   * Dollars belonging to the pile: landed bundles + bundles still on their way (pay() is accounted the moment it is
+   * called, so a save never sees the money vanish while it flies).
+   */
   get value(): number {
-    return this.pile.totalValue();
+    return this.pile.totalValue() + this.inFlight;
+  }
+
+  /** Dollars not yet landed (included in `value`). */
+  get inFlightValue(): number {
+    return this.inFlight;
   }
 
   /**
@@ -75,10 +86,20 @@ export class CashPile {
   pay(amount: number, from: THREE.Vector3): void {
     const values = splitBundles(amount, MAX_PAY_BUNDLES);
     const start = from.clone();
+    for (let i = 0; i < values.length; i++) this.inFlight += values[i]!;
     for (let i = 0; i < values.length; i++) {
       const value = values[i]!;
+      // Each bundle subtracts exactly its own value, once: when it has landed (onLand runs after the pile merged /
+      // placed it, so `value` never dips) or at once if it could not be launched.
+      let settled = false;
+      const settle = (): void => {
+        if (settled) return;
+        settled = true;
+        this.inFlight = Math.max(0, this.inFlight - value);
+      };
       this.ctx.tweens.delay(i * 0.04, () => {
-        launchNew(this.ctx, 'cash', start, this.pile, { duration: 0.35, arcHeight: 1.5, value });
+        const item = launchNew(this.ctx, 'cash', start, this.pile, { duration: 0.35, arcHeight: 1.5, value, onLand: settle });
+        if (!item) settle();
       });
     }
   }

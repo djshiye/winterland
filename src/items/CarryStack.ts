@@ -221,7 +221,10 @@ export class CarryStack implements ItemHolder {
       if (e.x !== e.tx) {
         e.x = damp(e.x, e.tx, SETTLE_LAMBDA, dt);
         if (Math.abs(e.x - e.tx) < 0.0005) e.x = e.tx;
-    e.z = e.tz;
+      }
+      if (e.z !== e.tz) {
+        e.z = damp(e.z, e.tz, SETTLE_LAMBDA, dt);
+        if (Math.abs(e.z - e.tz) < 0.0005) e.z = e.tz;
       }
       if (e.item) this.apply(e);
     }

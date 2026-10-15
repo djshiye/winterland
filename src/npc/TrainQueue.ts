@@ -17,6 +17,7 @@ import { demandOf, salePrice } from '../core/demand';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 import { transferOne } from '../items/transfer';
 import { createSpeechBubble, type SpeechBubble } from '../assets/shop';
+import { SLED_HALF_WIDTH, SLED_RETURN_Z } from '../assets/sled';
 import { createTrain, TRAIN_AXLE_RADIUS, TRAIN_CARGO_CAPACITY, type TrainModel } from '../assets/train';
 import type { CashPile } from '../stations/CashPile';
 import type { Counter } from '../stations/Counter';
@@ -24,6 +25,11 @@ import type { Counter } from '../stations/Counter';
 export interface TrainQueueOptions {
   counter: Counter;
   cash: CashPile;
+  /**
+   * True while a dog sled is committed to the rail crossing (SledQueue.onCrossing). A paid train waits at the
+   * platform until it is false before pulling out: the leaving train sweeps both sled rows. Optional.
+   */
+  sledOnCrossing?: () => boolean;
 }
 
 const DRIVE_SPEED = 14;
@@ -32,6 +38,12 @@ const DECEL = 7;
 /** Seconds the first train takes to show up after the ridge opens. */
 const FIRST_TRAIN_DELAY = 3;
 const PAID_HOLD = 0.9;
+/**
+ * A leaving train sweeps the sled rows until its tail (3.8 m behind the origin) has cleared the return line
+ * (SLED_RETURN_Z) plus the sled's half width.
+ */
+const TAIL = 3.8;
+const SWEEP_END_Z = SLED_RETURN_Z + SLED_HALF_WIDTH + TAIL;
 
 type Mode = 'idle' | 'arrive' | 'load' | 'paid' | 'leave';
 
@@ -133,9 +145,17 @@ export class TrainQueue {
     return this.mode === 'load';
   }
 
-  /** Logs sitting on the train (landed or in flight, not yet paid). The save adds them to the platform pile. */
+  /**
+   * True while the train may be inside a dog sled row: paid (about to pull out) or leaving until its tail has cleared
+   * the return line. SledQueue stops short of the rail while this is true (unless it is already committed).
+   */
+  get sweeping(): boolean {
+    return this.mode === 'paid' || (this.mode === 'leave' && this.z < SWEEP_END_Z);
+  }
+
+  /** Logs sitting on the train (landed or in flight, not yet paid; 'paid' is excluded because the sale already landed in the cash pile). The save adds them to the platform pile. */
   get loadedLogs(): number {
-    return this.mode === 'load' || this.mode === 'paid' ? (this.cargo?.total ?? 0) : 0;
+    return this.mode === 'load' ? (this.cargo?.total ?? 0) : 0;
   }
 
   update(dt: number): void {
@@ -154,7 +174,7 @@ export class TrainQueue {
       case 'paid':
         this.holdTimer -= dt;
         this.driveTo(LAYOUT.ridge.rail.stopZ, dt); // keeps the speed at zero
-        if (this.holdTimer <= 0) this.mode = 'leave';
+        if (this.holdTimer <= 0 && !this.opts.sledOnCrossing?.()) this.mode = 'leave';
         break;
       case 'leave': {
         const prev = this.speed;

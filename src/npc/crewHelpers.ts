@@ -177,6 +177,8 @@ export abstract class Helper {
   peers: readonly Helper[] = [];
   /** Walk-out delay: invisible and frozen until it runs out, then `onRelease` fires (staggered arrivals). */
   hold = 0;
+  private disposing = false;
+  private gone = false;
   onRelease: (() => void) | null = null;
   /** Metres along the lane line (perpendicular to the post's look direction) this helper stands off the post. */
   protected readonly laneStep: number;
@@ -251,7 +253,13 @@ export abstract class Helper {
   }
 
   update(dt: number): void {
-    if (dt <= 0) return;
+    if (dt <= 0 || this.gone) return;
+    if (this.disposing) {
+      this.stack.update(dt, this.velocity);
+      this.rig.animate(dt, 0);
+      if (this.settled) this.finishDispose();
+      return;
+    }
     if (this.hold > 0) {
       this.hold -= dt;
       if (this.hold <= 0) {
@@ -270,10 +278,29 @@ export abstract class Helper {
     this.stack.update(dt, this.velocity);
   }
 
-  /** Release everything and leave the world. */
+  /**
+   * Leave the world. Items still flying to the hands would re-add themselves to a detached stack (CarryStack.receive)
+   * and leak, so the helper stops working and lingers until every inflight item has landed; the owner keeps calling
+   * update() until `disposed`.
+   */
   dispose(): void {
+    this.disposing = true;
+    this.route = [];
+    this.routeIdx = 0;
+    this.speed = 0;
+    this.velocity.set(0, 0, 0);
+    if (this.hold > 0 || this.settled) this.finishDispose();
+  }
+
+  /** True once a disposed helper is fully gone (nothing in flight, stack released, removed from the scene). */
+  get disposed(): boolean {
+    return this.gone;
+  }
+
+  private finishDispose(): void {
     this.stack.clear();
     this.group.removeFromParent();
+    this.gone = true;
   }
 
   protected abstract think(dt: number): void;
@@ -356,7 +383,7 @@ export class CrateRunner extends Helper {
         if (out && out.count('crate') > 0 && this.move(out, this.stack, 'crate')) return;
         this.idle += dt;
         const has = this.stack.count('crate') > 0;
-        if (has && counter && this.settled && (this.stack.size >= this.capacity || this.idle > PATIENCE)) {
+        if (has && counter && counter.input.canAccept('crate') && this.settled && (this.stack.size >= this.capacity || this.idle > PATIENCE)) {
           this.go(RUNNER_ROUTE);
           this.phase = 'go';
         }
@@ -422,7 +449,9 @@ export class Cashier extends Helper {
         pile: () => level.walkInCash,
       },
       {
-        route: [],
+        // approach from the west along the pile's own row: lane +0.8 stands at x 9.7, and the straight line from the
+        // cabin would clip the SE counter's corner (counter box x 9.6-10.2, z 2.8-4.4)
+        route: [{ x: 8.4, z: 4.8 }],
         post: { x: 8.9, z: 4.8 },
         look: { x: 8.9, z: 6.0 },
         pile: () => level.seCash,
@@ -491,7 +520,10 @@ export class Cashier extends Helper {
 
   /** True while this cashier is on its way to / collecting from `s` (peers skip it). */
   stopOf(s: PileStop): boolean {
-    return this.stop === s && (this.phase === 'go' || this.phase === 'collect');
+    if (!this.stop || (this.phase !== 'go' && this.phase !== 'collect')) return false;
+    // every cashier builds its own stop table, so compare the piles, not the stop objects
+    const mine = this.stop.pile();
+    return mine !== null && mine === s.pile();
   }
 
   /** Richest pile (value, discounted by distance) holding at least two bundles' worth. */

@@ -139,6 +139,57 @@ export function createSledTrack(): SledTrack {
 }
 
 // ---------------------------------------------------------------------------
+// Rail crossing (npc/SledQueue.ts <-> npc/TrainQueue.ts mutual exclusion)
+// ---------------------------------------------------------------------------
+
+/** Half the train's width (wheel outer edges), with the buffer/step overhang. */
+export const TRAIN_HALF_WIDTH = 0.9;
+/** Extra clearance around the train corridor and along the convoy (metres). */
+const CROSSING_MARGIN = 0.3;
+/** Convoy extent along its heading from the SLED origin: musher/back of the sled to the head dogs' nose. */
+export const CONVOY_BACK = 1.15;
+export const CONVOY_FRONT = TEAM_OFFSETS[1] + 0.7;
+
+/** Sled arc-length interval during which some part of the convoy is inside the train corridor. */
+export interface CrossingBand {
+  /** The first dog's nose enters the corridor. */
+  start: number;
+  /** The musher has left the corridor. */
+  end: number;
+}
+
+/**
+ * Where the sled convoy overlaps the corridor of a train running along Z at `railX`. The track crosses it twice: on
+ * the arrival lane (heading west) and on the return line (heading east). A leaving train sweeps BOTH rows, so the
+ * sled and the train must never be inside their crossing at the same time.
+ */
+export function sledCrossingBands(track: SledTrack, railX: number): { arrive: CrossingBand; leave: CrossingBand } {
+  const halfX = TRAIN_HALF_WIDTH + SLED_HALF_WIDTH + CROSSING_MARGIN;
+  const bands: CrossingBand[] = [];
+  let first = -1;
+  let last = -1;
+  const flush = (): void => {
+    if (first >= 0) {
+      bands.push({
+        start: first * track.ds - CONVOY_FRONT - CROSSING_MARGIN,
+        end: last * track.ds + CONVOY_BACK + CROSSING_MARGIN,
+      });
+    }
+    first = -1;
+    last = -1;
+  };
+  for (let i = 0; i < track.xs.length; i++) {
+    if (Math.abs(track.xs[i]! - railX) <= halfX) {
+      if (first < 0) first = i;
+      last = i;
+    } else if (first >= 0) flush();
+  }
+  flush();
+  if (bands.length < 2) throw new Error('sled track must cross the rail corridor twice');
+  return { arrive: bands[0]!, leave: bands[bands.length - 1]! };
+}
+
+// ---------------------------------------------------------------------------
 // Trail
 // ---------------------------------------------------------------------------
 

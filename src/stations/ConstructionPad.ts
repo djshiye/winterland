@@ -145,6 +145,7 @@ export class ConstructionPad implements ItemHolder {
     if (this.shown) return;
     this.shown = true;
     this.syncZones();
+    this.completeIfPaid();
     const tw = this.ctx.tweens;
     tw.killTweensOf(this.object);
     this.object.scale.setScalar(1);
@@ -186,6 +187,7 @@ export class ConstructionPad implements ItemHolder {
     setPadSignLabel(this.sign, this.target.label);
     this.redraw();
     this.syncZones();
+    this.completeIfPaid();
   }
 
   update(_dt: number): void {
@@ -215,6 +217,7 @@ export class ConstructionPad implements ItemHolder {
     else this.pendingCash += item.value;
     const slot: ConstructionSlot = { holder: this, kind: item.kind, value: item.value, live: true };
     this.syncZones();
+    this.reportProgress();
     return slot;
   }
 
@@ -247,7 +250,7 @@ export class ConstructionPad implements ItemHolder {
       cashLeft: this.cashLeft,
       position: this.tmpPos.copy(this.object.position),
     });
-    this.opts.onProgress?.(this.target.paidLogs, this.target.paidCash);
+    this.reportProgress();
     if (!this.completed && this.logsLeft <= 0 && this.cashLeft <= 0) {
       this.completed = true;
       this.hide();
@@ -262,6 +265,7 @@ export class ConstructionPad implements ItemHolder {
     if (s.kind === 'log') this.pendingLogs = Math.max(0, this.pendingLogs - 1);
     else this.pendingCash = Math.max(0, this.pendingCash - s.value);
     this.syncZones();
+    this.reportProgress();
   }
 
   count(_kind?: ItemKind): number {
@@ -273,6 +277,29 @@ export class ConstructionPad implements ItemHolder {
   }
 
   // --- internals ------------------------------------------------------------
+  /**
+   * Mirror landed + in-flight amounts into onProgress (the owner writes them to the save state). Money leaves the
+   * player's wallet the moment a bundle is taken, so a save made while it is still flying must already count it as
+   * paid (same idea as UpgradePad.writePaid). Restoring such a save re-arms the pad with those amounts.
+   */
+  private reportProgress(): void {
+    this.opts.onProgress?.(this.target.paidLogs + this.pendingLogs, this.target.paidCash + this.pendingCash);
+  }
+
+  /**
+   * A restored save can hold a fully paid target (the last bundle was still flying when it was written): nothing
+   * will ever land, so complete the tier now (deferred a tick so the owner is not re-entered from show()/rearm()).
+   */
+  private completeIfPaid(): void {
+    if (!this.shown || this.completed || this.logsLeft > 0 || this.cashLeft > 0) return;
+    if (this.pendingLogs > 0 || this.pendingCash > 0) return;
+    this.completed = true;
+    this.ctx.tweens.delay(0, () => {
+      this.hide();
+      this.opts.onComplete();
+    });
+  }
+
   private cashChunk(): number {
     const left = this.cashLeft - this.pendingCash;
     if (left <= 0) return 0;

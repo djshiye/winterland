@@ -13,7 +13,9 @@
  * Model: assets/ridgeMachines.ts createTreeFeller. Cycle (fractions of the cycle time): drive out 0.36 · cut 0.20
  * (boom reaches the trunk, the turret slews the blade across it, the tree falls at the middle) · drive back 0.34 ·
  * drop 0.10. When a far tree would need an unreasonable speed (MAX_SPEED) the cycle simply lasts a little longer.
- * Logs are only created at the drop (the deck is the first thing the save counts), so a save mid-cycle loses nothing.
+ * Logs are only created at the drop, but the tree is already cut at the felling moment. A save between the cut and the
+ * last drop loses that tree's logs unless the snapshot adds `pendingLogs` (cut, not yet
+ * thrown) to the deck count (the deck's own `total` already includes logs thrown and still in the air).
  * Level badge on the flank (LevelBadge, updated every frame like the other machines).
  */
 import * as THREE from 'three';
@@ -68,6 +70,8 @@ export class TreeFeller {
   private felled = false;
   private dropping = false;
   private pending = 0;
+  /** Logs of the felled tree that have not been thrown onto the deck yet (see pendingLogs). */
+  private owed = 0;
   private dropClock = 0;
   private chipClock = 0;
   private bladeRate = 2;
@@ -115,6 +119,14 @@ export class TreeFeller {
     ctx.tweens.popIn(this.root, { duration: 0.5 });
     ctx.tweens.delay(0.55, () => ctx.tweens.squash(this.root, 0.12, 0.35));
     ctx.events.emit('built', { what: 'treeFeller', position: new THREE.Vector3(this.home.x, 0, this.home.y), object: this.root });
+  }
+
+  /**
+   * Logs of the tree just felled that are not on the deck or in the air yet (0 outside the cut-to-drop window).
+   * A save must add this to the deck's log count.
+   */
+  get pendingLogs(): number {
+    return this.owed;
   }
 
   /** Seconds per tree at the current level (read live). */
@@ -208,6 +220,7 @@ export class TreeFeller {
       if (u >= 0.28 && u < 0.78) this.chips(dt);
       if (!this.felled && u >= 0.52) {
         this.felled = true;
+        this.owed = RIDGE.logsPerTree;
         this.ridge.fell(this.treeIndex);
         this.tmp.set(this.treeX, 0.5, this.treeZ);
         ctx.particles.puff(this.tmp, { count: 5, size: 0.7, life: 0.7 });
@@ -252,6 +265,7 @@ export class TreeFeller {
     this.root.localToWorld(this.tmp);
     launchNew(this.ctx, 'log', this.tmp, this.deck, { duration: 0.5, arcHeight: 1.6 });
     this.pending--;
+    this.owed = Math.max(0, this.owed - 1);
     this.dropClock = 0.07;
     if (this.pending <= 0) {
       this.dropping = false;
