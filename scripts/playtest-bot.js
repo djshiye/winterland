@@ -76,6 +76,7 @@
   on('village:levelUp', ({ level: lv }) => (note({ villageLevel: lv }), mark(VILLAGE.levels[lv]?.name ?? `vl:${lv}`)));
   on('reveal', ({ what }) => (note({ reveal: what }), mark(`reveal:${what}`)));
   on('quarters:built', ({ tier }) => (note({ quarters: tier }), mark(`quarters:${tier}`)));
+  on('sale', ({ buyer }) => buyer === 'sled' && mark('firstSled'));
   on('finale:start', () => (note({ finale: true }), mark('finale')));
 
   // --- primitives --------------------------------------------------------------------------------------------
