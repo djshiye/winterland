@@ -303,6 +303,8 @@ export class Townsfolk {
   /** One slot per town staff spot: null while the person is home for the night (no crowd instance used). */
   private readonly staff: (Agent | null)[] = [];
   private readonly staffAway: boolean[] = [];
+  /** Staff of a demolished building, walking home before they leave the crowd. */
+  private readonly staffLeaving: Agent[] = [];
   private staffHome = false;
   private readonly carolers: Agent[] = [];
   private carolOn = false;
@@ -631,6 +633,7 @@ export class Townsfolk {
       this.staffHome = staffAtHome(this.darkness(), this.staffHome);
       const home = this.staffHome && revealed;
       const spots = revealed ? this.town.staffSpots() : EMPTY_STAFF;
+      this.realignStaff(spots);
       while (this.staff.length < spots.length) this.staff.push(null);
       for (let i = 0; i < spots.length; i++) {
         const s = spots[i]!;
@@ -695,6 +698,9 @@ export class Townsfolk {
         while (this.stallholders.length) this.release(this.stallholders.pop()!);
       }
     }
+    for (let i = this.staffLeaving.length - 1; i >= 0; i--) {
+      if (this.stepCommute(this.staffLeaving[i]!, dt)) this.staffLeaving.splice(i, 1);
+    }
     for (let i = 0; i < this.staff.length; i++) {
       const a = this.staff[i];
       if (!a) continue;
@@ -702,6 +708,36 @@ export class Townsfolk {
       else if (this.stepCommute(a, dt)) this.staff[i] = null; // reached home and faded out: the instance goes back to the pool
     }
     for (const a of this.stallholders) this.animateStaff(a, dt);
+  }
+
+  /**
+   * The staff list is one slot per spot, in lot order: when a building is demolished (or one appears between two others)
+   * the spots shift. Re-pair every person with a spot of their own lot; the ones whose lot lost spots walk home and go.
+   */
+  private realignStaff(spots: readonly { lot: number }[]): void {
+    let shifted = false;
+    for (let i = 0; i < this.staff.length && !shifted; i++) {
+      const a = this.staff[i];
+      if (a && spots[i]?.lot !== a.lot) shifted = true;
+    }
+    if (!shifted) return;
+    const byLot = new Map<number, Agent[]>();
+    for (const a of this.staff) {
+      if (!a) continue;
+      const list = byLot.get(a.lot);
+      if (list) list.push(a);
+      else byLot.set(a.lot, [a]);
+    }
+    const next: (Agent | null)[] = spots.map((s) => byLot.get(s.lot)?.shift() ?? null);
+    for (const rest of byLot.values()) {
+      for (const a of rest) {
+        this.beginCommute(a, a, 1);
+        this.staffLeaving.push(a);
+      }
+    }
+    this.staff.length = 0;
+    for (const a of next) this.staff.push(a);
+    this.staffAway.fill(this.staffHome);
   }
 
   /** Start walking home (`kind` 1, to the nearest townhouse door / corridor entrance) or back to the spot (2). */
@@ -756,11 +792,16 @@ export class Townsfolk {
   // Buyers
   // =========================================================================
   private buyerSpawns(dt: number, shops: readonly ShopSpot[]): void {
-    // drop queues of shops that are gone
+    // drop queues of shops that are gone (a demolished lot, or a different shop built on it since the buyers joined)
     if (this.queues.size > 0) {
       for (const [lot, q] of this.queues) {
-        if (shops.some((s) => s.lot === lot)) continue;
-        for (let i = q.length - 1; i >= 0; i--) this.sendOut(q[i]!);
+        const now = shops.find((s) => s.lot === lot);
+        if (now && q.every((a) => a.shop === now)) continue;
+        for (let i = q.length - 1; i >= 0; i--) {
+          const a = q[i]!;
+          this.sendOut(a);
+          a.shop = null; // never walk to (or pay at) the dead shop
+        }
         this.queues.delete(lot);
         this.buyTimers.delete(lot);
       }

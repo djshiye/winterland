@@ -1,6 +1,8 @@
 # Winterland roadmap
 
-**Where it stands (2026-10-15, v0.8.0).**
+**Where it stands (2026-10-15, v0.8.0 released; 0.9.0 "Ages" in progress — see `ROADMAP.md` at the repo root for
+the 0.9.0 handoff: ten eras, regions and machines, era workers, the market, Jack's swap cart, demolish and the city
+districts are all in the tree and tested, with the review / verification / release steps still open).**
 - The "make it a game" list is done, plus the village and the Great Lodge finale.
 - **Waves 6–7 are done:**
   - longer upgrade ladders and the Sales tab;

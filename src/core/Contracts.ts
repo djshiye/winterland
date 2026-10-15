@@ -45,7 +45,10 @@ export class Contracts {
     this.timer = this.nextGap();
     // A restored active contract resumes as-is (update() just keeps counting down); remember it for the no-repeat rule.
     this.lastKind = state.contract.kind;
-    events.on('sale', (e) => this.onSale(e.kind, e.count));
+    // Jack's swap cart is a discard, not a delivery (0.9.0)
+    events.on('sale', (e) => {
+      if (e.buyer !== 'jack') this.onSale(e.kind, e.count);
+    });
   }
 
   get current(): ContractState {

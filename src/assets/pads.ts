@@ -20,6 +20,7 @@
 import * as THREE from 'three';
 import { CAMERA, COLORS, PALETTE, type PadDef } from '../config';
 import { GAME_FONT, basic, geo, makeCanvasTexture, mesh, toon } from '../render/materials';
+import { MATERIALS } from '../eras/data';
 
 export type PadIcon = PadDef['icon'];
 
@@ -837,6 +838,91 @@ function drawSnowmanPark(g: CanvasRenderingContext2D): void {
   g.fillRect(-64, 60, 128, 5); // ground
 }
 
+// --- 0.9.0 era icons (machine slots, city lots / buildings, region expansion pads; same ±64 box) -------------------
+
+/** Machine: a chunky cog beside a chimney factory, with smoke puffs. */
+function drawMachine(g: CanvasRenderingContext2D): void {
+  // chimney + smoke
+  g.fillRect(14, -52, 16, 40);
+  g.fillRect(11, -56, 22, 6);
+  for (const [x, y, r] of [[26, -66, 5], [38, -74, 6.5]] as const) {
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  // factory hall: sawtooth roof, a door and a window cut out
+  g.beginPath();
+  poly(g, [[-2, 52], [-2, -14], [18, -30], [18, -14], [38, -30], [38, -14], [62, -14], [62, 52]]);
+  addRoundedRect(g, 12, 22, 20, 30, 3);
+  addRoundedRect(g, 40, 6, 16, 14, 3);
+  g.fill('evenodd');
+  // big cog on the left (teeth + hub hole)
+  g.save();
+  g.translate(-30, 18);
+  g.beginPath();
+  g.arc(0, 0, 25, 0, Math.PI * 2);
+  g.arc(0, 0, 10, 0, Math.PI * 2, true);
+  g.fill('evenodd');
+  for (let i = 0; i < 8; i++) {
+    g.rotate(Math.PI / 4);
+    g.beginPath();
+    addRoundedRect(g, -7, -37, 14, 15, 3);
+    g.fill();
+  }
+  g.restore();
+  g.fillRect(-66, 52, 132, 6);
+}
+
+/** Building: a city tower block with a crown, rows of windows and a door, beside a lower annex. */
+function drawBuilding(g: CanvasRenderingContext2D): void {
+  // antenna
+  g.fillRect(-14, -66, 4, 20);
+  // tower: stepped crown, window grid cut out, door
+  g.beginPath();
+  poly(g, [[-38, 52], [-38, -34], [-28, -34], [-28, -46], [-8, -46], [-8, -34], [10, -34], [10, 52]]);
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 2; c++) addRoundedRect(g, -30 + c * 20, -26 + r * 14, 12, 8, 2);
+  }
+  addRoundedRect(g, -20, 36, 16, 16, 2);
+  g.fill('evenodd');
+  // annex: shorter block with its own windows
+  g.beginPath();
+  poly(g, [[16, 52], [16, 4], [62, 4], [62, 52]]);
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) addRoundedRect(g, 22 + c * 14, 12 + r * 13, 9, 7, 2);
+  }
+  g.fill('evenodd');
+  g.fillRect(-66, 52, 132, 6);
+}
+
+/** Expansion: a flag planted on a hill with a signpost, the way into new land. */
+function drawExpansion(g: CanvasRenderingContext2D): void {
+  // hill
+  g.beginPath();
+  g.moveTo(-66, 54);
+  g.quadraticCurveTo(-30, 8, 8, 18);
+  g.quadraticCurveTo(46, 26, 66, 54);
+  g.closePath();
+  g.fill();
+  // flag pole + waving pennant + ball
+  g.fillRect(-4, -60, 6, 70);
+  g.beginPath();
+  g.moveTo(2, -58);
+  g.bezierCurveTo(20, -66, 32, -48, 54, -54);
+  g.lineTo(54, -22);
+  g.bezierCurveTo(32, -16, 20, -34, 2, -26);
+  g.closePath();
+  g.fill();
+  g.beginPath();
+  g.arc(-1, -62, 6, 0, Math.PI * 2);
+  g.fill();
+  // little signpost on the left with an arrow board
+  g.fillRect(-46, -2, 5, 36);
+  g.beginPath();
+  poly(g, [[-62, -4], [-30, -4], [-22, 6], [-30, 16], [-62, 16]]);
+  g.fill();
+}
+
 const SHELTER_ICONS: Record<ShelterIcon, (g: CanvasRenderingContext2D) => void> = {
   tent: drawTent,
   hut: drawHut,
@@ -855,9 +941,9 @@ const SHELTER_ICONS: Record<ShelterIcon, (g: CanvasRenderingContext2D) => void> 
   pond: drawPond,
   bandstand: drawBandstand,
   snowmanPark: drawSnowmanPark,
-  machine: drawLot,
-  building: drawLot,
-  expansion: drawLot,
+  machine: drawMachine,
+  building: drawBuilding,
+  expansion: drawExpansion,
 };
 
 /** A small log lying on its side: bark body, LOG_CORE end cap with a ring. */
@@ -899,12 +985,32 @@ function drawCheck(g: CanvasRenderingContext2D, x: number, y: number): void {
   g.restore();
 }
 
-/** "$4000" / "$16k" / "$12.5k": keeps big prices inside the 56 px text slot. */
+/** Three significant digits, no trailing zeros: 1.35 / 12.5 / 984. */
+function sig3(x: number): string {
+  if (x >= 100) return String(Math.round(x));
+  return (x >= 10 ? x.toFixed(1) : x.toFixed(2)).replace(/\.?0+$/, '');
+}
+
+/**
+ * "$4000" / "$16k" / "$12.5k" / "$1.35M" / "$984M" / "$1.2B" / "$3T": keeps big prices inside the 56 px text slot.
+ * Below a million the output is the original (k) format.
+ */
 export function formatCost(n: number): string {
   const v = Math.max(0, Math.round(n));
   if (v < 10000) return `$${v}`;
-  const k = v / 1000;
-  return `$${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+  if (v < 1_000_000) {
+    const k = v / 1000;
+    return `$${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+  }
+  const units = ['M', 'B', 'T'] as const;
+  let i = 0;
+  let x = v / 1e6;
+  // 999.6M rounds to "1000M": promote to the next unit instead
+  while (i < units.length - 1 && Math.round(x) >= 1000) {
+    x /= 1000;
+    i++;
+  }
+  return `$${sig3(x)}${units[i]}`;
 }
 
 /** Little banknote: CASH_GREEN with a white band, white outline so it reads on grey AND on the green fill. */
@@ -1069,16 +1175,146 @@ function drawToyIcon(g: CanvasRenderingContext2D, x: number, y: number, k = 1): 
   g.restore();
 }
 
+/** Wooden crate: CRATE_BOX square with a darker frame and a crossbar. */
+function drawCrateIcon(g: CanvasRenderingContext2D, x: number, y: number, k = 1): void {
+  g.save();
+  g.translate(x, y);
+  g.scale(k, k);
+  g.lineJoin = 'round';
+  g.lineWidth = 4;
+  g.strokeStyle = '#ffffff';
+  roundedRectPath(g, -27, -27, 54, 54, 6);
+  g.fillStyle = hex(COLORS.CRATE_BOX);
+  g.fill();
+  g.stroke();
+  g.strokeStyle = hex(COLORS.CRATE_STRIP);
+  g.lineWidth = 6;
+  g.strokeRect(-20, -20, 40, 40);
+  g.beginPath();
+  g.moveTo(-20, -20);
+  g.lineTo(20, 20);
+  g.stroke();
+  g.restore();
+}
+
+/**
+ * Any era material as a small tinted icon (MATERIALS[kind].color / accent): a rounded block with an accent stripe by
+ * default, with a few shape variants (cog, drum, crystal, cell, chip, ingot) so neighbouring rows read apart.
+ */
+function drawMaterialIcon(g: CanvasRenderingContext2D, x: number, y: number, kind: string, k = 1): void {
+  if (!(kind in MATERIALS)) {
+    g.save();
+    g.translate(x, y);
+    g.scale(k, k);
+    roundedRectPath(g, -26, -22, 52, 44, 9);
+    g.fillStyle = '#c9c9d4';
+    g.fill();
+    g.lineWidth = 4;
+    g.strokeStyle = '#ffffff';
+    g.stroke();
+    g.restore();
+    return;
+  }
+  const def = MATERIALS[kind as keyof typeof MATERIALS];
+  const body = hex(def.color);
+  const accent = hex(def.accent);
+  g.save();
+  g.translate(x, y);
+  g.scale(k, k);
+  g.lineJoin = 'round';
+  g.lineWidth = 4;
+  g.strokeStyle = '#ffffff';
+  g.fillStyle = body;
+  switch (def.shape) {
+    case 'gear': {
+      g.beginPath();
+      for (let i = 0; i < 16; i++) {
+        const a0 = (i / 16) * Math.PI * 2;
+        const a1 = ((i + 1) / 16) * Math.PI * 2;
+        const r = i % 2 === 0 ? 29 : 21;
+        g.lineTo(Math.cos(a0) * r, Math.sin(a0) * r);
+        g.lineTo(Math.cos(a1) * r, Math.sin(a1) * r);
+      }
+      g.closePath();
+      g.fill();
+      g.stroke();
+      g.beginPath();
+      g.arc(0, 0, 8, 0, Math.PI * 2);
+      g.fillStyle = accent;
+      g.fill();
+      break;
+    }
+    case 'barrel':
+    case 'cell': {
+      roundedRectPath(g, -17, -27, 34, 54, 8);
+      g.fill();
+      g.stroke();
+      g.fillStyle = accent;
+      g.fillRect(-17, -10, 34, 14);
+      break;
+    }
+    case 'crystal':
+    case 'core': {
+      g.beginPath();
+      poly(g, [[0, -29], [22, -8], [14, 26], [-14, 26], [-22, -8]]);
+      g.fill();
+      g.stroke();
+      g.fillStyle = accent;
+      g.beginPath();
+      poly(g, [[0, -29], [-6, -6], [4, 22], [14, 26], [22, -8]]);
+      g.globalAlpha = 0.45;
+      g.fill();
+      g.globalAlpha = 1;
+      break;
+    }
+    case 'chip': {
+      roundedRectPath(g, -24, -24, 48, 48, 6);
+      g.fill();
+      g.stroke();
+      g.fillStyle = '#1c1c22';
+      g.fillRect(-12, -12, 24, 24);
+      g.fillStyle = accent;
+      for (const p of [-14, 0, 14]) {
+        g.fillRect(p - 3, -30, 6, 8);
+        g.fillRect(p - 3, 22, 6, 8);
+      }
+      break;
+    }
+    case 'ingot': {
+      g.beginPath();
+      poly(g, [[-30, 14], [-20, -12], [20, -12], [30, 14]]);
+      g.fill();
+      g.stroke();
+      g.fillStyle = accent;
+      g.fillRect(-26, 14, 52, 8);
+      break;
+    }
+    default: {
+      roundedRectPath(g, -28, -22, 56, 44, 9);
+      g.fill();
+      g.stroke();
+      g.fillStyle = accent;
+      g.fillRect(-28, 2, 56, 9);
+      break;
+    }
+  }
+  g.restore();
+}
+
 function drawConstructionRow(
   g: CanvasRenderingContext2D,
   y: number,
   kind: 'log' | 'cash' | 'extra',
   req: { left: number; total: number },
   k = 1,
+  extraKind = 'toy',
 ): void {
   if (kind === 'log') drawLogIcon(g, 58, y, 0.95 * k);
   else if (kind === 'cash') drawBill(g, 56, y, 0.75 * k);
-  else drawToyIcon(g, 58, y, 0.78 * k);
+  else if (extraKind === 'toy') drawToyIcon(g, 58, y, 0.78 * k);
+  else if (extraKind === 'crate') drawCrateIcon(g, 58, y, 0.7 * k);
+  else if (extraKind === 'log') drawLogIcon(g, 58, y, 0.95 * k);
+  else drawMaterialIcon(g, 58, y, extraKind, 0.72 * k);
   if (req.left <= 0) {
     drawCheck(g, 108, y);
     return;
@@ -1122,22 +1358,35 @@ function drawConstruction(texture: THREE.CanvasTexture, p: PadTextureParams): vo
   g.strokeStyle = hex(COLORS.PAD_BORDER);
   g.stroke();
 
+  // 0.9.0 era pads cost no logs (logs.total 0): no log row, the remaining rows take the lower half
+  const hasLogs = !!p.logs && p.logs.total > 0;
+  const rows = (hasLogs ? 1 : 0) + (p.extra ? 1 : 0) + (p.cash ? 1 : 0);
   // three requirements (Grand Market): a smaller icon and tighter rows so the toy row fits
-  const three = !!p.extra;
+  const three = rows >= 3;
+  const single = rows <= 1;
   g.save();
-  g.translate(128, three ? 58 : 76);
-  g.scale(three ? 0.6 : 0.78, three ? 0.6 : 0.78);
+  g.translate(128, three ? 58 : single ? 82 : 76);
+  const iconScale = three ? 0.6 : single ? 0.86 : 0.78;
+  g.scale(iconScale, iconScale);
   g.fillStyle = '#ffffff';
   g.strokeStyle = '#ffffff';
   SHELTER_ICONS[p.icon as ShelterIcon](g);
   g.restore();
 
+  const ek = p.extra?.kind;
   if (three) {
-    if (p.logs) drawConstructionRow(g, 120, 'log', p.logs, 0.8);
-    if (p.extra) drawConstructionRow(g, 166, 'extra', p.extra, 0.8);
+    if (hasLogs) drawConstructionRow(g, 120, 'log', p.logs!, 0.8);
+    if (p.extra) drawConstructionRow(g, 166, 'extra', p.extra, 0.8, ek);
     if (p.cash) drawConstructionRow(g, 212, 'cash', p.cash, 0.8);
+  } else if (single) {
+    // cash only (or one other row): centred a little lower than the two-row layout
+    if (hasLogs) drawConstructionRow(g, 190, 'log', p.logs!);
+    if (p.extra) drawConstructionRow(g, 190, 'extra', p.extra, 1, ek);
+    if (p.cash) drawConstructionRow(g, 190, 'cash', p.cash);
   } else {
-    if (p.logs) drawConstructionRow(g, 158, 'log', p.logs);
+    // two rows: logs / extra on top, cash below
+    if (hasLogs) drawConstructionRow(g, 158, 'log', p.logs!);
+    if (p.extra) drawConstructionRow(g, 158, 'extra', p.extra, 1, ek);
     if (p.cash) drawConstructionRow(g, 208, 'cash', p.cash);
   }
   texture.needsUpdate = true;
@@ -1156,7 +1405,9 @@ export function createConstructionTexture(
 ): THREE.CanvasTexture {
   const texture = target ?? makeCanvasTexture(SIZE, SIZE).texture;
   const part = (r: { left: number; total: number }): number => (r.total > 0 ? 1 - r.left / r.total : 1);
-  const ratio = extra ? (part(logs) + part(cash) + part(extra)) / 3 : (part(logs) + part(cash)) / 2;
+  // era pads (logs.total 0) have no log requirement: it must not count as a free third of the progress
+  const parts = [...(logs.total > 0 ? [part(logs)] : []), part(cash), ...(extra ? [part(extra)] : [])];
+  const ratio = parts.reduce((a, b) => a + b, 0) / parts.length;
   const p: PadTextureParams = { kind: 'construction', icon, text: '', ratio, logs, cash, ...(extra ? { extra } : {}) };
   params.set(texture, p);
   draw(texture, p);
@@ -1412,6 +1663,11 @@ export const padCatalog: Record<string, () => THREE.Object3D> = {
   padGreatLodge: () => createPadModel(1.8, createConstructionTexture('greatLodge', { left: 120, total: 120 }, { left: 40000, total: 40000 })),
   padGrandMarket: () =>
     createPadModel(1.8, createConstructionTexture('grandMarket', { left: 90, total: 120 }, { left: 60000, total: 60000 }, undefined, { left: 14, total: 20, kind: 'toy' })),
+  padExpansion: () =>
+    createPadModel(1.8, createConstructionTexture('expansion', { left: 0, total: 0 }, { left: 450_000, total: 450_000 }, undefined, { left: 40, total: 40, kind: 'crate' })),
+  padMachine: () =>
+    createPadModel(1.8, createConstructionTexture('machine', { left: 0, total: 0 }, { left: 27_000, total: 27_000 }, undefined, { left: 8, total: 12, kind: 'stone' })),
+  padBuilding: () => createPadModel(1.8, createConstructionTexture('building', { left: 0, total: 0 }, { left: 1_350_000, total: 1_350_000 })),
   shopMat: () => createMatModel(2.2, 1.6),
   padSign: () => {
     // Tilted to face the gallery's isometric camera (the in-game sign copies the camera quaternion instead).

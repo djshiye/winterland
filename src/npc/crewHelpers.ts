@@ -884,6 +884,8 @@ interface PorterRefs {
 const PORTER_KINDS: readonly ItemKind[] = ['wheat', 'meat', 'log', 'crate'];
 /** The drop zone / bench trips need at least this many items waiting. */
 const SHARED_MIN_TAKE = 2;
+/** Seconds a porter whose shop / producer was demolished waits for another taker of its load before dropping it. */
+const ORPHAN_WAIT = 4;
 
 const DROP_STOP: Stop = { p: DROP_POST, leg: DROP_LEG };
 const BENCH_STOP: Stop = { p: BENCH_POST, leg: BENCH_LEG };
@@ -917,6 +919,9 @@ export class Porter extends Helper {
   private idleFor = 0;
   /** Producer lot the wheat / meat in the arms came from (for the save), or null. */
   private fromLot: number | null = null;
+  /** The load's shop or producer was demolished: seconds spent looking for another taker (0.9.0 Demolish). */
+  private orphaned = false;
+  private orphanT = 0;
   private readonly blockedAt = (x: number, z: number): boolean => this.ctx.colliders.overlaps(x, z, CLEARANCE);
 
   constructor(ctx: GameContext, level: Level, index = 0) {
@@ -947,11 +952,11 @@ export class Porter extends Helper {
     for (const kind of PORTER_KINDS) {
       const n = this.stack.count(kind) + flights.inFlightTo(this.stack, kind);
       if (n <= 0) continue;
-      if (toShop && this.dest) {
+      if (toShop && this.dest && !this.dest.business.dead) {
         const lot = this.dest.business.lot;
         const m = (into.in[lot] ??= {});
         m[kind] = (m[kind] ?? 0) + n;
-      } else if ((kind === 'wheat' || kind === 'meat') && this.fromLot !== null) {
+      } else if ((kind === 'wheat' || kind === 'meat') && this.fromLot !== null && this.level.town.business(this.fromLot)?.def.output === kind) {
         into.out[this.fromLot] = (into.out[this.fromLot] ?? 0) + n;
       } else {
         into.loose[kind] = (into.loose[kind] ?? 0) + n;
@@ -1041,7 +1046,47 @@ export class Porter extends Helper {
     this.pickTimer = delay;
   }
 
+  /** The producer lot the load was taken from no longer holds that pallet (demolished, or another building stands there). */
+  private sourceGone(): boolean {
+    const s = this.src;
+    return !!s && s.lot !== null && this.level.town.business(s.lot)?.output !== s.holder;
+  }
+
+  /**
+   * 0.9.0 Demolish: a job whose shop or producer was torn down is cancelled. The walk in progress finishes (the next
+   * plan starts from the stop it was heading to); what the arms hold is offered to any other shop, else dropped.
+   */
+  private dropDead(): void {
+    const destGone = !!this.dest && this.dest.business.dead;
+    const srcGone = this.sourceGone();
+    if (!destGone && !srcGone) return;
+    const p = this.phase;
+    const needSrc = p === 'toSource' || p === 'load' || p === 'putBack';
+    const needDest = p === 'toSource' || p === 'load' || p === 'toShop' || p === 'unload';
+    if (destGone) this.dest = null;
+    if (srcGone) {
+      this.src = null;
+      this.fromLot = null;
+    }
+    if ((srcGone && needSrc) || (destGone && needDest)) {
+      this.job = null;
+      this.src = null;
+      this.phase = 'idle';
+      this.pickTimer = 0.2;
+      this.orphaned = this.stack.size > 0;
+      this.orphanT = 0;
+    }
+  }
+
+  /** Put whatever the arms hold back into the item pool (its shop and its producer are gone). */
+  private discardLoad(): void {
+    for (let it = this.stack.take(); it; it = this.stack.take()) this.ctx.items.release(it);
+    this.orphaned = false;
+    this.orphanT = 0;
+  }
+
   protected think(dt: number): void {
+    this.dropDead();
     switch (this.phase) {
       case 'idle': {
         if (this.at === HOME_STOP) this.look = PORTER_LOOK;
@@ -1058,10 +1103,15 @@ export class Porter extends Helper {
           const ref = shop ? refs.shops.get(shop.key) : undefined;
           if (ref) {
             this.job = { source: '', shop: ref.key, kind: held, take: this.stack.size, score: 0 };
+            this.orphaned = false;
             this.startDelivery(ref);
+          } else if (this.orphaned) {
+            this.orphanT += 0.4;
+            if (this.orphanT > ORPHAN_WAIT) this.discardLoad();
           }
           return;
         }
+        this.orphaned = false;
         const job = pickJob(refs.sourceViews, refs.shopViews, this.capacity, this.claims(), this.at.p, this.ctx.worldEvents.firewoodMult);
         const src = job ? refs.sources.get(job.source) : undefined;
         const dest = job ? refs.shops.get(job.shop) : undefined;

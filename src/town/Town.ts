@@ -47,6 +47,13 @@
  * ring, puff) + 'amenity:built'. A restored built amenity shows silently; a fully paid one is settled silently first
  * (rules.settlePaidAmenities, also called from Level). The cafe puffs steam from its mug sign (round-robin with the chimneys).
  *
+ * 0.9.0 Demolish: once the player reached era 2 (state.eras.age >= 2, rules.canManage) every BUILT lot gets a small manage
+ * zone + MANAGE sign beyond its stations (rules.manageRect; created lazily, nothing exists in era 1; re-checked on
+ * 'era:unlocked'). Entering it emits 'manage:open' (the ManagePanel card: jobs, what it makes, the price
+ * rules.demolishCost); leaving emits 'manage:close'. Its onDemolish pays (economy.spend) and calls demolish(lot): the till's
+ * cash goes to the player, the Business is torn down (colliders, zones, piles; Business.teardown, then drained once nothing
+ * flies to it) and the lot is for sale again (building '', tier -1, a sale sign, a BUILD pad), 'town:demolished'.
+ *
  * Wave 13 Grand Market (the Winterland finale): one more fixed site at LAYOUT.town.grandMarket. Its ConstructionPad
  * (key 'grandMarket') takes logs + cash + TOYS (the pad's `extra`), shown while the town is revealed, village.level >=
  * VILLAGE.grandMarket.requiresLevel and state.town.grandMarket.tier < 0. Progress is mirrored into
@@ -70,7 +77,7 @@ import type { CashPile } from '../stations/CashPile';
 import type { Zone } from '../items/Zones';
 import { Business, type StaffSpot } from './Business';
 import { LotPad } from './LotPad';
-import { amenityFrame, amenityOffered, canChoose, choicesFor, grandMarketFrame, grandMarketOffered, lotFrame, lotOpen, paidFraction, settlePaidAmenities, settlePaidGrandMarket, settlePaidLots, type AmenityFrame, type GrandMarketFrame, type LotFrame } from './rules';
+import { amenityFrame, amenityOffered, canChoose, canManage, choicesFor, demolishCost, grandMarketFrame, grandMarketOffered, lotFrame, lotOpen, manageRect, paidFraction, settlePaidAmenities, settlePaidGrandMarket, settlePaidLots, type AmenityFrame, type GrandMarketFrame, type LotFrame } from './rules';
 import type { ShopSpot } from './types';
 
 const T = LAYOUT.town;
@@ -122,6 +129,9 @@ interface Lot {
   model: THREE.Object3D | null;
   scaffold: TownScaffold | null;
   business: Business | null;
+  /** Era 2+: the demolish card's zone and its floating sign (created the first time the lot is manageable). */
+  manage: Zone | null;
+  manageSign: THREE.Mesh | null;
 }
 
 export class Town {
@@ -131,6 +141,8 @@ export class Town {
   private readonly amenities: AmenitySite[] = [];
   private readonly market: MarketSite;
   private opened = false;
+  /** Demolished businesses waiting for their last in-flight items before their piles are disposed (Business.drain). */
+  private readonly graveyard: Business[] = [];
   private smokeTimer = 0;
   private smokeCursor = 0;
   private readonly tmp = new THREE.Vector3();
@@ -166,13 +178,15 @@ export class Town {
         onEnter: () => ctx.events.emit('build:open', { lot: i }),
         onExit: () => ctx.events.emit('build:close', {}),
       });
-      this.lots.push({ index: i, frame, group, pos, buildPad, zone, pad: null, hint: null, look: 'none', model: null, scaffold: null, business: null });
+      this.lots.push({ index: i, frame, group, pos, buildPad, zone, pad: null, hint: null, look: 'none', model: null, scaffold: null, business: null, manage: null, manageSign: null });
     });
 
     for (const id of AMENITY_IDS) this.amenities.push(this.makeAmenitySite(id));
     // a village level-up can unlock an amenity's pad (the pond needs level 4)
     this.market = this.makeMarketSite();
     ctx.events.on('village:changed', () => this.refreshAmenities(false));
+    // era 2 opens the demolish zones of the lots that are already built
+    ctx.events.on('era:unlocked', () => this.refreshAllManage());
 
     ctx.hud.buildPanel.attach(this);
     if (ctx.state.town.revealed) this.applyReveal(true);
@@ -317,6 +331,48 @@ export class Town {
     return this.amenities.some((a) => a.id === id && a.model !== null);
   }
 
+  /** Price to demolish the building on `lot`, or null when the lot has none. */
+  demolishCost(lot: number): number | null {
+    const b = this.lots[lot]?.business;
+    return b ? demolishCost(b.def.id) : null;
+  }
+
+  /**
+   * Demolish the building on `lot` (no payment, no era check: the manage card pays first; tests / debug / bot call it
+   * directly). The till's cash is credited to the player, the Business is torn down and the lot is for sale again.
+   */
+  demolish(lot: number): boolean {
+    const L = this.lots[lot];
+    const b = L?.business;
+    if (!L || !b) return false;
+    const ctx = this.ctx;
+    const id = b.def.id;
+    const cash = Math.floor(b.till?.value ?? 0);
+    if (cash > 0) ctx.economy.add(cash); // nothing the shop earned is lost
+    b.teardown();
+    this.graveyard.push(b);
+    L.business = null;
+    const st = ctx.state.town.lots[lot]!;
+    st.building = '';
+    st.tier = -1;
+    st.logs = 0;
+    st.cash = 0;
+    L.pad?.hide();
+    this.refreshManage(L);
+    ctx.events.emit('manage:close', { key: this.manageKey(lot) });
+    this.refreshHint(L);
+    this.refreshLook(L, false);
+    this.refreshZone(L);
+    L.buildPad.show(false);
+    if (L.model && this.root.visible) ctx.tweens.popIn(L.model, { duration: 0.45 });
+    ctx.state.stats.demolished++;
+    const position = new THREE.Vector3(L.frame.x, 0, L.frame.z);
+    ctx.particles.puff(this.tmp.set(L.frame.x, 0.5, L.frame.z), { color: 0xffffff, count: 14, size: 1.5, life: 1.0 });
+    ctx.audio.play('pop', { volume: 0.6, pitch: 0.8 });
+    ctx.events.emit('town:demolished', { lot, building: id, position });
+    return true;
+  }
+
   /** Debug: choose + finish lot `lot` as `id` at once (not instant: plays the build moment). */
   debugBuild(lot: number, id: BusinessId): void {
     const L = this.lots[lot];
@@ -336,8 +392,10 @@ export class Town {
     for (const L of this.lots) {
       L.buildPad.update(dt);
       if (L.hint?.visible) L.hint.quaternion.copy(cam);
+      if (L.manageSign?.visible) L.manageSign.quaternion.copy(cam);
       L.business?.update(dt);
     }
+    for (let i = this.graveyard.length - 1; i >= 0; i--) if (this.graveyard[i]!.drain()) this.graveyard.splice(i, 1);
     for (const S of this.amenities) S.model?.animate?.(this.ctx.time.elapsed);
     this.smokeTimer -= dt;
     if (this.smokeTimer <= 0) {
@@ -368,6 +426,7 @@ export class Town {
       }
       this.refreshLook(L, false);
       this.refreshZone(L);
+      this.refreshManage(L);
       if (!instant && L.model && L.look === 'sale') ctx.tweens.popIn(L.model, { delay: 0.25 + L.index * 0.07, duration: 0.45 });
     }
     for (const S of this.amenities) if (ctx.state.town.amenities[S.id].tier >= 0) this.showAmenity(S, true);
@@ -566,6 +625,67 @@ export class Town {
     L.zone.setEnabled(this.opened && lotOpen(this.ctx.state, L.index));
   }
 
+  // ---- demolish (0.9.0) -------------------------------------------------------------------------------------
+  private manageKey(lot: number): string {
+    return `town:${lot}`;
+  }
+
+  private refreshAllManage(): void {
+    for (const L of this.lots) this.refreshManage(L);
+  }
+
+  /** The manage zone + sign are on exactly while the town is open, a building stands on the lot and era 2 is reached. */
+  private refreshManage(L: Lot): void {
+    const on = this.opened && !!L.business && canManage(this.ctx.state, L.index);
+    if (on && !L.manage) this.makeManage(L);
+    L.manage?.setEnabled(on); // a disabled zone with the player inside fires its exit next frame ('manage:close')
+    if (L.manageSign) L.manageSign.visible = on;
+  }
+
+  private makeManage(L: Lot): void {
+    const ctx = this.ctx;
+    const area = manageRect(L.index);
+    L.manage = ctx.zones.add({
+      id: `town:lot${L.index}:manage`,
+      area,
+      enabled: false,
+      marker: true,
+      onEnter: () => this.openManage(L),
+      onExit: () => ctx.events.emit('manage:close', { key: this.manageKey(L.index) }),
+    });
+    const sign = createPadSign('MANAGE');
+    sign.scale.setScalar(HINT_SCALE);
+    sign.position.set((area.minX + area.maxX) / 2, HINT_HEIGHT - 0.2, (area.minZ + area.maxZ) / 2);
+    sign.visible = false;
+    this.root.add(sign);
+    L.manageSign = sign;
+  }
+
+  /** The info / demolish card of the building on `L` ('manage:open'). */
+  private openManage(L: Lot): void {
+    const b = L.business;
+    if (!b || !canManage(this.ctx.state, L.index)) return;
+    const def = b.def;
+    const stats: { label: string; value: string }[] = [{ label: def.kind === 'home' ? 'Residents' : 'Jobs', value: `${def.people}` }];
+    if (def.output) stats.push({ label: 'Makes', value: def.batch && def.batch > 1 ? `${def.output} x${def.batch}` : `${def.output}` });
+    if (def.inputs.length > 0) stats.push({ label: 'Needs', value: def.inputs.map((i) => `${i.per} ${i.kind}`).join(' + ') });
+    this.ctx.events.emit('manage:open', {
+      key: this.manageKey(L.index),
+      title: def.label,
+      subtitle: 'Market Town',
+      stats,
+      demolishCost: demolishCost(def.id),
+      onDemolish: () => this.demolishPaid(L, b),
+    });
+  }
+
+  /** The card's confirm: still the same building, era gate open, pay, then demolish. False (nothing changed) otherwise. */
+  private demolishPaid(L: Lot, b: Business): boolean {
+    if (L.business !== b || b.dead || !canManage(this.ctx.state, L.index)) return false;
+    if (!this.ctx.economy.spend(demolishCost(b.def.id))) return false;
+    return this.demolish(L.index);
+  }
+
   /** "Tap to change" under the pad's sign while a chosen building has nothing paid yet. */
   private refreshHint(L: Lot): void {
     const st = this.ctx.state.town.lots[L.index]!;
@@ -634,6 +754,7 @@ export class Town {
     this.refreshLook(L, true);
     this.refreshZone(L);
     const b = this.makeBusiness(L, false);
+    this.refreshManage(L);
     ctx.state.stats.townBuilt++;
     const at = this.tmp.set(L.frame.x, 0.4, L.frame.z);
     ctx.particles.puff(at, { color: 0xffffff, count: 9, size: 1.3, life: 0.9 });

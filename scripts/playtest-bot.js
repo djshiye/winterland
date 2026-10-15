@@ -347,7 +347,9 @@
     }
     if (s.flags.shopRevealed) {
       for (const id of up.ids) {
-        if (up.def(id).group === 'machine') continue; // machines level up on their pads
+        const group = up.def(id).group;
+        if (group === 'machine') continue; // machines level up on their pads
+        if (group === 'industry' || group === 'finance') continue; // 0.9.0 eras / Jack / market: out of the Survival bot's scope
         const cost = up.nextCost(id);
         if (cost !== null && up.canBuy(id) && ok(cost)) options.push({ rank: cost, run: () => shop(id) });
       }

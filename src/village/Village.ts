@@ -147,6 +147,8 @@ export class Village {
     this.recompute(false);
     // Wave 9: town buildings add people too (core/demand.ts villagePopulation).
     ctx.events.on('town:built', () => this.recompute(true));
+    // 0.9.0 Demolish: a cleared lot takes its people with it (the stored level stays: it is a floor).
+    ctx.events.on('town:demolished', () => this.recompute(true));
     for (const s of this.allSites()) this.refreshLook(s, false);
     if (state.revealed) this.applyReveal(true);
   }
@@ -276,8 +278,8 @@ export class Village {
   private recompute(emit: boolean): void {
     const v = this.ctx.state.village;
     const population = villagePopulation(this.ctx.state);
-    // Population never shrinks in play, so the stored level is a floor: a save from before a threshold was raised
-    // (wave 9: Winter City 80 → 110 people) keeps the era it had reached.
+    // The stored level is a floor: a save from before a threshold was raised (wave 9: Winter City 80 → 110 people) keeps
+    // the era it had reached, and a demolished town building (0.9.0) lowers the population but never the level.
     const level = Math.max(v.level, villageLevelFor(population, v.greatLodge.tier >= 0));
     const changed = population !== v.population || level !== v.level;
     const rose = level > v.level;

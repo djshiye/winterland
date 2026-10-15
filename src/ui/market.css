@@ -1,0 +1,422 @@
+/* Specificity note: hud.css is imported after this sheet, so overrides of .wl-shop / .wl-shop-card use two classes.
+   0.9.0: market panel (Prices / Trade / Invest). Builds on the shop's chrome (.wl-shop*, .wl-shop-card in hud.css). */
+
+.wl-shop.wl-market {
+  max-height: min(64vh, 520px);
+}
+
+.wl-mk-worth {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 2px 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(10, 18, 36, 0.35);
+  font-size: 13px;
+  line-height: 1.1;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.wl-mk-worth b {
+  font-size: 17px;
+  color: #ffe27a;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.wl-mk-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wl-mk-note {
+  font-size: 12px;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 2px 6px;
+}
+
+.wl-mk-subtitle {
+  margin-top: 4px;
+  padding: 0 6px;
+  font-size: 15px;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.wl-mk-subtitle small {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+/* ---- material badges ------------------------------------------------------------------------------- */
+
+.wl-mk-ico {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: #dbe8fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  box-sizing: border-box;
+}
+
+.wl-mk-ico svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-mk-glyph {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-sizing: border-box;
+  box-shadow: 0 2px 0 rgba(20, 30, 55, 0.35);
+}
+
+.wl-mk-glyph.is-bond {
+  background: #3fa7ff;
+}
+
+.wl-mk-glyph.is-index {
+  background: #5ee07a;
+}
+
+.wl-mk-glyph.is-venture {
+  background: #b07cff;
+}
+
+.wl-mk-era {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  vertical-align: 2px;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--c, #8a98b4);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* ---- prices ---------------------------------------------------------------------------------------- */
+
+.wl-market .wl-mk-row {
+  gap: 8px;
+}
+
+.wl-mk-spark {
+  flex: none;
+  width: 58px;
+  height: 26px;
+  overflow: visible;
+}
+
+.wl-mk-quote {
+  flex: none;
+  min-width: 66px;
+  text-align: right;
+}
+
+.wl-mk-price {
+  font-size: 16px;
+  line-height: 1.05;
+}
+
+.wl-mk-price small {
+  margin-left: 1px;
+  font-size: 10px;
+  color: #7d8aa3;
+}
+
+.wl-mk-change {
+  font-size: 13px;
+  line-height: 1.1;
+  color: #7d8aa3;
+}
+
+.wl-market .is-up {
+  color: #1f9d4a !important;
+}
+
+.wl-market .is-down {
+  color: #d6453a !important;
+}
+
+.wl-mk-flood {
+  font-size: 11px;
+  line-height: 1.1;
+  color: #d9791c;
+}
+
+.wl-mk-flood:empty {
+  display: none;
+}
+
+.wl-mk-survival {
+  border-radius: 16px;
+  background: rgba(10, 18, 36, 0.3);
+  overflow: hidden;
+}
+
+.wl-mk-survival-head {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.wl-mk-survival-head small {
+  flex: 1;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.wl-mk-survival-head b {
+  transition: transform 0.15s;
+}
+
+.wl-mk-survival-head.is-open b {
+  transform: rotate(90deg);
+}
+
+.wl-mk-survival-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 8px 8px;
+}
+
+.wl-mk-chip {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f1f6ff;
+  color: #2a3652;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+/* ---- trade ----------------------------------------------------------------------------------------- */
+
+.wl-market .wl-mk-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.wl-mk-cardtop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wl-mk-sub {
+  font-size: 12px;
+  line-height: 1.2;
+  color: #5b6a8a;
+}
+
+.wl-mk-sub b,
+.wl-mk-held b {
+  color: #2a3652;
+}
+
+.wl-mk-held {
+  font-size: 12px;
+  line-height: 1.2;
+  color: #5b6a8a;
+  padding: 0 2px;
+}
+
+.wl-mk-trades {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.wl-mk-group {
+  display: flex;
+  gap: 4px;
+}
+
+.wl-mk-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 38px;
+  padding: 2px 4px;
+  border-radius: 12px;
+  border: 3px solid #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1.05;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 0 3px 0 rgba(20, 30, 55, 0.45);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+
+.wl-mk-btn small {
+  font-size: 11px;
+  text-shadow: none;
+  opacity: 0.95;
+}
+
+.wl-mk-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(20, 30, 55, 0.45);
+}
+
+.wl-mk-btn.is-buy {
+  background: linear-gradient(#5ee07a, #2e9c48);
+}
+
+.wl-mk-btn.is-sell {
+  background: linear-gradient(#ffb13d, #e8801c);
+}
+
+.wl-mk-btn.is-order,
+.wl-mk-btn.is-invest-go {
+  background: linear-gradient(#5db6ff, #2e7fd1);
+}
+
+.wl-mk-btn:disabled {
+  background: linear-gradient(#9aa6bf, #6c7893);
+  cursor: default;
+  box-shadow: 0 3px 0 rgba(20, 30, 55, 0.3);
+}
+
+.wl-mk-deliver {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-mk-dlabel {
+  flex: none;
+  font-size: 12px;
+  color: #5b6a8a;
+}
+
+.wl-mk-select {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 6px;
+  border-radius: 10px;
+  border: 2px solid #b8c6e0;
+  background: #fff;
+  color: #2a3652;
+  font: inherit;
+  font-size: 12px;
+}
+
+.wl-mk-deliver .wl-mk-btn {
+  flex: 0 0 auto;
+  min-width: 56px;
+}
+
+/* ---- invest ---------------------------------------------------------------------------------------- */
+
+.wl-mk-chips {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.wl-mk-chip-btn {
+  flex: none;
+  min-width: 42px;
+  padding: 0 6px;
+  border-radius: 12px;
+  border: 2px solid #b8c6e0;
+  background: #fff;
+  color: #5b6a8a;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.wl-mk-chip-btn.is-on {
+  background: #3fa7ff;
+  border-color: #fff;
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.wl-mk-chips .wl-mk-btn {
+  flex: 1 1 auto;
+  margin-left: 4px;
+}
+
+.wl-mk-hint {
+  font-size: 12px;
+  line-height: 1.2;
+  color: #5b6a8a;
+  padding: 0 2px;
+}
+
+.wl-mk-hint.is-warn {
+  color: #d9791c;
+}
+
+.wl-mk-positions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wl-market .wl-mk-pos {
+  gap: 8px;
+}
+
+.wl-mk-pos .wl-mk-btn {
+  flex: 0 0 auto;
+  min-width: 74px;
+}
+
+@media (max-width: 420px) {
+  .wl-mk-quote {
+    min-width: 58px;
+  }
+  .wl-mk-spark {
+    width: 46px;
+  }
+  .wl-mk-btn {
+    font-size: 12px;
+    padding: 2px 1px;
+  }
+  .wl-mk-group {
+    gap: 3px;
+  }
+}
+
+@media (min-width: 700px) {
+  .wl-shop.wl-market {
+    width: 392px;
+  }
+}

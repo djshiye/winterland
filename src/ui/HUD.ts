@@ -20,6 +20,10 @@
  * - Wave 8: QuestPanel (3 active quests, collapsible), RushBanner (countdown), MoveHand (first-run drag hint),
  *   coinBurst() (gold coins flying into the money pill), AutoQuality (one-way drop to Low graphics on a slow device).
  * - Wave 10b: InteractChip ("Hold to pick up / pay" above the player, from 'interact:prompt').
+ * - 0.9.0 Ages: ManagePanel / ChoosePanel (info-demolish and build-chooser sheets), MapPanel (fast travel; Map button, key T),
+ *   MarketPanel (Market button, key B), EraChip (current era / city rank, opens the map), IncomeFeed ("+$12.5K city" next to the
+ *   money pill), AgeCard (new-era celebration, city rank banner). Only one of the shop / build / choose / manage / market sheets
+ *   is open at a time (opening one closes the others); Esc closes the topmost.
  * - toast() queues briefly: a toast arriving < 1 s after another waits its turn (max 2 waiting, dropped after 3 s).
  */
 import * as THREE from 'three';
@@ -27,12 +31,19 @@ import { PALETTE } from '../config';
 import { toggleFullscreen } from '../platform/desktop';
 import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
+import { expansionOffered } from '../eras/layout';
+import { AgeCard } from './AgeCard';
 import { AutoQuality } from './AutoQuality';
 import { BuildPanel } from './BuildPanel';
+import { ChoosePanel } from './ChoosePanel';
 import { CoinBurst } from './CoinBurst';
 import { ContractCard } from './ContractCard';
+import { EraChip, IncomeFeed } from './EraChip';
 import { FinaleCard } from './FinaleCard';
 import { InteractChip } from './InteractChip';
+import { ManagePanel } from './ManagePanel';
+import { MapPanel } from './MapPanel';
+import { MarketPanel } from './MarketPanel';
 import { MoveHand } from './MoveHand';
 import { OfflineCard } from './OfflineCard';
 import { PerfOverlay } from './PerfOverlay';
@@ -45,6 +56,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { ShopPanel } from './ShopPanel';
 import { VillageBadge } from './VillageBadge';
 import { formatMoney } from './format';
+import { ICON_MAP, ICON_MARKET } from './icons';
 import './hud.css';
 
 export interface FloatTextOptions {
@@ -110,6 +122,19 @@ export class HUD {
   private readonly layer: HTMLDivElement;
   private readonly shop: ShopPanel;
   private readonly build: BuildPanel;
+  /** 0.9.0 Ages. */
+  private readonly manage: ManagePanel;
+  private readonly choose: ChoosePanel;
+  private readonly map: MapPanel;
+  private readonly market: MarketPanel;
+  private readonly eraChip: EraChip;
+  private readonly incomeFeed: IncomeFeed;
+  private readonly ageCard: AgeCard;
+  private readonly mapBtn: HTMLButtonElement;
+  private readonly marketBtn: HTMLButtonElement;
+  private hasMapBtn = false;
+  private hasMarketBtn = false;
+  private hasEraChip = false;
   private readonly settings: SettingsPanel;
   private readonly perf: PerfOverlay;
   private readonly offline: OfflineCard;
@@ -212,12 +237,21 @@ export class HUD {
     this.seasonBadge = new SeasonBadge(ctx, layer);
     this.shop = new ShopPanel(ctx, layer);
     this.build = new BuildPanel(ctx, layer);
+    this.manage = new ManagePanel(ctx, layer);
+    this.choose = new ChoosePanel(ctx, layer);
+    this.market = new MarketPanel(ctx, layer);
     this.quests = new QuestPanel(ctx, layer);
     layer.classList.add('has-quests');
     this.rushBanner = new RushBanner(ctx, layer);
     this.contractCard = new ContractCard(ctx, layer);
     this.eventBanner = new EventBanner(ctx, layer, () => this.rushBanner.visible);
     this.era = new EraCard(ctx, layer);
+    this.ageCard = new AgeCard(ctx, layer);
+    this.eraChip = new EraChip(ctx, layer);
+    this.incomeFeed = new IncomeFeed(ctx, this.moneyEl);
+    this.map = new MapPanel(ctx, layer);
+    this.mapBtn = this.makeButton('wl-map-btn', 'Map (T)', ICON_MAP, () => this.map.toggle());
+    this.marketBtn = this.makeButton('wl-market-btn', 'Market (B)', ICON_MARKET, () => this.toggleMarket());
     this.autoQuality = new AutoQuality(ctx, () => {
       this.settings.sync();
       this.toast('Switched to Low graphics for smoother play (Settings)', { small: true, duration: 4.5 });
@@ -267,6 +301,14 @@ export class HUD {
     ctx.scene.add(this.arrow);
 
     ctx.events.on('money:changed', (e) => this.setMoney(e.money, true));
+    // 0.9.0: one bottom sheet at a time; T / B open the map / market; a trip ends with a welcome
+    ctx.events.on('shop:open', () => this.onlySheet('shop'));
+    ctx.events.on('build:open', () => this.onlySheet('build'));
+    ctx.events.on('choose:open', () => this.onlySheet('choose'));
+    ctx.events.on('manage:open', () => this.onlySheet('manage'));
+    ctx.events.on('market:open', () => this.onlySheet('market'));
+    ctx.events.on('travel:done', (e) => this.toast(`Welcome to ${e.label}`, { small: true, duration: 2.4 }));
+    window.addEventListener('keydown', (e) => this.onKey(e));
     // wave 10 keyboard shortcuts (Game turns the keys into events)
     ctx.events.on('ui:escape', () => this.escape());
     ctx.events.on('ui:mute', () => this.toggleMute());
@@ -282,9 +324,65 @@ export class HUD {
     ctx.events.on('finale2:start', () => this.finale.schedule(undefined, 'market'));
   }
 
-  /** True while settings, the shop or the build menu is open. */
+  /** True while settings, the map or any bottom sheet (shop, build, choose, manage, market) is open. */
   get anyModalOpen(): boolean {
-    return this.settings.isOpen || this.shop.visible || this.build.visible;
+    return this.settings.isOpen || this.map.visible || this.anySheetOpen;
+  }
+
+  /** True while one of the bottom sheets (shop, build, choose, manage, market) is open. */
+  private get anySheetOpen(): boolean {
+    return this.shop.visible || this.build.visible || this.choose.visible || this.manage.visible || this.market.visible;
+  }
+
+  /** A round HUD button in the top-right row (Map, Market). Hidden until update() decides it is on show. */
+  private makeButton(cls: string, label: string, icon: string, onClick: () => void): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `wl-hudbtn ${cls}`;
+    b.title = label;
+    b.setAttribute('aria-label', label);
+    b.innerHTML = icon;
+    b.style.display = 'none';
+    const stop = (e: Event) => e.stopPropagation();
+    b.addEventListener('pointerdown', stop);
+    b.addEventListener('touchstart', stop, { passive: true });
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.ctx.audio.unlock();
+      this.ctx.audio.play('click');
+      onClick();
+    });
+    this.layer.appendChild(b);
+    return b;
+  }
+
+  /** Close every bottom sheet except `keep` (they share the same spot on screen). */
+  private onlySheet(keep: 'shop' | 'build' | 'choose' | 'manage' | 'market'): void {
+    if (keep !== 'shop' && this.shop.visible) this.shop.close();
+    if (keep !== 'build' && this.build.visible) this.build.close();
+    if (keep !== 'choose' && this.choose.visible) this.choose.close();
+    if (keep !== 'manage' && this.manage.visible) this.manage.close();
+    if (keep !== 'market' && this.market.visible) this.market.close();
+  }
+
+  private toggleMarket(): void {
+    if (this.market.visible) this.market.close();
+    else this.ctx.events.emit('market:open', {});
+  }
+
+  /** T = map, B = market (only once those buttons are on show; never while typing). */
+  private onKey(e: KeyboardEvent): void {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (this.settings.isOpen) return;
+    if (e.code === 'KeyT' && (this.hasMapBtn || this.map.visible)) {
+      e.preventDefault();
+      this.map.toggle();
+    } else if (e.code === 'KeyB' && (this.hasMarketBtn || this.market.visible)) {
+      e.preventDefault();
+      this.toggleMarket();
+    }
   }
 
   /** What the mute button does (also the M key). */
@@ -297,11 +395,16 @@ export class HUD {
     if (!muted) audio.play('click');
   }
 
-  /** Esc: close the topmost thing (settings, shop, build menu), else fold the quest card, else open Settings. */
+  /** Esc: close the topmost thing (settings, map, a sheet, the era card), else fold the quest card, else open Settings. */
   private escape(): void {
     if (this.settings.isOpen) this.settings.close();
+    else if (this.map.visible) this.map.close();
+    else if (this.market.visible) this.market.close();
+    else if (this.choose.visible) this.choose.close();
+    else if (this.manage.visible) this.manage.close();
     else if (this.shop.visible) this.shop.close();
     else if (this.build.visible) this.build.close();
+    else if (this.ageCard.visible) this.ageCard.close();
     else if (!this.quests.isCollapsed && !this.quests.isAllDone) this.quests.setCollapsed(true);
     else this.settings.open();
   }
@@ -409,6 +512,23 @@ export class HUD {
     this.coins.spawn(count, w / 2, h * 0.36 + 56, rect.left - root.left + 28, rect.top - root.top + rect.height / 2);
   }
 
+  /** 0.9.0 panels (tests / debug). */
+  get managePanel(): ManagePanel {
+    return this.manage;
+  }
+
+  get choosePanel(): ChoosePanel {
+    return this.choose;
+  }
+
+  get mapPanel(): MapPanel {
+    return this.map;
+  }
+
+  get marketPanel(): MarketPanel {
+    return this.market;
+  }
+
   /** Shop panel (tests / debug). */
   get shopPanel(): ShopPanel {
     return this.shop;
@@ -461,6 +581,14 @@ export class HUD {
     this.updateGuide(dt);
     this.shop.update(dt);
     this.build.update(dt);
+    this.manage.update(dt);
+    this.choose.update(dt);
+    this.market.update(dt);
+    this.map.update(dt);
+    this.eraChip.update(dt);
+    this.incomeFeed.update(dt);
+    this.ageCard.update(dt);
+    this.updateAgeButtons();
     this.settings.update(dt);
     this.offline.update(dt);
     this.finale.update(dt);
@@ -475,7 +603,7 @@ export class HUD {
     this.autoQuality.update();
     this.perf.update();
     // on phones the shop is a bottom sheet over the FPS readout
-    const sheetOpen = this.shop.visible || this.build.visible;
+    const sheetOpen = this.anySheetOpen;
     if (this.layer.classList.contains('shop-open') !== sheetOpen) {
       this.layer.classList.toggle('shop-open', sheetOpen);
     }
@@ -498,6 +626,31 @@ export class HUD {
   // ---------------------------------------------------------------------------------------------
   // Per-frame pieces
   // ---------------------------------------------------------------------------------------------
+
+  /** Map / Market buttons and the era chip appear with the Ages (map: first expansion offered; market: era 2). */
+  private updateAgeButtons(): void {
+    const { state } = this.ctx;
+    const age = state.eras.age;
+    const mapOn = age >= 2 || expansionOffered(state, 2);
+    const marketOn = age >= 2;
+    if (mapOn !== this.hasMapBtn) {
+      this.hasMapBtn = mapOn;
+      this.mapBtn.style.display = mapOn ? '' : 'none';
+      this.layer.classList.toggle('has-map', mapOn);
+    }
+    if (marketOn !== this.hasMarketBtn) {
+      this.hasMarketBtn = marketOn;
+      this.marketBtn.style.display = marketOn ? '' : 'none';
+      this.layer.classList.toggle('has-market', marketOn);
+    }
+    const chipOn = this.eraChip.visible;
+    if (chipOn !== this.hasEraChip) {
+      this.hasEraChip = chipOn;
+      this.layer.classList.toggle('has-erachip', chipOn);
+    }
+    this.mapBtn.classList.toggle('is-on', this.map.visible);
+    this.marketBtn.classList.toggle('is-on', this.market.visible);
+  }
 
   private writeMoney(): void {
     const rounded = Math.round(this.moneyShown);

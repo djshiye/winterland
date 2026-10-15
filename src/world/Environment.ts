@@ -1,7 +1,8 @@
 /**
  * [B3 — world] Static scenery + ambient animation: snow world, dirt yard, river (animated water,
  * ice floes, gate), fences, customer path, tricycle road, highway + bridge + tunnel spur, mountains,
- * pines / rocks / stumps / mounds, cabin (+ chimney smoke), lamp posts, sign, snowfall.
+ * pines / rocks / stumps / mounds, cabin (+ chimney smoke), lamp posts, sign, snowfall, and (0.9.0) the new land of
+ * era regions + roads (env/frontier.ts) on a 640 m ground plane.
  *
  * Everything is procedural primitives with toon materials; repeated props are InstancedMesh and
  * static pieces are merged vertex-coloured meshes (see world/env/*). All animation runs on
@@ -17,6 +18,7 @@ import { Rng, type EnvPart } from './env/common';
 import { buildDecor, type ClearItem } from './env/decor';
 import { EraController, resetEras } from './env/eras';
 import { buildFences } from './env/fences';
+import { buildFrontier, pruneNewLand, type FrontierPart } from './env/frontier';
 import { buildGate, type GatePart } from './env/gate';
 import { buildGround } from './env/ground';
 import { buildRidgeGate, type RidgeGatePart } from './env/ridgeGate';
@@ -57,6 +59,7 @@ export class Environment {
   private readonly gate: GatePart;
   private readonly ridgeGate: RidgeGatePart;
   private readonly town: TownPart;
+  private readonly frontier: FrontierPart;
   private readonly eras: EraController;
   private readonly strip: StripState[] = [];
   private readonly chimney: THREE.Vector3;
@@ -85,9 +88,12 @@ export class Environment {
     this.ridgeGate = buildRidgeGate();
     this.aurora = buildAurora();
     this.town = buildTown(ctx, new Rng(9090));
+    // 0.9.0: the old scatter is built exactly as before; whatever landed on the new land is pruned afterwards.
+    pruneNewLand(decor.group);
+    this.frontier = buildFrontier(ctx, this.town.group);
     this.chimney = buildings.chimney;
 
-    for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, this.town, roads, mountains, decor, buildings, this.snowfall, this.aurora]) {
+    for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, this.town, this.frontier, roads, mountains, decor, buildings, this.snowfall, this.aurora]) {
       this.parts.push(p);
       this.root.add(p.group);
     }
@@ -145,6 +151,7 @@ export class Environment {
     this.gate.update?.(dt);
     this.ridgeGate.update?.(dt);
     this.town.update?.(dt);
+    this.frontier.update?.(dt);
     this.eras.update(dt);
     // Wave 13: world events (snowstorm: heavier snowfall; aurora: stronger curtains)
     this.snowfall.setIntensity(this.ctx.worldEvents.snowfall);

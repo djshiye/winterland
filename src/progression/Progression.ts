@@ -36,6 +36,10 @@ import * as THREE from 'three';
 import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, QUARTERS, TOWN, VILLAGE, rect, type BusinessId, type Rect, type XZ } from '../config';
 import type { FlagId, GameContext, ItemKind, PadId, Phase } from '../core/types';
 import type { Level } from '../level/Level';
+import { ERAS, FIRST_EXPANSION_VILLAGE_LEVEL, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
+import { expansionOffered, regionLayout } from '../eras/layout';
+import { MATERIAL_KINDS } from '../core/kinds';
+import { formatMoney } from '../ui/format';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
 
 /** " (hold E)" with a keyboard, " (hold)" on touch, for the guide's pickup / payment hints. */
@@ -702,6 +706,75 @@ export class Progression {
     return false;
   }
 
+  /** 0.9.0: the unlocked region the player stands in, else the newest one (null before era 2). */
+  private nearRegion(): number {
+    const s = this.ctx.state;
+    const p = this.ctx.player.object.position;
+    for (let n = 2; n <= s.eras.age; n++) {
+      const r = REGIONS[n]?.rect;
+      if (r && p.x >= r.minX && p.x <= r.maxX && p.z >= r.minZ && p.z <= r.maxZ) return n;
+    }
+    return s.eras.age >= 2 ? s.eras.age : 0;
+  }
+
+  /** 0.9.0: era materials in hand → a machine that wants them (nearest region first), else that region's export depot. */
+  private eraGoodsInHand(): boolean {
+    const s = this.ctx.state;
+    if (s.eras.age < 2) return false;
+    const arms = this.ctx.player.arms;
+    const kind = MATERIAL_KINDS.find((k) => arms.count(k) > 0);
+    if (!kind) return false;
+    const home = this.nearRegion();
+    const order = [home, ...Array.from({ length: s.eras.age - 1 }, (_, i) => i + 2).filter((n) => n !== home)];
+    for (const n of order) {
+      const region = this.level.eras.region(n);
+      if (!region) continue;
+      for (const m of region.machines) {
+        if (!m || m.wants(kind) <= 0) continue;
+        this.setGoal(`Feed the ${m.def.label.toLowerCase()}`, rect(m.feedSpot.x, m.feedSpot.z, 1.6, 1.6), this.tmpPoint.set(m.feedSpot.x, 0, m.feedSpot.z));
+        return true;
+      }
+    }
+    const region = this.level.eras.region(home);
+    if (!region) return false;
+    const d = region.depotSpot;
+    this.setGoal(`Ship ${MATERIALS[kind].label.toLowerCase()} at the export depot`, rect(d.x, d.z, 1.6, 1.6), this.tmpPoint.set(d.x, 0, d.z));
+    return true;
+  }
+
+  /**
+   * 0.9.0 era hints, only past Winter City or once an era is open (the Survival guide stays as it was): the next
+   * expansion pad once half its cash is in hand, then the first machine of the newest region.
+   */
+  private eraGuide(): boolean {
+    const s = this.ctx.state;
+    if (s.village.level < FIRST_EXPANSION_VILLAGE_LEVEL && s.eras.age < 2) return false;
+    const next = s.eras.age + 1;
+    const era = ERAS[next];
+    if (era && expansionOffered(s, next)) {
+      const paid = s.eras.regions[next]!;
+      const cashLeft = era.unlock.cash - paid.cash;
+      const extraLeft = era.unlock.extra.count - paid.extra;
+      if (cashLeft <= 0 || this.ctx.economy.money >= cashLeft * 0.5) {
+        const pad = regionLayout(next).expansionPad;
+        const what = MATERIALS[era.unlock.extra.kind as keyof typeof MATERIALS]?.label.toLowerCase() ?? `${era.unlock.extra.kind}s`;
+        const text = cashLeft > 0 ? `Expand to ${era.region} (${formatMoney(cashLeft)})` : `Bring ${extraLeft} ${what} to ${era.region}`;
+        if (cashLeft > 0 || extraLeft > 0) {
+          this.setGoal(text, rect(pad.x, pad.z, 2, 2), this.tmpPoint.set(pad.x, 0, pad.z));
+          return true;
+        }
+      }
+    }
+    // The newest region with nothing chosen on any slot: build its first machine (the extractor).
+    const n = s.eras.age;
+    if (n < 2 || s.eras.regions[n]!.slots.some((slot) => slot.machine !== '')) return false;
+    const first = machinesOfEra(n).find((id) => MACHINES[id].kind === 'extractor') ?? machinesOfEra(n)[0];
+    const slot = regionLayout(n).slots[0];
+    if (!first || !slot) return false;
+    this.setGoal(`Build a ${MACHINES[first].label.toLowerCase()} in ${ERAS[n]!.region}`, rect(slot.x, slot.z, 3, 3), this.tmpPoint.set(slot.x, 0, slot.z));
+    return true;
+  }
+
   private evaluateGuide(): void {
     const ctx = this.ctx;
     const L = this.level;
@@ -745,6 +818,8 @@ export class Progression {
 
     // 2c. Wave 9: town goods in hand (wheat, meat) go to a shop that still needs them.
     if (this.townGoodsInHand()) return;
+    // 2d. 0.9.0: era materials in hand feed a machine that wants them, else the export depot.
+    if (this.eraGoodsInHand()) return;
 
     // 2b. Timber Ridge is open but the player has not been through the east gate yet.
     if (s.unlocked.ridge && !s.unlocked.treeFeller && !s.flags['seen:ridge']) {
@@ -774,6 +849,8 @@ export class Progression {
     if (quarters && this.pursue(quarters)) return;
     // 3c. Wave 9: the Market Town (first visit, the first building, paying for chosen lots, keeping shops stocked).
     if (this.townGuide()) return;
+    // 3d. 0.9.0: the next expansion, the first machine of a new region.
+    if (this.eraGuide()) return;
 
     const deck = L.treeFeller?.deck;
     const deckLogs = deck?.count('log') ?? 0;
