@@ -1,0 +1,108 @@
+/* [1.0 — Comfort] The Settings > Comfort page, and the colour-blind friendly palette.
+   fx/comfort.ts puts `wl-cb` on <html> when "Colour-blind friendly" is on. The game's UI tells good / go from
+   warning / danger with green and red, which look alike to most colour-blind players, so this swaps them for the
+   Okabe-Ito safe pair: a cosy sky blue for go / good / on, a deep orange for danger / warning. Static looks only
+   (all motion is driven from TypeScript). */
+
+.wl-comfort-intro {
+  font-size: 15px;
+  line-height: 1.3;
+  font-weight: 600;
+  color: #dbe8fb;
+  text-align: left;
+}
+
+.wl-comfort-presets .wl-btn {
+  padding: 0 8px;
+  font-size: 18px;
+  white-space: nowrap;
+}
+
+.wl-comfort-note {
+  margin-top: -10px;
+  padding: 0 12px;
+  text-align: left;
+}
+
+@media (max-height: 520px) and (min-width: 520px) {
+  .wl-settings-page > .wl-comfort-intro,
+  .wl-settings-page > .wl-comfort-note,
+  .wl-settings-page > .wl-row-seg {
+    grid-column: 1 / -1;
+  }
+  .wl-comfort-note {
+    margin-top: -4px;
+  }
+}
+
+/* ---- colour-blind friendly palette ------------------------------------------------------------------ */
+
+/* go / buy / confirm buttons */
+.wl-cb .wl-btn-green,
+.wl-cb .wl-shop-buy.is-buy,
+.wl-cb .wl-build-go,
+.wl-cb .wl-map-go,
+.wl-cb .wl-agecard-btn.is-go,
+.wl-cb .wl-mk-btn.is-buy,
+.wl-cb .wl-contract-bonus {
+  background: linear-gradient(#56b4e9, #1f78c8);
+}
+
+.wl-cb .wl-contract-bonus {
+  color: #07243f;
+}
+
+/* switches, segmented controls and sliders that are "on" */
+.wl-cb .wl-switch.is-on,
+.wl-cb .wl-seg.is-on,
+.wl-cb .wl-prio-opt.is-on {
+  background: #2a8ad8;
+}
+
+/* its own rule: a browser drops a whole selector list over one pseudo-element it doesn't know */
+.wl-cb .wl-slider::-moz-range-progress {
+  background: #2a8ad8;
+}
+
+.wl-cb .wl-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, #2a8ad8 var(--p), #6c7893 var(--p));
+}
+
+/* good-news numbers (income, offline earnings, hot stats) and little "new" dots */
+.wl-cb .wl-income,
+.wl-cb .wl-offline-amount,
+.wl-cb .wl-stat.is-hot b,
+.wl-cb .wl-season-text b {
+  color: #7cc8ff;
+}
+
+.wl-cb .wl-map-note.is-ok {
+  color: #1f78c8;
+}
+
+.wl-cb .wl-shop-tab .wl-dot,
+.wl-cb .wl-mk-glyph.is-index {
+  background: #56b4e9;
+}
+
+/* "+$12" popups over the world: the HUD writes their colour inline, so match the default money green */
+.wl-cb .wl-float[style*='rgb(94, 224, 122)'] {
+  color: #7cc8ff !important;
+}
+
+/* danger: a darker, deeper orange so it never reads like the gold upgrade buttons */
+.wl-cb .wl-btn-danger,
+.wl-cb .wl-manage-btn.is-danger {
+  background: linear-gradient(#e69f00, #b45a00);
+}
+
+.wl-cb .wl-save-msg.is-error,
+.wl-cb .wl-manage-ask {
+  color: #ffc870;
+}
+
+/* the contract's last-seconds warning: orange instead of red */
+.wl-cb .wl-contract.is-warn {
+  border-color: rgb(255, calc(255 - 95 * var(--c-pulse)), calc(255 - 255 * var(--c-pulse)));
+  background: linear-gradient(rgb(calc(130 + 80 * var(--c-pulse)), calc(70 + 30 * var(--c-pulse)), 10), rgb(calc(90 + 60 * var(--c-pulse)), 48, 8));
+}
