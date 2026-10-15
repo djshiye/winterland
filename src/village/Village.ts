@@ -204,6 +204,12 @@ export class Village {
     return { x: site.pad.position.x, z: site.pad.position.z };
   }
 
+  /** The live construction pad of plot `plot` (−1 = the Great Lodge), shown or not; null for an unknown plot. */
+  pad(plot: number): ConstructionPad | null {
+    const site = plot < 0 ? this.lodge : this.sites[plot];
+    return site ? site.pad : null;
+  }
+
   update(dt: number): void {
     if (this.growT < GROW_TIME) {
       this.growT = Math.min(GROW_TIME, this.growT + dt);

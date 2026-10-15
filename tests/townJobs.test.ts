@@ -4,6 +4,7 @@ import {
   FIREWOOD_BELOW,
   TOPUP_BELOW,
   destKey,
+  favouredShop,
   pickJob,
   pickShop,
   type Claims,
@@ -17,12 +18,14 @@ const HOME = { x: 18, z: 28 };
 
 const bakery = (stock: { wheat?: number; log?: number }, key = 'shop:1', x = 24.6): ShopView => ({
   key,
+  id: 'bakery',
   pos: { x, z: 21.3 },
   room: { wheat: 9 - (stock.wheat ?? 0), log: 9 - (stock.log ?? 0) },
   stock: { wheat: stock.wheat ?? 0, log: stock.log ?? 0 },
 });
 const butcher = (stock: { meat?: number; log?: number }, key = 'shop:3'): ShopView => ({
   key,
+  id: 'butcher',
   pos: { x: 24.6, z: 32.4 },
   room: { meat: 9 - (stock.meat ?? 0), log: 9 - (stock.log ?? 0) },
   stock: { meat: stock.meat ?? 0, log: stock.log ?? 0 },
@@ -31,7 +34,7 @@ const farm = (count: number, key = 'pallet:0'): SourceView => ({ key, kind: 'whe
 const ranch = (count: number, key = 'pallet:2'): SourceView => ({ key, kind: 'meat', count, minTake: 2, pos: { x: 19.7, z: 32.4 }, shared: false });
 const drop = (count: number): SourceView => ({ key: 'drop', kind: 'log', count, minTake: 2, pos: { x: -3, z: 1.4 }, shared: true });
 const bench = (count: number): SourceView => ({ key: 'bench', kind: 'crate', count, minTake: 2, pos: { x: 5.95, z: 0.85 }, shared: true });
-const toys = (crates: number): ShopView => ({ key: 'shop:5', pos: { x: 30, z: 32 }, room: { crate: 9 - crates }, stock: { crate: crates } });
+const toys = (crates: number): ShopView => ({ key: 'shop:5', id: 'toyFactory', pos: { x: 30, z: 32 }, room: { crate: 9 - crates }, stock: { crate: crates } });
 
 describe('pickJob', () => {
   it('carries wheat from a pallet with >= 2 goods to a hopper that has room, up to capacity', () => {
@@ -131,5 +134,42 @@ describe('pickShop', () => {
     expect(pickShop([a, b], 'wheat', claim([], [[destKey('shop:4', 'wheat'), 8]]), HOME)!.key).toBe('shop:1');
     expect(pickShop([a, b], 'meat', NONE, HOME)).toBeNull();
     expect(pickShop([bakery({ wheat: 9 })], 'wheat', NONE, HOME)).toBeNull();
+  });
+});
+
+describe('town priority (favour)', () => {
+  // two shops at the same spot with the same firewood stock: a pure tie unless one is favoured
+  const twin = (id: 'bakery' | 'butcher', key: string, log: number): ShopView => ({
+    key,
+    id,
+    pos: { x: 24.6, z: 26 },
+    room: { log: 9 - log },
+    stock: { log },
+  });
+
+  it('a favoured shop wins a tie, whichever it is', () => {
+    const shops = [twin('bakery', 'shop:1', 1), twin('butcher', 'shop:3', 1)];
+    expect(pickJob([drop(30)], shops, 6, { ...NONE, favour: 'butcher' }, HOME)!.shop).toBe('shop:3');
+    expect(pickJob([drop(30)], shops, 6, { ...NONE, favour: 'bakery' }, HOME)!.shop).toBe('shop:1');
+    expect(pickShop(shops, 'log', { ...NONE, favour: 'butcher' }, HOME)!.key).toBe('shop:3');
+    expect(pickShop(shops, 'log', { ...NONE, favour: 'bakery' }, HOME)!.key).toBe('shop:1');
+  });
+
+  it('balanced (no favour) is the old behaviour: the first of a tie', () => {
+    const shops = [twin('bakery', 'shop:1', 1), twin('butcher', 'shop:3', 1)];
+    expect(pickJob([drop(30)], shops, 6, NONE, HOME)!.shop).toBe('shop:1');
+  });
+
+  it('a far more urgent other shop still wins over the favoured one', () => {
+    const shops = [twin('bakery', 'shop:1', 0), twin('butcher', 'shop:3', 3)];
+    expect(pickJob([drop(30)], shops, 6, { ...NONE, favour: 'butcher' }, HOME)!.shop).toBe('shop:1');
+    expect(pickShop(shops, 'log', { ...NONE, favour: 'butcher' }, HOME)!.key).toBe('shop:1');
+  });
+
+  it('maps priorities to shops', () => {
+    expect(favouredShop('balanced')).toBeUndefined();
+    expect(favouredShop('bakery')).toBe('bakery');
+    expect(favouredShop('butcher')).toBe('butcher');
+    expect(favouredShop('toys')).toBe('toyFactory');
   });
 });

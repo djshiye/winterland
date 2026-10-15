@@ -214,6 +214,11 @@ export class Town {
     return { x: L.pos.x, z: L.pos.z };
   }
 
+  /** The lot's live construction pad (exists once a building was chosen; shown while it is being paid), else null. */
+  pad(lot: number): ConstructionPad | null {
+    return this.lots[lot]?.pad ?? null;
+  }
+
   snapshot(): WorldSnapshot['town'] {
     return this.lots.map((L) => (L.business ? L.business.snapshot() : { in: {}, out: 0, cash: 0 }));
   }
