@@ -9,13 +9,19 @@
 import { PRIORITIES, QUARTERS, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
 import type { GameContext } from '../core/types';
+import { ERAS } from '../eras/data';
+import { expansionOffered } from '../eras/layout';
+import { eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopTabs, type ShopTab } from './agesLogic';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
-import { ICON_CLOSE, ICON_LOCK, upgradeIcon } from './icons';
+import { hexCss, ICON_CLOSE, ICON_LOCK, upgradeIcon } from './icons';
+import './ages.css';
 
 interface Card {
   id: UpgradeIdConst;
   group: UpgradeGroup;
+  /** 0.9.0: industry upgrades belong to an era (2..10); undefined elsewhere. */
+  era: number | undefined;
   root: HTMLDivElement;
   pips: HTMLSpanElement[];
   /** "Lv 4/9" label, only on long upgrade ladders (the pips shrink there). */
@@ -29,13 +35,23 @@ interface Card {
   bump: number;
 }
 
-type Tab = 'lumberjack' | 'crew' | 'sales';
+type Tab = ShopTab;
 
-const TABS: Array<{ group: Tab; label: string }> = [
-  { group: 'lumberjack', label: 'Lumberjack' },
+/** `short`: the label used while five tabs share the row (the Industry tab is on show). */
+const TABS: Array<{ group: Tab; label: string; short?: string }> = [
+  { group: 'lumberjack', label: 'Lumberjack', short: 'Lumber' },
   { group: 'crew', label: 'Crew' },
   { group: 'sales', label: 'Sales' },
+  { group: 'industry', label: 'Industry' },
+  { group: 'finance', label: 'Finance' },
 ];
+
+/** The header row above an era's industry upgrades. */
+interface EraHeader {
+  era: number;
+  root: HTMLDivElement;
+  note: HTMLSpanElement;
+}
 
 const WOOD_LABEL: Record<WoodPriority, { text: string; hint: string }> = {
   balanced: { text: 'Balanced', hint: 'Wood goes wherever it is needed first' },
@@ -64,6 +80,10 @@ export class ShopPanel {
   private readonly list: HTMLDivElement;
   private readonly tabEls = new Map<string, HTMLButtonElement>();
   private readonly cards: Card[] = [];
+  private readonly eraHeaders: EraHeader[] = [];
+  private readonly tabsEl: HTMLDivElement;
+  /** Last applied tab / era / tab-strip layout (skips redundant DOM writes). */
+  private layoutKey = '';
   private readonly prio: HTMLDivElement;
   private readonly woodRow: PrioRow;
   private readonly townRow: PrioRow;
@@ -83,9 +103,12 @@ export class ShopPanel {
 
     const head = h('div', 'wl-shop-head');
     head.appendChild(h('div', 'wl-shop-title wl-outline', 'Shop'));
+    head.classList.add('is-stacked');
     const tabs = h('div', 'wl-shop-tabs');
+    this.tabsEl = tabs;
     for (const t of TABS) {
-      const b = h('button', 'wl-shop-tab', `<span>${t.label}</span><i class="wl-dot"></i>`);
+      const label = t.short ? `<span class="wl-tab-long">${t.label}</span><span class="wl-tab-short">${t.short}</span>` : `<span>${t.label}</span>`;
+      const b = h('button', 'wl-shop-tab', `${label}<i class="wl-dot"></i>`);
       b.type = 'button';
       onTap(b, () => {
         ctx.audio.unlock();
@@ -95,7 +118,6 @@ export class ShopPanel {
       tabs.appendChild(b);
       this.tabEls.set(t.group, b);
     }
-    head.appendChild(tabs);
     const close = h('button', 'wl-shop-close', ICON_CLOSE);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close shop');
@@ -104,6 +126,7 @@ export class ShopPanel {
       this.close();
     });
     head.appendChild(close);
+    head.appendChild(tabs);
     this.root.appendChild(head);
 
     this.list = h('div', 'wl-shop-list');
@@ -121,12 +144,21 @@ export class ShopPanel {
     this.prio.style.display = 'none';
 
     for (const { group } of TABS) {
-      for (const id of ctx.upgrades.group(group)) this.cards.push(this.makeCard(id, group));
+      let lastEra = 0;
+      for (const id of ctx.upgrades.group(group)) {
+        const era = ctx.upgrades.def(id).era;
+        if (group === 'industry' && era !== undefined && era !== lastEra) {
+          lastEra = era;
+          this.list.appendChild(this.makeEraHeader(era));
+        }
+        this.cards.push(this.makeCard(id, group));
+      }
     }
     this.setTab('lumberjack');
 
     const ev = ctx.events;
-    ev.on('shop:open', () => {
+    ev.on('shop:open', (e) => {
+      if (e.tab && (SHOP_TABS as readonly string[]).includes(e.tab)) this.setTab(e.tab as Tab);
       this.wanted = true;
       this.dismissed = false;
       this.dirty = true;
@@ -148,6 +180,9 @@ export class ShopPanel {
     });
     ev.on('village:changed', mark);
     ev.on('town:revealed', mark);
+    // 0.9.0: the Industry tab and its era groups follow the age
+    ev.on('era:unlocked', mark);
+    ev.on('expansion:offered', mark);
     // crewSlots() reads state.quarters.tier
     ev.on('quarters:built', mark);
     // requirement() also reads state.unlocked (e.g. the Crate Runner needs the Processor)
@@ -180,10 +215,47 @@ export class ShopPanel {
   private setTab(group: Tab): void {
     this.tab = group;
     for (const [g, el] of this.tabEls) el.classList.toggle('is-on', g === group);
-    for (const c of this.cards) c.root.style.display = c.group === group ? '' : 'none';
     if (group !== 'crew') this.prio.style.display = 'none';
+    this.layoutKey = '';
+    this.applyLayout();
     this.list.scrollTop = 0;
     this.dirty = true;
+  }
+
+  /**
+   * Which tabs, era headers and cards are on show (0.9.0): Industry appears with the first expansion offer, lists the eras
+   * up to the one after the current age (the next one locked), Finance is always there.
+   */
+  private applyLayout(): void {
+    const { state } = this.ctx;
+    const age = state.eras.age;
+    const tabs = shopTabs(age, expansionOffered(state, 2));
+    const key = `${this.tab}|${age}|${tabs.join(',')}`;
+    if (key === this.layoutKey) return;
+    this.layoutKey = key;
+    for (const [g, el] of this.tabEls) el.style.display = tabs.includes(g as Tab) || g === this.tab ? '' : 'none';
+    this.tabsEl.classList.toggle('is-many', tabs.length > 4 || this.tab === 'industry');
+    for (const c of this.cards) {
+      const eraOk = c.era === undefined || industryEraShown(c.era, age);
+      c.root.style.display = c.group === this.tab && eraOk ? '' : 'none';
+    }
+    for (const hd of this.eraHeaders) {
+      hd.root.style.display = this.tab === 'industry' && industryEraShown(hd.era, age) ? '' : 'none';
+      const note = industryEraNote(hd.era, age) ?? '';
+      hd.note.textContent = note;
+      hd.root.classList.toggle('is-locked', note !== '');
+    }
+  }
+
+  private makeEraHeader(n: number): HTMLDivElement {
+    const e = ERAS[n]!;
+    const root = h('div', 'wl-shop-era');
+    root.style.setProperty('--era-accent', hexCss(e.colors.accent));
+    root.appendChild(h('span', 'wl-shop-era-name', `ERA ${eraRoman(n)} \u00b7 ${e.name.toUpperCase()}`));
+    const note = h('span', 'wl-shop-era-note');
+    root.appendChild(note);
+    this.eraHeaders.push({ era: n, root, note });
+    return root;
   }
 
   private makeCard(id: UpgradeIdConst, group: UpgradeGroup): Card {
@@ -215,7 +287,7 @@ export class ShopPanel {
     btn.type = 'button';
     root.appendChild(btn);
     this.list.appendChild(root);
-    const card: Card = { id, group, root, pips, lv, delta, slots, btn, shown: { pips: -1, delta: '', btn: '', cls: '', slots: '' }, bump: 0 };
+    const card: Card = { id, group, era: def.era, root, pips, lv, delta, slots, btn, shown: { pips: -1, delta: '', btn: '', cls: '', slots: '' }, bump: 0 };
     onTap(btn, () => this.buy(card));
     return card;
   }
@@ -280,7 +352,9 @@ export class ShopPanel {
 
   private refresh(): void {
     const up = this.ctx.upgrades;
-    const tabHint: Record<string, boolean> = { lumberjack: false, crew: false, sales: false };
+    this.applyLayout();
+    const age = this.ctx.state.eras.age;
+    const tabHint: Record<string, boolean> = { lumberjack: false, crew: false, sales: false, industry: false, finance: false };
     for (const c of this.cards) {
       const id = c.id;
       const lvl = up.level(id);
@@ -288,7 +362,7 @@ export class ShopPanel {
       const req = isMax ? null : up.requirement(id);
       const can = up.canBuy(id);
       const cost = up.nextCost(id);
-      if (can) tabHint[c.group] = true;
+      if (can && (c.era === undefined || industryEraShown(c.era, age))) tabHint[c.group] = true;
 
       if (c.shown.pips !== lvl) {
         c.shown.pips = lvl;
@@ -324,7 +398,8 @@ export class ShopPanel {
         cls = 'is-lock';
       } else {
         const price = formatMoney(cost ?? 0);
-        btnHtml = lvl === 0 && c.group === 'crew' ? `<small>Hire</small>${price}` : price;
+        const hire = c.group === 'crew' || (c.group === 'industry' && id.endsWith('Crew'));
+        btnHtml = lvl === 0 && hire ? `<small>Hire</small>${price}` : price;
         cls = can ? 'is-buy' : 'is-poor';
       }
       if (btnHtml !== c.shown.btn) {

@@ -1,6 +1,7 @@
 /**
- * [T4 — wave 9] Era card: a short cosy banner when the village reaches a new era ('village:levelUp'):
- * "ERA IV" / "Winter City" / a tagline / the perks of that level (VILLAGE.levels[i].perks).
+ * [T4 — wave 9] Settlement card: a short cosy banner when the village reaches a new level ('village:levelUp'). 0.9.0: the
+ * village levels are no longer called eras (the ten Ages are, see AgeCard), so it reads "SETTLEMENT · WINTER CITY" /
+ * "Winter City" / a tagline / the perks of that level (VILLAGE.levels[i].perks).
  *
  * It is an ADDITION to the level-up toast (MAIN decides whether it supersedes it: `eraCard.visible` is true while
  * it is up, so the toast can be skipped or shortened). Pops in / fades on simulation time; hidden while a panel
@@ -11,7 +12,7 @@
  */
 import { VILLAGE } from '../config';
 import type { GameContext } from '../core/types';
-import { eraLabel, romanNumeral } from '../world/env/eras';
+import { settlementTitle } from './agesLogic';
 import { backOut, h } from './dom';
 import { ICON_STAR } from './icons';
 import './era.css';
@@ -62,12 +63,12 @@ export class EraCard {
     const lv = Math.max(0, Math.min(VILLAGE.levels.length - 1, Math.floor(level)));
     if (lv < 1) return;
     const def = VILLAGE.levels[lv]!;
-    this.eraEl.textContent = `ERA ${romanNumeral(lv)}`;
+    this.eraEl.textContent = settlementTitle(def.name);
     this.nameEl.textContent = def.name;
     this.tagEl.textContent = TAGLINES[lv] ?? '';
     this.perksEl.replaceChildren(...def.perks.map((p) => h('span', 'wl-era-perk', p)));
     this.perksEl.style.display = def.perks.length ? '' : 'none';
-    this.root.setAttribute('aria-label', eraLabel(lv));
+    this.root.setAttribute('aria-label', `Settlement: ${def.name}`);
     this.t = 0;
     this.lastOpacity = '';
     this.lastTransform = '';

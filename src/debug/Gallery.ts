@@ -101,12 +101,13 @@ export class Gallery {
     const cells: Cell[] = [];
     const f = focus.toLowerCase();
     const domains = Object.keys(ASSET_CATALOG);
-    const domainMatch = domains.includes(f);
+    // domains are camelCase (eraItems, ridgeMachines): match them case-insensitively
+    const domainMatch = domains.some((d) => d.toLowerCase() === f);
     for (const domain of domains) {
       const catalog = ASSET_CATALOG[domain]!;
       for (const name of Object.keys(catalog)) {
         if (f && !domainMatch && f !== name.toLowerCase() && f !== `${domain}/${name}`.toLowerCase()) continue;
-        if (f && domainMatch && domain !== f) continue;
+        if (f && domainMatch && domain.toLowerCase() !== f) continue;
         cells.push(this.build(domain, name, catalog[name]!));
       }
     }

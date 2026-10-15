@@ -98,10 +98,10 @@ export class VillageBadge {
     const lvDef = VILLAGE.levels[Math.min(v.level, VILLAGE.levels.length - 1)]!;
     if (lvDef.name !== this.lastName) {
       this.lastName = lvDef.name;
-      // wave 9: the era numeral ("Era III · Town"); the starting Camp has no number
+      // wave 9: the level numeral ("III · Town"; 0.9.0: no "Era" word, the Ages own it); the starting Camp has none
       this.nameEl.innerHTML = '';
       const lv = Math.min(v.level, VILLAGE.levels.length - 1);
-      if (lv > 0) this.nameEl.append(h('span', 'wl-village-era', `Era ${romanNumeral(lv)} \u00b7`), lvDef.name);
+      if (lv > 0) this.nameEl.append(h('span', 'wl-village-era', `${romanNumeral(lv)} \u00b7`), lvDef.name);
       else this.nameEl.textContent = lvDef.name;
       this.nameEl.title = eraLabel(lv);
     }

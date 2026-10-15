@@ -12,6 +12,7 @@
  */
 import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, TOWN, VILLAGE, type AmenityId, type BusinessDef, type BusinessId, type Rect, type XZ } from '../config';
 import { CARRY_KINDS, LOT_COUNT, type CarryKind, type GameState } from '../core/types';
+import { DEMOLISH_MIN, DEMOLISH_SHARE } from '../eras/data';
 
 const T = LAYOUT.town;
 
@@ -51,6 +52,56 @@ export function canChoose(state: GameState, lot: number, id: BusinessId): boolea
   if (!(id in BUSINESSES) || TOWN.hidden.includes(id)) return false;
   if (!lotOpen(state, lot)) return false;
   return BUSINESSES[id].era <= state.village.level;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Demolish (0.9.0 Ages)
+// ---------------------------------------------------------------------------------------------------------------
+
+/** First era (state.eras.age) in which a built Market Town building can be demolished. */
+export const DEMOLISH_FROM_ERA = 2;
+
+/** Price to demolish a built business: a share of its cash price (no refund), never below DEMOLISH_MIN. */
+export function demolishCost(id: BusinessId): number {
+  return Math.max(DEMOLISH_MIN, Math.round(BUSINESSES[id].cash * DEMOLISH_SHARE));
+}
+
+/** True when lot `lot` shows its manage sign: the town is open, a building stands on it and era 2 has been reached. */
+export function canManage(state: GameState, lot: number): boolean {
+  const st = state.town.lots[lot];
+  if (!st || !state.town.revealed || st.building === '' || st.tier < 0) return false;
+  return (state.eras?.age ?? 1) >= DEMOLISH_FROM_ERA;
+}
+
+/**
+ * Each lot's manage zone [u0, u1, v0, v1] (local frame): a 0.9 x 0.8 strip beyond the station strip (the hopper's feed
+ * zone ends at v 3.9), on the side that clears the neighbouring lots, the stalls and the square's walls. Lot 5 sits one
+ * step further out: lot 7's queue column runs across its front.
+ */
+const MANAGE_AT: readonly (readonly [number, number, number, number])[] = [
+  [1.05, 1.95, 4.05, 4.85],
+  [1.05, 1.95, 4.05, 4.85],
+  [-1.95, -1.05, 4.05, 4.85],
+  [-1.95, -1.05, 4.05, 4.85],
+  [-1.95, -1.05, 4.05, 4.85],
+  [-0.3, 0.6, 4.8, 5.6],
+  [-1.95, -1.05, 4.05, 4.85],
+  [-1.2, -0.3, 4.05, 4.85],
+];
+
+/**
+ * The manage zone of a built lot, in the lot's local frame: a small strip beyond the station strip. Clear of every business kind's zones, queue columns and props on all eight
+ * lots: tests/townDemolish.test.ts sweeps them.
+ */
+export function manageLocal(lot: number): LRect {
+  const r = MANAGE_AT[lot] ?? MANAGE_AT[0]!;
+  return { u0: r[0], u1: r[1], v0: r[2], v1: r[3] };
+}
+
+/** World rect of lot `lot`'s manage zone. */
+export function manageRect(lot: number): Rect {
+  const l = manageLocal(lot);
+  return worldRect(lotFrame(lot), l.u0, l.u1, l.v0, l.v1);
 }
 
 /** Paid fraction toward the chosen building (0 when nothing is paid / chosen). */

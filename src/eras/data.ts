@@ -472,5 +472,5 @@ export const JACK = {
   /** Seconds between items at Jack level 0 (shrinks with the upgrade like other zones). */
   interval: 0.16,
   /** The yard cart (world x/z) — away from the customer path, trikes and the bot's routes. */
-  yard: { x: -7.6, z: 6.6 },
+  yard: { x: -8.9, z: 6.3 },
 } as const;

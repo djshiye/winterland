@@ -1,5 +1,6 @@
 /** [B4] Inline SVG icons (no image files). All use a 48x48 viewBox unless noted. */
 import type { BusinessId, UpgradeIdConst } from '../config';
+import { ERAS } from '../eras/data';
 
 const svg = (inner: string, vb = '0 0 48 48'): string =>
   `<svg viewBox="${vb}" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
@@ -224,6 +225,121 @@ const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
       <path d="M36 3l2.9 6 6.5.9-4.7 4.5 1.2 6.4-5.9-3.1-5.9 3.1 1.2-6.4-4.7-4.5 6.5-.9z" fill="#ffd84a"/>
     </g>`),
 };
+
+// --- 0.9.0 Ages: era upgrades (generated from the era colours), finance, map / market buttons ----------------------
+
+/** "#rrggbb" for a 0xrrggbb number. */
+export function hexCss(n: number): string {
+  return `#${(n & 0xffffff).toString(16).padStart(6, '0')}`;
+}
+
+/** Mix a 0xrrggbb colour toward white (t > 0) or black (t < 0), as CSS. */
+export function shadeCss(n: number, t: number): string {
+  const to = t >= 0 ? 255 : 0;
+  const k = Math.abs(t);
+  const ch = (v: number): number => Math.round(v + (to - v) * k);
+  return hexCss((ch((n >> 16) & 255) << 16) | (ch((n >> 8) & 255) << 8) | ch(n & 255));
+}
+
+const GEAR_PATH =
+  'M24 4l3.2 4.4 5.4-1.2 1.6 5.3 5.4 1.4-.9 5.5L43 22.7l-3.8 4 2.2 5.2-4.8 2.8-.3 5.6-5.5-.4L27.4 44l-5-2.6-5 2.6-2.8-4.9-5.5.4-.3-5.6L4 31.9l2.2-5.2-3.8-4 3.9-3.3-.9-5.5 5.4-1.4 1.6-5.3 5.4 1.2z';
+
+/** Rigs: a gear in the era's accent colour. */
+function rigsIcon(accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="${GEAR_PATH}" fill="${hexCss(accent)}"/>
+      <circle cx="24" cy="24" r="12" fill="${shadeCss(accent, 0.35)}"/>
+      <circle cx="24" cy="24" r="6" fill="#2a3652"/>
+    </g>`);
+}
+
+/** Crew: a hard hat in the era's accent colour. */
+function crewIcon(accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M9 31a15 15 0 0 1 30 0z" fill="${hexCss(accent)}"/>
+      <rect x="21" y="9" width="6" height="22" rx="2" fill="${shadeCss(accent, 0.3)}"/>
+      <rect x="4" y="30" width="40" height="7" rx="3.5" fill="${shadeCss(accent, -0.25)}"/>
+      <path d="M14 24a10 10 0 0 1 4-7" fill="none" stroke="#fff" stroke-width="2.4" opacity="0.6"/>
+      <rect x="12" y="38" width="24" height="5" rx="2.5" fill="#f3d9a4"/>
+    </g>`);
+}
+
+/** Trade: a gold coin on a crate tinted with the era's accent. */
+function tradeIcon(accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="4" y="22" width="30" height="21" rx="3" fill="${hexCss(accent)}"/>
+      <path d="M4 32h30M19 22v21" stroke="${shadeCss(accent, -0.3)}" stroke-width="2.4" fill="none"/>
+      <circle cx="33" cy="15" r="11" fill="#ffd84a"/>
+      <circle cx="33" cy="15" r="6.5" fill="none" stroke="#e8a21c" stroke-width="2.4"/>
+    </g>`);
+}
+
+for (const era of ERAS) {
+  if (!era) continue;
+  const icons: Record<string, string> = {
+    [`${era.key}Rigs`]: rigsIcon(era.colors.accent),
+    [`${era.key}Crew`]: crewIcon(era.colors.accent),
+    [`${era.key}Trade`]: tradeIcon(era.colors.accent),
+  };
+  Object.assign(UPGRADE_ICONS, icons);
+}
+
+// finance: Jack's swap cart, City Hall, the stock broker's chart
+UPGRADE_ICONS.jack = svg(`
+  <g stroke="${OUT}" stroke-width="2.5">
+    <path d="M4 10h7l3 22h22l4-15H14" fill="none" stroke-width="3.2"/>
+    <path d="M13 17h27l-3.4 15H15.4z" fill="#d9aa66"/>
+    <path d="M13 24.5h26M24 17l-1 15M33 17l-1 15" stroke="#a8693a" stroke-width="2" fill="none"/>
+    <circle cx="18" cy="39" r="4.2" fill="#e8553e"/><circle cx="33" cy="39" r="4.2" fill="#e8553e"/>
+    <path d="M34 4l1.8 3.7 4 .6-2.9 2.8.7 4-3.6-1.9-3.6 1.9.7-4-2.9-2.8 4-.6z" fill="#ffd84a" stroke-width="1.8"/>
+  </g>`);
+UPGRADE_ICONS.taxOffice = svg(`
+  <g stroke="${OUT}" stroke-width="2.5">
+    <path d="M24 3l20 10H4z" fill="#e8553e"/>
+    <rect x="6" y="13" width="36" height="4" fill="#f1f6ff"/>
+    <rect x="9" y="18" width="6" height="20" fill="#f3d9a4"/><rect x="21" y="18" width="6" height="20" fill="#f3d9a4"/><rect x="33" y="18" width="6" height="20" fill="#f3d9a4"/>
+    <rect x="3" y="38" width="42" height="6" rx="2" fill="#8fa9c9"/>
+    <circle cx="24" cy="9" r="2" fill="#ffd84a" stroke-width="1.6"/>
+  </g>`);
+UPGRADE_ICONS.broker = svg(`
+  <g stroke="${OUT}" stroke-width="2.5">
+    <rect x="4" y="5" width="40" height="38" rx="5" fill="#dbe8fb"/>
+    <path d="M10 14v24h28" fill="none" stroke-width="2.6"/>
+    <path d="M13 33l8-9 6 5 10-14" fill="none" stroke="#2e9c48" stroke-width="4"/>
+    <path d="M30 15h8v8z" fill="#2e9c48" stroke-width="2"/>
+  </g>`);
+
+/** HUD "Map" button: a folded map with a pin (white on the dark button). */
+export const ICON_MAP = svg(`
+  <g stroke="#fff" stroke-width="3" fill="none">
+    <path d="M6 12l12-5 12 5 12-5v29l-12 5-12-5-12 5z" fill="rgba(255,255,255,0.22)"/>
+    <path d="M18 7v29M30 12v29"/>
+  </g>
+  <circle cx="34" cy="17" r="5.2" fill="#ffd84a" stroke="${OUT}" stroke-width="2"/>`);
+
+/** HUD "Market" button: rising chart bars with a coin. */
+export const ICON_MARKET = svg(`
+  <g stroke="#fff" stroke-width="2.6" stroke-linejoin="round">
+    <rect x="6" y="28" width="8" height="14" rx="2" fill="rgba(255,255,255,0.3)"/>
+    <rect x="18" y="20" width="8" height="22" rx="2" fill="rgba(255,255,255,0.3)"/>
+    <rect x="30" y="12" width="8" height="30" rx="2" fill="rgba(255,255,255,0.3)"/>
+  </g>
+  <circle cx="35" cy="9" r="6.5" fill="#ffd84a" stroke="${OUT}" stroke-width="2"/>`);
+
+/** "You are here" / pin for the map list (dark on light). */
+export const ICON_PIN = svg(`
+  <path d="M24 44S9 29 9 19a15 15 0 0 1 30 0c0 10-15 25-15 25z" fill="#e8553e" stroke="${OUT}" stroke-width="3"/>
+  <circle cx="24" cy="19" r="6" fill="#fff" stroke="${OUT}" stroke-width="2.4"/>`);
+
+/** A hammer (demolish). */
+export const ICON_HAMMER = svg(`
+  <g stroke="${OUT}" stroke-width="2.6">
+    <rect x="21" y="18" width="7" height="27" rx="3" transform="rotate(35 24 30)" fill="#a8693a"/>
+    <rect x="8" y="6" width="26" height="12" rx="3" transform="rotate(35 21 12)" fill="#9aa4b4"/>
+  </g>`);
 
 export function upgradeIcon(id: UpgradeIdConst): string {
   return UPGRADE_ICONS[id] ?? UPGRADE_ICONS.carry!;

@@ -84,6 +84,24 @@ export class ColliderWorld {
     if (i >= 0) this.colliders.splice(i, 1);
   }
 
+  /**
+   * 0.9.0: open a gap in a wall. Every enabled box tagged `tag` that overlaps `gap` is replaced by the parts of it on
+   * either side of the gap along its long axis (slivers under 5 cm are dropped). Used where a new road leaves the
+   * Market Town. Handles to the split boxes stop being registered.
+   */
+  carve(tag: string, gap: Rect): void {
+    for (const c of [...this.colliders]) {
+      if (c.kind !== 0 || c.tag !== tag || !c.enabled) continue;
+      if (c.maxX < gap.minX || c.minX > gap.maxX || c.maxZ < gap.minZ || c.minZ > gap.maxZ) continue;
+      this.remove(c);
+      const horizontal = c.maxX - c.minX >= c.maxZ - c.minZ;
+      const pieces: Rect[] = horizontal
+        ? [{ minX: c.minX, maxX: Math.min(c.maxX, gap.minX), minZ: c.minZ, maxZ: c.maxZ }, { minX: Math.max(c.minX, gap.maxX), maxX: c.maxX, minZ: c.minZ, maxZ: c.maxZ }]
+        : [{ minX: c.minX, maxX: c.maxX, minZ: c.minZ, maxZ: Math.min(c.maxZ, gap.minZ) }, { minX: c.minX, maxX: c.maxX, minZ: Math.max(c.minZ, gap.maxZ), maxZ: c.maxZ }];
+      for (const p of pieces) if (p.maxX - p.minX > 0.05 && p.maxZ - p.minZ > 0.05) this.addBox(p, tag);
+    }
+  }
+
   /** Push the circle (pos.x, pos.z, radius) out of obstacles and clamp it to bounds, in place. */
   resolveCircle(pos: THREE.Vector3, radius: number): void {
     const list = this.colliders;

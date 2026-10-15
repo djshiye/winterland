@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three';
 import { LAYOUT, PADS, inflate, rect, type Rect } from '../../config';
+import { DISTRICTS, REGIONS, ROADS } from '../../eras/data';
 
 /** Deterministic PRNG (mulberry32) so screenshots are reproducible. */
 export class Rng {
@@ -138,6 +139,19 @@ const PROTECT: Rect[] = [
   { minX: -2, maxX: 16, minZ: -26, maxZ: -9 },
 ];
 
+/**
+ * 0.9.0 new land: every era region, road and city district (eras/data.ts), inflated 1.5 m. Decor must stay off them.
+ * Kept OUT of `blocked` / `occludes` on purpose: the old-map scatter (world/env/decor.ts) draws its random numbers
+ * through them, so adding rects there would reshuffle every existing tree. Instead the old scatter is built exactly as
+ * before and `pruneNewLand` (env/frontier.ts) deletes the instances that landed on the new land; new scatter in the far
+ * land asks `blockedNewLand` / `occludesNewLand` directly.
+ */
+export const NEW_LAND: Rect[] = [
+  ...REGIONS.filter((r) => r !== null).map((r) => inflate(r!.rect, 1.5)),
+  ...ROADS.map((r) => inflate(r.rect, 1.5)),
+  ...DISTRICTS.filter((d) => d !== null).map((d) => inflate(d!.rect, 1.5)),
+];
+
 function hit(list: readonly Rect[], x: number, z: number, margin: number): boolean {
   for (const r of list) {
     if (x > r.minX - margin && x < r.maxX + margin && z > r.minZ - margin && z < r.maxZ + margin) return true;
@@ -148,6 +162,20 @@ function hit(list: readonly Rect[], x: number, z: number, margin: number): boole
 /** True if a prop of radius `r` at (x, z) would sit on a gameplay area, road, river or path. */
 export function blocked(x: number, z: number, r = 0): boolean {
   return hit(KEEP_OUT, x, z, r);
+}
+
+/** True if a prop of radius `r` at (x, z) would sit on a region, road or city district. */
+export function blockedNewLand(x: number, z: number, r = 0): boolean {
+  return hit(NEW_LAND, x, z, r);
+}
+
+/** True if a prop of height `h` at (x, z) would, in the isometric view, hide part of the new land (see `occludes`). */
+export function occludesNewLand(x: number, z: number, h: number): boolean {
+  const reach = h * 0.7;
+  for (let t = 0; t <= reach; t += 0.5) {
+    if (hit(NEW_LAND, x - t, z - t, 0.4)) return true;
+  }
+  return false;
 }
 
 /**

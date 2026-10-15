@@ -56,11 +56,14 @@ export function romanNumeral(n: number): string {
   return ROMAN[Math.floor(n)] ?? '';
 }
 
-/** "Era III · Town" for a village level; the starting Camp has no era number and is just "Camp". */
+/**
+ * "Settlement III · Town" for a village level; the starting Camp has no number and is just "Camp". (0.9.0: the real
+ * eras are the Ages — Survival, Frontier … AI — so the village levels are settlement levels, not eras.)
+ */
 export function eraLabel(level: number): string {
   const lv = Math.max(0, Math.min(VILLAGE.levels.length - 1, Math.floor(level)));
   const name = VILLAGE.levels[lv]!.name;
-  return lv === 0 ? name : `Era ${romanNumeral(lv)} · ${name}`;
+  return lv === 0 ? name : `Settlement ${romanNumeral(lv)} · ${name}`;
 }
 
 // ---------------------------------------------------------------------------

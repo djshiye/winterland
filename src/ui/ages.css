@@ -1,0 +1,686 @@
+/* [0.9.0 Ages] HUD pieces for the ten eras: Map / Market buttons, era chip, income ticker, shop Industry / Finance tabs,
+   the manage + choose sheets (BuildPanel's look, build.css), the world map and the new-era card (era.css look).
+   Overrides are prefixed with .wl-hud so they win over hud.css / build.css whatever the import order. */
+
+/* ---- top-right buttons (Map, Market): the same round buttons as the gear / mute ------------------------- */
+
+.wl-hudbtn {
+  position: absolute;
+  top: max(var(--wl-pad), env(safe-area-inset-top));
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: linear-gradient(#3f4f6e, #2a3652);
+  box-shadow: 0 4px 0 rgba(20, 30, 55, 0.5), 0 6px 14px rgba(20, 30, 55, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.18);
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-hudbtn:active {
+  transform: translateY(2px) scale(0.94);
+}
+
+.wl-hudbtn.is-on {
+  background: linear-gradient(#58b6ff, #2f86d6);
+}
+
+.wl-hudbtn svg {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+.wl-map-btn {
+  right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 104px);
+}
+
+.wl-market-btn {
+  right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 156px);
+}
+
+/* ---- era chip ------------------------------------------------------------------------------------------ */
+
+.wl-erachip {
+  position: absolute;
+  top: max(var(--wl-pad), env(safe-area-inset-top));
+  right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 156px);
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 0 10px;
+  box-sizing: border-box;
+  border-radius: 22px;
+  border: 3px solid #fff;
+  background: linear-gradient(#3f4f6e, #2a3652);
+  box-shadow: 0 4px 0 rgba(20, 30, 55, 0.5), 0 6px 14px rgba(20, 30, 55, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-erachip:active {
+  transform: translateY(2px) scale(0.97);
+}
+
+.wl-hud.has-market .wl-erachip {
+  right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 208px);
+}
+
+.wl-erachip-dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-sizing: border-box;
+  background: #ffd84a;
+}
+
+.wl-erachip-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wl-erachip-era {
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  color: #ffd84a;
+  white-space: nowrap;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+}
+
+.wl-erachip-city {
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+}
+
+/* phones: the chip drops under the button row (the objective banner already sits below the village badge) */
+@media (max-width: 699px) {
+  .wl-hud .wl-erachip,
+  .wl-hud.has-market .wl-erachip {
+    top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px);
+    right: max(var(--wl-pad), env(safe-area-inset-right));
+    height: 36px;
+    padding: 0 10px 0 8px;
+  }
+  .wl-erachip-city {
+    display: none;
+  }
+  .wl-hud.has-erachip .wl-objective {
+    top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 44px);
+  }
+}
+
+/* ---- income ticker (next to / under the money pill) --------------------------------------------------- */
+
+.wl-income {
+  position: absolute;
+  left: 100%;
+  top: 8px;
+  margin-left: 10px;
+  white-space: nowrap;
+  font-size: 16px;
+  line-height: 1.1;
+  color: #5ee07a;
+  pointer-events: none;
+  text-shadow:
+    -2px -2px 0 var(--wl-outline), 2px -2px 0 var(--wl-outline),
+    -2px 2px 0 var(--wl-outline), 2px 2px 0 var(--wl-outline),
+    0 3px 0 rgba(20, 30, 55, 0.5);
+}
+
+@media (max-width: 699px) {
+  .wl-income {
+    left: 46px;
+    top: 100%;
+    margin: 2px 0 0;
+    font-size: 14px;
+  }
+}
+
+/* ---- shop: stacked head (title + close, then the tabs), era headers ------------------------------------ */
+
+.wl-hud .wl-shop-head.is-stacked {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.wl-hud .wl-shop-head.is-stacked .wl-shop-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.wl-hud .wl-shop-head.is-stacked .wl-shop-tabs {
+  order: 3;
+  flex: 1 0 100%;
+}
+
+.wl-shop-tab .wl-tab-short {
+  display: none;
+}
+
+.wl-shop-tabs.is-many .wl-tab-long {
+  display: none;
+}
+
+.wl-shop-tabs.is-many .wl-tab-short {
+  display: inline;
+}
+
+.wl-hud .wl-shop-tabs.is-many .wl-shop-tab {
+  padding: 0 2px;
+}
+
+.wl-shop-era {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+  padding: 5px 10px 5px 10px;
+  border-radius: 12px;
+  border-left: 7px solid var(--era-accent, #ffd84a);
+  background: rgba(10, 18, 36, 0.4);
+  font-size: 13px;
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+}
+
+.wl-shop-era-note {
+  font-size: 12px;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: #ffd84a;
+  white-space: nowrap;
+}
+
+.wl-shop-era.is-locked .wl-shop-era-name {
+  opacity: 0.7;
+}
+
+/* ---- manage / choose sheets (BuildPanel's classes + a sideways shake) ---------------------------------- */
+
+.wl-hud .wl-build.wl-manage,
+.wl-hud .wl-build.wl-choose {
+  transform: translate(var(--sx, 0px), calc((1 - var(--k)) * 115%));
+}
+
+.wl-manage-icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
+  padding: 4px;
+  border-radius: 12px;
+  background: #dbe8fb;
+}
+
+.wl-manage-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-hud .wl-manage .wl-build-head {
+  gap: 10px;
+}
+
+.wl-hud .wl-manage .wl-build-titles {
+  padding-left: 0;
+}
+
+.wl-manage-stats {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: #f1f6ff;
+  color: #2a3652;
+  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+}
+
+.wl-manage-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.wl-manage-row + .wl-manage-row {
+  border-top: 2px solid #dbe4f3;
+}
+
+.wl-manage-label {
+  flex: none;
+  font-weight: 500;
+  color: #5b6a8a;
+}
+
+.wl-manage-value {
+  text-align: right;
+  color: #2a3652;
+}
+
+.wl-manage-demo {
+  flex: none;
+  margin-top: 4px;
+}
+
+.wl-manage-ask {
+  margin-bottom: 6px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.2;
+  color: #ffd2cb;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+}
+
+.wl-manage-confirm {
+  display: flex;
+  gap: 8px;
+}
+
+.wl-manage-btn {
+  flex: 1;
+  min-height: 42px;
+  padding: 4px 12px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 16px;
+  border: 3px solid #fff;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1.1;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 0 3px 0 rgba(20, 30, 55, 0.45);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-manage-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(20, 30, 55, 0.45);
+}
+
+.wl-manage-btn.is-danger {
+  background: linear-gradient(#ff7a6b, #d6382a);
+}
+
+.wl-manage-btn.is-plain {
+  background: #8591ab;
+}
+
+.wl-manage-btn i {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.wl-manage-btn i svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (min-width: 700px) {
+  .wl-hud .wl-build.wl-manage,
+  .wl-hud .wl-build.wl-choose {
+    transform: translate(calc((1 - var(--k)) * 115% + var(--sx, 0px)), 0);
+  }
+}
+
+/* ---- map ----------------------------------------------------------------------------------------------- */
+
+.wl-hud .wl-map-card {
+  width: min(760px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 14px;
+  text-align: left;
+  overflow: hidden;
+}
+
+.wl-map-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wl-map-titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.wl-map-title {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.wl-map-sub {
+  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.1;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.wl-map-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.wl-map-view {
+  flex: none;
+  border-radius: 16px;
+  border: 3px solid #fff;
+  overflow: hidden;
+  background: #dcebf8;
+  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+}
+
+.wl-hud .wl-map-view svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: hidden;
+}
+
+.wl-map-view [data-tp] {
+  cursor: pointer;
+}
+
+.wl-map-view [data-tp]:hover {
+  filter: brightness(1.08);
+}
+
+.wl-map-num {
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+  fill: #2a3652;
+  pointer-events: none;
+}
+
+.wl-map-name,
+.wl-map-old {
+  font-size: 3.7px;
+  font-weight: 700;
+  text-anchor: middle;
+  fill: #1f2b46;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 0.9px;
+  pointer-events: none;
+}
+
+.wl-map-list {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.wl-map-group {
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #bfe8ff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.wl-map-group:first-child {
+  margin-top: 0;
+}
+
+.wl-hud .wl-map-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 14px;
+  background: #f1f6ff;
+  color: #2a3652;
+  font: inherit;
+  text-align: left;
+  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-map-row:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(10, 18, 36, 0.35);
+}
+
+.wl-map-row.is-locked {
+  background: #dfe5f0;
+  cursor: default;
+}
+
+.wl-map-row.is-locked .wl-map-badge {
+  opacity: 0.55;
+}
+
+.wl-map-badge {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #dbe8fb;
+  font-size: 14px;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.wl-map-badge svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.wl-map-rowmid {
+  flex: 1;
+  min-width: 0;
+}
+
+.wl-map-rowname {
+  font-size: 16px;
+  line-height: 1.1;
+}
+
+.wl-map-note {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 500;
+  color: #5b6a8a;
+}
+
+.wl-map-note.is-ok {
+  color: #2e9c48;
+}
+
+.wl-map-go {
+  flex: none;
+  min-width: 52px;
+  padding: 5px 10px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 3px solid #fff;
+  background: linear-gradient(#5ee07a, #2e9c48);
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 0 rgba(20, 30, 55, 0.4);
+}
+
+.wl-map-go.is-lock {
+  background: #8591ab;
+  padding: 4px 8px;
+  box-shadow: none;
+}
+
+.wl-map-go .wl-lock {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 0 auto;
+}
+
+.wl-map-go .wl-lock svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (min-width: 700px) {
+  .wl-map-body {
+    flex-direction: row;
+    align-items: flex-start;
+    overflow: hidden;
+  }
+  .wl-map-view {
+    flex: 1 1 56%;
+  }
+  .wl-map-list {
+    flex: 0 0 300px;
+    max-height: min(60vh, 520px);
+    overflow-y: auto;
+    padding: 0 2px 4px 0;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+}
+
+/* ---- new-era card (era.css look) ------------------------------------------------------------------------ */
+
+.wl-hud .wl-agecard {
+  width: min(360px, calc(100vw - 24px));
+  padding: 8px 14px 12px;
+  background: linear-gradient(#5a4aa0, #2d2a52);
+}
+
+.wl-hud .wl-agecard .wl-era-name {
+  font-size: clamp(20px, 6.2vw, 27px);
+}
+
+.wl-agecard-place {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 12px 4px;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  background: var(--era-accent, #ffd84a);
+  font-size: 14px;
+  line-height: 1.15;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.wl-agecard-btns {
+  margin-top: 9px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.wl-agecard-btn {
+  min-width: 96px;
+  min-height: 38px;
+  padding: 4px 14px;
+  box-sizing: border-box;
+  border-radius: 15px;
+  border: 3px solid #fff;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.1;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 0 3px 0 rgba(20, 20, 50, 0.5);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-agecard-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(20, 20, 50, 0.5);
+}
+
+.wl-agecard-btn.is-go {
+  background: linear-gradient(#5ee07a, #2e9c48);
+}
+
+.wl-agecard-btn.is-plain {
+  background: #8591ab;
+}
+
+.wl-hud .wl-rankbanner {
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 9px 20px 11px;
+  font-size: 19px;
+  line-height: 1.15;
+  color: #ffd84a;
+  text-shadow: 0 2px 0 rgba(60, 25, 5, 0.6);
+}
+
+@media (min-width: 700px) {
+  .wl-hud .wl-agecard {
+    width: min(380px, calc(100vw - 540px));
+  }
+}
+
+@media (max-height: 520px) {
+  .wl-hud .wl-agecard .wl-era-tag {
+    display: none;
+  }
+}

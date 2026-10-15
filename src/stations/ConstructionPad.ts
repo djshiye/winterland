@@ -1,6 +1,6 @@
 /**
  * [B7 — progression] Construction pad for village plots and the Great Lodge: takes LOGS from the player's arms
- * AND CASH from the player's back (chunked) until both totals are paid, then calls onComplete(). The Village
+ * AND CASH from the player's back (chunked) until both totals are paid (logs may be 0 for era pads), then calls onComplete(). The Village
  * (village/Village.ts) owns these pads and the plot state; the pad itself only collects.
  *
  * CONTRACT (keep every public signature; B7 owns the implementation):
@@ -35,7 +35,11 @@ export interface ConstructionTarget {
   /** Floating sign text, e.g. 'HUT'. */
   label: string;
   icon: ConstructionIcon;
-  /** Total logs and dollars for this target. */
+  /**
+   * Total logs and dollars for this target. logs may be 0 (0.9.0 era machines / city lots / expansions cost cash + one
+   * material only): the pad then shows no log row, its item zone takes only the extra kind, and it completes once
+   * cash and extra are paid.
+   */
   logs: number;
   cash: number;
   /** Already paid (restoring a save / partial progress). */
@@ -114,7 +118,7 @@ export class ConstructionPad implements ItemHolder {
       area,
       from: ctx.player.arms,
       to: this,
-      kinds: opts.extra ? ['log', opts.extra.kind] : ['log'],
+      kinds: itemZoneKinds(opts),
       kind: 'pay',
       interval: TIMING.dropInterval,
       delay: TIMING.padHoldDelay,
@@ -395,6 +399,16 @@ export class ConstructionPad implements ItemHolder {
   private redraw(): void {
     this.makeTexture(this.texture);
   }
+}
+
+/**
+ * Kinds the item zone pulls from the player's arms. Logs + the optional extra kind; a 0.9.0 era pad costs no logs
+ * (logs: 0), so its zone takes only the extra kind (or, with no extra, stays permanently disabled and keeps ['log']
+ * only so the zone has a valid kind list). Fixed at construction: an era pad is always re-armed with the same shape.
+ */
+function itemZoneKinds(t: ConstructionTarget): readonly ItemKind[] {
+  if (t.logs > 0) return t.extra ? ['log', t.extra.kind] : ['log'];
+  return t.extra ? [t.extra.kind] : ['log'];
 }
 
 interface Filled {

@@ -59,7 +59,7 @@ export interface CharacterModel {
   height: number;
 }
 
-interface PawnSpec {
+export interface PawnSpec {
   bodyColor: number;
   bodyR: number;
   bodyH: number;
@@ -79,7 +79,7 @@ interface PawnSpec {
   headExtras?: (g: THREE.Group) => void;
 }
 
-const BASE_Y = 0.12;
+export const BASE_Y = 0.12;
 const ARM_R = 0.085;
 const ARM_LEN = 0.17;
 /** Distance from the shoulder pivot to the hand centre. */
@@ -88,7 +88,7 @@ export const CHARACTER_ARM_REACH = 0.33;
 const eyeColor = (): number => PALETTE.rubber;
 
 /** Skeleton + body + head + arms + boots (each animated pivot is baked to one mesh); kind-specific parts via spec callbacks. */
-function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: number } {
+export function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: number } {
   const root = new THREE.Group();
   const body = new THREE.Group();
   body.position.y = HIP;
@@ -204,7 +204,7 @@ export function characterScale(variant: number): number {
   return 1 + (((hash(variant) % 13) - 6) / 6) * 0.06;
 }
 
-function torusRing(major: number, tube: number, color: number, y: number): THREE.Mesh {
+export function torusRing(major: number, tube: number, color: number, y: number): THREE.Mesh {
   const t = mesh(geo.torus(major, tube, 8, 22), toon(color));
   t.rotation.x = Math.PI / 2;
   t.position.y = y;
@@ -257,7 +257,7 @@ export function createPlayerModel(): CharacterModel {
 const CUSTOMER_SHADES = [COLORS.CUSTOMER_BLUE, PALETTE.customerDark, 0x7ec2fb] as const;
 const SCARVES = [-1, COLORS.PLAYER_TRIM, COLORS.COURIER_YELLOW, COLORS.SAW_GLOW] as const;
 
-function npcBody(
+export function npcBody(
   color: number,
   skin: number,
   hand: number,

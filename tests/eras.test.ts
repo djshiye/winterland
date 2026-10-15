@@ -43,9 +43,9 @@ describe('eraFor', () => {
 
 describe('era labels', () => {
   it('writes "Era III · Town" and leaves the Camp unnumbered', () => {
-    expect(eraLabel(3)).toBe('Era III · Town');
-    expect(eraLabel(4)).toBe('Era IV · Winter City');
-    expect(eraLabel(5)).toBe('Era V · Winterland');
+    expect(eraLabel(3)).toBe('Settlement III · Town');
+    expect(eraLabel(4)).toBe('Settlement IV · Winter City');
+    expect(eraLabel(5)).toBe('Settlement V · Winterland');
     expect(eraLabel(0)).toBe('Camp');
     expect(romanNumeral(0)).toBe('');
     expect(romanNumeral(4)).toBe('IV');

@@ -13,7 +13,7 @@ import { createGameState } from '../src/core/types';
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
 /** Every real save captured from a released build: each must keep loading as the state grows. */
-const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json'];
+const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json', 'save-v7-eras.json'];
 
 describe.each(FIXTURES)('%s', (name) => {
   it('loads every saved field and the world', () => {
@@ -239,5 +239,39 @@ describe('v3 Market Town fixture', () => {
     expect(state.town.lots[0]).toEqual({ building: '', tier: -1, logs: 0, cash: 0 });
     expect(state.town.lots[1]!.logs).toBeLessThanOrEqual(24);
     expect(state.town.lots[1]!.cash).toBeLessThanOrEqual(2500);
+  });
+});
+
+/** 0.9.0: a mid-game Ages save (era IV, machines, city lots, market positions, era piles). */
+describe('v7 eras save fixture', () => {
+  it('restores the ages, the city and the market', () => {
+    const save = load('save-v7-eras.json');
+    const state = createGameState();
+    mergeState(state, save.state);
+    sanitizeState(state);
+    expect(state.eras.age).toBe(4);
+    expect(state.eras.regions.map((r) => r.unlocked)).toEqual([false, false, true, true, true, false, false, false, false, false, false]);
+    expect(state.eras.regions[2]!.slots[1]).toEqual({ machine: 'kiln', tier: 0, cash: 0, extra: 0 });
+    expect(state.eras.regions[3]!.slots[1]).toEqual({ machine: 'smelter', tier: -1, cash: 12000, extra: 3 });
+    expect(state.eras.regions[5]!.cash).toBe(100000);
+    expect(state.city.districts[2]!.lots[0]!.building).toBe('frontierHome');
+    expect(state.city.districts[2]!.lots[2]).toEqual({ building: 'frontierPark', tier: -1, cash: 5000, extra: 2 });
+    expect(state.market.investments.map((p) => p.product)).toEqual(['bond', 'index']);
+    expect(state.market.nextId).toBe(3);
+    expect(state.upgrades.frontierRigs).toBe(2);
+    const world = sanitizeWorld(save.world);
+    expect(world.eras[2]!.slots[1]).toEqual({ in: { stone: 4 }, out: 3 });
+    expect(world.eras[2]!.dock).toEqual({ ore: 5 });
+    expect(world.eras.map((r) => r.slots.length)).toEqual([0, 0, 4, 4, 5, 5, 6, 6, 7, 7, 8]);
+  });
+
+  it('older saves start in the Survival era with an empty city and market', () => {
+    const state = createGameState();
+    mergeState(state, load('save-v6-events.json').state);
+    sanitizeState(state);
+    expect(state.eras.age).toBe(1);
+    expect(state.eras.regions.every((r) => !r.unlocked)).toBe(true);
+    expect(state.market.investments).toEqual([]);
+    expect(sanitizeWorld(load('save-v6-events.json').world).eras[2]!.slots).toHaveLength(4);
   });
 });

@@ -319,7 +319,8 @@ export class SalesMeter {
     private readonly carried: number,
   ) {
     this.start = ctx.time.elapsed;
-    ctx.events.on('sale', ({ amount: sale, tip }) => {
+    ctx.events.on('sale', ({ buyer, amount: sale, tip }) => {
+      if (buyer === 'jack') return; // a discard at Jack's cart is not a steady income
       const amount = sale + (tip ?? 0); // VIP tips are income too
       this.times.push(ctx.time.elapsed);
       this.amounts.push(amount);

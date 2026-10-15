@@ -9,7 +9,10 @@ const def = (id: string) => QUEST_DEFS.find((q) => q.id === id)!;
 describe('amenity quests', () => {
   it('are listed after the existing town quests with the specified targets and rewards', () => {
     const ids = QUEST_DEFS.map((q) => q.id);
-    expect(ids.slice(-3)).toEqual(['amenity1', 'happy50', 'amenity4']);
+    const at = ids.indexOf('amenity1');
+    expect(ids.slice(at, at + 3)).toEqual(['amenity1', 'happy50', 'amenity4']);
+    // 0.9.0: only the era quests come after them.
+    expect(ids[at + 3]).toBe('era2');
     expect(ids.indexOf('amenity1')).toBeGreaterThan(ids.indexOf('greatLodge'));
     expect([def('amenity1').target, def('happy50').target, def('amenity4').target]).toEqual([1, 50, 4]);
     expect(def('amenity1').reward).toBe(1500);
@@ -38,5 +41,27 @@ describe('amenity quests', () => {
     expect(def('amenity4').progress(s)).toBe(AMENITY_IDS.length);
     expect(def('happy50').progress(s)).toBeLessThanOrEqual(100);
     expect(def('happy50').progress(s)).toBeGreaterThanOrEqual(50);
+  });
+});
+
+describe('era quests (0.9.0)', () => {
+  it('come after every Survival quest and are untouched by a fresh game', () => {
+    const ids = QUEST_DEFS.map((q) => q.id);
+    expect(ids.indexOf('era2')).toBeGreaterThan(ids.indexOf('amenity4'));
+    const s = createGameState();
+    expect(def('era2').progress(s)).toBeLessThan(def('era2').target);
+    expect(def('machine1').progress(s)).toBe(0);
+    expect(def('city1').progress(s)).toBe(0);
+  });
+
+  it('track the age, machines and city builds', () => {
+    const s = createGameState();
+    s.eras.age = 3;
+    s.stats.machinesBuilt = 2;
+    s.eras.regions[2]!.slots[0] = { machine: 'quarry', tier: 0, cash: 0, extra: 0 };
+    expect(def('era2').progress(s)).toBeGreaterThanOrEqual(def('era2').target);
+    expect(def('era3').progress(s)).toBe(3);
+    expect(def('era4').progress(s)).toBeLessThan(def('era4').target);
+    expect(def('machines6').progress(s)).toBe(1);
   });
 });

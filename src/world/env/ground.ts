@@ -19,7 +19,8 @@ export function buildGround(): GroundPart {
   const group = new THREE.Group();
   group.name = 'ground';
   const R = LAYOUT.river;
-  const SIZE = 340;
+  // 0.9.0: the era regions, roads and city districts reach z 156 / x 142; ±320 keeps the plane's edge out of every view.
+  const SIZE = 640;
   const half = SIZE / 2;
 
   // Snow, in pieces around the river hole.

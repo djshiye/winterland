@@ -20,6 +20,11 @@
  * out of the door onto the counter (0.8); cooldown until T. A cycle starts only with the inputs in the hopper and
  * room on the counter; back-to-back cycles keep the exact cycle time. A producer's timer runs only while its pallet
  * has room. Colliders: the building and its solid props (sized so the player zones stay reachable).
+ *
+ * Demolish (0.9.0): teardown() takes the business out of play at once (colliders and zones removed, hopper / counter
+ * cleared, the building hidden; asShop() / staff() go empty) and `till` keeps its value for the caller to credit;
+ * drain() then finishes the job once no item or cash bundle is still flying to its piles (flights cannot be recalled),
+ * disposing the piles and removing the group. Town keeps the dead business until drain() returns true.
  */
 import * as THREE from 'three';
 import { BUSINESSES, COLORS, ITEM_SIZE, TIMING, type BusinessDef, type PileGrid, type Rect, type XZ } from '../config';
@@ -30,6 +35,7 @@ import { Pile } from '../items/Pile';
 import { launchNew } from '../items/transfer';
 import type { Zone } from '../items/Zones';
 import { CashPile } from '../stations/CashPile';
+import type { ColliderHandle } from '../world/Colliders';
 import {
   hopperPerKind,
   layersFor,
@@ -116,6 +122,9 @@ export class Business {
   private readonly zones: Zone[] = [];
   private spot: ShopSpot | null = null;
   private readonly solids: LRect[] = [];
+  private readonly colliders: ColliderHandle[] = [];
+  private torn = false;
+  private gone = false;
 
   constructor(
     readonly ctx: GameContext,
@@ -313,7 +322,7 @@ export class Business {
     const f = this.frame;
     this.solids.forEach((s, i) => {
       const r = worldRect(f, s.u0, s.u1, s.v0, s.v1);
-      ctx.colliders.addBox(r, i === 0 ? `town:${this.lot}` : `town:${this.lot}:prop${i}`);
+      this.colliders.push(ctx.colliders.addBox(r, i === 0 ? `town:${this.lot}` : `town:${this.lot}:prop${i}`));
     });
     for (const z of this.zones) z.setEnabled(true);
     this.till?.appear(instant);
@@ -325,6 +334,63 @@ export class Business {
     this.startAt = ctx.time.elapsed + 0.9;
     ctx.tweens.popIn(this.group, { duration: 0.5 });
     ctx.tweens.delay(0.55, () => ctx.tweens.squash(this.model.root, 0.08, 0.4));
+  }
+
+  /** True once teardown() ran: the business is out of play (a stale reference must not use its piles). */
+  get dead(): boolean {
+    return this.torn;
+  }
+
+  /**
+   * Demolish: out of play at once. Colliders and zones are removed, the hopper / counter / till are emptied (their goods
+   * go back to the item pool; the till's dollars are NOT touched: read `till.value` first and credit it), the building
+   * is hidden. The piles stay attached until drain() says nothing is flying to them any more. Idempotent.
+   */
+  teardown(): void {
+    if (this.torn) return;
+    this.torn = true;
+    this.built = false;
+    const ctx = this.ctx;
+    for (const h of this.colliders) ctx.colliders.remove(h);
+    this.colliders.length = 0;
+    for (const z of this.zones) ctx.zones.remove(z);
+    this.zones.length = 0;
+    for (const item of this.cur) {
+      ctx.tweens.killTweensOf(item.object);
+      ctx.items.release(item);
+    }
+    this.cur.length = 0;
+    for (const k of Object.keys(this.proc) as ItemKind[]) delete this.proc[k];
+    this.owed = 0;
+    this.spot = null;
+    this.input?.clear();
+    this.output?.clear();
+    this.till?.pile.clear();
+    ctx.tweens.killTweensOf(this.group);
+    ctx.tweens.killTweensOf(this.model.root);
+    this.group.visible = false;
+  }
+
+  /**
+   * After teardown(): true once nothing is still flying to this business's piles (a goods hop, a townsfolk's payment, a
+   * porter's delivery); then the piles are cleared of whatever landed meanwhile and disposed, the group is removed.
+   * While flights remain the piles are cleared again (landed items go back to the pool) and false is returned.
+   */
+  drain(): boolean {
+    if (!this.torn) return false;
+    if (this.gone) return true;
+    const fl = this.ctx.flights;
+    const piles = [this.input, this.output, this.till?.pile].filter((p): p is Pile => !!p);
+    let flying = (this.till?.inFlightValue ?? 0) > 0; // payments still waiting in pay()'s stagger delays
+    for (const p of piles) {
+      if (fl.inFlightTo(p) > 0) flying = true;
+      p.clear();
+    }
+    if (flying) return false;
+    for (const p of piles) p.dispose();
+    this.group.removeFromParent();
+    this.gone = true;
+    return true;
   }
 
   update(dt: number): void {
