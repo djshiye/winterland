@@ -15,12 +15,12 @@
  *   best level is raised to what the city population reaches (core/demand.ts refreshSettlement). A new level emits
  *   'settlement:changed' and 'settlement:levelUp' (never while loading) and pays a gift into the walk-collect gift
  *   pile on the city avenue: SETTLEMENT.giftSeconds of city income per level, + charterSeconds for a completed band.
- *   City income is × Renown and its happiness gets the decor perk (settlementHappiness).
+ *   City income is × Renown × Mastery (climbMult) and its happiness gets the decor perk (settlementHappiness).
  */
 import * as THREE from 'three';
 import { ECONOMY, SETTLEMENT } from '../config';
 import { CITY_BUILDINGS, CITY_RANKS, CITY_TICK, DISTRICTS, MAX_ERA, districtDef, type CityBuildingId } from '../eras/data';
-import { cityPopulation, refreshSettlement, renownMult, settledCityTotals, settlementBand, settlementLevel } from '../core/demand';
+import { cityPopulation, climbMult, refreshSettlement, settledCityTotals, settlementBand, settlementLevel } from '../core/demand';
 import type { GameContext } from '../core/types';
 import { CashPile } from '../stations/CashPile';
 import { Skyline } from '../world/env/skyline';
@@ -84,9 +84,9 @@ export class City {
     return CITY_RANKS[this.rank]!.name;
   }
 
-  /** City income per second right now (rent + staffed businesses, × happiness × City Hall × Renown). */
+  /** City income per second right now (rent + staffed businesses, × happiness × City Hall × Renown × Mastery). */
   get incomeRate(): number {
-    return incomeSplit(settledCityTotals(this.ctx.state), this.ctx.upgrades.value('taxOffice')).total * renownMult(this.ctx.state);
+    return incomeSplit(settledCityTotals(this.ctx.state), this.ctx.upgrades.value('taxOffice')).total * climbMult(this.ctx.state);
   }
 
   /** Dollars waiting on the settlement gift pile (save snapshot). */
@@ -146,7 +146,7 @@ export class City {
   /** Credit one tick of income. */
   private pay(): void {
     const split = incomeSplit(settledCityTotals(this.ctx.state), this.ctx.upgrades.value('taxOffice'));
-    const amount = Math.round(split.total * CITY_TICK * renownMult(this.ctx.state));
+    const amount = Math.round(split.total * CITY_TICK * climbMult(this.ctx.state));
     if (amount < 1) return;
     this.ctx.economy.add(amount);
     this.ctx.state.stats.cityEarned += amount;

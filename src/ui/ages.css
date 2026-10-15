@@ -127,6 +127,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+.wl-erachip-mastery {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffd84a;
+  white-space: nowrap;
+}
+
+.wl-erachip-mastery:empty {
+  display: none;
+}
+
 .wl-erachip-count:empty {
   display: none;
 }
@@ -171,7 +183,8 @@
 }
 
 .wl-erachip.is-ready .wl-erachip-era,
-.wl-erachip.is-ready .wl-erachip-count {
+.wl-erachip.is-ready .wl-erachip-count,
+.wl-erachip.is-ready .wl-erachip-mastery {
   color: #6b3a05;
   text-shadow: none;
 }
@@ -200,6 +213,9 @@
   .wl-erachip.is-gate .wl-erachip-count {
     font-size: 13px;
     color: #fff;
+  }
+  .wl-erachip-mastery {
+    display: none;
   }
   .wl-hud.has-erachip .wl-objective {
     top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 44px);
@@ -956,11 +972,14 @@
 
 .wl-gate-foot {
   flex: none;
+  display: flex;
+  gap: 8px;
   padding-top: 6px;
 }
 
 .wl-gate-raise {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   min-height: 44px;
   display: flex;
   flex-direction: column;
@@ -992,6 +1011,47 @@
   font-size: 11px;
   font-weight: 500;
   opacity: 0.9;
+}
+
+/* the Steward toggle (Settlement 20 perk): grey while off, gold while on */
+.wl-gate-steward {
+  flex: none;
+  width: 118px;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border-radius: 16px;
+  border: 3px solid #fff;
+  background: linear-gradient(#9aa6bf, #6c7893);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.05;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 0 3px 0 rgba(20, 30, 55, 0.45);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-gate-steward.is-on {
+  background: linear-gradient(#ffd84a, #e0a521);
+  color: #5a3a00;
+  text-shadow: none;
+}
+
+.wl-gate-steward:active {
+  transform: translateY(2px);
+}
+
+/* "✦ Mastery 340 · +41% on every sale": only once a level has passed its cap */
+.wl-gate-mastery {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b07a00;
 }
 
 /* phones: the checklist is taller than the other sheets (up to 64 % of the screen) */

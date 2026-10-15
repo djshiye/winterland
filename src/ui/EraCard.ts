@@ -14,7 +14,7 @@
  *
  * Wiring (ui/HUD.ts): constructor `this.era = new EraCard(ctx, layer);`  update(): `this.era.update(dt);`
  */
-import { SETTLEMENT, VILLAGE } from '../config';
+import { CLIMB, SETTLEMENT, VILLAGE } from '../config';
 import { bandsWith, settlementBand, settlementName } from '../core/demand';
 import type { GameContext } from '../core/types';
 import { ERAS } from '../eras/data';
@@ -124,12 +124,13 @@ export class EraCard {
   }
 }
 
-/** The perk chips of a settlement level-up (from `from` to `level`): Renown, the gift and what the band positions crossed bring. */
+/** The perk chips of a settlement level-up (from `from` to `level`): Renown, the gift and what the band positions crossed bring (and the Steward at 20). */
 export function settlementPerks(level: number, from: number, gift: number): string[] {
   const out = [`Renown \u00d7${(SETTLEMENT.renown ** (level - SETTLEMENT.band)).toFixed(2)}`, `${formatMoney(gift)} gift on the avenue`];
   const crossed = (j: number): boolean => bandsWith(level, j) > bandsWith(Math.max(from, SETTLEMENT.band), j);
   if (crossed(1)) out.push('New quests');
   if (crossed(3)) out.push(`City happiness +${Math.round(SETTLEMENT.decorHappiness * 100)}%`);
   if (crossed(4)) out.push('+1 investment slot');
+  if (level >= CLIMB.steward.settlement && from < CLIMB.steward.settlement) out.push('Steward unlocked');
   return out;
 }

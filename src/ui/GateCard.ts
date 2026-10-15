@@ -11,16 +11,20 @@
  * - The settlement row while it is short: "Build a home in Brickside (+40) → Settlement 6" with Go to the district.
  * - Raise all (footer): the cheapest next level of any buyable row, again and again, keeping max($500, 20 %) in the
  *   wallet (Upgrades.raiseAll). One press, one sound; the rows it finishes tick through 'gate:progress' (JuiceDirector).
+ * - The Steward toggle (footer, from Settlement 20 on; state.eras.steward, eras/Steward.ts) and, once a level has
+ *   passed a hard cap, the Mastery line under the bar: "Mastery 340 · +41 % on every sale".
  *
  * The five row slots are built once; refresh() rewrites only what changed, at most 4× a second while open (money
  * changes every frame while cash flows; the checklist prices every open step).
  */
-import { LAYOUT, PADS, UPGRADES, type PadIdConst } from '../config';
+import { CLIMB, LAYOUT, PADS, UPGRADES, type PadIdConst } from '../config';
 import type { GameContext, UpgradeId } from '../core/types';
 import { ERAS } from '../eras/data';
-import { climbOpen, eraGate, openRows, prereqTarget, raiseReserve, rowBuyable, settlementGoal, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
+import { masteryTotal } from '../core/demand';
+import { masteryMult } from '../core/ladder';
+import { climbOpen, eraGate, openRows, prereqTarget, raiseReserve, raiseRows, rowBuyable, settlementGoal, stewardUnlocked, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
 import { travelPoints } from '../eras/layout';
-import { eraRoman, expansionCostText, gateRowLine } from './agesLogic';
+import { eraRoman, expansionCostText, gateRowLine, masteryLine } from './agesLogic';
 import { h, onTap } from './dom';
 import { formatMoney } from './format';
 import { hexCss, ICON_CLOSE, ICON_HOUSE, ICON_LOCK, upgradeIcon } from './icons';
@@ -75,6 +79,9 @@ export class GateCard {
   private readonly settle: RowSlot;
   private readonly raiseBtn: HTMLButtonElement;
   private readonly raiseNote: HTMLSpanElement;
+  private readonly stewardBtn: HTMLButtonElement;
+  private readonly stewardNote: HTMLSpanElement;
+  private readonly masteryEl: HTMLDivElement;
   private dirty = true;
   private acc = REFRESH_EVERY;
   private gate: EraGate | null = null;
@@ -109,7 +116,8 @@ export class GateCard {
     this.barFill = h('div', 'wl-gate-fill');
     bar.appendChild(this.barFill);
     this.nextEl = h('div', 'wl-gate-next');
-    sum.append(bar, this.nextEl);
+    this.masteryEl = h('div', 'wl-gate-mastery');
+    sum.append(bar, this.nextEl, this.masteryEl);
     list.appendChild(sum);
 
     this.ready = h('div', 'wl-gate-ready');
@@ -133,7 +141,12 @@ export class GateCard {
     this.raiseNote = h('span', 'wl-gate-raise-note');
     this.raiseBtn.appendChild(this.raiseNote);
     onTap(this.raiseBtn, () => this.raiseAll());
-    foot.appendChild(this.raiseBtn);
+    this.stewardBtn = this.button('wl-gate-steward', '<b>Steward</b>');
+    this.stewardNote = h('span', 'wl-gate-raise-note');
+    this.stewardBtn.appendChild(this.stewardNote);
+    this.stewardBtn.title = `Buys the cheapest checklist level every ${CLIMB.steward.every} s, keeping the same reserve as Raise all`;
+    onTap(this.stewardBtn, () => this.toggleSteward());
+    foot.append(this.raiseBtn, this.stewardBtn);
     root.appendChild(foot);
 
     const mark = (): void => {
@@ -237,10 +250,19 @@ export class GateCard {
     ctx.audio.unlock();
     const g = this.gate;
     if (!g) return;
-    const rows = g.rows.filter(rowBuyable).map((r) => ({ id: r.id, need: r.need }));
-    const n = ctx.upgrades.raiseAll(rows, raiseReserve(ctx.economy.money));
+    const n = ctx.upgrades.raiseAll(raiseRows(g), raiseReserve(ctx.economy.money));
     if (n === 0) this.refuse();
     else ctx.audio.play('upgrade');
+    this.dirty = true;
+    this.acc = REFRESH_EVERY;
+  }
+
+  private toggleSteward(): void {
+    const { ctx } = this;
+    ctx.audio.unlock();
+    if (!stewardUnlocked(ctx.state)) return;
+    ctx.state.eras.steward = !ctx.state.eras.steward;
+    ctx.audio.play('click');
     this.dirty = true;
     this.acc = REFRESH_EVERY;
   }
@@ -322,9 +344,21 @@ export class GateCard {
       const c = ctx.upgrades.nextCost(r.id);
       return c !== null && money - c >= reserve;
     });
-    this.show(this.raiseBtn.parentElement!, buyable.length > 0);
+    const steward = stewardUnlocked(s);
+    this.show(this.raiseBtn.parentElement!, buyable.length > 0 || steward);
+    this.show(this.raiseBtn, buyable.length > 0);
     this.raiseBtn.classList.toggle('is-poor', !anyCheap);
     this.text(this.raiseNote, `cheapest first · keeps ${formatMoney(reserve)}`);
+    this.show(this.stewardBtn, steward);
+    if (steward) {
+      const on = s.eras.steward;
+      this.stewardBtn.classList.toggle('is-on', on);
+      this.stewardBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      this.text(this.stewardNote, on ? `On · every ${CLIMB.steward.every} s` : 'Off · tap to start');
+    }
+    const points = masteryTotal(s);
+    this.show(this.masteryEl, points > 0);
+    if (points > 0) this.text(this.masteryEl, masteryLine(points, masteryMult(points)));
   }
 
   private renderRow(slot: RowSlot, row: GateRow | null, money: number): void {

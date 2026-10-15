@@ -25,8 +25,8 @@
 import { SETTLEMENT, UPGRADES, type UpgradeDef } from '../config';
 import { CITY_BUILDINGS, ERAS, MACHINES, MARKET, MATERIALS, MAX_ERA, SURVIVAL_VALUE, cityBuildingsOfEra, isMaterial, machinesOfEra, type CityBuildingId, type MachineId } from '../eras/data';
 import { incomeSplit, landmarkTaken } from '../city/rules';
-import { cityPopulation, refreshSettlement, renownMult, settledCityTotals, settlementLevel } from './demand';
-import { authoredMax, base, costAt, introEra, masteryMult, masteryPoints, maxStored, valueAt } from './ladder';
+import { cityPopulation, climbMult, refreshSettlement, settledCityTotals, settlementLevel } from './demand';
+import { authoredMax, base, costAt, introEra, maxStored, valueAt } from './ladder';
 import { createGameState, type GameState, type ItemKind, type UpgradeId } from './types';
 
 export interface PacingKnobs {
@@ -88,13 +88,6 @@ function orderPrice(kind: ItemKind): number {
   return v * (1 + MARKET.delivery);
 }
 
-/** Total Mastery multiplier of a state (1 until some effect passes its hard cap). */
-function mastery(s: GameState): number {
-  let points = 0;
-  for (const id of IDS) points += masteryPoints(UPGRADES[id], s.upgrades[id]);
-  return masteryMult(points);
-}
-
 /** Steady export of region n ($/s before Renown and Mastery): the built machines as a flow, imports paid. */
 function regionIncome(s: GameState, n: number, k: PacingKnobs): number {
   const key = ERAS[n]!.key;
@@ -143,7 +136,7 @@ function survivalIncome(s: GameState, k: PacingKnobs): number {
 export function pacingIncome(s: GameState, k: PacingKnobs = PACING): number {
   let regions = 0;
   for (let n = 2; n <= s.eras.age; n++) regions += regionIncome(s, n, k);
-  return (survivalIncome(s, k) + regions + cityIncome(s)) * renownMult(s) * mastery(s);
+  return (survivalIncome(s, k) + regions + cityIncome(s)) * climbMult(s);
 }
 
 /** The model's start: the Great Lodge built, every era-1 upgrade at its authored max. */
@@ -319,7 +312,7 @@ export function runPacing(knobs: Partial<PacingKnobs> = {}): PacingResult {
         settlement[L] = t / 60;
         seconds += SETTLEMENT.giftSeconds + (L % SETTLEMENT.band === 0 ? SETTLEMENT.charterSeconds : 0);
       }
-      if (seconds > 0) money += Math.max(SETTLEMENT.giftMin, cityIncome(s) * renownMult(s) * seconds);
+      if (seconds > 0) money += Math.max(SETTLEMENT.giftMin, cityIncome(s) * climbMult(s) * seconds);
     }
     stretch.minutes = (t - t0) / 60;
     stretch.income = pacingIncome(s, k);

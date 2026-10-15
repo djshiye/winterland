@@ -133,21 +133,22 @@ export class Upgrades {
 
   /**
    * Raise all (docs/EXPANSION.md §A2): buy the cheapest next level among `rows` (each up to its shown `need`) again and
-   * again while the wallet stays above `reserve`. Rows with an unmet requirement are skipped. Returns the levels bought.
+   * again while the wallet stays above `reserve`, at most `limit` levels (the Steward buys one per tick). Rows with an
+   * unmet requirement are skipped. Returns the levels bought.
    */
-  raiseAll(rows: ReadonlyArray<{ id: UpgradeId; need: number }>, reserve: number): number {
+  raiseAll(rows: ReadonlyArray<{ id: UpgradeId; need: number }>, reserve: number, limit = Infinity): number {
     const was = this.batch;
     this.batch = true;
     try {
-      return this.raiseLoop(rows, reserve);
+      return this.raiseLoop(rows, reserve, limit);
     } finally {
       this.batch = was;
     }
   }
 
-  private raiseLoop(rows: ReadonlyArray<{ id: UpgradeId; need: number }>, reserve: number): number {
+  private raiseLoop(rows: ReadonlyArray<{ id: UpgradeId; need: number }>, reserve: number, limit: number): number {
     let bought = 0;
-    for (;;) {
+    while (bought < limit) {
       let best: UpgradeId | null = null;
       let bestCost = Infinity;
       for (const r of rows) {
@@ -161,6 +162,7 @@ export class Upgrades {
       if (best === null || this.economy.money - bestCost < reserve || !this.buy(best)) return bought;
       bought++;
     }
+    return bought;
   }
 
   /** Gain one level that has already been paid for (level pads). Ignored at max level. */

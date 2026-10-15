@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { DEMAND, QUARTERS, UPGRADES, VILLAGE, type UpgradeDef } from '../src/config';
-import { productMult, renownMult, settlementLevel, settlementLevelFor } from '../src/core/demand';
+import { climbMult, masteryOf, masteryTotal, productMult, renownMult, settlementLevel, settlementLevelFor } from '../src/core/demand';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
 import { base, costAt, introEra, masteryMult, masteryPoints, maxStored, valueAt } from '../src/core/ladder';
@@ -65,8 +65,14 @@ describe('era 1 is frozen at 0.8.0', () => {
     expect(asJson(QUARTERS)).toEqual(FROZEN.QUARTERS);
   });
 
-  it('no Mastery before the climb', () => {
+  it('no Mastery before the climb: every era-1 id at its authored max earns no point, so sales pay ×1', () => {
     expect(masteryMult(0)).toBe(1);
+    const s = createGameState();
+    s.village.level = VILLAGE.levels.length - 2;
+    for (const id of Object.keys(frozen) as UpgradeId[]) s.upgrades[id] = maxStored(UPGRADES[id], false);
+    expect(masteryTotal(s)).toBe(0);
+    expect(masteryOf(s)).toBe(1);
+    expect(climbMult(s)).toBe(1);
   });
 
   it('age 1: settlement never passes 5 and Renown is 1 at every village level', () => {
@@ -77,6 +83,7 @@ describe('era 1 is frozen at 0.8.0', () => {
       expect(settlementLevel(s)).toBe(lvl);
       expect(settlementLevel(s)).toBeLessThanOrEqual(5);
       expect(renownMult(s)).toBe(1);
+      expect(climbMult(s)).toBe(1);
     }
     expect(settlementLevelFor(Number.MAX_SAFE_INTEGER, 1)).toBe(0);
   });

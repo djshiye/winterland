@@ -11,7 +11,7 @@
  */
 import type * as THREE from 'three';
 import { CLIMB } from '../config';
-import { demandOf, investMaxPositions, renownMult, seasonMult } from './demand';
+import { climbMult, demandOf, investMaxPositions, seasonMult } from './demand';
 import { BOND_CAP_SHARE, ERAS, INVEST, isMaterial, MARKET, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
 import type { GameContext, InvestmentState, ItemKind, MaterialKind, Updatable } from './types';
 
@@ -63,11 +63,11 @@ export class Market implements Updatable {
     return MATERIALS[kind].value * this.index(kind) * (1 - (this.ctx.state.market.pressure[kind] ?? 0));
   }
 
-  /** What an export depot pays for `count` units of `kind` now (× the era's Trade upgrade × season bonus × Renown). */
+  /** What an export depot pays for `count` units of `kind` now (× the era's Trade upgrade × season bonus × Renown × Mastery). */
   exportPrice(kind: ItemKind, count: number): number {
     if (!isMaterial(kind)) return Math.round(this.unitValue(kind) * count);
     const s = this.ctx.state;
-    return Math.round(this.unitValue(kind) * count * this.tradeMult(kind) * seasonMult(s) * renownMult(s));
+    return Math.round(this.unitValue(kind) * count * this.tradeMult(kind) * seasonMult(s) * climbMult(s));
   }
 
   /** An export depot received `count` units: credit the money, apply supply pressure, stats, 'sale' {buyer 'export'}. */
@@ -80,7 +80,11 @@ export class Market implements Updatable {
     return amount;
   }
 
-  /** Jack's offer for one `kind` right now (UPGRADES.jack share × unitValue, at least $1 for anything but cash). */
+  /**
+   * Jack's offer for one `kind` right now (UPGRADES.jack share × unitValue, at least $1 for anything but cash). No Trade,
+   * Renown or Mastery, and the share stops at 0.9 (core/ladder.ts): an order costs at least 1.1 × unitValue, so ordering
+   * goods in and handing them to Jack can never print money.
+   */
   jackOffer(kind: ItemKind): number {
     if (kind === 'cash') return 0;
     return Math.max(1, Math.round(this.unitValue(kind) * this.ctx.upgrades.value('jack')));
@@ -226,13 +230,14 @@ export class Market implements Updatable {
 
   /**
    * Dollars an order of `units` (clamped to ORDER_MAX_UNITS) delivered to a dock costs: the buy quote plus the delivery
-   * surcharge. It also carries the era's Trade upgrade, the season bonus and Renown (every multiplier exportPrice has),
-   * so carrying an order straight to an export depot can never print money (it always loses the spread and the surcharge).
+   * surcharge. It also carries the era's Trade upgrade, the season bonus, Renown and Mastery (every multiplier exportPrice
+   * has), so carrying an order straight to an export depot can never print money (it always loses the spread and the
+   * surcharge), however far the climb goes.
    */
   orderCost(kind: MaterialKind, units: number): number {
     const n = Math.max(1, Math.min(ORDER_MAX_UNITS, Math.floor(units)));
     const s = this.ctx.state;
-    return Math.max(1, Math.round(this.quote(kind, 'buy') * n * (1 + MARKET.delivery) * this.tradeMult(kind) * seasonMult(s) * renownMult(s)));
+    return Math.max(1, Math.round(this.quote(kind, 'buy') * n * (1 + MARKET.delivery) * this.tradeMult(kind) * seasonMult(s) * climbMult(s)));
   }
 
   /** Buy `units` physical units delivered to era `era`'s import dock (spends money, emits 'market:order'). */

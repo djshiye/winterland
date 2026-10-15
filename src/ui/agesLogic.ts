@@ -263,3 +263,13 @@ export function travelNote(p: TravelPoint, age: number): TravelNote {
   if (age >= p.era) return { cost: null, need: null };
   return { cost: expansionCostText(p.era), need: p.open ? 'Pad is open: buy it to enter' : reachNote(p.era) };
 }
+
+/** "✦ Mastery 340 · +41% on every sale": the GateCard's Mastery line (points > 0 only; mult = core/ladder.ts masteryMult). */
+export function masteryLine(points: number, mult: number): string {
+  return `\u2726 Mastery ${points} · +${Math.round((mult - 1) * 100)}% on every sale`;
+}
+
+/** The era chip's short Mastery tag: "✦ 340 · +41%". */
+export function masteryTag(points: number, mult: number): string {
+  return `\u2726 ${points} · +${Math.round((mult - 1) * 100)}%`;
+}
