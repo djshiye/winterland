@@ -246,7 +246,11 @@ export class Level {
     this.sledCounter.appear(instant);
     const cash = LAYOUT.ridge.sledCash;
     this.sledCash = new CashPile(ctx, { id: 'pile:sledCash', x: cash.x, z: cash.z, grid: cash.grid, zone: cash.zone });
-    this.sleds = new SledQueue(ctx, { counter: this.sledCounter, cash: this.sledCash });
+    this.sleds = new SledQueue(ctx, {
+      counter: this.sledCounter,
+      cash: this.sledCash,
+      trainSweeping: () => this.trains?.sweeping ?? false,
+    });
   }
 
   /** Timber Ridge opens: gate + walkable land, rail platform + trains, bunkhouse pad. */
@@ -269,7 +273,12 @@ export class Level {
     this.platformCounter.appear(instant);
     const pc = LAYOUT.ridge.platformCash;
     this.platformCash = new CashPile(ctx, { id: 'pile:platformCash', x: pc.x, z: pc.z, grid: pc.grid, zone: pc.zone });
-    this.trains = new TrainQueue(ctx, { counter: this.platformCounter, cash: this.platformCash });
+    this.trains = new TrainQueue(ctx, {
+      counter: this.platformCounter,
+      cash: this.platformCash,
+      // Read lazily: the sled queue is built later (workshop pad).
+      sledOnCrossing: () => this.sleds?.onCrossing ?? false,
+    });
     this.quarters.offer();
   }
 
@@ -368,6 +377,7 @@ export class Level {
   /** What lies in the world, for the save (counts include items still flying toward each pile). */
   snapshotWorld(): WorldSnapshot {
     const arms = this.ctx.player.arms;
+    const flights = this.ctx.flights;
     // What the crew carries goes back where it came from (helpers respawn empty-handed at their posts).
     const crew = this.crew;
     return {
@@ -379,16 +389,18 @@ export class Level {
           (this.eastConveyor?.load ?? 0) +
           (this.truckLoader?.load ?? 0) +
           crew.carried('logHauler', 'log'),
-        walkIn: this.walkInCounter.pile.total,
-        hopper: this.processor?.input.total ?? 0,
+        // Planks on customers still queueing (unpaid) go back onto the counter.
+        walkIn: this.walkInCounter.pile.total + this.customers.loadedUnits,
+        // Logs inside the saw (processor / workshop) are neither in the hopper nor in the output yet.
+        hopper: (this.processor?.input.total ?? 0) + (this.processor?.inProcess ?? 0),
         bench: (this.processor?.output.total ?? 0) + crew.carried('crateRunner', 'crate'),
-        se: this.seCounter?.pile.total ?? 0,
-        truck: this.truckCounter?.pile.total ?? 0,
+        se: (this.seCounter?.pile.total ?? 0) + (this.tricycles?.loadedUnits ?? 0),
+        truck: (this.truckCounter?.pile.total ?? 0) + (this.trucks?.loadedUnits ?? 0),
         // Pine hauler's load goes back to the deck.
-        deck: (this.treeFeller?.deck.total ?? 0) + crew.carried('pineHauler', 'log'),
+        deck: (this.treeFeller?.deck.total ?? 0) + (this.treeFeller?.pendingLogs ?? 0) + crew.carried('pineHauler', 'log'),
         // Logs on a loading train go back onto the platform counter.
         platform: (this.platformCounter?.pile.total ?? 0) + (this.trains?.loadedLogs ?? 0),
-        workshopIn: this.workshop?.input.total ?? 0,
+        workshopIn: (this.workshop?.input.total ?? 0) + (this.workshop?.inProcess ?? 0),
         // Furniture on a loading sled goes back onto the sled counter.
         workshopOut: this.workshop?.output.total ?? 0,
         sled: (this.sledCounter?.pile.total ?? 0) + (this.sleds?.loadedPieces ?? 0),
@@ -400,31 +412,45 @@ export class Level {
         platform: this.platformCash?.value ?? 0,
         sled: this.sledCash?.value ?? 0,
       },
-      arms: { log: arms.count('log'), crate: arms.count('crate'), furniture: arms.count('furniture') },
+      // Items flying onto the player's arms have left their pile already.
+      arms: {
+        log: arms.count('log') + flights.inFlightTo(arms, 'log'),
+        crate: arms.count('crate') + flights.inFlightTo(arms, 'crate'),
+        furniture: arms.count('furniture') + flights.inFlightTo(arms, 'furniture'),
+      },
     };
   }
 
-  /** Refill the piles, cash piles and the player's arms from a save (after every station was built from state). */
+  /**
+   * Refill the piles, cash piles and the player's arms from a save (after every station was built from state).
+   * Never throws: a pile holds at most its capacity. Surplus LOGS (a drop zone of 84 plus belt loads, a hopper
+   * saved fuller than today's grid, planks that no longer fit the counter) spill into the drop zone, which is filled
+   * last; whatever still does not fit there (and surplus crates / furniture) is accepted as lost.
+   */
   restoreWorld(w: WorldSnapshot): void {
-    fillPile(this.dropZone.pile, 'log', w.piles.dropZone);
-    fillPile(this.walkInCounter.pile, this.walkInCounter.displayKind, w.piles.walkIn);
+    let spill = 0; // logs that did not fit their own pile
+    const fill = (pile: Pile, kind: ItemKind, n: number, spills = kind === 'log' || kind === 'plank'): void => {
+      const lost = fillPile(pile, kind, n);
+      if (spills) spill += lost;
+    };
+    fill(this.walkInCounter.pile, this.walkInCounter.displayKind, w.piles.walkIn);
     if (this.processor) {
-      fillPile(this.processor.input, 'log', w.piles.hopper);
-      fillPile(this.processor.output, 'crate', w.piles.bench);
+      fill(this.processor.input, 'log', w.piles.hopper);
+      fill(this.processor.output, 'crate', w.piles.bench);
     }
-    if (this.seCounter) fillPile(this.seCounter.pile, 'crate', w.piles.se);
-    if (this.truckCounter) fillPile(this.truckCounter.pile, 'log', w.piles.truck);
-    if (this.treeFeller) fillPile(this.treeFeller.deck, 'log', w.piles.deck);
-    if (this.platformCounter) fillPile(this.platformCounter.pile, 'log', w.piles.platform);
+    if (this.seCounter) fill(this.seCounter.pile, 'crate', w.piles.se);
+    if (this.truckCounter) fill(this.truckCounter.pile, 'log', w.piles.truck);
+    if (this.treeFeller) fill(this.treeFeller.deck, 'log', w.piles.deck);
+    if (this.platformCounter) fill(this.platformCounter.pile, 'log', w.piles.platform);
     if (w.cash.walkIn > 0) this.walkInCash.restoreValue(w.cash.walkIn);
     if (w.cash.se > 0) this.seCash?.restoreValue(w.cash.se);
     if (w.cash.truck > 0) this.truckCash?.restoreValue(w.cash.truck);
     if (w.cash.platform > 0) this.platformCash?.restoreValue(w.cash.platform);
     if (this.workshop) {
-      fillPile(this.workshop.input, 'log', w.piles.workshopIn);
-      fillPile(this.workshop.output, 'furniture', w.piles.workshopOut);
+      fill(this.workshop.input, 'log', w.piles.workshopIn);
+      fill(this.workshop.output, 'furniture', w.piles.workshopOut);
     }
-    if (this.sledCounter) fillPile(this.sledCounter.pile, 'furniture', w.piles.sled);
+    if (this.sledCounter) fill(this.sledCounter.pile, 'furniture', w.piles.sled);
     if (w.cash.sled > 0) this.sledCash?.restoreValue(w.cash.sled);
     const arms = this.ctx.player.arms;
     const add = (kind: ItemKind, n: number) => {
@@ -432,6 +458,7 @@ export class Level {
         const item = this.ctx.items.create(kind);
         if (!arms.addImmediate(item)) {
           this.ctx.items.release(item);
+          if (kind === 'log') spill += n - i;
           return;
         }
       }
@@ -439,6 +466,8 @@ export class Level {
     add('log', w.arms.log);
     add('crate', w.arms.crate);
     add('furniture', w.arms.furniture);
+    // Last: the drop zone takes its own logs first, then the spill, up to its capacity.
+    fillPile(this.dropZone.pile, 'log', w.piles.dropZone + spill);
   }
 
   forceUnlock(id: PadId): void {
@@ -476,8 +505,13 @@ export class Level {
   }
 }
 
-function fillPile(pile: Pile, kind: ItemKind, n: number): void {
-  pile.fill(kind, Math.max(0, Math.min(n, pile.capacity - pile.total)));
+/** Put up to `n` items into the pile (clamped to its free room). Returns how many did NOT fit. */
+function fillPile(pile: Pile, kind: ItemKind, n: number): number {
+  const want = Math.max(0, Math.floor(n));
+  const room = Math.max(0, pile.capacity - pile.total);
+  const put = Math.min(want, room);
+  pile.fill(kind, put);
+  return want - put;
 }
 
 /** Midpoint between a path's first and last points. */

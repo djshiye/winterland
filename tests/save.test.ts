@@ -5,9 +5,9 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { OFFLINE, PRESTIGE, SAVE } from '../src/config';
+import { DAYNIGHT, OFFLINE, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE } from '../src/config';
 import { salePrice } from '../src/core/demand';
-import { mergeState, newSeasonSave, offlineEarnings, sanitizeWorld, type SaveData } from '../src/core/Save';
+import { mergeState, newSeasonSave, offlineEarnings, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
 import { createGameState } from '../src/core/types';
 
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
@@ -126,5 +126,75 @@ describe('new season (prestige)', () => {
     const base = salePrice(s, 'plank', 5, 20);
     s.prestige.season = 2;
     expect(salePrice(s, 'plank', 5, 20)).toBe(Math.round((base * (1 + 2 * PRESTIGE.bonusPerSeason)) / 5) * 5);
+  });
+});
+
+describe('sanitizeState', () => {
+  const merged = (saved: unknown) => {
+    const state = createGameState();
+    mergeState(state, saved);
+    sanitizeState(state);
+    return state;
+  };
+
+  it.each(FIXTURES)('leaves %s untouched', (name) => {
+    const state = createGameState();
+    mergeState(state, load(name).state);
+    const before = structuredClone(state);
+    sanitizeState(state);
+    expect(state).toEqual(before);
+  });
+
+  it('leaves a fresh state untouched', () => {
+    const state = createGameState();
+    const before = structuredClone(state);
+    sanitizeState(state);
+    expect(state).toEqual(before);
+  });
+
+  it('clamps out-of-range tiers, levels and upgrade levels', () => {
+    const state = merged({
+      village: { level: 99, plots: [{ tier: 99, logs: 5, cash: 5 }, { tier: -7 }, { tier: 1.9 }], greatLodge: { tier: 99 } },
+      quarters: { tier: 42 },
+      upgrades: { carry: 99, speed: -3, axe: 2.7 },
+    });
+    expect(state.village.plots[0]!.tier).toBe(VILLAGE.tiers.length - 1);
+    expect(state.village.plots[1]!.tier).toBe(-1);
+    expect(state.village.plots[2]!.tier).toBe(1);
+    expect(state.village.greatLodge.tier).toBe(0);
+    expect(state.village.level).toBe(VILLAGE.levels.length - 1);
+    expect(state.quarters.tier).toBe(QUARTERS.tiers.length - 1);
+    expect(state.upgrades.carry).toBe(UPGRADES.carry.values.length - 1);
+    expect(state.upgrades.speed).toBe(0);
+    expect(state.upgrades.axe).toBe(2);
+    // a maxed plot has nothing left to pay
+    expect(state.village.plots[0]!.logs).toBe(0);
+    expect(state.village.plots[0]!.cash).toBe(0);
+  });
+
+  it('clamps paid progress to the next tier cost', () => {
+    const state = merged({ village: { plots: [{ tier: -1, logs: 9999, cash: -5 }] }, quarters: { tier: 0, logs: 1e9, cash: 1e9 } });
+    expect(state.village.plots[0]!.logs).toBe(VILLAGE.tiers[0]!.logs);
+    expect(state.village.plots[0]!.cash).toBe(0);
+    expect(state.quarters.logs).toBe(QUARTERS.tiers[1]!.logs);
+    expect(state.quarters.cash).toBe(QUARTERS.tiers[1]!.cash);
+  });
+
+  it('fixes the season, the clock, the phase and negative counters', () => {
+    const state = merged({
+      prestige: { season: -4 },
+      clock: 1e9,
+      phase: 'banana',
+      playTime: -1,
+      stats: { moneyEarned: -50 },
+      padPaid: { 'pad:harvester': -10 },
+    });
+    expect(state.prestige.season).toBe(0);
+    expect(state.clock).toBeGreaterThanOrEqual(0);
+    expect(state.clock).toBeLessThan(DAYNIGHT.cycleSeconds);
+    expect(state.phase).toBe('intro');
+    expect(state.playTime).toBe(0);
+    expect(state.stats.moneyEarned).toBe(0);
+    expect(state.padPaid['pad:harvester']).toBe(0);
   });
 });

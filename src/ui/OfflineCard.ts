@@ -1,7 +1,8 @@
 /**
- * [B4] Welcome-back card: "While you were away (1 h 20 min) your mill earned $X" with a big Collect button. Calls
- * onCollect() exactly once; the main session adds the money and emits 'offline:collected' there (the cash burst is
- * the JuiceDirector's reaction to that event).
+ * [B4] Welcome-back card: "While you were away (1 h 20 min) your mill earned $X" with a big button. The money is
+ * ALREADY credited (and saved) by Game when the card is shown, so the card is informational: the button just closes
+ * it and calls onCollect() exactly once (Game emits 'offline:collected' there; the cash burst is the JuiceDirector's
+ * reaction to that event).
  */
 import type { GameContext } from '../core/types';
 import { backOut, h, onTap, shield, Slide } from './dom';
@@ -35,7 +36,7 @@ export class OfflineCard {
     this.card.appendChild(h('div', 'wl-offline-label', 'your mill earned'));
     this.amountEl = h('div', 'wl-offline-amount');
     this.card.appendChild(this.amountEl);
-    const btn = h('button', 'wl-btn wl-btn-big wl-btn-green', 'Collect');
+    const btn = h('button', 'wl-btn wl-btn-big wl-btn-green', 'Great!');
     btn.type = 'button';
     onTap(btn, () => this.collect());
     this.card.appendChild(btn);
@@ -44,7 +45,7 @@ export class OfflineCard {
   }
 
   show(amount: number, seconds: number, onCollect: () => void): void {
-    // a second card while one is waiting: collect the old one first so no money is lost
+    // a second card while one is waiting: close the old one first (its callback fires exactly once)
     if (this.onCollect) this.collect();
     this.onCollect = onCollect;
     this.wantAmount = Math.max(0, Math.round(amount));

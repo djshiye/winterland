@@ -81,15 +81,20 @@ export class Crew {
    */
   carried(role: CrewRole, kind: ItemKind): number {
     let n = 0;
-    for (const h of this.helpers.get(role) ?? []) n += h.stack.count(kind);
-    for (const h of this.leaving) if (h.id === role) n += h.stack.count(kind);
+    const flights = this.ctx.flights;
+    // Items still flying onto a helper's stack have left their pile but are not on the stack yet.
+    for (const h of this.helpers.get(role) ?? []) n += h.stack.count(kind) + flights.inFlightTo(h.stack, kind);
+    for (const h of this.leaving) if (h.id === role) n += h.stack.count(kind) + flights.inFlightTo(h.stack, kind);
     return n;
   }
 
   carriedValue(role: CrewRole): number {
     let v = 0;
-    for (const h of this.helpers.get(role) ?? []) v += h.stack.totalValue();
-    for (const h of this.leaving) if (h.id === role) v += h.stack.totalValue();
+    const flights = this.ctx.flights;
+    // Cash flying pile -> cashier stack and cashier stack -> cabin door (deposit sink) is in neither holder yet.
+    for (const h of this.helpers.get(role) ?? []) v += h.stack.totalValue() + flights.valueInFlightTo(h.stack);
+    for (const h of this.leaving) if (h.id === role) v += h.stack.totalValue() + flights.valueInFlightTo(h.stack);
+    if (role === 'cashier') v += flights.valueInFlightTo(this.sink);
     return v;
   }
 

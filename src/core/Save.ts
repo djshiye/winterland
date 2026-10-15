@@ -9,7 +9,7 @@
  * Storage can be missing, full or blocked (private windows, embedded pages): every access is wrapped and the game
  * simply runs without saving. `?fresh` in the URL ignores (but does not delete) the save.
  */
-import { ECONOMY, OFFLINE, PRESTIGE, SAVE } from '../config';
+import { DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE } from '../config';
 import { createGameState, type FlagId, type GameContext, type GameState } from './types';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
@@ -139,6 +139,46 @@ function mergeInto(target: Record<string, unknown>, saved: unknown): void {
       target[key] = s;
     }
   }
+}
+
+const PHASES: readonly string[] = ['intro', 'manual', 'harvester', 'processor', 'automation', 'expansion'];
+
+/**
+ * Make a merged state safe to build from. mergeState only checks types, so a hand-edited / corrupted save can hold
+ * out-of-range indices (a plot tier of 99, an upgrade level of 99) that crash the constructors and brick the game on
+ * every reload. Clamps every index-like and counter field into its valid range; a state that is already valid is
+ * left untouched (both save fixtures round-trip unchanged, see tests/save.test.ts).
+ */
+export function sanitizeState(state: GameState): void {
+  const int = (v: unknown, lo: number, hi: number): number => (isNum(v) ? Math.max(lo, Math.min(hi, Math.floor(v))) : lo);
+  const nonNeg = (v: unknown): number => (isNum(v) ? Math.max(0, v) : 0);
+
+  if (!PHASES.includes(state.phase)) state.phase = state.flags.introDone ? 'manual' : 'intro';
+
+  for (const def of Object.values(UPGRADES)) {
+    state.upgrades[def.id] = int(state.upgrades[def.id], 0, def.values.length - 1);
+  }
+
+  // A construction site: tier in [-1, lastTier]; paid progress toward the NEXT tier never above its cost.
+  const site = (p: { tier: number; logs: number; cash: number }, lastTier: number, next: ((tier: number) => { logs: number; cash: number } | undefined)): void => {
+    p.tier = int(p.tier, -1, lastTier);
+    // int() floors at its lower bound for non-numbers, which for tier means -1: right ("not built").
+    const cost = next(p.tier);
+    p.logs = cost ? int(p.logs, 0, cost.logs) : 0;
+    p.cash = cost ? int(p.cash, 0, cost.cash) : 0;
+  };
+  const v = state.village;
+  for (const p of v.plots) site(p, VILLAGE.tiers.length - 1, (t) => VILLAGE.tiers[t + 1]);
+  site(v.greatLodge, 0, (t) => (t < 0 ? VILLAGE.greatLodge : undefined));
+  site(state.quarters, QUARTERS.tiers.length - 1, (t) => QUARTERS.tiers[t + 1]);
+  v.level = int(v.level, 0, VILLAGE.levels.length - 1);
+  v.population = int(v.population, 0, Number.MAX_SAFE_INTEGER);
+
+  state.prestige.season = int(state.prestige.season, 0, 1_000_000);
+  state.clock = isNum(state.clock) ? ((state.clock % DAYNIGHT.cycleSeconds) + DAYNIGHT.cycleSeconds) % DAYNIGHT.cycleSeconds : 0;
+  state.playTime = nonNeg(state.playTime);
+  for (const k of Object.keys(state.stats) as (keyof typeof state.stats)[]) state.stats[k] = nonNeg(state.stats[k]);
+  for (const k of Object.keys(state.padPaid)) state.padPaid[k] = nonNeg(state.padPaid[k]);
 }
 
 /** Dollars earned while away, or 0 when the absence is too short / the amount too small. */

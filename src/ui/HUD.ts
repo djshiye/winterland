@@ -338,8 +338,8 @@ export class HUD {
   }
 
   /**
-   * Welcome-back card: "While you were away (1 h 20 min) your mill earned $amount" with a Collect button; calls
-   * onCollect() exactly once when pressed (the caller adds the money and emits 'offline:collected').
+   * Welcome-back card: "While you were away (1 h 20 min) your mill earned $amount" (the money was already
+   * credited at load); calls onCollect() exactly once when its button closes it (the caller emits 'offline:collected').
    */
   showOfflineEarnings(amount: number, seconds: number, onCollect: () => void): void {
     this.offline.show(amount, seconds, onCollect);

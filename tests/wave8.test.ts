@@ -76,4 +76,17 @@ describe('RushHours', () => {
     expect(rush.active).toBe(false);
     expect(seen).toEqual(['start', 'end']);
   });
+
+  it('ignores a non-positive length instead of re-firing rush:start every frame', () => {
+    const state = createGameState();
+    const events = new EventBus<GameEvents>();
+    let starts = 0;
+    events.on('rush:start', () => starts++);
+    const rush = new RushHours(state, events);
+    rush.start(0);
+    rush.start(-3);
+    for (let i = 0; i < 10; i++) rush.update(1 / 60);
+    expect(starts).toBe(0);
+    expect(rush.active).toBe(false);
+  });
 });
