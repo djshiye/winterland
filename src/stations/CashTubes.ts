@@ -58,6 +58,14 @@ export const ROUTES: Record<string, RouteDef> = {
     via: [{ x: 30.4, z: 8.8 }, { x: LANE, z: 8.8 }, { x: LANE, z: RUN_Z }],
     posts: [{ x: 30.4, z: 4.8 }, { x: 30.4, z: 8.8 }, { x: 22.2, z: 8.8 }, { x: 14.3, z: 8.8 }, { x: 9.8, z: 8.8 }],
   },
+  // Wave 8: the sled cash pile (21.6, 6.0). The tube climbs to its own height, runs WEST along z = 6.0 (north of the sled
+  // lane z 8.0 and the sled counter, south of the quarters pad) and joins the shared lane at x = 2.4. Posts: one just off
+  // the pile's zone, one beyond the ridge crossing, then the seCash post and the shared-lane posts.
+  'pile:sledCash': {
+    height: 4.5,
+    via: [{ x: LANE, z: 6.0 }, { x: LANE, z: RUN_Z }],
+    posts: [{ x: 20.4, z: 6.0 }, { x: 14.3, z: 6.0 }, { x: 8.0, z: 6.0 }, { x: LANE, z: 6.0 }, { x: LANE, z: 3.0 }, { x: LANE, z: -1.9 }],
+  },
   'pile:truckCash': {
     height: 4.2,
     via: [{ x: 4.6, z: -18.6 }, { x: 4.6, z: RUN_Z }],
