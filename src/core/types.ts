@@ -6,6 +6,9 @@ import type { PadIdConst, UpgradeIdConst } from '../config';
 import type { EventBus } from './EventBus';
 import type { TweenManager } from './Tween';
 import type { Economy } from './Economy';
+import type { DayNight } from './DayNight';
+import type { RushHours } from './Rush';
+import type { Quests } from './quests';
 import type { Renderer } from '../render/Renderer';
 import type { CameraRig } from '../render/CameraRig';
 import type { Input } from '../input/Input';
@@ -180,6 +183,10 @@ export interface GameState {
   quarters: PlotState;
   /** New Season prestige: survives a season reset (core/Save.ts newSeason). season 0 = the first run. */
   prestige: { season: number };
+  /** Wave 8: seconds into the day/night cycle (core/DayNight.ts). */
+  clock: number;
+  /** Wave 8: quests completed (core/quests.ts ids → true). Rewards are paid on completion. */
+  quests: Partial<Record<string, boolean>>;
 }
 
 /** Must match LAYOUT.village.plots.length (kept literal so this file only imports types from config). */
@@ -245,6 +252,8 @@ export function createGameState(): GameState {
     playTime: 0,
     quarters: { tier: -1, logs: 0, cash: 0 },
     prestige: { season: 0 },
+    clock: 24, // DAYNIGHT.startAt × cycleSeconds (literal: this file imports only types from config)
+    quests: {},
   };
 }
 
@@ -271,7 +280,8 @@ export interface GameEvents {
   /** A crate came out of the processor. */
   'crate:made': { position: THREE.Vector3 };
   /** An NPC finished buying and paid. */
-  sale: { buyer: Buyer; kind: ItemKind; count: number; amount: number; position: THREE.Vector3 };
+  /** `tip` (wave 8): extra dollars a VIP paid on top of `amount` (already in the cash pile). */
+  sale: { buyer: Buyer; kind: ItemKind; count: number; amount: number; position: THREE.Vector3; vip?: boolean; tip?: number };
   'pad:shown': { id: PadId; position: THREE.Vector3 };
   'pad:paid': { id: PadId; remaining: number; cost: number; position: THREE.Vector3 };
   'pad:unlocked': { id: PadId; position: THREE.Vector3 };
@@ -318,6 +328,14 @@ export interface GameEvents {
   'quarters:built': { tier: number; position: THREE.Vector3 };
   /** New Season confirmed (finale card / settings). Game writes the next season's fresh save and reloads. */
   'season:new': Record<string, never>;
+  /** Wave 8: a quest's goal was met; its reward is already added to the money. */
+  'quest:done': { id: string; title: string; reward: number };
+  /** Wave 8: rush hour (core/Rush.ts) began / ended. */
+  'rush:start': { seconds: number };
+  'rush:end': Record<string, never>;
+  /** Wave 8: darkness crossed 0.5 (core/DayNight.ts). Not emitted while day/night is off. */
+  'night:start': Record<string, never>;
+  'day:start': Record<string, never>;
 }
 
 // ---------------------------------------------------------------------------
@@ -355,6 +373,12 @@ export interface GameContext {
   readonly zones: ZoneSystem;
   readonly environment: Environment;
   readonly player: Player;
+  /** Wave 8: day/night clock (visual only). */
+  readonly dayNight: DayNight;
+  /** Wave 8: rush hours (customers / tricycles arrive faster). */
+  readonly rush: RushHours;
+  /** Wave 8: quests (short goals with cash rewards). */
+  readonly quests: Quests;
   /** Simulation clock (seconds since start, advanced by fixed/variable steps). */
   readonly time: { elapsed: number; frame: number };
   /** Register something to be updated every step (after zones, before flights). */

@@ -7,7 +7,7 @@
  *   → camera → shadow focus → HUD (projects world anchors) → render
  */
 import * as THREE from 'three';
-import { CREW, DEMAND, ECONOMY, LAYOUT, PADS, PLAYER, PRESTIGE, QUARTERS, RIDGE, SAVE, TIMING, UPGRADES, VILLAGE } from '../config';
+import { CREW, DAYNIGHT, DEMAND, ECONOMY, LAYOUT, PADS, PLAYER, PRESTIGE, QUARTERS, RIDGE, SAVE, TIMING, UPGRADES, VILLAGE } from '../config';
 import { EventBus } from '../core/EventBus';
 import { Economy } from '../core/Economy';
 import {
@@ -23,6 +23,9 @@ import {
 } from '../core/Save';
 import { TweenManager } from '../core/Tween';
 import { Upgrades } from '../core/Upgrades';
+import { DayNight } from '../core/DayNight';
+import { RushHours } from '../core/Rush';
+import { Quests } from '../core/quests';
 import {
   createGameState,
   type GameContext,
@@ -97,6 +100,10 @@ export interface DebugApi {
   buildQuarters(tier: number): void;
   /** Start the next season (prestige) now: writes the new-season save and reloads. */
   newSeason(): void;
+  /** Start a rush hour now (tests). */
+  startRush(seconds?: number): void;
+  /** Jump the day/night clock to cycle share `p` (0..1; 0.75 = deep night). */
+  setTimeOfDay(p: number): void;
   /** Write the save now; returns what was written (null when saving is off: `?fresh`, reset, no storage). */
   save(): SaveData | null;
   /** The save that would be written now (not written). */
@@ -156,6 +163,9 @@ export class Game {
       colliders,
       input,
       cameraRig,
+      dayNight: new DayNight(state, events),
+      rush: new RushHours(state, events),
+      quests: new Quests(state, economy, events),
       time: { elapsed: 0, frame: 0 },
       addUpdatable: (u: Updatable) => {
         this.pendingRemovals.delete(u);
@@ -269,6 +279,9 @@ export class Game {
     c.player.update(dt);
     c.zones.update(dt);
     this.level.update(dt);
+    c.dayNight.update(dt);
+    c.rush.update(dt);
+    c.quests.update(dt);
     this.flushRemovals();
     for (let i = 0; i < this.updatables.length; i++) {
       const u = this.updatables[i]!;
@@ -372,6 +385,10 @@ export class Game {
       buildPlot: (plot: number, tier: number) => this.level.village.debugBuild(plot, tier),
       buildQuarters: (tier: number) => this.level.quarters.debugBuild(tier),
       newSeason: () => ctx.events.emit('season:new', {}),
+      startRush: (seconds?: number) => ctx.rush.start(seconds),
+      setTimeOfDay: (p: number) => {
+        ctx.state.clock = Math.max(0, Math.min(1, p)) * DAYNIGHT.cycleSeconds;
+      },
       save: () => this.save(),
       saveData: () => this.saveData(),
       clearSave: () => clearSave(),
