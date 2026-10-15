@@ -1005,17 +1005,52 @@ export interface DemandLevel {
   trainWant: readonly [number, number];
   /** Every sale's amount is multiplied by this, then rounded to a multiple of cashBundleValue. */
   priceMult: number;
+  /** Wave 8: share of walk-in customers who are VIPs (tip VIP.tipMult × the sale on top). */
+  vipChance: number;
 }
 
 export const DEMAND: readonly DemandLevel[] = [
   // Camp: the original phase 1–5 tuning.
-  { customerGap: [1.0, 1.5], customerQueue: 5, customerWant: [2, 4], trikeGap: [2.5, 4], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], trainGap: [9, 13], trainWant: [16, 24], priceMult: 1 },
-  { customerGap: [0.9, 1.35], customerQueue: 6, customerWant: [2, 5], trikeGap: [2.3, 3.6], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], trainGap: [9, 13], trainWant: [16, 24], priceMult: 1.2 },
-  { customerGap: [0.8, 1.2], customerQueue: 6, customerWant: [3, 6], trikeGap: [2.1, 3.3], trikeWant: [4, 7], truckGap: [2.8, 4.5], truckWant: [9, 13], trainGap: [8, 12], trainWant: [18, 26], priceMult: 1.45 },
-  { customerGap: [0.7, 1.05], customerQueue: 7, customerWant: [3, 7], trikeGap: [1.9, 3.0], trikeWant: [4, 8], truckGap: [2.6, 4.2], truckWant: [10, 15], trainGap: [7.5, 11], trainWant: [20, 28], priceMult: 1.75 },
-  { customerGap: [0.6, 0.9], customerQueue: 7, customerWant: [4, 8], trikeGap: [1.7, 2.7], trikeWant: [5, 8], truckGap: [2.4, 3.8], truckWant: [11, 17], trainGap: [7, 10], trainWant: [22, 30], priceMult: 2.1 },
-  { customerGap: [0.55, 0.8], customerQueue: 7, customerWant: [4, 9], trikeGap: [1.6, 2.5], trikeWant: [5, 8], truckGap: [2.2, 3.5], truckWant: [12, 18], trainGap: [6.5, 9], trainWant: [24, 32], priceMult: 2.5 },
+  { customerGap: [1.0, 1.5], customerQueue: 5, customerWant: [2, 4], trikeGap: [2.5, 4], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], trainGap: [9, 13], trainWant: [16, 24], priceMult: 1, vipChance: 0 },
+  { customerGap: [0.9, 1.35], customerQueue: 6, customerWant: [2, 5], trikeGap: [2.3, 3.6], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], trainGap: [9, 13], trainWant: [16, 24], priceMult: 1.2, vipChance: 0.06 },
+  { customerGap: [0.8, 1.2], customerQueue: 6, customerWant: [3, 6], trikeGap: [2.1, 3.3], trikeWant: [4, 7], truckGap: [2.8, 4.5], truckWant: [9, 13], trainGap: [8, 12], trainWant: [18, 26], priceMult: 1.45, vipChance: 0.08 },
+  { customerGap: [0.7, 1.05], customerQueue: 7, customerWant: [3, 7], trikeGap: [1.9, 3.0], trikeWant: [4, 8], truckGap: [2.6, 4.2], truckWant: [10, 15], trainGap: [7.5, 11], trainWant: [20, 28], priceMult: 1.75, vipChance: 0.1 },
+  { customerGap: [0.6, 0.9], customerQueue: 7, customerWant: [4, 8], trikeGap: [1.7, 2.7], trikeWant: [5, 8], truckGap: [2.4, 3.8], truckWant: [11, 17], trainGap: [7, 10], trainWant: [22, 30], priceMult: 2.1, vipChance: 0.12 },
+  { customerGap: [0.55, 0.8], customerQueue: 7, customerWant: [4, 9], trikeGap: [1.6, 2.5], trikeWant: [5, 8], truckGap: [2.2, 3.5], truckWant: [12, 18], trainGap: [6.5, 9], trainWant: [24, 32], priceMult: 2.5, vipChance: 0.14 },
 ];
+
+/** Wave 8: VIP walk-in customers (gold scarf, crown bubble); chance per DEMAND row. */
+export const VIP = {
+  /** The tip is this share of the sale, paid on top (rounded to whole bundles). */
+  tipMult: 1.0,
+} as const;
+
+/**
+ * Wave 8: rush hours (core/Rush.ts). Once the village reaches `minVillageLevel`, every `every` seconds a rush of
+ * `seconds` starts: walk-in customers and tricycles arrive `spawnMult`× as often. Transient (not saved).
+ */
+export const RUSH = {
+  minVillageLevel: 1,
+  every: [150, 240] as readonly [number, number],
+  seconds: 35,
+  spawnMult: 2.2,
+} as const;
+
+/**
+ * Wave 8: day / night (core/DayNight.ts). One full day lasts `cycleSeconds`; the clock is saved (state.clock).
+ * darkness(t) is 0 by day and rises to 1 at midnight over `duskShare` of the cycle on each side.
+ * Purely visual + a Settings toggle (localStorage, outside the save).
+ */
+export const DAYNIGHT = {
+  cycleSeconds: 480,
+  /** Cycle share (0..1) of: start of dusk, full night, start of dawn, full day (wraps). */
+  duskStart: 0.55,
+  nightFull: 0.65,
+  dawnStart: 0.88,
+  dayFull: 0.98,
+  /** A fresh game starts in the morning. */
+  startAt: 0.05,
+} as const;
 
 // ---------------------------------------------------------------------------
 // Save / offline earnings (core/Save.ts)
