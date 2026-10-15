@@ -194,7 +194,7 @@ export class ShopPanel {
 
   private refresh(): void {
     const up = this.ctx.upgrades;
-    let tabHint: Record<string, boolean> = { lumberjack: false, crew: false, sales: false };
+    const tabHint: Record<string, boolean> = { lumberjack: false, crew: false, sales: false };
     for (const c of this.cards) {
       const id = c.id;
       const lvl = up.level(id);
@@ -202,7 +202,7 @@ export class ShopPanel {
       const req = isMax ? null : up.requirement(id);
       const can = up.canBuy(id);
       const cost = up.nextCost(id);
-      if (can) tabHint = { ...tabHint, [c.group]: true };
+      if (can) tabHint[c.group] = true;
 
       if (c.shown.pips !== lvl) {
         c.shown.pips = lvl;

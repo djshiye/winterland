@@ -200,6 +200,8 @@ export class SettingsPanel {
 
   close(): void {
     this.slide.open = false;
+    // closed before the first update() ran: nothing to animate, hide now (update() early-returns at k === 0)
+    if (this.slide.k === 0) this.backdrop.style.display = 'none';
   }
 
   /** For tests: show the confirmation view. */
