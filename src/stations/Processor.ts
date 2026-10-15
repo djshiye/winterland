@@ -104,6 +104,7 @@ export class Processor {
       from: this.output,
       to: ctx.player.arms,
       kinds: ['crate'],
+      kind: 'take',
       interval: TIMING.pickupInterval,
       marker: true,
     });

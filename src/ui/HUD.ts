@@ -19,6 +19,7 @@
  * - ShopPanel (opens on 'shop:open'), VillageBadge, SeasonBadge ("Season N · +X% prices" chip after a New Season), OfflineCard (showOfflineEarnings), FinaleCard ('finale:start').
  * - Wave 8: QuestPanel (3 active quests, collapsible), RushBanner (countdown), MoveHand (first-run drag hint),
  *   coinBurst() (gold coins flying into the money pill), AutoQuality (one-way drop to Low graphics on a slow device).
+ * - Wave 10b: InteractChip ("Hold to pick up / pay" above the player, from 'interact:prompt').
  * - toast() queues briefly: a toast arriving < 1 s after another waits its turn (max 2 waiting, dropped after 3 s).
  */
 import * as THREE from 'three';
@@ -30,6 +31,7 @@ import { AutoQuality } from './AutoQuality';
 import { BuildPanel } from './BuildPanel';
 import { CoinBurst } from './CoinBurst';
 import { FinaleCard } from './FinaleCard';
+import { InteractChip } from './InteractChip';
 import { MoveHand } from './MoveHand';
 import { OfflineCard } from './OfflineCard';
 import { PerfOverlay } from './PerfOverlay';
@@ -119,6 +121,8 @@ export class HUD {
   private readonly moveHand: MoveHand;
   private readonly coins: CoinBurst;
   private readonly autoQuality: AutoQuality;
+  /** Wave 10b: "Hold to pick up / pay" chip above the player. */
+  private readonly chip: InteractChip;
 
   // --- money ---
   private moneyTarget = 0;
@@ -248,6 +252,8 @@ export class HUD {
     this.offline = new OfflineCard(ctx, layer);
     this.finale = new FinaleCard(ctx, layer);
 
+    this.chip = new InteractChip(ctx, layer, () => this.anyModalOpen);
+
     // 3D guide arrow (origin = centre of the arrow; points down)
     this.arrow = HUD.buildArrow();
     this.arrow.visible = false;
@@ -265,6 +271,11 @@ export class HUD {
       this.toastQueue.length = 0;
       this.finale.schedule();
     });
+  }
+
+  /** True while settings, the shop or the build menu is open. */
+  get anyModalOpen(): boolean {
+    return this.settings.isOpen || this.shop.visible || this.build.visible;
   }
 
   /** What the mute button does (also the M key). */
@@ -449,6 +460,7 @@ export class HUD {
     this.era.update(dt);
     this.moveHand.update(dt);
     this.coins.update(dt);
+    this.chip.update(dt);
     this.autoQuality.update();
     this.perf.update();
     // on phones the shop is a bottom sheet over the FPS readout

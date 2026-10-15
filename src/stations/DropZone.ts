@@ -44,6 +44,7 @@ export class DropZone {
       from: this.pile,
       to: ctx.player.arms,
       kinds: ['log'],
+      kind: 'take',
       interval: TIMING.pickupInterval,
       marker: true,
     });

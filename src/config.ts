@@ -683,9 +683,12 @@ export const LAYOUT = {
       { x: 1.1, z: 24.2, side: -1 },
       { x: 8.1, z: 24.2, side: 1 },
     ] as { x: number; z: number; side: -1 | 1 }[],
-    /** Each plot's construction pad sits in the street: plot centre + (−side × padOffset) along X. */
-    padOffset: 2.2,
-    padSize: 1.4,
+    /**
+     * Each plot's construction pad sits in the street: plot centre + (−side × padOffset) along X. Wave 10b: the tiles
+     * hug the plots (x 2.6–3.9 and 5.3–6.6) so the middle of the street is a 1.4 m lane that pays for nothing.
+     */
+    padOffset: 2.15,
+    padSize: 1.3,
     /** The Great Lodge (finale building) at the end of the street, its pad in front of it. */
     greatLodge: { x: 4.6, z: 29.6, w: 6.0, d: 3.6, pad: { x: 4.6, z: 26.3 } as XZ, padSize: 1.8 },
   },

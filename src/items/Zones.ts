@@ -8,6 +8,12 @@
  *   item down to TIMING.minInterval (satisfying acceleration). Uses transferOne(). If items are
  *   available but `to` refuses because it is full, emit 'stack:full' (throttled ~0.6 s per zone).
  *   Leaving resets the interval.
+ * - Hold to interact (Wave 10b, core/interact.ts): `kind` 'take' (pickups) or 'pay' (payments) zones are GATED when
+ *   `ctx.input.interactHeld` is false: nothing transfers and no timer / interval advances (so nothing accumulates
+ *   and bursts when E is pressed); instead, while there is something transferable, 'interact:prompt' {on:true, kind}
+ *   fires once, and {on:false, kind} when the player leaves, holds or the zone empties. Once held, the first item
+ *   moves immediately as usual. Releasing re-arms the zone (interval and delay restart). 'give' (default; drop-offs,
+ *   cash collection) is never gated. `interactHeld` is always true when the setting is off.
  * - Optional ground marker: rounded-rectangle outline (white, ~0.06 thick, slightly inset, y≈0.02,
  *   unlit, transparent ~0.35) that brightens/pulses while the player is inside. Hidden when disabled.
  *
@@ -51,6 +57,11 @@ export interface TransferZoneOptions {
    * dollars (transferCash). Return ≤ 0 to skip. `kinds` is ignored.
    */
   cashAmount?: () => number;
+  /**
+   * Hold-to-interact class: 'take' (pickups) and 'pay' (payments) only transfer while `ctx.input.interactHeld`;
+   * 'give' (default: drop-offs, cash collection) is automatic.
+   */
+  kind?: 'take' | 'give' | 'pay';
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +167,8 @@ class TransferZone extends Zone {
   private interval: number;
   private timer = 0;
   private fullTimer = 0;
+  /** An 'interact:prompt' {on:true} is currently showing for this zone. */
+  private prompting = false;
   private readonly tmpTop = new THREE.Vector3();
 
   constructor(private readonly t: TransferZoneOptions) {
@@ -177,7 +190,19 @@ class TransferZone extends Zone {
   override tick(ctx: GameContext, dt: number): void {
     const t = this.t;
     this.fullTimer -= dt;
-    if (!this.playerInside) return;
+    if (!this.playerInside) {
+      this.setPrompt(ctx, false);
+      return;
+    }
+    const kind = t.kind ?? 'give';
+    if (kind !== 'give' && !ctx.input.interactHeld) {
+      // gated: nothing moves, nothing accumulates; re-arm so the next hold starts a fresh burst
+      this.interval = this.base;
+      this.timer = t.delay ?? 0;
+      this.setPrompt(ctx, this.hasTransferable());
+      return;
+    }
+    this.setPrompt(ctx, false);
     this.timer -= dt;
     let moved = 0;
     while (this.timer <= 0 && moved < 4) {
@@ -198,6 +223,26 @@ class TransferZone extends Zone {
       this.interval = Math.max(TIMING.minInterval, this.interval * 0.88);
       t.onTransfer?.(item);
     }
+  }
+
+  /** Emit 'interact:prompt' only on a change of state. */
+  private setPrompt(ctx: GameContext, on: boolean): void {
+    if (this.prompting === on) return;
+    this.prompting = on;
+    const kind = this.t.kind;
+    if (kind && kind !== 'give') ctx.events.emit('interact:prompt', { on, kind });
+  }
+
+  /** Cheap check: something could move right now (used only to decide whether to show the prompt). */
+  private hasTransferable(): boolean {
+    const t = this.t;
+    if (t.cashAmount) return t.from.count('cash') > 0 && t.cashAmount() > 0 && t.to.canAccept('cash');
+    const kinds = t.kinds ?? ALL_KINDS;
+    for (let i = 0; i < kinds.length; i++) {
+      const k = kinds[i]!;
+      if (t.from.count(k) > 0 && t.to.canAccept(k)) return true;
+    }
+    return false;
   }
 
   /** Items are waiting but the destination refuses them → 'stack:full' (throttled). */
