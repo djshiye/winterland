@@ -193,11 +193,129 @@ export function createItemModel(kind: ItemKind): THREE.Mesh {
   }
 }
 
-/** [T1 — wave 9] Town goods (ITEM_SIZE[kind]); placeholder box until the assets builder lands the real models. */
+// ---------------------------------------------------------------------------
+// Wave 9 town goods. One cached merged mesh per kind, each inside its ITEM_SIZE box (origin = centre, so a stack of
+// them sits exactly stackHeight apart). Warm, chunky and readable from the iso camera.
+// ---------------------------------------------------------------------------
+
+const ball = (r: number): THREE.BufferGeometry => new THREE.SphereGeometry(r, 10, 7);
+
+/** Burlap grain sack (0.4 × 0.3 × 0.3): a plump sack tied at the neck with a few wheat ears sticking out. */
+const wheatGeo = lazy(() => {
+  const { w, h, d } = ITEM_SIZE.wheat;
+  const BURLAP = 0xcfa66a;
+  const BURLAP_D = 0xb98a4e;
+  const y0 = -h / 2;
+  const b = new Batch();
+  // body: squashed sphere filling the lower two thirds, flat bottom slab so it stacks nicely
+  b.add(ball(0.5), BURLAP, 0, y0 + 0.14, 0, { sx: (w - 0.02) / 1.0, sy: 0.26, sz: (d - 0.02) / 1.0 });
+  b.add(ball(0.5), BURLAP_D, 0, y0 + 0.07, 0, { sx: w * 0.8, sy: 0.14, sz: d * 0.8 });
+  // gathered neck + tie
+  b.add(new THREE.CylinderGeometry(0.07, 0.11, 0.08, 8), BURLAP, 0, y0 + 0.24, 0);
+  b.add(new THREE.CylinderGeometry(0.085, 0.085, 0.025, 8), 0x7a4a2a, 0, y0 + 0.23, 0);
+  // wheat ears (golden) poking out of the neck
+  for (const [x, z, rz] of [[-0.04, 0.0, 0.35], [0.04, 0.01, -0.3], [0, -0.04, 0.05]] as const) {
+    b.add(cyl(0.006, 0.05, 6), 0xd9a441, x, y0 + 0.25, z, { rz });
+    b.add(ball(0.016), 0xf0c860, x * 1.9, y0 + 0.268, z * 1.9, { sy: 2 });
+  }
+  // a darker seam and a green label
+  b.add(box(0.14, 0.09, 0.012), 0x4fa64f, 0, y0 + 0.14, d / 2 - 0.02);
+  b.add(box(0.1, 0.012, 0.014), 0xf6e8c0, 0, y0 + 0.14, d / 2 - 0.016);
+  return b.geometry();
+});
+
+/** Round loaf (0.36 × 0.18 × 0.26): golden crust, pale slashes, a warm shaded base. */
+const breadGeo = lazy(() => {
+  const { w, h, d } = ITEM_SIZE.bread;
+  const y0 = -h / 2;
+  const b = new Batch();
+  b.add(ball(0.5), 0xb26d2c, 0, y0 + 0.085, 0, { sx: w - 0.01, sy: 0.17, sz: d - 0.01 });
+  b.add(ball(0.5), 0xd9954b, 0, y0 + 0.09, 0, { sx: w * 0.8, sy: 0.15, sz: d * 0.8 });
+    for (const x of [-0.08, 0.0, 0.08]) b.add(box(0.025, 0.012, 0.15), 0xf4d08a, x, y0 + 0.157, 0, { ry: 0.0, rz: 0, rx: 0, sy: 1 });
+  return b.geometry();
+});
+
+/** Wrapped ham cut (0.38 × 0.24 × 0.3): pink ham, white fat cap, bone knob, butcher-paper band tied with red string. */
+const meatGeo = lazy(() => {
+  const { w, h, d } = ITEM_SIZE.meat;
+  const y0 = -h / 2;
+  const b = new Batch();
+  b.add(ball(0.5), 0xd9707a, -0.02, y0 + 0.12, 0, { sx: w * 0.8, sy: 0.22, sz: d - 0.01 });
+  b.add(ball(0.5), 0xf2c9c4, -0.08, y0 + 0.17, 0.0, { sx: w * 0.4, sy: 0.12, sz: d * 0.7 });
+  // bone knob
+  b.add(cyl(0.032, 0.1, 8), 0xf5ecd9, w / 2 - 0.05, y0 + 0.12, 0, { rz: HALF_PI });
+  for (const s of [-1, 1]) b.add(ball(0.04), 0xf5ecd9, w / 2 - 0.0, y0 + 0.12 + s * 0.025, 0);
+  // paper wrap band + string
+  b.add(box(0.05, 0.236, d + 0.006), 0xf0e4cc, 0.07, y0 + 0.118, 0);
+  b.add(box(0.02, 0.238, d + 0.012), 0xd2413a, 0.07, y0 + 0.119, 0);
+  return b.geometry();
+});
+
+/** Sausage coil (0.36 × 0.14 × 0.36): two stacked rings of links on a little wooden board, tied end with string. */
+const sausageGeo = lazy(() => {
+  const { w, h } = ITEM_SIZE.sausage;
+  const y0 = -h / 2;
+  const b = new Batch();
+  b.add(cyl(w / 2 - 0.005, 0.025, 20), 0xc9a06a, 0, y0 + 0.0125, 0);
+  const SAUS = 0xa5503a;
+  const SAUS_D = 0x7a3528;
+  const ring = (r: number, y: number, c: number): void => {
+    b.add(new THREE.TorusGeometry(r, 0.042, 7, 20).rotateX(HALF_PI), c, 0, y, 0);
+  };
+  ring(0.125, y0 + 0.07, SAUS);
+  ring(0.052, y0 + 0.07, SAUS_D);
+  ring(0.09, y0 + 0.108, SAUS);
+  // link pinches (string ties) around the outer ring and the loose end
+  for (let i = 0; i < 6; i++) {
+    const a = (i * Math.PI * 2) / 6;
+    b.add(box(0.012, 0.09, 0.012), 0xe6d8b0, Math.cos(a) * 0.125, y0 + 0.07, Math.sin(a) * 0.125, { ry: -a });
+  }
+  b.add(cyl(0.012, 0.06, 5), 0xe6d8b0, 0.0, y0 + 0.12, 0.14, { rx: HALF_PI });
+  return b.geometry();
+});
+
+/** Wooden toy train (0.4 × 0.26 × 0.22): red cab, yellow boiler, smokestack, four wheels, long axis along X. */
+const toyGeo = lazy(() => {
+  const { w, h, d } = ITEM_SIZE.toy;
+  const y0 = -h / 2;
+  const b = new Batch();
+  const wheelY = y0 + 0.065;
+  // chassis
+  b.add(box(w - 0.02, 0.05, d - 0.07), 0xe29547, 0, y0 + 0.11, 0);
+  // cab (back, -X) with a dark roof and a little window
+  b.add(box(0.14, 0.13, d - 0.06), 0xd94b3d, -0.12, y0 + 0.19, 0);
+  b.add(box(0.17, 0.035, d - 0.03), 0x3b3f47, -0.12, y0 + 0.265, 0);
+  b.add(box(0.016, 0.07, 0.07), 0xfff0b0, -0.04, y0 + 0.215, 0.0);
+  // boiler (front) with a blue band and a brass nose
+  b.add(cyl(0.065, 0.2, 12), 0xffd026, 0.07, y0 + 0.195, 0, { rz: HALF_PI });
+  b.add(cyl(0.067, 0.03, 12), 0x2f79c9, 0.04, y0 + 0.195, 0, { rz: HALF_PI });
+  b.add(cyl(0.067, 0.03, 12), 0x2f79c9, 0.12, y0 + 0.195, 0, { rz: HALF_PI });
+  b.add(cyl(0.05, 0.03, 10), 0xe0a93a, 0.18, y0 + 0.195, 0, { rz: HALF_PI });
+  // stack + dome
+  b.add(new THREE.CylinderGeometry(0.03, 0.022, 0.07, 8), 0x3b3f47, 0.12, y0 + 0.25, 0);
+  b.add(ball(0.03), 0xe0a93a, 0.02, y0 + 0.25, 0, { sy: 0.8 });
+  // cow-catcher wedge
+  b.add(box(0.04, 0.03, d - 0.1), 0x3b3f47, 0.175, y0 + 0.1, 0);
+  // wheels (axis along Z)
+  for (const x of [-0.14, -0.02, 0.1, 0.17]) {
+    for (const s of [-1, 1]) b.add(cyl(x > 0.15 ? 0.04 : 0.055, 0.03, 10), 0x8a5a36, x, x > 0.15 ? y0 + 0.045 : wheelY, s * (d / 2 - 0.02), { rx: HALF_PI });
+  }
+  return b.geometry();
+});
+
 export function createTownGood(kind: 'wheat' | 'bread' | 'meat' | 'sausage' | 'toy'): THREE.Mesh {
-  const z = ITEM_SIZE[kind];
-  const colors = { wheat: 0xc9a46a, bread: 0xb5733a, meat: 0xd98a8a, sausage: 0xa2523a, toy: 0xd94b3d };
-  return new THREE.Mesh(new THREE.BoxGeometry(z.w, z.h, z.d), new THREE.MeshLambertMaterial({ color: colors[kind] }));
+  switch (kind) {
+    case 'wheat':
+      return itemMesh(wheatGeo(), 'item:wheat');
+    case 'bread':
+      return itemMesh(breadGeo(), 'item:bread');
+    case 'meat':
+      return itemMesh(meatGeo(), 'item:meat');
+    case 'sausage':
+      return itemMesh(sausageGeo(), 'item:sausage');
+    case 'toy':
+      return itemMesh(toyGeo(), 'item:toy');
+  }
 }
 
 export const itemCatalog: Record<string, () => THREE.Object3D> = {
@@ -206,4 +324,9 @@ export const itemCatalog: Record<string, () => THREE.Object3D> = {
   crate: createCrate,
   cash: createCash,
   furniture: createFurniture,
+  wheat: () => createTownGood('wheat'),
+  bread: () => createTownGood('bread'),
+  meat: () => createTownGood('meat'),
+  sausage: () => createTownGood('sausage'),
+  toy: () => createTownGood('toy'),
 };
