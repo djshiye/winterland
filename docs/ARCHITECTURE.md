@@ -51,6 +51,9 @@ register box colliders (conveyors don't — the player may walk across them).
 
 ## 2. Modules and ownership
 
+> Waves 6–8 added `ridge/`, `core/DayNight.ts`, `core/Rush.ts`, `core/quests.ts`, `core/crew.ts`, `stations/TreeFeller|TruckLoader|CashTubes|Workshop.ts`,
+> `npc/TrainQueue|SledQueue.ts` and more. Their contracts and owners are in the wave sections of [DESIGN.md](DESIGN.md).
+
 Builders only edit the files of their slice (create new helper files *inside your own folders* freely).
 `config.ts`, `core/types.ts`, `core/EventBus.ts`, `core/Economy.ts`, `core/math.ts`, `render/materials.ts`,
 `game/Game.ts`, `main.ts`, `style.css`, `index.html`, `scripts/` are **main-session** files: read-only for builders —
