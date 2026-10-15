@@ -13,7 +13,7 @@ import { createGameState } from '../src/core/types';
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
 /** Every real save captured from a released build: each must keep loading as the state grows. */
-const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json'];
+const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json'];
 
 describe.each(FIXTURES)('%s', (name) => {
   it('loads every saved field and the world', () => {
