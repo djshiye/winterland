@@ -16,13 +16,14 @@
  * - Entities (rig + carry stack + bubble canvas) are pooled: nothing is created per customer after warm-up.
  */
 import * as THREE from 'three';
-import { ECONOMY, LAYOUT, PLAYER, TIMING } from '../config';
+import { ECONOMY, LAYOUT, PLAYER, TIMING, VIP } from '../config';
 import { approach, dampAngle, randInt, randRange, yawFromDir } from '../core/math';
 import { demandOf, salePrice } from '../core/demand';
 import type { GameContext } from '../core/types';
 import { CarryStack } from '../items/CarryStack';
 import { transferOne } from '../items/transfer';
 import { createCharacterRig, type CharacterRig } from '../render/characters';
+import { VIP_VARIANT_BASE } from '../assets/characters';
 import { createSpeechBubble, type SpeechBubble } from '../assets/shop';
 import type { Counter } from '../stations/Counter';
 import type { CashPile } from '../stations/CashPile';
@@ -42,6 +43,11 @@ const ACCEL = 14;
 const TURN_LAMBDA = 14;
 const BOB_RATE = 4.5;
 const VARIANTS = 4;
+const VIP_VARIANTS = 3;
+/** Wave 8: extra queue spots (beyond demand.customerQueue) while a rush is on. */
+const RUSH_EXTRA_QUEUE = 2;
+/** Walk-speed multiplier while a rush is on (customers hurry). */
+const RUSH_HURRY = 1.25;
 
 const tmpV = new THREE.Vector3();
 
@@ -54,6 +60,8 @@ class Customer {
   readonly baseScale: number;
   readonly bubbleY: number;
   readonly velocity = new THREE.Vector3();
+  /** Fixed per entity (the VIP look is part of the model); VIPs live in their own pool. */
+  readonly vip: boolean;
 
   mode: Mode = 'queue';
   atSlot = false;
@@ -70,8 +78,9 @@ class Customer {
   bob = 0;
   paid = false;
 
-  constructor(ctx: GameContext, n: number, variant: number) {
-    this.rig = createCharacterRig('customer', variant);
+  constructor(ctx: GameContext, n: number, variant: number, vip: boolean) {
+    this.vip = vip;
+    this.rig = createCharacterRig('customer', vip ? VIP_VARIANT_BASE + variant : variant);
     this.baseScale = this.rig.root.scale.x;
     this.group.add(this.rig.root);
     this.bubble = createSpeechBubble(1.05);
@@ -89,6 +98,7 @@ export class CustomerQueue {
   /** Customers walking away. */
   private readonly leaving: Customer[] = [];
   private readonly pool: Customer[] = [];
+  private readonly vipPool: Customer[] = [];
   private created = 0;
   private spawnTimer = 0.6;
 
@@ -122,18 +132,22 @@ export class CustomerQueue {
     this.spawnTimer -= dt;
     if (this.spawnTimer > 0) return;
     const dm = demandOf(this.ctx.state);
-    if (this.queue.length >= dm.customerQueue || this.ctx.state.phase === 'intro') {
+    const rush = this.ctx.rush;
+    const cap = dm.customerQueue + (rush.active ? RUSH_EXTRA_QUEUE : 0);
+    if (this.queue.length >= cap || this.ctx.state.phase === 'intro') {
       this.spawnTimer = 0.25;
       return;
     }
-    this.spawnTimer = randRange(dm.customerGap[0], dm.customerGap[1]);
-    this.spawn(dm.customerWant);
+    // rush hour: gaps shrink by rush.spawnMult (read live, 1 outside a rush)
+    this.spawnTimer = randRange(dm.customerGap[0], dm.customerGap[1]) / rush.spawnMult;
+    this.spawn(dm.customerWant, dm.vipChance > 0 && Math.random() < dm.vipChance);
   }
 
-  private spawn(want: readonly [number, number]): void {
-    let c = this.pool.pop();
+  private spawn(want: readonly [number, number], vip: boolean): void {
+    const pool = vip ? this.vipPool : this.pool;
+    let c = pool.pop();
     if (!c) {
-      c = new Customer(this.ctx, this.created, this.created % VARIANTS);
+      c = new Customer(this.ctx, this.created, vip ? this.created % VIP_VARIANTS : this.created % VARIANTS, vip);
       this.created++;
     }
     const f = randRange(0.94, 1.06);
@@ -175,7 +189,7 @@ export class CustomerQueue {
     c.group.removeFromParent();
     c.group.visible = false;
     c.rig.setCarrying(false);
-    this.pool.push(c);
+    (c.vip ? this.vipPool : this.pool).push(c);
   }
 
   // --- queue ----------------------------------------------------------------
@@ -206,6 +220,7 @@ export class CustomerQueue {
     if (have !== c.shown) {
       c.shown = have;
       c.bubble.show('plank', `${have}/${c.want}`);
+      if (c.vip) this.stampCrown(c);
     }
 
     c.takeTimer -= dt;
@@ -219,9 +234,12 @@ export class CustomerQueue {
 
   private pay(c: Customer): void {
     const amount = salePrice(this.ctx.state, 'plank', ECONOMY.plankPrice, c.want);
+    // VIPs tip a share of the sale on top, rounded to whole cash bundles; 'sale'.amount stays the sale only
+    const b = ECONOMY.cashBundleValue;
+    const tip = c.vip ? Math.round((amount * VIP.tipMult) / b) * b : 0;
     c.rig.armsAnchor.getWorldPosition(tmpV);
     tmpV.y += 0.2;
-    this.opts.cash.pay(amount, tmpV);
+    this.opts.cash.pay(amount + tip, tmpV);
     const stats = this.ctx.state.stats;
     stats.planksSold += c.want;
     stats.customersServed++;
@@ -231,6 +249,7 @@ export class CustomerQueue {
       count: c.want,
       amount,
       position: tmpV,
+      ...(c.vip ? { vip: true, tip } : {}),
     });
     c.paid = true;
     c.mode = 'paid';
@@ -238,6 +257,40 @@ export class CustomerQueue {
     c.rig.cheer();
     c.bubble.show('check');
     this.ctx.tweens.popIn(c.bubble.sprite, { duration: 0.35 });
+  }
+
+  /**
+   * Draws a small gold crown in the corner of the VIP's speech bubble canvas, right after bubble.show() redrew it
+   * (same canvas / texture: no extra sprite, no extra draw call).
+   */
+  private stampCrown(c: Customer): void {
+    const mat = c.bubble.sprite.material;
+    const map = mat.map;
+    const canvas = map?.image as HTMLCanvasElement | undefined;
+    const g = canvas?.getContext('2d');
+    if (!g || !map) return;
+    const cx = 132;
+    const cy = 22;
+    g.beginPath();
+    g.moveTo(cx - 19, cy + 15);
+    g.lineTo(cx - 22, cy - 13);
+    g.lineTo(cx - 10, cy - 1);
+    g.lineTo(cx, cy - 17);
+    g.lineTo(cx + 10, cy - 1);
+    g.lineTo(cx + 22, cy - 13);
+    g.lineTo(cx + 19, cy + 15);
+    g.closePath();
+    g.fillStyle = '#ffc933';
+    g.fill();
+    g.lineWidth = 5;
+    g.lineJoin = 'round';
+    g.strokeStyle = '#9a6a00';
+    g.stroke();
+    g.fillStyle = '#ff5a5a';
+    g.beginPath();
+    g.arc(cx, cy + 6, 4, 0, Math.PI * 2);
+    g.fill();
+    map.needsUpdate = true;
   }
 
   private sendAway(c: Customer): void {
@@ -281,7 +334,7 @@ export class CustomerQueue {
     const dx = tx - p.x;
     const dz = tz - p.z;
     const dist = Math.hypot(dx, dz);
-    const max = LAYOUT.customers.walkSpeed;
+    const max = LAYOUT.customers.walkSpeed * (this.ctx.rush.active ? RUSH_HURRY : 1);
     if (dist < 0.02) {
       p.x = tx;
       p.z = tz;

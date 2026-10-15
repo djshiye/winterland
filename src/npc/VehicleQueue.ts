@@ -65,6 +65,8 @@ export interface VehicleQueueConfig {
   idPrefix: string;
   cargoGrid: ConstructorParameters<typeof Pile>[1]['grid'];
   bubbleScale: number;
+  /** Wave 8: divide the spawn gap by ctx.rush.spawnMult (read live at every spawn). Trikes only. */
+  rushScaled?: boolean;
 }
 
 type Mode = 'queue' | 'paid' | 'leave';
@@ -158,7 +160,7 @@ export abstract class VehicleQueue {
       return;
     }
     const dm = this.cfg.demand(demandOf(this.ctx.state));
-    this.spawnTimer = randRange(dm.gap[0], dm.gap[1]);
+    this.spawnTimer = randRange(dm.gap[0], dm.gap[1]) / (this.cfg.rushScaled ? this.ctx.rush.spawnMult : 1);
     const variant = this.spawned++ % this.cfg.variants;
     let v = this.pools[variant]!.pop();
     if (!v) v = new Vehicle(this.ctx, this.buildParts(variant), variant, `${this.cfg.idPrefix}:${this.spawned}`, this.cfg);
