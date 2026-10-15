@@ -108,7 +108,7 @@ const steps = [
   ['sim:1'],
   ['eval:' + obj, 'guide: grab the chairs', 'Grab the chairs for the dog sleds'],
   ['eval:' + `(${W}.ctx.player.arms.addImmediate(${W}.ctx.items.create('furniture')),${broke})`, 'a chair in hand'],
-  ['sim:0.5'],
+  ['sim:1'],
   ['eval:' + obj, 'guide: carry chairs to the sleds', 'Carry chairs to the dog sleds'],
   ['shot:carry-guide'],
   ['eval:' + `(${W}.level.sledCash.restoreValue(500),${broke})`, 'cash on the sled pile, no money'],
