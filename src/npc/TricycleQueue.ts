@@ -53,6 +53,7 @@ export class TricycleQueue extends VehicleQueue {
       idPrefix: 'npc:tricycle',
       cargoGrid: T.cargoGrid,
       bubbleScale: 1.15,
+      rushScaled: true,
     });
   }
 

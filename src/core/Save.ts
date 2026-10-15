@@ -162,7 +162,8 @@ export class SalesMeter {
     private readonly carried: number,
   ) {
     this.start = ctx.time.elapsed;
-    ctx.events.on('sale', ({ amount }) => {
+    ctx.events.on('sale', ({ amount: sale, tip }) => {
+      const amount = sale + (tip ?? 0); // VIP tips are income too
       this.times.push(ctx.time.elapsed);
       this.amounts.push(amount);
       this.sum += amount;

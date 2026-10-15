@@ -281,7 +281,42 @@ function npcBody(
   });
 }
 
+/** Customer variants at or above this are VIPs (createCustomerModel / createCharacterRig('customer', VIP_VARIANT_BASE + n)). */
+export const VIP_VARIANT_BASE = 1000;
+const VIP_GOLD = 0xffc933;
+const VIP_COAT = [0x6b2f7a, 0x7a2e3a, 0x2f4b7a] as const;
+
+/**
+ * Wave 8 VIP: a rich plum / wine / navy coat with a gold scarf, a gold hem ring and a black top hat with a gold
+ * band. Same structure as a normal customer (torso + head + 2 arms + 2 boots = 6 baked meshes): no extra draw calls.
+ */
+function createVipCustomerModel(variant: number): CharacterModel {
+  const coat = VIP_COAT[hash(variant) % VIP_COAT.length]!;
+  const m = npcBody(
+    coat,
+    COLORS.PLAYER_SKIN,
+    PALETTE.rubber,
+    (g, topY) => {
+      g.add(torusRing(0.27, 0.075, VIP_GOLD, topY - 0.02 - HIP)); // chunky gold scarf
+      g.add(torusRing(0.305, 0.04, VIP_GOLD, BASE_Y + 0.06 - HIP)); // gold hem
+    },
+    (g) => {
+      const hat = toon(0x22232b);
+      const brim = mesh(geo.cylinder(0.3, 0.3, 0.04, 20), hat);
+      brim.position.y = 0.16;
+      const crown = mesh(geo.cylinder(0.185, 0.2, 0.3, 20), hat);
+      crown.position.y = 0.33;
+      const band = mesh(geo.cylinder(0.205, 0.205, 0.07, 20), toon(VIP_GOLD));
+      band.position.y = 0.21;
+      g.add(brim, crown, band);
+    },
+  );
+  m.height = m.headY + 0.48;
+  return m;
+}
+
 export function createCustomerModel(variant = 0): CharacterModel {
+  if (variant >= VIP_VARIANT_BASE) return createVipCustomerModel(variant);
   const h = hash(variant);
   const color = CUSTOMER_SHADES[h % CUSTOMER_SHADES.length]!;
   const scarf = SCARVES[(h >>> 4) % SCARVES.length]!;
@@ -495,6 +530,7 @@ export const characterCatalog: Record<string, () => THREE.Object3D> = {
   customer: () => createCustomerModel(0).root,
   'customer (green scarf variant)': () => createCustomerModel(7).root,
   'customer (light variant)': () => createCustomerModel(2).root,
+  'customer (VIP)': () => createCustomerModel(VIP_VARIANT_BASE).root,
   courier: () => createCourierModel().root,
   driver: () => createDriverModel(0).root,
   'driver (grey)': () => createDriverModel(1).root,
