@@ -134,10 +134,10 @@ describe('trading', () => {
   });
 
   it('buys at the buy quote, tracks the average basis, refuses what it cannot afford or is not tradable', () => {
-    const { market, economy, state, log } = setup({ money: 10_000 });
+    const { market, economy, state, log } = setup({ money: 100_000 });
     expect(market.buy('stone', 10)).toBe(true);
-    const cost1 = Math.round(180 * 1.05 * 10);
-    expect(economy.money).toBe(10_000 - cost1);
+    const cost1 = Math.round(1800 * 1.05 * 10); // stone: 180 × the era economy ×10
+    expect(economy.money).toBe(100_000 - cost1);
     expect(market.holding('stone')).toBe(10);
     expect(state.market.basis.stone).toBeCloseTo(cost1 / 10, 9);
     // the price moves: the basis averages
@@ -146,15 +146,15 @@ describe('trading', () => {
     const cost2 = Math.round(market.quote('stone', 'buy') * 10);
     expect(market.basis('stone')).toBeCloseTo((cost1 + cost2) / 20, 6);
     expect(log.filter((l) => l.type === 'market:trade').length).toBe(2);
-    expect(market.buy('stone', 100_000)).toBe(false);
+    expect(market.buy('stone', 1_000_000)).toBe(false);
     expect(market.holding('stone')).toBe(20);
     expect(market.buy('robot', 1)).toBe(false); // era 10, not reached
     expect(market.buy('stone', 0)).toBe(false);
   });
 
   it('sells for the sell quote, counts only gains as tradeProfit, announces income for gains', () => {
-    const { market, economy, state, log } = setup({ money: 100_000 });
-    market.buy('brick', 10); // 700 base
+    const { market, economy, state, log } = setup({ money: 1_000_000 });
+    market.buy('brick', 10); // 7,000 base
     state.market.index.brick = 1.4;
     const money0 = economy.money;
     const q = market.quote('brick', 'sell');
@@ -183,7 +183,7 @@ describe('trading', () => {
   });
 
   it('a buy then an immediate sell always loses the spread', () => {
-    const { market, economy } = setup({ money: 100_000 });
+    const { market, economy } = setup({ money: 1_000_000 });
     const m0 = economy.money;
     market.buy('stone', 100);
     market.sell('stone', 100);
@@ -340,8 +340,8 @@ describe('investments', () => {
 
 describe('net worth', () => {
   it('adds holdings at the sell quote and the positions values to the cash', () => {
-    const { market, economy, state } = setup({ money: 200_000 });
-    expect(market.netWorth()).toBe(200_000);
+    const { market, economy, state } = setup({ money: 2_000_000 });
+    expect(market.netWorth()).toBe(2_000_000);
     market.buy('stone', 100);
     market.invest('bond', 10_000);
     market.invest('index', 20_000);
@@ -365,7 +365,7 @@ describe('jack', () => {
 
 describe('money loops', () => {
   it('cannot print money by crashing a price with a sale and buying back cheap', () => {
-    const { market, economy, state } = setup({ age: 2, money: 1e6, rng: () => 0.5 });
+    const { market, economy, state } = setup({ age: 2, money: 1e7, rng: () => 0.5 });
     const m0 = economy.money;
     expect(market.buy('brick', 400)).toBe(true);
     for (let i = 0; i < 5; i++) {

@@ -51,9 +51,16 @@ export interface EraDef {
   perks: readonly string[];
 }
 
-/** Expansion price of era n (2..10): 150k × 3^(n − 2). */
+/**
+ * Era economy ×10 (docs/EXPANSION.md R11; config CLIMB.eraScale reads it): every era price and income (expansion pads,
+ * machines, material values, city buildings and their income) is × this, so an era sits above Survival's last prices
+ * (jack's last level is $750k). Survival numbers are untouched.
+ */
+export const ERA_SCALE = 10;
+
+/** Expansion price of era n (2..10): 1.5M × 3^(n − 2) (150k × ERA_SCALE). */
 export function unlockCash(n: number): number {
-  return 150_000 * 3 ** (n - 2);
+  return 150_000 * ERA_SCALE * 3 ** (n - 2);
 }
 
 function eraDef(n: number, key: EraKey, tagline: string, region: string, worker: [string, string], district: string, colors: EraDef['colors'], extra: { kind: ItemKind; count: number }, perks: string[]): EraDef {
@@ -105,8 +112,9 @@ export interface MaterialDef {
   size: { w: number; h: number; d: number; stackHeight: number };
 }
 
-const RAW = (n: number): number => 180 * 3 ** (n - 2);
-const REF = (n: number): number => 700 * 3 ** (n - 2);
+/** Base export prices of era n's raw and refined materials (× ERA_SCALE, like every era price). */
+const RAW = (n: number): number => 180 * ERA_SCALE * 3 ** (n - 2);
+const REF = (n: number): number => 700 * ERA_SCALE * 3 ** (n - 2);
 function mat(kind: MaterialKind, label: string, n: number, grade: 'raw' | 'refined', value: number, shape: MaterialShape, color: number, accent: number, w: number, h: number, d: number): MaterialDef {
   return { kind, label, era: n, grade, value: Math.round(value / 5) * 5, shape, color, accent, size: { w, h, d, stackHeight: h + 0.01 } };
 }
@@ -371,7 +379,8 @@ function cityBuildings(): Record<CityBuildingId, CityBuildingDef> {
   const out = {} as Record<CityBuildingId, CityBuildingDef>;
   for (const key of ERA_KEYS) {
     const n = eraOfKey(key);
-    const k = 3 ** (n - 2);
+    // prices and income × 3 per era (× ERA_SCALE); people × 2.2 per era
+    const k = ERA_SCALE * 3 ** (n - 2);
     const p = 2.2 ** (n - 2);
     const material = DISTRICT_MATERIAL[n]!;
     const h = [5, 7, 9, 12, 16, 26, 34, 46, 62][n - 2]!;
@@ -394,12 +403,16 @@ export const cityBuildingsOfEra = (n: number): CityBuildingId[] => CITY_BUILDING
 /** City happiness multiplies all city income by up to 1 + this. */
 export const CITY_HAPPINESS_BONUS = 0.5;
 
-/** City rank by total population (village + Market Town + districts); Metropolis also needs era 10. */
+/**
+ * City rank by total population (village + Market Town + districts); Metropolis also needs era 10. Cosmetic (skyline,
+ * badge): minEra is the first era whose cumulative city capacity reaches the population (docs/EXPANSION.md R13: era 4's
+ * districts hold about 2.1k people, era 7's about 37k), so a rank never promises the impossible.
+ */
 export const CITY_RANKS: readonly { name: string; minPopulation: number; minEra: number }[] = [
   { name: 'Town', minPopulation: 0, minEra: 1 },
   { name: 'City', minPopulation: 500, minEra: 2 },
-  { name: 'Big City', minPopulation: 5_000, minEra: 4 },
-  { name: 'Megacity', minPopulation: 40_000, minEra: 7 },
+  { name: 'Big City', minPopulation: 5_000, minEra: 5 },
+  { name: 'Megacity', minPopulation: 40_000, minEra: 8 },
   { name: 'Metropolis', minPopulation: 100_000, minEra: 10 },
 ];
 

@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { SETTLEMENT, UPGRADES, VILLAGE } from '../src/config';
+import { ECONOMY, SETTLEMENT, UPGRADES, VILLAGE } from '../src/config';
 import {
   INVEST_POSITIONS_CAP,
   bandsWith,
@@ -382,7 +382,10 @@ describe('City announces new levels', () => {
     expect(e.level).toBe(10);
     expect(e.charter).toBe(true);
     // the income rate is read after the level rose (Renown and the j = 3 decor already count)
-    expect(e.gift).toBe(Math.max(SETTLEMENT.giftMin, Math.round(city.incomeRate * (5 * SETTLEMENT.giftSeconds + SETTLEMENT.charterSeconds))));
+    // (in whole cash bundles)
+    const raw = city.incomeRate * (5 * SETTLEMENT.giftSeconds + SETTLEMENT.charterSeconds);
+    expect(e.gift).toBe(Math.max(SETTLEMENT.giftMin, Math.round(raw / ECONOMY.cashBundleValue) * ECONOMY.cashBundleValue));
+    expect(city.giftValue).toBe(e.gift);
     expect(MACHINES.quarry.era).toBe(2);
   });
 

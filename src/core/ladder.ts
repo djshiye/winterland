@@ -155,13 +155,12 @@ function legacyCost(def: UpgradeDef, s: number): number {
 }
 
 /**
- * The price the game charges (Upgrades.nextCost). Until the era economy ×10 lands (docs/EXPANSION.md order, step 6)
- * the ids from era 2 on still carry their authored cost tables, scaled to today's era income: while they do, they
- * are priced like an era-1 id (table, then the legacy step, never below the band). Step 6 drops those tables, and
- * every id then prices exactly as costAt.
+ * The price the game charges (Upgrades.nextCost, the gate's costToNeed). The era-2+ ids carry no cost tables (the era
+ * economy ×10, docs/EXPANSION.md R11), so this is costAt for every id: the readers keep one name for "what the next
+ * level costs".
  */
 export function stepCost(def: UpgradeDef, s: number): number {
-  return introEra(def) >= 2 && def.costs.length === 0 ? costAt(def, s) : legacyCost(def, s);
+  return costAt(def, s);
 }
 
 /** Mastery points from one upgrade at stored level s: the levels bought while its effect was already at the cap. */

@@ -18,7 +18,7 @@
  *   City income is × Renown and its happiness gets the decor perk (settlementHappiness).
  */
 import * as THREE from 'three';
-import { SETTLEMENT } from '../config';
+import { ECONOMY, SETTLEMENT } from '../config';
 import { CITY_BUILDINGS, CITY_RANKS, CITY_TICK, DISTRICTS, MAX_ERA, districtDef, type CityBuildingId } from '../eras/data';
 import { cityPopulation, refreshSettlement, renownMult, settledCityTotals, settlementBand, settlementLevel } from '../core/demand';
 import type { GameContext } from '../core/types';
@@ -189,7 +189,9 @@ export class City {
         charter = true;
       }
     }
-    const gift = Math.max(SETTLEMENT.giftMin, Math.round(this.incomeRate * seconds));
+    // whole cash bundles, so the pile holds exactly what the card announces
+    const b = ECONOMY.cashBundleValue;
+    const gift = Math.max(SETTLEMENT.giftMin, Math.round((this.incomeRate * seconds) / b) * b);
     const district = districtDef(Math.min(MAX_ERA, settlementBand(level))).rect;
     const position = new THREE.Vector3((district.minX + district.maxX) / 2, 0, (district.minZ + district.maxZ) / 2);
     const pile = this.giftPile();
