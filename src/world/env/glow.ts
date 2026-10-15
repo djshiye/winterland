@@ -19,7 +19,9 @@ interface Entry {
 const entries: Entry[] = [];
 const halos: THREE.Object3D[] = [];
 let haloMat: THREE.MeshBasicMaterial | null = null;
+let bulbMat: THREE.MeshBasicMaterial | null = null;
 let last = -1;
+let twinkle = 0;
 
 /**
  * Register a (shared) emissive material: at night its emissiveIntensity becomes `base * boost`.
@@ -45,6 +47,32 @@ export function updateGlow(d: number): void {
   if (haloMat) haloMat.opacity = Math.min(1, d * 1.15);
   const on = d > 0.02;
   for (const h of halos) h.visible = on;
+  setBulbScale();
+}
+
+function setBulbScale(): void {
+  if (!bulbMat) return;
+  // unlit, so "glowing" means: a little dimmer by day, brighter than the dark scene at night (tone mapping is off)
+  const d = Math.max(0, last);
+  bulbMat.color.setScalar(0.84 + 0.3 * d + twinkle * (0.03 + 0.05 * d));
+}
+
+/**
+ * Shared unlit vertex-coloured material for fairy lights / string-light bulbs (wave 9 town + eras). Colours come
+ * from the geometry (one merged mesh per set); brightness follows the night amount and twinkles gently.
+ */
+export function bulbMaterial(): THREE.MeshBasicMaterial {
+  if (!bulbMat) {
+    bulbMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+    setBulbScale();
+  }
+  return bulbMat;
+}
+
+/** Gentle shimmer of every bulb at once (cheap: one number). Call each frame with the elapsed time. */
+export function twinkleBulbs(time: number): void {
+  twinkle = Math.sin(time * 2.3) * 0.5 + Math.sin(time * 5.1 + 1.3) * 0.5;
+  setBulbScale();
 }
 
 function haloMaterial(): THREE.MeshBasicMaterial {
@@ -76,6 +104,9 @@ export interface HaloSpot {
   x: number;
   y: number;
   z: number;
+  /** Per-spot override of the disc size / ground pool size. */
+  size?: number;
+  pool?: number;
 }
 
 const WARM_HALO = new THREE.Color(1.0, 0.72, 0.34);
@@ -112,9 +143,9 @@ export function buildHalos(spots: readonly HaloSpot[], opts?: { size?: number; p
   for (const s of spots) {
     // pull the disc toward the camera so the lamp's own roof does not clip it
     c.set(s.x, s.y, s.z).addScaledVector(toCam, 0.7);
-    quad(c, right, up, size / 2, 0.85);
+    quad(c, right, up, (s.size ?? size) / 2, 0.85);
     c.set(s.x, gy, s.z);
-    quad(c, gx, gz, pool / 2, 0.42);
+    quad(c, gx, gz, (s.pool ?? pool) / 2, 0.42);
   }
   const geom = new THREE.BufferGeometry();
   geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));

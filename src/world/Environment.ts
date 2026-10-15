@@ -15,6 +15,7 @@ import { buildBuildings } from './env/buildings';
 import { updateGlow } from './env/glow';
 import { Rng, type EnvPart } from './env/common';
 import { buildDecor, type ClearItem } from './env/decor';
+import { EraController, resetEras } from './env/eras';
 import { buildFences } from './env/fences';
 import { buildGate, type GatePart } from './env/gate';
 import { buildGround } from './env/ground';
@@ -22,6 +23,7 @@ import { buildRidgeGate, type RidgeGatePart } from './env/ridgeGate';
 import { buildMountains } from './env/mountains';
 import { buildRiver } from './env/river';
 import { buildRoads, highwayY } from './env/roads';
+import { buildTown, type TownPart } from './env/town';
 import { buildSnowfall } from './env/snowfall';
 
 const EXPAND_TIME = 1.6;
@@ -54,6 +56,8 @@ export class Environment {
   private readonly ground: ReturnType<typeof buildGround>;
   private readonly gate: GatePart;
   private readonly ridgeGate: RidgeGatePart;
+  private readonly town: TownPart;
+  private readonly eras: EraController;
   private readonly strip: StripState[] = [];
   private readonly chimney: THREE.Vector3;
   private readonly tmp = new THREE.Vector3();
@@ -65,6 +69,7 @@ export class Environment {
 
   constructor(readonly ctx: GameContext) {
     this.root.name = 'environment';
+    resetEras();
     ctx.scene.add(this.root);
     const rng = new Rng(20260);
 
@@ -79,9 +84,10 @@ export class Environment {
     this.gate = buildGate();
     this.ridgeGate = buildRidgeGate();
     this.aurora = buildAurora();
+    this.town = buildTown(ctx, new Rng(9090));
     this.chimney = buildings.chimney;
 
-    for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, roads, mountains, decor, buildings, this.snowfall, this.aurora]) {
+    for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, this.town, roads, mountains, decor, buildings, this.snowfall, this.aurora]) {
       this.parts.push(p);
       this.root.add(p.group);
     }
@@ -96,10 +102,13 @@ export class Environment {
       this.aurora.setDarkness(d);
     });
 
+    // Eras follow the village level (live on 'village:changed'); sets the current look now and again for late registrants.
+    this.eras = new EraController(ctx);
     ctx.colliders.setBounds(LAYOUT.yard);
     // A restored game: the state is the truth, build the final scenery at once and silently.
     if (ctx.state.village.revealed) this.gate.open(true);
     if (ctx.state.unlocked.ridge) this.ridgeGate.open(true);
+    if (ctx.state.town.revealed) this.town.open(true);
     if (ctx.state.expanded) this.expand(true);
   }
 
@@ -117,7 +126,9 @@ export class Environment {
    * [T4 — wave 9] Open the village's east fence gap + the town corridor / crossing so the Market Town can be
    * reached (instant: no animation). Idempotent. Town.reveal calls it; a restored revealed town at construction.
    */
-  openTownGate(_instant = false): void {}
+  openTownGate(instant = false): void {
+    this.town.open(instant);
+  }
 
   /** Highway road-surface height at world X (raised over the river bridge). */
   highwayY(x: number): number {
@@ -133,6 +144,8 @@ export class Environment {
     this.river.update?.(dt);
     this.gate.update?.(dt);
     this.ridgeGate.update?.(dt);
+    this.town.update?.(dt);
+    this.eras.update(dt);
     this.snowfall.update?.(dt);
     this.aurora.update?.(dt);
 

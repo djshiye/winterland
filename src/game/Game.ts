@@ -47,6 +47,7 @@ import { ZoneSystem } from '../items/Zones';
 import { Particles } from '../fx/Particles';
 import { AudioFX } from '../fx/Audio';
 import { JuiceDirector } from '../fx/JuiceDirector';
+import { Fireworks } from '../fx/Fireworks';
 import { HUD } from '../ui/HUD';
 import { Level } from '../level/Level';
 
@@ -195,6 +196,7 @@ export class Game {
     ctx.environment = new Environment(ctx);
     ctx.player = new Player(ctx);
     this.juice = new JuiceDirector(ctx);
+    new Fireworks(ctx); // wave 9: era-up fireworks (self-registers as an updatable)
     this.level = new Level(ctx);
     if (save) this.level.restoreWorld(save.world);
     this.sales = new SalesMeter(ctx, save?.salesRate ?? 0);
