@@ -20,6 +20,9 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
 | WASD / arrow keys | Move (8 directions) |
 | Touch or mouse: press and drag anywhere | Floating virtual joystick |
 | Stand next to things | Pick up, drop off, pay. Everything happens automatically by proximity |
+| Mouse wheel, pinch, + / − | Zoom the camera |
+| Esc | Close the open panel, or open Settings |
+| M, F | Mute; fullscreen (desktop: F11 or Alt+Enter) |
 
 ### The loop
 1. **Chop** the giant log on the river bank. Wood flies into the grey drop zone.
@@ -53,9 +56,11 @@ Along the way: **quests** (three short goals at a time with cash rewards), **VIP
 hours** when customers flood in, and a **day/night cycle** with glowing windows and northern lights.
 
 The game saves itself. A refresh resumes where you were, and coming back later pays part of what your
-mill earned while you were away. Settings (the gear) has sound, music, graphics quality (Low turns off shadows for slower
-computers; the game switches to Low by itself once if it runs slowly), day/night, vibration (phones), an FPS
-readout, New Season (after the finale) and a reset.
+mill earned while you were away. Settings (the gear) has three tabs: **Sound** (sound and music switches, Master,
+Effects and Music volume), **Display** (fullscreen or window mode, graphics quality — Low turns off shadows for slower
+computers, and the game switches to Low by itself once if it runs slowly — a resolution scale, a frame-rate cap, an
+FPS readout and day/night) and **Game** (vibration on phones, the controls, back up and restore the save as a file,
+New Season after the finale, and a reset).
 
 A whole game takes the autoplay bot about 60–70 minutes (targets in [docs/DESIGN.md](docs/DESIGN.md)).
 

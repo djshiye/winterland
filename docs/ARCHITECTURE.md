@@ -51,8 +51,8 @@ register box colliders (conveyors don't — the player may walk across them).
 
 ## 2. Modules and ownership
 
-> Waves 6–9 added `ridge/`, `core/DayNight.ts`, `core/Rush.ts`, `core/quests.ts`, `core/crew.ts`, `stations/TreeFeller|TruckLoader|CashTubes|Workshop.ts`,
-> `npc/TrainQueue|SledQueue.ts`, and in wave 9 `town/*` (Town, Business, rules, LotPad), `npc/Townsfolk|Crowd|CrowdNav|townJobs|townRoutes.ts`, `world/env/eras.ts|town.ts`, `assets/town.ts`, `ui/BuildPanel|EraCard.ts` and `fx/Fireworks.ts`. Their contracts and owners are in the wave sections of [DESIGN.md](DESIGN.md).
+> Waves 6–10 added `ridge/`, `core/DayNight.ts`, `core/Rush.ts`, `core/quests.ts`, `core/crew.ts`, `stations/TreeFeller|TruckLoader|CashTubes|Workshop.ts`,
+> `npc/TrainQueue|SledQueue.ts`, and in wave 9 `town/*` (Town, Business, rules, LotPad), `npc/Townsfolk|Crowd|CrowdNav|townJobs|townRoutes.ts`, `world/env/eras.ts|town.ts`, `assets/town.ts`, `ui/BuildPanel|EraCard.ts` and `fx/Fireworks.ts`; wave 10 added `platform/desktop.ts` (the Electron bridge, with `desktop/preload.cjs`), `fx/volume.ts`, `core/fps.ts` and `ui/saveTransfer.ts`. Their contracts and owners are in the wave sections of [DESIGN.md](DESIGN.md).
 
 Builders only edit the files of their slice (create new helper files *inside your own folders* freely).
 `config.ts`, `core/types.ts`, `core/EventBus.ts`, `core/Economy.ts`, `core/math.ts`, `render/materials.ts`,
