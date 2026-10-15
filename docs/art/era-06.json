@@ -1,0 +1,274 @@
+{
+  "era": 6,
+  "name": "Electric Age",
+  "materials": [
+    {
+      "id": "copper",
+      "new": false,
+      "shape": "nugget",
+      "colors": ["#c9773a", "#8f4f25"]
+    },
+    {
+      "id": "quartz",
+      "new": true,
+      "shape": "quartz",
+      "size": [0.36, 0.3, 0.3],
+      "colors": ["#a3a7a0", "#d6dbe6", "#2e4a5a"],
+      "detail": "Translucent hexagonal silica crystal cluster with gleaming piezoelectric cleavage facets",
+      "icon": "Sparkling clear quartz crystal cluster with subtle cyan electric tint"
+    },
+    {
+      "id": "wire",
+      "new": false,
+      "shape": "coil",
+      "colors": ["#d88a45", "#5a3a20"]
+    },
+    {
+      "id": "bulb",
+      "new": true,
+      "shape": "bulb",
+      "size": [0.32, 0.38, 0.32],
+      "colors": ["#ffd070", "#c9773a", "#2e4a5a"],
+      "detail": "Blown glass vacuum bulb with glowing looped tungsten filament and threaded brass socket",
+      "icon": "Warm glowing incandescent glass bulb with brass screw base"
+    },
+    {
+      "id": "radio",
+      "new": true,
+      "shape": "radio",
+      "size": [0.4, 0.26, 0.28],
+      "colors": ["#4f7a8c", "#c9773a", "#2e4a5a", "#ffd070"],
+      "detail": "Art Deco enameled tabletop radio casing with circular speaker cloth and illuminated tuning dial",
+      "icon": "Teal Art Deco radio receiver with brass knobs and warm dial glow"
+    }
+  ],
+  "machines": [
+    {
+      "id": "copperMine",
+      "new": false,
+      "parts": [
+        { "name": "hoistTower", "primitive": "box", "size": [4.6, 5.0, 4.2], "pos": [0, 2.5, 0], "color": "#4f7a8c" }
+      ],
+      "colors": ["#4f7a8c", "#c9773a", "#2e4a5a"]
+    },
+    {
+      "id": "quartzPit",
+      "new": true,
+      "role": "extractor",
+      "footprint": [4.6, 4.6],
+      "height": 3.4,
+      "parts": [
+        { "name": "crushedGravelPit", "primitive": "cylinder", "size": [4.2, 0.6, 4.2], "pos": [0, 0.3, 0], "color": "#a3a7a0" },
+        { "name": "vibratingScreenSluice", "primitive": "box", "size": [2.6, 1.2, 1.8], "pos": [0, 1.1, -0.2], "color": "#2e4a5a" },
+        { "name": "electricVibratorMotor", "primitive": "cylinder", "size": [0.8, 0.8, 0.8], "pos": [1.4, 1.0, -0.2], "color": "#c9773a" },
+        { "name": "pylonSupportLegs", "primitive": "box", "size": [0.2, 2.4, 0.2], "pos": [-1.2, 1.2, 1.0], "color": "#5a6b74" },
+        { "name": "sortingChute", "primitive": "box", "size": [1.2, 0.4, 1.0], "pos": [-0.6, 0.8, 0.9], "color": "#4f7a8c" },
+        { "name": "snowDrapedRim", "primitive": "torus", "size": [2.1, 0.16, 2.1], "pos": [0, 0.65, 0], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "floodlightGlow", "primitive": "sphere", "size": [0.3, 0.3, 0.3], "pos": [-1.2, 2.4, 1.0], "color": "#ffd070" },
+        { "name": "piezoSparkle", "primitive": "sphere", "size": [0.2, 0.2, 0.2], "pos": [0, 1.6, -0.2], "color": "#7fe0ff" }
+      ],
+      "anim": {
+        "part": "screenShakerRocker",
+        "pivot": [0, 1.6, -0.2],
+        "motion": "bob",
+        "period": 0.8
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "wireMill",
+      "new": false,
+      "parts": [
+        { "name": "millShed", "primitive": "box", "size": [4.8, 3.6, 4.2], "pos": [0, 1.8, 0], "color": "#2e4a5a" }
+      ],
+      "colors": ["#2e4a5a", "#c9773a", "#ffd070"]
+    },
+    {
+      "id": "bulbWorks",
+      "new": true,
+      "role": "processor",
+      "footprint": [4.8, 4.6],
+      "height": 3.8,
+      "parts": [
+        { "name": "enameledFactoryBase", "primitive": "box", "size": [4.4, 0.6, 4.2], "pos": [0, 0.3, 0], "color": "#2e4a5a" },
+        { "name": "rotaryGlassOvenBay", "primitive": "cylinder", "size": [2.8, 2.0, 2.8], "pos": [-0.6, 1.5, -0.4], "color": "#4f7a8c" },
+        { "name": "vacuumSealStack", "primitive": "cylinder", "size": [0.6, 1.6, 0.6], "pos": [1.3, 2.2, -1.0], "color": "#5a6b74" },
+        { "name": "testBenchPlinth", "primitive": "box", "size": [1.8, 0.8, 1.4], "pos": [0.8, 0.8, 0.7], "color": "#a3a7a0" },
+        { "name": "transformerUnit", "primitive": "box", "size": [1.0, 1.2, 0.8], "pos": [-1.4, 0.9, 1.1], "color": "#c9773a" },
+        { "name": "snowOverhangRoof", "primitive": "box", "size": [3.2, 0.22, 3.0], "pos": [-0.6, 2.55, -0.4], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "annealingChamberGlow", "primitive": "box", "size": [0.8, 0.6, 0.2], "pos": [-0.6, 1.4, 0.95], "color": "#ffd070" },
+        { "name": "bulbTestCluster", "primitive": "sphere", "size": [0.3, 0.3, 0.3], "pos": [0.8, 1.35, 0.7], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "glassCarouselWheel",
+        "pivot": [-0.6, 1.8, -0.4],
+        "motion": "spin",
+        "period": 2.6
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "radioWorks",
+      "new": true,
+      "role": "premium",
+      "footprint": [5.0, 4.8],
+      "height": 4.2,
+      "parts": [
+        { "name": "moderneHallPodium", "primitive": "box", "size": [4.6, 0.5, 4.4], "pos": [0, 0.25, 0], "color": "#2e4a5a" },
+        { "name": "streamlineWorkshopHall", "primitive": "box", "size": [4.0, 2.4, 3.6], "pos": [0, 1.5, -0.3], "color": "#4f7a8c" },
+        { "name": "antennaMastTower", "primitive": "cylinder", "size": [0.3, 2.4, 0.3], "pos": [-1.5, 3.0, -1.2], "color": "#c9773a" },
+        { "name": "dipoleCrossRods", "primitive": "box", "size": [1.8, 0.1, 0.1], "pos": [-1.5, 4.1, -1.2], "color": "#ffd070" },
+        { "name": "acousticTestingChamber", "primitive": "cylinder", "size": [1.4, 1.2, 1.4], "pos": [1.1, 1.2, 0.7], "color": "#5a6b74" },
+        { "name": "roundedSnowCap", "primitive": "box", "size": [4.2, 0.25, 3.8], "pos": [0, 2.75, -0.3], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "tuningStationDial", "primitive": "box", "size": [0.9, 0.5, 0.1], "pos": [0, 1.6, 1.52], "color": "#ffd070" },
+        { "name": "broadcastMastBeacon", "primitive": "sphere", "size": [0.2, 0.2, 0.2], "pos": [-1.5, 4.2, -1.2], "color": "#c9773a" }
+      ],
+      "anim": {
+        "part": "rotatingAntennaArray",
+        "pivot": [-1.5, 3.8, -1.2],
+        "motion": "swing",
+        "period": 2.0
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "tillLine",
+      "new": true,
+      "role": "cash",
+      "footprint": [4.4, 4.2],
+      "height": 3.4,
+      "parts": [
+        { "name": "polishedMarbleCounter", "primitive": "box", "size": [4.0, 0.6, 3.8], "pos": [0, 0.3, 0], "color": "#a3a7a0" },
+        { "name": "enameledTillHousing", "primitive": "box", "size": [2.8, 1.4, 2.0], "pos": [0, 1.3, -0.2], "color": "#2e4a5a" },
+        { "name": "brassKeypadRegisters", "primitive": "box", "size": [2.4, 0.6, 1.2], "pos": [0, 1.8, 0.1], "color": "#c9773a" },
+        { "name": "pneumaticReceiptChute", "primitive": "cone", "size": [0.7, 0.9, 0.7], "pos": [0, 2.6, -0.2], "color": "#4f7a8c" },
+        { "name": "brassTillDrawerFront", "primitive": "box", "size": [2.6, 0.4, 0.3], "pos": [0, 0.9, 0.85], "color": "#c9773a" },
+        { "name": "snowCrestedCounter", "primitive": "box", "size": [3.0, 0.16, 2.2], "pos": [0, 2.1, -0.2], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "registerFlagDisplays", "primitive": "box", "size": [0.8, 0.3, 0.1], "pos": [0, 2.2, 0.3], "color": "#ffd070" },
+        { "name": "coinChuteAperture", "primitive": "sphere", "size": [0.2, 0.2, 0.2], "pos": [0, 1.4, 0.8], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "popPriceFlags",
+        "pivot": [0, 2.1, 0.3],
+        "motion": "bob",
+        "period": 1.5
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    }
+  ],
+  "workers": [
+    {
+      "role": "hauler",
+      "title": "Lineman",
+      "hat": "lineman helmet with leather chinstrap + #2e4a5a",
+      "coat": "#2e4a5a",
+      "prop": "spool of heavy insulated copper wire + [0.3, 0.35, 0.3] + #c9773a",
+      "anim": "nimble purposeful stride with wire spool slung over hip"
+    },
+    {
+      "role": "feeder",
+      "title": "Coil Winder",
+      "hat": "cotton workshop cap + #3d4f5c",
+      "coat": "#436477",
+      "prop": "hand wire tensioning flyer + [0.15, 0.45, 0.12] + #c9773a",
+      "anim": "circular winding motion spooling copper strands"
+    },
+    {
+      "role": "shipper",
+      "title": "Tram Driver",
+      "hat": "motorman peaked cap with brass badge + #1e2e38",
+      "coat": "#2a4352",
+      "prop": "electric tram controller handle + [0.12, 0.4, 0.1] + #c9773a",
+      "anim": "turning notch controller handle with authoritative click"
+    },
+    {
+      "role": "porter",
+      "title": "Freight Hand",
+      "hat": "knit utility watch cap + #22323c",
+      "coat": "#395260",
+      "prop": "insulated utility hand truck + [0.4, 0.85, 0.35] + #5a6b74",
+      "anim": "tilting loaded hand truck back and wheeling briskly"
+    },
+    {
+      "role": "clerk",
+      "title": "Switchboard Clerk",
+      "hat": "spring-steel telephone headset + #1a242c",
+      "coat": "#354e5c",
+      "prop": "dual telephone patch cords + [0.1, 0.5, 0.05] + #c9773a",
+      "anim": "plugging brass patch cords into switchboard jacks"
+    },
+    {
+      "role": "foreman",
+      "title": "Electrical Foreman",
+      "hat": "yellow safety helmet + #ffd070",
+      "coat": "#244050",
+      "prop": "analog volt-ohm test meter with probes + [0.18, 0.25, 0.08] + #2e4a5a",
+      "anim": "touching test probes together and watching galvanometer needle"
+    },
+    {
+      "role": "gatherer",
+      "title": "Copper Scrapper",
+      "hat": "protective visor cap + #293d48",
+      "coat": "#405d6e",
+      "prop": "insulated cable cutting snips + [0.18, 0.5, 0.08] + #c9773a",
+      "anim": "snapping heavy wire cutters with quick two-handed bite"
+    }
+  ],
+  "gear": [
+    {
+      "slot": "carry",
+      "name": "Spool Rack",
+      "look": "Tubular steel backpack frame holding two spinning spools of copper wire",
+      "colors": ["#5a6b74", "#c9773a", "#2e4a5a"]
+    },
+    {
+      "slot": "boots",
+      "name": "E-Scooter",
+      "look": "Streamlined motorized electric platform boots with knobby snow tires",
+      "colors": ["#4f7a8c", "#ffd070", "#2e4a5a"]
+    },
+    {
+      "slot": "tool",
+      "name": "Power Drill",
+      "look": "Heavy cast-aluminum pistol-grip electric drill with coiled rubber power cord",
+      "colors": ["#5a6b74", "#c9773a", "#ffd070"]
+    }
+  ],
+  "pet": {
+    "name": "Lamp Cat",
+    "parts": [
+      { "name": "sleekBody", "primitive": "capsule", "size": [0.35, 0.55, 0.35], "pos": [0, 0.4, 0], "color": "#2e4a5a" },
+      { "name": "pointedEarsHead", "primitive": "box", "size": [0.24, 0.25, 0.24], "pos": [0, 0.62, 0.24], "color": "#4f7a8c" },
+      { "name": "whiskersNose", "primitive": "box", "size": [0.16, 0.08, 0.12], "pos": [0, 0.56, 0.36], "color": "#c9773a" },
+      { "name": "prowlingLegs", "primitive": "cylinder", "size": [0.07, 0.28, 0.07], "pos": [-0.12, 0.14, 0.14], "color": "#2e4a5a" },
+      { "name": "curlingTail", "primitive": "cylinder", "size": [0.04, 0.45, 0.04], "pos": [0, 0.55, -0.2], "color": "#4f7a8c" },
+      { "name": "tailBulbSocket", "primitive": "cylinder", "size": [0.07, 0.08, 0.07], "pos": [0, 0.8, -0.22], "color": "#c9773a" },
+      { "name": "snowCollar", "primitive": "torus", "size": [0.15, 0.04, 0.15], "pos": [0, 0.55, 0.15], "color": "#f4f7fb" }
+    ],
+    "colors": ["#2e4a5a", "#4f7a8c", "#c9773a", "#ffd070", "#f4f7fb"],
+    "anim": "Agile trotting prowl with glowing filament bulb at the tip of its upright tail"
+  },
+  "node": {
+    "name": "Copper Vein",
+    "parts": [
+      { "name": "malachiteRock", "primitive": "sphere", "size": [2.3, 1.7, 2.1], "pos": [0, 0.85, 0], "color": "#4f7a8c" },
+      { "name": "nativeCopperRibbon", "primitive": "box", "size": [1.5, 0.6, 1.1], "pos": [0.5, 0.7, 0.4], "color": "#c9773a" },
+      { "name": "quartzLedge", "primitive": "box", "size": [1.1, 0.7, 0.9], "pos": [-0.6, 0.8, -0.4], "color": "#a3a7a0" },
+      { "name": "winterSnowCap", "primitive": "sphere", "size": [1.7, 0.35, 1.5], "pos": [0, 1.7, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#4f7a8c", "#c9773a", "#a3a7a0", "#f4f7fb"],
+    "anim": "Sharp electric crackle with sparks jumping across malachite veins and dislodged raw copper lumps"
+  }
+}
