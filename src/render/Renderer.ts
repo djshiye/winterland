@@ -21,6 +21,7 @@
  */
 import * as THREE from 'three';
 import { LIGHTING, PALETTE } from '../config';
+import { hideInstanced, prepareInstances, prepareSharedInstances, restoreInstances } from './instancer';
 
 export type Quality = 'high' | 'low';
 
@@ -107,6 +108,12 @@ export class Renderer {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(PALETTE.sky);
+    // pooled NPC / vehicle parts need this frame's world matrices: fold them in after three updates them
+    this.scene.onBeforeRender = (_r, scene, camera) => {
+      const sh = this.sun.castShadow && this.renderer.shadowMap.enabled ? this.sun.shadow : null;
+      if (sh) sh.updateMatrices(this.sun); // what the shadow pass is about to use (it recomputes the same)
+      if (this.instancing) prepareSharedInstances(scene, camera, sh ? sh.camera : null);
+    };
     this.camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 400);
 
     this.hemi = new THREE.HemisphereLight(LIGHTING.hemiSky, LIGHTING.hemiGround, LIGHTING.hemiIntensity);
@@ -247,8 +254,18 @@ export class Renderer {
     this.renderer.setSize(this.width, this.height);
   }
 
+  /** Draw repeated items / NPC parts instanced (render/instancer.ts). Off = every mesh draws itself (A/B checks). */
+  instancing = true;
+
   render(): void {
     if (this.darknessSource) this.setDarkness(this.darknessSource());
-    this.renderer.render(this.scene, this.camera);
+    // repeated pile / stack items and NPC parts draw as one instanced mesh per kind (render/instancer.ts)
+    if (this.instancing) prepareInstances(this.scene);
+    else hideInstanced();
+    try {
+      this.renderer.render(this.scene, this.camera);
+    } finally {
+      restoreInstances();
+    }
   }
 }

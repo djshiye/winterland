@@ -17,6 +17,7 @@
 import * as THREE from 'three';
 import { ECONOMY, ITEM_SIZE, type PileGrid } from '../config';
 import { UP } from '../core/math';
+import { instanceChildren, stopInstancing } from '../render/instancer';
 import { MATERIAL_KINDS, type GameContext, type Item, type ItemHolder, type ItemKind, type Slot } from '../core/types';
 
 export interface PileOptions {
@@ -79,6 +80,7 @@ export class Pile implements ItemHolder {
     this.root.rotation.y = opts.rotationY ?? 0;
     this.root.name = opts.id;
     (opts.parent ?? ctx.scene).add(this.root);
+    instanceChildren(this.root); // landed items of one kind draw as ONE instanced mesh
   }
 
   // --- ItemHolder -----------------------------------------------------------
@@ -275,6 +277,7 @@ export class Pile implements ItemHolder {
   /** Clear and detach the pile from the scene. */
   dispose(): void {
     this.clear();
+    stopInstancing(this.root);
     this.root.removeFromParent();
   }
 

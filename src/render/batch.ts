@@ -158,3 +158,49 @@ export function bake(group: THREE.Object3D, opts?: { cast?: boolean; receive?: b
   out.scale.copy(group.scale);
   return out;
 }
+
+const sharedBakes = new Map<string, THREE.BufferGeometry[]>();
+
+function sameArrays(a: THREE.BufferGeometry, b: THREE.BufferGeometry): boolean {
+  for (const name of ['position', 'normal', 'color']) {
+    const x = a.getAttribute(name)?.array;
+    const y = b.getAttribute(name)?.array;
+    if (!x || !y || x.length !== y.length) return x === y;
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Give `m` the cached copy of its baked geometry when an identical one was baked before (same vertices, normals and
+ * colours), and dispose the duplicate. Pawns of one look then share their part geometry, which is what lets
+ * render/instancer.ts draw every matching boot / arm / head in ONE call. Only for bake()/Batch output that nobody
+ * edits or disposes afterwards. Returns `m`.
+ */
+export function shareBaked(m: THREE.Mesh): THREE.Mesh {
+  const g = m.geometry;
+  const pos = g.getAttribute('position');
+  if (!pos || g.index) return m;
+  // cheap key: vertex count + a few sampled values; equal keys are confirmed with a full compare
+  const a = pos.array;
+  const col = g.getAttribute('color')?.array;
+  const step = Math.max(1, Math.floor(a.length / 24));
+  let key = `${a.length}`;
+  for (let i = 0; i < a.length; i += step) key += `,${a[i]!.toFixed(4)}`;
+  if (col) for (let i = 0; i < col.length; i += Math.max(1, Math.floor(col.length / 8))) key += `|${col[i]!.toFixed(3)}`;
+  const list = sharedBakes.get(key);
+  if (list) {
+    for (const s of list) {
+      if (sameArrays(s, g)) {
+        g.dispose();
+        m.geometry = s;
+        return m;
+      }
+    }
+    list.push(g);
+  } else {
+    sharedBakes.set(key, [g]);
+  }
+  g.userData.sharedBake = true;
+  return m;
+}

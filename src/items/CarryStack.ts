@@ -26,6 +26,7 @@
 import * as THREE from 'three';
 import { UP, damp, randRange } from '../core/math';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
+import { instanceChildren } from '../render/instancer';
 import { GAME_FONT, makeCanvasTexture } from '../render/materials';
 import { SwaySpring } from './Sway';
 
@@ -96,6 +97,7 @@ export class CarryStack implements ItemHolder {
     this.capacity = opts.capacity;
     this.columnHeight = opts.columnHeight ?? Infinity;
     this.columnSize = opts.columnSize ?? Infinity;
+    if (opts.capacity > 1) instanceChildren(opts.anchor); // carried items of one kind draw as ONE instanced mesh
   }
 
   // --- ItemHolder -----------------------------------------------------------

@@ -24,6 +24,7 @@ import * as THREE from 'three';
 import { ECONOMY, ITEM_SIZE } from '../config';
 import { UP, clamp01 } from '../core/math';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot, Updatable } from '../core/types';
+import { instanceChildren } from '../render/instancer';
 import { SwaySpring } from './Sway';
 
 export interface CashStackOptions {
@@ -73,6 +74,7 @@ export class CashStack implements ItemHolder {
     readonly opts: CashStackOptions,
   ) {
     this.id = opts.id;
+    instanceChildren(opts.anchor); // the bundles draw as ONE instanced mesh
     const ticker: Updatable = { update: (dt) => this.tickAnims(dt) };
     ctx.addUpdatable(ticker);
     ctx.events.on('money:changed', () => this.sync());
