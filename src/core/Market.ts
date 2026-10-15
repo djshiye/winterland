@@ -143,9 +143,13 @@ export class Market implements Updatable {
     return MARKET.spread / Math.max(1, this.ctx.upgrades.value('broker'));
   }
 
-  /** Per-unit trading price including the spread ('buy' pays more, 'sell' gets less). */
+  /**
+   * Per-unit trading price including the spread ('buy' pays more, 'sell' gets less). Supply pressure only lowers what
+   * sellers get, never what buyers pay, so crashing a price yourself and buying back cheap cannot print money.
+   */
   quote(kind: MaterialKind, side: 'buy' | 'sell'): number {
-    return this.unitValue(kind) * (1 + (side === 'buy' ? 1 : -1) * this.spread());
+    const p = side === 'buy' ? MATERIALS[kind].value * this.index(kind) : this.unitValue(kind);
+    return p * (1 + (side === 'buy' ? 1 : -1) * this.spread());
   }
 
   /** Dollars `units` virtual units cost right now. */
@@ -187,7 +191,7 @@ export class Market implements Updatable {
       m.holdings[kind] = held - units;
     }
     this.addPressure(kind, units, TRADE_PRESSURE_SHARE);
-    this.ctx.economy.add(proceeds);
+    this.ctx.economy.add(proceeds, Math.max(0, profit)); // the returned cost basis is not money earned
     if (profit > 0) this.ctx.state.stats.tradeProfit += profit;
     this.ctx.events.emit('market:trade', { kind, units, side: 'sell', amount: proceeds, profit });
     if (profit > 0) this.ctx.events.emit('income', { source: 'trade', amount: profit, position: null });
@@ -234,8 +238,9 @@ export class Market implements Updatable {
     const { state } = this.ctx;
     if (units < 1 || !this.isTradable(kind)) return false;
     if (!Number.isInteger(era) || era < 2 || era > state.eras.age || !state.eras.regions[era]?.unlocked) return false;
-    if (!this.ctx.economy.spend(this.orderCost(kind, units))) return false;
-    this.ctx.events.emit('market:order', { kind, count: units, era });
+    const cost = this.orderCost(kind, units);
+    if (!this.ctx.economy.spend(cost)) return false;
+    this.ctx.events.emit('market:order', { kind, count: units, era, amount: cost });
     return true;
   }
 
@@ -294,7 +299,7 @@ export class Market implements Updatable {
     m.investments.splice(i, 1);
     const pay = Math.round(pos.product === 'bond' && !this.matured(pos) ? pos.principal : pos.value);
     const gain = pay - pos.principal;
-    this.ctx.economy.add(pay);
+    this.ctx.economy.add(pay, Math.max(0, gain)); // the returned principal is not money earned
     if (gain > 0) this.ctx.state.stats.investEarned += gain;
     this.ctx.events.emit('invest:changed', {});
     if (gain > 0) this.ctx.events.emit('income', { source: 'interest', amount: gain, position: null });

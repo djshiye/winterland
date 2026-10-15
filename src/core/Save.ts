@@ -282,6 +282,11 @@ export function sanitizeState(state: GameState): void {
     m.fund = isNum(m.fund) && m.fund > 0 ? m.fund : 1;
     m.nextId = int(m.nextId, 1, Number.MAX_SAFE_INTEGER);
     for (const p of m.investments) if (p.id >= m.nextId) m.nextId = p.id + 1;
+    const seen = new Set<number>(); // repeated ids (tampered / id-less saves): withdraw would close the wrong one
+    for (const p of m.investments) {
+      if (seen.has(p.id)) p.id = m.nextId++;
+      seen.add(p.id);
+    }
   }
 
   state.prestige.season = int(state.prestige.season, 0, 1_000_000);
@@ -305,8 +310,8 @@ export function offlineEarnings(save: SaveData, now: number): { amount: number; 
 }
 
 /**
- * Rolling sales rate ($ per simulated second) over the last OFFLINE.window seconds of play. Until a full window
- * has been played this session, the rate carried over from the save fills the rest of the window.
+ * Rolling sales rate ($ per simulated second, net of market orders) over the last OFFLINE.window seconds of play.
+ * Until a full window has been played this session, the rate carried over from the save fills the rest of the window.
  */
 export class SalesMeter {
   private readonly times: number[] = [];
@@ -325,6 +330,12 @@ export class SalesMeter {
       this.times.push(ctx.time.elapsed);
       this.amounts.push(amount);
       this.sum += amount;
+    });
+    // market orders count against the rate, so buying goods just to export them adds nothing
+    ctx.events.on('market:order', ({ amount }) => {
+      this.times.push(ctx.time.elapsed);
+      this.amounts.push(-amount);
+      this.sum -= amount;
     });
   }
 

@@ -5,7 +5,8 @@
  */
 import { CITY_RANKS, ERA_NAMES, ERAS, MATERIALS, MAX_ERA, isMaterial, unlockCash } from '../eras/data';
 import type { TravelPoint } from '../eras/layout';
-import type { IncomeSource, ItemKind } from '../core/types';
+import type { GameState, IncomeSource, ItemKind } from '../core/types';
+import { cityTotals, rankFor } from '../city/rules';
 import { formatMoney } from './format';
 import { romanNumeral } from '../world/env/eras';
 
@@ -104,6 +105,12 @@ export function industryEraNote(n: number, age: number): string | null {
 /** The era chip shows once the first expansion is on offer or era 2 was reached. */
 export function eraChipVisible(age: number, firstExpansionOffered: boolean): boolean {
   return age >= 2 || firstExpansionOffered;
+}
+
+/** The era chip's seed on load (village + district residents, rank), the same numbers 'city:changed' carries. */
+export function cityStanding(state: Pick<GameState, 'village' | 'city' | 'eras'>): { population: number; rank: number } {
+  const population = state.village.population + cityTotals(state.city).residents;
+  return { population, rank: rankFor(population, state.eras.age) };
 }
 
 /** "1,234" below 10,000; "12.3K" / "1.2M" above. */

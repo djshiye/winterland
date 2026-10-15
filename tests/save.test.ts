@@ -7,8 +7,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DAYNIGHT, OFFLINE, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE } from '../src/config';
 import { salePrice } from '../src/core/demand';
-import { mergeState, newSeasonSave, offlineEarnings, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
-import { createGameState } from '../src/core/types';
+import { EventBus } from '../src/core/EventBus';
+import { mergeState, newSeasonSave, offlineEarnings, SalesMeter, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
+import { createGameState, type GameContext, type GameEvents } from '../src/core/types';
 
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
@@ -89,6 +90,35 @@ describe('offline earnings', () => {
     const capped = offlineEarnings(...save(1000, 20000, 3600)).amount;
     expect(capped).toBeLessThanOrEqual(20000 * OFFLINE.maxShareOfEarned);
     expect(capped % 5).toBe(0);
+  });
+});
+
+describe('SalesMeter', () => {
+  const meter = () => {
+    const events = new EventBus<GameEvents>();
+    const time = { elapsed: 0, frame: 0 };
+    const sales = new SalesMeter({ events, time } as unknown as GameContext, 0);
+    time.elapsed = OFFLINE.window;
+    return { events, time, sales };
+  };
+
+  it('nets market orders out of the rate, so order-then-export churn adds nothing', () => {
+    const { events, time, sales } = meter();
+    events.emit('sale', { buyer: 'export', kind: 'brick', count: 24, amount: 6000, position: null as never });
+    expect(sales.rate).toBeCloseTo(6000 / OFFLINE.window, 9);
+    events.emit('market:order', { kind: 'brick', count: 24, era: 2, amount: 7000 });
+    events.emit('sale', { buyer: 'export', kind: 'brick', count: 24, amount: 6000, position: null as never });
+    expect(sales.rate).toBeCloseTo(5000 / OFFLINE.window, 9);
+    // an order that leaves the window stops counting against the rate
+    time.elapsed += OFFLINE.window + 1;
+    events.emit('sale', { buyer: 'export', kind: 'brick', count: 1, amount: 300, position: null as never });
+    expect(sales.rate).toBeCloseTo(300 / OFFLINE.window, 9);
+  });
+
+  it('never goes negative', () => {
+    const { events, sales } = meter();
+    events.emit('market:order', { kind: 'brick', count: 24, era: 2, amount: 7000 });
+    expect(sales.rate).toBe(0);
   });
 });
 
@@ -201,6 +231,15 @@ describe('sanitizeState', () => {
     expect(state.playTime).toBe(0);
     expect(state.stats.moneyEarned).toBe(0);
     expect(state.padPaid['pad:harvester']).toBe(0);
+  });
+
+  it('gives repeated investment ids fresh ones, so withdraw closes the position it is asked to', () => {
+    const bond = { product: 'bond', era: 0, principal: 1000, value: 1000, age: 0 };
+    const state = merged({ eras: { age: 3 }, market: { nextId: 1, investments: [bond, { ...bond, product: 'index' }, { ...bond, id: 5 }, { ...bond, id: 5 }] } });
+    const ids = state.market.investments.map((p) => p.id);
+    expect(new Set(ids).size).toBe(4);
+    expect(ids.slice(0, 3)).toEqual([0, 6, 5]);
+    expect(state.market.nextId).toBeGreaterThan(Math.max(...ids));
   });
 });
 

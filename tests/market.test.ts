@@ -205,7 +205,7 @@ describe('physical orders', () => {
     expect(market.order('stone', 100, 2)).toBe(true);
     expect(m0 - economy.money).toBe(market.orderCost('stone', ORDER_MAX_UNITS));
     expect(m0 - economy.money).toBe(Math.round(market.quote('stone', 'buy') * 24 * (1 + MARKET.delivery)));
-    expect(log.find((l) => l.type === 'market:order')!.payload).toEqual({ kind: 'stone', count: 24, era: 2 });
+    expect(log.find((l) => l.type === 'market:order')!.payload).toEqual({ kind: 'stone', count: 24, era: 2, amount: m0 - economy.money });
   });
 
   it('refuses locked regions, untradable kinds and an empty wallet', () => {
@@ -352,5 +352,57 @@ describe('jack', () => {
     expect(economy.money).toBe(market.jackOffer('plank'));
     expect(state.stats.jackEarned).toBe(economy.money);
     expect(market.sellToJack('cash', new THREE.Vector3())).toBe(0);
+  });
+});
+
+describe('money loops', () => {
+  it('cannot print money by crashing a price with a sale and buying back cheap', () => {
+    const { market, economy, state } = setup({ age: 2, money: 1e6, rng: () => 0.5 });
+    const m0 = economy.money;
+    expect(market.buy('brick', 400)).toBe(true);
+    for (let i = 0; i < 5; i++) {
+      expect(market.sell('brick', 400)).toBe(true);
+      expect(state.market.pressure.brick).toBeGreaterThan(0);
+      expect(market.buy('brick', 400)).toBe(true); // pressure lowers what sellers get, not what buyers pay
+      run(market, 60);
+    }
+    market.sell('brick', 400);
+    expect(economy.money).toBeLessThan(m0);
+  });
+
+  it('prices an order without the supply-pressure discount, so a crash-time order never exports at a profit', () => {
+    const { market, state } = setup({ age: 2, rng: () => 0.5 });
+    const calm = market.orderCost('brick', ORDER_MAX_UNITS);
+    state.market.pressure.brick = MARKET.pressureMax;
+    expect(market.orderCost('brick', ORDER_MAX_UNITS)).toBe(calm);
+    expect(calm).toBeGreaterThan(market.exportPrice('brick', ORDER_MAX_UNITS) / (1 - MARKET.pressureMax));
+  });
+
+  it('does not count withdrawn principal or a sale\'s cost basis as money earned', () => {
+    const { market, economy, state } = setup({ age: 2, money: 100_000, rng: () => 0.5 });
+    const m0 = economy.money;
+    expect(market.invest('bond', 20_000)).toBe(true);
+    market.withdraw(state.market.investments[0]!.id); // early: principal back
+    expect(economy.money).toBe(m0);
+    expect(state.stats.moneyEarned).toBe(0);
+    market.buy('brick', 10);
+    market.sell('brick', 10); // a loss: nothing earned
+    expect(state.stats.moneyEarned).toBe(0);
+    // only the gain counts
+    expect(market.invest('bond', 20_000)).toBe(true);
+    const pos = state.market.investments[0]!;
+    pos.age = INVEST.bond.lock ?? 0;
+    pos.value = 21_000;
+    market.withdraw(pos.id);
+    expect(state.stats.moneyEarned).toBe(1_000);
+  });
+
+  it('Economy.add still counts plain income in full', () => {
+    const { economy, state } = setup({ money: 0 });
+    economy.add(500);
+    expect(state.stats.moneyEarned).toBe(500);
+    economy.add(300, 100);
+    expect(economy.money).toBe(800);
+    expect(state.stats.moneyEarned).toBe(600);
   });
 });

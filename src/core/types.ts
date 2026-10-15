@@ -657,8 +657,8 @@ export interface GameEvents {
   /** Fast travel: the map asks Level to move the player; Level answers with travel:done after the teleport. */
   'travel:request': { x: number; z: number; label: string };
   'travel:done': { x: number; z: number; label: string };
-  /** The market bought `count` physical units for era n's import dock (money already spent); the region spawns them. */
-  'market:order': { kind: MaterialKind; count: number; era: number };
+  /** The market bought `count` physical units for era n's import dock (`amount` dollars already spent); the region spawns them. */
+  'market:order': { kind: MaterialKind; count: number; era: number; amount: number };
   /** A trade of virtual holdings closed (`amount` dollars moved; profit for sells, 0 for buys). */
   'market:trade': { kind: MaterialKind; units: number; side: 'buy' | 'sell'; amount: number; profit: number };
   /** Positions opened / closed / matured. */

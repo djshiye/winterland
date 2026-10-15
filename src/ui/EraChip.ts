@@ -10,7 +10,7 @@
 import type { GameContext } from '../core/types';
 import { CITY_RANKS, ERAS } from '../eras/data';
 import { expansionOffered } from '../eras/layout';
-import { eraChipVisible, eraRoman, formatPopulation, IncomeTicker, rankName } from './agesLogic';
+import { cityStanding, eraChipVisible, eraRoman, formatPopulation, IncomeTicker, rankName } from './agesLogic';
 import { cubicOut, h, onTap, shield } from './dom';
 import { hexCss } from './icons';
 import './ages.css';
@@ -22,7 +22,7 @@ export class EraChip {
   private readonly dot: HTMLElement;
   private shown = false;
   private population: number;
-  private rank = 0;
+  private rank: number;
   private lastEra = '';
   private lastCity = '';
   private lastAge = 0;
@@ -31,7 +31,8 @@ export class EraChip {
     private readonly ctx: GameContext,
     layer: HTMLElement,
   ) {
-    this.population = ctx.state.village.population;
+    // a restored save emits no 'city:changed' (City recomputes silently): seed from the merged state
+    ({ population: this.population, rank: this.rank } = cityStanding(ctx.state));
     this.root = h('button', 'wl-erachip');
     this.root.type = 'button';
     this.root.setAttribute('aria-label', 'Open the map');
