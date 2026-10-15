@@ -16,7 +16,7 @@
 //   __bot.milestones() → first time (minutes) of every milestone seen, in order
 (() => {
   const W = window.__WINTERLAND__;
-  const { LAYOUT, PADS, VILLAGE, QUARTERS } = W.config;
+  const { LAYOUT, PADS, VILLAGE, QUARTERS, BUSINESSES } = W.config;
   const ctx = W.ctx;
   const level = W.level;
   const up = ctx.upgrades;
@@ -33,6 +33,12 @@
   const WORKSHOP_EVERY = 25;
   let lastUpkeep = -Infinity;
   const WINTER_CITY = VILLAGE.levels.findIndex((l) => l.name === 'Winter City');
+  /** Wave 9: what the bot builds on each Market Town lot (in lot order), and how often it restocks the shops. */
+  const TOWN_PLAN = ['farm', 'bakery', 'townhouse', 'townhouse', 'farm', 'bakery', 'townhouse', 'townhouse'];
+  const TOWN_EVERY = 20;
+  /** Town builds compete with shelters at this weight (they also earn: shops sell bread). */
+  const TOWN_WEIGHT = 1.4;
+  let lastTownUpkeep = -1e9;
 
   const mid = (r) => ({ x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 });
   const P = LAYOUT.processor;
@@ -79,7 +85,8 @@
   on('village:levelUp', ({ level: lv }) => (note({ villageLevel: lv }), mark(VILLAGE.levels[lv]?.name ?? `vl:${lv}`)));
   on('reveal', ({ what }) => (note({ reveal: what }), mark(`reveal:${what}`)));
   on('quarters:built', ({ tier }) => (note({ quarters: tier }), mark(`quarters:${tier}`)));
-  on('sale', ({ buyer }) => buyer === 'sled' && mark('firstSled'));
+  on('sale', ({ buyer }) => (buyer === 'sled' && mark('firstSled'), buyer === 'townsfolk' && mark('firstTownSale')));
+  on('town:built', ({ building }) => (note({ town: building }), mark('firstTownBuilding'), mark(`town:${building}`)));
   on('finale:start', () => (note({ finale: true }), mark('finale')));
 
   // --- primitives --------------------------------------------------------------------------------------------
@@ -139,6 +146,7 @@
   /** The offered pad of plot `plot` (−1 = Great Lodge): where to stand and what it still needs; null if none. */
   function plotInfo(plot) {
     if (plot === 'q') return quartersInfo();
+    if (typeof plot === 'string' && plot[0] === 't') return townInfo(Number(plot.slice(1)));
     const village = level.village;
     const spot = village && village.padSpot(plot);
     if (!spot) return null;
@@ -147,6 +155,15 @@
     const def = plot < 0 ? VILLAGE.greatLodge : VILLAGE.tiers[p.tier + 1];
     if (!p || !def) return null;
     return { plot, spot, logsLeft: Math.max(0, def.logs - p.logs), cashLeft: Math.max(0, def.cash - p.cash) };
+  }
+
+  /** A Market Town lot (plot id 't<i>') being paid for, same shape as plotInfo; null when built / not chosen. */
+  function townInfo(i) {
+    const lot = ctx.state.town.lots[i];
+    const spot = level.town.padSpot(i);
+    if (!lot || lot.building === '' || lot.tier >= 0 || !spot) return null;
+    const def = BUSINESSES[lot.building];
+    return { plot: `t${i}`, spot, logsLeft: Math.max(0, def.logs - lot.logs), cashLeft: Math.max(0, def.cash - lot.cash) };
   }
 
   /** The crew bunkhouse's next tier on Timber Ridge (plot id 'q'), same shape as plotInfo. */
@@ -161,7 +178,14 @@
   /** Plot being built and the tier it started from (kept across turns until that tier completes). */
   let build = null;
   let buildTier = 0;
-  const tierOf = (plot) => (plot === 'q' ? ctx.state.quarters.tier : plot < 0 ? ctx.state.village.greatLodge.tier : ctx.state.village.plots[plot].tier);
+  const tierOf = (plot) =>
+    plot === 'q'
+      ? ctx.state.quarters.tier
+      : typeof plot === 'string'
+        ? ctx.state.town.lots[Number(plot.slice(1))].tier
+        : plot < 0
+          ? ctx.state.village.greatLodge.tier
+          : ctx.state.village.plots[plot].tier;
   const startBuild = (plot, info) => ((build = plot), (buildTier = tierOf(plot)), buildTurn(info));
 
   /** One step toward finishing `info`; false when there is nothing useful to do for it right now. */
@@ -182,11 +206,62 @@
       return true;
     }
     if (info.logsLeft === 0 && money() < info.cashLeft) return false; // logs done; earn the rest first
-    act(info.plot === 'q' ? 'build:quarters' : info.plot < 0 ? 'build:greatLodge' : 'build:plot', info.spot, 10, () => {
+    const what = info.plot === 'q' ? 'build:quarters' : typeof info.plot === 'string' ? 'build:town' : info.plot < 0 ? 'build:greatLodge' : 'build:plot';
+    act(what, info.spot, 10, () => {
       const now = plotInfo(info.plot);
       return !now || tierOf(info.plot) !== buildTier || ((now.logsLeft === 0 || count(arms, 'log') === 0) && (now.cashLeft === 0 || money() < 5));
     });
     return true;
+  }
+
+  // --- town upkeep -------------------------------------------------------------------------------------------
+  const townBiz = (kind) => {
+    const out = [];
+    for (let i = 0; i < ctx.state.town.lots.length; i++) {
+      const b = level.town.business(i);
+      if (b && b.def.kind === kind) out.push(b);
+    }
+    return out;
+  };
+  /** Shop that takes `kind` and has the fewest of it, or null. */
+  const hungryShop = (kind, below) => {
+    let best = null;
+    for (const b of townBiz('shop')) {
+      if (!b.def.inputs.some((x) => x.kind === kind) || !b.input.canAccept(kind)) continue;
+      const have = count(b.input, kind);
+      if (have < below && (!best || have < count(best.input, kind))) best = b;
+    }
+    return best;
+  };
+  function townTurn(arms, logsReserved, spare) {
+    for (const kind of ['wheat', 'meat']) {
+      if (count(arms, kind) === 0) continue;
+      const shop = hungryShop(kind, Infinity);
+      if (shop) {
+        act(`deliver:${kind}`, mid(shop.feedZone), 4, () => count(arms, kind) === 0 || !shop.input.canAccept(kind));
+        return true;
+      }
+    }
+    if (ctx.time.elapsed - lastTownUpkeep < TOWN_EVERY) return false;
+    const fire = hungryShop('log', 3);
+    if (fire && count(arms, 'log') > 0 && !logsReserved) {
+      lastTownUpkeep = ctx.time.elapsed;
+      act('deliver:firewood', mid(fire.feedZone), 4, () => spare() <= 0 || !fire.input.canAccept('log'));
+      return true;
+    }
+    for (const farm of townBiz('producer')) {
+      const kind = farm.def.output;
+      if (count(farm.output, kind) < 4 || !hungryShop(kind, 6) || held(arms) >= arms.capacity) continue;
+      lastTownUpkeep = ctx.time.elapsed;
+      act(`fetch:${kind}`, mid(farm.pickupZone), 4, () => held(arms) >= arms.capacity || count(farm.output, kind) === 0);
+      return true;
+    }
+    if (fire && held(arms) < arms.capacity && count(level.dropZone.pile, 'log') >= 4) {
+      lastTownUpkeep = ctx.time.elapsed;
+      act('fetch:firewood', spots.pickup, 3, () => count(arms, 'log') >= 8 || held(arms) >= arms.capacity);
+      return true;
+    }
+    return false;
   }
 
   // --- spending ----------------------------------------------------------------------------------------------
@@ -242,6 +317,30 @@
       const q = quartersInfo();
       if (q && s.quarters.tier < 0 && q.cashLeft <= cash) options.push({ rank: -2, run: () => startBuild('q', q) });
       else if (q && ok(q.cashLeft)) options.push({ rank: q.cashLeft + q.logsLeft * LOG_VALUE, run: () => startBuild('q', q) });
+      // Wave 9: Market Town lots (choose the planned building on the lot pad, then pay like a shelter).
+      if (s.town.revealed && s.village.level < WINTER_CITY) {
+        for (let i = 0; i < s.town.lots.length; i++) {
+          const lot = s.town.lots[i];
+          if (lot.tier >= 0) continue;
+          const id = lot.building || TOWN_PLAN[i];
+          const def = BUSINESSES[id];
+          if (!def || def.era > s.village.level) continue;
+          const cashLeft = def.cash - lot.cash;
+          const logsLeft = def.logs - lot.logs;
+          if (!ok(cashLeft)) continue;
+          options.push({
+            rank: TOWN_WEIGHT * (cashLeft + logsLeft * LOG_VALUE),
+            run: () => {
+              if (lot.building === '') {
+                act('town:choose', level.town.padSpot(i), 0.6);
+                if (!level.town.choose(i, id)) return false;
+              }
+              const info = townInfo(i);
+              return info ? startBuild(`t${i}`, info) : false;
+            },
+          });
+        }
+      }
       if (s.village.level < WINTER_CITY) {
         for (let i = 0; i < VILLAGE.plotLevels.length; i++) {
           const info = plotInfo(i);
@@ -284,15 +383,19 @@
     // 2b. Keep the workshop running (chairs pay the most per log): clear the bench, keep the hopper fed.
     // At most one upkeep round per WORKSHOP_EVERY seconds, so the village and upgrades still get turns.
     const shop8 = level.workshop;
+    // Logs fetched for the build in progress are not firewood / workshop feed: only the surplus is.
+    const keep = build !== null ? (plotInfo(build)?.logsLeft ?? 0) : 0;
+    const spare = () => count(arms, 'log') - keep;
+    const logsReserved = keep > 0 && spare() <= 0;
     if (shop8 && ctx.time.elapsed - lastUpkeep >= WORKSHOP_EVERY) {
       const deck8 = level.treeFeller && level.treeFeller.deck;
       if (count(shop8.output, 'furniture') >= 4 && sledCounter && room(sledCounter.pile) && held(arms) < arms.capacity) {
         act('fetch:furniture', spots.workshopBench, 4, () => held(arms) >= arms.capacity || count(shop8.output, 'furniture') === 0);
         return;
       }
-      if (count(shop8.input) < 3 && count(arms, 'log') > 0) {
+      if (count(shop8.input) < 3 && count(arms, 'log') > 0 && !logsReserved) {
         lastUpkeep = ctx.time.elapsed;
-        act('deliver:workshop', spots.workshopFeed, 4, () => count(arms, 'log') === 0 || !room(shop8.input));
+        act('deliver:workshop', spots.workshopFeed, 4, () => spare() <= 0 || !room(shop8.input));
         return;
       }
       if (count(shop8.input) < 3 && count(deck8, 'log') >= 4 && held(arms) < arms.capacity) {
@@ -300,6 +403,8 @@
         return;
       }
     }
+    // 2c. Wave 9: keep the town's shops stocked (wheat from the farms, firewood), one round per TOWN_EVERY seconds.
+    if (townTurn(arms, logsReserved, spare)) return;
     // 3. The shelter being built.
     if (build !== null) {
       const info = plotInfo(build);
@@ -315,6 +420,7 @@
       [level.truckCash, spots.truckCash],
       [level.platformCash, spots.platformCash],
       [level.sledCash, spots.sledCash],
+      ...level.town.tills().map((p) => [p, mid(p.zone.area)]),
     ];
     const collect = (min) => {
       for (const [pile, spot] of cashSpots) {
@@ -382,6 +488,8 @@
     if (goal === 'shop') return () => !!s.flags.shopRevealed;
     if (goal === 'village') return () => s.village.revealed;
     if (goal === 'finale') return () => s.village.greatLodge.tier >= 0;
+    if (goal === 'town') return () => s.town.revealed;
+    if (goal === 'townBuilding') return () => s.town.lots.some((l) => l.tier >= 0);
     if (goal.startsWith('vl:')) return () => s.village.level >= Number(goal.slice(3));
     if (goal.startsWith('q:')) return () => s.quarters.tier >= Number(goal.slice(2));
     if (goal.startsWith('hired:')) return () => up.isHired(goal.slice(6));
@@ -403,6 +511,7 @@
       village: { level: ctx.state.village.level, population: ctx.state.village.population, plots: ctx.state.village.plots.map((p) => p.tier) },
       crew: level.crew ? level.crew.size : 0,
       quarters: ctx.state.quarters.tier,
+      town: ctx.state.town.lots.map((l) => (l.building ? `${l.building}${l.tier >= 0 ? '' : '…'}` : '-')).join(' '),
     };
   }
 
@@ -431,6 +540,8 @@
     if (id === 'village') {
       const st = LAYOUT.village.street;
       W.teleport((st.minX + st.maxX) / 2, 19);
+    } else if (id === 'town') {
+      W.teleport(LAYOUT.town.tree.x - 2.5, LAYOUT.town.tree.z + 2.5);
     } else if (id === 'shop') {
       W.teleport(spots.shop.x, spots.shop.z + 1.5);
     } else {
