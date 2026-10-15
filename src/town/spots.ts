@@ -92,6 +92,32 @@ function amenitySpots(id: AmenityId): Spot[] {
   }
 }
 
+/** The pond's four corner lamp posts (assets/townAmenities.ts bakePond): solid for the crowd. */
+export const POND_POSTS: readonly XZ[] = (() => {
+  const f = amenityFrame('pond');
+  const out: XZ[] = [];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const p = amenityToWorld(f, sx * (f.w / 2 - 0.12), sz * (f.d / 2 - 0.1));
+      out.push({ x: p.x, z: p.z });
+    }
+  }
+  return out;
+})();
+
+/**
+ * Extra waypoints for a skater gliding from pond rim spot i to spot i + 1 (AMENITY_SPOTS.pond, looping): the two
+ * glides round the far end pass outside its lamp posts (straight, one went right through a post).
+ */
+export const POND_GLIDE_VIA: readonly (readonly XZ[])[] = (() => {
+  const f = amenityFrame('pond');
+  const at = (lx: number, lz: number): XZ => {
+    const p = amenityToWorld(f, lx, lz);
+    return { x: p.x, z: p.z };
+  };
+  return [[], [at(-1.6, -1.1)], [at(-1.6, 1.1)], []];
+})();
+
 /** 3-4 standing / sitting spots per amenity, with yaws (0 = +Z): cafe stools, pond rim, bandstand audience, park edge. */
 export const AMENITY_SPOTS: Record<AmenityId, Spot[]> = {
   cafe: amenitySpots('cafe'),
