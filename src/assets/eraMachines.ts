@@ -1148,9 +1148,13 @@ for (const era of [2, 4, 6, 8, 10]) {
   catalog[`depot${era}`] = () => createDepotModel(era);
   catalog[`dock${era}`] = () => createDockModel(era);
 }
-// one sheet per era (its machines in a row, then depot and dock): `?gallery=era5`
+export const eraMachineCatalog: Record<string, () => THREE.Object3D> = catalog;
+
+// one review sheet per era (its machines in a row, then depot and dock): `?gallery=era5` or `?gallery=eraSheets`.
+// Its own gallery domain, so the eraMachines row stays one model per cell.
+const sheets: Record<string, () => THREE.Object3D> = {};
 for (let era = 2; era <= 10; era++) {
-  catalog[`era${era}`] = () => {
+  sheets[`era${era}`] = () => {
     const sheet = new THREE.Group();
     sheet.name = `era${era}`;
     let x = 0;
@@ -1169,4 +1173,4 @@ for (let era = 2; era <= 10; era++) {
     return sheet;
   };
 }
-export const eraMachineCatalog: Record<string, () => THREE.Object3D> = catalog;
+export const eraSheetCatalog: Record<string, () => THREE.Object3D> = sheets;

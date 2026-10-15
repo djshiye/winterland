@@ -78,7 +78,7 @@ const STYLES: readonly (Style | null)[] = [
   { wall: 0x8f98a5, wall2: 0x6b7480, roof: 0x272a30, trim: 0xe0b03a, accent: 0x272a30, tint: 0xfff0c0, floorH: 3.2, cellW: 2.0 },
   { wall: 0x9fc4dc, wall2: 0x6f94b0, roof: 0x2a3a4a, trim: 0xdfe8f2, accent: 0x3aa0d8, tint: 0xbfe6ff, floorH: 3.2, cellW: 2.0 },
   { wall: 0xc4ccbc, wall2: 0x8e9a88, roof: 0x2d3b2a, trim: 0xf0f4ec, accent: 0x7bd04a, tint: 0xc8ffd8, floorH: 3.4, cellW: 2.1 },
-  { wall: 0xe8ecf6, wall2: 0xb6bcd8, roof: 0x1f2240, trim: 0x9b6cff, accent: 0x9b6cff, tint: 0xd6b8ff, floorH: 3.4, cellW: 2.2 },
+  { wall: 0xe8ecf6, wall2: 0xb6bcd8, roof: 0x1f2240, trim: 0x9b6cff, accent: 0x9b6cff, tint: 0x9a7ae0, floorH: 3.4, cellW: 2.2 },
 ];
 const styleOf = (n: number): Style => STYLES[n]!;
 

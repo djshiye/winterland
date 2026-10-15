@@ -48,9 +48,9 @@ export class City {
     this.root.add(this.skyline.group);
     // a save written with the last bundle still flying holds a fully paid, never-completed lot: finish it silently
     ctx.state.stats.cityBuilt += settlePaidCity(ctx.state);
-    this.openDistricts(true);
+    this.openDistricts();
     ctx.events.on('era:unlocked', () => {
-      this.openDistricts(false);
+      this.openDistricts();
       this.recompute(true);
     });
     ctx.events.on('village:changed', () => this.recompute(true));
@@ -113,7 +113,7 @@ export class City {
   build(n: number, lot: number, id: string, instant = true): boolean {
     const def = CITY_BUILDINGS[id as CityBuildingId];
     if (!def || def.era !== n || n < 2 || n > MAX_ERA || this.ctx.state.eras.age < n) return false;
-    this.openDistricts(true);
+    this.openDistricts();
     const d = this.districts.get(n);
     if (!d || lot < 0 || lot >= d.size) return false;
     d.activate();
@@ -132,8 +132,8 @@ export class City {
   }
 
   // ---- internals -------------------------------------------------------------------------------------------
-  /** Open every district whose era is reached (silently for a restore). */
-  private openDistricts(_silent: boolean): void {
+  /** Open every district whose era is reached (the city never announces it; the era card does). */
+  private openDistricts(): void {
     const age = this.ctx.state.eras.age;
     for (let n = 2; n <= MAX_ERA; n++) {
       if (age < n || this.districts.has(n) || !DISTRICTS[n]) continue;
