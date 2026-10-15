@@ -392,6 +392,8 @@ export class Level {
     const flights = this.ctx.flights;
     // What the crew carries goes back where it came from (helpers respawn empty-handed at their posts).
     const crew = this.crew;
+    // Wave 9: what porters carry goes to the shop hopper it was meant for (or back to its pallet / pile).
+    const pc = crew.townCarried();
     return {
       piles: {
         // Logs riding the belts go back to the drop zone on load.
@@ -400,12 +402,13 @@ export class Level {
           (this.westConveyor?.load ?? 0) +
           (this.eastConveyor?.load ?? 0) +
           (this.truckLoader?.load ?? 0) +
-          crew.carried('logHauler', 'log'),
+          crew.carried('logHauler', 'log') +
+          (pc.loose.log ?? 0),
         // Planks on customers still queueing (unpaid) go back onto the counter.
         walkIn: this.walkInCounter.pile.total + this.customers.loadedUnits,
         // Logs inside the saw (processor / workshop) are neither in the hopper nor in the output yet.
         hopper: (this.processor?.input.total ?? 0) + (this.processor?.inProcess ?? 0),
-        bench: (this.processor?.output.total ?? 0) + crew.carried('crateRunner', 'crate'),
+        bench: (this.processor?.output.total ?? 0) + crew.carried('crateRunner', 'crate') + (pc.loose.crate ?? 0),
         se: (this.seCounter?.pile.total ?? 0) + (this.tricycles?.loadedUnits ?? 0),
         truck: (this.truckCounter?.pile.total ?? 0) + (this.trucks?.loadedUnits ?? 0),
         // Pine hauler's load goes back to the deck.
@@ -433,7 +436,12 @@ export class Level {
         meat: arms.count('meat') + flights.inFlightTo(arms, 'meat'),
       },
       // Goods handed to townsfolk who haven't paid yet go back onto their shop's counter.
-      town: this.town.snapshot().map((lot, i) => ({ ...lot, out: lot.out + this.townsfolk.loadedByLot(i) })),
+      town: this.town.snapshot().map((lot, i) => {
+        const carried = pc.in[i] ?? {};
+        const ins = { ...lot.in };
+        for (const [kind, n] of Object.entries(carried)) if (n) ins[kind as ItemKind] = (ins[kind as ItemKind] ?? 0) + n;
+        return { ...lot, in: ins, out: lot.out + this.townsfolk.loadedByLot(i) + (pc.out[i] ?? 0) };
+      }),
     };
   }
 

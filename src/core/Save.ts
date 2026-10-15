@@ -187,7 +187,9 @@ export function sanitizeState(state: GameState): void {
   v.population = int(v.population, 0, Number.MAX_SAFE_INTEGER);
 
   state.prestige.season = int(state.prestige.season, 0, 1_000_000);
-  state.clock = isNum(state.clock) ? ((state.clock % DAYNIGHT.cycleSeconds) + DAYNIGHT.cycleSeconds) % DAYNIGHT.cycleSeconds : 0;
+  const C = DAYNIGHT.cycleSeconds;
+  if (!isNum(state.clock)) state.clock = 0;
+  else if (state.clock < 0 || state.clock >= C) state.clock = ((state.clock % C) + C) % C; // in range: untouched (no float drift)
   state.playTime = nonNeg(state.playTime);
   for (const k of Object.keys(state.stats) as (keyof typeof state.stats)[]) state.stats[k] = nonNeg(state.stats[k]);
   for (const k of Object.keys(state.padPaid)) state.padPaid[k] = nonNeg(state.padPaid[k]);

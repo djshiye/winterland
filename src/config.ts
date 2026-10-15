@@ -762,7 +762,9 @@ export type UpgradeIdConst =
   | 'pineContracts'
   // wave 8
   | 'workshop'
-  | 'furnitureQuality';
+  | 'furnitureQuality'
+  // wave 9
+  | 'porter';
 
 /**
  * lumberjack + crew + sales: bought in the cabin shop panel (one tab each) · machine: the machine's own pad re-arms
@@ -903,6 +905,16 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     display: 'crew',
     requires: { villageLevel: 3, unlocked: 'megaSaw' },
   },
+  porter: {
+    id: 'porter',
+    group: 'crew',
+    label: 'Town Porter',
+    blurb: 'Keeps the town shops stocked: farm goods and firewood',
+    values: [0, 1, 1.3, 1.65, 2.0, 2.4, 2.8],
+    costs: [3000, 8000, 18000, 36000, 55000, 80000],
+    display: 'crew',
+    requires: { villageLevel: 3 },
+  },
   plankQuality: {
     id: 'plankQuality',
     group: 'sales',
@@ -1015,6 +1027,8 @@ export const CREW = {
   cashier: { walkSpeed: 3.4, capacity: 16 },
   logHauler: { walkSpeed: 3.0, capacity: 6 },
   pineHauler: { walkSpeed: 3.0, capacity: 6 },
+  /** Wave 9: carries producer goods (wheat, meat) and drop-zone firewood to the town shops' hoppers. */
+  porter: { walkSpeed: 3.2, capacity: 6 },
 } as const;
 
 /**
@@ -1032,6 +1046,7 @@ export const QUARTERS = {
     crateRunner: [1, 2, 2, 3],
     cashier: [1, 1, 2, 3],
     logHauler: [1, 1, 2, 3],
+    porter: [1, 1, 2, 3],
     pineHauler: [1, 1, 2, 3],
   },
 } as const;
@@ -1228,14 +1243,13 @@ export const BUSINESSES: Record<BusinessId, BusinessDef> = {
     id: 'townhouse', kind: 'home', label: 'Townhouse', blurb: 'A cosy home for 10 townsfolk',
     era: 3, logs: 40, cash: 6000, people: 10, inputs: [], output: null, cycle: 0, price: 0, want: [0, 0], capacity: 0,
   },
-  // Wave 9b (offered once their models / goods exist; Town hides ids listed in TOWN.hidden).
   ranch: {
     id: 'ranch', kind: 'producer', label: 'Ranch', blurb: 'Cows and pigs in a snug barn',
     era: 3, logs: 30, cash: 5000, people: 4, inputs: [], output: 'meat', cycle: 3.2, price: 0, want: [0, 0], capacity: 24,
   },
   butcher: {
     id: 'butcher', kind: 'shop', label: 'Butcher', blurb: 'Meat + smoking wood → sausages',
-    era: 4, logs: 36, cash: 9000, people: 6,
+    era: 3, logs: 36, cash: 9000, people: 6,
     inputs: [{ kind: 'meat', per: 1 }, { kind: 'log', per: 1 }], output: 'sausage', cycle: 2.4, price: 55, want: [2, 5], capacity: 18,
   },
   toyFactory: {
@@ -1246,8 +1260,8 @@ export const BUSINESSES: Record<BusinessId, BusinessDef> = {
 };
 
 export const TOWN = {
-  /** Business ids not offered yet (wave 9b fills these in). */
-  hidden: ['ranch', 'butcher', 'toyFactory'] as readonly BusinessId[],
+  /** Business ids not offered (none: every building has its model and goods). */
+  hidden: [] as readonly BusinessId[],
   /** Townsfolk buyers: seconds between spawns per open shop, by village level (index), and max queue per shop. */
   buyerGap: [12, 12, 12, 7, 5, 4] as readonly number[],
   queuePerShop: 3,

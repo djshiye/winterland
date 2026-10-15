@@ -136,6 +136,17 @@ const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
       <path d="M40 34l6-11" stroke-width="3.5"/>
       <circle cx="14" cy="43" r="4.8" fill="#2a3652"/><circle cx="30" cy="43" r="4.8" fill="#2a3652"/>
     </g>`),
+  // wave 9: a two-wheeled hand barrow carrying a wheat sack and a log, with a teal handle
+  porter: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M12 21c0-5 3-8 7-8s7 3 7 8v9H12z" fill="#e9d6a1"/>
+      <path d="M15 14.5l4-3.5 4 3.5" fill="#d9aa66" stroke-width="2.2"/>
+      <path d="M19 20v8M16 22.5c2 1 4 1 6 0" stroke="#c99a3c" stroke-width="2" fill="none"/>
+      <rect x="25" y="21" width="17" height="9" rx="4.5" fill="#a8693a"/><circle cx="42" cy="25.5" r="4.5" fill="#f3d9a4"/><circle cx="42" cy="25.5" r="1.8" fill="#d9aa66"/>
+      <rect x="6" y="30" width="30" height="6" rx="3" fill="#8f5530"/>
+      <path d="M36 33H46" stroke="#2f8f83" stroke-width="4"/>
+      <circle cx="21" cy="40" r="6" fill="#2a3652"/><circle cx="21" cy="40" r="2" fill="#e0a526" stroke-width="1.6"/>
+    </g>`),
   // wave 7: a signed rail contract with a pine and a gold seal
   pineContracts: svg(`
     <g stroke="${OUT}" stroke-width="2.5">

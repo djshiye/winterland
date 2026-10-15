@@ -280,6 +280,7 @@ export function createGameState(): GameState {
       pineContracts: 0,
       workshop: 0,
       furnitureQuality: 0,
+      porter: 0,
     },
     village: {
       revealed: false,

@@ -1,0 +1,286 @@
+{
+ "v": 1,
+ "savedAt": 1792058247781,
+ "money": 190,
+ "state": {
+  "phase": "processor",
+  "unlocked": {
+   "harvester": true,
+   "processor": true,
+   "westConveyor": false,
+   "eastConveyor": false,
+   "megaSaw": false,
+   "ridge": false,
+   "treeFeller": false,
+   "truckLoader": false,
+   "cashTubes": false,
+   "workshop": false
+  },
+  "padsVisible": {
+   "harvester": false,
+   "processor": false,
+   "westConveyor": true,
+   "eastConveyor": true,
+   "megaSaw": false,
+   "ridge": false,
+   "treeFeller": false,
+   "truckLoader": false,
+   "cashTubes": false,
+   "workshop": false
+  },
+  "expanded": false,
+  "stats": {
+   "logsChopped": 78,
+   "logsSold": 0,
+   "planksSold": 0,
+   "cratesMade": 0,
+   "cratesSold": 0,
+   "moneyEarned": 190,
+   "customersServed": 0,
+   "tricyclesServed": 0,
+   "trucksServed": 0,
+   "sheltersBuilt": 0,
+   "upgradesBought": 0,
+   "furnitureMade": 0,
+   "furnitureSold": 0,
+   "townBuilt": 4,
+   "goodsMade": 42,
+   "goodsSold": 0
+  },
+  "upgrades": {
+   "carry": 0,
+   "speed": 0,
+   "axe": 0,
+   "harvester": 0,
+   "processor": 0,
+   "megaSaw": 0,
+   "crateRunner": 0,
+   "cashier": 0,
+   "logHauler": 0,
+   "plankQuality": 0,
+   "crateQuality": 0,
+   "bulkDeals": 0,
+   "treeFeller": 0,
+   "cashTubes": 0,
+   "pineHauler": 0,
+   "pineContracts": 0,
+   "workshop": 0,
+   "furnitureQuality": 0,
+   "porter": 0
+  },
+  "village": {
+   "revealed": true,
+   "plots": [
+    {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    }
+   ],
+   "greatLodge": {
+    "tier": -1,
+    "logs": 0,
+    "cash": 0
+   },
+   "population": 20,
+   "level": 3
+  },
+  "flags": {
+   "introDone": true,
+   "seen:moveHand": true,
+   "reveal:harvesterPad": true,
+   "reveal:processorPad": true,
+   "reveal:town": true,
+   "reveal:levelPad:harvester": true,
+   "seen:levelPadToast": true,
+   "shopRevealed": true,
+   "conveyorsRevealed": true,
+   "reveal:village": true
+  },
+  "padPaid": {
+   "pad:harvester": 0,
+   "pad:processor": 0
+  },
+  "playTime": 61.18329999999781,
+  "quarters": {
+   "tier": -1,
+   "logs": 0,
+   "cash": 0
+  },
+  "prestige": {
+   "season": 0
+  },
+  "clock": 85.18329999999654,
+  "quests": {
+   "harvester": true,
+   "hamlet": true,
+   "processor": true
+  },
+  "town": {
+   "revealed": true,
+   "lots": [
+    {
+     "building": "farm",
+     "tier": 0,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "bakery",
+     "tier": 0,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "ranch",
+     "tier": 0,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "butcher",
+     "tier": 0,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "",
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "bakery",
+     "tier": -1,
+     "logs": 7,
+     "cash": 1200
+    },
+    {
+     "building": "",
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "",
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    }
+   ]
+  }
+ },
+ "world": {
+  "piles": {
+   "dropZone": 78,
+   "walkIn": 0,
+   "hopper": 0,
+   "bench": 0,
+   "se": 0,
+   "truck": 0,
+   "deck": 0,
+   "platform": 0,
+   "workshopIn": 0,
+   "workshopOut": 0,
+   "sled": 0
+  },
+  "cash": {
+   "walkIn": 0,
+   "se": 0,
+   "truck": 0,
+   "platform": 0,
+   "sled": 0
+  },
+  "arms": {
+   "log": 0,
+   "crate": 0,
+   "furniture": 0,
+   "wheat": 0,
+   "meat": 0
+  },
+  "town": [
+   {
+    "in": {},
+    "out": 22,
+    "cash": 0
+   },
+   {
+    "in": {
+     "wheat": 1,
+     "log": 0
+    },
+    "out": 2,
+    "cash": 0
+   },
+   {
+    "in": {},
+    "out": 18,
+    "cash": 0
+   },
+   {
+    "in": {
+     "meat": 0,
+     "log": 0
+    },
+    "out": 0,
+    "cash": 0
+   },
+   {
+    "in": {},
+    "out": 0,
+    "cash": 0
+   },
+   {
+    "in": {},
+    "out": 0,
+    "cash": 0
+   },
+   {
+    "in": {},
+    "out": 0,
+    "cash": 0
+   },
+   {
+    "in": {},
+    "out": 0,
+    "cash": 0
+   }
+  ]
+ },
+ "salesRate": 0
+}

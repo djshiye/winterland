@@ -270,7 +270,9 @@ export class Village {
   private recompute(emit: boolean): void {
     const v = this.ctx.state.village;
     const population = villagePopulation(this.ctx.state);
-    const level = villageLevelFor(population, v.greatLodge.tier >= 0);
+    // Population never shrinks in play, so the stored level is a floor: a save from before a threshold was raised
+    // (wave 9: Winter City 80 → 110 people) keeps the era it had reached.
+    const level = Math.max(v.level, villageLevelFor(population, v.greatLodge.tier >= 0));
     const changed = population !== v.population || level !== v.level;
     const rose = level > v.level;
     v.population = population;
