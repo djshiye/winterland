@@ -11,6 +11,20 @@ import type { RegionRuntime } from './runtime';
 export class EraWorld {
   constructor(protected readonly ctx: GameContext) {}
 
+  /**
+   * Open era n now (the expansion pad completed, or debug): state.eras.age = max(age, n), build the region, emit
+   * 'era:unlocked' (instant: no camera / effects, used for restores and debug).
+   */
+  unlock(_n: number, _instant = false): void {}
+
+  /**
+   * Debug / tests: put machine `id` on slot `slot` of era n, fully built (instant: no effects). False when the region is
+   * locked, the slot is out of range or the machine is from another era.
+   */
+  build(_n: number, _slot: number, _id: string, _instant = true): boolean {
+    return false;
+  }
+
   /** Region runtime for era n, or null while locked. */
   region(_n: number): RegionRuntime | null {
     return null;

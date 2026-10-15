@@ -53,6 +53,8 @@ import { HUD } from '../ui/HUD';
 import { readFpsCap, writeFpsCap, type FpsCap } from '../core/fps';
 import { WorldEvents } from '../core/WorldEvents';
 import { Contracts } from '../core/Contracts';
+import { Market } from '../core/Market';
+import { travelPoints } from '../eras/layout';
 import { Level } from '../level/Level';
 
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
@@ -125,6 +127,14 @@ export interface DebugApi {
   startRush(seconds?: number): void;
   /** Jump the day/night clock to cycle share `p` (0..1; 0.75 = deep night). */
   setTimeOfDay(p: number): void;
+  /** 0.9.0: open every era up to n (2..10) instantly, as if each expansion were paid. */
+  unlockEra(n: number): void;
+  /** 0.9.0: a fully built machine on era n's slot (false if not possible). */
+  buildMachine(n: number, slot: number, id: string): boolean;
+  /** 0.9.0: a fully built city building on district n's lot (false if not possible). */
+  buildCity(n: number, lot: number, id: string): boolean;
+  /** 0.9.0: fast travel to a travelPoints() id ('yard', 'town', 'region:3', 'district:5'). */
+  travel(id: string): boolean;
   /** Write the save now; returns what was written (null when saving is off: `?fresh`, reset, no storage). */
   save(): SaveData | null;
   /** The save that would be written now (not written). */
@@ -205,6 +215,7 @@ export class Game {
       },
     } as Writable<GameContext>;
     this.ctx = ctx;
+    ctx.market = new Market(ctx); // 0.9.0 (reads ctx.upgrades / state lazily)
 
     ctx.particles = new Particles(ctx);
     ctx.audio = new AudioFX();
@@ -358,6 +369,7 @@ export class Game {
     c.quests.update(dt);
     c.worldEvents.update(dt);
     c.contracts.update(dt);
+    c.market.update(dt);
     this.flushRemovals();
     for (let i = 0; i < this.updatables.length; i++) {
       const u = this.updatables[i]!;
@@ -456,6 +468,17 @@ export class Game {
       teleport: (x: number, z: number) => {
         ctx.player.teleport(x, z);
         ctx.cameraRig.snapToTarget();
+      },
+      unlockEra: (n: number) => {
+        for (let k = Math.max(2, ctx.state.eras.age + 1); k <= n; k++) this.level.eras.unlock(k, true);
+      },
+      buildMachine: (n: number, slot: number, id: string) => this.level.eras.build(n, slot, id, true),
+      buildCity: (n: number, lot: number, id: string) => this.level.city.build(n, lot, id, true),
+      travel: (id: string) => {
+        const p = travelPoints(ctx.state).find((t) => t.id === id);
+        if (!p) return false;
+        ctx.events.emit('travel:request', { x: p.x, z: p.z, label: p.label });
+        return true;
       },
       addMoney: (n: number) => ctx.economy.add(n),
       skipIntro: () => this.level.skipIntro(),
