@@ -403,6 +403,9 @@ export class Level {
           (this.eastConveyor?.load ?? 0) +
           (this.truckLoader?.load ?? 0) +
           crew.carried('logHauler', 'log') +
+          // wave 11: the foreman's and the sled loader's logs go back to the drop pile
+          crew.carried('foreman', 'log') +
+          crew.carried('sledLoader', 'log') +
           (pc.loose.log ?? 0),
         // Planks on customers still queueing (unpaid) go back onto the counter.
         walkIn: this.walkInCounter.pile.total + this.customers.loadedUnits,
@@ -417,7 +420,8 @@ export class Level {
         platform: (this.platformCounter?.pile.total ?? 0) + (this.trains?.loadedLogs ?? 0),
         workshopIn: (this.workshop?.input.total ?? 0) + (this.workshop?.inProcess ?? 0),
         // Furniture on a loading sled goes back onto the sled counter.
-        workshopOut: this.workshop?.output.total ?? 0,
+        // wave 11: chairs in the sled loader's arms go back onto the bench
+        workshopOut: (this.workshop?.output.total ?? 0) + crew.carried('sledLoader', 'furniture'),
         sled: (this.sledCounter?.pile.total ?? 0) + (this.sleds?.loadedPieces ?? 0),
       },
       cash: {

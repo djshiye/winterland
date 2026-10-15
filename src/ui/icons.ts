@@ -6,8 +6,6 @@ const svg = (inner: string, vb = '0 0 48 48'): string =>
 
 const OUT = '#1f2b46';
 
-/** Wave 11 placeholder until the real icons land. */
-const PLACEHOLDER = svg(`<circle cx="24" cy="24" r="14" fill="#8f5530" stroke="${OUT}" stroke-width="2.5"/>`);
 const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
   // sales: a smooth plank with a gold star
   plankQuality: svg(`
@@ -149,9 +147,31 @@ const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
       <path d="M36 33H46" stroke="#2f8f83" stroke-width="4"/>
       <circle cx="21" cy="40" r="6" fill="#2a3652"/><circle cx="21" cy="40" r="2" fill="#e0a526" stroke-width="1.6"/>
     </g>`),
-  // wave 11 placeholders (the UI builder draws real ones): a sled loader and a foreman
-  sledLoader: PLACEHOLDER,
-  foreman: PLACEHOLDER,
+  // sled loader: a wooden chair riding on a small sled with curled runners
+  sledLoader: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M12 6h6v20h-6z" fill="#c98a4b"/>
+      <path d="M12 6h6v7h-6z" fill="#e0b070" stroke-width="0"/>
+      <rect x="11" y="24" width="24" height="6" rx="2.5" fill="#e0b070"/>
+      <path d="M31 30v8M15 30v8" stroke="#a8693a" stroke-width="3.6" fill="none"/>
+      <path d="M12 6h6v20h-6z" fill="none"/>
+      <path d="M4 40h34c4 0 6-2 6-5" fill="none" stroke="#3fa7ff" stroke-width="4.5"/>
+      <path d="M4 40h34c4 0 6-2 6-5" fill="none" stroke="#f3f7ff" stroke-width="1.8"/>
+      <path d="M4 44h30" fill="none" stroke="#9fd0ff" stroke-width="2.4"/>
+    </g>`),
+  // foreman: a yellow hard hat, a rolled blueprint and a hammer
+  foreman: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M29 44L39 19" stroke-width="7" fill="none"/>
+      <path d="M29 44L39 19" stroke="#c98a4b" stroke-width="3.4" fill="none"/>
+      <path d="M44.5 18.3L41.5 24.7 30.5 19.7 33.5 13.3z" fill="#cfd8e6"/>
+      <rect x="6" y="35" width="21" height="9" rx="4.5" fill="#cfe6ff"/>
+      <path d="M11 35v9" stroke-width="2" fill="none"/>
+      <circle cx="9" cy="39.5" r="3.4" fill="#f1f6ff" stroke-width="2"/>
+      <path d="M6 26a13 13 0 0 1 26 0v2H6z" fill="#ffd84a"/>
+      <rect x="3" y="26" width="32" height="6" rx="3" fill="#f2b61f"/>
+      <path d="M16 14v12M22 14v12" stroke="#f2b61f" stroke-width="2.4" fill="none"/>
+    </g>`),
   // wave 7: a signed rail contract with a pine and a gold seal
   pineContracts: svg(`
     <g stroke="${OUT}" stroke-width="2.5">

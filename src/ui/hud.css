@@ -1104,6 +1104,72 @@
   padding: 1px 1px 3px;
 }
 
+.wl-prio {
+  flex: none;
+  padding: 7px 8px 6px;
+  border-radius: 16px;
+  background: #f1f6ff;
+  color: #2a3652;
+  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+}
+
+.wl-prio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.wl-prio-label {
+  flex: none;
+  width: 52px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.wl-prio-label b {
+  color: #5b6a8a;
+}
+
+.wl-prio-seg {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  height: 32px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 3px solid #fff;
+  background: #6c7893;
+  overflow: hidden;
+}
+
+.wl-prio-opt {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 5px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-prio-opt.is-on {
+  background: #38b957;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.wl-prio-hint {
+  font-size: 11px;
+  line-height: 1.2;
+  color: #7d8aa3;
+}
+
 .wl-shop-card {
   flex: none;
   display: flex;

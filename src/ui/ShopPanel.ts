@@ -6,7 +6,7 @@
  * The cards are built once; refresh() only rewrites what changed and runs at most once per frame (from update())
  * while the panel is visible, because 'money:changed' fires for every cash bundle.
  */
-import { QUARTERS, type UpgradeGroup, type UpgradeIdConst } from '../config';
+import { PRIORITIES, QUARTERS, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
 import type { GameContext } from '../core/types';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
@@ -37,6 +37,25 @@ const TABS: Array<{ group: Tab; label: string }> = [
   { group: 'sales', label: 'Sales' },
 ];
 
+const WOOD_LABEL: Record<WoodPriority, { text: string; hint: string }> = {
+  balanced: { text: 'Balanced', hint: 'Wood goes wherever it is needed first' },
+  trucks: { text: 'Trucks', hint: 'Log haulers feed the truck counter first' },
+  trains: { text: 'Trains', hint: 'Pine haulers always feed the train platform' },
+  workshop: { text: 'Workshop', hint: 'Pine haulers keep the workshop hopper stocked first' },
+};
+const TOWN_LABEL: Record<TownPriority, { text: string; hint: string }> = {
+  balanced: { text: 'Balanced', hint: 'The porter feeds the hungriest shop first' },
+  bakery: { text: 'Bakery', hint: 'The porter stocks the bakery first' },
+  butcher: { text: 'Butcher', hint: 'The porter stocks the butcher first' },
+  toys: { text: 'Toys', hint: 'The porter stocks the toy factory first' },
+};
+
+/** One priorities row: a label and a pill of options. */
+interface PrioRow {
+  root: HTMLDivElement;
+  btns: Array<{ value: string; el: HTMLButtonElement }>;
+}
+
 /** Ladders longer than this get small pips plus a "Lv n/max" label so the row still fits a phone card. */
 const COMPACT_PIPS = 6;
 
@@ -45,6 +64,9 @@ export class ShopPanel {
   private readonly list: HTMLDivElement;
   private readonly tabEls = new Map<string, HTMLButtonElement>();
   private readonly cards: Card[] = [];
+  private readonly prio: HTMLDivElement;
+  private readonly woodRow: PrioRow;
+  private readonly townRow: PrioRow;
   private readonly slide = new Slide();
   private tab: Tab = 'lumberjack';
   private wanted = false;
@@ -88,6 +110,16 @@ export class ShopPanel {
     this.root.appendChild(this.list);
     layer.appendChild(this.root);
 
+    // crew priorities: the first thing on the Crew tab (the cards are appended after it)
+    this.prio = h('div', 'wl-prio');
+    this.woodRow = this.makePrioRow('Wood', PRIORITIES.wood, WOOD_LABEL, 'wood');
+    this.townRow = this.makePrioRow('Town', PRIORITIES.town, TOWN_LABEL, 'town');
+    this.prio.appendChild(this.woodRow.root);
+    this.prio.appendChild(this.townRow.root);
+    this.prio.appendChild(h('div', 'wl-prio-hint', "Who gets the wood when it's short, and which shop the porter stocks first."));
+    this.list.appendChild(this.prio);
+    this.prio.style.display = 'none';
+
     for (const { group } of TABS) {
       for (const id of ctx.upgrades.group(group)) this.cards.push(this.makeCard(id, group));
     }
@@ -115,6 +147,7 @@ export class ShopPanel {
       if (c) c.bump = 1;
     });
     ev.on('village:changed', mark);
+    ev.on('town:revealed', mark);
     // crewSlots() reads state.quarters.tier
     ev.on('quarters:built', mark);
     // requirement() also reads state.unlocked (e.g. the Crate Runner needs the Processor)
@@ -148,6 +181,7 @@ export class ShopPanel {
     this.tab = group;
     for (const [g, el] of this.tabEls) el.classList.toggle('is-on', g === group);
     for (const c of this.cards) c.root.style.display = c.group === group ? '' : 'none';
+    if (group !== 'crew') this.prio.style.display = 'none';
     this.list.scrollTop = 0;
     this.dirty = true;
   }
@@ -184,6 +218,53 @@ export class ShopPanel {
     const card: Card = { id, group, root, pips, lv, delta, slots, btn, shown: { pips: -1, delta: '', btn: '', cls: '', slots: '' }, bump: 0 };
     onTap(btn, () => this.buy(card));
     return card;
+  }
+
+  private makePrioRow<T extends string>(
+    label: string,
+    values: readonly T[],
+    labels: Record<T, { text: string; hint: string }>,
+    key: 'wood' | 'town',
+  ): PrioRow {
+    const root = h('div', 'wl-prio-row');
+    root.appendChild(h('div', 'wl-prio-label', `${label} <b>\u2192</b>`));
+    const seg = h('div', 'wl-prio-seg');
+    seg.setAttribute('role', 'radiogroup');
+    seg.setAttribute('aria-label', `${label} priority`);
+    const btns: PrioRow['btns'] = [];
+    for (const v of values) {
+      const b = h('button', 'wl-prio-opt', labels[v].text);
+      b.type = 'button';
+      b.title = labels[v].hint;
+      b.setAttribute('role', 'radio');
+      onTap(b, () => {
+        this.ctx.audio.unlock();
+        this.ctx.audio.play('click');
+        (this.ctx.state.priorities as Record<string, string>)[key] = v;
+        this.dirty = true;
+      });
+      seg.appendChild(b);
+      btns.push({ value: v, el: b });
+    }
+    root.appendChild(seg);
+    return { root, btns };
+  }
+
+  private refreshPriorities(): void {
+    const { state, upgrades } = this.ctx;
+    const show = this.tab === 'crew' && this.cards.some((c) => c.group === 'crew' && upgrades.level(c.id) > 0);
+    this.prio.style.display = show ? '' : 'none';
+    if (!show) return;
+    this.townRow.root.style.display = state.town.revealed ? '' : 'none';
+    for (const [row, cur] of [[this.woodRow, state.priorities.wood], [this.townRow, state.priorities.town]] as const) {
+      for (const b of row.btns) {
+        const on = b.value === cur;
+        b.el.classList.toggle('is-on', on);
+        b.el.setAttribute('aria-checked', String(on));
+        // Trains only matter once the tree feller feeds the platform (keep it visible while selected)
+        if (b.value === 'trains') b.el.style.display = state.unlocked.treeFeller || on ? '' : 'none';
+      }
+    }
   }
 
   private buy(card: Card): void {
@@ -258,6 +339,7 @@ export class ShopPanel {
         c.root.classList.toggle('is-maxed', cls === 'is-max');
       }
     }
+    this.refreshPriorities();
     for (const [g, el] of this.tabEls) el.classList.toggle('has-hint', !!tabHint[g] && g !== this.tab);
   }
 

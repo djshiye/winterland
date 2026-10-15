@@ -15,7 +15,7 @@
  *   - one kind per trip; peers' claims reserve a producer pallet and an amount for a (shop, kind) hopper, so two
  *     porters do not chase the same job and never overfill a hopper between them.
  */
-import type { XZ } from '../config';
+import { PRIORITIES, type BusinessId, type TownPriority, type XZ } from '../config';
 import type { ItemKind } from '../core/types';
 
 /** Kinds topped up only when the hopper runs low (firewood and crates), not filled to the brim. */
@@ -28,6 +28,8 @@ export const TOPUP_MIN_TAKE = 4;
 
 export interface ShopView {
   key: string;
+  /** Which shop this is (for the town priority); absent in fakes that do not care. */
+  id?: BusinessId;
   /** Where a porter stands to feed it. */
   pos: XZ;
   /** Items of each input kind still wanted (hopper cap minus landed minus in flight). Absent = not an input. */
@@ -54,7 +56,16 @@ export interface Claims {
   sources: ReadonlySet<string>;
   /** destKey(shop, kind) -> items a peer carries (or is about to load) for that hopper. */
   dests: ReadonlyMap<string, number>;
+  /** The shop the player's town priority favours: its score gets + PRIORITIES.weight. Undefined = balanced. */
+  favour?: BusinessId;
 }
+
+/** The shop a town priority stands for (balanced = none). */
+export function favouredShop(p: TownPriority): BusinessId | undefined {
+  return p === 'bakery' ? 'bakery' : p === 'butcher' ? 'butcher' : p === 'toys' ? 'toyFactory' : undefined;
+}
+
+const bonus = (shop: ShopView, claims: Claims): number => (claims.favour !== undefined && shop.id === claims.favour ? PRIORITIES.weight : 0);
 
 export interface PorterJob {
   source: string;
@@ -93,7 +104,7 @@ export function pickJob(
       }
       // a trip is worth it for a full pair, or for a single item into an empty hopper
       if (take < 2 && !(take >= 1 && stock === 0)) continue;
-      const score = urgency(stock) + take - 0.1 * (dist(from, src.pos) + dist(src.pos, shop.pos));
+      const score = urgency(stock) + take + bonus(shop, claims) - 0.1 * (dist(from, src.pos) + dist(src.pos, shop.pos));
       if (!best || score > best.score) best = { source: src.key, shop: shop.key, kind: src.kind, take, score };
     }
   }
@@ -117,7 +128,7 @@ export function pickShop(
     if (shop.key === exclude) continue;
     const reserved = claims.dests.get(destKey(shop.key, kind)) ?? 0;
     if ((shop.room[kind] ?? 0) - reserved <= 0) continue;
-    const score = urgency((shop.stock[kind] ?? 0) + reserved) - 0.1 * dist(from, shop.pos);
+    const score = urgency((shop.stock[kind] ?? 0) + reserved) + bonus(shop, claims) - 0.1 * dist(from, shop.pos);
     if (score > bestScore) {
       bestScore = score;
       best = shop;

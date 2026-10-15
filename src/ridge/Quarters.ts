@@ -116,6 +116,11 @@ export class Quarters {
     this.armPad(false);
   }
 
+  /** The live construction pad (shown or not); the foreman reads its `visible` / logsLeft / cashLeft and pays into it. */
+  constructionPad(): ConstructionPad {
+    return this.pad;
+  }
+
   padSpot(): XZ | null {
     if (!this.pad.visible) return null;
     return { x: this.pad.position.x, z: this.pad.position.z };

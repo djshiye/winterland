@@ -19,7 +19,7 @@
  * posts, a staggered start, and `peers` (the role's helpers) so cashiers do not pile onto the same cash pile.
  */
 import * as THREE from 'three';
-import { CREW, LAYOUT, PLAYER, type Rect, type XZ } from '../config';
+import { CREW, LAYOUT, PLAYER, PRIORITIES, type Rect, type TownPriority, type WoodPriority, type XZ } from '../config';
 import { approach, dampAngle, yawFromDir } from '../core/math';
 import type { CrewRole } from '../core/crew';
 import { PORTER_VARIANT } from '../assets/characters';
@@ -31,7 +31,7 @@ import type { Level } from '../level/Level';
 import type { CashPile } from '../stations/CashPile';
 import type { Business } from '../town/Business';
 import { hopperPerKind } from '../town/rules';
-import { destKey, pickJob, pickShop, type Claims, type PorterJob, type ShopView, type SourceView } from './townJobs';
+import { destKey, favouredShop, pickJob, pickShop, type Claims, type PorterJob, type ShopView, type SourceView } from './townJobs';
 import {
   BENCH_LEG,
   CABIN_LEG,
@@ -105,6 +105,9 @@ const PLATFORM_LOOK: XZ = { x: RIDGE.platform.x, z: RIDGE.platform.z };
 /** North of the workshop pad (x 24-26, z -0.1..1.9): the haul route keeps >= 0.25 m off the tile. */
 const PAD_BYPASS: XZ = { x: 27.0, z: -1.2 };
 const DECK_TO_PLATFORM: XZ[] = [PINE_JUNCTION, PAD_BYPASS, PLATFORM_POST];
+/** Wave 11: the workshop route stops at the pocket west of the hopper zone (x 21.3-22.5) and faces the hopper. */
+const DECK_TO_HOPPER: XZ[] = [PINE_JUNCTION, PINE_APPROACH];
+const HOPPER_LOOK: XZ = { x: LAYOUT.ridge.workshop.hopper.x, z: PINE_APPROACH.z };
 
 // --- Market Town: the porters' home on the square, beside the corridor mouth (clear of every zone and queue) ------
 const TOWN = LAYOUT.town;
@@ -169,6 +172,8 @@ registerPost(DROP_POST, DROP_LOOK);
 registerPost(WALKIN_POST, WALKIN_LOOK);
 registerPost(TRUCK_POST, TRUCK_LOOK);
 registerPost(PINE_HOME, PINE_HOME_LOOK);
+registerPost(SLED_LOADER_HOME, SLED_LOADER_LOOK);
+registerPost(FOREMAN_HOME, FOREMAN_LOOK);
 registerPost(DECK_POST, DECK_LOOK);
 registerPost(PLATFORM_POST, PLATFORM_LOOK);
 registerPost(PORTER_HOME, PORTER_LOOK);
@@ -627,7 +632,38 @@ export class Cashier extends Helper {
 
 // --- log hauler -----------------------------------------------------------------------------------
 type HaulerPhase = 'load' | 'go' | 'unload' | 'return';
-type HaulDest = 'truck' | 'walkIn';
+export type HaulDest = 'truck' | 'walkIn';
+
+/** A log counter as the hauler sees it: it takes a log now, and the share of its pile that is still free (0..1). */
+export interface CounterFill {
+  room: boolean;
+  free: number;
+}
+
+/**
+ * Where a log hauler takes a load (pure). 'trucks': the truck counter whenever it has room, else the walk-in counter.
+ * 'balanced' (and 'trains' / 'workshop', which only steer the pine hauler): whichever counter has the larger free
+ * share first, ties to the truck counter. Null = nowhere has room (a missing counter is null).
+ */
+export function woodDest(prio: WoodPriority, truck: CounterFill | null, walkIn: CounterFill | null): HaulDest | null {
+  const t = truck?.room ? truck : null;
+  const w = walkIn?.room ? walkIn : null;
+  if (!t) return w ? 'walkIn' : null;
+  if (!w) return 'truck';
+  if (prio === 'trucks') return 'truck';
+  return w.free > t.free ? 'walkIn' : 'truck';
+}
+
+/**
+ * Where a pine hauler takes a load from the deck (pure). `hopperCount` = logs in the workshop hopper, null when there
+ * is no workshop. The hopper gets it while it holds fewer than PRIORITIES.workshopLow logs and either the player
+ * prioritises the workshop or no sled loader is hired to top it up; 'trains' never diverts.
+ */
+export function pineTarget(prio: WoodPriority, hopperCount: number | null, sledLoaderHired: boolean): 'platform' | 'hopper' {
+  if (prio === 'trains' || hopperCount === null) return 'platform';
+  if (hopperCount >= PRIORITIES.workshopLow) return 'platform';
+  return prio === 'workshop' || !sledLoaderHired ? 'hopper' : 'platform';
+}
 
 const TRUCK_ROUTE: XZ[] = [{ x: -1.5, z: -3.0 }, { x: 0.5, z: -9 }, TRUCK_POST];
 const WALKIN_ROUTE: XZ[] = [WALKIN_POST];
@@ -644,11 +680,15 @@ export class LogHauler extends Helper {
     return d === 'truck' ? (this.level.truckCounter?.input ?? null) : this.level.walkInCounter.input;
   }
 
-  /** Truck counter when it has room, else the walk-in counter when it has room. */
+  private fill(d: HaulDest): CounterFill | null {
+    const c = d === 'truck' ? this.level.truckCounter : this.level.walkInCounter;
+    if (!c) return null;
+    return { room: c.input.canAccept('log'), free: Math.max(0, c.pile.capacity - c.pile.total) / c.pile.capacity };
+  }
+
+  /** By the wood priority (see woodDest): the truck counter or the walk-in counter, whichever has room. */
   private pickDest(): HaulDest | null {
-    if (this.holder('truck')?.canAccept('log')) return 'truck';
-    if (this.holder('walkIn')?.canAccept('log')) return 'walkIn';
-    return null;
+    return woodDest(this.ctx.state.priorities.wood, this.fill('truck'), this.fill('walkIn'));
   }
 
   protected think(dt: number): void {
@@ -711,6 +751,7 @@ const PINE_REST_AFTER = 5;
 export class PineHauler extends Helper {
   private phase: PineHaulerPhase = 'rest';
   private restTimer = 0;
+  private target: 'platform' | 'hopper' = 'platform';
 
   constructor(ctx: GameContext, level: Level, index = 0) {
     super(ctx, level, 'pineHauler', index, ['log']);
@@ -723,6 +764,18 @@ export class PineHauler extends Helper {
 
   private get platform(): ItemHolder | null {
     return this.level.platformCounter?.input ?? null;
+  }
+
+  private get hopper(): ItemHolder | null {
+    return this.level.workshop?.input ?? null;
+  }
+
+  /** Platform (trains) or workshop hopper, by the wood priority and what the hopper holds now. */
+  private pickTarget(): 'platform' | 'hopper' {
+    const hop = this.hopper;
+    const n = hop ? hop.count('log') + this.ctx.flights.inFlightTo(hop, 'log') : null;
+    const t = pineTarget(this.ctx.state.priorities.wood, n, this.ctx.upgrades.value('sledLoader') > 0);
+    return t === 'hopper' && hop?.canAccept('log') ? 'hopper' : 'platform';
   }
 
   protected think(dt: number): void {
@@ -752,8 +805,10 @@ export class PineHauler extends Helper {
         this.idle += dt;
         const has = this.stack.count('log') > 0;
         if (has && this.settled && (this.stack.size >= this.capacity || this.idle > PATIENCE)) {
-          if (this.platform?.canAccept('log')) {
-            this.go(DECK_TO_PLATFORM);
+          const target = this.pickTarget();
+          if ((target === 'hopper' ? this.hopper : this.platform)?.canAccept('log')) {
+            this.target = target;
+            this.go(target === 'hopper' ? DECK_TO_HOPPER : DECK_TO_PLATFORM);
             this.phase = 'go';
           }
         } else if (!has && this.stack.size === 0 && this.idle > PINE_REST_AFTER) {
@@ -764,13 +819,13 @@ export class PineHauler extends Helper {
       }
       case 'go':
         if (this.moving) return;
-        this.look = PLATFORM_LOOK;
+        this.look = this.target === 'hopper' ? HOPPER_LOOK : PLATFORM_LOOK;
         this.phase = 'unload';
         this.blocked = 0;
         return;
       case 'unload': {
         if (this.stack.size === 0) return this.back();
-        const to = this.platform;
+        const to = this.target === 'hopper' ? this.hopper : this.platform;
         if (to && this.stack.count('log') > 0 && to.canAccept('log')) {
           this.blocked = 0;
           this.move(this.stack, to, 'log');
@@ -794,7 +849,7 @@ export class PineHauler extends Helper {
   }
 
   private back(): void {
-    this.goReverse(DECK_TO_PLATFORM.slice(0, -1), DECK_POST);
+    this.goReverse((this.target === 'hopper' ? DECK_TO_HOPPER : DECK_TO_PLATFORM).slice(0, -1), DECK_POST);
     this.phase = 'return';
   }
 }
@@ -914,7 +969,7 @@ export class Porter extends Helper {
       if (c.source) sources.add(c.source);
       dests.set(destKey(c.shop, c.kind), (dests.get(destKey(c.shop, c.kind)) ?? 0) + c.amount);
     }
-    return { sources, dests };
+    return { sources, dests, favour: favouredShop(this.ctx.state.priorities.town as TownPriority) };
   }
 
   /** Stand point in front of a zone (toward the square), shifted along the zone's lateral axis per porter. */
@@ -948,7 +1003,7 @@ export class Porter extends Helper {
           room[i.kind] = shopRoom(this.ctx, b, i.kind);
           stock[i.kind] = b.input.count(i.kind) + this.ctx.flights.inFlightTo(b.input, i.kind);
         }
-        shopViews.push({ key, pos: stop.p, room, stock });
+        shopViews.push({ key, id: b.def.id, pos: stop.p, room, stock });
       }
     }
     const dz = this.level.dropZone.pile;
