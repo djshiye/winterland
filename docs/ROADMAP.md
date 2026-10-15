@@ -1,6 +1,6 @@
 # Winterland roadmap
 
-**Where it stands (2026-10-15, v0.6.0).**
+**Where it stands (2026-10-15, v0.7.0).**
 - The "make it a game" list is done, plus the village and the Great Lodge finale.
 - **Waves 6–7 are done:**
   - longer upgrade ladders and the Sales tab;
@@ -13,7 +13,7 @@
 - The autoplay bot finishes in about 64 minutes. Milestones: Town 19, porter 23, farm 24, bakery 36, ranch 45, Winter City 56, finale 64. It sells about 190 town goods.
 - **Wave 10 is done** (desktop comfort, see `docs/DESIGN.md`): window modes remembered across launches, three volume sliders, a tabbed Settings card, Esc / M / F shortcuts, wheel and pinch zoom, a resolution scale, a frame-rate cap, and save backup / restore as a file; then hold-to-interact (E / Space / a still press) and wider village pad spacing after a desktop playtest.
 - **Wave 11 is done** (automation, see `docs/DESIGN.md`): the Sled Loader (chairs to the sleds, firewood to the workshop), the Foreman (hauls logs to and pays for the next house, lot or bunkhouse), crew priorities for wood and the town, and a workshop route for the pine hauler.
-- **Next for the town** (planned in wave 9, not built yet): a café/cocoa house, a skating pond, a bandstand and a snowman park; town happiness raising prices; carolers at night.
+- **Wave 12 is done** (town life, see `docs/DESIGN.md`): the four square amenities (cocoa café, snowman park, bandstand, skating pond) with town happiness raising every price by up to 30 %, commuting staff, carolers at the tree, amenity visitors and skaters, a night market at Winter City, footprints in the snow and bells at dawn and dusk.
 - Late-game draw calls at High quality are about 810 at the village at night and about 440 at the full town square at night. The ceiling is ~950.
 - Saves from v0.1 and v0.2 load. Fixtures are in `tests/fixtures/`.
 

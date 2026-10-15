@@ -47,7 +47,9 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
    with a lit tree, stalls, benches and eight lots for sale. Step on a lot to choose what to build: a farm,
    bakery, ranch, butcher, townhouse or (at Winter City) a toy factory. Carry wheat, meat, firewood and crates to
    the shops, and townsfolk queue up to buy bread, sausages and toys. Every business brings workers, so the town
-   pushes the village to the next era. Each era upgrades the whole settlement (torches to lanterns to iron lamps,
+   pushes the village to the next era. Four **amenities** on the square (a cocoa café, a snowman park, a bandstand and
+   a skating pond) raise **town happiness**, which lifts every sale price by up to 30 %; carolers sing at the tree at
+   night, staff walk home at dusk, and a night market opens at Winter City. Each era upgrades the whole settlement (torches to lanterns to iron lamps,
    snow tracks to gravel to cobbles, bunting, string lights, fireworks), and a **Porter** can be hired to carry
    the town's goods.
 9. **The finale:** at Winter City, build the Great Lodge for a celebration and a stats card. Play goes on after, or start a **New Season**. Everything resets, but every sale pays 25%
