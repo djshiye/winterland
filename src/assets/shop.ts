@@ -92,12 +92,15 @@ export function createCounterModel(length: number, depth: number, height: number
 // Speech bubble
 // ---------------------------------------------------------------------------
 
-export type BubbleIcon = 'plank' | 'crate' | 'log' | 'check';
+export type BubbleIcon = 'plank' | 'crate' | 'log' | 'check' | 'furniture';
+
+/** Small corner badge drawn on the bubble (VIP customers wear a crown). */
+export type BubbleBadge = 'crown';
 
 export interface SpeechBubble {
   readonly sprite: THREE.Sprite;
-  /** Redraw with an icon and optional text (e.g. "1/3"). No-op when nothing changed. */
-  show(icon: BubbleIcon, text?: string): void;
+  /** Redraw with an icon, optional text (e.g. "1/3") and an optional corner badge. No-op when nothing changed. */
+  show(icon: BubbleIcon, text?: string, opts?: { badge?: BubbleBadge }): void;
   dispose(): void;
 }
 
@@ -203,6 +206,48 @@ function drawLog(g: CanvasRenderingContext2D, cx: number, cy: number, s: number)
   g.stroke();
 }
 
+/** A wooden chair (the workshop's product), seen from the side. */
+function drawChair(g: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
+  const wood = hex(COLORS.PLANK_WOOD);
+  const edge = hex(PALETTE.fenceDark);
+  g.lineJoin = 'round';
+  g.lineWidth = 4 * s;
+  g.strokeStyle = edge;
+  g.fillStyle = wood;
+  const part = (x: number, y: number, w: number, h: number): void => {
+    g.beginPath();
+    g.roundRect(cx + x * s, cy + y * s, w * s, h * s, 3 * s);
+    g.fill();
+    g.stroke();
+  };
+  part(-28, 8, 9, 30); // back legs
+  part(18, 8, 9, 30); // front legs
+  part(-28, -30, 10, 42); // backrest
+  part(-30, 2, 60, 12); // seat
+}
+
+function drawCrown(g: CanvasRenderingContext2D, cx: number, cy: number): void {
+  g.beginPath();
+  g.moveTo(cx - 19, cy + 15);
+  g.lineTo(cx - 22, cy - 13);
+  g.lineTo(cx - 10, cy - 1);
+  g.lineTo(cx, cy - 17);
+  g.lineTo(cx + 10, cy - 1);
+  g.lineTo(cx + 22, cy - 13);
+  g.lineTo(cx + 19, cy + 15);
+  g.closePath();
+  g.fillStyle = '#ffc933';
+  g.fill();
+  g.lineWidth = 5;
+  g.lineJoin = 'round';
+  g.strokeStyle = '#9a6a00';
+  g.stroke();
+  g.fillStyle = '#ff5a5a';
+  g.beginPath();
+  g.arc(cx, cy + 6, 4, 0, Math.PI * 2);
+  g.fill();
+}
+
 function drawCheck(g: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
   g.beginPath();
   g.arc(cx, cy, 36 * s, 0, Math.PI * 2);
@@ -233,8 +278,9 @@ export function createSpeechBubble(scale = 1.1): SpeechBubble {
   let lastKey = '';
   return {
     sprite,
-    show(icon: BubbleIcon, text?: string): void {
-      const key = `${icon}|${text ?? ''}`;
+    show(icon: BubbleIcon, text?: string, opts?: { badge?: BubbleBadge }): void {
+      const badge = opts?.badge;
+      const key = `${icon}|${text ?? ''}|${badge ?? ''}`;
       if (key === lastKey) return;
       lastKey = key;
       const done = icon === 'check';
@@ -246,6 +292,7 @@ export function createSpeechBubble(scale = 1.1): SpeechBubble {
       if (icon === 'plank') drawPlank(g, cx, cy, s);
       else if (icon === 'crate') drawCrate(g, cx, cy, s);
       else if (icon === 'log') drawLog(g, cx, cy, s);
+      else if (icon === 'furniture') drawChair(g, cx, cy + 4, s);
       else drawCheck(g, cx, cy, 1.2);
       if (hasText) {
         g.font = `800 40px ${GAME_FONT}`;
@@ -257,6 +304,7 @@ export function createSpeechBubble(scale = 1.1): SpeechBubble {
         g.fillStyle = hex(PALETTE.rubber);
         g.fillText(text, cx, 103);
       }
+      if (badge === 'crown') drawCrown(g, 132, 22);
       texture.needsUpdate = true;
     },
     dispose(): void {
@@ -281,6 +329,16 @@ export const shopCatalog: Record<string, () => THREE.Object3D> = {
   bubbleLog: () => {
     const b = createSpeechBubble();
     b.show('log', '5/10');
+    return b.sprite;
+  },
+  bubbleChair: () => {
+    const b = createSpeechBubble();
+    b.show('furniture', '3/5');
+    return b.sprite;
+  },
+  bubbleVip: () => {
+    const b = createSpeechBubble();
+    b.show('plank', '2/6', { badge: 'crown' });
     return b.sprite;
   },
   bubbleDone: () => {

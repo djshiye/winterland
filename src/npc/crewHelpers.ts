@@ -67,21 +67,30 @@ const TO_RIDGE: XZ[] = [
   { x: RIDGE.walk[1]!.minX + 1.4, z: CROSS_Z },
 ];
 /** Rest point beside the quarters, and where the deck / platform are worked from. */
-const PINE_HOME: XZ = { x: 22.0, z: 3.6 };
+const PINE_HOME: XZ = { x: 20.0, z: 3.5 };
 const PINE_HOME_LOOK: XZ = { x: RIDGE.quarters.x + RIDGE.quarters.w / 2, z: RIDGE.quarters.z };
 const PINE_JUNCTION: XZ = { x: 21.4, z: -1.2 };
+/**
+ * Wave 8: the pocket south of the bunkhouse, west of the workshop hopper zone (x 21.3-22.5, z 2.3-4.1), is the only
+ * free spot. PINE_HOME with its +/-0.8 lane offsets (19.23, 3.27) / (20.77, 3.73) keeps >= 0.45 m off the workshop,
+ * the hopper and bench zones, the sled counter + its zone, the sled cash pile, the workshop pad and the bunkhouse
+ * pad. The approach point keeps the walk from the junction off the bunkhouse's south-east corner.
+ */
+const PINE_APPROACH: XZ = { x: 21.0, z: 3.0 };
 const DECK_POST: XZ = { x: RIDGE.deck.x, z: RIDGE.deck.z + 1.4 };
 const DECK_LOOK: XZ = { x: RIDGE.deck.x, z: RIDGE.deck.z };
 const PLATFORM_POST: XZ = { x: RIDGE.platform.playerZone.minX + 0.4, z: RIDGE.platform.z };
 const PLATFORM_LOOK: XZ = { x: RIDGE.platform.x, z: RIDGE.platform.z };
-const DECK_TO_PLATFORM: XZ[] = [PINE_JUNCTION, { x: 27.0, z: 0.2 }, PLATFORM_POST];
+/** North of the workshop pad (x 24-26, z -0.1..1.9): the haul route keeps >= 0.25 m off the tile. */
+const PAD_BYPASS: XZ = { x: 27.0, z: -1.2 };
+const DECK_TO_PLATFORM: XZ[] = [PINE_JUNCTION, PAD_BYPASS, PLATFORM_POST];
 
 /** Door → home post, used when a helper is hired. */
 const HOME_ROUTE: Record<CrewId, XZ[]> = {
   crateRunner: [{ x: 7.4, z: -2.0 }, { x: 7.4, z: 0.85 }, BENCH_POST],
   cashier: [CASHIER_HOME],
   logHauler: [{ x: 4.8, z: -5.3 }, { x: -1.5, z: -4.6 }, DROP_POST],
-  pineHauler: [...TO_RIDGE, PINE_JUNCTION, PINE_HOME],
+  pineHauler: [...TO_RIDGE, PINE_JUNCTION, PINE_APPROACH, PINE_HOME],
 };
 const HOME: Record<CrewId, XZ> = {
   crateRunner: BENCH_POST,
@@ -426,7 +435,7 @@ export class Cashier extends Helper {
       },
       {
         // Timber Ridge: out through the east gate, over the crossing, along the ridge to the platform.
-        route: [...TO_RIDGE, PINE_JUNCTION, { x: 27.0, z: 1.2 }],
+        route: [...TO_RIDGE, PINE_JUNCTION, PAD_BYPASS],
         post: { x: 30.4, z: 2.3 },
         look: { x: 30.4, z: 3.6 },
         pile: () => level.platformCash,
@@ -615,7 +624,7 @@ export class PineHauler extends Helper {
         if (this.restTimer > 0) return;
         this.restTimer = 0.4;
         if ((this.deck?.count('log') ?? 0) > 0 && this.platform) {
-          this.go([PINE_JUNCTION, DECK_POST]);
+          this.go([PINE_APPROACH, PINE_JUNCTION, DECK_POST]);
           this.phase = 'toDeck';
         }
         return;
@@ -638,7 +647,7 @@ export class PineHauler extends Helper {
             this.phase = 'go';
           }
         } else if (!has && this.stack.size === 0 && this.idle > PINE_REST_AFTER) {
-          this.goReverse([PINE_JUNCTION], PINE_HOME);
+          this.goReverse([PINE_APPROACH, PINE_JUNCTION], PINE_HOME);
           this.phase = 'home';
         }
         return;

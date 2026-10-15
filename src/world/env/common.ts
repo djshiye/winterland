@@ -116,6 +116,8 @@ const KEEP_OUT: Rect[] = [
   // Timber Ridge (its own forest / rocks / bushes live in ridge/Ridge.ts) + the rail corridor
   inflate(LAYOUT.ridge.area, 1.2),
   { minX: LAYOUT.ridge.rail.x - 2.4, maxX: LAYOUT.ridge.rail.x + 2.4, minZ: -70, maxZ: 70 },
+  // Wave 8 dog-sled lane, U-turn loop and return line (npc/SledQueue, assets/sled.ts)
+  { minX: 15, maxX: 62, minZ: 7.2, maxZ: 11.2 },
   // highway corridor + bridge ramps
   { minX: -95, maxX: W.spur.minX, minZ: LAYOUT.highway.z - 4.6, maxZ: LAYOUT.highway.z + 4.0 },
   { minX: W.spur.minX - 2, maxX: W.spur.maxX + 2, minZ: W.spur.minZ - 2, maxZ: W.spur.maxZ + 2 },

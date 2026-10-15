@@ -605,7 +605,7 @@ export const LAYOUT = {
       bench: { x: 27.3, z: 3.2, grid: { cols: 2, rows: 2, layers: 4, spacing: { x: 0.48, y: 0.5, z: 0.48 } } as PileGrid, zone: rect(28.2, 3.2, 1.2, 1.8) },
     },
     /** Dog sleds run along X at `z` (arrive from +X, stop with the sled beside the counter, turn back). */
-    sledLane: { z: 8.0, spawnX: 60, stopX: 25.0, exitX: 60 },
+    sledLane: { z: 7.9, spawnX: 60, stopX: 25.0, exitX: 60 },
     sledCounter: {
       x: 25.0,
       z: 6.9,
