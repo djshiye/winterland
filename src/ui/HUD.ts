@@ -17,15 +17,22 @@
  *   (sound / music / graphics / show-FPS switches, reset progress with an in-page confirmation). PerfOverlay is the
  *   bottom-left FPS / draw-call readout.
  * - ShopPanel (opens on 'shop:open'), VillageBadge, SeasonBadge ("Season N · +X% prices" chip after a New Season), OfflineCard (showOfflineEarnings), FinaleCard ('finale:start').
+ * - Wave 8: QuestPanel (3 active quests, collapsible), RushBanner (countdown), MoveHand (first-run drag hint),
+ *   coinBurst() (gold coins flying into the money pill), AutoQuality (one-way drop to Low graphics on a slow device).
  * - toast() queues briefly: a toast arriving < 1 s after another waits its turn (max 2 waiting, dropped after 3 s).
  */
 import * as THREE from 'three';
 import { PALETTE } from '../config';
 import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
+import { AutoQuality } from './AutoQuality';
+import { CoinBurst } from './CoinBurst';
 import { FinaleCard } from './FinaleCard';
+import { MoveHand } from './MoveHand';
 import { OfflineCard } from './OfflineCard';
 import { PerfOverlay } from './PerfOverlay';
+import { QuestPanel } from './QuestPanel';
+import { RushBanner } from './RushBanner';
 import { SeasonBadge } from './SeasonBadge';
 import { SettingsPanel } from './SettingsPanel';
 import { ShopPanel } from './ShopPanel';
@@ -101,6 +108,11 @@ export class HUD {
   private readonly village: VillageBadge;
   private readonly seasonBadge: SeasonBadge;
   private readonly finale: FinaleCard;
+  private readonly quests: QuestPanel;
+  private readonly rushBanner: RushBanner;
+  private readonly moveHand: MoveHand;
+  private readonly coins: CoinBurst;
+  private readonly autoQuality: AutoQuality;
 
   // --- money ---
   private moneyTarget = 0;
@@ -119,7 +131,7 @@ export class HUD {
   private toastActive = false;
   private hasVillage = false;
   private hasSeason = false;
-  private readonly toastQueue: Array<{ title: string; sub: string; dur: number; at: number }> = [];
+  private readonly toastQueue: Array<{ title: string; sub: string; dur: number; at: number; small: boolean }> = [];
 
   // --- guide ---
   private readonly arrow: THREE.Group;
@@ -186,6 +198,13 @@ export class HUD {
     this.village = new VillageBadge(ctx, layer);
     this.seasonBadge = new SeasonBadge(ctx, layer);
     this.shop = new ShopPanel(ctx, layer);
+    this.quests = new QuestPanel(ctx, layer);
+    layer.classList.add('has-quests');
+    this.rushBanner = new RushBanner(ctx, layer);
+    this.autoQuality = new AutoQuality(ctx, () => {
+      this.settings.sync();
+      this.toast('Switched to Low graphics for smoother play (Settings)', { small: true, duration: 4.5 });
+    });
 
     // toast
     this.toastEl = document.createElement('div');
@@ -210,6 +229,14 @@ export class HUD {
       layer.appendChild(el);
       this.floats.push({ el, active: false, age: 0, dur: 1, rise: 1.2, ox: 0, world: new THREE.Vector3() });
     }
+
+    // onboarding hand, coin flights
+    this.moveHand = new MoveHand(ctx, layer);
+    this.coins = new CoinBurst(layer);
+    this.coins.onArrive = () => {
+      this.bump = 1;
+      ctx.audio.play('cash', { combo: true, volume: 0.5 });
+    };
 
     // modal cards go on top of everything else
     this.offline = new OfflineCard(ctx, layer);
@@ -316,6 +343,20 @@ export class HUD {
     this.offline.show(amount, seconds, onCollect);
   }
 
+  /** Quest panel (tests / debug). */
+  get questPanel(): QuestPanel {
+    return this.quests;
+  }
+
+  /** Gold coins burst out of the toast spot and fly into the money pill (quest rewards). */
+  coinBurst(count = 10): void {
+    const rect = this.moneyEl.getBoundingClientRect();
+    const root = this.layer.getBoundingClientRect();
+    const w = this.ctx.renderer.width;
+    const h = this.ctx.renderer.height;
+    this.coins.spawn(count, w / 2, h * 0.36 + 56, rect.left - root.left + 28, rect.top - root.top + rect.height / 2);
+  }
+
   /** Shop panel (tests / debug). */
   get shopPanel(): ShopPanel {
     return this.shop;
@@ -332,8 +373,8 @@ export class HUD {
   }
 
   /** Centred celebration text that pops in and fades out. Toasts arriving right after another one queue up. */
-  toast(title: string, opts?: { sub?: string; duration?: number }): void {
-    const t = { title, sub: opts?.sub ?? '', dur: opts?.duration ?? 2.2, at: this.ctx.time.elapsed };
+  toast(title: string, opts?: { sub?: string; duration?: number; small?: boolean }): void {
+    const t = { title, sub: opts?.sub ?? '', dur: opts?.duration ?? 2.2, at: this.ctx.time.elapsed, small: opts?.small ?? false };
     // a toast that arrives while another is still fresh waits its turn instead of wiping it (briefly: queued
     // toasts expire TOAST_STALE s after they were asked for, so a burst never drips out for many seconds)
     if (this.toastActive && this.toastAge < 1.0 && this.toastQueue.length < 2) {
@@ -343,10 +384,11 @@ export class HUD {
     this.showToast(t);
   }
 
-  private showToast(t: { title: string; sub: string; dur: number; at: number }): void {
+  private showToast(t: { title: string; sub: string; dur: number; at: number; small: boolean }): void {
     this.toastTitle.textContent = t.title;
     this.toastSub.textContent = t.sub;
     this.toastSub.style.display = t.sub ? 'block' : 'none';
+    this.toastEl.classList.toggle('is-small', t.small);
     this.toastDur = t.dur;
     this.toastAge = 0;
     this.toastActive = true;
@@ -364,10 +406,19 @@ export class HUD {
     this.settings.update(dt);
     this.offline.update(dt);
     this.finale.update(dt);
+    this.quests.update(dt);
+    this.rushBanner.update(dt);
+    this.moveHand.update(dt);
+    this.coins.update(dt);
+    this.autoQuality.update();
     this.perf.update();
     // on phones the shop is a bottom sheet over the FPS readout
     if (this.layer.classList.contains('shop-open') !== this.shop.visible) {
       this.layer.classList.toggle('shop-open', this.shop.visible);
+    }
+    const questsOpen = !this.quests.isCollapsed && !this.quests.isAllDone;
+    if (this.layer.classList.contains('quests-open') !== questsOpen) {
+      this.layer.classList.toggle('quests-open', questsOpen);
     }
     const hasVillage = this.village.update(dt);
     if (hasVillage !== this.hasVillage) {

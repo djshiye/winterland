@@ -12,7 +12,8 @@
  *   upgrade (bright rising "level up" sweep), chime (soft bell triad: reveals, shelters), fanfare (brass-ish
  *   major arpeggio: village level-up, finale), cheer (crowd "yay" for a new hire), thunk (light wood knock: a log
  *   into a construction pad), firework (crackle + thud), timber (a pine falling: wood crack + soft thud), whistle
- *   (two-tone freight-train horn).
+ *   (two-tone freight-train horn), wave 8: quest (bright rising chime + coin ping), bell (rush hour: three
+ *   service-bell dings), sparkle (VIP tip: glittering high arpeggio).
  * - combo: repeats of the same sound within ~0.35 s rise in pitch (semitone steps, capped at +12)
  *   — the classic stacking pickup feel. Rapid repeats are rate-limited per sound and the number of
  *   simultaneous voices is capped, so streams never clip.
@@ -46,7 +47,10 @@ export type SfxName =
   | 'thunk'
   | 'firework'
   | 'timber'
-  | 'whistle';
+  | 'whistle'
+  | 'quest'
+  | 'bell'
+  | 'sparkle';
 
 export interface PlayOptions {
   /** Playback-rate / frequency multiplier (1 = normal). */
@@ -92,6 +96,9 @@ const MIN_GAP: Record<SfxName, number> = {
   timber: 0.5,
   /** A train sale can fire per item in a burst: one whistle per ~3 s. */
   whistle: 3,
+  quest: 0.3,
+  bell: 1.5,
+  sparkle: 0.2,
 };
 
 type AudioCtor = typeof AudioContext;
@@ -107,6 +114,7 @@ export class AudioFX {
   private compIn: DynamicsCompressorNode | null = null;
   private music: Music | null = null;
   private failed = false;
+  private night = false;
   private voices = 0;
   private readonly lastCall = new Map<SfxName, number>();
   private readonly lastSound = new Map<SfxName, number>();
@@ -190,6 +198,12 @@ export class AudioFX {
     this.syncMusic();
   }
 
+  /** Night ambience: the music softens (about -20 %, duller pad) while it is night, back at day:start. */
+  setNight(on: boolean): void {
+    this.night = on;
+    this.music?.setNight(on);
+  }
+
   /** Returns the new music state. */
   toggleMusic(): boolean {
     this.setMusic(!this.musicOn);
@@ -251,6 +265,7 @@ export class AudioFX {
     try {
       // music goes straight to the master gain (not through the SFX compressor) so it never pumps the SFX
       this.music = new Music(ac, master);
+      if (this.night) this.music.setNight(true);
       ac.onstatechange = () => this.syncMusic();
     } catch {
       this.music = null;
@@ -475,6 +490,42 @@ export class AudioFX {
         }
         this.hiss(t, 'bandpass', 1200, 1200, 0.5, 0.025 * v, 0.05, 1.2);
         break;
+      case 'quest': {
+        // quest complete: rising bell triad plus a coin ping on top
+        const notes = [783.99, 987.77, 1174.66, 1567.98];
+        for (let i = 0; i < notes.length; i++) {
+          const n = notes[i]! * p;
+          const at = t + i * 0.075;
+          const last = i === notes.length - 1;
+          this.tone(at, 'triangle', n, n, last ? 0.65 : 0.22, 0.17 * v, 0.004);
+          this.tone(at, 'sine', n * 2.76, n * 2.76, last ? 0.3 : 0.1, 0.035 * v, 0.003);
+        }
+        this.tone(t + 0.34, 'sine', 3136 * p, 3136 * p, 0.35, 0.05 * v, 0.003);
+        break;
+      }
+      case 'bell':
+        // rush hour: a counter service bell, three dings with inharmonic partials
+        for (let i = 0; i < 3; i++) {
+          const at = t + i * 0.2;
+          const f = 1568 * p;
+          this.tone(at, 'sine', f, f, 0.55, 0.2 * v, 0.002);
+          this.tone(at, 'sine', f * 2.76, f * 2.76, 0.22, 0.07 * v, 0.002);
+          this.tone(at, 'sine', f * 5.4, f * 5.4, 0.1, 0.03 * v, 0.002);
+        }
+        this.tone(t + 0.62, 'triangle', 2093 * p, 2093 * p, 0.8, 0.12 * v, 0.004);
+        break;
+      case 'sparkle': {
+        // VIP tip: glittering high arpeggio
+        const gl = [1568, 1976, 2349, 2637, 3136];
+        for (let i = 0; i < gl.length; i++) {
+          const n = gl[i]! * p;
+          const at = t + i * 0.045;
+          this.tone(at, 'sine', n, n, 0.3, 0.12 * v, 0.002);
+          this.tone(at, 'triangle', n * 2, n * 2, 0.12, 0.03 * v, 0.002);
+        }
+        this.hiss(t + 0.05, 'highpass', 7000, 9000, 0.25, 0.03 * v, 0.02);
+        break;
+      }
       case 'firework':
         // distant crackle + soft thud
         this.tone(t, 'sine', 120 * p, 45 * p, 0.28, 0.4 * v, 0.003);

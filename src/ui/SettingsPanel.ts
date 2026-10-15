@@ -2,8 +2,12 @@
  * [B4] Settings: a gear button (next to the mute button) opening a small centred card with a Sound switch (same
  * state as the mute button), a Music switch, a Graphics High / Low switch (Low = no shadows, pixel ratio 1), a
  * Show FPS switch (PerfOverlay) and "Reset progress" behind an in-page confirmation (no window.confirm). Confirming
- * emits 'game:reset'; the main session wipes the save and reloads.
+ * emits 'game:reset'; the main session wipes the save and reloads. Wave 8: Day / night switch (ctx.dayNight) and, where
+ * navigator.vibrate exists, a Vibration switch (fx/Haptics). Picking a graphics quality by hand writes
+ * localStorage 'winterland:autoQuality' = 'manual' so the automatic drop to Low never overrides the player.
+ * On short screens (<= 520 px tall) the switches sit in two columns so the card fits 800x450.
  */
+import { hapticsAvailable, hapticsEnabled, buzz, setHapticsEnabled } from '../fx/Haptics';
 import type { GameContext } from '../core/types';
 import { backOut, h, onTap, shield, Slide } from './dom';
 import { ICON_CLOSE, ICON_GEAR } from './icons';
@@ -22,6 +26,8 @@ export class SettingsPanel {
   private readonly musicSwitch: HTMLButtonElement;
   private readonly gfxSwitch: HTMLButtonElement;
   private readonly fpsSwitch: HTMLButtonElement;
+  private readonly daySwitch: HTMLButtonElement;
+  private readonly vibSwitch: HTMLButtonElement | null = null;
   private readonly slide = new Slide();
   private resetting = false;
 
@@ -89,12 +95,28 @@ export class SettingsPanel {
     // on = High; the hint tells what Low does
     this.gfxSwitch = sw('Graphics', 'Low turns off shadows for slower computers', () => {
       ctx.audio.play('click');
+      try {
+        localStorage.setItem('winterland:autoQuality', 'manual');
+      } catch {
+        /* storage unavailable */
+      }
       ctx.renderer.setQuality(ctx.renderer.quality === 'high' ? 'low' : 'high');
     });
     this.fpsSwitch = sw('Show FPS', null, () => {
       ctx.audio.play('click');
       perf.enabled = !perf.enabled;
     });
+    this.daySwitch = sw('Day / night', null, () => {
+      ctx.audio.play('click');
+      ctx.dayNight.setEnabled(!ctx.dayNight.enabled);
+    });
+    if (hapticsAvailable()) {
+      this.vibSwitch = sw('Vibration', null, () => {
+        ctx.audio.play('click');
+        setHapticsEnabled(!hapticsEnabled());
+        if (hapticsEnabled()) buzz(15);
+      });
+    }
     // prestige: only after the finale (open() shows / hides it, the flag can flip mid-session)
     this.seasonBtn = h('button', 'wl-btn wl-btn-gold', 'Start a new season');
     this.seasonBtn.type = 'button';
@@ -153,6 +175,8 @@ export class SettingsPanel {
     set(this.musicSwitch, audio.musicOn);
     set(this.gfxSwitch, renderer.quality === 'high');
     set(this.fpsSwitch, this.perf.enabled);
+    set(this.daySwitch, this.ctx.dayNight.enabled);
+    if (this.vibSwitch) set(this.vibSwitch, hapticsEnabled());
     const name = this.gfxSwitch.parentElement?.querySelector('.wl-row-name');
     if (name) name.textContent = renderer.quality === 'high' ? 'Graphics: High' : 'Graphics: Low';
   }

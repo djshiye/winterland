@@ -6,6 +6,7 @@
  *   mutated (neighbour steps, dropped notes, passing notes, timing jitter) so it never feels canned.
  * - Lookahead scheduler on the AudioContext clock: a single 100 ms timer schedules every note due in the next 0.6 s
  *   at exact audio times, so the timer's jitter never reaches the sound. Few voices (≈ 12 nodes per bar), no convolution.
+ * - Wave 8: setNight(on) softens the mix (-20 %, darker pad) over ~2 s for night ambience.
  * - Everything routes through one level node (`duck`) -> `fade` -> the destination handed in by AudioFX (its master gain,
  *   so the master mute silences music too). duck() dips the level ~40 % for ~0.4 s under loud SFX.
  * - AudioFX owns the on/off decisions (unlocked, music switch, mute, tab visible) and calls start()/stop().
@@ -20,6 +21,10 @@ const LOOKAHEAD = 0.6;
 const TICK_MS = 100;
 const LEVEL = 0.5;
 const DUCK_TO = 0.6;
+/** Night ambience: level factor and pad lowpass (Hz) while it is night. */
+const NIGHT_LEVEL = 0.8;
+const PAD_DAY = 1300;
+const PAD_NIGHT = 800;
 
 const mtof = (m: number): number => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -55,6 +60,8 @@ export class Music {
   private next = 0;
   private step = 0;
   private tune: number[][] = MELODY;
+  /** Current resting level of `duck` (LEVEL by day, a bit lower at night). */
+  private level = LEVEL;
 
   constructor(
     private readonly ac: AudioContext,
@@ -69,7 +76,7 @@ export class Music {
 
     this.pad = ac.createBiquadFilter();
     this.pad.type = 'lowpass';
-    this.pad.frequency.value = 1300;
+    this.pad.frequency.value = PAD_DAY;
     this.pad.connect(this.duck);
 
     // melody echo: dotted eighth, 35 % feedback, darkened each repeat
@@ -123,8 +130,20 @@ export class Music {
     const now = this.ac.currentTime;
     const g = this.duck.gain;
     g.cancelScheduledValues(now);
-    g.setTargetAtTime(LEVEL * DUCK_TO, now, 0.03);
-    g.setTargetAtTime(LEVEL, now + 0.4, 0.25);
+    g.setTargetAtTime(this.level * DUCK_TO, now, 0.03);
+    g.setTargetAtTime(this.level, now + 0.4, 0.25);
+  }
+
+  /** Night ambience: a slow crossfade (~2 s) to a softer, duller mix (-20 % level, darker pad) and back. */
+  setNight(on: boolean): void {
+    this.level = on ? LEVEL * NIGHT_LEVEL : LEVEL;
+    const now = this.ac.currentTime;
+    const g = this.duck.gain;
+    g.cancelScheduledValues(now);
+    g.setTargetAtTime(this.level, now, 0.7);
+    const f = this.pad.frequency;
+    f.cancelScheduledValues(now);
+    f.setTargetAtTime(on ? PAD_NIGHT : PAD_DAY, now, 0.7);
   }
 
   private tick(): void {
