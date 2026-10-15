@@ -1062,7 +1062,7 @@ export class Porter extends Helper {
           }
           return;
         }
-        const job = pickJob(refs.sourceViews, refs.shopViews, this.capacity, this.claims(), this.at.p);
+        const job = pickJob(refs.sourceViews, refs.shopViews, this.capacity, this.claims(), this.at.p, this.ctx.worldEvents.firewoodMult);
         const src = job ? refs.sources.get(job.source) : undefined;
         const dest = job ? refs.shops.get(job.shop) : undefined;
         if (job && src && dest) {

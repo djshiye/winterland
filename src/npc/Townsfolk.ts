@@ -782,7 +782,7 @@ export class Townsfolk {
         const kind = shop.def.output;
         if (q.length < cap && kind && shop.counter.count(kind) > 0 && this.crowd.count < this.crowd.capacity) {
           this.spawnBuyer(shop, q);
-          t = (gap * randRange(0.75, 1.3)) / rush.spawnMult;
+          t = (gap * randRange(0.75, 1.3)) / (rush.spawnMult * (this.ctx.worldEvents?.townBuyMult ?? 1)); // rush hour × festival (?. : unit-test fakes)
         } else {
           t = 0.5; // nothing to buy yet / queue full: look again soon
         }

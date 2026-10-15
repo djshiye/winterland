@@ -46,13 +46,23 @@
  * facing the pad: rules.amenityFrame), adds its footprint as a solid collider and emits 'built' (JuiceDirector's chime,
  * ring, puff) + 'amenity:built'. A restored built amenity shows silently; a fully paid one is settled silently first
  * (rules.settlePaidAmenities, also called from Level). The cafe puffs steam from its mug sign (round-robin with the chimneys).
+ *
+ * Wave 13 Grand Market (the Winterland finale): one more fixed site at LAYOUT.town.grandMarket. Its ConstructionPad
+ * (key 'grandMarket') takes logs + cash + TOYS (the pad's `extra`), shown while the town is revealed, village.level >=
+ * VILLAGE.grandMarket.requiresLevel and state.town.grandMarket.tier < 0. Progress is mirrored into
+ * state.town.grandMarket {logs, cash, toys}. Completion sets tier 0, pops the hall in (assets/grandMarket.ts, front toward +Z /
+ * the camera: rules.grandMarketFrame), adds its footprint as a solid collider and emits 'built' + 'finale2:start' (Progression sets flags.grandMarket,
+ * JuiceDirector fires the fireworks, the HUD schedules the finale card). The pad lies outside LAYOUT.town.walk, so the
+ * town's reveal also adds rules.grandMarketFrame().walk. A restored built market shows silently (and settles a fully
+ * paid one first: rules.settlePaidGrandMarket, also called from Level). debugBuildGrandMarket() builds it without the event.
  */
 
 import * as THREE from 'three';
-import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, rect, type AmenityId, type BusinessDef, type BusinessId, type XZ } from '../config';
+import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, VILLAGE, rect, type AmenityId, type BusinessDef, type BusinessId, type XZ } from '../config';
 import { createLotForSale, createTownScaffold, type TownScaffold } from '../assets/town';
 import { createPadSign } from '../assets/pads';
 import { createAmenityModel, type AmenityModel } from '../assets/townAmenities';
+import { createGrandMarketModel, type GrandMarketModel } from '../assets/grandMarket';
 import type { WorldSnapshot } from '../core/Save';
 import type { GameContext } from '../core/types';
 import { ConstructionPad, type ConstructionTarget } from '../stations/ConstructionPad';
@@ -60,7 +70,7 @@ import type { CashPile } from '../stations/CashPile';
 import type { Zone } from '../items/Zones';
 import { Business, type StaffSpot } from './Business';
 import { LotPad } from './LotPad';
-import { amenityFrame, amenityOffered, canChoose, choicesFor, lotFrame, lotOpen, paidFraction, settlePaidAmenities, settlePaidLots, type AmenityFrame, type LotFrame } from './rules';
+import { amenityFrame, amenityOffered, canChoose, choicesFor, grandMarketFrame, grandMarketOffered, lotFrame, lotOpen, paidFraction, settlePaidAmenities, settlePaidGrandMarket, settlePaidLots, type AmenityFrame, type GrandMarketFrame, type LotFrame } from './rules';
 import type { ShopSpot } from './types';
 
 const T = LAYOUT.town;
@@ -88,6 +98,16 @@ interface AmenitySite {
   steam: THREE.Vector3 | null;
 }
 
+/** The Grand Market site (wave 13). */
+interface MarketSite {
+  readonly frame: GrandMarketFrame;
+  readonly pad: ConstructionPad;
+  readonly group: THREE.Group;
+  model: GrandMarketModel | null;
+  /** World chimney mouths (once built). */
+  chimneys: THREE.Vector3[];
+}
+
 /** One lot of the square. */
 interface Lot {
   readonly index: number;
@@ -109,6 +129,7 @@ export class Town {
   readonly root = new THREE.Group();
   private readonly lots: Lot[] = [];
   private readonly amenities: AmenitySite[] = [];
+  private readonly market: MarketSite;
   private opened = false;
   private smokeTimer = 0;
   private smokeCursor = 0;
@@ -126,6 +147,7 @@ export class Town {
     const settled = settlePaidLots(ctx.state);
     ctx.state.stats.townBuilt += settled;
     settlePaidAmenities(ctx.state);
+    settlePaidGrandMarket(ctx.state);
 
     T.lots.forEach((l, i) => {
       const frame = lotFrame(i);
@@ -149,6 +171,7 @@ export class Town {
 
     for (const id of AMENITY_IDS) this.amenities.push(this.makeAmenitySite(id));
     // a village level-up can unlock an amenity's pad (the pond needs level 4)
+    this.market = this.makeMarketSite();
     ctx.events.on('village:changed', () => this.refreshAmenities(false));
 
     ctx.hud.buildPanel.attach(this);
@@ -267,6 +290,28 @@ export class Town {
     this.completeAmenity(S);
   }
 
+  /** Debug / bot: build the Grand Market at once (tier 0 + model + flag, NO event: no fanfare, no card). */
+  debugBuildGrandMarket(): void {
+    if (!this.opened) this.reveal(true);
+    const st = this.ctx.state.town.grandMarket;
+    st.tier = 0;
+    st.logs = 0;
+    st.cash = 0;
+    st.toys = 0;
+    this.market.pad.hide();
+    this.showMarket(true);
+  }
+
+  /** True once the Grand Market is built and shown. */
+  get grandMarketBuilt(): boolean {
+    return this.market.model !== null;
+  }
+
+  /** The Grand Market's construction pad (tests / bot / guide). */
+  get marketPad(): ConstructionPad {
+    return this.market.pad;
+  }
+
   /** True once amenity `id` is built and shown. */
   amenityBuilt(id: AmenityId): boolean {
     return this.amenities.some((a) => a.id === id && a.model !== null);
@@ -309,6 +354,7 @@ export class Town {
     this.root.visible = true;
     ctx.environment.openTownGate(instant);
     for (const r of T.walk) ctx.colliders.addBounds(r);
+    ctx.colliders.addBounds(this.market.frame.walk); // the Grand Market's pad lies beyond the square
     for (const L of this.lots) {
       const st = ctx.state.town.lots[L.index]!;
       if (st.building !== '' && st.tier >= 0) {
@@ -325,6 +371,7 @@ export class Town {
       if (!instant && L.model && L.look === 'sale') ctx.tweens.popIn(L.model, { delay: 0.25 + L.index * 0.07, duration: 0.45 });
     }
     for (const S of this.amenities) if (ctx.state.town.amenities[S.id].tier >= 0) this.showAmenity(S, true);
+    if (ctx.state.town.grandMarket.tier >= 0) this.showMarket(true);
     this.refreshAmenities(instant);
   }
 
@@ -362,6 +409,11 @@ export class Town {
   /** Show / hide each amenity's pad: offered while the town is open, the level is reached and it is not built. */
   private refreshAmenities(instant: boolean): void {
     if (!this.opened) return;
+    if (grandMarketOffered(this.ctx.state)) {
+      if (!this.market.pad.visible) this.market.pad.show(instant);
+    } else {
+      this.market.pad.hide();
+    }
     for (const S of this.amenities) {
       if (amenityOffered(this.ctx.state, S.id)) {
         if (!S.pad.visible) S.pad.show(instant);
@@ -403,6 +455,74 @@ export class Town {
     const position = new THREE.Vector3(S.frame.x, 0, S.frame.z);
     ctx.events.emit('built', { what: `amenity:${S.id}`, position, object: S.group });
     ctx.events.emit('amenity:built', { id: S.id, position: position.clone() });
+  }
+
+  // ---- Grand Market (wave 13) -------------------------------------------------------------------------------
+  private makeMarketSite(): MarketSite {
+    const ctx = this.ctx;
+    const frame = grandMarketFrame();
+    const def = VILLAGE.grandMarket;
+    const st = ctx.state.town.grandMarket;
+    const group = new THREE.Group();
+    group.name = 'grandMarket';
+    group.position.set(frame.x, 0, frame.z);
+    group.rotation.y = frame.yaw;
+    this.root.add(group);
+    const pad = new ConstructionPad(ctx, {
+      label: def.label,
+      icon: 'grandMarket',
+      logs: def.logs,
+      cash: def.cash,
+      paidLogs: st.logs,
+      paidCash: st.cash,
+      extra: { kind: 'toy', count: def.toys, paid: st.toys },
+      key: 'grandMarket',
+      x: frame.pad.x,
+      z: frame.pad.z,
+      size: frame.padSize,
+      onProgress: (logs, cash, toys) => {
+        st.logs = logs;
+        st.cash = cash;
+        st.toys = toys;
+      },
+      onComplete: () => this.completeMarket(),
+    });
+    return { frame, pad, group, model: null, chimneys: [] };
+  }
+
+  /** Put the built hall on its site (instant: silent, final state; else it pops in with a puff). */
+  private showMarket(instant: boolean): void {
+    const S = this.market;
+    if (S.model) return;
+    const model = createGrandMarketModel();
+    S.model = model;
+    S.group.add(model.root);
+    this.ctx.colliders.addBox(S.frame.rect, 'town:grandMarket');
+    const f = S.frame;
+    const c = Math.cos(f.yaw);
+    const sn = Math.sin(f.yaw);
+    S.chimneys = model.chimney.map((p) => new THREE.Vector3(f.x + p.x * c + p.z * sn, p.y, f.z - p.x * sn + p.z * c));
+    if (instant) this.ctx.state.flags.grandMarket = true; // live: Progression sets it on 'finale2:start'
+    if (!instant && this.root.visible) {
+      this.ctx.tweens.popIn(model.root, { duration: 0.6 });
+      this.ctx.particles.puff(this.tmp.set(f.x, 0.4, f.z), { color: 0xffffff, count: 12, size: 1.6, life: 1.0 });
+    }
+  }
+
+  /** The Grand Market is paid: tier 0, the hall pops in, 'built' + 'finale2:start'. */
+  private completeMarket(): void {
+    const S = this.market;
+    if (S.model) return;
+    const st = this.ctx.state.town.grandMarket;
+    st.tier = 0;
+    st.logs = 0;
+    st.cash = 0;
+    st.toys = 0;
+    S.pad.hide();
+    this.showMarket(false);
+    const position = new THREE.Vector3(S.frame.x, 0, S.frame.z);
+    this.ctx.events.emit('built', { what: 'town:grandMarket', position, object: S.group });
+    this.ctx.events.emit('finale2:start', { position: position.clone() });
   }
 
   // ---- lots -------------------------------------------------------------------------------------------------
@@ -522,15 +642,22 @@ export class Town {
     ctx.events.emit('town:built', { lot: L.index, building: id, position: position.clone(), object: b.group });
   }
 
-  /** Chimney smoke: one source per tick, round-robin over the chimneys, then the cafe's cocoa steam (smaller, shorter). */
+  /** Chimney smoke: one source per tick, round-robin over the chimneys, the cafe's cocoa steam (smaller, shorter), then the Grand Market's two chimneys. */
   private puffNext(): void {
-    const n = this.lots.length + this.amenities.length;
+    const nLA = this.lots.length + this.amenities.length;
+    const n = nLA + this.market.chimneys.length;
     for (let k = 0; k < n; k++) {
       this.smokeCursor = (this.smokeCursor + 1) % n;
       if (this.smokeCursor < this.lots.length) {
         const c = this.lots[this.smokeCursor]!.business?.chimney;
         if (c) {
           this.ctx.particles.puff(this.tmp.copy(c), { color: 0xffffff, count: 1, size: 0.45, life: 2.2 });
+          return;
+        }
+      } else if (this.smokeCursor >= nLA) {
+        const c = this.market.chimneys[this.smokeCursor - nLA];
+        if (c) {
+          this.ctx.particles.puff(this.tmp.copy(c), { color: 0xffffff, count: 1, size: 0.5, life: 2.4 });
           return;
         }
       } else {

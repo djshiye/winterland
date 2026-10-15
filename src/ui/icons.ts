@@ -172,13 +172,20 @@ const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
       <rect x="3" y="26" width="32" height="6" rx="3" fill="#f2b61f"/>
       <path d="M16 14v12M22 14v12" stroke="#f2b61f" stroke-width="2.4" fill="none"/>
     </g>`),
-  // wave 13: a husky head (placeholder until the dog builder draws the real one)
+  // wave 13: a husky head with a grey cap, white face mask, blue eyes, a pink tongue and a red scarf
   dog: svg(`
     <g stroke="${OUT}" stroke-width="2.5">
-      <path d="M12 16l8 4h8l8-4-2 14c0 6-5 10-10 10S10 36 10 30z" fill="#dfe6ee"/>
-      <path d="M12 16l3 10 5-6zM36 16l-3 10-5-6z" fill="#8fa3b8"/>
-      <circle cx="19" cy="25" r="2" fill="#2a3652"/><circle cx="29" cy="25" r="2" fill="#2a3652"/>
-      <path d="M22 30h4l-2 3z" fill="#2a3652"/>
+      <path d="M8 24L6 5l13 8zM40 24l2-19-13 8z" fill="#7d8ea3"/>
+      <path d="M10.5 19.5L9.5 10l6 3.8zM37.5 19.5l1-9.5-6 3.8z" fill="#f3b3b0" stroke="none"/>
+      <path d="M24 10c11 0 18 7 18 16 0 9-8 15-18 15S6 35 6 26c0-9 7-16 18-16z" fill="#8c9db2"/>
+      <path d="M24 17c3 6 3 9 9 9 2 4 1 9-3 12-2 2-4 2-6 2s-4 0-6-2c-4-3-5-8-3-12 6 0 6-3 9-9z" fill="#f4f7fa" stroke="none"/>
+      <path d="M24 10c11 0 18 7 18 16 0 9-8 15-18 15S6 35 6 26c0-9 7-16 18-16z" fill="none"/>
+      <circle cx="16.5" cy="24" r="2.6" fill="#8bd3ff" stroke-width="1.8"/><circle cx="31.5" cy="24" r="2.6" fill="#8bd3ff" stroke-width="1.8"/>
+      <circle cx="16.5" cy="24" r="1" fill="#1f2b46" stroke="none"/><circle cx="31.5" cy="24" r="1" fill="#1f2b46" stroke="none"/>
+      <path d="M20.5 30.5h7l-3.5 4z" fill="#2a3652" stroke-width="1.8"/>
+      <path d="M24 34.5v2.5M20 37c1.6 1.4 2.8 1.6 4 0 1.2 1.6 2.4 1.4 4 0" fill="none" stroke-width="1.8"/>
+      <path d="M22 38c0 4 1 6 2 6s2-2 2-6z" fill="#ff8f9c" stroke-width="1.8"/>
+      <path d="M12 38.5c8 3 16 3 24 0l1.5 4.5c-9 3.5-18 3.5-27 0z" fill="#e8553e"/>
     </g>`),
   // wave 7: a signed rail contract with a pine and a gold seal
   pineContracts: svg(`

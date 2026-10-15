@@ -30,6 +30,7 @@ import type { GameContext } from '../core/types';
 import { AutoQuality } from './AutoQuality';
 import { BuildPanel } from './BuildPanel';
 import { CoinBurst } from './CoinBurst';
+import { ContractCard } from './ContractCard';
 import { FinaleCard } from './FinaleCard';
 import { InteractChip } from './InteractChip';
 import { MoveHand } from './MoveHand';
@@ -37,6 +38,7 @@ import { OfflineCard } from './OfflineCard';
 import { PerfOverlay } from './PerfOverlay';
 import { QuestPanel } from './QuestPanel';
 import { EraCard } from './EraCard';
+import { EventBanner } from './EventBanner';
 import { RushBanner } from './RushBanner';
 import { SeasonBadge } from './SeasonBadge';
 import { SettingsPanel } from './SettingsPanel';
@@ -116,6 +118,9 @@ export class HUD {
   private readonly finale: FinaleCard;
   private readonly quests: QuestPanel;
   private readonly rushBanner: RushBanner;
+  /** Wave 13: the delivery contract card under the quests. */
+  private readonly contractCard: ContractCard;
+  private readonly eventBanner: EventBanner;
   /** Wave 9: era card on each village level-up (replaces the old level-up toast). */
   private readonly era: EraCard;
   private readonly moveHand: MoveHand;
@@ -210,6 +215,8 @@ export class HUD {
     this.quests = new QuestPanel(ctx, layer);
     layer.classList.add('has-quests');
     this.rushBanner = new RushBanner(ctx, layer);
+    this.contractCard = new ContractCard(ctx, layer);
+    this.eventBanner = new EventBanner(ctx, layer, () => this.rushBanner.visible);
     this.era = new EraCard(ctx, layer);
     this.autoQuality = new AutoQuality(ctx, () => {
       this.settings.sync();
@@ -271,6 +278,8 @@ export class HUD {
       this.toastQueue.length = 0;
       this.finale.schedule();
     });
+    // wave 13: the Grand Market's finale card (same stats card, its own title)
+    ctx.events.on('finale2:start', () => this.finale.schedule(undefined, 'market'));
   }
 
   /** True while settings, the shop or the build menu is open. */
@@ -457,6 +466,8 @@ export class HUD {
     this.finale.update(dt);
     this.quests.update(dt);
     this.rushBanner.update(dt);
+    this.contractCard.update(dt);
+    this.eventBanner.update(dt);
     this.era.update(dt);
     this.moveHand.update(dt);
     this.coins.update(dt);

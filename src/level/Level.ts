@@ -37,7 +37,7 @@ import { Workshop } from '../stations/Workshop';
 import { UpgradePad } from '../stations/UpgradePad';
 import { Village } from '../village/Village';
 import { Town } from '../town/Town';
-import { settlePaidAmenities, settlePaidLots } from '../town/rules';
+import { settlePaidAmenities, settlePaidGrandMarket, settlePaidLots } from '../town/rules';
 import { Townsfolk } from '../npc/Townsfolk';
 
 export class Level {
@@ -125,6 +125,7 @@ export class Level {
     // A town lot saved fully paid (last bundle in flight) counts as built before the village counts its people.
     ctx.state.stats.townBuilt += settlePaidLots(ctx.state);
     settlePaidAmenities(ctx.state); // wave 12: same for a fully paid amenity site
+    settlePaidGrandMarket(ctx.state); // wave 13: and for a fully paid Grand Market
     this.village = new Village(ctx);
     this.town = new Town(ctx);
     this.townsfolk = new Townsfolk(ctx, this.town);
@@ -439,6 +440,7 @@ export class Level {
         furniture: arms.count('furniture') + flights.inFlightTo(arms, 'furniture'),
         wheat: arms.count('wheat') + flights.inFlightTo(arms, 'wheat'),
         meat: arms.count('meat') + flights.inFlightTo(arms, 'meat'),
+        toy: arms.count('toy') + flights.inFlightTo(arms, 'toy'),
       },
       // Goods handed to townsfolk who haven't paid yet go back onto their shop's counter.
       town: this.town.snapshot().map((lot, i) => {
@@ -497,6 +499,7 @@ export class Level {
     add('furniture', w.arms.furniture);
     add('wheat', w.arms.wheat);
     add('meat', w.arms.meat);
+    add('toy', w.arms.toy);
     this.town.restore(w.town);
     // Last: the drop zone takes its own logs first, then the spill, up to its capacity.
     fillPile(this.dropZone.pile, 'log', w.piles.dropZone + spill);

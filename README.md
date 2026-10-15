@@ -52,8 +52,13 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
    night, staff walk home at dusk, and a night market opens at Winter City. Each era upgrades the whole settlement (torches to lanterns to iron lamps,
    snow tracks to gravel to cobbles, bunting, string lights, fireworks), and a **Porter** can be hired to carry
    the town's goods.
-9. **The finale:** at Winter City, build the Great Lodge for a celebration and a stats card. Play goes on after, or start a **New Season**. Everything resets, but every sale pays 25%
-   more for each season played.
+9. **Events and contracts:** from the Village on, a **snowstorm**, a **festival day** or the **northern lights** can
+   roll in for a minute or two (slow going and hungry shops, double buyers, or +25 % prices). From Town, the notice
+   board by the village gate posts **delivery contracts**: sell so many loaves, chairs or toys within three minutes
+   for a cash bonus. A **Sled Dog** (Lumberjack tab) follows you and carries extra.
+10. **The finale:** at Winter City, build the Great Lodge for a celebration and a stats card. Play goes on after, or start a **New Season**. Everything resets, but every sale pays 25%
+   more for each season played. In the **Winterland** era the **Grand Market** waits on the square: 120 logs, $60,000
+   and 20 toys from the toy factory, for a second celebration.
 
 Along the way: **quests** (three short goals at a time with cash rewards), **VIP customers** who tip, **rush
 hours** when customers flood in, and a **day/night cycle** with glowing windows and northern lights.

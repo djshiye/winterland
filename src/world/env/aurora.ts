@@ -71,6 +71,8 @@ void main() {
 export interface AuroraPart extends EnvPart {
   /** Fade with the night amount (0 day … 1 night). Hides the mesh while it is ~0. */
   setDarkness(d: number): void;
+  /** Wave 13: 1 normal; the aurora event raises it (brighter curtains). */
+  setStrength(k: number): void;
 }
 
 export function buildAurora(): AuroraPart {
@@ -80,6 +82,12 @@ export function buildAurora(): AuroraPart {
     uTime: { value: 0 },
     uDark: { value: 0 },
     uAspect: { value: 1.78 },
+  };
+  let strength = 1;
+  let dark = 0;
+  const apply = (): void => {
+    const k = Math.min(1, Math.max(0, (dark - 0.35) / 0.5));
+    uniforms.uDark.value = k * k * (3 - 2 * k) * 1.1 * strength;
   };
   const mat = new THREE.ShaderMaterial({
     uniforms,
@@ -108,9 +116,13 @@ export function buildAurora(): AuroraPart {
     group,
     setDarkness(d: number): void {
       // fades in late (night proper), so dusk keeps its warm sky
-      const k = Math.min(1, Math.max(0, (d - 0.35) / 0.5));
-      uniforms.uDark.value = k * k * (3 - 2 * k) * 1.1;
+      dark = d;
+      apply();
       mesh.visible = d > 0.03;
+    },
+    setStrength(k: number): void {
+      strength = Number.isFinite(k) ? Math.max(0, k) : 1;
+      apply();
     },
     update(dt: number): void {
       if (mesh.visible) uniforms.uTime.value += dt;

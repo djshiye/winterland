@@ -2117,3 +2117,296 @@
   font-weight: 500;
   color: #c9d6ee;
 }
+
+/* ---- wave 13: world event banner (snowstorm / festival / aurora) -------------------------------------
+   Same slot as the rush pill; `is-stacked` (set while the rush pill shows) moves it one slot further from the edge. */
+
+.wl-event {
+  --event-s: 1;
+  position: absolute;
+  left: 50%;
+  top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 56px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  box-sizing: border-box;
+  padding: 5px 10px 5px 6px;
+  border-radius: 20px;
+  background: linear-gradient(#5aa8f0, #2c62c0);
+  border: 3px solid #fff;
+  box-shadow: 0 4px 0 rgba(10, 25, 70, 0.5), 0 6px 14px rgba(20, 30, 55, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.25);
+  transform: translateX(-50%) scale(var(--event-s));
+  transform-origin: 50% 0;
+  will-change: transform, opacity;
+  transition: top 0.25s ease, bottom 0.25s ease;
+}
+
+.wl-event[data-kind='festival'] {
+  background: linear-gradient(#ff8ac8, #c23a8c);
+  box-shadow: 0 4px 0 rgba(80, 10, 50, 0.5), 0 6px 14px rgba(20, 30, 55, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.25);
+}
+
+.wl-event[data-kind='aurora'] {
+  background: linear-gradient(#37c9a0, #6a46c8);
+  box-shadow: 0 4px 0 rgba(20, 20, 80, 0.5), 0 6px 14px rgba(20, 30, 55, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.25);
+}
+
+.wl-event.is-stacked {
+  top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 112px);
+}
+
+.wl-event-icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: block;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.3));
+}
+
+.wl-event-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-event-text {
+  min-width: 0;
+  text-align: left;
+}
+
+.wl-event-title {
+  font-size: 21px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  --wl-outline: rgba(10, 20, 60, 0.85);
+}
+
+.wl-event-sub {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.1;
+  font-weight: 600;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(10, 20, 60, 0.7);
+}
+
+.wl-event-clock {
+  flex: none;
+  min-width: 46px;
+  padding: 3px 8px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  background: rgba(10, 15, 50, 0.55);
+  font-size: 18px;
+  line-height: 1.1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  /* phones: bottom-centre like the rush pill; stacked, it sits above it */
+  .wl-event,
+  .wl-event.is-stacked {
+    top: auto;
+    transform-origin: 50% 100%;
+  }
+  .wl-event {
+    bottom: calc(max(var(--wl-pad), env(safe-area-inset-bottom)) + 70px);
+  }
+  .wl-event.is-stacked {
+    bottom: calc(max(var(--wl-pad), env(safe-area-inset-bottom)) + 126px);
+  }
+  .wl-event-title {
+    font-size: 19px;
+  }
+  .wl-event-sub {
+    font-size: 12px;
+    white-space: normal;
+    max-width: 200px;
+  }
+  .wl-hud.shop-open .wl-event {
+    display: none;
+  }
+}
+
+@media (min-width: 700px) {
+  .wl-hud.shop-open .wl-event {
+    left: calc((100% - 376px) / 2);
+    max-width: calc(100% - 376px - 24px);
+  }
+}
+
+/* ---- wave 13: delivery contract card (under the quest chip; ui/ContractCard) ----------------------- */
+
+.wl-contract {
+  --c-pulse: 0;
+  position: absolute;
+  top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 32px);
+  left: max(var(--wl-pad), env(safe-area-inset-left));
+  width: min(216px, calc(100vw - 2 * var(--wl-pad) - 120px));
+  box-sizing: border-box;
+  padding: 5px 7px 6px;
+  border-radius: 14px;
+  border: 3px solid #fff;
+  background: linear-gradient(#7a5530, #55391c);
+  box-shadow: 0 4px 0 rgba(40, 24, 8, 0.5), 0 6px 14px rgba(20, 30, 55, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.18);
+  color: #fff;
+  pointer-events: none;
+}
+
+.wl-contract.is-warn {
+  border-color: rgb(255, calc(255 - 175 * var(--c-pulse)), calc(255 - 175 * var(--c-pulse)));
+  background: linear-gradient(rgb(calc(122 + 90 * var(--c-pulse)), 58, 40), rgb(calc(85 + 90 * var(--c-pulse)), 36, 24));
+}
+
+.wl-hud.shop-open .wl-contract {
+  display: none !important;
+}
+
+.wl-contract-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.wl-contract-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.wl-contract-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-contract-item {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+.wl-contract-clock {
+  flex: none;
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+.wl-contract-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.wl-contract-bar {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 15px;
+  border-radius: 8px;
+  background: rgba(20, 10, 4, 0.6);
+  overflow: hidden;
+}
+
+.wl-contract-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: linear-gradient(#ffe48a, #f0a82c);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+.wl-contract-count {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6), 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+.wl-contract-bonus {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 9px;
+  background: linear-gradient(#5ee07a, #2e9c48);
+  border: 2px solid #fff;
+  color: #07310f;
+  font-size: 12px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* phones: a one-line chip */
+@media (max-width: 420px) {
+  .wl-contract {
+    width: max-content;
+    max-width: calc(100vw - 2 * var(--wl-pad) - 120px);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 7px 3px 5px;
+    border-radius: 14px;
+    border-width: 2px;
+  }
+  .wl-contract-top,
+  .wl-contract-line {
+    display: contents;
+  }
+  .wl-contract-item {
+    flex: none;
+    font-size: 12px;
+  }
+  .wl-contract-clock {
+    font-size: 12px;
+    order: 2;
+  }
+  .wl-contract-bar {
+    display: contents;
+  }
+  .wl-contract-fill {
+    display: none;
+  }
+  .wl-contract-count {
+    position: static;
+    font-size: 11px;
+    order: 1;
+    opacity: 0.85;
+  }
+  .wl-contract-bonus {
+    order: 3;
+    padding: 1px 5px;
+    font-size: 11px;
+  }
+  .wl-contract-icon {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* phones: the full-width objective banner steps below the one-line contract chip (unless it is parked at the bottom) */
+@media (max-width: 640px) {
+  .wl-hud.has-contract:not(.quests-open) .wl-objective {
+    margin-top: 30px;
+  }
+}

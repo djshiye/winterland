@@ -306,7 +306,7 @@ function sledGeometry(): THREE.BufferGeometry {
   return b.geometry();
 }
 
-function dogGeometry(): THREE.BufferGeometry {
+function dogGeometry(opts?: { tail?: boolean; scarf?: number; bag?: boolean }): THREE.BufferGeometry {
   const b = new Batch();
   const grey = 0x9aa4af;
   const white = 0xf4f7fa;
@@ -326,16 +326,32 @@ function dogGeometry(): THREE.BufferGeometry {
     b.add(geo.sphere(0.028, 6, 5), eye, sx * 0.075, 0.71, 0.53);
     b.add(geo.cone(0.075, 0.17, 4), dark, sx * 0.09, 0.86, 0.36, { rz: -sx * 0.18 });
   }
-  // tail: curled up over the back, white tip
-  b.add(geo.box(0.07, 0.07, 0.28), grey, 0, 0.7, -0.38, { rx: 0.7 });
-  b.add(geo.box(0.075, 0.075, 0.1), white, 0, 0.85, -0.5, { rx: 0.7 });
+  if (opts?.scarf !== undefined) {
+    // a knitted scarf round the neck with a short tail down the chest (companion dog only)
+    b.add(geo.box(0.31, 0.1, 0.12), opts.scarf, 0, 0.6, 0.25);
+    b.add(geo.box(0.07, 0.17, 0.05), opts.scarf, 0.09, 0.5, 0.33);
+  }
+  if (opts?.bag) {
+    // saddlebag: leather panniers, a strap over the back and two mini logs lying across the saddle patch
+    for (const sx of [-1, 1]) b.add(geo.box(0.1, 0.2, 0.26), 0x8a5a32, sx * 0.2, 0.55, -0.04);
+    b.add(geo.box(0.46, 0.04, 0.07), 0x5b3a1e, 0, 0.68, -0.04);
+    for (const dz of [-0.1, 0.04]) {
+      b.add(geo.cylinder(0.045, 0.045, 0.34, 8), 0xb98a56, 0, 0.74, dz, { rz: Math.PI / 2 });
+      for (const sx of [-1, 1]) b.add(geo.cylinder(0.03, 0.03, 0.01, 8), 0xe6c690, sx * 0.171, 0.74, dz, { rz: Math.PI / 2 });
+    }
+  }
+  if (opts?.tail ?? true) {
+    // tail: curled up over the back, white tip
+    b.add(geo.box(0.07, 0.07, 0.28), grey, 0, 0.7, -0.38, { rx: 0.7 });
+    b.add(geo.box(0.075, 0.075, 0.1), white, 0, 0.85, -0.5, { rx: 0.7 });
+  }
   return b.geometry();
 }
 
-function legGeometry(): THREE.BufferGeometry {
+function legGeometry(paw = 0x4c5560): THREE.BufferGeometry {
   const b = new Batch();
   b.add(geo.box(0.075, 0.3, 0.09), 0xdfe5ea, 0, -0.15, 0);
-  b.add(geo.box(0.085, 0.07, 0.13), 0x4c5560, 0, -0.325, 0.02);
+  b.add(geo.box(0.085, 0.07, 0.13), paw, 0, -0.325, 0.02);
   return b.geometry();
 }
 
@@ -488,4 +504,182 @@ export function createSled(): SledModel {
 
 export const sledCatalog: Record<string, () => THREE.Object3D> = {
   dogSled: () => createSled().root,
+  companionDog: () => createDog().root,
 };
+
+
+// ---------------------------------------------------------------------------
+// Companion dog (entities/Dog.ts): ONE husky built from the same geometry as the sled team
+// ---------------------------------------------------------------------------
+
+/** Scarf colour per dog level (1 = first husky; 2+ get a new colour). */
+const DOG_SCARF = [0xd94a3a, 0xd94a3a, 0x2f7de1, 0xf2b61f, 0x8a4fd0] as const;
+
+export interface DogModel {
+  /** Scale + root of the dog; position/yaw are set by the owner. Local +Z is forward. */
+  readonly root: THREE.Group;
+  /** Advance the pose: absolute time (s) and ground speed (m/s). Gait phase is integrated internally. */
+  animate(t: number, speed: number): void;
+  /** 0 standing .. 1 sitting (nose up, rump down, rear legs folded). */
+  sit: number;
+  /** Tail yaw (radians, side to side) for wagging. */
+  tailYaw: number;
+  /** Show / hide the saddlebag with two mini logs. */
+  setBag(on: boolean): void;
+  /** Scarf colour follows the upgrade level (rebuilds the body geometry only when the colour changes). */
+  setLevel(level: number): void;
+  dispose(): void;
+}
+
+const SIT_PITCH = -0.78;
+const SIT_PIVOT = new THREE.Vector3(0, 0.36, -0.3);
+const SIT_DROP = 0.3;
+const LIMB_REACH = 0.37;
+const TAIL_BASE = new THREE.Vector3(0, 0.66, -0.31);
+const DOG_HIPS = [
+  [HIP_X, HIP_Z, 0],
+  [-HIP_X, HIP_Z, Math.PI],
+  [HIP_X, -HIP_Z, Math.PI],
+  [-HIP_X, -HIP_Z, 0],
+] as const;
+
+export function createDog(): DogModel {
+  const root = new THREE.Group();
+  root.name = 'companionDog';
+  root.scale.setScalar(DOG_SCALE);
+  const bodyGroup = new THREE.Group();
+  root.add(bodyGroup);
+
+  let scarf: number = DOG_SCARF[1]!;
+  const bodyMesh = new THREE.Mesh(dogGeometry({ tail: false, scarf }), vcMat());
+  bodyMesh.name = 'dogBody';
+  bodyMesh.castShadow = true;
+  bodyMesh.receiveShadow = true;
+  bodyGroup.add(bodyMesh);
+  let bagOn = false;
+  const rebuildBody = (): void => {
+    const old = bodyMesh.geometry;
+    bodyMesh.geometry = dogGeometry({ tail: false, scarf, bag: bagOn });
+    old.dispose();
+  };
+
+  // instances 0-3 = legs (FL, FR, RL, RR), 4 = the tail
+  const limbs = new THREE.InstancedMesh(legGeometry(0xdfe5ea), vcMat(), 5); // white socks
+  limbs.name = 'dogLimbs';
+  limbs.castShadow = false; // the body's shadow is enough (keeps the dog at 3 draw calls)
+  limbs.receiveShadow = true;
+  limbs.frustumCulled = false;
+  const c = new THREE.Color();
+  for (let i = 0; i < 4; i++) limbs.setColorAt(i, c.set(0xffffff));
+  limbs.setColorAt(4, c.set(0xb4bdc8));
+  root.add(limbs);
+
+  const body = new THREE.Matrix4();
+  const hipM = new THREE.Matrix4();
+  const rot = new THREE.Matrix4();
+  const scl = new THREE.Matrix4();
+  const tmp = new THREE.Matrix4();
+  const off = new THREE.Vector3();
+  const offNeg = new THREE.Vector3();
+  const pitchQ = new THREE.Quaternion();
+  const unit = new THREE.Vector3(1, 1, 1);
+  const identityQ = new THREE.Quaternion();
+  const bodyPos = new THREE.Vector3();
+  const xAxis = new THREE.Vector3(1, 0, 0);
+  const yAxis = new THREE.Vector3(0, 1, 0);
+
+  let phase = 0;
+  let lastT = Number.NaN;
+  let gaitW = 0;
+
+  const model: DogModel = {
+    root,
+    sit: 0,
+    tailYaw: 0,
+    animate(t, speed) {
+      const dt = Number.isNaN(lastT) ? 0 : Math.min(0.1, Math.max(0, t - lastT));
+      lastT = t;
+      const sit = model.sit;
+      const target = Math.min(1, speed / 1.2) * (1 - sit);
+      gaitW += (target - gaitW) * Math.min(1, dt * 12);
+      phase += dt * Math.PI * 2 * (1.5 + speed * 0.42) * (speed > 0.3 ? 1 : 0.3);
+      const w = gaitW;
+      const bob = 0.045 * Math.abs(Math.sin(phase * 2)) * w;
+      const breathe = 0.006 * Math.sin(t * 2.2);
+
+      // body: bob + gallop pitch, or the sit pose (rotate about the rump, drop the rear)
+      const pitch = SIT_PITCH * sit + 0.06 * Math.sin(phase * 2 + 1) * w;
+      pitchQ.setFromAxisAngle(xAxis, pitch);
+      off.copy(SIT_PIVOT);
+      offNeg.copy(SIT_PIVOT).negate();
+      bodyPos.set(0, bob + breathe - SIT_DROP * sit, 0);
+      // body = T(bodyPos) * T(pivot) * R(pitch) * T(-pivot)
+      body.compose(bodyPos, identityQ, unit);
+      tmp.makeTranslation(off.x, off.y, off.z);
+      body.multiply(tmp);
+      rot.makeRotationFromQuaternion(pitchQ);
+      body.multiply(rot);
+      tmp.makeTranslation(offNeg.x, offNeg.y, offNeg.z);
+      body.multiply(tmp);
+      body.decompose(bodyGroup.position, bodyGroup.quaternion, bodyGroup.scale);
+
+      for (let i = 0; i < 4; i++) {
+        const [hx, hz, ph] = DOG_HIPS[i]!;
+        const rear = hz < 0;
+        const swing = 0.75 * Math.min(1, speed / 4 + 0.35) * Math.sin(phase + ph) * w;
+        hipM.makeTranslation(hx, HIP_Y, hz);
+        let ang = swing;
+        let sy = 1;
+        if (rear && sit > 0) {
+          // rear legs fold forward under the haunch
+          ang = swing * (1 - sit) + (-Math.PI / 2 - SIT_PITCH) * sit;
+          sy = 1 - 0.45 * sit;
+        }
+        rot.makeRotationX(ang);
+        scl.makeScale(1, sy, 1);
+        tmp.multiplyMatrices(body, hipM).multiply(rot).multiply(scl);
+        if (!rear && sit > 0) {
+          // front legs stay planted: stretch them so the paws still reach the ground under the raised shoulders
+          const hipY = tmp.elements[13]!;
+          const k = Math.min(1.6, Math.max(0.6, hipY / (LIMB_REACH - 0.015)));
+          scl.makeScale(1, 1 + (k - 1) * sit, 1);
+          // cancel the body pitch so the leg hangs straight down in dog space
+          rot.makeRotationX(swing - SIT_PITCH * sit);
+          tmp.multiplyMatrices(body, hipM).multiply(rot).multiply(scl);
+        }
+        limbs.setMatrixAt(i, tmp);
+      }
+
+      // tail: yaw = the wag (about the dog's vertical axis)
+      // up and back while standing; hangs down behind the rump while sitting
+      const tailPitch = (2.75 + 0.25 * Math.sin(phase * 2) * w) * (1 - sit) + (0.7 - SIT_PITCH) * sit;
+      hipM.makeTranslation(TAIL_BASE.x, TAIL_BASE.y, TAIL_BASE.z);
+      rot.makeRotationAxis(yAxis, model.tailYaw);
+      tmp.multiplyMatrices(body, hipM).multiply(rot);
+      rot.makeRotationX(tailPitch);
+      scl.makeScale(1.6, 1.0, 1.6);
+      tmp.multiply(rot).multiply(scl);
+      limbs.setMatrixAt(4, tmp);
+      limbs.instanceMatrix.needsUpdate = true;
+    },
+    setBag(on) {
+      if (on === bagOn) return;
+      bagOn = on;
+      rebuildBody();
+    },
+    setLevel(level) {
+      const col = DOG_SCARF[Math.max(0, Math.min(DOG_SCARF.length - 1, Math.floor(level)))]!;
+      if (col === scarf) return;
+      scarf = col;
+      rebuildBody();
+    },
+    dispose() {
+      bodyMesh.geometry.dispose();
+      limbs.geometry.dispose();
+      limbs.dispose();
+      root.removeFromParent();
+    },
+  };
+  model.animate(0, 0);
+  return model;
+}

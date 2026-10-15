@@ -24,6 +24,7 @@
  * - shelter:built → pop + dust ring + chime + "+N villagers".
  * - village:revealed / reveal → whoosh / soft chime + toast. village:levelUp → fanfare, confetti, toast with perks.
  * - finale:start → fanfare, a volley of firework rockets for ~4 s (the stats card is the HUD's job).
+ * - finale2:start (wave 13, the Grand Market opens) → the same, smaller: fanfare, confetti, ~3 s of rockets over the market.
  * - offline:collected → cash burst + coin sounds.
  *
  * Wave 7 (Timber Ridge):
@@ -42,6 +43,7 @@ import * as THREE from 'three';
 import { AMENITIES, LAYOUT, PADS, PALETTE, QUARTERS, UPGRADES, VILLAGE } from '../config';
 import { townHappiness } from '../core/demand';
 import type { GameContext, ItemHolder } from '../core/types';
+import { contractClock, contractItem } from '../core/Contracts';
 import { formatMoney } from '../ui/format';
 import { Haptics } from './Haptics';
 
@@ -344,6 +346,34 @@ export class JuiceDirector {
       this.later(2.6, () => ctx.audio.play('fanfare', { pitch: 1.12, volume: 0.8 }));
     });
 
+    // Wave 13: the Grand Market opens, a second, smaller fireworks show over the south-east corner of the square
+    ev.on('finale2:start', (e) => {
+      const center = new THREE.Vector3().copy(e.position);
+      ctx.audio.play('fanfare');
+      ctx.particles.confetti(center, 70);
+      ctx.particles.ring(center, { color: 0xffd84a, radius: 5, life: 0.9 });
+      ctx.cameraRig.shake(0.25, 0.35);
+      const salvos = 10;
+      for (let i = 0; i < salvos; i++) {
+        this.later(0.2 + (i / salvos) * 3.0 + Math.random() * 0.15, () => {
+          const [c1, c2] = FIREWORKS[(Math.random() * FIREWORKS.length) | 0]!;
+          const a = Math.random() * Math.PI * 2;
+          const r = Math.random() * 4.5;
+          const from = this.tmp3.set(center.x + Math.cos(a) * r, center.y, center.z + Math.sin(a) * r);
+          ctx.audio.play('whoosh', { volume: 0.35, pitch: 1.3 });
+          ctx.particles.rocket(from, {
+            height: 7 + Math.random() * 4,
+            color: c1,
+            color2: c2,
+            drift: this.tmp4.set((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 3),
+            onBurst: () => ctx.audio.play('firework', { pitch: 0.85 + Math.random() * 0.4 }),
+          });
+        });
+      }
+      this.later(1.0, () => ctx.particles.confetti(this.tmp2.copy(center), 50));
+      this.later(2.2, () => ctx.audio.play('fanfare', { pitch: 1.2, volume: 0.8 }));
+    });
+
     ev.on('offline:collected', (e) => {
       this.cashBurst(this.playerSpot(this.tmp2), e.amount);
     });
@@ -360,6 +390,31 @@ export class JuiceDirector {
 
     ev.on('rush:start', () => {
       ctx.audio.play('bell');
+    });
+
+    // Wave 13: the gate's delivery contracts
+    ev.on('contract:offered', (e) => {
+      ctx.audio.play('quest');
+      ctx.hud.toast(`New contract: ${contractItem(e.kind, e.count)} in ${contractClock(e.seconds)} \u00b7 +${formatMoney(e.bonus)}`, { duration: 3 });
+    });
+    ev.on('contract:done', (e) => {
+      ctx.audio.play('fanfare');
+      ctx.particles.confetti(this.playerSpot(this.tmp), 60);
+      ctx.hud.toast('Contract complete!', { sub: `+${formatMoney(e.bonus)} bonus`, duration: 2.8 });
+      ctx.hud.coinBurst(Math.min(14, 6 + Math.floor(Math.log10(Math.max(10, e.bonus)) * 2)));
+    });
+    ev.on('contract:failed', () => {
+      ctx.audio.play('full');
+      ctx.hud.toast('Contract missed', { sub: 'The notice board will post another soon', duration: 2.6 });
+    });
+
+    // Wave 13: world events
+    ev.on('event:start', (e) => {
+      if (e.kind === 'festival') ctx.audio.play('bell');
+      else if (e.kind === 'snowstorm') {
+        ctx.audio.play('whoosh');
+        this.later(0.35, () => ctx.audio.play('whoosh', { volume: 0.8, pitch: 0.85 }));
+      } else ctx.audio.play('sparkle');
     });
 
     ev.on('night:start', () => ctx.audio.setNight(true));

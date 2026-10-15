@@ -11,7 +11,7 @@
  * in v 1.4…2.5 (solid) and their zones reach out to v ≈ 3.9.
  */
 import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, TOWN, VILLAGE, type AmenityId, type BusinessDef, type BusinessId, type Rect, type XZ } from '../config';
-import { LOT_COUNT, type GameState } from '../core/types';
+import { CARRY_KINDS, LOT_COUNT, type CarryKind, type GameState } from '../core/types';
 
 const T = LAYOUT.town;
 
@@ -98,6 +98,27 @@ export function settlePaidAmenities(state: GameState): number {
     n++;
   }
   return n;
+}
+
+/**
+ * Wave 13: the Grand Market (the Winterland finale) can be fully paid in a save while its last bundle / toy was still
+ * flying (progress counts in-flight payments). Finish it silently (tier 0, paid reset), like settlePaidAmenities.
+ * Returns 1 when settled, else 0.
+ */
+export function settlePaidGrandMarket(state: GameState): number {
+  const st = state.town.grandMarket;
+  const def = VILLAGE.grandMarket;
+  if (st.tier >= 0 || st.logs < def.logs || st.cash < def.cash || st.toys < def.toys) return 0;
+  st.tier = 0;
+  st.logs = 0;
+  st.cash = 0;
+  st.toys = 0;
+  return 1;
+}
+
+/** True while the Grand Market's pad is offered: town revealed, village at the Winterland era, not built yet. */
+export function grandMarketOffered(state: GameState): boolean {
+  return state.town.revealed && state.village.level >= VILLAGE.grandMarket.requiresLevel && state.town.grandMarket.tier < 0;
 }
 
 /** True while amenity `id` is offered on the square: town revealed, village level reached, not built yet. */
@@ -192,7 +213,7 @@ export interface StationLayout {
   counter: Station | null;
   till: Station | null;
   pallet: Station | null;
-  /** Transfer zones (local rects): feeding the hopper, picking up the pallet, collecting the till. */
+  /** Transfer zones (local rects): feeding the hopper, picking up the pallet (or a carryable shop's counter), collecting the till. */
   feed: LRect | null;
   pickup: LRect | null;
   collect: LRect | null;
@@ -213,6 +234,8 @@ const PALLET_U = 0.75;
 export const QUEUE_V0 = 3.35;
 export const QUEUE_STEP = 0.6;
 const ZONE_V1 = 3.9;
+/** Lateral clearance between a shop's queue column (u = counter u) and its carry-pickup strip. */
+const PICKUP_QUEUE_GAP = 0.3;
 
 const box = (s: Station, w: number, d: number): LRect => ({ u0: s.u - w / 2, u1: s.u + w / 2, v0: s.v - d / 2, v1: s.v + d / 2 });
 
@@ -246,6 +269,14 @@ export function layoutFor(def: BusinessDef, front: number, variant: Variant = 'A
     L.till = { u: TILL_U, v: 3.3 };
     L.feed = { u0: HOPPER_U - 0.5, u1: HOPPER_U + 0.5, v0: 2.95, v1: ZONE_V1 };
     L.collect = { u0: TILL_U - 0.45, u1: TILL_U + 0.5, v0: 2.95, v1: 3.7 };
+    // A shop whose goods the player's arms can carry (the toy factory) also lets the player take them off the counter
+    // pile: a strip beside the buyers' queue column, between it and the till's collect zone (never on a queue spot).
+    if (def.output && (CARRY_KINDS as readonly string[]).includes(def.output as CarryKind)) {
+      const c = L.collect;
+      const tillEdge = PROP.till.w / 2 + 0.05; // keep clear of the till prop
+      if (TILL_U > COUNTER_U) L.pickup = { u0: COUNTER_U + PICKUP_QUEUE_GAP, u1: TILL_U - tillEdge, v0: c.v0, v1: c.v1 };
+      else L.pickup = { u0: TILL_U + tillEdge, u1: COUNTER_U - PICKUP_QUEUE_GAP, v0: c.v0, v1: c.v1 };
+    }
     L.solids = [box(L.hopper, PROP.hopper.w, PROP.hopper.d), box(L.counter, PROP.counter.w, PROP.counter.d)];
     const backV = propV - PROP.counter.d / 2;
     const sv = Math.min(backV - 0.2, (front + backV) / 2);
@@ -335,4 +366,55 @@ export function amenityToWorld(f: AmenityFrame, lx: number, lz: number, out: XZ 
   out.x = f.x + lx * c + lz * s;
   out.z = f.z - lx * s + lz * c;
   return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Grand Market (wave 13)
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface GrandMarketFrame {
+  x: number;
+  z: number;
+  /**
+   * Group rotation.y of the model. 0: its +Z front (colonnade, door, clock, lit window rows) faces SOUTH, the side the
+   * isometric camera sees (it looks from +X / +Z); the pad stands on the hall's north side, toward the square.
+   */
+  yaw: number;
+  w: number;
+  d: number;
+  /** World footprint (axis-aligned). */
+  rect: Rect;
+  pad: XZ;
+  padSize: number;
+  /** World tile of the pad. */
+  padRect: Rect;
+  /** Extra walkable rect (player centre) joining the square's corner to the pad (the pad lies outside T.walk). */
+  walk: Rect;
+}
+
+/**
+ * Where the Grand Market stands and which way it faces. Unlike the amenities (front toward the pad) the hall's front
+ * faces +Z whatever side the pad is on: the camera only sees the +X and +Z sides of a building, and the showpiece
+ * finale must show its colonnade, lanterns and window rows rather than its back wall.
+ */
+export function grandMarketFrame(): GrandMarketFrame {
+  const m = T.grandMarket;
+  const yaw = 0;
+  const ex = m.w / 2;
+  const ez = m.d / 2;
+  const ph = m.padSize / 2;
+  const sq = T.square;
+  return {
+    x: m.x,
+    z: m.z,
+    yaw,
+    w: m.w,
+    d: m.d,
+    rect: { minX: m.x - ex, maxX: m.x + ex, minZ: m.z - ez, maxZ: m.z + ez },
+    pad: { x: m.pad.x, z: m.pad.z },
+    padSize: m.padSize,
+    padRect: { minX: m.pad.x - ph, maxX: m.pad.x + ph, minZ: m.pad.z - ph, maxZ: m.pad.z + ph },
+    // from just inside the square's SE corner east to past the pad, covering the pad tile (+ half a metre around it)
+    walk: { minX: sq.maxX - 1.2, maxX: m.pad.x + ph + 0.5, minZ: sq.maxZ - 1.2, maxZ: m.pad.z + ph + 0.2 },
+  };
 }

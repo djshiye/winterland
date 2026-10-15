@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { VILLAGE } from '../../config';
 import type { GameContext } from '../../core/types';
-import { twinkleBulbs } from './glow';
+import { bulbMaterial, twinkleBulbs } from './glow';
 
 export type LampKind = 'torch' | 'lantern' | 'iron';
 export type SurfaceKind = 'snow' | 'gravel' | 'cobble';
@@ -106,6 +106,8 @@ export function resetEras(): void {
 // ---------------------------------------------------------------------------
 
 const sparkleSpots: Array<[number, number, number]> = [];
+/** Multiplies the bulb colour at level 5 (white-ish bulbs become warm gold). */
+const WINTERLAND_GOLD = new THREE.Color(1.0, 0.86, 0.55);
 
 /** Scenery builders register a place where Winterland sparkle appears (world x, y, z). */
 export function addSparkleSpot(x: number, y: number, z: number): void {
@@ -123,6 +125,14 @@ export class EraController {
     ctx.events.on('village:changed', (e) => {
       applyEra(e.level);
     });
+    // a day / night change resets the bulb colour (env/glow.ts): re-apply the Winterland tint right after it
+    ctx.renderer.onDarkness(() => {
+      if (currentEra()?.sparkle) this.tintBulbs();
+    });
+  }
+
+  private tintBulbs(): void {
+    bulbMaterial().color.multiply(WINTERLAND_GOLD);
   }
 
   get look(): EraLook {
@@ -132,12 +142,19 @@ export class EraController {
   update(dt: number): void {
     this.time += dt;
     twinkleBulbs(this.time);
-    if (!currentEra()?.sparkle || sparkleSpots.length === 0) return;
+    if (!currentEra()?.sparkle) return;
+    // Winterland: every string light / lantern bulb takes a golden tint (the shared bulb material's colour is reset
+    // by twinkleBulbs and by updateGlow, so multiply right after each: a cheap, stateless one-vector tint)
+    this.tintBulbs();
+    if (sparkleSpots.length === 0) return;
     this.sparkleTimer -= dt;
     if (this.sparkleTimer > 0) return;
-    this.sparkleTimer = 0.16 + Math.random() * 0.2;
-    const s = sparkleSpots[(Math.random() * sparkleSpots.length) | 0]!;
-    this.tmp.set(s[0] + (Math.random() - 0.5) * 1.4, s[1] + (Math.random() - 0.3) * 1.2, s[2] + (Math.random() - 0.5) * 1.4);
-    this.ctx.particles.sparkle(this.tmp, Math.random() < 0.5 ? 0xfff2b0 : 0xbfe8ff);
+    this.sparkleTimer = 0.11 + Math.random() * 0.14;
+    // two glints per tick (about 1.6x the old density)
+    for (let n = 0; n < 2; n++) {
+      const s = sparkleSpots[(Math.random() * sparkleSpots.length) | 0]!;
+      this.tmp.set(s[0] + (Math.random() - 0.5) * 1.4, s[1] + (Math.random() - 0.3) * 1.2, s[2] + (Math.random() - 0.5) * 1.4);
+      this.ctx.particles.sparkle(this.tmp, Math.random() < 0.6 ? 0xfff2b0 : 0xbfe8ff);
+    }
   }
 }

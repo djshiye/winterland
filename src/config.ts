@@ -757,7 +757,7 @@ export const LAYOUT = {
      * Wave 13: the Grand Market hall in the south-east corner of the district (clear of the south lots x ≤ 32.4 and
      * the east lots z ≤ 32.6); its pad in front, toward the square. The builder validates clearance.
      */
-    grandMarket: { x: 35.4, z: 36.2, w: 4.2, d: 3.0, pad: { x: 35.4, z: 33.6 } as XZ, padSize: 1.8 },
+    grandMarket: { x: 35.4, z: 36.7, w: 4.2, d: 3.0, pad: { x: 35.4, z: 33.9 } as XZ, padSize: 1.8 },
   },
 } as const;
 

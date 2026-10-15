@@ -32,7 +32,7 @@ import type { Upgrades } from './Upgrades';
 /** log: raw small log · plank: plank bundle (made from a log at the walk-in counter) · crate · cash. */
 export type ItemKind = 'log' | 'plank' | 'crate' | 'cash' | 'furniture' | 'wheat' | 'bread' | 'meat' | 'sausage' | 'toy';
 /** Wave 9: kinds the player's arms (and the save's arms record) may hold. */
-export const CARRY_KINDS = ['log', 'crate', 'furniture', 'wheat', 'meat'] as const;
+export const CARRY_KINDS = ['log', 'crate', 'furniture', 'wheat', 'meat', 'toy'] as const;
 export type CarryKind = (typeof CARRY_KINDS)[number];
 
 /** A physical, visible item. Created/recycled only through ItemPool. */
