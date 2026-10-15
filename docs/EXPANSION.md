@@ -187,7 +187,7 @@ settlementLevel(s)= s.village.level < 5 ? s.village.level : max(5, s.eras.settle
 | 46–50 (10) | Smart City · Neural City · Robot Metropolis · Arcology · Winterland Prime | 150k · 180k · 220k · 270k · 330k |
 
 **Every level ≥ 6 gives:**
-- the `EraCard` banner (extended to L ≥ 6, which also fixes the duplicate-name bug in ROADMAP §4.5);
+- the `EraCard` banner (extended to L ≥ 6, which also fixes the duplicate-name bug from the 0.9.0 handoff);
 - **Renown** +2 %: `renownMult = 1.02^max(0, L−5)` (×2.2 at 45), applied in `salePrice`, `exportPrice` and city income;
 - a **walk-collect gift cash pile** worth 60 s of current income on the district plaza.
 
@@ -324,7 +324,7 @@ Existing cross-era imports through the dock (iron → steamWorks, wire → chipF
 - The 9 cash machines come from one parametric builder with the era palette.
 - Hand nodes come from one rock/vein builder with 9 palettes.
 - That leaves 23 truly new machine models, 23 item shapes (mostly existing `MaterialShape`s recoloured), 9 pal models and 54 role looks. A role look is a hat, coat colour and prop over the existing era bodies.
-- Before 0.10 asset work, ask Dino for the Gemini ARGON visual spec. The prompt in ROADMAP §7 should be extended with this table. Procedural build is from that spec.
+- The Gemini ARGON visual specs are in `docs/art/` (`guide.md` is authoritative; `era-02.json` … `era-10.json` per era). Extend them with this table before 0.10 asset work. Procedural build is from that spec.
 
 **Draw calls for 70 roles (up to about 190 workers):**
 - **Instanced `EraCrowd`** per region, modelled on `npc/Crowd.ts`:
