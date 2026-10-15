@@ -36,6 +36,8 @@ import { TruckLoader } from '../stations/TruckLoader';
 import { Workshop } from '../stations/Workshop';
 import { UpgradePad } from '../stations/UpgradePad';
 import { Village } from '../village/Village';
+import { Town } from '../town/Town';
+import { Townsfolk } from '../npc/Townsfolk';
 
 export class Level {
   readonly dropZone: DropZone;
@@ -52,6 +54,9 @@ export class Level {
   /** Timber Ridge (always constructed; hidden until the 'ridge' pad) and its crew bunkhouse. */
   readonly ridge: Ridge;
   readonly quarters: Quarters;
+  /** Wave 9: the Market Town (always constructed; inert until revealed) and its townsfolk. */
+  readonly town: Town;
+  readonly townsfolk: Townsfolk;
 
   harvester: Harvester | null = null;
   processor: Processor | null = null;
@@ -117,6 +122,8 @@ export class Level {
 
     this.shopMat = new ShopMat(ctx);
     this.village = new Village(ctx);
+    this.town = new Town(ctx);
+    this.townsfolk = new Townsfolk(ctx, this.town);
     this.crew = new Crew(ctx, this);
     this.progression = new Progression(ctx, this);
   }
@@ -147,6 +154,8 @@ export class Level {
     this.sleds?.update(dt);
     this.shopMat.update(dt);
     this.village.update(dt);
+    this.town.update(dt);
+    this.townsfolk.update(dt);
     this.crew.update(dt);
     this.progression.update(dt);
   }
@@ -417,7 +426,11 @@ export class Level {
         log: arms.count('log') + flights.inFlightTo(arms, 'log'),
         crate: arms.count('crate') + flights.inFlightTo(arms, 'crate'),
         furniture: arms.count('furniture') + flights.inFlightTo(arms, 'furniture'),
+        wheat: arms.count('wheat') + flights.inFlightTo(arms, 'wheat'),
+        meat: arms.count('meat') + flights.inFlightTo(arms, 'meat'),
       },
+      // Goods handed to townsfolk who haven't paid yet go back onto their shop's counter.
+      town: this.town.snapshot().map((lot, i) => ({ ...lot, out: lot.out + this.townsfolk.loadedByLot(i) })),
     };
   }
 
@@ -466,6 +479,9 @@ export class Level {
     add('log', w.arms.log);
     add('crate', w.arms.crate);
     add('furniture', w.arms.furniture);
+    add('wheat', w.arms.wheat);
+    add('meat', w.arms.meat);
+    this.town.restore(w.town);
     // Last: the drop zone takes its own logs first, then the spill, up to its capacity.
     fillPile(this.dropZone.pile, 'log', w.piles.dropZone + spill);
   }

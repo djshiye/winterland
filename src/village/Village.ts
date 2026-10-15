@@ -145,6 +145,8 @@ export class Village {
     this.lodge = { index: -1, group: lodgeGroup, pad: lodgePad, yaw: Math.PI, padTier: gs.tier < 0 ? 0 : -1, look: 'none', model: null, scaffold: null, smoke: null };
 
     this.recompute(false);
+    // Wave 9: town buildings add people too (core/demand.ts villagePopulation).
+    ctx.events.on('town:built', () => this.recompute(true));
     for (const s of this.allSites()) this.refreshLook(s, false);
     if (state.revealed) this.applyReveal(true);
   }

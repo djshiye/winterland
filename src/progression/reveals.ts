@@ -26,7 +26,8 @@ export type RevealAction =
   | { kind: 'conveyors' }
   | { kind: 'levelPad'; id: PadId }
   | { kind: 'shop' }
-  | { kind: 'village' };
+  | { kind: 'village' }
+  | { kind: 'town' };
 
 export interface RevealRule {
   id: string;
@@ -51,6 +52,9 @@ const TOWN_LEVEL = 3;
 const RIDGE_INTRO = 6;
 /** Extra seconds between the feller pad and the cash tubes pad. */
 const TUBES_AFTER_FELLER = 12;
+
+/** Seconds after the village reaches Town before the Market Town opens (lets the level-up toast / ridge moment play). */
+const TOWN_INTRO = 8;
 
 export const REVEALS: readonly RevealRule[] = [
   // Phase 1 → 2: the first customer sale shows the harvester pad.
@@ -146,4 +150,12 @@ export const REVEALS: readonly RevealRule[] = [
   { id: 'levelPad:megaSaw', delay: 0, ready: (q) => q.state.unlocked.megaSaw && q.sinceUnlock('megaSaw') >= 30, action: { kind: 'levelPad', id: 'megaSaw' } },
   { id: 'levelPad:treeFeller', delay: 0, ready: (q) => q.state.unlocked.treeFeller && q.sinceUnlock('treeFeller') >= 30, action: { kind: 'levelPad', id: 'treeFeller' } },
   { id: 'levelPad:cashTubes', delay: 0, ready: (q) => q.state.unlocked.cashTubes && q.sinceUnlock('cashTubes') >= 30, action: { kind: 'levelPad', id: 'cashTubes' } },
+  // Wave 9: the Market Town opens once the village is a Town (eras = village levels).
+  {
+    id: 'town',
+    delay: TOWN_INTRO,
+    ready: (q) => q.state.village.revealed && q.state.village.level >= TOWN_LEVEL,
+    satisfied: (q) => q.state.town.revealed,
+    action: { kind: 'town' },
+  },
 ];

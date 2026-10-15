@@ -13,6 +13,8 @@
  * See docs/ARCHITECTURE.md for the ASCII map.
  */
 
+import type { ItemKind } from './core/types';
+
 export interface Rect {
   minX: number;
   maxX: number;
@@ -218,6 +220,17 @@ export const ITEM_SIZE = {
   cash: { w: 0.35, h: 0.12, d: 0.2, stackHeight: 0.125 },
   /** Wave 8: a wooden chair (the furniture workshop's product), footprint 0.42 × 0.42, stacks 0.5 apart. */
   furniture: { w: 0.42, h: 0.5, d: 0.42, stackHeight: 0.5 },
+  // Wave 9 town goods (assets/items.ts). Footprints fit a 0.48 m grid; stackHeight = vertical pitch.
+  /** Burlap grain sack (farm → bakery), carried. */
+  wheat: { w: 0.4, h: 0.3, d: 0.3, stackHeight: 0.3 },
+  /** A round loaf (bakery counter), never carried. */
+  bread: { w: 0.36, h: 0.18, d: 0.26, stackHeight: 0.19 },
+  /** Wrapped ham cut (ranch → butcher), carried. */
+  meat: { w: 0.38, h: 0.24, d: 0.3, stackHeight: 0.25 },
+  /** A coil of sausages (butcher counter), never carried. */
+  sausage: { w: 0.36, h: 0.14, d: 0.36, stackHeight: 0.15 },
+  /** Wooden toy train (toy factory counter), never carried. */
+  toy: { w: 0.4, h: 0.26, d: 0.22, stackHeight: 0.27 },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -262,6 +275,7 @@ export const ECONOMY = {
   truckLogPrice: 10, // phase-5 pickup trucks, per log (bulk)
   pinePrice: 20, // Timber Ridge freight trains, per log
   furniturePrice: 60, // wave 8: dog sleds, per piece of furniture (each made from one log)
+  // Wave 9 town shops (townsfolk buyers), per item: see BUSINESSES[id].price.
   // How many buyers come and how much they take depends on the village level: see DEMAND.
 } as const;
 
@@ -675,6 +689,53 @@ export const LAYOUT = {
     /** The Great Lodge (finale building) at the end of the street, its pad in front of it. */
     greatLodge: { x: 4.6, z: 29.6, w: 6.0, d: 3.6, pad: { x: 4.6, z: 26.3 } as XZ, padSize: 1.8 },
   },
+
+  /**
+   * Wave 9 Market Town: open snow EAST of the village across the tricycle road and SOUTH of the sled lane's
+   * keep-out (z ≤ 11.2). A corridor leaves the village street's south-east end, crosses the road (painted zebra
+   * stripes) and enters the market square; 8 lots surround the square. Revealed at village level 3 (Town).
+   * Coordinates are proposals: the owning builders validate them and report changes.
+   */
+  town: {
+    /** Whole district footprint (decor keep-out, fences, ground). */
+    area: { minX: 15.2, maxX: 38.0, minZ: 13.6, maxZ: 38.6 } as Rect,
+    /** Gap in the village's east fence (x = village.area.maxX) where the corridor leaves, closed until revealed. */
+    gate: { minZ: 25.9, maxZ: 27.5 },
+    /**
+     * Walkable additions once revealed (player-centre rects, ColliderWorld.addBounds): the corridor (overlaps the
+     * village street) and the square (lots' fronts + pads are inside it; lot footprints are not).
+     */
+    walk: [
+      { minX: 5.4, maxX: 16.4, minZ: 25.9, maxZ: 27.5 },
+      { minX: 15.6, maxX: 32.2, minZ: 21.0, maxZ: 33.2 },
+    ] as Rect[],
+    /** Packed-snow / cobbled square (visual) and its centrepiece (a big lit fir; solid circle). */
+    square: { minX: 15.6, maxX: 32.2, minZ: 21.0, maxZ: 33.2 } as Rect,
+    tree: { x: 24.0, z: 27.1, r: 1.3 },
+    /** Square lot size; a building's footprint stays within it. */
+    lotSize: 4.4,
+    /**
+     * Lot centres in offer order. `face` = the direction the front (door, counter, pads) faces, toward the square:
+     * a unit XZ vector. The lot's construction / business pads sit `padOffset` in front of the lot centre.
+     */
+    lots: [
+      { x: 19.0, z: 17.8, face: { x: 0, z: 1 } },
+      { x: 24.6, z: 17.8, face: { x: 0, z: 1 } },
+      { x: 19.0, z: 35.8, face: { x: 0, z: -1 } },
+      { x: 24.6, z: 35.8, face: { x: 0, z: -1 } },
+      { x: 30.2, z: 17.8, face: { x: 0, z: 1 } },
+      { x: 30.2, z: 35.8, face: { x: 0, z: -1 } },
+      { x: 35.0, z: 23.8, face: { x: -1, z: 0 } },
+      { x: 35.0, z: 30.4, face: { x: -1, z: 0 } },
+    ] as { x: number; z: number; face: XZ }[],
+    padOffset: 3.4,
+    padSize: 1.6,
+    /** Where townsfolk enter / leave the district (the corridor mouth and a lane off the south-east corner). */
+    entrances: [
+      { x: 15.0, z: 26.7 },
+      { x: 37.6, z: 33.6 },
+    ] as XZ[],
+  },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -710,7 +771,7 @@ export type UpgradeIdConst =
 export type UpgradeGroup = 'lumberjack' | 'machine' | 'crew' | 'sales';
 
 /** What a sale is for (sales upgrades multiply one product's price). */
-export type ProductId = 'plank' | 'crate' | 'log' | 'pine' | 'furniture';
+export type ProductId = 'plank' | 'crate' | 'log' | 'pine' | 'furniture' | 'bread' | 'sausage' | 'toy';
 
 export interface UpgradeRequirement {
   /** Minimum village level (index into VILLAGE.levels). */
@@ -1109,6 +1170,91 @@ export const DAYNIGHT = {
   dayFull: 0.98,
   /** A fresh game starts in the morning. */
   startAt: 0.05,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Wave 9: the Market Town (town/Town.ts, town/Business.ts, npc/Townsfolk.ts). Eras ARE the village levels
+// (VILLAGE.levels): every town building adds people (jobs / residents) to the population that drives them.
+// ---------------------------------------------------------------------------
+
+export type BusinessId = 'farm' | 'bakery' | 'townhouse' | 'ranch' | 'butcher' | 'toyFactory';
+
+/**
+ * - producer: makes `output` from nothing (just its workers) onto an out pile the player / porters carry from.
+ * - shop: consumes `inputs` (hopper, fed from the player's arms) and puts `output` on its own counter, where
+ *   townsfolk buy it and pay into the shop's till (a CashPile).
+ * - home: houses `people` residents; makes nothing.
+ */
+export type BusinessKind = 'producer' | 'shop' | 'home';
+
+export interface BusinessDef {
+  id: BusinessId;
+  kind: BusinessKind;
+  label: string;
+  /** One line for the build panel. */
+  blurb: string;
+  /** Minimum village level (era) before it can be chosen. */
+  era: number;
+  /** Construction cost (paid like a shelter on the lot's construction pad). */
+  logs: number;
+  cash: number;
+  /** People it brings to the population: jobs (producer / shop) or residents (home). */
+  people: number;
+  /** Items consumed per cycle (shop; producers take none). Kinds must be carriable: log, crate, wheat, meat. */
+  inputs: readonly { kind: ItemKind; per: number }[];
+  /** What one cycle makes (one item); null for homes. */
+  output: ItemKind | null;
+  /** Seconds per cycle. */
+  cycle: number;
+  /** Shop: price per item sold to townsfolk (before village / season multipliers; core/demand salePrice). */
+  price: number;
+  /** Townsfolk buy between want[0] and want[1] items per visit (shops). */
+  want: readonly [number, number];
+  /** Out pile / counter capacity in items. */
+  capacity: number;
+}
+
+export const BUSINESSES: Record<BusinessId, BusinessDef> = {
+  farm: {
+    id: 'farm', kind: 'producer', label: 'Farm', blurb: 'Grows wheat in a warm greenhouse',
+    era: 3, logs: 24, cash: 2500, people: 4, inputs: [], output: 'wheat', cycle: 2.6, price: 0, want: [0, 0], capacity: 24,
+  },
+  bakery: {
+    id: 'bakery', kind: 'shop', label: 'Bakery', blurb: 'Wheat + firewood → fresh bread',
+    era: 3, logs: 30, cash: 4000, people: 6,
+    inputs: [{ kind: 'wheat', per: 1 }, { kind: 'log', per: 1 }], output: 'bread', cycle: 2.2, price: 30, want: [2, 5], capacity: 18,
+  },
+  townhouse: {
+    id: 'townhouse', kind: 'home', label: 'Townhouse', blurb: 'A cosy home for 10 townsfolk',
+    era: 3, logs: 40, cash: 6000, people: 10, inputs: [], output: null, cycle: 0, price: 0, want: [0, 0], capacity: 0,
+  },
+  // Wave 9b (offered once their models / goods exist; Town hides ids listed in TOWN.hidden).
+  ranch: {
+    id: 'ranch', kind: 'producer', label: 'Ranch', blurb: 'Cows and pigs in a snug barn',
+    era: 3, logs: 30, cash: 5000, people: 4, inputs: [], output: 'meat', cycle: 3.2, price: 0, want: [0, 0], capacity: 24,
+  },
+  butcher: {
+    id: 'butcher', kind: 'shop', label: 'Butcher', blurb: 'Meat + smoking wood → sausages',
+    era: 4, logs: 36, cash: 9000, people: 6,
+    inputs: [{ kind: 'meat', per: 1 }, { kind: 'log', per: 1 }], output: 'sausage', cycle: 2.4, price: 55, want: [2, 5], capacity: 18,
+  },
+  toyFactory: {
+    id: 'toyFactory', kind: 'shop', label: 'Toy Factory', blurb: 'Crates → wooden toy trains',
+    era: 4, logs: 50, cash: 14000, people: 10,
+    inputs: [{ kind: 'crate', per: 1 }], output: 'toy', cycle: 1.8, price: 45, want: [3, 6], capacity: 24,
+  },
+};
+
+export const TOWN = {
+  /** Business ids not offered yet (wave 9b fills these in). */
+  hidden: ['ranch', 'butcher', 'toyFactory'] as readonly BusinessId[],
+  /** Townsfolk buyers: seconds between spawns per open shop, by village level (index), and max queue per shop. */
+  buyerGap: [12, 12, 12, 7, 5, 4] as readonly number[],
+  queuePerShop: 3,
+  /** Wandering townsfolk (cosy crowd), by village level; AutoQuality / Low quality halves it. */
+  wanderers: [0, 2, 4, 10, 16, 22] as readonly number[],
+  /** Hard cap on crowd instances (render/draw-call budget: the crowd is instanced, ~8 draw calls total). */
+  crowdMax: 48,
 } as const;
 
 // ---------------------------------------------------------------------------

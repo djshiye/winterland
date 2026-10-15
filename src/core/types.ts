@@ -2,7 +2,7 @@
  * Shared contracts. Every module codes against these; do not change them without the main session.
  */
 import type * as THREE from 'three';
-import type { PadIdConst, UpgradeIdConst } from '../config';
+import type { BusinessId as BusinessIdConst, PadIdConst, UpgradeIdConst } from '../config';
 import type { EventBus } from './EventBus';
 import type { TweenManager } from './Tween';
 import type { Economy } from './Economy';
@@ -28,7 +28,10 @@ import type { Upgrades } from './Upgrades';
 // ---------------------------------------------------------------------------
 
 /** log: raw small log · plank: plank bundle (made from a log at the walk-in counter) · crate · cash. */
-export type ItemKind = 'log' | 'plank' | 'crate' | 'cash' | 'furniture';
+export type ItemKind = 'log' | 'plank' | 'crate' | 'cash' | 'furniture' | 'wheat' | 'bread' | 'meat' | 'sausage' | 'toy';
+/** Wave 9: kinds the player's arms (and the save's arms record) may hold. */
+export const CARRY_KINDS = ['log', 'crate', 'furniture', 'wheat', 'meat'] as const;
+export type CarryKind = (typeof CARRY_KINDS)[number];
 
 /** A physical, visible item. Created/recycled only through ItemPool. */
 export interface Item {
@@ -123,6 +126,10 @@ export interface GameStats {
   /** Wave 8: chairs built in the workshop / sold to dog sleds. */
   furnitureMade: number;
   furnitureSold: number;
+  /** Wave 9: town buildings completed / goods made by town producers + shops / goods sold to townsfolk. */
+  townBuilt: number;
+  goodsMade: number;
+  goodsSold: number;
 }
 
 /**
@@ -147,6 +154,27 @@ export interface PlotState {
   logs: number;
   cash: number;
 }
+
+/**
+ * Wave 9: one Market Town lot (LAYOUT.town.lots[i]). building '' = for sale (nothing chosen yet). A chosen building
+ * is paid like a shelter: tier −1 while being paid (logs / cash = paid so far, in-flight included), 0 once built.
+ * The choice can change only while nothing is paid (logs = cash = 0).
+ */
+export interface LotState {
+  building: BusinessIdConst | '';
+  tier: number;
+  logs: number;
+  cash: number;
+}
+
+export interface TownState {
+  /** The corridor is open and lots can be built. */
+  revealed: boolean;
+  lots: LotState[];
+}
+
+/** Must match LAYOUT.town.lots.length. */
+export const LOT_COUNT = 8;
 
 export interface VillageState {
   /** The gate is open and the village can be built. */
@@ -190,6 +218,8 @@ export interface GameState {
   clock: number;
   /** Wave 8: quests completed (core/quests.ts ids → true). Rewards are paid on completion. */
   quests: Partial<Record<string, boolean>>;
+  /** Wave 9: the Market Town. */
+  town: TownState;
 }
 
 /** Must match LAYOUT.village.plots.length (kept literal so this file only imports types from config). */
@@ -227,6 +257,9 @@ export function createGameState(): GameState {
       upgradesBought: 0,
       furnitureMade: 0,
       furnitureSold: 0,
+      townBuilt: 0,
+      goodsMade: 0,
+      goodsSold: 0,
     },
     upgrades: {
       carry: 0,
@@ -262,6 +295,7 @@ export function createGameState(): GameState {
     prestige: { season: 0 },
     clock: 24, // DAYNIGHT.startAt × cycleSeconds (literal: this file imports only types from config)
     quests: {},
+    town: { revealed: false, lots: Array.from({ length: LOT_COUNT }, () => ({ building: '', tier: -1, logs: 0, cash: 0 })) },
   };
 }
 
@@ -269,7 +303,7 @@ export function createGameState(): GameState {
 // Events
 // ---------------------------------------------------------------------------
 
-export type Buyer = 'customer' | 'tricycle' | 'truck' | 'train' | 'sled';
+export type Buyer = 'customer' | 'tricycle' | 'truck' | 'train' | 'sled' | 'townsfolk';
 export type LogSource = 'player' | 'harvester' | 'megaSaw';
 
 /** Event name → payload. Emitted via ctx.events. Vectors in payloads are transient: copy if kept. */
@@ -344,6 +378,18 @@ export interface GameEvents {
   /** Wave 8: darkness crossed 0.5 (core/DayNight.ts). Not emitted while day/night is off. */
   'night:start': Record<string, never>;
   'day:start': Record<string, never>;
+  // --- wave 9 ---
+  /** The town corridor opened (Progression's reveal moment). */
+  'town:revealed': { position: THREE.Vector3 };
+  /** The player stepped onto / off an empty lot's pad: the HUD opens / closes the build panel for `lot`. */
+  'build:open': { lot: number };
+  'build:close': Record<string, never>;
+  /** A building was chosen for an empty lot (state.town.lots[lot].building already set). */
+  'build:chosen': { lot: number; building: BusinessIdConst };
+  /** A town building finished (state already updated). Village recomputes population / level on it. */
+  'town:built': { lot: number; building: BusinessIdConst; position: THREE.Vector3; object: THREE.Object3D };
+  /** A town producer / shop made one item. */
+  'goods:made': { lot: number; kind: ItemKind; position: THREE.Vector3 };
 }
 
 // ---------------------------------------------------------------------------
