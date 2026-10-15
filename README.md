@@ -37,14 +37,20 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
    **Timber Ridge** lies through the east gate. It has a pine forest that a tree feller cuts onto a log deck,
    freight trains that buy logs at the rail platform, and the crew **bunkhouse**. Each bunkhouse tier lets more
    helpers of every role work, and adds a pine hauler.
-7. **The finale:** at Winter City, build the Great Lodge for a celebration and a stats card. Play goes on after, or start a **New Season**. Everything resets, but every sale pays 25%
+7. **The workshop:** on the ridge, a log-cabin workshop turns logs into chairs, and dog sleds pay the best price
+   in the game for them.
+8. **The finale:** at Winter City, build the Great Lodge for a celebration and a stats card. Play goes on after, or start a **New Season**. Everything resets, but every sale pays 25%
    more for each season played.
+
+Along the way: **quests** (three short goals at a time with cash rewards), **VIP customers** who tip, **rush
+hours** when customers flood in, and a **day/night cycle** with glowing windows and northern lights.
 
 The game saves itself. A refresh resumes where you were, and coming back later pays part of what your
 mill earned while you were away. Settings (the gear) has sound, music, graphics quality (Low turns off shadows for slower
-computers), an FPS readout, New Season (after the finale) and a reset.
+computers; the game switches to Low by itself once if it runs slowly), day/night, vibration (phones), an FPS
+readout, New Season (after the finale) and a reset.
 
-A whole game takes the autoplay bot about 56 minutes (targets in [docs/DESIGN.md](docs/DESIGN.md)).
+A whole game takes the autoplay bot about 50–65 minutes (longer if you keep the workshop busy) (targets in [docs/DESIGN.md](docs/DESIGN.md)).
 
 ## Desktop app (Linux and Windows)
 
@@ -93,8 +99,8 @@ Use `?gallery=items` or `?gallery=crate` to focus on a domain or a single asset,
 
 `window.__WINTERLAND__` exposes a debug/test API in the browser console: `state()`, `simulate(seconds)`,
 `teleport(x, z)`, `moveTo(x, z)`, `addMoney(n)`, `unlock('harvester')`, `skipIntro()`, `buy('carry')`,
-`setUpgrade(id, level)`, `revealVillage()`, `buildPlot(plot, tier)`, `buildQuarters(tier)`, `newSeason()`, `save()`, `clearSave()` and more.
-Add `?fresh` to the URL to ignore the save.
+`setUpgrade(id, level)`, `revealVillage()`, `buildPlot(plot, tier)`, `buildQuarters(tier)`, `newSeason()`, `startRush()`, `setTimeOfDay(0.75)`, `save()`, `clearSave()` and more.
+Add `?fresh` to the URL to ignore the save, and `?noauto` to keep the automatic quality switch off.
 
 Architecture, coordinates and module ownership are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md);
 the full-game systems (save, upgrades, village, demand, pads) in [docs/DESIGN.md](docs/DESIGN.md).

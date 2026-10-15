@@ -1,17 +1,17 @@
 # Winterland roadmap
 
-**Where it stands (2026-10-14, v0.2.0).**
-- **The "make it a game" list (items 1–7 below) is done**, plus the winter village and the Great Lodge finale.
-- **Waves 6–7 are done** (see `docs/DESIGN.md`):
-  - longer upgrade ladders and a Sales tab;
-  - music, Graphics High/Low and an FPS overlay;
-  - vitest save/economy tests and CI/release workflows;
-  - Timber Ridge (gate, pine forest, tree feller, freight trains, pine hauler), a 3-tier crew bunkhouse that allows more helpers per role, a truck loader belt and cash tubes;
-  - a "New Season" prestige after the finale.
-- The autoplay bot finishes in about 56 minutes. Milestones: harvester 1 min, processor 4, conveyors 7, mega saw 16, Town 21, truck loader 29, ridge 32, bunkhouse 36, pine hauler 37, Winter City 51, finale 56.
-- Late-game draw calls at High quality peak at about 870 at the village and are about 530 elsewhere (ceiling ~950). Items no longer cast shadows. Low quality is about half that.
-- Saves resume exactly. Offline earnings pay 25% of the recent sales rate for up to 2 hours, capped at 20% of lifetime earnings.
-- A private artifact build exists for phone play, and desktop zips are built for Linux and Windows.
+**Where it stands (2026-10-15, v0.3.0).**
+- The "make it a game" list is done, plus the village and the Great Lodge finale.
+- **Waves 6–7 are done:**
+  - longer upgrade ladders and the Sales tab;
+  - music, graphics quality, FPS overlay;
+  - tests and CI;
+  - Timber Ridge, the bunkhouse, the feller, the loader, the tubes and trains;
+  - New Season.
+- **Wave 8 is done** (see `docs/DESIGN.md`): day/night with an aurora, 20 quests, VIP customers and rush hours, the onboarding hand, vibration, auto quality, and the furniture workshop with dog sleds.
+- The autoplay bot finishes in about 64 minutes when it keeps the workshop busy (about 51 without it). Milestones: mega saw 14, Town 19, ridge 29, bunkhouse 33, workshop 38, Winter City 53, finale 64.
+- Late-game draw calls at High quality are about 880 at the village at night, about 540 elsewhere, and about 410 at the workshop. The ceiling is ~950.
+- Saves from v0.1 and v0.2 load. Fixtures are in `tests/fixtures/`.
 
 Effort sizes: **S** is a small slice. **M** is about one builder for a wave. **L** is several waves.
 
@@ -66,19 +66,16 @@ Kept for reference. Deviations: the shop is one doormat that opens a panel (not 
 
 ## Then: polish and reach
 
-- **Auto quality (S):** drop to Low automatically when FPS stays low. The manual High/Low switch exists.
 - **Pile instancing (M):** settled items in each pile render as one InstancedMesh per kind, while items in flight stay individual. This turns the 182-mesh cash pile into 1 draw call and is the biggest perf lever left.
-- **Onboarding hand (S):** the genre's animated "drag to move" hand at the start, and a highlight on the first sale.
-- **Haptics (S):** `navigator.vibrate` on pickups and pad payments. Android only; iOS ignores it.
 - **Real-phone pass (S, owner):** open the artifact on a phone and report frame rate and feel.
 
 ## Later: content (pick a few)
 
-- **A new product chain.** Either a firewood stand (logs into firewood bundles for cabin customers on snowmobiles) or a furniture workshop (planks into chairs and tables).
+- **Another product chain:** a firewood stand (logs into firewood bundles for snowmobile customers). The furniture workshop is done.
+- **A furniture runner (S):** a crew role that carries chairs from the workshop bench to the sleds.
 - **A second zone across the river.** The bridge already exists. Timber Ridge (east) is done; the river zone could bring birch and river barges.
-- **Customer variety:** VIP orders with tips, rush hours, timed boosts.
-- **Day/night cycle:** the lamps and cabin windows glow, with an aurora at night.
-- **Quests and achievements:** short goals with cash rewards.
+- **Customer variety, deeper:** VIPs and rush hours exist. Timed boosts are still open.
+- **Achievements across seasons (S):** quests reset with each New Season; lifetime badges could persist.
 - **Prestige, deeper:** New Season exists (a permanent price bonus). It could add a new biome or perks per season.
 - **Seasonal events:** for example, Christmas tree deliveries.
 
