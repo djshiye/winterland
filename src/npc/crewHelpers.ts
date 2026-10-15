@@ -265,12 +265,17 @@ export abstract class Helper {
     return this.ctx.upgrades.value(this.id);
   }
 
+  /** Walk / capacity / cadence factors, each clamped past the authored table (Upgrades.crewStats). */
+  protected get stats(): { walk: number; capacity: number; cadence: number } {
+    return this.ctx.upgrades.crewStats(this.id);
+  }
+
   protected get interval(): number {
-    return BASE_INTERVAL / Math.max(0.5, this.mult);
+    return BASE_INTERVAL / this.stats.cadence;
   }
 
   protected get capacity(): number {
-    return Math.max(1, Math.floor(CREW[this.id].capacity * this.mult));
+    return Math.max(1, Math.floor(CREW[this.id].capacity * this.stats.capacity));
   }
 
   get moving(): boolean {
@@ -389,7 +394,7 @@ export abstract class Helper {
       const dx = goal.x - p.x;
       const dz = goal.z - p.z;
       const dist = Math.hypot(dx, dz);
-      const max = CREW[this.id].walkSpeed * Math.max(0.5, this.mult);
+      const max = CREW[this.id].walkSpeed * this.stats.walk;
       const target = last ? Math.min(max, 1.2 + dist * 4) : max;
       this.speed = approach(this.speed, target, ACCEL * dt);
       const stepLen = this.speed * dt;

@@ -199,6 +199,11 @@ export const PLAYER = {
   armsCapacity: 10,
   /** Max cash bundles drawn on the back (money itself is uncapped). */
   cashVisualCap: 36,
+  /**
+   * Most goods drawn in the arms: 0.8.0's top load, Strong Arms 40 + Sled Dog 6. The climb's extra capacity
+   * (carry 50, dog 12) is carried but hidden behind a "+N" tag, so it costs no draw calls (docs/EXPANSION.md §A1).
+   */
+  armsRenderCap: 46,
   spawn: { x: -2.5, z: 2.5 } as XZ,
 } as const;
 
@@ -1119,6 +1124,13 @@ export const CLIMB = {
   weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
   masteryScale: 0.12,
   masteryPoints: 25,
+  /**
+   * Crew work multiplier clamps past the authored tables (Upgrades.crewStats): walk ×min(v, walkMax), capacity
+   * ×min(v, capMax) (Survival crews draw carried meshes, era crews are instanced), cadence ÷min(v, cadenceMax).
+   */
+  crew: { walkMax: 3.5, capMaxSurvival: 2.8, capMaxEra: 4, cadenceMax: 8 },
+  /** Broker factor bond payouts read at most (its authored top): past it the Broker only tightens the spread. */
+  bondBrokerMax: 3.5,
 } as const;
 
 /**

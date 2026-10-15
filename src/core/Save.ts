@@ -11,6 +11,7 @@
  */
 import { AMENITIES, AMENITY_IDS, BUSINESSES, CONTRACTS, DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, UPGRADES, VILLAGE, type BusinessId } from '../config';
 import { CARRY_KINDS, createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type CarryKind, type FlagId, type GameContext, type GameState, type InvestmentState, type ItemKind } from './types';
+import { maxStored } from './ladder';
 import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, INVEST_MAX_POSITIONS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
@@ -180,8 +181,9 @@ export function sanitizeState(state: GameState): void {
 
   if (!PHASES.includes(state.phase)) state.phase = state.flags.introDone ? 'manual' : 'intro';
 
+  // Clamp to shown level 100 whether or not the climb is open, so levels bought past the authored max are never lost.
   for (const def of Object.values(UPGRADES)) {
-    state.upgrades[def.id] = int(state.upgrades[def.id], 0, def.values.length - 1);
+    state.upgrades[def.id] = int(state.upgrades[def.id], 0, maxStored(def, true));
   }
 
   // A construction site: tier in [-1, lastTier]; paid progress toward the NEXT tier never above its cost.

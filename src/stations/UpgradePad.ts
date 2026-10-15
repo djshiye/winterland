@@ -13,7 +13,8 @@
  *   Progression reveals it (flag `reveal:levelPad:<id>`, showLevel()), the pad reappears as "<LABEL> LV n" (gold
  *   border + "LV n" badge, n = upgrade level + 2: the first level pad offers LV 2) priced ctx.upgrades.nextCost(id).
  *   Fully paid → ctx.upgrades.levelUp(id, position) ('upgrade:bought'), a smaller bounce, then re-armed for the
- *   next level, or hidden at max level. Conveyor pads hide after the unlock.
+ *   next level, or hidden at max level. Conveyor pads hide after the unlock. Once the climb opens (Great Lodge,
+ *   eras/gate.ts) the max moves to shown level 100 and a hidden maxed level pad comes back on its own.
  *
  * Payment
  * - Chunked: the zone moves ONE bundle worth ≈ cost / TIMING.padFlights (a multiple of 5, ≥ 5, ≤ remaining − pending)
@@ -27,6 +28,7 @@
 import * as THREE from 'three';
 import { PALETTE, TIMING, UPGRADES, rect, type PadDef } from '../config';
 import { Ease } from '../core/Tween';
+import { climbOpen } from '../eras/gate';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot, UpgradeId } from '../core/types';
 import type { Zone } from '../items/Zones';
 import { createPadModel, createPadSign, createPadTexture, formatCost, setPadSignLabel } from '../assets/pads';
@@ -175,7 +177,11 @@ export class UpgradePad implements ItemHolder {
   }
 
   update(_dt: number): void {
-    if (!this.shown) return;
+    if (!this.shown) {
+      // the climb opened (Great Lodge) over a maxed level pad: it comes back for the levels past the authored max
+      if (this.done && climbOpen(this.ctx.state) && this.levelReady()) this.showLevel();
+      return;
+    }
     const t = this.ctx.time.elapsed;
     // debug / restore: the level changed behind our back
     if (this.mode === 'level' && this.upgradeId && this.ctx.upgrades.level(this.upgradeId) !== this.armedLevel) this.syncLevel();

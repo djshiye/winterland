@@ -5,8 +5,9 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DAYNIGHT, OFFLINE, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE } from '../src/config';
+import { DAYNIGHT, OFFLINE, PRESTIGE, QUARTERS, SAVE, VILLAGE } from '../src/config';
 import { salePrice } from '../src/core/demand';
+import { LEVEL_CAP } from '../src/core/ladder';
 import { EventBus } from '../src/core/EventBus';
 import { mergeState, newSeasonSave, offlineEarnings, SalesMeter, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
 import { createGameState, type GameContext, type GameEvents } from '../src/core/types';
@@ -186,7 +187,7 @@ describe('sanitizeState', () => {
     const state = merged({
       village: { level: 99, plots: [{ tier: 99, logs: 5, cash: 5 }, { tier: -7 }, { tier: 1.9 }], greatLodge: { tier: 99 } },
       quarters: { tier: 42 },
-      upgrades: { carry: 99, speed: -3, axe: 2.7 },
+      upgrades: { carry: 999, speed: -3, axe: 2.7 },
     });
     expect(state.village.plots[0]!.tier).toBe(VILLAGE.tiers.length - 1);
     expect(state.village.plots[1]!.tier).toBe(-1);
@@ -194,7 +195,7 @@ describe('sanitizeState', () => {
     expect(state.village.greatLodge.tier).toBe(0);
     expect(state.village.level).toBe(VILLAGE.levels.length - 1);
     expect(state.quarters.tier).toBe(QUARTERS.tiers.length - 1);
-    expect(state.upgrades.carry).toBe(UPGRADES.carry.values.length - 1);
+    expect(state.upgrades.carry).toBe(LEVEL_CAP); // shown level 100, climb open or not (docs/EXPANSION.md §F)
     expect(state.upgrades.speed).toBe(0);
     expect(state.upgrades.axe).toBe(2);
     // a maxed plot has nothing left to pay
