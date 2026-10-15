@@ -1,7 +1,7 @@
 /**
  * [0.9.0 Ages — UI] Two small HUD pieces about the growing city.
- * - EraChip: a compact chip "ERA III · IRON AGE" with the city rank and population under it. It appears once the first
- *   expansion is on offer (or era 2 was reached) and opens the map when tapped. Follows state.eras.age, 'era:unlocked'
+ * - EraChip: a compact chip "ERA III · IRON AGE" with the city rank and population under it. It appears once the climb
+ *   opens (the Great Lodge: the new land shows, eras/gate.ts) or era 2 was reached and opens the map when tapped. Follows state.eras.age, 'era:unlocked'
  *   and 'city:changed' { population, rank }.
  * - IncomeFeed: aggregates 'income' events (rent, business, interest, trade, Jack) into one "+$12.5K city" line every
  *   few seconds next to the money pill (never one line per event). Pure aggregation lives in agesLogic.IncomeTicker.
@@ -9,7 +9,7 @@
  */
 import type { GameContext } from '../core/types';
 import { CITY_RANKS, ERAS } from '../eras/data';
-import { expansionOffered } from '../eras/layout';
+import { climbOpen } from '../eras/gate';
 import { cityStanding, eraChipVisible, eraRoman, formatPopulation, IncomeTicker, rankName } from './agesLogic';
 import { cubicOut, h, onTap, shield } from './dom';
 import { hexCss } from './icons';
@@ -64,7 +64,7 @@ export class EraChip {
   update(_dt: number): void {
     const { state } = this.ctx;
     const age = state.eras.age;
-    const show = eraChipVisible(age, expansionOffered(state, 2));
+    const show = eraChipVisible(age, climbOpen(state));
     if (show !== this.shown) {
       this.shown = show;
       this.root.style.display = show ? '' : 'none';

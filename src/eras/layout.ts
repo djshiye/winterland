@@ -10,7 +10,7 @@
  */
 import { DISTRICTS, ERAS, REGIONS, regionDef, type ERect, type GateSide } from './data';
 import type { GameState } from '../core/types';
-import { climbOpen } from './gate';
+import { climbOpen, gateMet, padPaid } from './gate';
 
 export interface XZ {
   x: number;
@@ -110,11 +110,14 @@ export function regionLayout(n: number): RegionLayout {
   };
 }
 
-/** True once era n's expansion pad is offered (era 2: the Great Lodge is built; later eras: the previous era reached). */
+/**
+ * True while era n's expansion pad takes payment (docs/EXPANSION.md §C): era n is next, the climb is open (Great
+ * Lodge), and its gate is met: every upgrade introduced before era n at shown level 10·(n − 1) and the settlement at
+ * 5·(n − 1) (eras/gate.ts). A pad with anything already paid into it stays offered (grandfathered).
+ */
 export function expansionOffered(state: GameState, n: number): boolean {
-  if (!ERAS[n]) return false;
-  if (state.eras.age >= n) return false;
-  return n === 2 ? climbOpen(state) || state.eras.age >= 2 : state.eras.age >= n - 1;
+  if (!ERAS[n] || state.eras.age !== n - 1 || !climbOpen(state)) return false;
+  return padPaid(state, n) > 0 || gateMet(state, n);
 }
 
 /**

@@ -1,6 +1,7 @@
 /** 0.9.0 era workers: pure job selection, fallbacks and aisle routing over small fakes (npc/EraWorker.ts). */
 import { describe, expect, it } from 'vitest';
 import { createGameState } from '../src/core/types';
+import { meetGate } from './gateHelpers';
 import { regionLayout } from '../src/eras/layout';
 import { CITY_BUILDINGS, ERAS } from '../src/eras/data';
 import { createEraWorkerModel } from '../src/assets/eraWorkers';
@@ -266,9 +267,11 @@ describe('materialNeeds', () => {
 
   it('owes the next expansion extra while offered and unpaid', () => {
     const st = createGameState();
-    st.village.greatLodge.tier = 0; // era 2's pad is on offer; its extra is crates (not a material)
+    meetGate(st, 2); // era 2's pad is on offer; its extra is crates (not a material)
     expect(materialNeeds(st).size).toBe(0);
-    st.eras.age = 2; // era 3 offered: 35 bricks
+    st.eras.age = 2; // era 3 on preview only (its gate is not met): nothing owed yet
+    expect(materialNeeds(st).size).toBe(0);
+    meetGate(st, 3); // era 3 offered: 35 bricks
     expect(materialNeeds(st).get('brick')).toBe(35);
     st.eras.regions[3]!.extra = 30;
     expect(materialNeeds(st).get('brick')).toBe(5);
@@ -279,6 +282,7 @@ describe('materialNeeds', () => {
   it('sums unpaid machine and city lot extras per kind, and drops them once paid or built', () => {
     const st = createGameState();
     st.eras.age = 2;
+    meetGate(st, 3); // era 3's pad on offer too (35 bricks)
     st.eras.regions[2]!.slots[1] = { machine: 'kiln', tier: -1, cash: 0, extra: 3 }; // needs 12 stone, 9 owed
     const brickKind = CITY_BUILDINGS.frontierHome.extra.kind;
     st.city.districts[2]!.lots[0] = { building: 'frontierHome', tier: -1, cash: 0, extra: 0 };

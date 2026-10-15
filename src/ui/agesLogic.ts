@@ -74,11 +74,11 @@ export type ShopTab = 'lumberjack' | 'crew' | 'sales' | 'industry' | 'finance';
 export const SHOP_TABS: readonly ShopTab[] = ['lumberjack', 'crew', 'sales', 'industry', 'finance'];
 
 /**
- * The tabs on show: Industry appears with the first expansion offer (or once era 2 is reached); Finance is there from
+ * The tabs on show: Industry appears once the climb opens (the Great Lodge, eras/gate.ts) or era 2 is reached; Finance is there from
  * the start (Jack's Swap Cart is available at once).
  */
-export function shopTabs(age: number, firstExpansionOffered: boolean): ShopTab[] {
-  return SHOP_TABS.filter((t) => t !== 'industry' || age >= 2 || firstExpansionOffered);
+export function shopTabs(age: number, climbOpen: boolean): ShopTab[] {
+  return SHOP_TABS.filter((t) => t !== 'industry' || age >= 2 || climbOpen);
 }
 
 /** Industry eras listed in the shop: every era up to the one after the current age (the next one is shown locked). */
@@ -102,9 +102,9 @@ export function industryEraNote(n: number, age: number): string | null {
 // City chip / income ticker
 // ---------------------------------------------------------------------------
 
-/** The era chip shows once the first expansion is on offer or era 2 was reached. */
-export function eraChipVisible(age: number, firstExpansionOffered: boolean): boolean {
-  return age >= 2 || firstExpansionOffered;
+/** The era chip shows once the climb opens (the Great Lodge) or era 2 was reached. */
+export function eraChipVisible(age: number, climbOpen: boolean): boolean {
+  return age >= 2 || climbOpen;
 }
 
 /** The era chip's seed on load (village + district residents, rank), the same numbers 'city:changed' carries. */

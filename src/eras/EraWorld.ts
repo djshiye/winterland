@@ -16,14 +16,16 @@
  * Expansion pad of era n (2..10): ConstructionPad key `expansion:${n}`, logs 0, cash = unlock.cash, extra = unlock.extra,
  * at regionLayout(n).expansionPad. Shown while expansionOffered(state, n) (re-checked on 'village:changed' and once a
  * second) and the region is closed; its progress lives in state.eras.regions[n].cash / .extra. Paying it opens the era.
- * While expansionPreview(state, n) the same pad shows greyed and locked (docs/EXPANSION.md §C): it takes nothing, and
- * 'expansion:offered' fires only when it turns payable.
+ * While expansionPreview(state, n) the same pad shows greyed and locked under the gate's progress (docs/EXPANSION.md
+ * §C, eras/gate.ts gateNote): it takes nothing, and 'expansion:offered' fires only when it turns payable (the gate met,
+ * picked up by the one-second poll).
  */
 import * as THREE from 'three';
 import type { WorldSnapshot } from '../core/Save';
 import { REGION_SLOTS, type GameContext } from '../core/types';
 import { ConstructionPad } from '../stations/ConstructionPad';
 import { ERAS, MAX_ERA } from './data';
+import { eraGate, gateNote } from './gate';
 import { expansionOffered, expansionPreview, regionLayout } from './layout';
 import { Region } from './Region';
 import type { RegionRuntime } from './runtime';
@@ -123,8 +125,8 @@ export class EraWorld {
       if ((offered || expansionPreview(state, n)) && !this.regions[n]) {
         const pad = this.padFor(n);
         const wasPayable = pad.visible && !pad.locked;
-        // the gate's progress note arrives with eras/gate.ts eraGate (step 4); until then the padlock alone
-        pad.setLocked(offered ? null : '');
+        // preview: the gate's progress "37/48 · S8/10" under the padlock (redrawn only when the text changes)
+        pad.setLocked(offered ? null : gateNote(eraGate(state, n)));
         if (!pad.visible) pad.show(!live);
         if (!offered || wasPayable) continue;
         if (live) {

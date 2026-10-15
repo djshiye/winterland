@@ -94,24 +94,7 @@ export class Upgrades {
 
   /** Human-readable unmet requirement ("Needs Hamlet", "Build the Processor first"), or null when available. */
   requirement(id: UpgradeId): string | null {
-    const r = UPGRADES[id].requires;
-    if (!r) return null;
-    const needQuarters = r.quarters !== undefined && this.state.quarters.tier < r.quarters;
-    if (r.unlocked && !this.state.unlocked[r.unlocked]) {
-      return needQuarters
-        ? `Needs the ${unlockName(r.unlocked)} and a ${QUARTERS.tiers[r.quarters!]!.label}`
-        : `Build the ${unlockName(r.unlocked)} first`;
-    }
-    if (r.villageLevel !== undefined && this.state.village.level < r.villageLevel) {
-      return `Needs ${VILLAGE.levels[r.villageLevel]!.name}`;
-    }
-    if (needQuarters) {
-      return `Build the ${QUARTERS.tiers[r.quarters!]!.label} first`;
-    }
-    if (r.era !== undefined && this.state.eras.age < r.era) {
-      return `Needs the ${ERA_NAMES[r.era] ?? 'next'} era`;
-    }
-    return null;
+    return upgradeRequirement(this.state, id);
   }
 
   /** Not maxed, requirement met, affordable. */
@@ -166,6 +149,31 @@ export class Upgrades {
         return `${Math.round(v * 100)}% of value`;
     }
   }
+}
+
+/**
+ * Pure form of Upgrades.requirement (the era gate's prereq rows read it without a GameContext): the first unmet
+ * requirement of an upgrade as one line ("Needs Hamlet", "Build the Processor first"), or null when available.
+ */
+export function upgradeRequirement(state: Pick<GameState, 'unlocked' | 'village' | 'quarters' | 'eras'>, id: UpgradeId): string | null {
+  const r = UPGRADES[id].requires;
+  if (!r) return null;
+  const needQuarters = r.quarters !== undefined && state.quarters.tier < r.quarters;
+  if (r.unlocked && !state.unlocked[r.unlocked]) {
+    return needQuarters
+      ? `Needs the ${unlockName(r.unlocked)} and a ${QUARTERS.tiers[r.quarters!]!.label}`
+      : `Build the ${unlockName(r.unlocked)} first`;
+  }
+  if (r.villageLevel !== undefined && state.village.level < r.villageLevel) {
+    return `Needs ${VILLAGE.levels[r.villageLevel]!.name}`;
+  }
+  if (needQuarters) {
+    return `Build the ${QUARTERS.tiers[r.quarters!]!.label} first`;
+  }
+  if (r.era !== undefined && state.eras.age < r.era) {
+    return `Needs the ${ERA_NAMES[r.era] ?? 'next'} era`;
+  }
+  return null;
 }
 
 function unlockName(id: string): string {

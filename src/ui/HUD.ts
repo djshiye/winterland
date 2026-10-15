@@ -31,7 +31,7 @@ import { PALETTE } from '../config';
 import { toggleFullscreen } from '../platform/desktop';
 import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
-import { expansionOffered } from '../eras/layout';
+import { climbOpen } from '../eras/gate';
 import { AgeCard } from './AgeCard';
 import { AutoQuality } from './AutoQuality';
 import { BuildPanel } from './BuildPanel';
@@ -627,11 +627,11 @@ export class HUD {
   // Per-frame pieces
   // ---------------------------------------------------------------------------------------------
 
-  /** Map / Market buttons and the era chip appear with the Ages (map: first expansion offered; market: era 2). */
+  /** Map / Market buttons and the era chip appear with the Ages (map: the climb open, i.e. the new land on show; market: era 2). */
   private updateAgeButtons(): void {
     const { state } = this.ctx;
     const age = state.eras.age;
-    const mapOn = age >= 2 || expansionOffered(state, 2);
+    const mapOn = age >= 2 || climbOpen(state);
     const marketOn = age >= 2;
     if (mapOn !== this.hasMapBtn) {
       this.hasMapBtn = mapOn;
