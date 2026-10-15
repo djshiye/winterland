@@ -87,6 +87,8 @@ export function pickJob(
   capacity: number,
   claims: Claims,
   from: XZ,
+  /** Wave 13: the snowstorm raises the firewood thresholds (the porter keeps hoppers fuller); 1 otherwise. */
+  firewoodMult = 1,
 ): PorterJob | null {
   let best: PorterJob | null = null;
   for (const src of sources) {
@@ -99,8 +101,9 @@ export function pickJob(
       const stock = (shop.stock[src.kind] ?? 0) + reserved;
       const take = Math.min(capacity, src.count, room);
       if (TOPUP_KINDS.includes(src.kind)) {
-        if (stock >= TOPUP_BELOW) continue;
-        if (stock >= FIREWOOD_BELOW && take < Math.min(TOPUP_MIN_TAKE, room)) continue; // not urgent: wait for a real load
+        const m = src.kind === 'log' ? firewoodMult : 1;
+        if (stock >= TOPUP_BELOW * m) continue;
+        if (stock >= FIREWOOD_BELOW * m && take < Math.min(TOPUP_MIN_TAKE, room)) continue; // not urgent: wait for a real load
       }
       // a trip is worth it for a full pair, or for a single item into an empty hopper
       if (take < 2 && !(take >= 1 && stock === 0)) continue;

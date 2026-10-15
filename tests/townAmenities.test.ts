@@ -11,7 +11,7 @@ import { createAmenityModel } from '../src/assets/townAmenities';
 import { createGameState } from '../src/core/types';
 import { sanitizeState } from '../src/core/Save';
 import { AMENITY_ORDER, AMENITY_SPOTS, BENCHES, SNOWMAN, STALLS, TREE_RING } from '../src/town/spots';
-import { amenityFrame, amenityOffered, amenityToWorld, layoutFor, lotFrame, queueSpotOf, settlePaidAmenities, worldRect, type LRect } from '../src/town/rules';
+import { amenityFrame, amenityOffered, amenityToWorld, grandMarketFrame, layoutFor, lotFrame, queueSpotOf, settlePaidAmenities, worldRect, type LRect } from '../src/town/rules';
 import { SQUARE_LAMPS } from '../src/world/env/town';
 
 const T = LAYOUT.town;
@@ -133,6 +133,44 @@ describe('amenity sites', () => {
   it('leave at least half of the tree ring free for the crowd', () => {
     const blocked = TREE_RING.filter((s) => frames.some((f) => pointGap(f.rect, s.x, s.z) < 0.3));
     expect(TREE_RING.length - blocked.length).toBeGreaterThanOrEqual(TREE_RING.length / 2);
+  });
+});
+
+/** Wave 13: the Grand Market (hall + pad) sits in the district's south-east corner, outside the square. */
+describe('grand market site', () => {
+  const m = grandMarketFrame();
+  const A = T.area;
+  const sites: [string, Rect][] = [['footprint', m.rect], ['pad', m.padRect]];
+
+  it('lies inside the district fence, with the pad between the hall and the square', () => {
+    for (const [what, r] of sites) expect(inside(r, A), `${what} inside the district`).toBe(true);
+    expect(m.padRect.maxZ).toBeLessThanOrEqual(m.rect.minZ - CLEAR + EPS);
+    expect(m.yaw).toBe(0); // its front faces +Z (south): the side the isometric camera sees; the pad is on its back
+  });
+
+  it.each(sites)('%s keeps 0.3 m from lots, lot pads, stalls, the mouth, tree, snowman, benches, lamps and entrances', (what, r) => {
+    for (const o of OBSTACLE_RECTS) expect(rectGap(r, o.r), `${what} vs ${o.name}`).toBeGreaterThanOrEqual(CLEAR - EPS);
+    for (const c of OBSTACLE_CIRCLES) expect(circleGap(r, c), `${what} vs ${c.name}`).toBeGreaterThanOrEqual((c.name.startsWith('lamp') ? 0.1 : CLEAR) - EPS);
+    for (const e of T.entrances) expect(pointGap(r, e.x, e.z), `${what} vs entrance`).toBeGreaterThanOrEqual(CLEAR - EPS);
+    // the east entrance's two posts (r 0.18) stand 0.95 m either side of it on the fence line
+    for (const dz of [-0.95, 0.95]) expect(pointGap(r, A.maxX, T.entrances[1]!.z + dz) - 0.18, `${what} vs entrance post`).toBeGreaterThanOrEqual(0.1);
+  });
+
+  it.each(sites)('%s keeps clear of every lot station zone and shop queue place, and of the amenities', (what, r) => {
+    for (const z of LOT_ZONES) expect(rectGap(r, z.r), `${what} vs ${z.name}`).toBeGreaterThanOrEqual(CLEAR - EPS);
+    for (const q of QUEUE_POINTS) expect(pointGap(r, q.x, q.z), `${what} vs ${q.name}`).toBeGreaterThanOrEqual(0.6 - EPS);
+    for (const f of frames) {
+      expect(rectGap(r, f.rect), `${what} vs ${f.id}`).toBeGreaterThanOrEqual(CLEAR - EPS);
+      expect(rectGap(r, f.padRect), `${what} vs ${f.id} pad`).toBeGreaterThanOrEqual(CLEAR - EPS);
+    }
+  });
+
+  it('the pad keeps 0.3 m from the hall, and is reachable: its walk rect covers the tile and joins the square', () => {
+    expect(rectGap(m.rect, m.padRect)).toBeGreaterThanOrEqual(CLEAR - EPS);
+    expect(inside(m.padRect, m.walk) || (m.walk.minX < m.pad.x && m.pad.x < m.walk.maxX && m.walk.minZ < m.pad.z && m.pad.z < m.walk.maxZ)).toBe(true);
+    const sq = T.walk[1]!;
+    expect(rectGap(m.walk, sq)).toBe(0); // overlaps the square's walk rect
+    expect(m.walk.maxZ).toBeLessThanOrEqual(m.rect.minZ + EPS); // the player centre never enters the hall
   });
 });
 

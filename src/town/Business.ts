@@ -192,6 +192,22 @@ export class Business {
           enabled: false,
         }),
       );
+      if (L.pickup) {
+        // A carryable product (toys): the player can take it off the counter pile too (townsfolk still buy from it).
+        this.zones.push(
+          ctx.zones.addTransfer({
+            id: `pile:town${lot}Out:pickup`,
+            area: worldRect(f, L.pickup.u0, L.pickup.u1, L.pickup.v0, L.pickup.v1),
+            from: output,
+            to: ctx.player.arms,
+            kinds: [def.output],
+            kind: 'take',
+            interval: TIMING.pickupInterval,
+            marker: true,
+            enabled: false,
+          }),
+        );
+      }
       this.input = input;
       this.output = output;
       this.till = till;

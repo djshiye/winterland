@@ -4,13 +4,19 @@ import { COLORS, LAYOUT, PALETTE } from '../../config';
 import { PALISADE, palisadePostGeometry } from '../../assets/scenery';
 import { Batch, vcMat } from '../../render/batch';
 import { GAME_FONT, makeCanvasTexture, toon } from '../../render/materials';
+import type { GameContext } from '../../core/types';
 import type { EnvPart } from './common';
 
 export interface GatePart extends EnvPart {
   /** Swing the leaves open (instant: no animation). */
   open(instant: boolean): void;
   readonly isOpen: boolean;
+  /** Pin / unpin the contract paper on the notice board beside the gate (follows the contract events; see buildGate). */
+  setPosted(on: boolean): void;
 }
+
+/** The notice board just outside the yard fence, west of the gate gap (clear of the walk corridor x 3.8..5.4). */
+const BOARD = { x: 2.2, z: 10.9, yaw: 0.45 };
 
 const OPEN_TIME = 0.8;
 const easeBack = (t: number): number => {
@@ -47,7 +53,41 @@ function signTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-export function buildGate(): GatePart {
+/** A pinned contract paper (the notice board's only extra draw call, and only while a contract is posted). */
+function paperTexture(): THREE.CanvasTexture {
+  const { canvas, ctx: g, texture } = makeCanvasTexture(128, 160);
+  const paint = (): void => {
+    g.fillStyle = '#f6ecd2';
+    g.fillRect(0, 0, canvas.width, canvas.height);
+    g.strokeStyle = '#c9b184';
+    g.lineWidth = 4;
+    g.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = '#b0301f';
+    g.font = `bold 22px ${GAME_FONT}`;
+    g.fillText('CONTRACT', canvas.width / 2, 24);
+    g.fillStyle = '#7a5a34';
+    for (let i = 0; i < 4; i++) g.fillRect(18, 50 + i * 18, i === 3 ? 56 : 92, 5);
+    g.fillStyle = '#2e9c48';
+    g.font = `bold 28px ${GAME_FONT}`;
+    g.fillText('$$$', canvas.width / 2, 132);
+    g.fillStyle = '#e8553e';
+    g.beginPath();
+    g.arc(canvas.width / 2, 7, 6, 0, Math.PI * 2);
+    g.fill();
+    texture.needsUpdate = true;
+  };
+  paint();
+  void document.fonts?.ready.then(paint);
+  return texture;
+}
+
+/**
+ * ctx: the notice board registers its collider and follows the contract events by itself ('contract:offered' pins
+ * the paper, 'contract:done' / 'contract:failed' take it down; a restored active contract is posted at once).
+ */
+export function buildGate(ctx: GameContext): GatePart {
   const group = new THREE.Group();
   group.name = 'villageGate';
   const gate = LAYOUT.village.gate;
@@ -93,7 +133,6 @@ export function buildGate(): GatePart {
   }
   arch.add(new THREE.BoxGeometry(ax1 - ax0 + 0.5, 0.2, 0.32), PALETTE.fence, (ax0 + ax1) / 2, H - 0.1, z);
   arch.add(new THREE.BoxGeometry(ax1 - ax0 + 0.4, 0.09, 0.4), PALETTE.snow, (ax0 + ax1) / 2, H + 0.04, z);
-  group.add(arch.mesh());
   const board = new THREE.Mesh(
     new THREE.BoxGeometry(2.5, 0.72, 0.1),
     [PALETTE.fenceDark, PALETTE.fenceDark, PALETTE.fenceDark, PALETTE.fenceDark].map((c) => toon(c)).concat([toon(0xffffff, { map: signTexture() }), toon(PALETTE.fenceDark)]),
@@ -101,6 +140,36 @@ export function buildGate(): GatePart {
   board.position.set((ax0 + ax1) / 2, H - 0.62, z + 0.12);
   board.castShadow = true;
   group.add(board);
+
+  // ---- notice board: two posts + a wooden board (batched into the arch mesh: no extra draw call) and a paper -----
+  {
+    const place = new THREE.Matrix4().makeTranslation(BOARD.x, 0, BOARD.z).multiply(new THREE.Matrix4().makeRotationY(BOARD.yaw));
+    const m = new THREE.Matrix4();
+    const piece = (geo: THREE.BufferGeometry, color: number, x: number, y: number, zz: number): void => {
+      arch.addMatrix(geo, color, m.copy(place).multiply(new THREE.Matrix4().makeTranslation(x, y, zz)));
+    };
+    for (const px of [-0.42, 0.42]) {
+      piece(new THREE.BoxGeometry(0.12, 1.45, 0.12), PALETTE.fenceDark, px, 0.725, 0);
+      piece(new THREE.BoxGeometry(0.16, 0.05, 0.16), PALETTE.snow, px, 1.47, 0);
+    }
+    piece(new THREE.BoxGeometry(1.1, 0.72, 0.07), PALETTE.fence, 0, 1.0, 0.07);
+    piece(new THREE.BoxGeometry(1.2, 0.07, 0.11), PALETTE.fenceDark, 0, 1.4, 0.07);
+    piece(new THREE.BoxGeometry(1.14, 0.05, 0.1), PALETTE.snow, 0, 1.45, 0.07);
+    ctx.colliders.addBox({ minX: BOARD.x - 0.6, maxX: BOARD.x + 0.6, minZ: BOARD.z - 0.15, maxZ: BOARD.z + 0.15 }, 'noticeBoard');
+  }
+  group.add(arch.mesh());
+  const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.5), toon(0xffffff, { map: paperTexture() }));
+  paper.position.set(BOARD.x + Math.sin(BOARD.yaw) * 0.125, 1.0, BOARD.z + Math.cos(BOARD.yaw) * 0.125);
+  paper.rotation.set(0, BOARD.yaw, 0.05);
+  paper.visible = false;
+  group.add(paper);
+  const setPosted = (on: boolean): void => {
+    paper.visible = on;
+  };
+  setPosted(ctx.state.contract.kind !== '');
+  ctx.events.on('contract:offered', () => setPosted(true));
+  ctx.events.on('contract:done', () => setPosted(false));
+  ctx.events.on('contract:failed', () => setPosted(false));
 
   // ---- animation --------------------------------------------------------------------------
   let isOpen = false;
@@ -115,6 +184,7 @@ export function buildGate(): GatePart {
     get isOpen(): boolean {
       return isOpen;
     },
+    setPosted,
     open(instant: boolean): void {
       if (isOpen) return;
       isOpen = true;

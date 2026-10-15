@@ -92,6 +92,9 @@
   on('town:built', ({ building }) => (note({ town: building }), mark('firstTownBuilding'), mark(`town:${building}`)));
   on('amenity:built', ({ id }) => (note({ amenity: id }), mark('firstAmenity'), mark(`amenity:${id}`)));
   on('finale:start', () => (note({ finale: true }), mark('finale')));
+  on('finale2:start', () => (note({ grandMarket: true }), mark('grandMarket')));
+  on('event:start', ({ kind }) => (note({ event: kind }), mark(`event:${kind}`)));
+  on('contract:done', () => mark('contractDone'));
 
   // --- primitives --------------------------------------------------------------------------------------------
   const actions = {};
@@ -152,6 +155,7 @@
     if (plot === 'q') return quartersInfo();
     if (typeof plot === 'string' && plot[0] === 't') return townInfo(Number(plot.slice(1)));
     if (typeof plot === 'string' && plot.startsWith('a:')) return amenityInfo(plot.slice(2));
+    if (plot === 'gm') return grandMarketInfo();
     const village = level.village;
     const spot = village && village.padSpot(plot);
     if (!spot) return null;
@@ -180,6 +184,15 @@
     return { plot: `a:${id}`, spot: site.pad, logsLeft: Math.max(0, def.logs - a.logs), cashLeft: Math.max(0, def.cash - a.cash) };
   }
 
+  /** Wave 13: the Grand Market (plot id 'gm'): logs + cash + toys, offered once the village is Winterland. */
+  function grandMarketInfo() {
+    const def = VILLAGE.grandMarket;
+    const g = ctx.state.town.grandMarket;
+    const site = LAYOUT.town.grandMarket;
+    if (!def || !g || !site || g.tier >= 0 || !ctx.state.town.revealed || ctx.state.village.level < def.requiresLevel) return null;
+    return { plot: 'gm', spot: site.pad, logsLeft: Math.max(0, def.logs - g.logs), cashLeft: Math.max(0, def.cash - g.cash), toysLeft: Math.max(0, def.toys - g.toys) };
+  }
+
   /** The crew bunkhouse's next tier on Timber Ridge (plot id 'q'), same shape as plotInfo. */
   function quartersInfo() {
     const spot = level.quarters && level.quarters.padSpot();
@@ -195,8 +208,10 @@
   const tierOf = (plot) =>
     plot === 'q'
       ? ctx.state.quarters.tier
-      : typeof plot === 'string' && plot.startsWith('a:')
-        ? ctx.state.town.amenities[plot.slice(2)].tier
+      : plot === 'gm'
+        ? ctx.state.town.grandMarket.tier
+        : typeof plot === 'string' && plot.startsWith('a:')
+          ? ctx.state.town.amenities[plot.slice(2)].tier
         : typeof plot === 'string'
           ? ctx.state.town.lots[Number(plot.slice(1))].tier
         : plot < 0
@@ -221,11 +236,19 @@
       }
       return true;
     }
+    // Wave 13: the Grand Market also takes toys, fetched from the toy factory's counter once the logs are in.
+    if (info.logsLeft === 0 && (info.toysLeft || 0) > 0 && count(arms, 'toy') === 0) {
+      if (held(arms) >= arms.capacity) return false;
+      const factory = townBiz('shop').find((b) => b.def.output === 'toy' && count(b.output, 'toy') > 0 && b.pickupZone);
+      if (!factory) return false; // the porter keeps the factory fed; try again later
+      act('build:fetchToys', mid(factory.pickupZone), 4, () => held(arms) >= arms.capacity || count(factory.output, 'toy') === 0 || count(arms, 'toy') >= info.toysLeft);
+      return true;
+    }
     if (info.logsLeft === 0 && money() < info.cashLeft) return false; // logs done; earn the rest first
-    const what = info.plot === 'q' ? 'build:quarters' : typeof info.plot === 'string' ? (info.plot.startsWith('a:') ? 'build:amenity' : 'build:town') : info.plot < 0 ? 'build:greatLodge' : 'build:plot';
+    const what = info.plot === 'q' ? 'build:quarters' : info.plot === 'gm' ? 'build:grandMarket' : typeof info.plot === 'string' ? (info.plot.startsWith('a:') ? 'build:amenity' : 'build:town') : info.plot < 0 ? 'build:greatLodge' : 'build:plot';
     act(what, info.spot, 10, () => {
       const now = plotInfo(info.plot);
-      return !now || tierOf(info.plot) !== buildTier || ((now.logsLeft === 0 || count(arms, 'log') === 0) && (now.cashLeft === 0 || money() < 5));
+      return !now || tierOf(info.plot) !== buildTier || ((now.logsLeft === 0 || count(arms, 'log') === 0) && (now.cashLeft === 0 || money() < 5) && ((now.toysLeft || 0) === 0 || count(arms, 'toy') === 0));
     });
     return true;
   }
@@ -293,6 +316,8 @@
     if (q && ctx.state.quarters.tier < 0) goal = goal === null ? q.cashLeft : Math.min(goal, q.cashLeft);
     const lodge = plotInfo(-1);
     if (lodge) goal = goal === null ? lodge.cashLeft : Math.min(goal, lodge.cashLeft);
+    const gm = grandMarketInfo();
+    if (gm) goal = goal === null ? gm.cashLeft : Math.min(goal, gm.cashLeft);
     return goal;
   }
 
@@ -330,6 +355,8 @@
     if (build === null && s.village.revealed) {
       const lodge = plotInfo(-1);
       if (lodge && lodge.cashLeft <= cash) options.push({ rank: -1, run: () => startBuild(-1, lodge) });
+      const gm = grandMarketInfo();
+      if (gm && gm.cashLeft <= cash) options.push({ rank: -1, run: () => startBuild('gm', gm) });
       const q = quartersInfo();
       if (q && s.quarters.tier < 0 && q.cashLeft <= cash) options.push({ rank: -2, run: () => startBuild('q', q) });
       else if (q && ok(q.cashLeft)) options.push({ rank: q.cashLeft + q.logsLeft * LOG_VALUE, run: () => startBuild('q', q) });
@@ -511,6 +538,7 @@
     if (goal === 'shop') return () => !!s.flags.shopRevealed;
     if (goal === 'village') return () => s.village.revealed;
     if (goal === 'finale') return () => s.village.greatLodge.tier >= 0;
+    if (goal === 'grandMarket') return () => s.town.grandMarket.tier >= 0;
     if (goal === 'town') return () => s.town.revealed;
     if (goal === 'townBuilding') return () => s.town.lots.some((l) => l.tier >= 0);
     if (goal.startsWith('vl:')) return () => s.village.level >= Number(goal.slice(3));

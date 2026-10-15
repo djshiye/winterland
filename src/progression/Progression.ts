@@ -174,6 +174,8 @@ export class Progression {
     ctx.events.on('shelter:built', ({ plot }) => {
       if (plot < 0) this.onFinale();
     });
+    // wave 13: the Grand Market opens (Town emits it once, on completion): the second finale
+    ctx.events.on('finale2:start', ({ position }) => this.onFinale2(position));
 
     // A restored game: clocks restart, fired reveals are re-applied silently, the intro is skipped silently.
     for (const id of PAD_ORDER) if (ctx.state.unlocked[id]) this.unlockedAt.set(id, now);
@@ -460,6 +462,12 @@ export class Progression {
     const at = new THREE.Vector3(g.x, 0, g.z);
     this.ctx.events.emit('finale:start', { position: at.clone() });
     if (this.intro === 'done') this.ctx.cameraRig.focus(at, { duration: 1.0, hold: 3.0 });
+  }
+
+  /** The Grand Market is complete: the second finale (the flag marks it for the save; fireworks + card are others' job). */
+  private onFinale2(position: THREE.Vector3): void {
+    this.ctx.state.flags.grandMarket = true;
+    if (this.intro === 'done') this.ctx.cameraRig.focus(position, { duration: 1.0, hold: 3.0 });
   }
 
   // ---------------------------------------------------------------------------

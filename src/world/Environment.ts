@@ -24,7 +24,7 @@ import { buildMountains } from './env/mountains';
 import { buildRiver } from './env/river';
 import { buildRoads, highwayY } from './env/roads';
 import { buildTown, type TownPart } from './env/town';
-import { buildSnowfall } from './env/snowfall';
+import { buildSnowfall, type SnowfallPart } from './env/snowfall';
 
 const EXPAND_TIME = 1.6;
 
@@ -50,7 +50,7 @@ export class Environment {
 
   private readonly parts: EnvPart[] = [];
   private readonly river: EnvPart;
-  private readonly snowfall: EnvPart;
+  private readonly snowfall: SnowfallPart;
   private readonly aurora: AuroraPart;
   private readonly fences: ReturnType<typeof buildFences>;
   private readonly ground: ReturnType<typeof buildGround>;
@@ -81,7 +81,7 @@ export class Environment {
     const decor = buildDecor(rng);
     const buildings = buildBuildings(ctx);
     this.snowfall = buildSnowfall(ctx, rng);
-    this.gate = buildGate();
+    this.gate = buildGate(ctx);
     this.ridgeGate = buildRidgeGate();
     this.aurora = buildAurora();
     this.town = buildTown(ctx, new Rng(9090));
@@ -146,6 +146,9 @@ export class Environment {
     this.ridgeGate.update?.(dt);
     this.town.update?.(dt);
     this.eras.update(dt);
+    // Wave 13: world events (snowstorm: heavier snowfall; aurora: stronger curtains)
+    this.snowfall.setIntensity(this.ctx.worldEvents.snowfall);
+    this.aurora.setStrength(this.ctx.worldEvents.active === 'aurora' ? 1.8 : 1);
     this.snowfall.update?.(dt);
     this.aurora.update?.(dt);
 

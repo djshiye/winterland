@@ -32,6 +32,7 @@
  *   shelters.ts   — village shelters (tent → hut → cabin → lodge), lot, scaffold, Great Lodge
  *   town.ts       — wave 9 Market Town: six business models, lot for sale, scaffold, hopper / counter / pallet props
  *   townAmenities.ts — wave 12: the four square amenities (cafe, snowman park, bandstand, skating pond)
+ *   grandMarket.ts — wave 13: the Grand Market hall (the Winterland finale)
  */
 import type * as THREE from 'three';
 import { characterCatalog } from './characters';
@@ -45,6 +46,7 @@ import { sceneryCatalog } from './scenery';
 import { sheltersCatalog } from './shelters';
 import { shopCatalog } from './shop';
 import { townCatalog } from './town';
+import { grandMarketCatalog } from './grandMarket';
 import { townAmenityCatalog } from './townAmenities';
 import { vehicleCatalog } from './vehicles';
 
@@ -58,6 +60,7 @@ export * from './scenery';
 export * from './shelters';
 export * from './town';
 export * from './townAmenities';
+export * from './grandMarket';
 
 export type AssetBuilder = () => THREE.Object3D;
 
@@ -76,4 +79,5 @@ export const ASSET_CATALOG: Record<string, Record<string, AssetBuilder>> = {
   sled: sledCatalog,
   town: townCatalog,
   townAmenities: townAmenityCatalog,
+  grandMarket: grandMarketCatalog,
 };

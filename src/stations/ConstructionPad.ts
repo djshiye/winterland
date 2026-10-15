@@ -41,6 +41,11 @@ export interface ConstructionTarget {
   /** Already paid (restoring a save / partial progress). */
   paidLogs?: number;
   paidCash?: number;
+  /**
+   * Wave 13: an optional THIRD requirement (the Grand Market's toys). The player's arms feed it like logs (the pad's
+   * item zone then accepts ['log', extra.kind]); completion needs logs, cash AND extra all paid. `paid` restores progress.
+   */
+  extra?: { kind: ItemKind; count: number; paid?: number };
 }
 
 export interface ConstructionPadOptions extends ConstructionTarget {
@@ -51,7 +56,7 @@ export interface ConstructionPadOptions extends ConstructionTarget {
   /** Tile size in metres. */
   size: number;
   /** After every landed log / bundle (the village mirrors it into state.village). */
-  onProgress?: (paidLogs: number, paidCash: number) => void;
+  onProgress?: (paidLogs: number, paidCash: number, paidExtra: number) => void;
   /** Both requirements met (once per target). The pad has hidden itself; rearm() + show() for the next tier. */
   onComplete: () => void;
 }
@@ -68,9 +73,10 @@ export class ConstructionPad implements ItemHolder {
   /** Root at the pad's floor centre. */
   readonly object = new THREE.Group();
 
-  private target: Required<ConstructionTarget>;
+  private target: Filled;
   private pendingLogs = 0;
   private pendingCash = 0;
+  private pendingExtra = 0;
   private shown = false;
   private completed = false;
   private readonly texture: THREE.CanvasTexture;
@@ -108,7 +114,7 @@ export class ConstructionPad implements ItemHolder {
       area,
       from: ctx.player.arms,
       to: this,
-      kinds: ['log'],
+      kinds: opts.extra ? ['log', opts.extra.kind] : ['log'],
       kind: 'pay',
       interval: TIMING.dropInterval,
       delay: TIMING.padHoldDelay,
@@ -137,6 +143,17 @@ export class ConstructionPad implements ItemHolder {
 
   get cashLeft(): number {
     return Math.max(0, this.target.cash - this.target.paidCash);
+  }
+
+  /** Third requirement left (0 when the pad has none). */
+  get extraLeft(): number {
+    const e = this.target.extra;
+    return e ? Math.max(0, e.count - e.paid) : 0;
+  }
+
+  /** The third requirement's item kind, or null. */
+  get extraKind(): ItemKind | null {
+    return this.target.extra?.kind ?? null;
   }
 
   /** World centre of the tile. */
@@ -186,6 +203,7 @@ export class ConstructionPad implements ItemHolder {
     this.target = fill(target);
     this.pendingLogs = 0;
     this.pendingCash = 0;
+    this.pendingExtra = 0;
     this.completed = false;
     setPadSignLabel(this.sign, this.target.label);
     this.redraw();
@@ -199,7 +217,8 @@ export class ConstructionPad implements ItemHolder {
     const arms = this.ctx.player.arms;
     const eager =
       (this.logsLeft - this.pendingLogs > 0 && arms.count('log') > 0) ||
-      (this.cashLeft - this.pendingCash > 0 && this.ctx.economy.money >= 5);
+      (this.cashLeft - this.pendingCash > 0 && this.ctx.economy.money >= 5) ||
+      (this.target.extra !== null && this.extraLeft - this.pendingExtra > 0 && arms.count(this.target.extra.kind) > 0);
     const amp = eager ? 0.05 : 0.02;
     const s = 1 + amp * Math.sin(t * (eager ? 5.5 : 3));
     this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
@@ -212,11 +231,13 @@ export class ConstructionPad implements ItemHolder {
     if (!this.shown || this.completed) return false;
     if (kind === 'log') return this.logsLeft - this.pendingLogs > 0;
     if (kind === 'cash') return this.cashLeft - this.pendingCash > 0;
+    if (this.target.extra && kind === this.target.extra.kind) return this.extraLeft - this.pendingExtra > 0;
     return false;
   }
 
   reserve(item: Item): Slot {
     if (item.kind === 'log') this.pendingLogs++;
+    else if (this.isExtra(item.kind)) this.pendingExtra++;
     else this.pendingCash += item.value;
     const slot: ConstructionSlot = { holder: this, kind: item.kind, value: item.value, live: true };
     this.syncZones();
@@ -237,10 +258,10 @@ export class ConstructionPad implements ItemHolder {
     const kind = s.kind;
     if (s.live) {
       s.live = false;
-      if (kind === 'log') this.pendingLogs = Math.max(0, this.pendingLogs - 1);
-      else this.pendingCash = Math.max(0, this.pendingCash - s.value);
+      this.unpend(s);
     }
     if (kind === 'log') this.target.paidLogs++;
+    else if (this.isExtra(kind)) this.target.extra!.paid++;
     else this.target.paidCash += item.value;
     this.ctx.items.release(item);
     this.redraw();
@@ -248,13 +269,14 @@ export class ConstructionPad implements ItemHolder {
     if (this.shown) this.ctx.tweens.punchScale(this.model, 0.08, 0.14);
     this.ctx.events.emit('construction:paid', {
       key: this.key,
-      kind: kind === 'log' ? 'log' : 'cash',
+      // the event's kind is a closed union: a landed extra item (wooden toys) counts as a 'log' (thunk + sawdust)
+      kind: kind === 'log' || this.isExtra(kind) ? 'log' : 'cash',
       logsLeft: this.logsLeft,
       cashLeft: this.cashLeft,
       position: this.tmpPos.copy(this.object.position),
     });
     this.reportProgress();
-    if (!this.completed && this.logsLeft <= 0 && this.cashLeft <= 0) {
+    if (!this.completed && this.logsLeft <= 0 && this.cashLeft <= 0 && this.extraLeft <= 0) {
       this.completed = true;
       this.hide();
       this.opts.onComplete();
@@ -282,7 +304,7 @@ export class ConstructionPad implements ItemHolder {
       position: this.tmpPos.copy(this.object.position),
     });
     this.reportProgress();
-    if (!this.completed && this.logsLeft <= 0 && this.cashLeft <= 0) {
+    if (!this.completed && this.logsLeft <= 0 && this.cashLeft <= 0 && this.extraLeft <= 0) {
       this.completed = true;
       this.hide();
       this.opts.onComplete();
@@ -294,8 +316,7 @@ export class ConstructionPad implements ItemHolder {
     const s = slot as ConstructionSlot;
     if (!s.live) return;
     s.live = false;
-    if (s.kind === 'log') this.pendingLogs = Math.max(0, this.pendingLogs - 1);
-    else this.pendingCash = Math.max(0, this.pendingCash - s.value);
+    this.unpend(s);
     this.syncZones();
     this.reportProgress();
   }
@@ -315,7 +336,11 @@ export class ConstructionPad implements ItemHolder {
    * paid (same idea as UpgradePad.writePaid). Restoring such a save re-arms the pad with those amounts.
    */
   private reportProgress(): void {
-    this.opts.onProgress?.(this.target.paidLogs + this.pendingLogs, this.target.paidCash + this.pendingCash);
+    this.opts.onProgress?.(
+      this.target.paidLogs + this.pendingLogs,
+      this.target.paidCash + this.pendingCash,
+      (this.target.extra?.paid ?? 0) + this.pendingExtra,
+    );
   }
 
   /**
@@ -323,13 +348,23 @@ export class ConstructionPad implements ItemHolder {
    * will ever land, so complete the tier now (deferred a tick so the owner is not re-entered from show()/rearm()).
    */
   private completeIfPaid(): void {
-    if (!this.shown || this.completed || this.logsLeft > 0 || this.cashLeft > 0) return;
-    if (this.pendingLogs > 0 || this.pendingCash > 0) return;
+    if (!this.shown || this.completed || this.logsLeft > 0 || this.cashLeft > 0 || this.extraLeft > 0) return;
+    if (this.pendingLogs > 0 || this.pendingCash > 0 || this.pendingExtra > 0) return;
     this.completed = true;
     this.ctx.tweens.delay(0, () => {
       this.hide();
       this.opts.onComplete();
     });
+  }
+
+  private isExtra(kind: ItemKind): boolean {
+    return this.target.extra !== null && kind === this.target.extra.kind;
+  }
+
+  private unpend(s: ConstructionSlot): void {
+    if (s.kind === 'log') this.pendingLogs = Math.max(0, this.pendingLogs - 1);
+    else if (this.isExtra(s.kind)) this.pendingExtra = Math.max(0, this.pendingExtra - 1);
+    else this.pendingCash = Math.max(0, this.pendingCash - s.value);
   }
 
   private cashChunk(): number {
@@ -341,7 +376,8 @@ export class ConstructionPad implements ItemHolder {
 
   /** A requirement's zone is on only while something of it is still missing (landed + in flight). */
   private syncZones(): void {
-    this.logZone.setEnabled(this.shown && this.logsLeft - this.pendingLogs > 0);
+    // the item zone serves logs and the extra kind: on while either still misses something (landed + in flight)
+    this.logZone.setEnabled(this.shown && (this.logsLeft - this.pendingLogs > 0 || this.extraLeft - this.pendingExtra > 0));
     this.cashZone.setEnabled(this.shown && this.cashLeft - this.pendingCash > 0);
   }
 
@@ -352,6 +388,7 @@ export class ConstructionPad implements ItemHolder {
       { left: this.logsLeft, total: t.logs },
       { left: this.cashLeft, total: t.cash },
       target,
+      t.extra ? { left: this.extraLeft, total: t.extra.count, kind: t.extra.kind } : undefined,
     );
   }
 
@@ -360,6 +397,24 @@ export class ConstructionPad implements ItemHolder {
   }
 }
 
-function fill(t: ConstructionTarget): Required<ConstructionTarget> {
-  return { label: t.label, icon: t.icon, logs: t.logs, cash: t.cash, paidLogs: t.paidLogs ?? 0, paidCash: t.paidCash ?? 0 };
+interface Filled {
+  label: string;
+  icon: ConstructionIcon;
+  logs: number;
+  cash: number;
+  paidLogs: number;
+  paidCash: number;
+  extra: { kind: ItemKind; count: number; paid: number } | null;
+}
+
+function fill(t: ConstructionTarget): Filled {
+  return {
+    label: t.label,
+    icon: t.icon,
+    logs: t.logs,
+    cash: t.cash,
+    paidLogs: t.paidLogs ?? 0,
+    paidCash: t.paidCash ?? 0,
+    extra: t.extra ? { kind: t.extra.kind, count: t.extra.count, paid: t.extra.paid ?? 0 } : null,
+  };
 }

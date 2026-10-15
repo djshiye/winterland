@@ -37,7 +37,7 @@ export interface WorldSnapshot {
     platform: number;
     sled: number;
   };
-  arms: { log: number; crate: number; furniture: number; wheat: number; meat: number };
+  arms: { log: number; crate: number; furniture: number; wheat: number; meat: number; toy: number };
   /**
    * Wave 9 Market Town, one entry per LAYOUT.town.lots (absent in older saves): items in the business's input
    * hopper by kind, items on its out pile / shop counter (its output kind), dollars in its till. Counts include
@@ -266,7 +266,7 @@ export class SalesMeter {
 const EMPTY_WORLD: WorldSnapshot = {
   piles: { dropZone: 0, walkIn: 0, hopper: 0, bench: 0, se: 0, truck: 0, deck: 0, platform: 0, workshopIn: 0, workshopOut: 0, sled: 0 },
   cash: { walkIn: 0, se: 0, truck: 0, platform: 0, sled: 0 },
-  arms: { log: 0, crate: 0, furniture: 0, wheat: 0, meat: 0 },
+  arms: { log: 0, crate: 0, furniture: 0, wheat: 0, meat: 0, toy: 0 },
   town: Array.from({ length: LOT_COUNT }, () => ({ in: {}, out: 0, cash: 0 })),
 };
 
@@ -312,7 +312,7 @@ export function sanitizeWorld(w: unknown): WorldSnapshot {
       sled: n(piles.sled),
     },
     cash: { walkIn: n(cash.walkIn), se: n(cash.se), truck: n(cash.truck), platform: n(cash.platform), sled: n(cash.sled) },
-    arms: { log: n(arms.log), crate: n(arms.crate), furniture: n(arms.furniture), wheat: n(arms.wheat), meat: n(arms.meat) },
+    arms: { log: n(arms.log), crate: n(arms.crate), furniture: n(arms.furniture), wheat: n(arms.wheat), meat: n(arms.meat), toy: n(arms.toy) },
     town: Array.from({ length: LOT_COUNT }, (_, i) => {
       const lot = Array.isArray(o.town) && isObj(o.town[i]) ? (o.town[i] as Record<string, unknown>) : {};
       const inp = isObj(lot.in) ? lot.in : {};

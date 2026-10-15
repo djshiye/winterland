@@ -16,6 +16,8 @@
  *   the Sharp Axe interval (ctx.upgrades.value('axe')) (wind-up, fast strike, recoil); at the strike frame emit
  *   ctx.events 'player:chopHit' { position: p }. No target → axe hidden, swing stops.
  * - Small snow puffs at the feet while running (ctx.particles.puff, throttled).
+ * - Wave 13: owns the Sled Dog companion (entities/Dog.ts). It exists while ctx.upgrades.value('dog') > 0 (polled, so saves and
+ *   debug setUpgrade work), woofs when first hired ('upgrade:bought'), and its value adds to the arms capacity.
  */
 import * as THREE from 'three';
 import { PLAYER } from '../config';
@@ -26,6 +28,7 @@ import { createCharacterRig, type CharacterRig } from '../render/characters';
 import { CarryStack } from '../items/CarryStack';
 import { CashStack } from '../items/CashStack';
 import { Footprints } from '../fx/Footprints';
+import { Dog } from './Dog';
 
 // Axe swing: right-arm angle about X (see CharacterRig: 0 hangs, ±π is straight up). A sine runs between the
 // wind-up (behind/above the head) and the strike (forward-down); the blade connects at the sine's peak.
@@ -71,6 +74,8 @@ export class Player {
   private puffClock = 0;
   /** Fading footprints in the snow (fx/Footprints.ts). */
   private readonly footprints: Footprints;
+  /** Wave 13: the husky companion (null until the Sled Dog is hired). */
+  dog: Dog | null = null;
 
   private readonly desired = new THREE.Vector3();
   private readonly prev = new THREE.Vector3();
@@ -96,6 +101,15 @@ export class Player {
     });
     this.back = new CashStack(ctx, { id: 'player.back', anchor: this.rig.backAnchor, maxVisual: PLAYER.cashVisualCap });
     this.footprints = new Footprints(ctx);
+    ctx.events.on('upgrade:bought', (e) => {
+      if (e.id !== 'dog' || ctx.upgrades.value('dog') <= 0) return;
+      const hired = !this.dog;
+      this.syncUpgrades();
+      if (hired && this.dog) {
+        ctx.audio.play('woof');
+        this.dog.wag(2);
+      }
+    });
     this.syncUpgrades();
   }
 
@@ -108,9 +122,9 @@ export class Player {
     return Math.min(1, this.velocity.length() / this.maxSpeed);
   }
 
-  /** Current top walk speed (Snow Boots upgrade), m/s. */
+  /** Current top walk speed (Snow Boots upgrade, × the snowstorm slowdown), m/s. */
   get maxSpeed(): number {
-    return this.ctx.upgrades.value('speed');
+    return this.ctx.upgrades.value('speed') * this.ctx.worldEvents.walkSpeedMult;
   }
 
   /** True while the axe is out and swinging. */
@@ -249,6 +263,7 @@ export class Player {
       this.ctx.particles.puff(this.puffPos, this.puffOpts);
     }
     this.footprints.step(dt, pos.x, pos.z, v.x, v.z);
+    this.dog?.update(dt);
   }
 
   // ---------------------------------------------------------------------------
@@ -256,8 +271,15 @@ export class Player {
   /** Apply live upgrade levels: carry capacity and axe model (polled, so restores and debug setUpgrade work too). */
   private syncUpgrades(): void {
     const up = this.ctx.upgrades;
-    const cap = up.value('carry');
+    const cap = up.value('carry') + up.value('dog');
     if (this.arms.capacity !== cap) this.arms.setCapacity(cap);
+    // the Sled Dog appears (restored saves, debug setUpgrade) and disappears with its upgrade level
+    if (up.value('dog') > 0) {
+      if (!this.dog) this.dog = new Dog(this.ctx, this);
+    } else if (this.dog) {
+      this.dog.dispose();
+      this.dog = null;
+    }
     const tier = up.level('axe');
     if (tier !== this.axeTier) {
       this.axeTier = tier;
