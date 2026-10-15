@@ -1,5 +1,5 @@
 /** [B4] Inline SVG icons (no image files). All use a 48x48 viewBox unless noted. */
-import type { UpgradeIdConst } from '../config';
+import type { BusinessId, UpgradeIdConst } from '../config';
 
 const svg = (inner: string, vb = '0 0 48 48'): string =>
   `<svg viewBox="${vb}" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
@@ -209,4 +209,86 @@ export const ICON_COIN = svg(
 
 export const ICON_STAR = svg(
   `<path d="M24 4l6.2 12.8 14 1.8-10.3 9.7 2.6 13.9L24 35.6 11.5 42.2l2.6-13.9L3.8 18.6l14-1.8z" fill="#ffd84a" stroke="${OUT}" stroke-width="3"/>`,
+);
+
+// --- wave 9: town buildings (build panel) -------------------------------------------------------------
+
+const BUILDING_ICONS: Record<BusinessId, string> = {
+  // a glass greenhouse with sprouting wheat
+  farm: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M5 42V22L24 8l19 14v20z" fill="#cfeaf7"/>
+      <path d="M5 22L24 8l19 14" fill="none" stroke="#e8553e" stroke-width="4"/>
+      <path d="M16 42V24M24 42V20M32 42V24M5 32h38" stroke="#9fd0ff" stroke-width="2" fill="none"/>
+      <path d="M24 42c0-6 0-9 0-13M24 36c-3-1-4-3-4-5 3 0 4 2 4 5zM24 33c3-1 4-3 4-5-3 0-4 2-4 5z" fill="#e0b050" stroke="#a8693a" stroke-width="1.6"/>
+      <rect x="3" y="41" width="42" height="4" rx="2" fill="#a8693a"/>
+    </g>`),
+  // a cosy shop with an oven mouth and a loaf
+  bakery: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="6" y="18" width="36" height="25" rx="3" fill="#f3d9a4"/>
+      <path d="M3 18l4-9h34l4 9z" fill="#e8553e"/>
+      <path d="M13 9l-2 9M24 9v9M35 9l2 9" stroke="#fff" stroke-width="2.4" fill="none"/>
+      <path d="M11 43V30a6 6 0 0 1 12 0v13z" fill="#7a4a2a"/>
+      <path d="M14 43V31a3 3 0 0 1 6 0v12z" fill="#ffb347" stroke="none"/>
+      <ellipse cx="34" cy="31" rx="6.5" ry="4.2" fill="#d98e3b"/>
+      <path d="M31 30l2 2M35 29l1.5 2.5" stroke="#f6c97a" stroke-width="1.8" fill="none"/>
+      <rect x="35" y="2" width="6" height="9" fill="#a8693a"/>
+    </g>`),
+  // a tall townhouse with lit windows
+  townhouse: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="9" y="16" width="30" height="28" rx="2" fill="#8fa9c9"/>
+      <path d="M5 18L24 4l19 14z" fill="#b8453a"/>
+      <rect x="14" y="21" width="8" height="8" rx="1.5" fill="#ffe680"/>
+      <rect x="26" y="21" width="8" height="8" rx="1.5" fill="#ffe680"/>
+      <rect x="14" y="33" width="8" height="7" rx="1.5" fill="#ffe680"/>
+      <rect x="27" y="31" width="8" height="13" rx="2" fill="#7a4a2a"/>
+      <rect x="31" y="6" width="5" height="8" fill="#a8693a"/>
+    </g>`),
+  // a red barn
+  ranch: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M6 44V22L24 8l18 14v22z" fill="#c9503e"/>
+      <path d="M17 44V28h14v16" fill="#fff"/>
+      <path d="M17 28l14 16M31 28L17 44" stroke="#c9503e" stroke-width="2.4" fill="none"/>
+      <path d="M3 24L24 6l21 18" fill="none" stroke="#7a4a2a" stroke-width="4"/>
+      <circle cx="24" cy="19" r="3" fill="#fff"/>
+    </g>`),
+  // a shop with a ham
+  butcher: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="6" y="19" width="36" height="24" rx="3" fill="#f1ece0"/>
+      <path d="M3 19l4-9h34l4 9z" fill="#3b7bd6"/>
+      <path d="M13 10l-2 9M24 10v9M35 10l2 9" stroke="#fff" stroke-width="2.4" fill="none"/>
+      <path d="M15 33c0-6 5-9 10-8s9 4 7 9-9 7-14 5c-2-1-3-3-3-6z" fill="#e0707a"/>
+      <circle cx="29" cy="30" r="2.2" fill="#fff"/>
+    </g>`),
+  // a toy factory with a gear and a train
+  toyFactory: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="5" y="22" width="38" height="21" rx="2" fill="#7a8fa3"/>
+      <path d="M5 22l9-8v8l9-8v8l9-8v8" fill="#7a8fa3"/>
+      <rect x="34" y="6" width="6" height="16" fill="#a8693a"/>
+      <circle cx="17" cy="32" r="6" fill="#ffd84a"/><circle cx="17" cy="32" r="2" fill="${OUT}" stroke="none"/>
+      <rect x="27" y="29" width="12" height="9" rx="2" fill="#e8553e"/>
+      <circle cx="30" cy="39" r="2" fill="#fff"/><circle cx="36" cy="39" r="2" fill="#fff"/>
+    </g>`),
+};
+
+export function buildingIcon(id: BusinessId): string {
+  return BUILDING_ICONS[id];
+}
+
+export const ICON_LOG = svg(
+  `<g stroke="${OUT}" stroke-width="3">
+     <rect x="5" y="14" width="30" height="20" rx="10" fill="#b87a45"/>
+     <circle cx="35" cy="24" r="10" fill="#f3d9a4"/><circle cx="35" cy="24" r="4.2" fill="#d9aa66"/>
+   </g>`,
+);
+
+/** A worker (dark, for the light cards). */
+export const ICON_WORKER = svg(
+  `<circle cx="24" cy="14" r="8" fill="#5b6a8a"/>
+   <path d="M8 42c0-10 7-16 16-16s16 6 16 16z" fill="#5b6a8a"/>`,
 );
