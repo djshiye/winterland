@@ -350,6 +350,7 @@ const ICONS: Record<PadIcon, (g: CanvasRenderingContext2D) => void> = {
   feller: drawFeller,
   loader: drawLoader,
   tubes: drawTubes,
+  workshop: drawFactory, // placeholder until the wave-8 icon lands
 };
 
 

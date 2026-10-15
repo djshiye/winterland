@@ -127,6 +127,15 @@ export const REVEALS: readonly RevealRule[] = [
     satisfied: (q) => q.state.unlocked.cashTubes,
     action: { kind: 'pad', id: 'cashTubes' },
   },
+  // Wave 8: the furniture workshop, once the feller has been cutting for a while.
+  {
+    id: 'workshopPad',
+    delay: NEXT_PAD,
+    ready: (q) => q.state.unlocked.treeFeller && q.sinceUnlock('treeFeller') >= 60,
+    satisfied: (q) => q.state.unlocked.workshop,
+    action: { kind: 'pad', id: 'workshop' },
+  },
+  { id: 'levelPad:workshop', delay: 0, ready: (q) => q.state.unlocked.workshop && q.sinceUnlock('workshop') >= 30, action: { kind: 'levelPad', id: 'workshop' } },
   { id: 'levelPad:harvester', delay: NEXT_PAD, ready: (q) => q.state.unlocked.harvester && q.state.unlocked.processor, action: { kind: 'levelPad', id: 'harvester' } },
   {
     id: 'levelPad:processor',

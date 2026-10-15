@@ -216,6 +216,8 @@ export const ITEM_SIZE = {
   crate: { size: 0.45, stackHeight: 0.46 },
   /** Cash bundle: 0.35 × 0.12 × 0.2, CASH_GREEN with a white band 0.1 × 0.125 × 0.21. */
   cash: { w: 0.35, h: 0.12, d: 0.2, stackHeight: 0.125 },
+  /** Wave 8: a wooden chair (the furniture workshop's product), footprint 0.42 × 0.42, stacks 0.5 apart. */
+  furniture: { w: 0.42, h: 0.5, d: 0.42, stackHeight: 0.5 },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -259,6 +261,7 @@ export const ECONOMY = {
   cratePrice: 15, // cargo tricycles, per crate
   truckLogPrice: 10, // phase-5 pickup trucks, per log (bulk)
   pinePrice: 20, // Timber Ridge freight trains, per log
+  furniturePrice: 60, // wave 8: dog sleds, per piece of furniture (each made from one log)
   // How many buyers come and how much they take depends on the village level: see DEMAND.
 } as const;
 
@@ -276,7 +279,9 @@ export type PadIdConst =
   | 'ridge'
   | 'treeFeller'
   | 'truckLoader'
-  | 'cashTubes';
+  | 'cashTubes'
+  // wave 8
+  | 'workshop';
 
 export interface PadDef {
   id: PadIdConst;
@@ -286,7 +291,7 @@ export interface PadDef {
   size: number;
   label: string;
   /** Icon key drawn on the pad (UpgradePad draws these procedurally on a canvas). */
-  icon: 'saw' | 'factory' | 'conveyor' | 'megasaw' | 'ridge' | 'feller' | 'loader' | 'tubes';
+  icon: 'saw' | 'factory' | 'conveyor' | 'megasaw' | 'ridge' | 'feller' | 'loader' | 'tubes' | 'workshop';
 }
 
 export const PADS: Record<PadIdConst, PadDef> = {
@@ -304,6 +309,8 @@ export const PADS: Record<PadIdConst, PadDef> = {
   truckLoader: { id: 'truckLoader', cost: 10000, x: -1.2, z: -12.5, size: 2.0, label: 'TRUCK LOADER', icon: 'loader' },
   /** Beside the cabin: pneumatic tubes that bank every cash pile. */
   cashTubes: { id: 'cashTubes', cost: 14000, x: 4.0, z: -7.6, size: 2.0, label: 'CASH TUBES', icon: 'tubes' },
+  // Wave 8 (proposal; owners validate). On Timber Ridge in front of the workshop site.
+  workshop: { id: 'workshop', cost: 15000, x: 25.0, z: 0.9, size: 2.0, label: 'WORKSHOP', icon: 'workshop' },
 };
 
 // ---------------------------------------------------------------------------
@@ -585,6 +592,29 @@ export const LAYOUT = {
       playerZone: rect(30.1, 0.2, 1.4, 2.4),
     },
     platformCash: { x: 30.4, z: 3.6, grid: CASH_GRID, zone: rect(30.4, 3.6, 2.0, 1.8) },
+    /**
+     * Wave 8 furniture workshop (proposal; B6 validates): a log-cabin workshop. Logs go in the west hopper, chairs
+     * come out on the east bench. Dog sleds stop on `sledLane` south of it and buy from `sledCounter`.
+     */
+    workshop: {
+      x: 25.0,
+      z: 3.2,
+      w: 3.2,
+      d: 2.0,
+      hopper: { x: 22.8, z: 3.2, grid: { cols: 1, rows: 3, layers: 5, spacing: LOG_GRID_SPACING } as PileGrid, zone: rect(21.9, 3.2, 1.2, 1.8) },
+      bench: { x: 27.3, z: 3.2, grid: { cols: 2, rows: 2, layers: 4, spacing: { x: 0.48, y: 0.5, z: 0.48 } } as PileGrid, zone: rect(28.2, 3.2, 1.2, 1.8) },
+    },
+    /** Dog sleds run along X at `z` (arrive from +X, stop with the sled beside the counter, turn back). */
+    sledLane: { z: 8.0, spawnX: 60, stopX: 25.0, exitX: 60 },
+    sledCounter: {
+      x: 25.0,
+      z: 6.9,
+      ...COUNTER_SIZE,
+      rotationY: 0,
+      grid: { cols: 3, rows: 2, layers: 3, spacing: { x: 0.48, y: 0.5, z: 0.48 } } as PileGrid,
+      playerZone: rect(25.0, 5.9, 2.4, 1.0),
+    },
+    sledCash: { x: 21.6, z: 6.0, grid: CASH_GRID, zone: rect(21.6, 6.0, 2.0, 1.8) },
     /** Crew bunkhouse: building footprint centre + its construction pad in front of it. */
     quarters: { x: 18.2, z: 1.2, w: 5.0, d: 3.2, pad: { x: 18.2, z: 4.6 }, padSize: 1.8 },
   },
@@ -668,7 +698,10 @@ export type UpgradeIdConst =
   | 'treeFeller'
   | 'cashTubes'
   | 'pineHauler'
-  | 'pineContracts';
+  | 'pineContracts'
+  // wave 8
+  | 'workshop'
+  | 'furnitureQuality';
 
 /**
  * lumberjack + crew + sales: bought in the cabin shop panel (one tab each) · machine: the machine's own pad re-arms
@@ -677,7 +710,7 @@ export type UpgradeIdConst =
 export type UpgradeGroup = 'lumberjack' | 'machine' | 'crew' | 'sales';
 
 /** What a sale is for (sales upgrades multiply one product's price). */
-export type ProductId = 'plank' | 'crate' | 'log' | 'pine';
+export type ProductId = 'plank' | 'crate' | 'log' | 'pine' | 'furniture';
 
 export interface UpgradeRequirement {
   /** Minimum village level (index into VILLAGE.levels). */
@@ -889,6 +922,29 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     product: 'pine',
     requires: { unlocked: 'treeFeller' },
   },
+  // wave 8
+  workshop: {
+    id: 'workshop',
+    group: 'machine',
+    label: 'Workshop',
+    blurb: 'Builds furniture faster',
+    values: [3.0, 2.5, 2.1, 1.8, 1.5, 1.3],
+    costs: [14000, 26000, 45000, 70000, 100000],
+    display: 'rate',
+    unit: 'pieces/s',
+    requires: { unlocked: 'workshop' },
+  },
+  furnitureQuality: {
+    id: 'furnitureQuality',
+    group: 'sales',
+    label: 'Fine Joinery',
+    blurb: 'Dog sleds pay more for every piece of furniture',
+    values: [1, 1.15, 1.3, 1.5, 1.75, 2.0],
+    costs: [9000, 24000, 50000, 90000, 160000],
+    display: 'mult',
+    product: 'furniture',
+    requires: { unlocked: 'workshop' },
+  },
 };
 
 /** Crew base stats at work multiplier 1 (UPGRADES[id].values[level] scales them; capacity rounds down). */
@@ -1007,16 +1063,19 @@ export interface DemandLevel {
   priceMult: number;
   /** Wave 8: share of walk-in customers who are VIPs (tip VIP.tipMult × the sale on top). */
   vipChance: number;
+  /** Wave 8: dog sleds at the workshop (seconds between sleds, furniture per sled). */
+  sledGap: readonly [number, number];
+  sledWant: readonly [number, number];
 }
 
 export const DEMAND: readonly DemandLevel[] = [
   // Camp: the original phase 1–5 tuning.
-  { customerGap: [1.0, 1.5], customerQueue: 5, customerWant: [2, 4], trikeGap: [2.5, 4], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], trainGap: [9, 13], trainWant: [16, 24], priceMult: 1, vipChance: 0 },
-  { customerGap: [0.9, 1.35], customerQueue: 6, customerWant: [2, 5], trikeGap: [2.3, 3.6], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], trainGap: [9, 13], trainWant: [16, 24], priceMult: 1.2, vipChance: 0.06 },
-  { customerGap: [0.8, 1.2], customerQueue: 6, customerWant: [3, 6], trikeGap: [2.1, 3.3], trikeWant: [4, 7], truckGap: [2.8, 4.5], truckWant: [9, 13], trainGap: [8, 12], trainWant: [18, 26], priceMult: 1.45, vipChance: 0.08 },
-  { customerGap: [0.7, 1.05], customerQueue: 7, customerWant: [3, 7], trikeGap: [1.9, 3.0], trikeWant: [4, 8], truckGap: [2.6, 4.2], truckWant: [10, 15], trainGap: [7.5, 11], trainWant: [20, 28], priceMult: 1.75, vipChance: 0.1 },
-  { customerGap: [0.6, 0.9], customerQueue: 7, customerWant: [4, 8], trikeGap: [1.7, 2.7], trikeWant: [5, 8], truckGap: [2.4, 3.8], truckWant: [11, 17], trainGap: [7, 10], trainWant: [22, 30], priceMult: 2.1, vipChance: 0.12 },
-  { customerGap: [0.55, 0.8], customerQueue: 7, customerWant: [4, 9], trikeGap: [1.6, 2.5], trikeWant: [5, 8], truckGap: [2.2, 3.5], truckWant: [12, 18], trainGap: [6.5, 9], trainWant: [24, 32], priceMult: 2.5, vipChance: 0.14 },
+  { customerGap: [1.0, 1.5], customerQueue: 5, customerWant: [2, 4], trikeGap: [2.5, 4], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], trainGap: [9, 13], trainWant: [16, 24], priceMult: 1, vipChance: 0, sledGap: [12, 16], sledWant: [3, 5] },
+  { customerGap: [0.9, 1.35], customerQueue: 6, customerWant: [2, 5], trikeGap: [2.3, 3.6], trikeWant: [3, 6], truckGap: [3, 5], truckWant: [8, 12], trainGap: [9, 13], trainWant: [16, 24], priceMult: 1.2, vipChance: 0.06, sledGap: [12, 16], sledWant: [3, 5] },
+  { customerGap: [0.8, 1.2], customerQueue: 6, customerWant: [3, 6], trikeGap: [2.1, 3.3], trikeWant: [4, 7], truckGap: [2.8, 4.5], truckWant: [9, 13], trainGap: [8, 12], trainWant: [18, 26], priceMult: 1.45, vipChance: 0.08, sledGap: [11, 15], sledWant: [4, 6] },
+  { customerGap: [0.7, 1.05], customerQueue: 7, customerWant: [3, 7], trikeGap: [1.9, 3.0], trikeWant: [4, 8], truckGap: [2.6, 4.2], truckWant: [10, 15], trainGap: [7.5, 11], trainWant: [20, 28], priceMult: 1.75, vipChance: 0.1, sledGap: [10, 14], sledWant: [4, 7] },
+  { customerGap: [0.6, 0.9], customerQueue: 7, customerWant: [4, 8], trikeGap: [1.7, 2.7], trikeWant: [5, 8], truckGap: [2.4, 3.8], truckWant: [11, 17], trainGap: [7, 10], trainWant: [22, 30], priceMult: 2.1, vipChance: 0.12, sledGap: [9, 13], sledWant: [5, 8] },
+  { customerGap: [0.55, 0.8], customerQueue: 7, customerWant: [4, 9], trikeGap: [1.6, 2.5], trikeWant: [5, 8], truckGap: [2.2, 3.5], truckWant: [12, 18], trainGap: [6.5, 9], trainWant: [24, 32], priceMult: 2.5, vipChance: 0.14, sledGap: [8, 12], sledWant: [6, 9] },
 ];
 
 /** Wave 8: VIP walk-in customers (gold scarf, crown bubble); chance per DEMAND row. */

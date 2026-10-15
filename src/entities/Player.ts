@@ -85,7 +85,7 @@ export class Player {
     // Tall loads split into columns (25 logs → 2 columns, 25 crates → a 2×2 block) so the stack stays readable.
     this.arms = new CarryStack(ctx, {
       id: 'player.arms',
-      accepts: ['log', 'crate'],
+      accepts: ['log', 'crate', 'furniture'],
       capacity: ctx.upgrades.value('carry'),
       anchor: this.rig.armsAnchor,
       columnHeight: 3.4,

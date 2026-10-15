@@ -150,6 +150,8 @@ function unlockName(id: string): string {
       return 'Timber Ridge gate';
     case 'truckLoader':
       return 'Truck Loader';
+    case 'workshop':
+      return 'Workshop';
     default:
       return 'Conveyor';
   }

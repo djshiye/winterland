@@ -53,6 +53,7 @@ const PAD_ORDER = [
   'ridge',
   'treeFeller',
   'cashTubes',
+  'workshop',
 ] as const;
 
 /** Pad button text: what the player does there (everything else reads "Build the <Label>"). */
@@ -81,6 +82,7 @@ const PHASE_OF_PAD: Record<PadId, Phase> = {
   treeFeller: 'expansion',
   truckLoader: 'expansion',
   cashTubes: 'expansion',
+  workshop: 'expansion',
 };
 
 type IntroState = 'pending' | 'playing' | 'done';
