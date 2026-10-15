@@ -33,8 +33,8 @@
  *   stands in the target zone; the guide goes quiet once everything is automated.
  */
 import * as THREE from 'three';
-import { LAYOUT, QUARTERS, VILLAGE, rect, type Rect, type XZ } from '../config';
-import type { FlagId, GameContext, PadId, Phase } from '../core/types';
+import { BUSINESSES, LAYOUT, QUARTERS, TOWN, VILLAGE, rect, type BusinessId, type Rect, type XZ } from '../config';
+import type { FlagId, GameContext, ItemKind, PadId, Phase } from '../core/types';
 import type { Level } from '../level/Level';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
 
@@ -560,6 +560,114 @@ export class Progression {
     return true;
   }
 
+  /** Wave 9: wheat / meat in hand → the nearest shop whose hopper still takes it. */
+  private townGoodsInHand(): boolean {
+    const arms = this.ctx.player.arms;
+    for (const kind of ['wheat', 'meat'] as const) {
+      if (arms.count(kind) === 0) continue;
+      const shop = this.townShopNeeding(kind);
+      if (shop) {
+        this.setGoal(`Bring ${kind} to the ${shop.def.label.toLowerCase()}`, shop.zone);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** A built shop whose hopper still takes `kind` (fewest of it first). */
+  private townShopNeeding(kind: ItemKind): { def: (typeof BUSINESSES)[BusinessId]; zone: Rect; have: number } | null {
+    const town = this.level.town;
+    let best: { def: (typeof BUSINESSES)[BusinessId]; zone: Rect; have: number } | null = null;
+    for (let i = 0; i < LAYOUT.town.lots.length; i++) {
+      const b = town.business(i);
+      if (!b || b.def.kind !== 'shop' || !b.input || !b.feedZone) continue;
+      if (!b.def.inputs.some((x) => x.kind === kind) || !b.input.canAccept(kind)) continue;
+      const have = b.input.count(kind);
+      if (!best || have < best.have) best = { def: b.def, zone: b.feedZone, have };
+    }
+    return best;
+  }
+
+  /** Wave 9: Market Town hints. Returns true when it set a goal. */
+  private townGuide(): boolean {
+    const ctx = this.ctx;
+    const s = ctx.state;
+    const town = this.level.town;
+    if (!s.town.revealed) return false;
+    const inArea = (r: Rect): boolean => ctx.zones.isPlayerIn(r);
+    const money = ctx.economy.money;
+
+    // First visit: through the corridor to the square.
+    if (!s.flags['seen:town']) {
+      if (inArea(LAYOUT.town.square)) {
+        s.flags['seen:town'] = true;
+      } else {
+        const w = LAYOUT.town.walk[0]!;
+        this.setGoal('Visit the new Market Town', LAYOUT.town.square, this.tmpPoint.set(w.maxX, 0, (w.minZ + w.maxZ) / 2));
+        return true;
+      }
+    }
+
+    // A chosen building being paid for (affordable): bring logs, pay.
+    for (let i = 0; i < s.town.lots.length; i++) {
+      const lot = s.town.lots[i]!;
+      if (lot.building === '' || lot.tier >= 0) continue;
+      const def = BUSINESSES[lot.building as BusinessId];
+      const spot = town.padSpot(i);
+      if (!spot) continue;
+      const cashLeft = def.cash - lot.cash;
+      if (cashLeft > 0 && money < cashLeft) continue;
+      const logsLeft = def.logs - lot.logs;
+      const name = def.label.toLowerCase();
+      if (
+        this.pursue({
+          spot,
+          logsLeft,
+          cashLeft,
+          text: logsLeft > 0 ? `Bring logs to the ${name}` : `Pay for the ${name} (${fmtMoney(cashLeft)})`,
+          pick: `Pick up logs for the ${name}`,
+        })
+      )
+        return true;
+    }
+
+    // Nothing built or chosen yet: point at the first free lot once a building is nearly affordable.
+    const anyChosen = s.town.lots.some((l) => l.building !== '');
+    if (!anyChosen) {
+      const cheapest = Math.min(...Object.values(BUSINESSES).filter((d) => !TOWN.hidden.includes(d.id)).map((d) => d.cash));
+      const lot = s.town.lots.findIndex((l) => l.building === '');
+      const spot = lot >= 0 ? town.padSpot(lot) : null;
+      if (spot && money >= cheapest * 0.6) {
+        this.setGoal('Build something in the Market Town', rect(spot.x, spot.z, 1.8, 1.8), this.tmpPoint.set(spot.x, 0, spot.z));
+        return true;
+      }
+    }
+
+    // Keep the shops stocked: carry a producer's goods to a shop that is low on them.
+    const arms = ctx.player.arms;
+    if (arms.count() < arms.capacity) {
+      for (let i = 0; i < LAYOUT.town.lots.length; i++) {
+        const b = town.business(i);
+        if (!b || b.def.kind !== 'producer' || !b.output || !b.pickupZone || !b.def.output) continue;
+        const kind = b.def.output;
+        if (b.output.count(kind) < 3) continue;
+        const shop = this.townShopNeeding(kind);
+        if (!shop) continue;
+        this.setGoal(`Pick up ${kind} at the ${b.def.label.toLowerCase()}`, b.pickupZone);
+        return true;
+      }
+    }
+    // Logs in hand and a shop out of firewood.
+    if (arms.count('log') > 0) {
+      const shop = this.townShopNeeding('log');
+      if (shop && shop.have < 2) {
+        this.setGoal(`Bring firewood to the ${shop.def.label.toLowerCase()}`, shop.zone);
+        return true;
+      }
+    }
+    return false;
+  }
+
   private evaluateGuide(): void {
     const ctx = this.ctx;
     const L = this.level;
@@ -601,6 +709,9 @@ export class Progression {
       return;
     }
 
+    // 2c. Wave 9: town goods in hand (wheat, meat) go to a shop that still needs them.
+    if (this.townGoodsInHand()) return;
+
     // 2b. Timber Ridge is open but the player has not been through the east gate yet.
     if (s.unlocked.ridge && !s.unlocked.treeFeller && !s.flags['seen:ridge']) {
       if (inArea(LAYOUT.ridge.walk[1]!)) {
@@ -627,6 +738,8 @@ export class Progression {
     const need = this.villageNeed();
     if (need && this.pursue(need)) return;
     if (quarters && this.pursue(quarters)) return;
+    // 3c. Wave 9: the Market Town (first visit, the first building, paying for chosen lots, keeping shops stocked).
+    if (this.townGuide()) return;
 
     const deck = L.treeFeller?.deck;
     const deckLogs = deck?.count('log') ?? 0;
@@ -690,7 +803,7 @@ export class Progression {
     // 5. Cash waiting (the bigger pile first).
     // Once the cash tubes bank the piles themselves, only point at a big backlog.
     let pile = L.walkInCash;
-    for (const p of L.cashPiles()) if (p.value > pile.value) pile = p;
+    for (const p of [...L.cashPiles(), ...L.town.tills()]) if (p.value > pile.value) pile = p;
     if (pile.value > (L.cashTubes ? CASH_BACKLOG : 0)) {
       this.setGoal('Collect your cash', pile.zone.area);
       return;

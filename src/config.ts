@@ -334,7 +334,7 @@ export const PADS: Record<PadIdConst, PadDef> = {
 const LOG_GRID_SPACING = { x: 0.66, y: 0.24, z: 0.26 };
 const PLANK_GRID_SPACING = { x: 0.52, y: 0.125, z: 0.31 };
 const CRATE_GRID_SPACING = { x: 0.48, y: 0.46, z: 0.48 };
-const CASH_GRID: PileGrid = { cols: 3, rows: 3, layers: 20, spacing: { x: 0.37, y: 0.125, z: 0.22 } };
+const CASH_GRID: PileGrid = { cols: 3, rows: 3, layers: 10, spacing: { x: 0.37, y: 0.125, z: 0.22 } };
 /** Every sales counter is the art-spec wooden table: 1.6 long × 0.6 deep × 0.8 high (FENCE_WOOD). */
 const COUNTER_SIZE = { length: 1.6, depth: 0.6, height: 0.8 };
 
@@ -1097,8 +1097,8 @@ export const VILLAGE = {
     { name: 'Camp', minPopulation: 0, perks: [] },
     { name: 'Hamlet', minPopulation: 4, perks: ['Customers buy more', 'Huts', 'Crate Runner for hire'] },
     { name: 'Village', minPopulation: 14, perks: ['Bigger orders, better prices', 'Cabins', 'Cashier for hire'] },
-    { name: 'Town', minPopulation: 36, perks: ['Busier roads', 'Lodges', 'Log Hauler for hire'] },
-    { name: 'Winter City', minPopulation: 80, perks: ['Top prices', 'Build the Great Lodge!'] },
+    { name: 'Town', minPopulation: 36, perks: ['The Market Town opens', 'Lodges', 'Log Hauler for hire'] },
+    { name: 'Winter City', minPopulation: 110, perks: ['Top prices', 'Build the Great Lodge!'] },
     { name: 'Winterland', minPopulation: Number.POSITIVE_INFINITY, perks: ['Everyone loves your mill'] },
   ] as readonly VillageLevelDef[],
   greatLodge: { label: 'GREAT LODGE', logs: 100, cash: 25000, requiresLevel: 4 },

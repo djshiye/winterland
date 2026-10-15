@@ -268,6 +268,19 @@ export class Business {
   }
 
   /** World rects of this business's player zones (feed hopper, pick up goods, collect cash): tests / debug. */
+  /** World rects of the player's zones (null when this kind has none): feed the hopper, pick goods up, collect the till. */
+  get feedZone(): Rect | null {
+    return this.layout.feed ? worldRect(this.frame, this.layout.feed.u0, this.layout.feed.u1, this.layout.feed.v0, this.layout.feed.v1) : null;
+  }
+  get pickupZone(): Rect | null {
+    const r = this.layout.pickup;
+    return r ? worldRect(this.frame, r.u0, r.u1, r.v0, r.v1) : null;
+  }
+  get collectZone(): Rect | null {
+    const r = this.layout.collect;
+    return r ? worldRect(this.frame, r.u0, r.u1, r.v0, r.v1) : null;
+  }
+
   zoneRects(): Rect[] {
     const L = this.layout;
     return [L.feed, L.pickup, L.collect]
