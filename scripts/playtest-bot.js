@@ -361,7 +361,8 @@
       if (q && s.quarters.tier < 0 && q.cashLeft <= cash) options.push({ rank: -2, run: () => startBuild('q', q) });
       else if (q && ok(q.cashLeft)) options.push({ rank: q.cashLeft + q.logsLeft * LOG_VALUE, run: () => startBuild('q', q) });
       // Wave 9: Market Town lots (choose the planned building on the lot pad, then pay like a shelter).
-      if (s.town.revealed && s.village.level < WINTER_CITY) {
+      // Past Winter City the lots still matter once the Grand Market is offered: it needs the era-4 toy factory.
+      if (s.town.revealed && (s.village.level < WINTER_CITY || grandMarketInfo())) {
         for (let i = 0; i < s.town.lots.length; i++) {
           const lot = s.town.lots[i];
           if (lot.tier >= 0) continue;
