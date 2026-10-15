@@ -10,7 +10,8 @@
  * simply runs without saving. `?fresh` in the URL ignores (but does not delete) the save.
  */
 import { AMENITIES, AMENITY_IDS, BUSINESSES, CONTRACTS, DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, UPGRADES, VILLAGE, type BusinessId } from '../config';
-import { createGameState, LOT_COUNT, type FlagId, type GameContext, type GameState, type ItemKind } from './types';
+import { CARRY_KINDS, createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type CarryKind, type FlagId, type GameContext, type GameState, type InvestmentState, type ItemKind } from './types';
+import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, INVEST_MAX_POSITIONS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
 export interface WorldSnapshot {
@@ -37,13 +38,19 @@ export interface WorldSnapshot {
     platform: number;
     sled: number;
   };
-  arms: { log: number; crate: number; furniture: number; wheat: number; meat: number; toy: number };
+  /** Items in the player's arms by kind (every CARRY_KINDS entry; 0.9.0 added the era materials). */
+  arms: Record<CarryKind, number>;
   /**
    * Wave 9 Market Town, one entry per LAYOUT.town.lots (absent in older saves): items in the business's input
    * hopper by kind, items on its out pile / shop counter (its output kind), dollars in its till. Counts include
    * items in flight toward it, items being processed, and goods already handed to an unpaid buyer.
    */
   town: { in: Partial<Record<ItemKind, number>>; out: number; cash: number }[];
+  /**
+   * 0.9.0, index = era (0 and 1 empty): per machine slot the items in its input pile (by kind) and on its out pile
+   * (its output kind), and the region import dock's contents by kind. Absent in older saves (→ empty).
+   */
+  eras: { slots: { in: Partial<Record<ItemKind, number>>; out: number }[]; dock: Partial<Record<ItemKind, number>> }[];
 }
 
 export interface SaveData {
@@ -120,6 +127,18 @@ export function clearSave(): void {
  */
 export function mergeState(target: GameState, saved: unknown): void {
   mergeInto(target as unknown as Record<string, unknown>, saved);
+  // 0.9.0: open-ended arrays (the fresh one is empty, so mergeInto keeps nothing): copied here, sanitized later.
+  const inv = isObj(saved) && isObj(saved.market) ? saved.market.investments : undefined;
+  if (Array.isArray(inv)) {
+    target.market.investments = inv.filter(isObj).slice(0, INVEST_MAX_POSITIONS).map((o) => ({
+      id: isNum(o.id) ? o.id : 0,
+      product: (typeof o.product === 'string' ? o.product : '') as InvestmentState['product'],
+      era: isNum(o.era) ? o.era : 0,
+      principal: isNum(o.principal) ? o.principal : 0,
+      value: isNum(o.value) ? o.value : 0,
+      age: isNum(o.age) ? o.age : 0,
+    }));
+  }
 }
 
 function mergeInto(target: Record<string, unknown>, saved: unknown): void {
@@ -207,6 +226,64 @@ export function sanitizeState(state: GameState): void {
   v.level = int(v.level, 0, VILLAGE.levels.length - 1);
   v.population = int(v.population, 0, Number.MAX_SAFE_INTEGER);
 
+  // 0.9.0 Ages. A paid site: tier in [-1, 0]; paid cash / extra never above the price of what is being built.
+  const paidSite = (p: { tier: number; cash: number; extra: number }, price: { cash: number; extra?: { count: number } } | undefined): void => {
+    p.tier = price ? int(p.tier, -1, 0) : -1;
+    p.cash = price && p.tier < 0 ? int(p.cash, 0, price.cash) : 0;
+    p.extra = price && p.tier < 0 ? int(p.extra, 0, price.extra?.count ?? 0) : 0;
+  };
+  const e = state.eras;
+  e.age = int(e.age, 1, MAX_ERA);
+  for (let n = 0; n < e.regions.length; n++) {
+    const r = e.regions[n]!;
+    const def = ERAS[n];
+    // a region is unlocked exactly when its era was reached (the age is the source of truth)
+    r.unlocked = !!def && n <= e.age;
+    r.cash = def && !r.unlocked ? int(r.cash, 0, def.unlock.cash) : 0;
+    r.extra = def && !r.unlocked ? int(r.extra, 0, def.unlock.extra.count) : 0;
+    for (const slot of r.slots) {
+      if (slot.machine !== '' && (!(slot.machine in MACHINES) || MACHINES[slot.machine as MachineId].era !== n)) slot.machine = '';
+      if (!r.unlocked) slot.machine = '';
+      paidSite(slot, slot.machine === '' ? undefined : MACHINES[slot.machine as MachineId]);
+    }
+  }
+  for (let n = 0; n < state.city.districts.length; n++) {
+    for (const lot of state.city.districts[n]!.lots) {
+      if (lot.building !== '' && (!(lot.building in CITY_BUILDINGS) || CITY_BUILDINGS[lot.building as CityBuildingId].era !== n || n > e.age)) lot.building = '';
+      paidSite(lot, lot.building === '' ? undefined : CITY_BUILDINGS[lot.building as CityBuildingId]);
+    }
+  }
+  {
+    const m = state.market;
+    for (const k of Object.keys(m.index) as (keyof typeof m.index)[]) {
+      if (!(MATERIAL_KINDS as readonly string[]).includes(k)) delete m.index[k];
+      else m.index[k] = Math.max(MARKET.min, Math.min(MARKET.max, isNum(m.index[k]) ? m.index[k]! : 1));
+    }
+    for (const k of Object.keys(m.pressure) as (keyof typeof m.pressure)[]) {
+      if (!(MATERIAL_KINDS as readonly string[]).includes(k)) delete m.pressure[k];
+      else m.pressure[k] = Math.max(0, Math.min(MARKET.pressureMax, isNum(m.pressure[k]) ? m.pressure[k]! : 0));
+    }
+    for (const k of Object.keys(m.holdings) as (keyof typeof m.holdings)[]) {
+      if (!(MATERIAL_KINDS as readonly string[]).includes(k)) delete m.holdings[k];
+      else m.holdings[k] = int(m.holdings[k], 0, 1_000_000_000);
+    }
+    for (const k of Object.keys(m.basis) as (keyof typeof m.basis)[]) {
+      if (!(MATERIAL_KINDS as readonly string[]).includes(k)) delete m.basis[k];
+      else m.basis[k] = nonNeg(m.basis[k]);
+    }
+    m.investments = m.investments.filter((p) => (INVEST_IDS as readonly string[]).includes(p.product) && INVEST[p.product].era <= e.age && p.principal > 0);
+    for (const p of m.investments) {
+      p.id = int(p.id, 0, Number.MAX_SAFE_INTEGER);
+      p.era = p.product === 'venture' ? int(p.era, 2, e.age) : 0;
+      p.principal = nonNeg(p.principal);
+      p.value = nonNeg(p.value);
+      p.age = nonNeg(p.age);
+    }
+    m.fund = isNum(m.fund) && m.fund > 0 ? m.fund : 1;
+    m.nextId = int(m.nextId, 1, Number.MAX_SAFE_INTEGER);
+    for (const p of m.investments) if (p.id >= m.nextId) m.nextId = p.id + 1;
+  }
+
   state.prestige.season = int(state.prestige.season, 0, 1_000_000);
   const C = DAYNIGHT.cycleSeconds;
   if (!isNum(state.clock)) state.clock = 0;
@@ -266,8 +343,9 @@ export class SalesMeter {
 const EMPTY_WORLD: WorldSnapshot = {
   piles: { dropZone: 0, walkIn: 0, hopper: 0, bench: 0, se: 0, truck: 0, deck: 0, platform: 0, workshopIn: 0, workshopOut: 0, sled: 0 },
   cash: { walkIn: 0, se: 0, truck: 0, platform: 0, sled: 0 },
-  arms: { log: 0, crate: 0, furniture: 0, wheat: 0, meat: 0, toy: 0 },
+  arms: Object.fromEntries(CARRY_KINDS.map((k) => [k, 0])) as Record<CarryKind, number>,
   town: Array.from({ length: LOT_COUNT }, () => ({ in: {}, out: 0, cash: 0 })),
+  eras: REGION_SLOTS.map((n) => ({ slots: Array.from({ length: n }, () => ({ in: {}, out: 0 })), dock: {} })),
 };
 
 /**
@@ -312,13 +390,28 @@ export function sanitizeWorld(w: unknown): WorldSnapshot {
       sled: n(piles.sled),
     },
     cash: { walkIn: n(cash.walkIn), se: n(cash.se), truck: n(cash.truck), platform: n(cash.platform), sled: n(cash.sled) },
-    arms: { log: n(arms.log), crate: n(arms.crate), furniture: n(arms.furniture), wheat: n(arms.wheat), meat: n(arms.meat), toy: n(arms.toy) },
+    arms: Object.fromEntries(CARRY_KINDS.map((k) => [k, n(arms[k])])) as Record<CarryKind, number>,
     town: Array.from({ length: LOT_COUNT }, (_, i) => {
       const lot = Array.isArray(o.town) && isObj(o.town[i]) ? (o.town[i] as Record<string, unknown>) : {};
       const inp = isObj(lot.in) ? lot.in : {};
       const ins: Partial<Record<ItemKind, number>> = {};
       for (const k of Object.keys(inp)) if (n(inp[k]) > 0) ins[k as ItemKind] = n(inp[k]);
       return { in: ins, out: n(lot.out), cash: n(lot.cash) };
+    }),
+    eras: REGION_SLOTS.map((count, era) => {
+      const r = Array.isArray(o.eras) && isObj(o.eras[era]) ? (o.eras[era] as Record<string, unknown>) : {};
+      const kinds = (rec: unknown): Partial<Record<ItemKind, number>> => {
+        const out: Partial<Record<ItemKind, number>> = {};
+        if (isObj(rec)) for (const k of Object.keys(rec)) if (n(rec[k]) > 0) out[k as ItemKind] = n(rec[k]);
+        return out;
+      };
+      return {
+        slots: Array.from({ length: count }, (_, i) => {
+          const sl = Array.isArray(r.slots) && isObj(r.slots[i]) ? (r.slots[i] as Record<string, unknown>) : {};
+          return { in: kinds(sl.in), out: n(sl.out) };
+        }),
+        dock: kinds(r.dock),
+      };
     }),
   };
 }

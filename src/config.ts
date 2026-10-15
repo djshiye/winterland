@@ -14,6 +14,7 @@
  */
 
 import type { ItemKind } from './core/types';
+import { ERA_KEYS, ERA_NAMES, MATERIALS, MATERIAL_KINDS, unlockCash, type EraKey, type MaterialKind } from './eras/data';
 
 export interface Rect {
   minX: number;
@@ -231,6 +232,8 @@ export const ITEM_SIZE = {
   sausage: { w: 0.36, h: 0.14, d: 0.36, stackHeight: 0.15 },
   /** Wooden toy train (toy factory counter), never carried. */
   toy: { w: 0.4, h: 0.26, d: 0.22, stackHeight: 0.27 },
+  /** 0.9.0 era materials (eras/data.ts MATERIALS[kind].size). */
+  ...(Object.fromEntries(MATERIAL_KINDS.map((k) => [k, MATERIALS[k].size])) as Record<MaterialKind, { w: number; h: number; d: number; stackHeight: number }>),
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -790,13 +793,18 @@ export type UpgradeIdConst =
   | 'porter'
   | 'sledLoader'
   | 'foreman'
-  | 'dog';
+  | 'dog'
+  // 0.9.0 Ages: Jack's swap cart + finance, and three upgrades per era (generated: eraUpgrades below)
+  | 'jack'
+  | 'taxOffice'
+  | 'broker'
+  | `${EraKey}${'Rigs' | 'Crew' | 'Trade'}`;
 
 /**
  * lumberjack + crew + sales: bought in the cabin shop panel (one tab each) · machine: the machine's own pad re-arms
  * as a level pad.
  */
-export type UpgradeGroup = 'lumberjack' | 'machine' | 'crew' | 'sales';
+export type UpgradeGroup = 'lumberjack' | 'machine' | 'crew' | 'sales' | 'industry' | 'finance';
 
 /** What a sale is for (sales upgrades multiply one product's price). */
 export type ProductId = 'plank' | 'crate' | 'log' | 'pine' | 'furniture' | 'bread' | 'sausage' | 'toy';
@@ -808,6 +816,8 @@ export interface UpgradeRequirement {
   unlocked?: PadIdConst;
   /** Minimum crew bunkhouse tier (GameState.quarters.tier; 0 = the first tier built). */
   quarters?: number;
+  /** 0.9.0: minimum era (GameState.eras.age; 1 = Survival). */
+  era?: number;
 }
 
 export interface UpgradeDef {
@@ -827,9 +837,11 @@ export interface UpgradeDef {
   /** costs[n] = price to go from level n to n + 1 (length = values.length − 1). Multiples of 5. */
   costs: readonly number[];
   /** Upgrades.describe(): 'count' → "16 items", 'speed' → "7.4 m/s", 'rate' → items per second from an interval, 'crew' → "×1.3". */
-  display: 'count' | 'speed' | 'rate' | 'crew' | 'mult';
+  display: 'count' | 'speed' | 'rate' | 'crew' | 'mult' | 'boost' | 'share' | 'income' | 'factor';
   /** sales: the product whose price this multiplies. */
   product?: ProductId;
+  /** 0.9.0 industry upgrades: the era they belong to (2..10), for the shop's Industry tab grouping. */
+  era?: number;
   /** For display 'rate': items produced per cycle (mega saw: 3 logs per cut). Default 1. */
   perCycle?: number;
   /** Unit word for 'count' / 'rate' ("items", "logs/s", "chops/s"). */
@@ -838,6 +850,9 @@ export interface UpgradeDef {
 }
 
 export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
+  // 0.9.0: Jack, finance and the era upgrades (shop tabs Finance / Industry)
+  ...financeUpgrades(),
+  ...eraUpgrades(),
   carry: {
     id: 'carry',
     group: 'lumberjack',
@@ -1078,6 +1093,81 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     requires: { unlocked: 'workshop' },
   },
 };
+
+/** Round a price to 3 significant figures, then to a multiple of 5. */
+function price3(v: number): number {
+  const mag = 10 ** Math.max(0, Math.floor(Math.log10(Math.max(1, v))) - 2);
+  return Math.max(5, Math.round(Math.round(v / mag) * mag / 5) * 5);
+}
+
+/** 0.9.0: Jack's swap cart (share of an item's value he pays), the tax office and the broker. */
+function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> {
+  return {
+    jack: {
+      id: 'jack', group: 'finance', label: "Jack's Swap Cart",
+      blurb: 'Jack buys anything off your hands. Upgrades make him pay more and take it faster',
+      values: [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75],
+      costs: [400, 1200, 3000, 8000, 20000, 50000, 120000, 300000, 750000],
+      display: 'share',
+    },
+    taxOffice: {
+      id: 'taxOffice', group: 'finance', label: 'City Hall',
+      blurb: 'Better bookkeeping: every city building earns more',
+      values: [1, 1.15, 1.3, 1.45, 1.6, 1.8, 2.0, 2.25, 2.5, 3.0],
+      costs: [50000, 150000, 450000, 1.35e6, 4e6, 1.2e7, 3.6e7, 1.1e8, 3.3e8].map(price3),
+      display: 'income',
+      requires: { era: 2 },
+    },
+    broker: {
+      id: 'broker', group: 'finance', label: 'Stock Broker',
+      blurb: 'Tighter trading spreads and better bond rates',
+      values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0, 3.5],
+      costs: [40000, 120000, 360000, 1.1e6, 3.2e6, 9.7e6, 2.9e7, 8.7e7, 2.6e8].map(price3),
+      display: 'factor',
+      requires: { era: 2 },
+    },
+  };
+}
+
+/**
+ * 0.9.0: three upgrades per era n (2..10), ten levels each ("level 10" = index 9):
+ * - `${key}Rigs`: every machine of the era works faster (cycle ÷ value).
+ * - `${key}Crew`: hires the era's workers (0 = none; workers = 1 / 2 / 3 at levels 1 / 4 / 7) and speeds them up.
+ * - `${key}Trade`: the era's materials sell for more at export depots.
+ * Prices scale with the era's expansion price (unlockCash).
+ */
+function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade'}`, UpgradeDef> {
+  const out = {} as Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade'}`, UpgradeDef>;
+  const RIGS = [0.03, 0.05, 0.08, 0.12, 0.17, 0.24, 0.33, 0.45, 0.6];
+  const CREWC = [0.02, 0.04, 0.07, 0.1, 0.15, 0.2, 0.28, 0.38, 0.5];
+  const TRADE = [0.04, 0.07, 0.1, 0.15, 0.21, 0.29, 0.4, 0.54, 0.7];
+  ERA_KEYS.forEach((key, i) => {
+    const n = i + 2;
+    const base = unlockCash(n);
+    const name = ERA_NAMES[n]!;
+    out[`${key}Rigs`] = {
+      id: `${key}Rigs`, group: 'industry', era: n, label: `${name} Rigs`, blurb: `Every ${name} machine works faster`,
+      values: [1, 1.15, 1.3, 1.5, 1.7, 1.9, 2.15, 2.4, 2.7, 3.0], costs: RIGS.map((c) => price3(base * c)),
+      display: 'boost', requires: { era: n },
+    };
+    out[`${key}Crew`] = {
+      id: `${key}Crew`, group: 'industry', era: n, label: `${name} Crew`, blurb: `Workers haul ${name} materials between machines and the depot`,
+      values: [0, 1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0], costs: CREWC.map((c) => price3(base * c)),
+      display: 'crew', requires: { era: n },
+    };
+    out[`${key}Trade`] = {
+      id: `${key}Trade`, group: 'industry', era: n, label: `${name} Trade`, blurb: `${name} materials sell for more`,
+      values: [1, 1.1, 1.2, 1.32, 1.45, 1.6, 1.75, 1.9, 2.1, 2.4], costs: TRADE.map((c) => price3(base * c)),
+      display: 'mult', requires: { era: n },
+    };
+  });
+  return out;
+}
+
+/** 0.9.0: era workers per `${key}Crew` level (index = level; 0 = not hired). */
+export const ERA_CREW_COUNT: readonly number[] = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3];
+/** 0.9.0: era worker base stats at work multiplier 1 (×`${key}Crew` value). */
+export const ERA_WORKER = { walkSpeed: 3.6, capacity: 6 } as const;
 
 /** Crew base stats at work multiplier 1 (UPGRADES[id].values[level] scales them; capacity rounds down). */
 export const CREW = {

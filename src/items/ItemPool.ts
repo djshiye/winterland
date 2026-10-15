@@ -8,11 +8,11 @@
  */
 import { ECONOMY, ITEM_SIZE } from '../config';
 import { createItemModel } from '../assets/items';
-import type { GameContext, Item, ItemKind } from '../core/types';
+import { ALL_ITEM_KINDS, type GameContext, type Item, type ItemKind } from '../core/types';
 
 export class ItemPool {
   private nextId = 1;
-  private readonly free: Record<ItemKind, Item[]> = { log: [], plank: [], crate: [], cash: [], furniture: [], wheat: [], bread: [], meat: [], sausage: [], toy: [] };
+  private readonly free = Object.fromEntries(ALL_ITEM_KINDS.map((k) => [k, [] as Item[]])) as Record<ItemKind, Item[]>;
   private readonly live = new Set<Item>();
 
   constructor(readonly ctx: GameContext) {}

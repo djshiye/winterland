@@ -9,6 +9,7 @@
  */
 import type * as THREE from 'three';
 import { QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
+import { ERA_NAMES } from '../eras/data';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
 import type { GameEvents, GameState, UpgradeId } from './types';
@@ -85,6 +86,9 @@ export class Upgrades {
     if (needQuarters) {
       return `Build the ${QUARTERS.tiers[r.quarters!]!.label} first`;
     }
+    if (r.era !== undefined && this.state.eras.age < r.era) {
+      return `Needs the ${ERA_NAMES[r.era] ?? 'next'} era`;
+    }
     return null;
   }
 
@@ -130,6 +134,14 @@ export class Upgrades {
         return v <= 0 ? 'Not hired' : `×${Math.round(v * 100) / 100} speed`;
       case 'mult':
         return `×${Math.round(v * 100) / 100} price`;
+      case 'boost':
+        return `×${Math.round(v * 100) / 100} speed`;
+      case 'income':
+        return `×${Math.round(v * 100) / 100} income`;
+      case 'factor':
+        return `×${Math.round(v * 100) / 100}`;
+      case 'share':
+        return `${Math.round(v * 100)}% of value`;
     }
   }
 }

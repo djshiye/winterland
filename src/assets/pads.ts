@@ -397,7 +397,9 @@ const ICONS: Record<PadIcon, (g: CanvasRenderingContext2D) => void> = {
 
 // --- shelter icons (village construction pads) -------------------------------------------------------------
 
-export type ShelterIcon = 'tent' | 'hut' | 'cabin' | 'lodge' | 'greatLodge' | 'grandMarket' | TownIcon | AmenityIcon;
+export type ShelterIcon = 'tent' | 'hut' | 'cabin' | 'lodge' | 'greatLodge' | 'grandMarket' | TownIcon | AmenityIcon | EraIcon;
+/** 0.9.0: era machine slots, city lots / buildings, region expansion pads. [pads builder] draws them in SHELTER_ICONS. */
+export type EraIcon = 'machine' | 'building' | 'expansion';
 /** Wave 12 square amenities (AmenityId): drawn in SHELTER_ICONS below. */
 export type AmenityIcon = 'cafe' | 'pond' | 'bandstand' | 'snowmanPark';
 /** Wave 9 town buildings (BusinessId) + an empty lot ('lot'). [T1] draws them in SHELTER_ICONS. */
@@ -853,6 +855,9 @@ const SHELTER_ICONS: Record<ShelterIcon, (g: CanvasRenderingContext2D) => void> 
   pond: drawPond,
   bandstand: drawBandstand,
   snowmanPark: drawSnowmanPark,
+  machine: drawLot,
+  building: drawLot,
+  expansion: drawLot,
 };
 
 /** A small log lying on its side: bark body, LOG_CORE end cap with a ring. */

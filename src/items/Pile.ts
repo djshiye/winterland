@@ -17,7 +17,7 @@
 import * as THREE from 'three';
 import { ECONOMY, ITEM_SIZE, type PileGrid } from '../config';
 import { UP } from '../core/math';
-import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
+import { MATERIAL_KINDS, type GameContext, type Item, type ItemHolder, type ItemKind, type Slot } from '../core/types';
 
 export interface PileOptions {
   id: string;
@@ -30,7 +30,7 @@ export interface PileOptions {
   overflowMerge?: boolean;
 }
 
-const KIND_INDEX: Record<ItemKind, number> = { log: 0, crate: 1, cash: 2, plank: 3, furniture: 4, wheat: 5, bread: 6, meat: 7, sausage: 8, toy: 9 };
+const KIND_INDEX = { log: 0, crate: 1, cash: 2, plank: 3, furniture: 4, wheat: 5, bread: 6, meat: 7, sausage: 8, toy: 9, ...Object.fromEntries(MATERIAL_KINDS.map((k, i) => [k, 10 + i])) } as Record<ItemKind, number>;
 /** Max yaw jitter in radians (±3°). */
 const JITTER = (3 * Math.PI) / 180;
 
