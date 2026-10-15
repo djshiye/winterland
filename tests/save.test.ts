@@ -10,7 +10,25 @@ import { salePrice } from '../src/core/demand';
 import { mergeState, newSeasonSave, offlineEarnings, sanitizeWorld, type SaveData } from '../src/core/Save';
 import { createGameState } from '../src/core/types';
 
-const fixture = (): SaveData => JSON.parse(readFileSync(new URL('./fixtures/save-v1-town.json', import.meta.url), 'utf8'));
+const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
+const fixture = (): SaveData => load('save-v1-town.json');
+/** Every real save captured from a released build: each must keep loading as the state grows. */
+const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json'];
+
+describe.each(FIXTURES)('%s', (name) => {
+  it('loads every saved field and the world', () => {
+    const save = load(name);
+    expect(save.v).toBe(SAVE.version);
+    const state = createGameState();
+    mergeState(state, save.state);
+    expect(state.unlocked).toEqual({ ...state.unlocked, ...save.state.unlocked });
+    expect(state.quarters).toEqual({ ...state.quarters, ...(save.state.quarters ?? {}) });
+    expect(state.prestige.season).toBe(save.state.prestige?.season ?? 0);
+    for (const [id, level] of Object.entries(save.state.upgrades)) expect(state.upgrades[id as keyof typeof state.upgrades]).toBe(level);
+    const world = sanitizeWorld(save.world);
+    for (const [k, n] of Object.entries(save.world.piles)) expect(world.piles[k as keyof typeof world.piles]).toBe(n);
+  });
+});
 
 describe('v1 save fixture', () => {
   it('is still the current save version', () => {
