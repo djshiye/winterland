@@ -31,13 +31,14 @@
  *   ctx.hud.setGuideTarget(world point) — chop → pick up → sell → collect cash → build pad → feed the
  *   processor → grab the crates → load the tricycles / trucks. The arrow is hidden while the player already
  *   stands in the target zone; the guide goes quiet once everything is automated.
+ * - 0.9.0 climb: once the Great Lodge opens it, the guide's last word is the era gate's next goal (climbGuide).
  */
 import * as THREE from 'three';
-import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, QUARTERS, TOWN, VILLAGE, rect, type BusinessId, type Rect, type XZ } from '../config';
+import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, PADS, QUARTERS, TOWN, UPGRADES, VILLAGE, rect, type BusinessId, type PadIdConst, type Rect, type UpgradeIdConst, type XZ } from '../config';
 import type { FlagId, GameContext, ItemKind, PadId, Phase } from '../core/types';
 import type { Level } from '../level/Level';
-import { ERAS, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
-import { climbOpen } from '../eras/gate';
+import { DISTRICTS, ERAS, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
+import { climbOpen, nextGoal } from '../eras/gate';
 import { expansionOffered, regionLayout } from '../eras/layout';
 import { MATERIAL_KINDS } from '../core/kinds';
 import { formatMoney } from '../ui/format';
@@ -776,6 +777,44 @@ export class Progression {
     return true;
   }
 
+  /**
+   * 0.9.0 climb (docs/EXPANSION.md §C): the era gate's single next goal (eras/gate.ts nextGoal, the era chip's line)
+   * once nothing more urgent is due, with the arrow where it needs walking: a machine's level pad, what unlocks a
+   * prereq, the district to build a home in, the cabin for a Survival shop row. Industry rows sell at the era shop
+   * mats and through the checklist, so they get no arrow. Quiet while the expansion pad itself is the goal (eraGuide).
+   */
+  private climbGuide(): boolean {
+    const s = this.ctx.state;
+    const n = s.eras.age + 1;
+    if (!climbOpen(s) || !ERAS[n] || expansionOffered(s, n)) return false;
+    const goal = nextGoal(s, this.ctx.economy.money);
+    if (!goal) return false;
+    const text = goal.hint ?? goal.text;
+    const { kind, target } = goal.action;
+    if (target.startsWith('pad:')) {
+      const pad = PADS[target.slice(4) as PadIdConst];
+      if (pad) {
+        this.setGoal(text, rect(pad.x, pad.z, pad.size, pad.size));
+        return true;
+      }
+    } else if (target === 'quarters') {
+      const q = LAYOUT.ridge.quarters.pad;
+      this.setGoal(text, rect(q.x, q.z, 2, 2));
+      return true;
+    } else if (target.startsWith('district:')) {
+      const d = DISTRICTS[Number(target.slice(9))];
+      if (d) {
+        this.setGoal(text, d.rect);
+        return true;
+      }
+    } else if (kind === 'buy' && UPGRADES[target as UpgradeIdConst]?.group !== 'industry') {
+      this.setGoal(text, LAYOUT.shop.mat);
+      return true;
+    }
+    this.setGoal(text, null);
+    return true;
+  }
+
   private evaluateGuide(): void {
     const ctx = this.ctx;
     const L = this.level;
@@ -952,6 +991,9 @@ export class Progression {
       this.setGoal('Grab the crates', L.processor.outputZone.area);
       return;
     }
+
+    // 6b. 0.9.0 climb: the era gate's next goal (it covers the cabin reminder and the machine level pads below).
+    if (this.climbGuide()) return;
 
     // 7. The cabin shop, when something is affordable (first visit, then a reminder now and then).
     if (L.shopMat.visible && L.shopMat.hasAffordable) {

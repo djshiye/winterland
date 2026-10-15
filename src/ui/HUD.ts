@@ -22,7 +22,8 @@
  * - Wave 10b: InteractChip ("Hold to pick up / pay" above the player, from 'interact:prompt').
  * - 0.9.0 Ages: ManagePanel / ChoosePanel (info-demolish and build-chooser sheets), MapPanel (fast travel; Map button, key T),
  *   MarketPanel (Market button, key B), EraChip (current era / city rank, opens the map), IncomeFeed ("+$12.5K city" next to the
- *   money pill), AgeCard (new-era celebration, city rank banner). Only one of the shop / build / choose / manage / market sheets
+ *   money pill), AgeCard (new-era celebration, city rank banner), GateCard (the climb's era checklist, from the era chip).
+ *   Only one of the shop / build / choose / manage / market / gate sheets
  *   is open at a time (opening one closes the others); Esc closes the topmost.
  * - toast() queues briefly: a toast arriving < 1 s after another waits its turn (max 2 waiting, dropped after 3 s).
  */
@@ -40,6 +41,7 @@ import { CoinBurst } from './CoinBurst';
 import { ContractCard } from './ContractCard';
 import { EraChip, IncomeFeed } from './EraChip';
 import { FinaleCard } from './FinaleCard';
+import { GateCard } from './GateCard';
 import { InteractChip } from './InteractChip';
 import { ManagePanel } from './ManagePanel';
 import { MapPanel } from './MapPanel';
@@ -127,6 +129,8 @@ export class HUD {
   private readonly choose: ChoosePanel;
   private readonly map: MapPanel;
   private readonly market: MarketPanel;
+  /** 0.9.0 climb: the era checklist (era chip → 'gate:open'). */
+  private readonly gate: GateCard;
   private readonly eraChip: EraChip;
   private readonly incomeFeed: IncomeFeed;
   private readonly ageCard: AgeCard;
@@ -240,6 +244,7 @@ export class HUD {
     this.manage = new ManagePanel(ctx, layer);
     this.choose = new ChoosePanel(ctx, layer);
     this.market = new MarketPanel(ctx, layer);
+    this.gate = new GateCard(ctx, layer);
     this.quests = new QuestPanel(ctx, layer);
     layer.classList.add('has-quests');
     this.rushBanner = new RushBanner(ctx, layer);
@@ -307,6 +312,7 @@ export class HUD {
     ctx.events.on('choose:open', () => this.onlySheet('choose'));
     ctx.events.on('manage:open', () => this.onlySheet('manage'));
     ctx.events.on('market:open', () => this.onlySheet('market'));
+    ctx.events.on('gate:open', () => this.onlySheet('gate'));
     ctx.events.on('travel:done', (e) => this.toast(`Welcome to ${e.label}`, { small: true, duration: 2.4 }));
     window.addEventListener('keydown', (e) => this.onKey(e));
     // wave 10 keyboard shortcuts (Game turns the keys into events)
@@ -331,7 +337,7 @@ export class HUD {
 
   /** True while one of the bottom sheets (shop, build, choose, manage, market) is open. */
   private get anySheetOpen(): boolean {
-    return this.shop.visible || this.build.visible || this.choose.visible || this.manage.visible || this.market.visible;
+    return this.shop.visible || this.build.visible || this.choose.visible || this.manage.visible || this.market.visible || this.gate.visible;
   }
 
   /** A round HUD button in the top-right row (Map, Market). Hidden until update() decides it is on show. */
@@ -357,12 +363,13 @@ export class HUD {
   }
 
   /** Close every bottom sheet except `keep` (they share the same spot on screen). */
-  private onlySheet(keep: 'shop' | 'build' | 'choose' | 'manage' | 'market'): void {
+  private onlySheet(keep: 'shop' | 'build' | 'choose' | 'manage' | 'market' | 'gate'): void {
     if (keep !== 'shop' && this.shop.visible) this.shop.close();
     if (keep !== 'build' && this.build.visible) this.build.close();
     if (keep !== 'choose' && this.choose.visible) this.choose.close();
     if (keep !== 'manage' && this.manage.visible) this.manage.close();
     if (keep !== 'market' && this.market.visible) this.market.close();
+    if (keep !== 'gate' && this.gate.visible) this.gate.close();
   }
 
   private toggleMarket(): void {
@@ -400,6 +407,7 @@ export class HUD {
     if (this.settings.isOpen) this.settings.close();
     else if (this.map.visible) this.map.close();
     else if (this.market.visible) this.market.close();
+    else if (this.gate.visible) this.gate.close();
     else if (this.choose.visible) this.choose.close();
     else if (this.manage.visible) this.manage.close();
     else if (this.shop.visible) this.shop.close();
@@ -529,6 +537,10 @@ export class HUD {
     return this.market;
   }
 
+  get gateCard(): GateCard {
+    return this.gate;
+  }
+
   /** Shop panel (tests / debug). */
   get shopPanel(): ShopPanel {
     return this.shop;
@@ -584,6 +596,7 @@ export class HUD {
     this.manage.update(dt);
     this.choose.update(dt);
     this.market.update(dt);
+    this.gate.update(dt);
     this.map.update(dt);
     this.eraChip.update(dt);
     this.incomeFeed.update(dt);
@@ -606,6 +619,11 @@ export class HUD {
     const sheetOpen = this.anySheetOpen;
     if (this.layer.classList.contains('shop-open') !== sheetOpen) {
       this.layer.classList.toggle('shop-open', sheetOpen);
+    }
+    // the era checklist on a phone fills the lower screen: small toasts move above it (ages.css)
+    const gateOpen = this.gate.visible;
+    if (this.layer.classList.contains('gate-open') !== gateOpen) {
+      this.layer.classList.toggle('gate-open', gateOpen);
     }
     const questsOpen = !this.quests.isCollapsed && !this.quests.isAllDone;
     if (this.layer.classList.contains('quests-open') !== questsOpen) {

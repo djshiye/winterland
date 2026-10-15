@@ -11,7 +11,7 @@
  * - settlement: level ≥ 5·(n − 1).
  * eraGate() is the full checklist for the UI; gateMet() is the cheap yes/no layout.expansionOffered asks every frame.
  */
-import { UPGRADES, type UpgradeDef } from '../config';
+import { PRIORITIES, UPGRADES, type UpgradeDef } from '../config';
 import { base, introEra, shown, stepCost } from '../core/ladder';
 import { upgradeRequirement } from '../core/Upgrades';
 import type { GameState, UpgradeId } from '../core/types';
@@ -97,10 +97,33 @@ function gateIds(n: number): readonly UpgradeId[] {
 /** Stored level that reaches the gate's shown need (offset or literal mode). */
 const storedNeed = (def: UpgradeDef, n: number): number => gateNeed(n) - base(def);
 
+/** Rows in era n's gate (0 past the last era). */
+export function gateSize(n: number): number {
+  return ERAS[n] ? gateIds(n).length : 0;
+}
+
 /** Anything paid into era n's expansion pad yet (dollars + material units). > 0 keeps the pad offered (grandfathered). */
 export function padPaid(s: Pick<GameState, 'eras'>, n: number): number {
   const r = s.eras.regions[n];
   return r ? r.cash + r.extra : 0;
+}
+
+/** Cheap counts of era n's gate for per-event readers (no prices, no row objects): rows at need and the settlement. */
+export interface GateCount {
+  ok: number;
+  total: number;
+  settlement: number;
+  settlementNeed: number;
+  ready: boolean;
+}
+
+export function gateCount(s: GameState, n: number): GateCount {
+  const ids = ERAS[n] ? gateIds(n) : [];
+  let ok = 0;
+  for (const id of ids) if (s.upgrades[id] >= storedNeed(UPGRADES[id], n)) ok++;
+  const settlement = settlementLevel(s);
+  const need = settlementNeed(n);
+  return { ok, total: ids.length, settlement, settlementNeed: need, ready: !!ERAS[n] && ok === ids.length && settlement >= need };
 }
 
 /** Cheap form of eraGate(s, n).ready for per-frame readers (no prices, no row objects). */
@@ -162,13 +185,34 @@ export function eraGate(s: GameState, n: number): EraGate {
   };
 }
 
+/**
+ * The open rows in the GateCard's order (docs/EXPANSION.md §C): unmet prereqs first (they block everything after them),
+ * then the cheapest to finish. Done rows are left out (the card folds them into "✓ 37 done").
+ */
+export function openRows(g: EraGate): GateRow[] {
+  const rank = (r: GateRow): number => (r.state === 'prereq' ? 0 : 1);
+  return g.rows.filter((r) => r.state !== 'ok').sort((a, b) => rank(a) - rank(b) || a.costToNeed - b.costToNeed);
+}
+
+/** A row the shop sells from anywhere (shop and Industry rows). Pad rows are paid at the machine's level pad (R6). */
+export function rowBuyable(r: GateRow): boolean {
+  return r.state === 'low' && r.where !== 'pad';
+}
+
+/** What Raise all leaves in the wallet: max($500, 20 %), the foreman's reserve (PRIORITIES), so it never empties it. */
+export function raiseReserve(money: number): number {
+  return Math.max(PRIORITIES.reserveMin, PRIORITIES.reserveShare * money);
+}
+
 /** The locked pad's note and the chip's count: "37/48 · S8/10". */
-export function gateNote(g: EraGate): string {
+export function gateNote(g: Pick<EraGate, 'ok' | 'total' | 'settlementNeed'> & { settlement: { level: number } }): string {
   return `${g.ok}/${g.total} · S${Math.min(g.settlement.level, g.settlementNeed)}/${g.settlementNeed}`;
 }
 
 export interface NextGoal {
   text: string;
+  /** The same goal without a number that moves every frame ("$12K to go"), for the guide banner; absent = text. */
+  hint?: string;
   /**
    * buy: an upgrade id (shop / era shop) to press; go: a place to travel to ('pad:<id>' level pad, 'region:<n>' the
    * expansion pad); build: what unlocks a prereq ('pad:<id>', 'village', 'quarters') or raises the settlement.
@@ -176,8 +220,8 @@ export interface NextGoal {
   action: { kind: 'buy' | 'go' | 'build'; target: string };
 }
 
-/** What a prereq row asks for first, as a build target. */
-function prereqTarget(id: UpgradeId, s: GameState): string {
+/** What a prereq row asks for first, as a build target (nextGoal, the GateCard's Go). */
+export function prereqTarget(id: UpgradeId, s: GameState): string {
   const r = UPGRADES[id].requires;
   if (r?.unlocked && !s.unlocked[r.unlocked]) return `pad:${r.unlocked}`;
   if (r?.villageLevel !== undefined && s.village.level < r.villageLevel) return 'village';
@@ -193,6 +237,21 @@ function buyAction(r: GateRow): NextGoal['action'] {
 function rowText(r: GateRow): string {
   const label = UPGRADES[r.id].label;
   return r.shown === null ? `Hire the ${label}` : `${label} → Lv ${r.need}`;
+}
+
+/**
+ * The gate's settlement step (the GateCard's settlement row, nextGoal): "Build a home in Brickside (+40) → Settlement 6",
+ * or "Grow the village → Settlement 5" below Winterland. Only meaningful while the settlement is short of the need.
+ */
+export function settlementGoal(s: GameState, g: EraGate): NextGoal {
+  // below Winterland the village itself is the settlement (levels 0..5)
+  if (s.village.level < 5) return { text: `Grow the village → Settlement ${g.settlementNeed}`, action: { kind: 'build', target: 'village' } };
+  // the next level is in the current era's band: one more home of that era is about one level (§B)
+  const age = s.eras.age;
+  const home = Object.values(CITY_BUILDINGS).find((d) => d.era === age && d.kind === 'home');
+  const where = DISTRICTS[age]?.name;
+  const text = home && where ? `Build a home in ${where} (+${home.people}) → Settlement ${g.settlement.level + 1}` : `Grow the city → Settlement ${g.settlementNeed}`;
+  return { text, action: { kind: 'build', target: `district:${age}` } };
 }
 
 /**
@@ -213,18 +272,9 @@ export function nextGoal(s: GameState, money: number): NextGoal | null {
   if (cheapest && next(cheapest) <= money) {
     return { text: `${rowText(cheapest)} (${formatMoney(next(cheapest))})`, action: buyAction(cheapest) };
   }
-  if (g.settlement.level < g.settlementNeed) {
-    // below Winterland the village itself is the settlement (levels 0..5)
-    if (s.village.level < 5) return { text: `Grow the village → Settlement ${g.settlementNeed}`, action: { kind: 'build', target: 'village' } };
-    // the next level is in the current era's band: one more home of that era is about one level (§B)
-    const age = s.eras.age;
-    const home = Object.values(CITY_BUILDINGS).find((d) => d.era === age && d.kind === 'home');
-    const where = DISTRICTS[age]?.name;
-    const text = home && where ? `Build a home in ${where} (+${home.people}) → Settlement ${g.settlement.level + 1}` : `Grow the city → Settlement ${g.settlementNeed}`;
-    return { text, action: { kind: 'build', target: `district:${age}` } };
-  }
+  if (g.settlement.level < g.settlementNeed) return settlementGoal(s, g);
   if (cheapest) {
-    return { text: `${rowText(cheapest)}: ${formatMoney(next(cheapest) - money)} to go`, action: buyAction(cheapest) };
+    return { text: `${rowText(cheapest)}: ${formatMoney(next(cheapest) - money)} to go`, hint: `Save up: ${rowText(cheapest)}`, action: buyAction(cheapest) };
   }
   return { text: `${ERAS[n]!.region} is for sale!`, action: { kind: 'go', target: `region:${n}` } };
 }

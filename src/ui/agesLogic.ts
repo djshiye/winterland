@@ -99,6 +99,48 @@ export function industryEraNote(n: number, age: number): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// 0.9.0 climb: the shop's band view and the checklist rows (docs/EXPANSION.md R5, R6, §C)
+// ---------------------------------------------------------------------------
+
+/** Pips per band: the bar always reads 0..10 of this era. */
+export const BAND_PIPS = 10;
+
+export interface BandView {
+  /** Pips lit (0..10) of the band that ends at the gate's level. */
+  fill: number;
+  /** Whole bands done (the band star's number; 0 hides it). */
+  bands: number;
+  /** "Lv 23 · need 30", "Lv 30 ✓", "Not hired", "Lv 10 · era standard", "Lv 47". */
+  text: string;
+  /** 'low' below the gate's level, 'ok' at it, '' with no gate ahead. */
+  tone: 'low' | 'ok' | '';
+}
+
+/**
+ * One shop card's band view. `shown` is the shown level, `stored` the stored one and `base` the era offset (R4);
+ * `hired` is false for a crew at stored 0; `need` is the next era's gate level for an id in that gate, else null.
+ */
+export function bandView(shown: number, stored: number, base: number, hired: boolean, need: number | null): BandView {
+  const top = need ?? Math.max(BAND_PIPS, Math.ceil(shown / BAND_PIPS) * BAND_PIPS);
+  const fill = Math.max(0, Math.min(BAND_PIPS, shown - (top - BAND_PIPS)));
+  const below = need !== null && shown < need;
+  let text = hired ? `Lv ${shown}` : 'Not hired';
+  // R5: an era upgrade that just arrived at its offset says so (the tooltip explains; the tab dot still says "below")
+  if (hired && stored === 0 && base > 0) text += ' \u00b7 era standard';
+  else if (below) text += ` \u00b7 need ${need}`;
+  else if (need !== null && hired) text += ' \u2713';
+  return { fill, bands: Math.floor(shown / BAND_PIPS), text, tone: below ? 'low' : need !== null && hired ? 'ok' : '' };
+}
+
+/** The checklist row's second line: the prereq, "pad LV 8 → LV 11 · $X" (R6) or "Lv 7 → 10 · $X in all". */
+export function gateRowLine(row: { shown: number | null; need: number; state: string; prereq?: string; costToNeed: number; where: string; padLabel?: string }): string {
+  if (row.state === 'prereq') return row.prereq ?? '';
+  if (row.where === 'pad') return `${row.padLabel ?? ''} \u00b7 ${formatMoney(row.costToNeed)}`;
+  const lv = row.shown === null ? 'Not hired' : `Lv ${row.shown}`;
+  return `${lv} \u2192 ${row.need} \u00b7 ${formatMoney(row.costToNeed)} in all`;
+}
+
+// ---------------------------------------------------------------------------
 // City chip / income ticker
 // ---------------------------------------------------------------------------
 
