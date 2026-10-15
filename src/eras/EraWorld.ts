@@ -43,10 +43,10 @@ export class EraWorld {
     for (let n = 2; n <= MAX_ERA; n++) if (st.regions[n]!.unlocked) this.regions[n] = new Region(ctx, n);
     this.refreshPads(false);
     ctx.events.on('village:changed', () => this.refreshPads(true));
-    ctx.events.on('market:order', ({ kind, count, era }) => {
+    ctx.events.on('market:order', ({ kind, count, era, amount }) => {
       const r = this.regions[era];
-      if (r) r.deliver(kind, count);
-      else ctx.economy.add(Math.round(ctx.market.quote(kind, 'buy') * count)); // no dock (cannot happen): give the money back
+      if (r) r.deliver(kind, count, amount);
+      else ctx.economy.add(amount, 0); // no dock (cannot happen): give the money back
     });
   }
 

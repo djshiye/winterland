@@ -66,6 +66,17 @@ const SURFACE: readonly ({ street: number; walk: number; plot: number; tile: num
 const SNOW = 0xf4f8ff;
 const PER_FRAME = 2;
 
+/**
+ * Free a dropped construction site's own merged base geometry (each scaffold merges a fresh one). The shell's unit box
+ * and the materials are shared caches and stay.
+ */
+export function disposeScaffold(group: THREE.Object3D): void {
+  const shared = geo.boxBase(1, 1, 1);
+  group.traverse((o) => {
+    if (o instanceof THREE.Mesh && o.geometry !== shared) o.geometry.dispose();
+  });
+}
+
 /** Lot runtime. */
 interface Lot {
   readonly index: number;
@@ -226,6 +237,7 @@ export class District {
       L.scaffold.setProgress(frac);
     } else if (L.scaffold) {
       L.group.remove(L.scaffold.group);
+      disposeScaffold(L.scaffold.group);
       L.scaffold = null;
     }
   }
@@ -405,6 +417,8 @@ export class District {
     }
     this.ctx.particles.puff(this.tmp.set(L.frame.x, 0.6, L.frame.z), { color: 0xd8d8d8, count: 14, size: 2.0, life: 1.1 });
     this.refresh(L, true);
+    // the lot's one zone stays on (empty lots are open), so a player still on the tile gets the choose card now
+    if (L.card === 'manage' && L.zone?.playerInside) this.enter(L);
     const position = new THREE.Vector3(L.frame.x, 0, L.frame.z);
     if (id !== '') this.ctx.events.emit('city:demolished', { era: this.n, lot, building: id, position });
     this.onChange();

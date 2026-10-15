@@ -37,7 +37,7 @@ vi.mock('../src/assets/eraMachines', () => ({
   createDockModel: () => new THREE.Group(),
 }));
 vi.mock('../src/npc/EraCrew', () => ({ EraCrew: class { reconcile(): void {} update(): void {} carried(): Record<string, never> { return {}; } dispose(): void {} } }));
-vi.mock('../src/npc/Jack', () => ({ JackCart: class { update(): void {} dispose(): void {} } }));
+vi.mock('../src/npc/Jack', () => ({ JackCart: class { sink = { id: 'jack:sink' }; update(): void {} dispose(): void {} } }));
 
 const { EraWorld } = await import('../src/eras/EraWorld');
 
@@ -493,6 +493,20 @@ describe('choose, pay, demolish', () => {
     // a new machine can be chosen and built there
     expect(w.world.build(2, 1, 'quarry')).toBe(true);
   });
+
+  it('switching the choice to a machine with another extra material gives the pad a zone for that material', () => {
+    const w = makeWorld(2);
+    const r = w.world.region(2) as unknown as { choose(i: number, id: string): boolean };
+    expect(r.choose(0, 'quarry')).toBe(true);
+    expect(r.choose(0, 'kiln')).toBe(true);
+    const live = w.zones.filter((z) => z.opts.id === 'pad:slot:2:0:logs' && z.enabled);
+    expect(live).toHaveLength(1);
+    expect(live[0]!.opts.kinds).toEqual(['stone']);
+    // back to the quarry: the first pad is reused, no zone pulls stone any more
+    expect(r.choose(0, 'quarry')).toBe(true);
+    expect(w.zones.filter((z) => z.opts.id === 'pad:slot:2:0:logs')).toHaveLength(2);
+    expect(w.zones.some((z) => z.opts.id === 'pad:slot:2:0:logs' && z.enabled)).toBe(false);
+  });
 });
 
 describe('depot, dock, orders', () => {
@@ -508,18 +522,19 @@ describe('depot, dock, orders', () => {
     expect(r.depot.take()).toBeNull();
   });
 
-  it('a market order lands on the dock; what does not fit is refunded at the buy quote', () => {
+  it('a market order lands on the dock; what does not fit is refunded at what it cost', () => {
     const w = makeWorld(2);
     const r = w.world.region(2)!;
-    w.events.emit('market:order', { kind: 'stone', count: 20, era: 2 });
+    w.events.emit('market:order', { kind: 'stone', count: 20, era: 2, amount: 2640 });
     expect(r.dock.count('stone')).toBe(20);
     expect(w.eco.money).toBe(0);
-    w.events.emit('market:order', { kind: 'stone', count: 10, era: 2 });
+    // 132 a unit (delivery, Trade and season included): the 6 that do not fit come back at that price
+    w.events.emit('market:order', { kind: 'stone', count: 10, era: 2, amount: 1320 });
     expect(r.dock.count('stone')).toBe(24);
-    expect(w.eco.money).toBe(6 * 100);
+    expect(w.eco.money).toBe(6 * 132);
     // an order for a closed region comes back in full
-    w.events.emit('market:order', { kind: 'ore', count: 3, era: 3 });
-    expect(w.eco.money).toBe(600 + 300);
+    w.events.emit('market:order', { kind: 'ore', count: 3, era: 3, amount: 396 });
+    expect(w.eco.money).toBe(6 * 132 + 396);
   });
 
   it('the shop mat opens the industry tab', () => {
@@ -571,6 +586,41 @@ describe('snapshot / restore', () => {
     expect(again[2]!.slots[0]!.out).toBe(OUTPUT_CAPACITY);
     expect(again[2]!.slots[1]!.in.stone).toBe(6);
     expect(again[2]!.dock.stone).toBe(24);
+  });
+
+  it('a mid-cycle save with a full hopper round-trips: the running cycle resumes and makes its batch', () => {
+    const w = makeWorld(2);
+    w.world.build(2, 1, 'kiln');
+    const m = w.world.region(2)!.machines[1]!;
+    m.input!.fill('stone', 4);
+    run(w, 0.5); // cycle started: 2 stone taken
+    m.input!.fill('stone', 4); // refilled to the cap (6) during the cycle
+    const snap = w.world.snapshot();
+    expect(snap[2]!.slots[1]!.in.stone).toBe(8);
+    const w2 = makeWorld(2);
+    w2.world.build(2, 1, 'kiln');
+    w2.world.restore(snap);
+    const m2 = w2.world.region(2)!.machines[1]!;
+    expect(m2.input!.count('stone')).toBe(6);
+    expect(w2.world.snapshot()).toEqual(snap); // nothing lost, idempotent
+    run(w2, MACHINES.kiln.cycle + 0.2); // Rigs 1
+    expect(m2.output.count('brick')).toBe(MACHINES.kiln.batch);
+  });
+
+  it('dock goods that no longer fit on restore are credited at the sell quote', () => {
+    const w = makeWorld(2);
+    const snap = w.world.snapshot();
+    snap[2]!.dock = { stone: 24, brick: 6 }; // a full dock + a worker's load
+    w.world.restore(snap);
+    expect(w.world.region(2)!.dock.count('stone')).toBe(24);
+    expect(w.eco.money).toBe(6 * 100);
+  });
+
+  it('materials still flying to the depot or Jack are saved on the dock (not sold yet)', () => {
+    const w = makeWorld(2);
+    const r = w.world.region(2)! as unknown as { depot: object; jack: { sink: object } };
+    (w.ctx.flights as unknown as { inFlightTo(h: object, k?: ItemKind): number }).inFlightTo = (h, k) => (h === r.depot && k === 'brick' ? 2 : h === r.jack.sink && k === 'stone' ? 1 : 0);
+    expect(w.world.snapshot()[2]!.dock).toEqual({ stone: 1, brick: 2 });
   });
 
   it('a save made mid-cycle keeps the inputs of the running cycle', () => {

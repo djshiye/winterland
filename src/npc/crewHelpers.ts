@@ -546,6 +546,11 @@ export class Cashier extends Helper {
         return;
       }
       case 'go':
+        // the pile went away under us (a demolished town till): turn back now, not after the walk
+        if (!this.stop!.pile()) {
+          this.leave(this.routeIdx);
+          return;
+        }
         if (this.moving) return;
         this.look = this.stop!.look;
         this.phase = 'collect';
@@ -570,8 +575,9 @@ export class Cashier extends Helper {
     }
   }
 
-  private leave(): void {
-    this.goReverse(this.stop!.route, CASHIER_HOME);
+  /** Head home back along the stop's route: all of it from the post, only the `passed` waypoints when turning back mid-walk. */
+  private leave(passed = this.stop!.route.length): void {
+    this.goReverse(this.stop!.route.slice(0, passed), CASHIER_HOME);
     this.phase = 'back';
   }
 
@@ -603,7 +609,7 @@ export class Cashier extends Helper {
         },
         post,
         look,
-        pile: () => till,
+        pile: () => (b.dead ? null : till),
       });
     }
     return out;

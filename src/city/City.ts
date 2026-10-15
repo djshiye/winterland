@@ -26,6 +26,8 @@ export class City {
   private readonly skyline = new Skyline();
   private timer = 0;
   private lastRank = 0;
+  /** Highest rank announced this session: a demolish / rebuild across a threshold must not replay the banner. */
+  private maxRank = 0;
   private lastPopulation = -1;
 
   constructor(protected readonly ctx: GameContext) {
@@ -41,6 +43,7 @@ export class City {
     });
     ctx.events.on('village:changed', () => this.recompute(true));
     this.lastRank = rankFor(this.totalPopulation, ctx.state.eras.age);
+    this.maxRank = this.lastRank;
     this.recompute(false);
   }
 
@@ -129,10 +132,11 @@ export class City {
     const rank = rankFor(total, ctx.state.eras.age);
     this.skyline.setSize(total, ctx.state.eras.age);
     if (announce) {
-      if (rank > this.lastRank) ctx.events.emit('city:rankUp', { rank, name: CITY_RANKS[rank]!.name, position: null });
+      if (rank > this.maxRank) ctx.events.emit('city:rankUp', { rank, name: CITY_RANKS[rank]!.name, position: null });
       if (rank !== this.lastRank || total !== this.lastPopulation) ctx.events.emit('city:changed', { population: total, rank });
     }
     this.lastRank = rank;
+    this.maxRank = Math.max(this.maxRank, rank);
     this.lastPopulation = total;
   }
 }

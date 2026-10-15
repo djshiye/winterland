@@ -453,9 +453,11 @@ export class EraWorker {
 
   private finishDispose(): void {
     if (this.gone) return;
-    // hand the load back to the import dock (never lose goods)
+    // hand the load back to the import dock (never lose goods: what a full dock refuses is sold at the depot quote)
     for (let item = this.stack.take(); item; item = this.stack.take()) {
-      if (!this.region.dock.addImmediate(item)) this.ctx.items.release(item);
+      if (this.region.dock.addImmediate(item)) continue;
+      this.ctx.economy.add(Math.round(this.ctx.market.quote(item.kind as MaterialKind, 'sell')));
+      this.ctx.items.release(item);
     }
     this.stack.clear();
     this.group.removeFromParent();

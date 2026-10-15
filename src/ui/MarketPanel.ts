@@ -369,9 +369,11 @@ export class MarketPanel {
     const card: TradeCard = { kind, root, quote, held, buys, sells, dest, orders, picked: 0, shownAge: 0 };
     dest.addEventListener('change', () => {
       card.picked = Number(dest.value) || 0;
+      dest.blur();
       this.mark();
     });
     dest.addEventListener('click', (e) => e.stopPropagation());
+    this.escCloses(dest);
     for (const units of [10, ORDER_MAX_UNITS]) {
       const el = this.makeButton('wl-mk-btn is-order', () => this.tap(() => m.order(kind, units, this.destOf(card))));
       deliver.appendChild(el);
@@ -380,6 +382,19 @@ export class MarketPanel {
     root.appendChild(deliver);
     parent.appendChild(root);
     return card;
+  }
+
+  /**
+   * A focused <select> eats the game's keys (Input / HUD skip SELECT targets): picks blur it to give the keyboard back
+   * (letters / arrows would silently change the region otherwise), and Esc still closes the market (as SettingsPanel).
+   */
+  private escCloses(sel: HTMLSelectElement): void {
+    sel.addEventListener('keydown', (e) => {
+      if (e.code !== 'Escape') return;
+      e.stopPropagation();
+      sel.blur();
+      this.close();
+    });
   }
 
   private makeProduct(id: InvestProductId, parent: HTMLElement): ProductCard {
@@ -400,9 +415,11 @@ export class MarketPanel {
       sel.setAttribute('aria-label', 'Era to back');
       sel.addEventListener('change', () => {
         card.picked = Number(sel.value) || 0;
+        sel.blur();
         this.mark();
       });
       sel.addEventListener('click', (e) => e.stopPropagation());
+      this.escCloses(sel);
       row.appendChild(sel);
       card.era = sel;
       root.appendChild(row);

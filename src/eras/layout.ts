@@ -133,7 +133,8 @@ export function travelPoints(state: GameState): TravelPoint[] {
   const out: TravelPoint[] = [
     { id: 'yard', label: 'Lumber Yard', kind: 'home', era: 1, x: 0, z: 2, open: true },
     { id: 'village', label: 'Village', kind: 'home', era: 1, x: 4.6, z: 20, open: state.village.revealed },
-    { id: 'town', label: 'Market Town', kind: 'home', era: 1, x: 24, z: 27, open: state.town.revealed },
+    // the corridor mouth on the square's west side (the square's centre is the solid fir)
+    { id: 'town', label: 'Market Town', kind: 'home', era: 1, x: 17, z: 26.7, open: state.town.revealed },
   ];
   for (let n = 2; n < REGIONS.length; n++) {
     if (!REGIONS[n]) continue;
