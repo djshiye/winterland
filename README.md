@@ -31,8 +31,9 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
 3. **Collect cash** and spend it on the glowing **floor pads**: harvester $150, processor $700 (crates for the
    cargo tricycles), two conveyors $900 each, and the mega sawmill $3,200 (the yard expands to the highway
    and trucks arrive). Unlocked machines come back as **LV n** pads that make them faster.
-4. **Upgrade shop** on the red cabin's doormat: carry capacity, walk speed and axe speed, plus three hired
-   helpers (crate runner, cashier, log hauler) and a **Sales** tab of price upgrades.
+4. **Upgrade shop** on the red cabin's doormat: carry capacity, walk speed and axe speed, plus hired
+   helpers (crate runner, cashier, log hauler, and later the pine hauler, town porter, sled loader and foreman),
+   **crew priorities** for who gets the wood when it's short, and a **Sales** tab of price upgrades.
 5. **The village** behind the south gate: carry logs and cash to the plots to raise tents, huts, cabins and
    lodges. More villagers mean a higher village level (the eras: Camp → Hamlet → Village → Town → Winter City), which
    brings more customers, bigger orders, better prices and new hires.
