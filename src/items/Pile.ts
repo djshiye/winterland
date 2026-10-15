@@ -30,7 +30,7 @@ export interface PileOptions {
   overflowMerge?: boolean;
 }
 
-const KIND_INDEX: Record<ItemKind, number> = { log: 0, crate: 1, cash: 2, plank: 3 };
+const KIND_INDEX: Record<ItemKind, number> = { log: 0, crate: 1, cash: 2, plank: 3, furniture: 4 };
 /** Max yaw jitter in radians (±3°). */
 const JITTER = (3 * Math.PI) / 180;
 
@@ -56,7 +56,7 @@ export class Pile implements ItemHolder {
   private readonly reserved: Uint8Array;
   /** Per-slot deterministic yaw jitter. */
   private readonly jitter: Float32Array;
-  private readonly kindCounts = [0, 0, 0, 0];
+  private readonly kindCounts = Object.values(KIND_INDEX).map(() => 0);
   private landedTotal = 0;
   private reservedTotal = 0;
   private overflowReserved = 0;

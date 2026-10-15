@@ -36,6 +36,8 @@ export const QUEST_DEFS: readonly QuestDef[] = [
   { id: 'ridge', title: 'Open Timber Ridge', target: 1, reward: 2000, progress: (s) => flag(s.unlocked.ridge) },
   { id: 'bunkhouse', title: 'Build the crew bunkhouse', target: 1, reward: 2500, progress: (s) => flag(s.quarters.tier >= 0) },
   { id: 'logs400', title: 'Sell 400 logs to trucks and trains', target: 400, reward: 3000, progress: (s) => s.stats.logsSold },
+  { id: 'workshop', title: 'Open the furniture workshop', target: 1, reward: 3000, progress: (s) => flag(s.unlocked.workshop) },
+  { id: 'furniture60', title: 'Sell 60 chairs to the dog sleds', target: 60, reward: 4000, progress: (s) => s.stats.furnitureSold },
   { id: 'shelters20', title: 'Complete 20 shelter builds', target: 20, reward: 4000, progress: (s) => s.stats.sheltersBuilt },
   { id: 'earn150k', title: 'Earn $150,000 in total', target: 150000, reward: 6000, progress: (s) => s.stats.moneyEarned },
   { id: 'greatLodge', title: 'Build the Great Lodge', target: 1, reward: 10000, progress: (s) => flag(s.village.greatLodge.tier >= 0) },

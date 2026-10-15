@@ -95,6 +95,21 @@ const cashGeo = lazy(() => {
   return b.geometry();
 });
 
+/** Wave 8 chair: seat, four legs and a back (B6 refines the look; keep ONE mesh, origin = item centre). */
+const furnitureGeo = lazy(() => {
+  const { w, h, d } = ITEM_SIZE.furniture;
+  const leg = 0.05;
+  const seatY = -h / 2 + h * 0.45;
+  const b = new Batch().add(box(w, 0.06, d), COLORS.PLANK_WOOD, 0, seatY, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add(box(leg, h * 0.45, leg), PALETTE.barkDark, (sx * (w - leg)) / 2, -h / 2 + (h * 0.45) / 2, (sz * (d - leg)) / 2);
+  b.add(box(w, h * 0.5, 0.05), COLORS.PLANK_WOOD, 0, seatY + h * 0.25, -d / 2 + 0.025);
+  return b.geometry();
+});
+
+export function createFurniture(): THREE.Mesh {
+  return itemMesh(furnitureGeo(), 'furniture');
+}
+
 function itemMesh(geometry: THREE.BufferGeometry, name: string): THREE.Mesh {
   const m = new THREE.Mesh(geometry, vcMat());
   // No shadow casting: hundreds of items sit in piles late game and each caster costs a second draw call
@@ -139,6 +154,8 @@ export function createItemModel(kind: ItemKind): THREE.Mesh {
       return createCrate();
     case 'cash':
       return createCash();
+    case 'furniture':
+      return createFurniture();
   }
 }
 

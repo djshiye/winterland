@@ -28,7 +28,7 @@ import type { Upgrades } from './Upgrades';
 // ---------------------------------------------------------------------------
 
 /** log: raw small log · plank: plank bundle (made from a log at the walk-in counter) · crate · cash. */
-export type ItemKind = 'log' | 'plank' | 'crate' | 'cash';
+export type ItemKind = 'log' | 'plank' | 'crate' | 'cash' | 'furniture';
 
 /** A physical, visible item. Created/recycled only through ItemPool. */
 export interface Item {
@@ -120,6 +120,9 @@ export interface GameStats {
   sheltersBuilt: number;
   /** Upgrade levels gained (shop, level pads, crew). */
   upgradesBought: number;
+  /** Wave 8: chairs built in the workshop / sold to dog sleds. */
+  furnitureMade: number;
+  furnitureSold: number;
 }
 
 /**
@@ -203,6 +206,7 @@ export function createGameState(): GameState {
     treeFeller: false,
     truckLoader: false,
     cashTubes: false,
+    workshop: false,
   });
   return {
     phase: 'intro',
@@ -221,6 +225,8 @@ export function createGameState(): GameState {
       trucksServed: 0,
       sheltersBuilt: 0,
       upgradesBought: 0,
+      furnitureMade: 0,
+      furnitureSold: 0,
     },
     upgrades: {
       carry: 0,
@@ -239,6 +245,8 @@ export function createGameState(): GameState {
       cashTubes: 0,
       pineHauler: 0,
       pineContracts: 0,
+      workshop: 0,
+      furnitureQuality: 0,
     },
     village: {
       revealed: false,
@@ -261,7 +269,7 @@ export function createGameState(): GameState {
 // Events
 // ---------------------------------------------------------------------------
 
-export type Buyer = 'customer' | 'tricycle' | 'truck' | 'train';
+export type Buyer = 'customer' | 'tricycle' | 'truck' | 'train' | 'sled';
 export type LogSource = 'player' | 'harvester' | 'megaSaw';
 
 /** Event name → payload. Emitted via ctx.events. Vectors in payloads are transient: copy if kept. */

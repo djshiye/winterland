@@ -12,7 +12,7 @@ import type { GameContext, Item, ItemKind } from '../core/types';
 
 export class ItemPool {
   private nextId = 1;
-  private readonly free: Record<ItemKind, Item[]> = { log: [], plank: [], crate: [], cash: [] };
+  private readonly free: Record<ItemKind, Item[]> = { log: [], plank: [], crate: [], cash: [], furniture: [] };
   private readonly live = new Set<Item>();
 
   constructor(readonly ctx: GameContext) {}

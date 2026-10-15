@@ -48,6 +48,10 @@
     deck: mid(LAYOUT.ridge.deck.zone),
     platform: mid(LAYOUT.ridge.platform.playerZone),
     platformCash: mid(LAYOUT.ridge.platformCash.zone),
+    workshopFeed: mid(LAYOUT.ridge.workshop.hopper.zone),
+    workshopBench: mid(LAYOUT.ridge.workshop.bench.zone),
+    sled: mid(LAYOUT.ridge.sledCounter.playerZone),
+    sledCash: mid(LAYOUT.ridge.sledCash.zone),
   };
 
   // --- timeline + milestones ---------------------------------------------------------------------------------
@@ -261,6 +265,12 @@
         return;
       }
     }
+    // 2a. Furniture in hand goes to the dog sleds.
+    const sledCounter = level.sledCounter;
+    if (count(arms, 'furniture') > 0 && sledCounter && room(sledCounter.pile)) {
+      act('deliver:furniture', spots.sled, 4, () => count(arms, 'furniture') === 0 || !room(sledCounter.pile));
+      return;
+    }
     // 2. Crates in hand go to the trikes.
     const se = level.seCounter;
     if (count(arms, 'crate') > 0 && se && room(se.pile)) {
@@ -281,6 +291,7 @@
       [level.seCash, spots.seCash],
       [level.truckCash, spots.truckCash],
       [level.platformCash, spots.platformCash],
+      [level.sledCash, spots.sledCash],
     ];
     const collect = (min) => {
       for (const [pile, spot] of cashSpots) {
@@ -298,7 +309,9 @@
     const drop = (name, spot, pile) => act(name, spot, 4, () => count(arms, 'log') === 0 || !room(pile));
     const platform = level.platformCounter;
     if (count(arms, 'log') > 0) {
-      // Trains pay the most per log; the walk across the ridge is the price.
+      // Furniture pays the most per log, then trains; the walk across the ridge is the price.
+      const ws = level.workshop;
+      if (ws && room(ws.input) && count(ws.input) < 10) return drop('deliver:workshop', spots.workshopFeed, ws.input);
       if (platform && room(platform.pile) && count(platform.pile) < 10) return drop('deliver:platform', spots.platform, platform.pile);
       if (truck && room(truck.pile) && count(truck.pile) < 12) return drop('deliver:truck', spots.truck, truck.pile);
       if (proc && !s.unlocked.eastConveyor && room(proc.input) && count(walkIn.pile) >= 6) return drop('deliver:processor', spots.feed, proc.input);
@@ -312,9 +325,16 @@
     const fetchLogs = () => act('fetch:logs', spots.pickup, 4, () => held(arms) >= arms.capacity || count(dz, 'log') === 0);
     const logsReady = count(dz, 'log') >= 4 && held(arms) < arms.capacity;
     if (truck && count(truck.pile) < 6 && logsReady && !level.truckLoader) return fetchLogs();
+    // 7a. Chairs from the workshop bench to the sleds.
+    const wshop = level.workshop;
+    if (wshop && count(wshop.output, 'furniture') >= 3 && sledCounter && room(sledCounter.pile) && held(arms) < arms.capacity) {
+      act('fetch:furniture', spots.workshopBench, 4, () => held(arms) >= arms.capacity || count(wshop.output, 'furniture') === 0);
+      return;
+    }
     // 7b. Pine logs from the ridge deck to the train (until the pine hauler does it).
     const deck = level.treeFeller && level.treeFeller.deck;
-    if (platform && count(deck, 'log') >= 4 && count(platform.pile) < 6 && held(arms) < arms.capacity && !up.isHired('pineHauler')) {
+    const workshopHungry = !!wshop && count(wshop.input) < 4;
+    if (count(deck, 'log') >= 4 && held(arms) < arms.capacity && (workshopHungry || (platform && count(platform.pile) < 6 && !up.isHired('pineHauler')))) {
       act('fetch:pine', spots.deck, 4, () => held(arms) >= arms.capacity || count(deck, 'log') === 0);
       return;
     }

@@ -14,6 +14,7 @@ import type { GameContext, ItemKind, PadId } from '../core/types';
 import type { Pile } from '../items/Pile';
 import { Crew } from '../npc/Crew';
 import { CustomerQueue } from '../npc/CustomerQueue';
+import { SledQueue } from '../npc/SledQueue';
 import { TrainQueue } from '../npc/TrainQueue';
 import { TricycleQueue } from '../npc/TricycleQueue';
 import { TruckQueue } from '../npc/TruckQueue';
@@ -32,6 +33,7 @@ import { Processor } from '../stations/Processor';
 import { ShopMat } from '../stations/ShopMat';
 import { TreeFeller } from '../stations/TreeFeller';
 import { TruckLoader } from '../stations/TruckLoader';
+import { Workshop } from '../stations/Workshop';
 import { UpgradePad } from '../stations/UpgradePad';
 import { Village } from '../village/Village';
 
@@ -68,6 +70,10 @@ export class Level {
   treeFeller: TreeFeller | null = null;
   truckLoader: TruckLoader | null = null;
   cashTubes: CashTubes | null = null;
+  workshop: Workshop | null = null;
+  sledCounter: Counter | null = null;
+  sledCash: CashPile | null = null;
+  sleds: SledQueue | null = null;
 
   /** Pads whose station exists (built live, or at once from a restored state). */
   private readonly built = new Set<PadId>();
@@ -137,6 +143,8 @@ export class Level {
     this.treeFeller?.update(dt);
     this.truckLoader?.update(dt);
     this.cashTubes?.update(dt);
+    this.workshop?.update(dt);
+    this.sleds?.update(dt);
     this.shopMat.update(dt);
     this.village.update(dt);
     this.crew.update(dt);
@@ -205,12 +213,40 @@ export class Level {
         this.cashTubes = new CashTubes(this.ctx, { piles: () => this.cashPiles() });
         this.cashTubes.build(instant);
         break;
+      case 'workshop':
+        this.buildWorkshop(instant);
+        break;
     }
   }
 
   /** Every cash pile that exists right now. */
   cashPiles(): CashPile[] {
-    return [this.walkInCash, this.seCash, this.truckCash, this.platformCash].filter((p): p is CashPile => p !== null);
+    return [this.walkInCash, this.seCash, this.truckCash, this.platformCash, this.sledCash].filter((p): p is CashPile => p !== null);
+  }
+
+  /** Wave 8: the furniture workshop on the ridge, the sled counter + cash pile and the dog sleds. */
+  private buildWorkshop(instant: boolean): void {
+    const ctx = this.ctx;
+    if (!this.ctx.state.unlocked.ridge) this.pads.ridge.forceUnlock(); // its pad only appears on the open ridge
+    this.workshop = new Workshop(ctx);
+    this.workshop.build(instant);
+    const sc = LAYOUT.ridge.sledCounter;
+    this.sledCounter = new Counter(ctx, {
+      id: 'counter:sled',
+      x: sc.x,
+      z: sc.z,
+      length: sc.length,
+      depth: sc.depth,
+      height: sc.height,
+      rotationY: sc.rotationY,
+      accepts: 'furniture',
+      grid: sc.grid,
+      playerZone: sc.playerZone,
+    });
+    this.sledCounter.appear(instant);
+    const cash = LAYOUT.ridge.sledCash;
+    this.sledCash = new CashPile(ctx, { id: 'pile:sledCash', x: cash.x, z: cash.z, grid: cash.grid, zone: cash.zone });
+    this.sleds = new SledQueue(ctx, { counter: this.sledCounter, cash: this.sledCash });
   }
 
   /** Timber Ridge opens: gate + walkable land, rail platform + trains, bunkhouse pad. */
@@ -318,6 +354,8 @@ export class Level {
         return out.set(LAYOUT.ridge.deck.x, 0, LAYOUT.ridge.deck.z);
       case 'truckLoader':
         return out.set(PADS.truckLoader.x, 0, PADS.truckLoader.z);
+      case 'workshop':
+        return out.set(LAYOUT.ridge.workshop.x, 0, LAYOUT.ridge.workshop.z);
       case 'cashTubes':
         return out.set(9.1, 0, -5.6); // the receiver tower (stations/CashTubes.ts TOWER)
     }
@@ -350,14 +388,19 @@ export class Level {
         deck: (this.treeFeller?.deck.total ?? 0) + crew.carried('pineHauler', 'log'),
         // Logs on a loading train go back onto the platform counter.
         platform: (this.platformCounter?.pile.total ?? 0) + (this.trains?.loadedLogs ?? 0),
+        workshopIn: this.workshop?.input.total ?? 0,
+        // Furniture on a loading sled goes back onto the sled counter.
+        workshopOut: this.workshop?.output.total ?? 0,
+        sled: (this.sledCounter?.pile.total ?? 0) + (this.sleds?.loadedPieces ?? 0),
       },
       cash: {
         walkIn: this.walkInCash.value + crew.carriedValue('cashier'),
         se: this.seCash?.value ?? 0,
         truck: this.truckCash?.value ?? 0,
         platform: this.platformCash?.value ?? 0,
+        sled: this.sledCash?.value ?? 0,
       },
-      arms: { log: arms.count('log'), crate: arms.count('crate') },
+      arms: { log: arms.count('log'), crate: arms.count('crate'), furniture: arms.count('furniture') },
     };
   }
 
@@ -377,6 +420,12 @@ export class Level {
     if (w.cash.se > 0) this.seCash?.restoreValue(w.cash.se);
     if (w.cash.truck > 0) this.truckCash?.restoreValue(w.cash.truck);
     if (w.cash.platform > 0) this.platformCash?.restoreValue(w.cash.platform);
+    if (this.workshop) {
+      fillPile(this.workshop.input, 'log', w.piles.workshopIn);
+      fillPile(this.workshop.output, 'furniture', w.piles.workshopOut);
+    }
+    if (this.sledCounter) fillPile(this.sledCounter.pile, 'furniture', w.piles.sled);
+    if (w.cash.sled > 0) this.sledCash?.restoreValue(w.cash.sled);
     const arms = this.ctx.player.arms;
     const add = (kind: ItemKind, n: number) => {
       for (let i = 0; i < n; i++) {
@@ -389,6 +438,7 @@ export class Level {
     };
     add('log', w.arms.log);
     add('crate', w.arms.crate);
+    add('furniture', w.arms.furniture);
   }
 
   forceUnlock(id: PadId): void {
@@ -415,6 +465,10 @@ export class Level {
       deck: this.treeFeller?.deck.count() ?? null,
       platformCounter: this.platformCounter?.pile.count() ?? null,
       platformCash: this.platformCash?.value ?? null,
+      workshopIn: this.workshop?.input.count() ?? null,
+      workshopOut: this.workshop?.output.count() ?? null,
+      sledCounter: this.sledCounter?.pile.count() ?? null,
+      sledCash: this.sledCash?.value ?? null,
       standingPines: this.ridge.trees.filter((t) => t.standing).length,
       quartersTier: this.ctx.state.quarters.tier,
       padsRemaining: remaining,

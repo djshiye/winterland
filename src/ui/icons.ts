@@ -147,6 +147,13 @@ const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
       <circle cx="35" cy="33" r="7.5" fill="#ffd84a"/>
       <path d="M31.5 33l2.6 2.8 4.4-5" fill="none" stroke="#c97a10" stroke-width="2.6"/>
     </g>`),
+  // wave 8 placeholders (the UI builder draws real ones)
+  get workshop() {
+    return UPGRADE_ICONS.processor;
+  },
+  get furnitureQuality() {
+    return UPGRADE_ICONS.plankQuality;
+  },
 };
 
 export function upgradeIcon(id: UpgradeIdConst): string {

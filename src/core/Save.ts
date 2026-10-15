@@ -24,6 +24,10 @@ export interface WorldSnapshot {
     /** Timber Ridge log deck and rail platform (wave 7; 0 in older saves). */
     deck: number;
     platform: number;
+    /** Wave 8 furniture workshop (hopper logs, bench furniture) and sled counter (0 in older saves). */
+    workshopIn: number;
+    workshopOut: number;
+    sled: number;
   };
   /** Dollars in each cash pile. */
   cash: {
@@ -31,8 +35,9 @@ export interface WorldSnapshot {
     se: number;
     truck: number;
     platform: number;
+    sled: number;
   };
-  arms: { log: number; crate: number };
+  arms: { log: number; crate: number; furniture: number };
 }
 
 export interface SaveData {
@@ -184,9 +189,9 @@ export class SalesMeter {
 }
 
 const EMPTY_WORLD: WorldSnapshot = {
-  piles: { dropZone: 0, walkIn: 0, hopper: 0, bench: 0, se: 0, truck: 0, deck: 0, platform: 0 },
-  cash: { walkIn: 0, se: 0, truck: 0, platform: 0 },
-  arms: { log: 0, crate: 0 },
+  piles: { dropZone: 0, walkIn: 0, hopper: 0, bench: 0, se: 0, truck: 0, deck: 0, platform: 0, workshopIn: 0, workshopOut: 0, sled: 0 },
+  cash: { walkIn: 0, se: 0, truck: 0, platform: 0, sled: 0 },
+  arms: { log: 0, crate: 0, furniture: 0 },
 };
 
 /**
@@ -226,9 +231,12 @@ export function sanitizeWorld(w: unknown): WorldSnapshot {
       truck: n(piles.truck),
       deck: n(piles.deck),
       platform: n(piles.platform),
+      workshopIn: n(piles.workshopIn),
+      workshopOut: n(piles.workshopOut),
+      sled: n(piles.sled),
     },
-    cash: { walkIn: n(cash.walkIn), se: n(cash.se), truck: n(cash.truck), platform: n(cash.platform) },
-    arms: { log: n(arms.log), crate: n(arms.crate) },
+    cash: { walkIn: n(cash.walkIn), se: n(cash.se), truck: n(cash.truck), platform: n(cash.platform), sled: n(cash.sled) },
+    arms: { log: n(arms.log), crate: n(arms.crate), furniture: n(arms.furniture) },
   };
 }
 
