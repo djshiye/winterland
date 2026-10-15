@@ -349,13 +349,15 @@ export class SettingsPanel {
     const backup = h('button', 'wl-btn wl-btn-green', 'Back up save');
     backup.type = 'button';
     onTap(backup, () => {
-      if (exportSave()) {
-        ctx.audio.play('chime');
-        this.setSaveMsg('Save downloaded.', false);
-      } else {
-        ctx.audio.play('click');
-        this.setSaveMsg('No save to back up yet.', true);
-      }
+      ctx.audio.play('click');
+      void exportSave().then((r) => {
+        if (r === 'saved') {
+          ctx.audio.play('chime');
+          this.setSaveMsg('Save downloaded.', false);
+        } else if (r === 'none') this.setSaveMsg('No save to back up yet.', true);
+        else if (r === 'declined') this.setSaveMsg('Backup cancelled.', true);
+        else this.setSaveMsg("Couldn't download the save.", true);
+      });
     });
     const restore = h('button', 'wl-btn wl-btn-grey', 'Restore save');
     restore.type = 'button';

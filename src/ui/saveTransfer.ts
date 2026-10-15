@@ -37,10 +37,32 @@ function readRaw(): string | null {
   }
 }
 
-/** Download the current save. Returns false (and downloads nothing) when there is no save or the download fails. */
-export function exportSave(): boolean {
+export type ExportResult = 'saved' | 'none' | 'declined' | 'failed';
+
+/** The claude.ai artifact viewer blocks plain downloads; its runtime offers `downloads.save` instead. */
+interface ArtifactRuntime {
+  use(name: 'downloads'): Promise<{ save(r: { filename: string; data: string }): Promise<unknown> } | null>;
+}
+
+/**
+ * Download the current save: 'none' when there is no save yet, 'declined' when the viewer refused the artifact
+ * viewer's prompt, 'failed' when the download could not start.
+ */
+export async function exportSave(): Promise<ExportResult> {
   const raw = readRaw();
-  if (!raw) return false;
+  if (!raw) return 'none';
+  const rt = (window as unknown as { claude?: ArtifactRuntime }).claude;
+  if (rt && typeof rt.use === 'function') {
+    try {
+      const dl = await rt.use('downloads');
+      if (dl) {
+        await dl.save({ filename: saveFileName(), data: raw });
+        return 'saved';
+      }
+    } catch (e) {
+      return (e as { code?: string })?.code === 'declined' ? 'declined' : 'failed';
+    }
+  }
   try {
     const url = URL.createObjectURL(new Blob([raw], { type: 'application/json' }));
     const a = document.createElement('a');
@@ -52,9 +74,9 @@ export function exportSave(): boolean {
     a.remove();
     // give the browser a moment to start the download before the URL goes away
     setTimeout(() => URL.revokeObjectURL(url), 4000);
-    return true;
+    return 'saved';
   } catch {
-    return false;
+    return 'failed';
   }
 }
 
