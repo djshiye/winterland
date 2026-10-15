@@ -32,10 +32,11 @@ import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/type
 import { transferOne } from '../items/transfer';
 import type { ShopSpot } from '../town/types';
 import type { Town } from '../town/Town';
-import { BENCHES, SNOWMAN, STALLS, TREE_RING, type Spot, AMENITY_SPOTS } from '../town/spots';
+import { BENCHES, SNOWMAN, STALLS, TREE_RING, type Spot, AMENITY_SPOTS, POND_GLIDE_VIA } from '../town/spots';
 import { amenityFrame } from '../town/rules';
 import { Crowd, COAT_COLORS, GOODS_COLORS, TRIM_COLORS, type CrowdPerson } from './Crowd';
-import { NAV, OWNER_SNOWMAN, Path, insideObstacle, lotDoor, nearestHome, planPath, planTownPath, seatPoint, zoneOf } from './CrowdNav';
+import { PORTER_HOME } from './crewHelpers';
+import { NAV, OWNER_SNOWMAN, Path, ownerAmenity, insideObstacle, lotDoor, nearestHome, planPath, planTownPath, seatPoint, solidBetween, zoneOf } from './CrowdNav';
 
 // --- tuning --------------------------------------------------------------------
 const BUYER_SPEED = 2.1;
@@ -258,6 +259,8 @@ class Agent {
   ringIdx = -1;
   snowIdx = -1;
   standYaw = 0;
+  /** Seconds to the next check that the way to the current waypoint is still clear (see walkPath). */
+  navT = 0;
   approachX = 0;
   approachZ = 0;
   waveT = 0;
@@ -291,6 +294,63 @@ class Agent {
 }
 
 const pick = <T>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]!;
+
+/** The porters wait in a short line by the corridor mouth (crewHelpers PORTER_HOME, lanes up to 1.6 m off it). */
+const nearPorterPosts = (x: number, z: number): boolean => Math.hypot(x - PORTER_HOME.x, z - PORTER_HOME.z) < 2.2;
+
+/** Seconds between two checks that a walker's way to its next waypoint is still clear of solids. */
+const NAV_CHECK = 0.5;
+
+/** Metres from the end of a path within which a walker is no longer pushed aside by others (see `separate`). */
+const ARRIVE_RADIUS = 0.6;
+
+/**
+ * On the last leg and close to its end. Separation leaves these alone: several people heading for one point (the
+ * staff going home through one townhouse door) would otherwise push each other off it forever and never arrive.
+ */
+function arriving(a: Agent): boolean {
+  const p = a.path;
+  if (p.n === 0 || p.i !== p.n - 1) return false;
+  return Math.hypot(p.x[p.i]! - a.x, p.z[p.i]! - a.z) < ARRIVE_RADIUS;
+}
+
+/**
+ * Push walker `a` (moving along its yaw) away from someone at (bx, bz) closer than 0.55 m; `k` is the frame's share.
+ * A push straight back against the walking direction (two people meeting head-on in a lane) would cancel the walk
+ * and hold both on the spot, so then `a` also sidesteps to its right: two walkers meeting pass each other.
+ */
+export function separationPush(a: { x: number; z: number; yaw: number }, bx: number, bz: number, bStill: boolean, k: number): void {
+  const dx = a.x - bx;
+  const dz = a.z - bz;
+  const d2 = dx * dx + dz * dz;
+  if (d2 > 0.3 || d2 < 1e-6) return;
+  const d = Math.sqrt(d2);
+  const push = (0.55 - d) * k * (bStill ? 2 : 1);
+  const nx = dx / d;
+  const nz = dz / d;
+  a.x += nx * push;
+  a.z += nz * push;
+  const hx = Math.sin(a.yaw);
+  const hz = Math.cos(a.yaw);
+  if (nx * hx + nz * hz < -0.7) {
+    // right of the heading (yaw 0 = +Z, so right is -X)
+    a.x -= hz * push;
+    a.z += hx * push;
+  }
+}
+
+/** Where to step up to cafe stool `s` from: behind it, else beside it, whichever is clear of the solids. */
+export function cafeApproach(s: Spot, out: XZ): XZ {
+  const cafe = ownerAmenity('cafe');
+  for (const turn of [0, Math.PI / 2, -Math.PI / 2]) {
+    out.x = s.x - Math.sin(s.yaw + turn) * 0.9;
+    out.z = s.z - Math.cos(s.yaw + turn) * 0.9;
+    if (!insideObstacle(out.x, out.z, cafe)) return out;
+  }
+  out.x = s.x;
+  out.z = s.z;
+  return out;
+}
 
 export class Townsfolk {
   /** Debug: override the level-based wanderer target (null = use TOWN.wanderers). */
@@ -551,6 +611,18 @@ export class Townsfolk {
       if (!Number.isNaN(a.faceYaw)) a.yaw = dampAngle(a.yaw, a.faceYaw, 9, dt);
       return false;
     }
+    // Safety net: a walker nudged off its route (passers-by push people aside) could find a solid between itself and
+    // the next waypoint and walk straight through it. Every so often check, and re-plan to the same destination.
+    // Skaters glide across the pond on purpose.
+    a.navT -= dt;
+    if (a.navT <= 0) {
+      a.navT = NAV_CHECK;
+      if (a.act !== 'pond' && solidBetween(a.x, a.z, path.x[path.i]!, path.z[path.i]!)) {
+        const end = path.last!;
+        planTownPath(path, a.x, a.z, end.x, end.z);
+        if (path.n === 0) return false;
+      }
+    }
     const last = path.i === path.n - 1;
     const tx = path.x[path.i]!;
     const tz = path.z[path.i]!;
@@ -590,18 +662,11 @@ export class Townsfolk {
     const k = Math.min(1, 6 * dt) * 0.5;
     for (let i = 0; i < L.length; i++) {
       const a = L[i]!;
-      if (a.speed < 0.3 || (a.kind === 'staff' && a.commute === 0)) continue;
+      if (a.speed < 0.3 || (a.kind === 'staff' && a.commute === 0) || arriving(a)) continue;
       for (let j = 0; j < L.length; j++) {
         if (i === j) continue;
         const b = L[j]!;
-        const dx = a.x - b.x;
-        const dz = a.z - b.z;
-        const d2 = dx * dx + dz * dz;
-        if (d2 > 0.3 || d2 < 1e-6) continue;
-        const d = Math.sqrt(d2);
-        const push = (0.55 - d) * k * (b.speed < 0.3 ? 2 : 1);
-        a.x += (dx / d) * push;
-        a.z += (dz / d) * push;
+        separationPush(a, b.x, b.z, b.speed < 0.3, k);
       }
     }
   }
@@ -1076,7 +1141,7 @@ export class Townsfolk {
     for (let i = 0; i < 12; i++) {
       out.x = randRange(s.minX + 1.4, s.maxX - 1.4);
       out.z = randRange(s.minZ + 1.2, s.maxZ - 1.2);
-      if (!insideObstacle(out.x, out.z, 0, 0.35) && !this.nearQueue(out.x, out.z)) return;
+      if (!insideObstacle(out.x, out.z, 0, 0.35) && !this.nearQueue(out.x, out.z) && !nearPorterPosts(out.x, out.z)) return;
     }
   }
 
@@ -1259,9 +1324,11 @@ export class Townsfolk {
         // glide on to the next rim spot until the skating time is up
         const rim = amenitySpotsOf('pond');
         if (a.timer > 0 && rim.length > 1) {
+          const via = POND_GLIDE_VIA[a.amenIdx] ?? [];
           a.amenIdx = (a.amenIdx + 1) % rim.length;
           const r = rim[a.amenIdx]!;
           a.path.clear();
+          for (const v of via) a.path.push(v.x, v.z);
           a.path.push(r.x, r.z);
           a.mode = 'walk';
         } else {
@@ -1532,9 +1599,11 @@ export class Townsfolk {
     a.amenIdx = idx;
     a.standYaw = s.yaw;
     if (id === 'cafe') {
-      // approach the stool from behind, then sit facing the table
-      a.approachX = s.x - Math.sin(s.yaw) * 0.9;
-      a.approachZ = s.z - Math.cos(s.yaw) * 0.9;
+      // approach the stool from behind, then sit facing the table; a stool backing onto the big tree is approached
+      // from its side instead (from behind, the approach spot was inside the tree and the walk went through it)
+      cafeApproach(s, tmpXZ);
+      a.approachX = tmpXZ.x;
+      a.approachZ = tmpXZ.z;
       a.act = 'cafe';
       a.mode = 'walk';
       planTownPath(a.path, a.x, a.z, a.approachX, a.approachZ);
