@@ -4,11 +4,24 @@
  */
 import { describe, expect, it } from 'vitest';
 import { LAYOUT, PADS, inflate, rect, type Rect, type XZ } from '../src/config';
+import { HOME, HOME_ROUTE } from '../src/npc/crewHelpers';
 import { ROUTES, TOWER } from '../src/stations/CashTubes';
 import { TRUCK_BELT_PATH } from '../src/stations/TruckLoader';
+import { SLED_RETURN_Z } from '../src/assets/sled';
+import { WORKSHOP_BENCH_BOX, WORKSHOP_HOPPER_BOX } from '../src/stations/Workshop';
+import { TOWER_HEIGHT } from '../src/assets/ridgeMachines';
 
 const P = LAYOUT;
-const pads: Rect[] = Object.values(PADS).map((p) => rect(p.x, p.z, p.size, p.size));
+const Q = P.ridge.quarters;
+const WS = P.ridge.workshop;
+const SC = P.ridge.sledCounter;
+const PLAT = P.ridge.platform;
+const workshopBody = rect(WS.x, WS.z, WS.w, WS.d);
+const hopperBox = rect(WS.hopper.x, WS.hopper.z, WORKSHOP_HOPPER_BOX.w, WORKSHOP_HOPPER_BOX.d);
+const benchBox = rect(WS.bench.x, WS.bench.z, WORKSHOP_BENCH_BOX.w, WORKSHOP_BENCH_BOX.d);
+const sledCounterBox = rect(SC.x, SC.z, SC.length, SC.depth);
+/** Every pad tile, plus the bunkhouse construction pad (it is not in PADS). */
+const pads: Rect[] = [...Object.values(PADS).map((p) => rect(p.x, p.z, p.size, p.size)), rect(Q.pad.x, Q.pad.z, Q.padSize, Q.padSize)];
 const solids: Rect[] = [
   P.dropZone.collider,
   P.megaSaw.base,
@@ -19,6 +32,13 @@ const solids: Rect[] = [
   rect(P.walkInCounter.x, P.walkInCounter.z, 1.6, 0.6),
   rect(P.seCounter.x, P.seCounter.z, 0.6, 1.6),
   rect(TOWER.x, TOWER.z, 1.2, 1.0),
+  // wave 8 (appended: indices above are used by name in the tests below)
+  workshopBody,
+  hopperBox,
+  benchBox,
+  rect(Q.x, Q.z, Q.w, Q.d),
+  sledCounterBox,
+  rect(PLAT.x, PLAT.z, PLAT.depth, PLAT.length),
 ];
 const zones: Rect[] = [
   P.dropZone.zone,
@@ -34,6 +54,10 @@ const zones: Rect[] = [
   P.ridge.deck.zone,
   P.ridge.platform.playerZone,
   P.ridge.platformCash.zone,
+  WS.hopper.zone,
+  WS.bench.zone,
+  P.ridge.sledCounter.playerZone,
+  P.ridge.sledCash.zone,
 ];
 const routes: XZ[][] = [
   [{ x: 7, z: -5.9 }, { x: 7.4, z: -2 }, { x: 7.4, z: 0.85 }, { x: 5.95, z: 0.85 }],
@@ -44,6 +68,16 @@ const routes: XZ[][] = [
   [{ x: 7, z: -5 }, { x: 8.9, z: 4.8 }],
   [{ x: -3, z: 1.4 }, { x: -4, z: 8.6 }],
   [{ x: 5.95, z: 0.85 }, { x: 9, z: 3.4 }],
+];
+/**
+ * Ridge walking routes (npc/crewHelpers.ts): the pine hauler's trip from the cabin to its rest spot, and the deck ->
+ * platform leg, and the cashier's ridge trip. DECK_TO_PLATFORM / PAD_BYPASS are not exported: this is a copy of their
+ * points (PINE_JUNCTION, PAD_BYPASS, PLATFORM_POST), keep it in step with crewHelpers.
+ */
+const ridgeRoutes: XZ[][] = [
+  HOME_ROUTE.pineHauler,
+  [{ x: 21.4, z: -1.2 }, { x: 27.0, z: -1.2 }, { x: PLAT.playerZone.minX + 0.4, z: PLAT.z }],
+  [{ x: 21.4, z: -1.2 }, { x: 27.0, z: -1.2 }],
 ];
 const belts: XZ[][] = [
   [{ x: -4.4, z: 1.05 }, { x: -4.4, z: 9.2 }],
@@ -143,5 +177,161 @@ describe('cash tower', () => {
       expect(polyHitsRect(ring, r), JSON.stringify(r)).toBe(false);
     }
     for (const r of routes) expect(distPoly(TOWER, r)).toBeGreaterThan(1.3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave 8: furniture workshop
+// ---------------------------------------------------------------------------
+
+const overlap = (a: Rect, b: Rect): boolean => a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
+const wsZones = [WS.hopper.zone, WS.bench.zone];
+const wsSolids = [workshopBody, hopperBox, benchBox];
+const workshopPad = PADS.workshop;
+const workshopPadRect = rect(workshopPad.x, workshopPad.z, workshopPad.size, workshopPad.size);
+/** The other solids / zones / pads (everything that is not part of the workshop itself). */
+const sameRect = (a: Rect, b: Rect): boolean => a.minX === b.minX && a.maxX === b.maxX && a.minZ === b.minZ && a.maxZ === b.maxZ;
+const others = (list: readonly Rect[], own: readonly Rect[]): Rect[] => list.filter((r) => !own.some((o) => sameRect(o, r)));
+
+describe('furniture workshop footprint', () => {
+  it('stands on the open ridge (inside the walkable rect) with its hopper and bench', () => {
+    const walk = P.ridge.walk[1]!;
+    for (const r of [workshopBody, hopperBox, benchBox, ...wsZones]) {
+      expect(r.minX, JSON.stringify(r)).toBeGreaterThan(walk.minX);
+      expect(r.maxX, JSON.stringify(r)).toBeLessThan(walk.maxX);
+      expect(r.minZ, JSON.stringify(r)).toBeGreaterThan(walk.minZ);
+      expect(r.maxZ, JSON.stringify(r)).toBeLessThan(walk.maxZ);
+    }
+  });
+  it('the cabin, hopper box and bench box do not overlap each other or any other collider', () => {
+    for (const a of wsSolids) {
+      for (const b of others(solids, wsSolids)) expect(overlap(a, b), `${JSON.stringify(a)} vs ${JSON.stringify(b)}`).toBe(false);
+    }
+    expect(overlap(workshopBody, hopperBox)).toBe(false);
+    expect(overlap(workshopBody, benchBox)).toBe(false);
+  });
+  it('keeps a walkable gap (> 2 x player radius) around the cabin from the other colliders, except the sled counter side', () => {
+    // north: the pad lane; south: the corridor to the sled counter
+    for (const b of others(solids, wsSolids)) {
+      const gx = Math.max(b.minX - workshopBody.maxX, workshopBody.minX - b.maxX);
+      const gz = Math.max(b.minZ - workshopBody.maxZ, workshopBody.minZ - b.maxZ);
+      expect(Math.max(gx, gz), JSON.stringify(b)).toBeGreaterThan(0.72);
+    }
+  });
+  it('the piles sit on their trough / bench: logs inside the hopper box, chairs inside the bench box', () => {
+    const hg = WS.hopper.grid;
+    const hx = (hg.cols * hg.spacing.x) / 2 - hg.spacing.x / 2 + 0.3; // log half length 0.3
+    const hz = (hg.rows * hg.spacing.z) / 2 - hg.spacing.z / 2 + 0.12;
+    expect(hx).toBeLessThanOrEqual(WORKSHOP_HOPPER_BOX.w / 2 + 1e-9);
+    expect(hz).toBeLessThanOrEqual(WORKSHOP_HOPPER_BOX.d / 2 + 1e-9);
+    const bg = WS.bench.grid;
+    const bx = (bg.cols * bg.spacing.x) / 2 - bg.spacing.x / 2 + 0.21;
+    const bz = (bg.rows * bg.spacing.z) / 2 - bg.spacing.z / 2 + 0.21;
+    expect(bx).toBeLessThanOrEqual(WORKSHOP_BENCH_BOX.w / 2 + 1e-9);
+    expect(bz).toBeLessThanOrEqual(WORKSHOP_BENCH_BOX.d / 2 + 1e-9);
+  });
+});
+
+describe('workshop zones', () => {
+  it('do not overlap each other or any other zone, collider (except their own trough / bench) or pad', () => {
+    for (const z of wsZones) {
+      for (const o of others(zones, wsZones)) expect(overlap(z, o), `${JSON.stringify(z)} vs zone ${JSON.stringify(o)}`).toBe(false);
+      for (const pd of pads) expect(overlap(z, pd), `${JSON.stringify(z)} vs pad ${JSON.stringify(pd)}`).toBe(false);
+      expect(overlap(z, workshopBody)).toBe(false);
+      for (const c of others(solids, wsSolids)) expect(overlap(z, c), `${JSON.stringify(z)} vs ${JSON.stringify(c)}`).toBe(false);
+    }
+    expect(overlap(wsZones[0]!, wsZones[1]!)).toBe(false);
+  });
+  it('the hopper zone touches the hopper and the bench zone touches the bench, and each has standing room outside every collider', () => {
+    const pl = 0.36; // PLAYER.radius
+    const reachable = (z: Rect): number => {
+      let n = 0;
+      for (let x = z.minX; x <= z.maxX; x += 0.05) {
+        for (let zz = z.minZ; zz <= z.maxZ; zz += 0.05) {
+          if (![...solids].some((c) => inRect(inflate(c, pl), { x, z: zz }))) n++;
+        }
+      }
+      return n;
+    };
+    expect(reachable(WS.hopper.zone)).toBeGreaterThan(40);
+    expect(reachable(WS.bench.zone)).toBeGreaterThan(40);
+    // close enough to the pile: the zone edge is within 0.4 m of the trough / bench
+    expect(Math.abs(WS.hopper.zone.maxX - hopperBox.minX)).toBeLessThan(0.4);
+    expect(Math.abs(WS.bench.zone.minX - benchBox.maxX)).toBeLessThan(0.4);
+  });
+  it('no crew / NPC post lies inside (or within 0.3 m of) a workshop zone, and no route point lies inside one', () => {
+    // posts = where a helper rests (a pine hauler on the hopper zone would be walked into by the player)
+    for (const pt of Object.values(HOME)) {
+      for (const z of wsZones) expect(inRect(inflate(z, 0.3), pt), `post ${JSON.stringify(pt)} near zone ${JSON.stringify(z)}`).toBe(false);
+    }
+    for (const pt of [...Object.values(HOME_ROUTE).flat(), ...ridgeRoutes.flat()]) {
+      for (const z of wsZones) expect(inRect(z, pt), `waypoint ${JSON.stringify(pt)} in zone ${JSON.stringify(z)}`).toBe(false);
+    }
+  });
+});
+
+describe('workshop pad', () => {
+  it('is a 2 m tile in front of the site that overlaps no other pad, collider or zone', () => {
+    expect(workshopPad.id).toBe('workshop');
+    for (const pd of others(pads, [workshopPadRect])) expect(overlap(inflate(workshopPadRect, 0.2), pd), JSON.stringify(pd)).toBe(false);
+    for (const c of solids) expect(overlap(inflate(workshopPadRect, 0.2), c), JSON.stringify(c)).toBe(false);
+    for (const z of zones) expect(overlap(workshopPadRect, z), JSON.stringify(z)).toBe(false);
+  });
+  it('is walkable ridge ground and reachable from every side it is entered from (no collider within a player width)', () => {
+    const walk = P.ridge.walk[1]!;
+    expect(inRect(walk, { x: workshopPad.x, z: workshopPad.z })).toBe(true);
+    const gapToCabin = workshopBody.minZ - workshopPadRect.maxZ;
+    expect(gapToCabin).toBeGreaterThan(0.2);
+  });
+  it('is not crossed by the crew routes (the pine hauler would walk over the tile): 0.25 m clearance', () => {
+    for (const r of [...routes, ...ridgeRoutes]) expect(polyHitsRect(r, inflate(workshopPadRect, 0.25)), JSON.stringify(r)).toBe(false);
+  });
+  it('the crew routes stay out of the cabin, hopper and bench colliders', () => {
+    for (const r of [...routes, ...ridgeRoutes]) {
+      for (const c of wsSolids) expect(polyHitsRect(r, inflate(c, 0.2)), `${JSON.stringify(r)} vs ${JSON.stringify(c)}`).toBe(false);
+    }
+  });
+});
+
+describe('sled cash tube', () => {
+  const route = ROUTES['pile:sledCash']!;
+  const cash = P.ridge.sledCash;
+  const laneZ = P.ridge.sledLane.z;
+  const path: XZ[] = [{ x: cash.x, z: cash.z }, ...route.via, TOWER];
+  it('exists, with its own height between the other tubes and the tower cap', () => {
+    expect(route).toBeDefined();
+    const heights = Object.entries(ROUTES).filter(([id]) => id !== 'pile:sledCash').map(([, r]) => r.height);
+    for (const h of heights) expect(Math.abs(h - route.height)).toBeGreaterThanOrEqual(0.29);
+    expect(route.height).toBeLessThan(TOWER_HEIGHT - 0.2);
+  });
+  it('runs overhead away from the sled lane: no segment crosses the lane corridor and no post is within 1.2 m of it', () => {
+    for (const p of route.posts) expect(Math.abs(p.z - laneZ), JSON.stringify(p)).toBeGreaterThanOrEqual(1.2);
+    for (const p of path) expect(Math.abs(p.z - laneZ), JSON.stringify(p)).toBeGreaterThanOrEqual(1.2);
+  });
+  it('stays clear of the workshop cabin, its hopper and bench, and the walkers: posts and path', () => {
+    for (const c of wsSolids) {
+      expect(polyHitsRect(path, inflate(c, 0.5)), JSON.stringify(c)).toBe(false);
+      for (const p of route.posts) expect(inRect(inflate(c, 0.5), p), `${JSON.stringify(p)} vs ${JSON.stringify(c)}`).toBe(false);
+    }
+    for (const r of ridgeRoutes) for (const p of route.posts) expect(distPoly(p, r), JSON.stringify(p)).toBeGreaterThan(0.8);
+  });
+  it('starts at the pile: its first post is just outside the pile zone and the spans are <= 9 m', () => {
+    const first = route.posts[0]!;
+    expect(inRect(cash.zone, first)).toBe(false);
+    expect(Math.hypot(first.x - cash.x, first.z - cash.z)).toBeLessThan(2.0);
+    for (let i = 0; i < route.posts.length - 1; i++) {
+      const a = route.posts[i]!;
+      const b = route.posts[i + 1]!;
+      expect(Math.hypot(a.x - b.x, a.z - b.z), `${JSON.stringify(a)} -> ${JSON.stringify(b)}`).toBeLessThanOrEqual(9);
+    }
+  });
+  it('every tube post in the whole network keeps >= 0.7 m from the sled lane and its return line', () => {
+    for (const [id, r] of Object.entries(ROUTES)) {
+      for (const p of r.posts) {
+        if (p.x < 15) continue; // the sled only runs on the ridge
+        expect(Math.abs(p.z - laneZ), `${id} ${JSON.stringify(p)} lane`).toBeGreaterThanOrEqual(0.7);
+        expect(Math.abs(p.z - SLED_RETURN_Z), `${id} ${JSON.stringify(p)} return`).toBeGreaterThanOrEqual(0.7);
+      }
+    }
   });
 });

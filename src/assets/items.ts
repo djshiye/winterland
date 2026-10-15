@@ -95,14 +95,42 @@ const cashGeo = lazy(() => {
   return b.geometry();
 });
 
-/** Wave 8 chair: seat, four legs and a back (B6 refines the look; keep ONE mesh, origin = item centre). */
+/**
+ * Wave 8 chair (the workshop's product): a cosy ladder-back chair in the ITEM_SIZE.furniture box (0.42 × 0.5 × 0.42,
+ * origin = centre, back toward -Z). Warm PLANK_WOOD seat and back slats, darker turned legs with a stretcher rail, and
+ * a festive red cushion so a pile of chairs reads at a glance. Everything stays inside the box, so chairs stack
+ * exactly stackHeight (= h) apart without interpenetrating.
+ */
 const furnitureGeo = lazy(() => {
   const { w, h, d } = ITEM_SIZE.furniture;
-  const leg = 0.05;
-  const seatY = -h / 2 + h * 0.45;
-  const b = new Batch().add(box(w, 0.06, d), COLORS.PLANK_WOOD, 0, seatY, 0);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add(box(leg, h * 0.45, leg), PALETTE.barkDark, (sx * (w - leg)) / 2, -h / 2 + (h * 0.45) / 2, (sz * (d - leg)) / 2);
-  b.add(box(w, h * 0.5, 0.05), COLORS.PLANK_WOOD, 0, seatY + h * 0.25, -d / 2 + 0.025);
+  const y0 = -h / 2;
+  const seatTop = y0 + 0.27;
+  const seatT = 0.045;
+  const lx = w / 2 - 0.035; // leg centre offset
+  const lzF = d / 2 - 0.04;
+  const lzB = -d / 2 + 0.04;
+  const b = new Batch();
+  // legs: front pair stops under the seat, the rear pair runs up into the back posts
+  for (const sx of [-1, 1]) {
+    b.add(cyl(0.028, seatTop - seatT - y0, 8), PALETTE.barkDark, sx * lx, (y0 + seatTop - seatT) / 2, lzF);
+    b.add(cyl(0.026, h, 8), PALETTE.barkDark, sx * lx, 0, lzB);
+    b.add(cyl(0.034, 0.03, 8), PALETTE.fenceDark, sx * lx, y0 + 0.015, lzF); // little foot rings
+    b.add(cyl(0.034, 0.03, 8), PALETTE.fenceDark, sx * lx, y0 + 0.015, lzB);
+    // rail between the front and rear leg on each side
+    b.add(box(0.024, 0.024, lzF - lzB), PALETTE.fenceDark, sx * lx, y0 + 0.11, (lzF + lzB) / 2);
+  }
+  // rail between the front legs and between the rear legs
+  b.add(box(2 * lx, 0.024, 0.024), PALETTE.fenceDark, 0, y0 + 0.11, lzF);
+  b.add(box(2 * lx, 0.024, 0.024), PALETTE.fenceDark, 0, y0 + 0.11, lzB);
+  // seat board + red cushion
+  b.add(box(w - 0.02, seatT, d - 0.02), COLORS.PLANK_WOOD, 0, seatTop - seatT / 2, 0);
+  b.add(box(w - 0.1, 0.045, d - 0.1), 0xd9453d, 0, seatTop + 0.0225, 0.01);
+  b.add(box(w - 0.14, 0.012, d - 0.14), 0xf06a5f, 0, seatTop + 0.051, 0.01);
+  // back: two slats between the posts + a capped top rail
+  const backZ = lzB;
+  b.add(box(2 * lx, 0.07, 0.035), COLORS.PLANK_WOOD, 0, seatTop + 0.1, backZ);
+  b.add(box(2 * lx, 0.055, 0.03), COLORS.PLANK_WOOD, 0, seatTop + 0.17, backZ);
+  b.add(box(w - 0.02, 0.06, 0.05), COLORS.LOG_CORE, 0, h / 2 - 0.03, backZ);
   return b.geometry();
 });
 
@@ -164,4 +192,5 @@ export const itemCatalog: Record<string, () => THREE.Object3D> = {
   plank: createPlankBundle,
   crate: createCrate,
   cash: createCash,
+  furniture: createFurniture,
 };

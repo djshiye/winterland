@@ -8,11 +8,15 @@
  * - TRUCK LOADER extras: the hopper at the belt's start and the buffer at its end (the belt itself is the shared
  *   roller conveyor model).
  *
+ * - WORKSHOP: the wave-8 furniture workshop, a log cabin with an open front, a table saw inside, a hopper trough on
+ *   the west side and a bench on the east side (chimney on the roof).
+ *
  * Draw-call notes: the feller is 8 meshes (chassis, turret, upper arm, forearm, blade, beacon, log bundle, badge),
- * the tower 3 (body, lamp, badge), the loader extras 1.
+ * the tower 3 (body, lamp, badge), the loader extras 1, the workshop 3 (building + hopper + bench in one mesh, saw
+ * blade, badge) = 5 with shadows.
  */
 import * as THREE from 'three';
-import { COLORS, PALETTE, UPGRADES, type XZ } from '../config';
+import { COLORS, LAYOUT, PALETTE, UPGRADES, type XZ } from '../config';
 import { Batch } from '../render/batch';
 import { geo, mesh, toonUnique } from '../render/materials';
 import { createLevelBadge, createSawBlade, type LevelBadge } from './machines';
@@ -205,6 +209,215 @@ export function createTreeFeller(): TreeFellerModel {
 }
 
 // ---------------------------------------------------------------------------
+// WORKSHOP (furniture)
+// ---------------------------------------------------------------------------
+
+export interface WorkshopModel {
+  /** Origin = floor under the cabin centre (LAYOUT.ridge.workshop x/z). Holds the building, hopper, bench, blade, badge. */
+  root: THREE.Group;
+  /** Static shell (squash / shudder target). */
+  body: THREE.Group;
+  /** Circular saw: spin with rotation.z (vertical disc, axis along Z, its plane contains the X travel line). */
+  blade: THREE.Group;
+  badge: LevelBadge;
+  /** Local points (relative to the cabin centre): hatch mouth, saw cut point, chair exit and chimney mouth. */
+  mouth: THREE.Vector3;
+  saw: THREE.Vector3;
+  exit: THREE.Vector3;
+  chimney: THREE.Vector3;
+}
+
+/** Heights the stations rely on: pile base planes of the hopper tray and the bench, and the saw table top. */
+export const WORKSHOP_HOPPER_Y = 0.45;
+export const WORKSHOP_BENCH_Y = 0.6;
+export const WORKSHOP_TABLE_Y = 0.6;
+
+export function createWorkshop(): WorkshopModel {
+  const W = LAYOUT.ridge.workshop;
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const b = new Batch();
+
+  const HW = W.w / 2;
+  const HD = W.d / 2;
+  const FLOOR = 0.1;
+  const R = 0.125; // wall log radius
+  const PITCH = 0.245;
+  const courseY = (i: number): number => FLOOR + R + i * PITCH;
+  const courseTop = (i: number): number => courseY(i) + R;
+  const BARK_A = COLORS.LOG_BARK;
+  const BARK_B = 0xb35f22;
+  const CORE = COLORS.LOG_CORE;
+  const logX = (i: number, z: number, len: number, x: number): void => {
+    cylX(b, i % 2 ? BARK_B : BARK_A, R, len, x, courseY(i), z, 10);
+    for (const s of [-1, 1]) cylX(b, CORE, R * 0.82, 0.03, x + (s * len) / 2, courseY(i), z, 10);
+  };
+  const logZ = (i: number, x: number, z0: number, z1: number): void => {
+    const len = z1 - z0;
+    b.add(geo.cylinder(1, 1, 1, 10), i % 2 ? BARK_B : BARK_A, x, courseY(i), (z0 + z1) / 2, { sx: R, sy: len, sz: R, rx: Math.PI / 2 });
+    for (const s of [-1, 1]) b.add(geo.cylinder(1, 1, 1, 10), CORE, x, courseY(i), s > 0 ? z1 : z0, { sx: R * 0.82, sy: 0.03, sz: R * 0.82, rx: Math.PI / 2 });
+  };
+
+  // --- floor deck ---
+  box(b, COLORS.FENCE_WOOD, W.w, FLOOR, W.d, 0, FLOOR / 2, 0);
+  for (let i = 1; i < 6; i++) box(b, PALETTE.fenceDark, 0.03, 0.012, W.d - 0.04, -HW + (i * W.w) / 6, FLOOR + 0.002, 0);
+
+  // --- roof geometry (shed roof over the rear 60 % (its front edge stays well behind the saw, so the camera sees the blade under the eave), sloping down toward the open front) ---
+  const SLOPE = 0.26;
+  const THETA = Math.atan(SLOPE);
+  const underside = (z: number): number => 3.0 - SLOPE * (z + 1.15);
+  const FRONT_POST_Z = 0.45;
+
+  // --- walls ---
+  const nBack = 11;
+  for (let i = 0; i < nBack; i++) logX(i, -HD + R, W.w + 0.06, 0);
+  // side walls: courses 2 and 3 are the hatches for z > -0.4 (log in on the west, chair out on the east)
+  for (const sx of [-1, 1]) {
+    const x = sx * (HW - R);
+    for (let i = 0; i < 12; i++) {
+      const top = courseTop(i);
+      const zEnd = Math.min(FRONT_POST_Z, (3.0 - top) / SLOPE - 1.15);
+      if (zEnd < -0.55) continue;
+      if (i === 2 || i === 3) logZ(i, x, -HD + 2 * R, -0.4);
+      else logZ(i, x, -HD + 2 * R, zEnd);
+    }
+  }
+  // top plate under the roof at the back
+  box(b, PALETTE.barkDark, W.w - 0.1, 0.14, 0.3, 0, underside(-0.85) - 0.07, -0.85);
+  // door-frame style posts at the open front and a header log
+  for (const sx of [-1, 1]) {
+    box(b, PALETTE.barkDark, 0.24, underside(FRONT_POST_Z) - FLOOR, 0.24, sx * (HW - 0.12), FLOOR + (underside(FRONT_POST_Z) - FLOOR) / 2, FRONT_POST_Z);
+    // jamb braces
+    box(b, PALETTE.fenceDark, 0.1, 0.5, 0.1, sx * (HW - 0.45), underside(FRONT_POST_Z) - 0.38, FRONT_POST_Z, { rz: -sx * 0.7 });
+  }
+  cylX(b, BARK_A, 0.11, W.w - 0.1, 0, underside(FRONT_POST_Z) - 0.14, FRONT_POST_Z + 0.02, 10);
+  for (const s of [-1, 1]) cylX(b, CORE, 0.09, 0.03, (s * (W.w - 0.1)) / 2, underside(FRONT_POST_Z) - 0.14, FRONT_POST_Z + 0.02, 10);
+  // chair plaque on the header: dark board with a yellow chair icon
+  const PZ = FRONT_POST_Z + 0.15;
+  const PY = underside(FRONT_POST_Z) - 0.14;
+  box(b, PALETTE.rubber, 0.62, 0.24, 0.04, 0, PY, PZ);
+  box(b, COLORS.COURIER_YELLOW, 0.03, 0.17, 0.02, -0.07, PY + 0.01, PZ + 0.03);
+  box(b, COLORS.COURIER_YELLOW, 0.03, 0.17, 0.02, 0.07, PY + 0.01, PZ + 0.03);
+  box(b, COLORS.COURIER_YELLOW, 0.17, 0.035, 0.02, 0, PY + 0.07, PZ + 0.03);
+  box(b, COLORS.COURIER_YELLOW, 0.17, 0.035, 0.02, 0, PY - 0.015, PZ + 0.03);
+
+  // --- roof: red slab + snow ---
+  const mid = -0.35;
+  const roofLen = 1.8 / Math.cos(THETA);
+  const roofY = underside(mid) + 0.075;
+  box(b, 0xc4472f, W.w + 0.5, 0.15, roofLen, 0, roofY, mid, { rx: THETA });
+  // darker edge strip along the front eave
+  const eaveZ = mid + (roofLen / 2) * Math.cos(THETA);
+  box(b, 0x9e3524, W.w + 0.5, 0.2, 0.08, 0, roofY - (roofLen / 2) * Math.sin(THETA) - 0.01, eaveZ, { rx: THETA });
+  const snowOff = 0.13;
+  box(b, COLORS.SNOW_WHITE, W.w + 0.34, 0.13, roofLen - 0.26, 0, roofY + snowOff * Math.cos(THETA), mid - 0.03, { rx: THETA });
+  box(b, PALETTE.snowShade, W.w + 0.3, 0.07, 0.34, 0, roofY + 0.04 - (roofLen / 2 - 0.22) * Math.sin(THETA) + snowOff, mid + (roofLen / 2 - 0.22) * Math.cos(THETA) - 0.03, { rx: THETA * 0.6 });
+  // rafter ends under the front eave
+  for (let i = 0; i < 6; i++) {
+    const x = -HW + 0.1 + (i * (W.w - 0.2)) / 5;
+    box(b, PALETTE.barkDark, 0.1, 0.1, 0.26, x, underside(0.62) - 0.04, 0.62, { rx: THETA });
+  }
+
+  // --- chimney (stone) on the back-right ---
+  const CHX = 0.95;
+  const CHZ = -0.62;
+  box(b, PALETTE.rock, 0.5, 1.7, 0.5, CHX, 3.0, CHZ);
+  for (let i = 0; i < 5; i++) box(b, PALETTE.rockDark, 0.52, 0.045, 0.52, CHX, 2.3 + i * 0.32, CHZ);
+  box(b, PALETTE.rockDark, 0.62, 0.12, 0.62, CHX, 3.9, CHZ);
+  box(b, COLORS.SNOW_WHITE, 0.6, 0.06, 0.6, CHX, 3.99, CHZ);
+
+  // --- saw table with a slot for the blade ---
+  const TABLE = WORKSHOP_TABLE_Y;
+  for (const s of [-1, 1]) box(b, COLORS.FENCE_WOOD, W.w - 0.2, 0.1, 0.27, 0, TABLE - 0.05, s * 0.175);
+  for (const s of [-1, 1]) box(b, PALETTE.fenceDark, W.w - 0.2, 0.12, 0.06, 0, TABLE - 0.14, s * 0.3);
+  for (const x of [-1.35, 0, 1.35]) for (const s of [-1, 1]) box(b, PALETTE.barkDark, 0.1, TABLE - FLOOR - 0.1, 0.1, x, FLOOR + (TABLE - FLOOR - 0.1) / 2, s * 0.26);
+  // steel rails on the table edge to guide the logs
+  for (const s of [-1, 1]) box(b, COLORS.MACHINE_STEEL, W.w - 0.3, 0.04, 0.035, 0, TABLE + 0.02, s * 0.3);
+  // motor housing behind the blade + belt guard
+  box(b, COLORS.MACHINE_BLUE, 0.62, 0.52, 0.3, 0, TABLE + 0.2, -0.31);
+  box(b, PALETTE.machineDark, 0.7, 0.07, 0.36, 0, TABLE + 0.48, -0.31);
+  box(b, COLORS.MACHINE_STEEL, 0.34, 0.08, 0.02, 0, TABLE + 0.24, -0.15);
+  for (let i = 0; i < 3; i++) box(b, COLORS.COURIER_YELLOW, 0.5, 0.045, 0.01, 0, TABLE + 0.32 + i * 0.1, -0.155);
+  // blade guard arching over the back of the disc
+  box(b, COLORS.COURIER_YELLOW, 0.1, 0.06, 0.1, 0.0, TABLE + 0.75, 0.0);
+
+  // --- hanging lantern on the front-left post ---
+  const LX = -HW + 0.28;
+  const LY = underside(FRONT_POST_Z) - 0.5;
+  box(b, PALETTE.rubber, 0.03, 0.34, 0.03, LX, LY + 0.3, FRONT_POST_Z + 0.2);
+  box(b, PALETTE.rubber, 0.2, 0.05, 0.2, LX, LY + 0.13, FRONT_POST_Z + 0.4);
+  box(b, COLORS.SAW_GLOW, 0.15, 0.2, 0.15, LX, LY, FRONT_POST_Z + 0.4);
+  box(b, PALETTE.rubber, 0.2, 0.05, 0.2, LX, LY - 0.12, FRONT_POST_Z + 0.4);
+  box(b, PALETTE.rubber, 0.03, 0.34, 0.03, LX, LY + 0.3, FRONT_POST_Z + 0.4);
+  box(b, PALETTE.rubber, 0.03, 0.03, 0.2, LX, LY + 0.47, FRONT_POST_Z + 0.3);
+
+  // --- hopper trough on the west side (logs lie along X, pile base plane at WORKSHOP_HOPPER_Y) ---
+  const hx = W.hopper.x - W.x;
+  const hz = W.hopper.z - W.z;
+  const HY = WORKSHOP_HOPPER_Y;
+  box(b, COLORS.FENCE_WOOD, 0.9, 0.1, 1.1, hx, HY - 0.05, hz);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    box(b, PALETTE.barkDark, 0.12, HY - FLOOR - 0.1, 0.12, hx + sx * 0.36, FLOOR + (HY - FLOOR - 0.1) / 2, hz + sz * 0.46);
+    box(b, PALETTE.barkDark, 0.1, 0.95, 0.1, hx + sx * 0.4, HY + 0.43, hz + sz * 0.5);
+  }
+  for (const sz of [-1, 1]) {
+    box(b, PALETTE.fenceDark, 0.9, 0.08, 0.06, hx, HY + 0.22, hz + sz * 0.5);
+    box(b, PALETTE.fenceDark, 0.9, 0.08, 0.06, hx, HY + 0.6, hz + sz * 0.5);
+    box(b, COLORS.FENCE_WOOD, 0.92, 0.07, 0.09, hx, HY + 0.93, hz + sz * 0.5);
+  }
+  box(b, PALETTE.fenceDark, 0.07, 0.08, 1.0, hx - 0.4, HY + 0.18, hz); // west lip (the hopper opens east to the hatch)
+  // loading ramp: steel plate from the tray lip up to the hatch sill
+  box(b, COLORS.MACHINE_STEEL, 0.32, 0.04, 0.7, hx + 0.58, HY + 0.07, hz, { rz: -0.35 });
+
+  // --- bench on the east side ---
+  const bx = W.bench.x - W.x;
+  const bz = W.bench.z - W.z;
+  const BY = WORKSHOP_BENCH_Y;
+  box(b, COLORS.FENCE_WOOD, 1.3, 0.12, 1.1, bx, BY - 0.06, bz);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(b, PALETTE.fenceDark, 0.13, BY - FLOOR - 0.12, 0.13, bx + sx * 0.5, FLOOR + (BY - FLOOR - 0.12) / 2, bz + sz * 0.44);
+  for (const sz of [-1, 1]) box(b, PALETTE.fenceDark, 1.15, 0.1, 0.06, bx, BY - 0.2, bz + sz * 0.44);
+  box(b, PALETTE.fenceDark, 0.06, 0.1, 0.9, bx + 0.5, BY - 0.2, bz);
+  for (const sz of [-1, 1]) box(b, PALETTE.fenceDark, 1.3, 0.05, 0.06, bx, BY + 0.025, bz + sz * 0.52, undefined);
+  box(b, PALETTE.fenceDark, 0.06, 0.05, 1.1, bx + 0.62, BY + 0.025, bz);
+
+  // --- open-front yard: stacked boards, a chopping stump with an axe, a sawhorse ---
+  for (let i = 0; i < 4; i++) box(b, i % 2 ? COLORS.PLANK_WOOD : COLORS.LOG_CORE, 0.9, 0.09, 0.4, -0.85, FLOOR + 0.05 + i * 0.1, 0.76 + (i % 2) * 0.02);
+  for (const sx of [-1, 1]) box(b, COLORS.CRATE_STRIP, 0.05, 0.42, 0.44, -0.85 + sx * 0.24, FLOOR + 0.21, 0.76);
+  cylY(b, BARK_B, 0.2, 0.34, 0.85, FLOOR + 0.17, 0.74, 12);
+  cylY(b, CORE, 0.17, 0.02, 0.85, FLOOR + 0.345, 0.74, 12);
+  box(b, PALETTE.barkDark, 0.05, 0.42, 0.05, 0.85, FLOOR + 0.5, 0.74, { rz: 0.25 });
+  box(b, COLORS.MACHINE_STEEL, 0.2, 0.12, 0.05, 0.93, FLOOR + 0.62, 0.74, { rz: 0.25 });
+  // small snow drift on the front-left corner
+  b.add(geo.sphere(0.5, 10, 8), COLORS.SNOW_WHITE, -HW + 0.1, FLOOR - 0.12, HD - 0.05, { sx: 1.1, sy: 0.4, sz: 0.8 });
+
+  const shell = b.mesh();
+  body.add(shell);
+
+  // --- the circular saw ---
+  const blade = new THREE.Group();
+  blade.position.set(0, TABLE + 0.2, 0);
+  blade.add(createSawBlade(0.52, 18, 0.05));
+  body.add(blade);
+
+  const badge = createLevelBadge(UPGRADES.workshop.values.length - 1);
+  badge.mesh.position.set(-0.85, TABLE - 0.14, 0.325);
+  badge.mesh.scale.setScalar(0.8);
+  root.add(badge.mesh);
+
+  return {
+    root,
+    body,
+    blade,
+    badge,
+    mouth: new THREE.Vector3(-HW - 0.05, TABLE + 0.13, 0),
+    saw: new THREE.Vector3(0, TABLE + 0.13, 0),
+    exit: new THREE.Vector3(HW - 0.05, TABLE + 0.3, 0),
+    chimney: new THREE.Vector3(CHX, 4.1, CHZ),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // CASH TOWER (pneumatic receiver)
 // ---------------------------------------------------------------------------
 
@@ -307,4 +520,5 @@ export function createLoaderExtras(start: XZ, startDir: XZ, end: XZ, endDir: XZ,
 export const ridgeMachineCatalog: Record<string, () => THREE.Object3D> = {
   treeFeller: () => createTreeFeller().root,
   cashTower: () => createCashTower([3.3, 3.6, 3.9, 4.2]).root,
+  workshop: () => createWorkshop().root,
 };
