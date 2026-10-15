@@ -18,6 +18,8 @@ export interface QuestDef {
 }
 
 const flag = (b: boolean) => (b ? 1 : 0);
+const townBuilt = (s: GameState, pred: (id: string) => boolean = () => true) =>
+  s.town.lots.filter((l) => l.tier >= 0 && l.building !== '' && pred(l.building)).length;
 const hiredAny = (s: GameState) => flag(s.upgrades.crateRunner > 0 || s.upgrades.cashier > 0 || s.upgrades.logHauler > 0);
 
 export const QUEST_DEFS: readonly QuestDef[] = [
@@ -34,11 +36,17 @@ export const QUEST_DEFS: readonly QuestDef[] = [
   { id: 'trucks20', title: 'Fill 20 trucks', target: 20, reward: 1000, progress: (s) => s.stats.trucksServed },
   { id: 'town', title: 'Grow the village into a Town', target: 3, reward: 1500, progress: (s) => s.village.level },
   { id: 'ridge', title: 'Open Timber Ridge', target: 1, reward: 2000, progress: (s) => flag(s.unlocked.ridge) },
+  // Wave 9: the Market Town.
+  { id: 'marketTown', title: 'Open the Market Town', target: 1, reward: 1500, progress: (s) => flag(s.town.revealed) },
+  { id: 'firstBusiness', title: 'Open a farm or a bakery', target: 1, reward: 2000, progress: (s) => townBuilt(s, (id) => id === 'farm' || id === 'bakery') },
   { id: 'bunkhouse', title: 'Build the crew bunkhouse', target: 1, reward: 2500, progress: (s) => flag(s.quarters.tier >= 0) },
   { id: 'logs400', title: 'Sell 400 logs to trucks and trains', target: 400, reward: 3000, progress: (s) => s.stats.logsSold },
   { id: 'workshop', title: 'Open the furniture workshop', target: 1, reward: 3000, progress: (s) => flag(s.unlocked.workshop) },
+  { id: 'goods50', title: 'Sell 50 loaves to the townsfolk', target: 50, reward: 3000, progress: (s) => s.stats.goodsSold },
   { id: 'furniture60', title: 'Sell 60 chairs to the dog sleds', target: 60, reward: 4000, progress: (s) => s.stats.furnitureSold },
   { id: 'shelters20', title: 'Complete 20 shelter builds', target: 20, reward: 4000, progress: (s) => s.stats.sheltersBuilt },
+  { id: 'town4', title: 'Fill 4 town lots', target: 4, reward: 5000, progress: (s) => townBuilt(s) },
+  { id: 'winterCity', title: 'Reach the Winter City era', target: 4, reward: 6000, progress: (s) => s.village.level },
   { id: 'earn150k', title: 'Earn $150,000 in total', target: 150000, reward: 6000, progress: (s) => s.stats.moneyEarned },
   { id: 'greatLodge', title: 'Build the Great Lodge', target: 1, reward: 10000, progress: (s) => flag(s.village.greatLodge.tier >= 0) },
 ];
