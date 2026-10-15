@@ -434,6 +434,9 @@ export class Business {
     this.t = 0;
   }
 
+  /** Items of the current cycle's batch not yet out of the door. */
+  private owed = 0;
+
   private advance(def: BusinessDef): void {
     const ctx = this.ctx;
     const cyc = this.cycle;
@@ -459,12 +462,13 @@ export class Business {
     }
     if ((this.state === 'busy' || this.state === 'blocked') && this.t >= tPop) {
       const kind = def.output;
-      if (kind && this.pop(kind, cyc)) {
+      // A cycle makes def.batch items; the inputs count as spent once the first one is out (save: inProcess).
+      if (this.state === 'busy') this.owed = Math.max(1, def.batch ?? 1);
+      while (kind && this.owed > 0 && this.pop(kind, cyc)) {
+        this.owed--;
         for (const k of Object.keys(this.proc) as ItemKind[]) delete this.proc[k];
-        this.state = 'cooldown';
-      } else {
-        this.state = 'blocked';
       }
+      this.state = this.owed === 0 ? 'cooldown' : 'blocked';
     }
     if (this.state === 'cooldown' && this.t >= cyc) this.state = 'idle';
   }

@@ -1217,8 +1217,10 @@ export interface BusinessDef {
   people: number;
   /** Items consumed per cycle (shop; producers take none). Kinds must be carriable: log, crate, wheat, meat. */
   inputs: readonly { kind: ItemKind; per: number }[];
-  /** What one cycle makes (one item); null for homes. */
+  /** What one cycle makes; null for homes. */
   output: ItemKind | null;
+  /** Items one cycle makes (default 1): a shop turns one hopper load into a small batch, so every haul counts. */
+  batch?: number;
   /** Seconds per cycle. */
   cycle: number;
   /** Shop: price per item sold to townsfolk (before village / season multipliers; core/demand salePrice). */
@@ -1237,7 +1239,7 @@ export const BUSINESSES: Record<BusinessId, BusinessDef> = {
   bakery: {
     id: 'bakery', kind: 'shop', label: 'Bakery', blurb: 'Wheat + firewood → fresh bread',
     era: 3, logs: 30, cash: 4000, people: 6,
-    inputs: [{ kind: 'wheat', per: 1 }, { kind: 'log', per: 1 }], output: 'bread', cycle: 2.2, price: 30, want: [2, 5], capacity: 18,
+    inputs: [{ kind: 'wheat', per: 1 }, { kind: 'log', per: 1 }], output: 'bread', batch: 3, cycle: 3.0, price: 30, want: [2, 5], capacity: 18,
   },
   townhouse: {
     id: 'townhouse', kind: 'home', label: 'Townhouse', blurb: 'A cosy home for 10 townsfolk',
@@ -1250,12 +1252,12 @@ export const BUSINESSES: Record<BusinessId, BusinessDef> = {
   butcher: {
     id: 'butcher', kind: 'shop', label: 'Butcher', blurb: 'Meat + smoking wood → sausages',
     era: 3, logs: 36, cash: 9000, people: 6,
-    inputs: [{ kind: 'meat', per: 1 }, { kind: 'log', per: 1 }], output: 'sausage', cycle: 2.4, price: 55, want: [2, 5], capacity: 18,
+    inputs: [{ kind: 'meat', per: 1 }, { kind: 'log', per: 1 }], output: 'sausage', batch: 3, cycle: 3.2, price: 55, want: [2, 5], capacity: 18,
   },
   toyFactory: {
     id: 'toyFactory', kind: 'shop', label: 'Toy Factory', blurb: 'Crates → wooden toy trains',
     era: 4, logs: 50, cash: 14000, people: 10,
-    inputs: [{ kind: 'crate', per: 1 }], output: 'toy', cycle: 1.8, price: 45, want: [3, 6], capacity: 24,
+    inputs: [{ kind: 'crate', per: 1 }], output: 'toy', batch: 2, cycle: 2.4, price: 45, want: [3, 6], capacity: 24,
   },
 };
 
