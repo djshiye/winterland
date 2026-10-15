@@ -25,6 +25,7 @@ import { createAxe } from '../assets/characters';
 import { createCharacterRig, type CharacterRig } from '../render/characters';
 import { CarryStack } from '../items/CarryStack';
 import { CashStack } from '../items/CashStack';
+import { Footprints } from '../fx/Footprints';
 
 // Axe swing: right-arm angle about X (see CharacterRig: 0 hangs, ±π is straight up). A sine runs between the
 // wind-up (behind/above the head) and the strike (forward-down); the blade connects at the sine's peak.
@@ -68,6 +69,8 @@ export class Player {
   private chopBlend = 0;
   private blockedFor = 0;
   private puffClock = 0;
+  /** Fading footprints in the snow (fx/Footprints.ts). */
+  private readonly footprints: Footprints;
 
   private readonly desired = new THREE.Vector3();
   private readonly prev = new THREE.Vector3();
@@ -92,6 +95,7 @@ export class Player {
       castShadows: true,
     });
     this.back = new CashStack(ctx, { id: 'player.back', anchor: this.rig.backAnchor, maxVisual: PLAYER.cashVisualCap });
+    this.footprints = new Footprints(ctx);
     this.syncUpgrades();
   }
 
@@ -244,6 +248,7 @@ export class Player {
       this.puffPos.set(pos.x - v.x * 0.03 + (Math.random() - 0.5) * 0.3, 0.08, pos.z - v.z * 0.03 + (Math.random() - 0.5) * 0.3);
       this.ctx.particles.puff(this.puffPos, this.puffOpts);
     }
+    this.footprints.step(dt, pos.x, pos.z, v.x, v.z);
   }
 
   // ---------------------------------------------------------------------------

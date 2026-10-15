@@ -2,7 +2,8 @@
  * [B4] Village badge under the money pill: house icon, level name, villager count and a slim progress bar toward the
  * next village level. Hidden until the village is revealed (checked every frame, so a restored save shows it too).
  */
-import { VILLAGE } from '../config';
+import { HAPPINESS, VILLAGE } from '../config';
+import { townHappiness } from '../core/demand';
 import type { GameContext } from '../core/types';
 import { eraLabel, romanNumeral } from '../world/env/eras';
 import { backOut, h } from './dom';
@@ -13,6 +14,7 @@ export class VillageBadge {
   private readonly root: HTMLDivElement;
   private readonly nameEl: HTMLSpanElement;
   private readonly popEl: HTMLSpanElement;
+  private readonly happyEl: HTMLSpanElement;
   private readonly fill: HTMLDivElement;
   private shown = false;
   private appear = 0;
@@ -21,6 +23,7 @@ export class VillageBadge {
   private barSnap = true;
   private lastName = '';
   private lastPop = -1;
+  private lastHappy = -2;
   private lastBar = '';
   private lastTransform = '';
   private lastOpacity = '';
@@ -36,7 +39,10 @@ export class VillageBadge {
     const top = h('div', 'wl-village-top');
     this.nameEl = h('span', 'wl-village-name');
     this.popEl = h('span', 'wl-village-pop');
-    top.append(this.nameEl, this.popEl);
+    // Wave 12: town happiness chip (hidden until the Market Town is revealed)
+    this.happyEl = h('span', 'wl-village-happy');
+    this.happyEl.style.display = 'none';
+    top.append(this.nameEl, this.popEl, this.happyEl);
     const bar = h('div', 'wl-village-bar');
     this.fill = h('div', 'wl-village-fill');
     bar.appendChild(this.fill);
@@ -48,6 +54,7 @@ export class VillageBadge {
       this.bump = 1;
     });
     ctx.events.on('village:revealed', () => this.reveal());
+    ctx.events.on('amenity:built', () => this.refreshHappy());
   }
 
   /** The layer toggles a class so the phone layout can move the objective banner down. */
@@ -61,6 +68,21 @@ export class VillageBadge {
     this.appear = 0;
     this.barSnap = true;
     this.root.style.display = 'flex';
+  }
+
+  /** The heart chip: "♥ 45%" (townHappiness x 100) once the town is revealed; refreshed on 'amenity:built'. */
+  private refreshHappy(): void {
+    const s = this.ctx.state;
+    const pct = s.town.revealed ? Math.round(townHappiness(s) * 100) : -1;
+    if (pct === this.lastHappy) return;
+    this.lastHappy = pct;
+    if (pct < 0) {
+      this.happyEl.style.display = 'none';
+      return;
+    }
+    this.happyEl.style.display = '';
+    this.happyEl.innerHTML = `<i class="wl-village-heart">\u2665</i><span class="wl-village-happy-n">${pct}%</span>`;
+    this.happyEl.title = `Town happiness: every sale pays up to +${Math.round(HAPPINESS.priceBonus * 100)}% (now +${Math.round(HAPPINESS.priceBonus * pct)}%)`;
   }
 
   update(dt: number): boolean {
@@ -87,6 +109,8 @@ export class VillageBadge {
       this.lastPop = v.population;
       this.popEl.innerHTML = `<i class="wl-village-person">${ICON_PERSON}</i>${v.population}`;
     }
+
+    this.refreshHappy();
 
     // progress toward the next level (full at the last two levels: Winter City waits for the Great Lodge)
     const next = VILLAGE.levels[v.level + 1];

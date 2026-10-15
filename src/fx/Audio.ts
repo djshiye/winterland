@@ -59,7 +59,8 @@ export type SfxName =
   | 'bell'
   | 'sparkle'
   | 'saw'
-  | 'woof';
+  | 'woof'
+  | 'bellToll';
 
 export interface PlayOptions {
   /** Playback-rate / frequency multiplier (1 = normal). */
@@ -111,6 +112,8 @@ const MIN_GAP: Record<SfxName, number> = {
   /** A workshop chair every ~2-3 s: one whirr per ~0.7 s even if two sources ask for it. */
   saw: 0.7,
   woof: 0.5,
+  /** One church-bell strike every ~0.9 s at most (the dawn / dusk peal). */
+  bellToll: 0.8,
 };
 
 type AudioCtor = typeof AudioContext;
@@ -603,6 +606,16 @@ export class AudioFX {
           this.hiss(t + at, 'bandpass', 1100 * p, 600 * p, 0.09, 0.12 * v, 0.004, 1.2);
         }
         break;
+      case 'bellToll': {
+        // dawn / dusk church bell: a deep fundamental with a slightly detuned twin (a slow beat), a fifth above, a faint
+        // inharmonic hum, all with a long decay, and a short noise strike for the clapper
+        this.tone(t, 'sine', 220 * p, 220 * p, 2.5, 0.3 * v, 0.004);
+        this.tone(t, 'sine', 221.6 * p, 221.6 * p, 2.3, 0.18 * v, 0.004);
+        this.tone(t, 'sine', 330 * p, 330 * p, 1.9, 0.16 * v, 0.004);
+        this.tone(t, 'sine', 607 * p, 607 * p, 0.9, 0.05 * v, 0.003);
+        this.hiss(t, 'bandpass', 1800 * p, 700 * p, 0.09, 0.1 * v, 0.002, 1.1);
+        break;
+      }
       case 'firework':
         // distant crackle + soft thud
         this.tone(t, 'sine', 120 * p, 45 * p, 0.28, 0.4 * v, 0.003);

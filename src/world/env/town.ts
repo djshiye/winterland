@@ -325,6 +325,28 @@ export function buildTown(ctx: GameContext, rng: Rng): TownPart {
   addWreath(wreaths, archX + 0.15, ARCH_H - 0.55, az0 + 0.05, 1.0);
   addWreath(wreaths, archX + 0.15, ARCH_H - 0.55, az1 - 0.25, 1.0);
 
+  // night market (era flag): a denser, lower string of warm bulbs along each stall's scalloped awning edge. The bulbs go
+  // in the festive-lights batch (the shared bulb material: no extra draw call); the halos are one extra additive mesh
+  // that only draws at night (env/glow.ts hides it by day) and is shown by the `nightMarket` era flag.
+  const marketHalos: Array<{ x: number; y: number; z: number; size: number; pool: number }> = [];
+  const marketBulb = new THREE.IcosahedronGeometry(0.055, 0);
+  const MARKET_BULBS = [0xffd978, 0xffb85c, 0xfff0c2] as const;
+  for (const s of STALLS) {
+    const p = new Placer(lights, s.x, s.z, s.yaw);
+    const n = 12;
+    for (let i = 0; i <= n; i++) {
+      const lx = -0.98 + (i / n) * 1.96;
+      const w = p.world(lx, 0, 0.8);
+      const sag = Math.sin((i / n) * Math.PI * 3) * 0.04; // three little scallops between the posts
+      lights.add(marketBulb, MARKET_BULBS[i % 3]!, w.x, 1.78 - sag, w.z);
+    }
+    for (const lx of [-0.55, 0.55]) marketHalos.push({ ...p.world(lx, 1.78, 0.8), size: 1.5, pool: 2.6 });
+  }
+  const marketGroup = new THREE.Group();
+  marketGroup.name = 'nightMarket';
+  marketGroup.add(buildHalos(marketHalos));
+  marketGroup.visible = false;
+
   const buntingMesh = bunting.mesh({ cast: false });
   buntingMesh.visible = false;
   const festive = new THREE.Group();
@@ -337,12 +359,13 @@ export function buildTown(ctx: GameContext, rng: Rng): TownPart {
   // night halos: the big warm glow of the fir + the stall / entrance lanterns, in ONE mesh (per-spot sizes)
   const halos = new THREE.Group();
   halos.add(buildHalos([{ x: tree.x, y: FIR_STAR_Y, z: tree.z, size: 4.2, pool: 10 }, ...stallHalos.map((s) => ({ ...s, size: 1.5, pool: 3.2 }))]));
-  pop.add(staticsMesh, bulbMesh, sign, buntingMesh, festive, halos);
+  pop.add(staticsMesh, bulbMesh, sign, buntingMesh, festive, halos, marketGroup);
 
   registerEra((look) => {
     lamps.show(look.lamp);
     buntingMesh.visible = look.bunting;
-    festive.visible = look.festive;
+    festive.visible = look.festive || look.nightMarket; // the festive mesh also carries the market bulb strings
+    marketGroup.visible = look.nightMarket;
   });
 
   // =====================================================================================================

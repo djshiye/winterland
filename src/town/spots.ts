@@ -3,7 +3,9 @@
  * the props here (and their colliders); npc/Townsfolk.ts sends wanderers to them. Yaw: the way a seated / standing
  * person faces (radians, 0 = +Z).
  */
-import type { XZ } from '../config';
+import { AMENITY_IDS, type AmenityId, type XZ } from '../config';
+import { CAFE_STOOLS } from '../assets/townAmenities';
+import { amenityFrame, amenityToWorld, type AmenityFrame } from './rules';
 
 export interface Spot extends XZ {
   yaw: number;
@@ -35,3 +37,54 @@ export const TREE_RING: readonly Spot[] = Array.from({ length: 8 }, (_, i) => {
   const p = { x: TREE.x + Math.sin(a) * 2.3, z: TREE.z + Math.cos(a) * 2.3 };
   return { ...p, yaw: toward(p, TREE) };
 });
+
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 12: amenity spots for the crowd (town/Town.ts builds the sites; npc/Townsfolk.ts uses these)
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Build order of the amenities (same as AMENITY_IDS). */
+export const AMENITY_ORDER: readonly AmenityId[] = AMENITY_IDS;
+
+/** A model-local point (lx, lz) as a world spot facing the model-local point (tx, tz). */
+function localSpot(f: AmenityFrame, lx: number, lz: number, tx: number, tz: number): Spot {
+  const p = amenityToWorld(f, lx, lz);
+  const q = amenityToWorld(f, tx, tz);
+  return { x: p.x, z: p.z, yaw: Math.atan2(q.x - p.x, q.z - p.z) };
+}
+
+function amenitySpots(id: AmenityId): Spot[] {
+  const f = amenityFrame(id);
+  const hd = f.d / 2;
+  switch (id) {
+    case 'cafe':
+      // the four stools (assets/townAmenities CAFE_STOOLS), each facing its table
+      return CAFE_STOOLS.map((s) => localSpot(f, s.x, s.z, s.tx, 0.4));
+    case 'snowmanPark':
+      // kids stand at the fence's open sides and in front of the gap, facing the snowmen
+      return [localSpot(f, -1.45, -0.45, 0, 0), localSpot(f, 1.45, -0.45, 0, 0), localSpot(f, 0, 1.25, 0, 0)];
+    case 'bandstand':
+      // the audience in front of the stage (local +Z), facing it; the band plays on the deck itself
+      return [
+        localSpot(f, -0.8, hd + 0.45, 0, 0),
+        localSpot(f, -0.25, hd + 0.5, 0, 0),
+        localSpot(f, 0.3, hd + 0.5, 0, 0),
+        localSpot(f, 0.85, hd + 0.45, 0, 0),
+      ];
+    case 'pond':
+      // the rim (clear of the pad tile and the neighbours), facing the ice: skaters loop between these
+      return [
+        localSpot(f, 0.65, -1.25, 0, 0),
+        localSpot(f, -0.65, -1.25, 0, 0),
+        localSpot(f, -1.75, 0, 0, 0),
+        localSpot(f, -1.1, 1.25, 0, 0),
+      ];
+  }
+}
+
+/** 3-4 standing / sitting spots per amenity, with yaws (0 = +Z): cafe stools, pond rim, bandstand audience, park edge. */
+export const AMENITY_SPOTS: Record<AmenityId, Spot[]> = {
+  cafe: amenitySpots('cafe'),
+  snowmanPark: amenitySpots('snowmanPark'),
+  bandstand: amenitySpots('bandstand'),
+  pond: amenitySpots('pond'),
+};

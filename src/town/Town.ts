@@ -38,12 +38,21 @@
  * while the lot is open (rules.lotOpen), so the first payment closes the panel. Pure rules (choices, canChoose,
  * settlePaidLots, geometry) live in town/rules.ts so tests run without WebGL. The BuildPanel is attached to the
  * HUD at construction (ctx.hud.buildPanel.attach).
+ *
+ * Wave 12 amenities (cafe, snowman park, bandstand, skating pond): four fixed sites on the square, built like the
+ * Great Lodge. Each owns a ConstructionPad at LAYOUT.town.amenities[id].pad (logs + cash from AMENITIES[id]), shown
+ * once the town is revealed and village.level >= def.era while state.town.amenities[id].tier < 0 (re-checked on
+ * 'village:changed'). Progress is mirrored into state; completion sets tier 0, pops the model in (assets/townAmenities.ts,
+ * facing the pad: rules.amenityFrame), adds its footprint as a solid collider and emits 'built' (JuiceDirector's chime,
+ * ring, puff) + 'amenity:built'. A restored built amenity shows silently; a fully paid one is settled silently first
+ * (rules.settlePaidAmenities, also called from Level). The cafe puffs steam from its mug sign (round-robin with the chimneys).
  */
 
 import * as THREE from 'three';
-import { BUSINESSES, LAYOUT, rect, type BusinessDef, type BusinessId, type XZ } from '../config';
+import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, rect, type AmenityId, type BusinessDef, type BusinessId, type XZ } from '../config';
 import { createLotForSale, createTownScaffold, type TownScaffold } from '../assets/town';
 import { createPadSign } from '../assets/pads';
+import { createAmenityModel, type AmenityModel } from '../assets/townAmenities';
 import type { WorldSnapshot } from '../core/Save';
 import type { GameContext } from '../core/types';
 import { ConstructionPad, type ConstructionTarget } from '../stations/ConstructionPad';
@@ -51,7 +60,7 @@ import type { CashPile } from '../stations/CashPile';
 import type { Zone } from '../items/Zones';
 import { Business, type StaffSpot } from './Business';
 import { LotPad } from './LotPad';
-import { canChoose, choicesFor, lotFrame, lotOpen, paidFraction, settlePaidLots, type LotFrame } from './rules';
+import { amenityFrame, amenityOffered, canChoose, choicesFor, lotFrame, lotOpen, paidFraction, settlePaidAmenities, settlePaidLots, type AmenityFrame, type LotFrame } from './rules';
 import type { ShopSpot } from './types';
 
 const T = LAYOUT.town;
@@ -67,6 +76,17 @@ export interface BuildChoice {
 }
 
 type Look = 'none' | 'sale' | 'scaffold' | 'built';
+
+/** One amenity site (wave 12). */
+interface AmenitySite {
+  readonly id: AmenityId;
+  readonly frame: AmenityFrame;
+  readonly pad: ConstructionPad;
+  readonly group: THREE.Group;
+  model: AmenityModel | null;
+  /** World steam source (cafe, once built) or null. */
+  steam: THREE.Vector3 | null;
+}
 
 /** One lot of the square. */
 interface Lot {
@@ -88,6 +108,7 @@ export class Town {
   /** Everything the town draws hangs under this group. */
   readonly root = new THREE.Group();
   private readonly lots: Lot[] = [];
+  private readonly amenities: AmenitySite[] = [];
   private opened = false;
   private smokeTimer = 0;
   private smokeCursor = 0;
@@ -104,6 +125,7 @@ export class Town {
     const before = ctx.state.town.lots.map((l) => l.tier);
     const settled = settlePaidLots(ctx.state);
     ctx.state.stats.townBuilt += settled;
+    settlePaidAmenities(ctx.state);
 
     T.lots.forEach((l, i) => {
       const frame = lotFrame(i);
@@ -124,6 +146,10 @@ export class Town {
       });
       this.lots.push({ index: i, frame, group, pos, buildPad, zone, pad: null, hint: null, look: 'none', model: null, scaffold: null, business: null });
     });
+
+    for (const id of AMENITY_IDS) this.amenities.push(this.makeAmenitySite(id));
+    // a village level-up can unlock an amenity's pad (the pond needs level 4)
+    ctx.events.on('village:changed', () => this.refreshAmenities(false));
 
     ctx.hud.buildPanel.attach(this);
     if (ctx.state.town.revealed) this.applyReveal(true);
@@ -231,6 +257,21 @@ export class Town {
     });
   }
 
+  /** Debug / bot: pay + finish amenity `id` at once (not instant: plays the build moment). Opens the town if needed. */
+  debugBuildAmenity(id: AmenityId): void {
+    const S = this.amenities.find((a) => a.id === id);
+    if (!S) return;
+    if (!this.opened) this.reveal(true);
+    const st = this.ctx.state.town.amenities[id];
+    if (st.tier >= 0 && S.model) return;
+    this.completeAmenity(S);
+  }
+
+  /** True once amenity `id` is built and shown. */
+  amenityBuilt(id: AmenityId): boolean {
+    return this.amenities.some((a) => a.id === id && a.model !== null);
+  }
+
   /** Debug: choose + finish lot `lot` as `id` at once (not instant: plays the build moment). */
   debugBuild(lot: number, id: BusinessId): void {
     const L = this.lots[lot];
@@ -252,6 +293,7 @@ export class Town {
       if (L.hint?.visible) L.hint.quaternion.copy(cam);
       L.business?.update(dt);
     }
+    for (const S of this.amenities) S.model?.animate?.(this.ctx.time.elapsed);
     this.smokeTimer -= dt;
     if (this.smokeTimer <= 0) {
       this.smokeTimer = SMOKE_TICK;
@@ -282,6 +324,85 @@ export class Town {
       this.refreshZone(L);
       if (!instant && L.model && L.look === 'sale') ctx.tweens.popIn(L.model, { delay: 0.25 + L.index * 0.07, duration: 0.45 });
     }
+    for (const S of this.amenities) if (ctx.state.town.amenities[S.id].tier >= 0) this.showAmenity(S, true);
+    this.refreshAmenities(instant);
+  }
+
+  // ---- amenities (wave 12) ----------------------------------------------------------------------------------
+  private amenityTarget(id: AmenityId): ConstructionTarget {
+    const def = AMENITIES[id];
+    const st = this.ctx.state.town.amenities[id];
+    return { label: def.label.toUpperCase(), icon: id, logs: def.logs, cash: def.cash, paidLogs: st.logs, paidCash: st.cash };
+  }
+
+  private makeAmenitySite(id: AmenityId): AmenitySite {
+    const ctx = this.ctx;
+    const frame = amenityFrame(id);
+    const group = new THREE.Group();
+    group.name = `amenity:${id}`;
+    group.position.set(frame.x, 0, frame.z);
+    group.rotation.y = frame.yaw;
+    this.root.add(group);
+    const pad = new ConstructionPad(ctx, {
+      ...this.amenityTarget(id),
+      key: `amenity:${id}`,
+      x: frame.pad.x,
+      z: frame.pad.z,
+      size: T.amenityPadSize,
+      onProgress: (logs, cash) => {
+        const st = ctx.state.town.amenities[id];
+        st.logs = logs;
+        st.cash = cash;
+      },
+      onComplete: () => this.completeAmenity(this.amenities.find((a) => a.id === id)!),
+    });
+    return { id, frame, pad, group, model: null, steam: null };
+  }
+
+  /** Show / hide each amenity's pad: offered while the town is open, the level is reached and it is not built. */
+  private refreshAmenities(instant: boolean): void {
+    if (!this.opened) return;
+    for (const S of this.amenities) {
+      if (amenityOffered(this.ctx.state, S.id)) {
+        if (!S.pad.visible) S.pad.show(instant);
+      } else {
+        S.pad.hide();
+      }
+    }
+  }
+
+  /** Put the built model on its site (instant: silent, final state; else it pops in with a puff). */
+  private showAmenity(S: AmenitySite, instant: boolean): void {
+    if (S.model) return;
+    const model = createAmenityModel(S.id);
+    S.model = model;
+    S.group.add(model.root);
+    this.ctx.colliders.addBox(S.frame.rect, `town:amenity:${S.id}`);
+    if (model.steam) {
+      const f = S.frame;
+      const c = Math.cos(f.yaw);
+      const s = Math.sin(f.yaw);
+      S.steam = new THREE.Vector3(f.x + model.steam.x * c + model.steam.z * s, model.steam.y, f.z - model.steam.x * s + model.steam.z * c);
+    }
+    if (!instant && this.root.visible) {
+      this.ctx.tweens.popIn(model.root, { duration: 0.5 });
+      this.ctx.particles.puff(this.tmp.set(S.frame.x, 0.4, S.frame.z), { color: 0xffffff, count: 9, size: 1.3, life: 0.9 });
+    }
+  }
+
+  /** The amenity is paid (or debugBuildAmenity): tier 0, the model pops in, the juice plays. */
+  private completeAmenity(S: AmenitySite): void {
+    const ctx = this.ctx;
+    const st = ctx.state.town.amenities[S.id];
+    if (S.model) return;
+    st.tier = 0;
+    st.logs = 0;
+    st.cash = 0;
+    S.pad.hide();
+    this.showAmenity(S, false);
+    const position = new THREE.Vector3(S.frame.x, 0, S.frame.z);
+    ctx.events.emit('built', { what: `amenity:${S.id}`, position, object: S.group });
+    ctx.events.emit('amenity:built', { id: S.id, position: position.clone() });
   }
 
   // ---- lots -------------------------------------------------------------------------------------------------
@@ -401,15 +522,23 @@ export class Town {
     ctx.events.emit('town:built', { lot: L.index, building: id, position: position.clone(), object: b.group });
   }
 
-  /** Chimney smoke: one source per tick, round-robin over the buildings that have a chimney. */
+  /** Chimney smoke: one source per tick, round-robin over the chimneys, then the cafe's cocoa steam (smaller, shorter). */
   private puffNext(): void {
-    const n = this.lots.length;
+    const n = this.lots.length + this.amenities.length;
     for (let k = 0; k < n; k++) {
       this.smokeCursor = (this.smokeCursor + 1) % n;
-      const c = this.lots[this.smokeCursor]!.business?.chimney;
-      if (c) {
-        this.ctx.particles.puff(this.tmp.copy(c), { color: 0xffffff, count: 1, size: 0.45, life: 2.2 });
-        return;
+      if (this.smokeCursor < this.lots.length) {
+        const c = this.lots[this.smokeCursor]!.business?.chimney;
+        if (c) {
+          this.ctx.particles.puff(this.tmp.copy(c), { color: 0xffffff, count: 1, size: 0.45, life: 2.2 });
+          return;
+        }
+      } else {
+        const steam = this.amenities[this.smokeCursor - this.lots.length]!.steam;
+        if (steam) {
+          this.ctx.particles.puff(this.tmp.copy(steam), { color: 0xffffff, count: 1, size: 0.3, life: 1.5 });
+          return;
+        }
       }
     }
   }

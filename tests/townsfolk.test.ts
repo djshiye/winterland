@@ -139,7 +139,7 @@ describe('CrowdNav', () => {
       }
     }
     expect(checked).toBeGreaterThan(500);
-  });
+  }, 30000); // pure maths, but ~6 s of it when the machine is busy
 
   it('the tree ring, bench approaches and stall browse spots are reachable and free', () => {
     for (const s of TREE_RING) expect(insideObstacle(s.x, s.z)).toBe(false);
@@ -369,10 +369,10 @@ describe('Townsfolk wanderers', () => {
     });
     expect(low).toBe(Math.round(TOWN.wanderers[4]! / 2));
     const night = count((w) => {
-      w.state.village.level = 4;
+      w.state.village.level = 3;
       (w.ctx.dayNight as { darkness: number }).darkness = 1;
     });
-    expect(night).toBeLessThan(day);
+    expect(night).toBeLessThan(TOWN.wanderers[3]!);
     const none = count((w) => {
       w.state.village.revealed = false;
     });

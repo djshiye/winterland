@@ -990,6 +990,36 @@
   background: linear-gradient(#ffe680, #f0a81c);
 }
 
+/* wave 12: town happiness chip next to the population */
+.wl-village-happy {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: #ffc2d4;
+  cursor: help;
+}
+
+.wl-village-heart {
+  font-style: normal;
+  font-size: 14px;
+  line-height: 1;
+  color: #ff6f98;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.4));
+}
+
+@media (max-width: 420px) {
+  .wl-village-happy {
+    gap: 1px;
+    font-size: 14px;
+  }
+  .wl-village-top {
+    gap: 4px;
+  }
+}
+
 /* the objective banner drops below the village badge on phones */
 @media (max-width: 640px) {
   .wl-hud.has-village .wl-objective {

@@ -25,16 +25,16 @@
  * - Debug: `forceWanderers` (number | null) overrides the level-based wanderer target; `seedWanderers()` fills it at once.
  */
 import * as THREE from 'three';
-import { LAYOUT, TIMING, TOWN, type ProductId, type XZ } from '../config';
+import { AMENITY_IDS, LAYOUT, TIMING, TOWN, type AmenityId, type ProductId, type XZ } from '../config';
 import { approach, clamp, dampAngle, randInt, randRange } from '../core/math';
 import { salePrice } from '../core/demand';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 import { transferOne } from '../items/transfer';
 import type { ShopSpot } from '../town/types';
 import type { Town } from '../town/Town';
-import { BENCHES, SNOWMAN, STALLS, TREE_RING } from '../town/spots';
+import { BENCHES, SNOWMAN, STALLS, TREE_RING, type Spot, AMENITY_SPOTS } from '../town/spots';
 import { Crowd, COAT_COLORS, GOODS_COLORS, TRIM_COLORS, type CrowdPerson } from './Crowd';
-import { NAV, OWNER_SNOWMAN, Path, insideObstacle, planPath, seatPoint, zoneOf } from './CrowdNav';
+import { NAV, OWNER_SNOWMAN, Path, insideObstacle, lotDoor, nearestHome, planPath, planTownPath, seatPoint, zoneOf } from './CrowdNav';
 
 // --- tuning --------------------------------------------------------------------
 const BUYER_SPEED = 2.1;
@@ -56,6 +56,72 @@ const NIGHT_FEWER = 0.55;
 const STROLL_STREET_X: readonly [number, number] = [3.35, 5.85];
 const STROLL_STREET_Z: readonly [number, number] = [12.0, 26.0];
 
+// --- wave 13 "more life" tuning -------------------------------------------------
+/** Staff walk home when it gets this dark and come back when it is lighter than the second value (hysteresis). */
+const HOME_DARK = 0.6;
+const WORK_DARK = 0.45;
+const COMMUTE_SPEED = 1.25;
+const NIGHT_MARKET_LEVEL = 4;
+const NIGHT_MARKET_BONUS = 6;
+const CAROL_LEVEL = 3;
+const CAROL_DARK = 0.5;
+const CAROL_STOP_DARK = 0.45;
+const CAROL_SIZE = 3;
+const CAROL_BEAT = 1.6;
+const CAROL_VOLUME = 0.35;
+const CAROL_HEAR = 14;
+const SKATE_SPEED = 1.6;
+const SKATERS_MAX = 3;
+/** The soft major-key motif the carolers hum (pitch multipliers of the 'chime' sound). */
+export const CAROL_MOTIF: readonly number[] = [1, 1.25, 1.5, 1.25, 1.125, 1];
+
+/** Pitch of carol note number `step` (the motif loops). */
+export function carolPitch(step: number): number {
+  const n = CAROL_MOTIF.length;
+  return CAROL_MOTIF[((Math.floor(step) % n) + n) % n]!;
+}
+
+/** Index of the carol beat at group-singing time `t` (one note every CAROL_BEAT seconds). */
+export function carolBeat(t: number): number {
+  return Math.floor(t / CAROL_BEAT);
+}
+
+/** Night market: Winter City and above, after dark. */
+export function nightMarket(level: number, darkness: number): boolean {
+  return level >= NIGHT_MARKET_LEVEL && darkness > 0.5;
+}
+
+/** A caroler trio may form (`active` = one already sings: it keeps going until it is clearly day again). */
+export function carolersEligible(level: number, darkness: number, active = false): boolean {
+  return level >= CAROL_LEVEL && (active ? darkness > CAROL_STOP_DARK : darkness > CAROL_DARK);
+}
+
+/** Staff are home for the night: leave above HOME_DARK, return below WORK_DARK, otherwise keep `wasHome`. */
+export function staffAtHome(darkness: number, wasHome: boolean): boolean {
+  if (darkness > HOME_DARK) return true;
+  if (darkness < WORK_DARK) return false;
+  return wasHome;
+}
+
+/** Stall browsing weight: doubled while the night market runs. */
+export function stallWeight(base: number, market: boolean): number {
+  return market ? base * 2 : base;
+}
+
+/**
+ * How many wanderers the town wants. Day: TOWN.wanderers[level] (halved on Low quality). Night: NIGHT_FEWER fewer,
+ * except at the night market (level >= 4, dark) where it is +6 instead. Never above `cap`.
+ */
+export function wandererTargetFor(level: number, darkness: number, low: boolean, cap: number): number {
+  const lvl = Math.max(0, Math.min(level, TOWN.wanderers.length - 1));
+  const base = TOWN.wanderers[lvl]!;
+  const q = low ? 0.5 : 1;
+  const n = nightMarket(level, darkness) ? (base + NIGHT_MARKET_BONUS) * q : base * q * (1 - NIGHT_FEWER * darkness);
+  return Math.max(0, Math.min(Math.round(n), cap));
+}
+
+const amenitySpotsOf = (id: AmenityId): readonly Spot[] => AMENITY_SPOTS[id] ?? [];
+
 const tmpV = new THREE.Vector3();
 const tmpXZ: XZ = { x: 0, z: 0 };
 const tmpSeat = { x: 0, z: 0, yaw: 0, ax: 0, az: 0 };
@@ -71,9 +137,10 @@ type Mode =
   | 'sit'
   | 'standup'
   | 'chat'
-  | 'ring' // standing at the tree / snowman / a stall
+  | 'ring' // standing at the tree / snowman / a stall / the bandstand / the snowman park
+  | 'carol' // wanderer: singing at the tree
   | 'work'; // staff
-type Act = 'stroll' | 'sit' | 'tree' | 'snow' | 'stall' | 'chat' | 'leave';
+type Act = 'stroll' | 'sit' | 'tree' | 'snow' | 'stall' | 'chat' | 'leave' | 'carol' | 'cafe' | 'pond' | 'band' | 'park';
 
 /** A buyer's hands: goods fly in, are released on landing, and count until the buyer pays. */
 class Basket implements ItemHolder {
@@ -186,6 +253,13 @@ class Agent {
   talkT = 0;
   hopT = 0;
   lantern = false;
+  /** Amenity spot reservation (cafe / bandstand / park) and the pond loop's current rim index. */
+  amenId: AmenityId | null = null;
+  amenIdx = -1;
+  baseSpeed = 1.2;
+  // staff: 0 at work, 1 walking home / gone, 2 walking back to the spot
+  commute: 0 | 1 | 2 = 0;
+  lot = -1;
   // buyer
   shop: ShopSpot | null = null;
   want = 3;
@@ -214,7 +288,18 @@ export class Townsfolk {
   private readonly agents: Agent[] = [];
   private readonly freeAgents: Agent[] = [];
   private readonly live: Agent[] = [];
-  private readonly staff: Agent[] = [];
+  /** One slot per town staff spot: null while the person is home for the night (no crowd instance used). */
+  private readonly staff: (Agent | null)[] = [];
+  private readonly staffAway: boolean[] = [];
+  private staffHome = false;
+  private readonly carolers: Agent[] = [];
+  private carolOn = false;
+  private carolT = 0;
+  private carolBeatNo = -1;
+  private carolCheerT = 0;
+  private carolCheerCool = 8;
+  private carolFormT = 0;
+  private readonly amenSlots: Partial<Record<AmenityId, (Agent | null)[]>> = {};
   private readonly queues = new Map<number, Agent[]>();
   private readonly buyTimers = new Map<number, number>();
   private readonly seats: (Agent | null)[] = new Array(BENCHES.length * 2).fill(null);
@@ -268,7 +353,9 @@ export class Townsfolk {
 
   /** Staff + stallholders on show. */
   get staffCount(): number {
-    return this.staff.length + this.stallholders.length;
+    let n = this.stallholders.length;
+    for (const a of this.staff) if (a) n++;
+    return n;
   }
 
   /** Everyone drawn by the instanced crowd. */
@@ -309,6 +396,7 @@ export class Townsfolk {
     this.refreshStaff(dt);
     this.buyerSpawns(dt, shops);
     this.manageWanderers(dt);
+    this.manageCarolers(dt);
 
     // step everybody (backwards: agents may despawn)
     for (let i = this.live.length - 1; i >= 0; i--) {
@@ -363,6 +451,11 @@ export class Townsfolk {
     a.talkT = 0;
     a.hopT = 0;
     a.lantern = false;
+    a.amenId = null;
+    a.amenIdx = -1;
+    a.baseSpeed = 1.2;
+    a.commute = 0;
+    a.lot = -1;
     a.shop = null;
     a.tx = a.tz = Number.NaN;
     a.basket.reset('bread', 8);
@@ -377,6 +470,8 @@ export class Townsfolk {
     if (a.kind === 'buyer') this.nBuyers--;
     else if (a.kind === 'wanderer') this.nWanderers--;
     this.freeSpots(a);
+    const ci = this.carolers.indexOf(a);
+    if (ci >= 0) this.carolers.splice(ci, 1);
     if (a.partner && a.partner.partner === a) a.partner.partner = null;
     a.partner = null;
     this.crowd.release(a.p);
@@ -392,6 +487,13 @@ export class Townsfolk {
     if (a.ringIdx >= 0) this.ring[a.ringIdx] = null;
     if (a.snowIdx >= 0) this.snow[a.snowIdx] = null;
     for (const s of this.stallSpots) if (s.taken === a) s.taken = null;
+    if (a.amenId) {
+      const sl = this.amenSlots[a.amenId];
+      if (sl && sl[a.amenIdx] === a) sl[a.amenIdx] = null;
+    }
+    if (a.act === 'pond') a.maxSpeed = a.baseSpeed; // back to a stroll after skating
+    a.amenId = null;
+    a.amenIdx = -1;
     a.seatIdx = a.ringIdx = a.snowIdx = -1;
   }
 
@@ -412,7 +514,9 @@ export class Townsfolk {
     // hops of a happy kid
     if (a.hopT > 0) {
       a.hopT -= dt;
-      p.cheer = Math.max(p.cheer, clamp(a.hopT * 3, 0, 0.6));
+      p.cheer = Math.max(p.cheer, clamp(a.hopT * 3, 0, a.act === 'band' ? 1 : 0.6));
+    } else if (a.kind === 'wanderer' && a.mode !== 'carol') {
+      p.cheer = approach(p.cheer, 0, dt * 4); // the hop is over (the carolers drive their own cheer)
     }
     // sitting eases
     const wantSit = a.mode === 'sit' ? 1 : 0;
@@ -472,7 +576,7 @@ export class Townsfolk {
     const k = Math.min(1, 6 * dt) * 0.5;
     for (let i = 0; i < L.length; i++) {
       const a = L[i]!;
-      if (a.speed < 0.3 || a.kind === 'staff') continue;
+      if (a.speed < 0.3 || (a.kind === 'staff' && a.commute === 0)) continue;
       for (let j = 0; j < L.length; j++) {
         if (i === j) continue;
         const b = L[j]!;
@@ -491,33 +595,78 @@ export class Townsfolk {
   // =========================================================================
   // Staff + stallholders
   // =========================================================================
+  private darkness(): number {
+    return this.ctx.dayNight ? this.ctx.dayNight.darkness : 0;
+  }
+
+  /** Doorsteps of the built townhouses (state is the truth; the Town object is not asked). */
+  private homeDoors(out: XZ[]): XZ[] {
+    out.length = 0;
+    const lots = this.ctx.state.town.lots;
+    for (let i = 0; i < lots.length; i++) {
+      const l = lots[i]!;
+      if (l.building === 'townhouse' && l.tier >= 0) out.push(lotDoor(i, { x: 0, z: 0 }));
+    }
+    return out;
+  }
+
   private refreshStaff(dt: number): void {
     this.staffT -= dt;
     // staff animate every frame (cheap); the list is re-read a few times a second
     if (this.staffT <= 0) {
       this.staffT = STAFF_REFRESH;
       const revealed = this.town.revealed;
+      this.staffHome = staffAtHome(this.darkness(), this.staffHome);
+      const home = this.staffHome && revealed;
       const spots = revealed ? this.town.staffSpots() : EMPTY_STAFF;
+      while (this.staff.length < spots.length) this.staff.push(null);
       for (let i = 0; i < spots.length; i++) {
-        let a: Agent | null | undefined = this.staff[i];
+        const s = spots[i]!;
+        let a = this.staff[i] ?? null;
         if (!a) {
-          const h = spots[i]!.lot * 7 + i * 3;
+          if (home) {
+            this.staffAway[i] = true; // shops keep working; their people are home for the night
+            continue;
+          }
+          const h = s.lot * 7 + i * 3;
           a = this.acquire('staff', COAT_COLORS[h % COAT_COLORS.length]!, i % 2 ? 0xffffff : TRIM_COLORS[(h + 2) % TRIM_COLORS.length]!);
           if (!a) break;
           a.mode = 'work';
           a.p!.hatH = i % 3 === 0 ? 1.45 : 1;
           this.staff[i] = a;
-          a.x = spots[i]!.x;
-          a.z = spots[i]!.z;
+          a.lot = s.lot;
+          if (this.staffAway[i]) {
+            // dawn: they step out of their home and walk back to the counter
+            this.staffAway[i] = false;
+            nearestHome(s.x, s.z, this.homeDoors(tmpDoors), tmpXZ);
+            a.x = tmpXZ.x;
+            a.z = tmpXZ.z;
+            a.p!.appear = 0;
+            this.beginCommute(a, s, 2);
+          } else {
+            a.x = s.x;
+            a.z = s.z;
+          }
         }
-        const s = spots[i]!;
-        a.x = s.x;
-        a.z = s.z;
-        a.faceYaw = s.yaw;
-        a.yaw = s.yaw;
+        a.lot = s.lot;
         a.timer = s.working ? 1 : 0;
+        a.standYaw = s.yaw;
+        a.tx = s.x;
+        a.tz = s.z;
+        if (home && a.commute !== 1) this.beginCommute(a, s, 1);
+        else if (!home && a.commute === 1) this.beginCommute(a, s, 2);
+        else if (a.commute === 0) {
+          a.x = s.x;
+          a.z = s.z;
+          a.faceYaw = s.yaw;
+          a.yaw = s.yaw;
+        }
       }
-      while (this.staff.length > spots.length) this.release(this.staff.pop()!);
+      while (this.staff.length > spots.length) {
+        const a = this.staff.pop();
+        if (a) this.release(a);
+      }
+      this.staffAway.length = spots.length;
       // stallholders stand behind each stall once the square is open
       if (revealed && this.stallholders.length === 0) {
         STALLS.forEach((s, i) => {
@@ -534,8 +683,52 @@ export class Townsfolk {
         while (this.stallholders.length) this.release(this.stallholders.pop()!);
       }
     }
-    for (const a of this.staff) this.animateStaff(a, dt);
+    for (let i = 0; i < this.staff.length; i++) {
+      const a = this.staff[i];
+      if (!a) continue;
+      if (a.commute === 0) this.animateStaff(a, dt);
+      else if (this.stepCommute(a, dt)) this.staff[i] = null; // reached home and faded out: the instance goes back to the pool
+    }
     for (const a of this.stallholders) this.animateStaff(a, dt);
+  }
+
+  /** Start walking home (`kind` 1, to the nearest townhouse door / corridor entrance) or back to the spot (2). */
+  private beginCommute(a: Agent, s: { x: number; z: number; yaw: number }, kind: 1 | 2): void {
+    a.commute = kind;
+    a.mode = 'work';
+    a.fading = false;
+    a.faceYaw = Number.NaN;
+    a.maxSpeed = COMMUTE_SPEED;
+    if (kind === 1) {
+      nearestHome(a.x, a.z, this.homeDoors(tmpDoors), tmpXZ);
+      a.exitX = tmpXZ.x;
+      a.exitZ = tmpXZ.z;
+      planTownPath(a.path, a.x, a.z, tmpXZ.x, tmpXZ.z);
+    } else {
+      planTownPath(a.path, a.x, a.z, s.x, s.z);
+    }
+  }
+
+  /** Walk a commuting staff person; true when they are gone (released) for the night. */
+  private stepCommute(a: Agent, dt: number): boolean {
+    const p = a.p!;
+    const moving = this.walkPath(a, dt);
+    p.work = approach(p.work, 0, dt * 3);
+    p.talk = approach(p.talk, 0, dt * 3);
+    if (moving) return false;
+    if (a.commute === 2) {
+      a.commute = 0;
+      a.x = a.tx;
+      a.z = a.tz;
+      a.faceYaw = a.yaw = a.standYaw;
+      return false;
+    }
+    a.fading = true; // sync() fades the instance out
+    if (p.appear > 0.001) return false;
+    const i = this.staff.indexOf(a);
+    if (i >= 0) this.staffAway[i] = true;
+    this.release(a);
+    return true;
   }
 
   private animateStaff(a: Agent, dt: number): void {
@@ -734,12 +927,7 @@ export class Townsfolk {
     if (this.forceWanderers !== null) return Math.max(0, Math.min(this.forceWanderers, this.crowd.capacity));
     const st = this.ctx.state;
     if (!st.village.revealed) return 0;
-    const lvl = Math.min(st.village.level, TOWN.wanderers.length - 1);
-    let n = TOWN.wanderers[lvl]!;
-    if (this.ctx.renderer.quality === 'low') n *= 0.5;
-    const dark = this.ctx.dayNight ? this.ctx.dayNight.darkness : 0;
-    n *= 1 - NIGHT_FEWER * dark;
-    return Math.round(n);
+    return wandererTargetFor(st.village.level, this.darkness(), this.ctx.renderer.quality === 'low', this.crowd.capacity);
   }
 
   private manageWanderers(dt: number): void {
@@ -761,7 +949,7 @@ export class Townsfolk {
         // the one that has been out longest heads home
         let pickA: Agent | null = null;
         for (const a of this.live) {
-          if (a.kind !== 'wanderer' || a.act === 'leave' || a.fading) continue;
+          if (a.kind !== 'wanderer' || a.act === 'leave' || a.act === 'carol' || a.fading) continue;
           if (!pickA || a.life > pickA.life) pickA = a;
         }
         if (pickA) this.beginLeave(pickA);
@@ -853,11 +1041,11 @@ export class Townsfolk {
     const p = a.p!;
     a.life += dt;
     // time to go home (never in the middle of a seat or a chat)
-    if (a.life > a.limit && a.act !== 'leave' && a.mode !== 'sit' && a.mode !== 'chat' && a.mode !== 'standup') this.beginLeave(a);
+    if (a.life > a.limit && a.act !== 'leave' && a.act !== 'carol' && a.mode !== 'sit' && a.mode !== 'chat' && a.mode !== 'standup') this.beginLeave(a);
 
     // night lanterns
     const dark = this.ctx.dayNight ? this.ctx.dayNight.darkness : 0;
-    a.lantern = dark > NIGHT_LANTERN_FROM && a.rnd < 0.5 && !p.kid;
+    a.lantern = (dark > NIGHT_LANTERN_FROM && a.rnd < 0.5 && !p.kid) || a.act === 'carol';
 
     // wave at the player passing by
     this.waveStep(a, dt);
@@ -865,6 +1053,7 @@ export class Townsfolk {
     switch (a.mode) {
       case 'walk':
       case 'out': {
+        if (a.act === 'pond') a.timer -= dt; // skating time runs while gliding along the rim
         if (!this.walkPath(a, dt)) this.arrive(a);
         break;
       }
@@ -885,6 +1074,11 @@ export class Townsfolk {
         a.timer -= dt;
         a.talkT -= dt;
         p.talk = a.partner ? p.talk : 0;
+        if (a.act === 'cafe') {
+          // glance around the café now and then
+          const look = Math.sin(this.t * 0.45 + a.rnd * 20) > 0.55 ? Math.sign(Math.sin(this.t * 0.17 + a.rnd * 9) || 1) * 0.65 : 0;
+          p.headYaw = approach(p.headYaw, look, dt * 2.2);
+        }
         if (a.timer <= 0) {
           // stand up and step back from the bench first
           this.freeSpots(a);
@@ -897,7 +1091,20 @@ export class Townsfolk {
       case 'ring': {
         this.walkPath(a, dt);
         a.timer -= dt;
-        if (a.snowIdx >= 0 && p.kid) {
+        if (a.act === 'band') {
+          // at night the band plays: cheer every few seconds; by day just stand about and chat
+          a.talkT -= dt;
+          if (a.talkT <= 0) {
+            a.talkT = randRange(3, 6);
+            if (this.darkness() > 0.5) a.hopT = 1;
+          }
+          if (this.darkness() > 0.5) {
+            p.talk = approach(p.talk, 0, dt * 3);
+          } else {
+            p.talk = approach(p.talk, Math.sin(this.t * 0.8 + a.rnd * 12) > 0 ? 0.8 : 0, dt * 3);
+          }
+        }
+        if ((a.snowIdx >= 0 || a.act === 'park') && p.kid) {
           // kids bounce around the snowman
           a.talkT -= dt;
           if (a.talkT <= 0) {
@@ -906,6 +1113,16 @@ export class Townsfolk {
           }
         }
         if (a.timer <= 0) this.chooseActivity(a);
+        break;
+      }
+      case 'carol': {
+        this.walkPath(a, dt);
+        a.yaw = dampAngle(a.yaw, a.standYaw, 6, dt);
+        const singing = this.carolersSinging();
+        const beat = (this.carolT % CAROL_BEAT) / CAROL_BEAT;
+        // every caroler shares the beat: open mouths on the strong part of it
+        p.talk = approach(p.talk, singing ? (beat < 0.72 ? 1 : 0.2) : 0, dt * 8);
+        p.cheer = approach(p.cheer, this.carolCheerT > 0 ? 1 : 0, dt * 5);
         break;
       }
       case 'chat': {
@@ -933,7 +1150,11 @@ export class Townsfolk {
         break;
     }
     // standing still looking up at the tree
-    p.headPitch = approach(p.headPitch, a.mode === 'ring' && a.ringIdx >= 0 ? -0.4 : 0, dt * 2);
+    let pitch = a.mode === 'ring' && a.ringIdx >= 0 ? -0.4 : 0;
+    if (a.mode === 'carol') pitch = -0.2;
+    else if (a.act === 'pond' && a.mode === 'walk') pitch = 0.26 + Math.sin(this.t * 1.7 + p.seed) * 0.08; // a gentle skating lean
+    p.headPitch = approach(p.headPitch, pitch, dt * 2);
+    if (a.act !== 'cafe' || a.mode !== 'sit') p.headYaw = approach(p.headYaw, 0, dt * 3);
   }
 
   /** A short wave at the player when they walk by. */
@@ -947,7 +1168,7 @@ export class Townsfolk {
     } else {
       p.wave = approach(p.wave, 0, dt * 6);
     }
-    if (a.waveCool > 0 || a.waveT > 0 || a.mode === 'sit' || a.mode === 'chat' || a.mode === 'out') return;
+    if (a.waveCool > 0 || a.waveT > 0 || a.mode === 'sit' || a.mode === 'chat' || a.mode === 'out' || a.mode === 'carol') return;
     const pl = this.ctx.player?.position;
     if (!pl) return;
     const dx = pl.x - a.x;
@@ -972,11 +1193,37 @@ export class Townsfolk {
         a.timer = randRange(9, 24);
         a.talkT = 0;
         break;
+      case 'carol':
+        a.mode = 'carol';
+        a.faceYaw = a.standYaw;
+        break;
+      case 'cafe':
+        a.mode = 'sit';
+        a.timer = randRange(10, 26);
+        a.talkT = 0;
+        break;
+      case 'pond': {
+        // glide on to the next rim spot until the skating time is up
+        const rim = amenitySpotsOf('pond');
+        if (a.timer > 0 && rim.length > 1) {
+          a.amenIdx = (a.amenIdx + 1) % rim.length;
+          const r = rim[a.amenIdx]!;
+          a.path.clear();
+          a.path.push(r.x, r.z);
+          a.mode = 'walk';
+        } else {
+          this.chooseActivity(a);
+        }
+        break;
+      }
       case 'tree':
       case 'snow':
       case 'stall':
+      case 'band':
+      case 'park':
         a.mode = 'ring';
         a.timer = a.act === 'stall' ? randRange(4, 9) : randRange(6, 15);
+        if (a.act === 'band' || a.act === 'park') a.talkT = randRange(0.5, 2.5);
         a.talkT = randRange(0.3, 1.5);
         a.faceYaw = a.standYaw;
         break;
@@ -1020,17 +1267,25 @@ export class Townsfolk {
     }
     // weighted pick
     const w = tmpW;
+    const dark = this.darkness();
+    const market = nightMarket(this.ctx.state.village.level, dark);
+    const kid = p.kid;
+    const parkOpen = townOpen && this.amenityOpen('snowmanPark');
     w[0] = 3 + (townOpen ? 2 : 0); // stroll
     w[1] = townOpen ? 2 : 0; // sit
     w[2] = townOpen ? 1.6 : 0; // tree
-    w[3] = townOpen ? (p.kid ? 4.5 : 0.35) : 0; // snowman
-    w[4] = townOpen ? 1.3 : 0; // stall
+    w[3] = townOpen ? (kid ? (parkOpen ? 2 : 4.5) : 0.35) : 0; // snowman (kids split with the park when it is built)
+    w[4] = stallWeight(townOpen ? 1.3 : 0, market); // stall (night market: doubled)
     w[5] = 1.7; // chat
+    w[6] = townOpen && this.amenityOpen('cafe') ? (kid ? 0.4 : 1.6) : 0; // café stool
+    w[7] = townOpen && this.amenityOpen('pond') ? (kid ? 2.2 : 1.4) : 0; // skate on the pond
+    w[8] = townOpen && this.amenityOpen('bandstand') ? (dark > 0.5 ? 2.4 : 1) : 0; // bandstand (plays at night)
+    w[9] = parkOpen ? (kid ? 3.5 : 0.35) : 0; // snowman park
     let sum = 0;
-    for (let i = 0; i < 6; i++) sum += w[i]!;
+    for (let i = 0; i < W_N; i++) sum += w[i]!;
     let r = Math.random() * sum;
     let pickI = 0;
-    for (; pickI < 6; pickI++) {
+    for (; pickI < W_N; pickI++) {
       r -= w[pickI]!;
       if (r <= 0) break;
     }
@@ -1050,6 +1305,18 @@ export class Townsfolk {
         break;
       case 5:
         ok = this.beginChat(a);
+        break;
+      case 6:
+        ok = this.beginAmenity(a, 'cafe');
+        break;
+      case 7:
+        ok = this.beginAmenity(a, 'pond');
+        break;
+      case 8:
+        ok = this.beginAmenity(a, 'bandstand');
+        break;
+      case 9:
+        ok = this.beginAmenity(a, 'snowmanPark');
         break;
       default:
         break;
@@ -1140,7 +1407,7 @@ export class Townsfolk {
     for (const b of this.live) {
       if (b === a || b.kind !== 'wanderer' || b.partner || b.fading) continue;
       if (b.mode !== 'walk' && b.mode !== 'idle') continue;
-      if (b.act === 'leave' || b.act === 'sit' || b.p!.kid !== a.p!.kid) continue;
+      if (b.act === 'leave' || b.act === 'sit' || b.act === 'carol' || b.act === 'pond' || b.act === 'cafe' || b.p!.kid !== a.p!.kid) continue;
       const d = (b.x - a.x) ** 2 + (b.z - a.z) ** 2;
       if (d < bd && Math.random() < 0.7) {
         bd = d;
@@ -1172,6 +1439,161 @@ export class Townsfolk {
     return true;
   }
 
+  // -------------------------------------------------------------------------
+  // Amenities (cafe stools, pond rim, bandstand front, snowman park)
+  // -------------------------------------------------------------------------
+  /** Built (state) and with spots to use (town/spots.ts AMENITY_SPOTS). */
+  private amenityOpen(id: AmenityId): boolean {
+    if (!AMENITY_IDS.includes(id)) return false;
+    if ((this.ctx.state.town.amenities?.[id]?.tier ?? -1) < 0) return false;
+    return amenitySpotsOf(id).length > (id === 'pond' ? 1 : 0);
+  }
+
+  private beginAmenity(a: Agent, id: AmenityId): boolean {
+    if (!this.amenityOpen(id)) return false;
+    const list = amenitySpotsOf(id);
+    if (id === 'pond') {
+      let n = 0;
+      for (const b of this.live) if (b.act === 'pond' && b !== a) n++;
+      if (n >= SKATERS_MAX) return false;
+      const idx = Math.floor(Math.random() * list.length);
+      const r = list[idx]!;
+      a.baseSpeed = a.maxSpeed;
+      a.maxSpeed = a.maxSpeed * SKATE_SPEED;
+      a.amenIdx = idx;
+      a.timer = randRange(10, 20);
+      a.act = 'pond';
+      a.mode = 'walk';
+      planTownPath(a.path, a.x, a.z, r.x, r.z);
+      return true;
+    }
+    let slots = this.amenSlots[id];
+    if (!slots || slots.length !== list.length) slots = this.amenSlots[id] = new Array<Agent | null>(list.length).fill(null);
+    const free: number[] = [];
+    for (let i = 0; i < slots.length; i++) if (!slots[i]) free.push(i);
+    if (free.length === 0) return false;
+    const idx = pick(free);
+    const s = list[idx]!;
+    slots[idx] = a;
+    a.amenId = id;
+    a.amenIdx = idx;
+    a.standYaw = s.yaw;
+    if (id === 'cafe') {
+      // approach the stool from behind, then sit facing the table
+      a.approachX = s.x - Math.sin(s.yaw) * 0.9;
+      a.approachZ = s.z - Math.cos(s.yaw) * 0.9;
+      a.act = 'cafe';
+      a.mode = 'walk';
+      planTownPath(a.path, a.x, a.z, a.approachX, a.approachZ);
+      a.path.push(s.x, s.z);
+    } else {
+      a.act = id === 'bandstand' ? 'band' : 'park';
+      a.mode = 'walk';
+      planTownPath(a.path, a.x, a.z, s.x, s.z);
+    }
+    return true;
+  }
+
+  // -------------------------------------------------------------------------
+  // Carolers: three wanderers around the tree at night, lanterns up, singing in step
+  // -------------------------------------------------------------------------
+  private carolersSinging(): boolean {
+    let n = 0;
+    for (const c of this.carolers) if (c.mode === 'carol') n++;
+    return n >= 2;
+  }
+
+  private disbandCarolers(): void {
+    const list = this.carolers.splice(0, this.carolers.length);
+    for (const c of list) {
+      if (!c.p || c.act !== 'carol') continue;
+      c.p.cheer = 0;
+      c.p.talk = 0;
+      this.chooseActivity(c); // frees the tree spot and sends them on their way
+    }
+    this.carolBeatNo = -1;
+  }
+
+  private manageCarolers(dt: number): void {
+    const st = this.ctx.state;
+    const want = this.town.revealed && st.village.revealed && carolersEligible(st.village.level, this.darkness(), this.carolOn);
+    if (!want) {
+      this.carolOn = false;
+      if (this.carolers.length > 0) this.disbandCarolers();
+      return;
+    }
+    this.carolOn = true;
+    if (this.carolers.length === 0) {
+      this.carolFormT -= dt;
+      if (this.carolFormT <= 0) {
+        this.carolFormT = 2;
+        this.formCarolers();
+      }
+      return;
+    }
+    if (this.carolers.length < CAROL_SIZE - 1) {
+      this.disbandCarolers(); // somebody left: the rest go back to the crowd
+      return;
+    }
+    this.carolT += dt;
+    this.carolCheerT -= dt;
+    this.carolCheerCool -= dt;
+    if (this.carolCheerCool <= 0) {
+      this.carolCheerCool = randRange(9, 16);
+      if (this.carolersSinging()) this.carolCheerT = 0.9;
+    }
+    const beat = carolBeat(this.carolT);
+    if (beat !== this.carolBeatNo) {
+      this.carolBeatNo = beat;
+      const pl = this.ctx.player?.position;
+      const T = LAYOUT.town.tree;
+      if (this.carolersSinging() && pl && Math.hypot(pl.x - T.x, pl.z - T.z) < CAROL_HEAR) {
+        this.ctx.audio?.play('chime', { pitch: carolPitch(beat), volume: CAROL_VOLUME });
+      }
+    }
+  }
+
+  private formCarolers(): void {
+    const n = this.ring.length;
+    // three neighbouring free spots around the tree
+    const starts: number[] = [];
+    for (let i = 0; i < n; i++) {
+      let ok = true;
+      for (let k = 0; k < CAROL_SIZE; k++) if (this.ring[(i + k) % n]) ok = false;
+      if (ok) starts.push(i);
+    }
+    if (starts.length === 0) return;
+    const start = pick(starts);
+    const T = LAYOUT.town.tree;
+    const cands: Agent[] = [];
+    for (const b of this.live) {
+      if (b.kind !== 'wanderer' || b.fading || b.partner || b.p!.kid) continue;
+      if (b.act === 'leave' || b.act === 'chat' || b.act === 'carol' || b.act === 'pond' || b.mode === 'sit' || b.mode === 'standup' || b.mode === 'chat') continue;
+      if (b.p!.appear < 0.5) continue;
+      cands.push(b);
+    }
+    if (cands.length < CAROL_SIZE) return;
+    cands.sort((u, v) => Math.hypot(u.x - T.x, u.z - T.z) - Math.hypot(v.x - T.x, v.z - T.z));
+    this.carolT = 0;
+    this.carolBeatNo = -1;
+    this.carolCheerCool = randRange(5, 9);
+    this.carolCheerT = 0;
+    for (let k = 0; k < CAROL_SIZE; k++) {
+      const c = cands[k]!;
+      this.freeSpots(c);
+      const idx = (start + k) % n;
+      const s = TREE_RING[idx]!;
+      this.ring[idx] = c;
+      c.ringIdx = idx;
+      c.standYaw = s.yaw;
+      c.act = 'carol';
+      c.mode = 'walk';
+      c.faceYaw = Number.NaN;
+      this.goTo(c, s.x, s.z);
+      this.carolers.push(c);
+    }
+  }
+
   private beginLeave(a: Agent): void {
     this.freeSpots(a);
     if (a.partner && a.partner.partner === a) a.partner.partner = null;
@@ -1198,5 +1620,7 @@ export class Townsfolk {
 
 const EMPTY_SHOPS: readonly ShopSpot[] = [];
 const EMPTY_STAFF: readonly { lot: number; x: number; z: number; yaw: number; working: boolean }[] = [];
-const tmpW: number[] = [0, 0, 0, 0, 0, 0];
+const W_N = 10;
+const tmpW: number[] = new Array(W_N).fill(0);
+const tmpDoors: XZ[] = [];
 const tmpQ: XZ = { x: 0, z: 0 };
