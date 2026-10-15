@@ -11,6 +11,10 @@ import * as THREE from 'three';
 import { CAMERA, LAYOUT, PADS, type PadIdConst, type XZ } from '../config';
 import type { WorldSnapshot } from '../core/Save';
 import { CARRY_KINDS, type CarryKind, type GameContext, type ItemKind, type PadId } from '../core/types';
+import { EraWorld } from '../eras/EraWorld';
+import { City } from '../city/City';
+import { JackCart } from '../npc/Jack';
+import { JACK } from '../eras/data';
 import type { Pile } from '../items/Pile';
 import { Crew } from '../npc/Crew';
 import { CustomerQueue } from '../npc/CustomerQueue';
@@ -58,6 +62,10 @@ export class Level {
   /** Wave 9: the Market Town (always constructed; inert until revealed) and its townsfolk. */
   readonly town: Town;
   readonly townsfolk: Townsfolk;
+  /** 0.9.0 Ages: era regions (machines, depots, crews), city districts, Jack's yard cart. */
+  readonly eras: EraWorld;
+  readonly city: City;
+  readonly jack: JackCart;
 
   harvester: Harvester | null = null;
   processor: Processor | null = null;
@@ -130,7 +138,17 @@ export class Level {
     this.town = new Town(ctx);
     this.townsfolk = new Townsfolk(ctx, this.town);
     this.crew = new Crew(ctx, this);
+    this.eras = new EraWorld(ctx);
+    this.city = new City(ctx);
+    // Jack's yard cart faces the yard (+X)
+    this.jack = new JackCart(ctx, JACK.yard, Math.PI / 2, 'jack:yard');
     this.progression = new Progression(ctx, this);
+    // 0.9.0 fast travel (map panel): teleport, snap the camera, report back
+    ctx.events.on('travel:request', ({ x, z, label }) => {
+      ctx.player.teleport(x, z);
+      ctx.cameraRig.snapToTarget();
+      ctx.events.emit('travel:done', { x, z, label });
+    });
   }
 
   start(): void {
@@ -162,6 +180,9 @@ export class Level {
     this.town.update(dt);
     this.townsfolk.update(dt);
     this.crew.update(dt);
+    this.eras.update(dt);
+    this.city.update(dt);
+    this.jack.update(dt);
     this.progression.update(dt);
   }
 
@@ -442,8 +463,8 @@ export class Level {
         for (const [kind, n] of Object.entries(carried)) if (n) ins[kind as ItemKind] = (ins[kind as ItemKind] ?? 0) + n;
         return { ...lot, in: ins, out: lot.out + this.townsfolk.loadedByLot(i) + (pc.out[i] ?? 0) };
       }),
-      // 0.9.0 era regions (integration: this.eras.snapshot())
-      eras: [],
+      // 0.9.0 era regions: machine piles and import docks (workers' loads go back to their dock)
+      eras: this.eras.snapshot(),
     };
   }
 
@@ -489,13 +510,9 @@ export class Level {
         }
       }
     };
-    add('log', w.arms.log);
-    add('crate', w.arms.crate);
-    add('furniture', w.arms.furniture);
-    add('wheat', w.arms.wheat);
-    add('meat', w.arms.meat);
-    add('toy', w.arms.toy);
+    for (const k of CARRY_KINDS) add(k, w.arms[k]);
     this.town.restore(w.town);
+    this.eras.restore(w.eras);
     // Last: the drop zone takes its own logs first, then the spill, up to its capacity.
     fillPile(this.dropZone.pile, 'log', w.piles.dropZone + spill);
   }

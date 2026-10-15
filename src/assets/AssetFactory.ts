@@ -49,6 +49,12 @@ import { townCatalog } from './town';
 import { grandMarketCatalog } from './grandMarket';
 import { townAmenityCatalog } from './townAmenities';
 import { vehicleCatalog } from './vehicles';
+import { eraItemCatalog } from './eraItems';
+import { eraMachineCatalog } from './eraMachines';
+import { eraWorkerCatalog } from './eraWorkers';
+import { cityBuildingCatalog } from './cityBuildings';
+import { jackCatalog } from './jack';
+import { frontierCatalog } from './frontierProps';
 
 export * from './characters';
 export * from './items';
@@ -80,4 +86,11 @@ export const ASSET_CATALOG: Record<string, Record<string, AssetBuilder>> = {
   town: townCatalog,
   townAmenities: townAmenityCatalog,
   grandMarket: grandMarketCatalog,
+  // 0.9.0 Ages (each file owns its catalog)
+  eraItems: eraItemCatalog,
+  eraMachines: eraMachineCatalog,
+  eraWorkers: eraWorkerCatalog,
+  cityBuildings: cityBuildingCatalog,
+  jack: jackCatalog,
+  frontierProps: frontierCatalog,
 };

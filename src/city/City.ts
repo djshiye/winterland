@@ -29,5 +29,10 @@ export class City {
     return 0;
   }
 
+  /** Debug / tests: building `id` on lot `lot` of district n, fully built. False if the district is closed / bad ids. */
+  build(_n: number, _lot: number, _id: string, _instant = true): boolean {
+    return false;
+  }
+
   update(_dt: number): void {}
 }
