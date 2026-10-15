@@ -26,6 +26,7 @@ import { PALETTE } from '../config';
 import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
 import { AutoQuality } from './AutoQuality';
+import { BuildPanel } from './BuildPanel';
 import { CoinBurst } from './CoinBurst';
 import { FinaleCard } from './FinaleCard';
 import { MoveHand } from './MoveHand';
@@ -102,6 +103,7 @@ export class HUD {
   private readonly floats: FloatSlot[] = [];
   private readonly layer: HTMLDivElement;
   private readonly shop: ShopPanel;
+  private readonly build: BuildPanel;
   private readonly settings: SettingsPanel;
   private readonly perf: PerfOverlay;
   private readonly offline: OfflineCard;
@@ -200,6 +202,7 @@ export class HUD {
     this.village = new VillageBadge(ctx, layer);
     this.seasonBadge = new SeasonBadge(ctx, layer);
     this.shop = new ShopPanel(ctx, layer);
+    this.build = new BuildPanel(ctx, layer);
     this.quests = new QuestPanel(ctx, layer);
     layer.classList.add('has-quests');
     this.rushBanner = new RushBanner(ctx, layer);
@@ -364,6 +367,11 @@ export class HUD {
     return this.shop;
   }
 
+  /** Wave 9: the town's build menu (Town attaches itself to it; tests / debug). */
+  get buildPanel(): BuildPanel {
+    return this.build;
+  }
+
   /** Settings panel (tests / debug). */
   get settingsPanel(): SettingsPanel {
     return this.settings;
@@ -405,6 +413,7 @@ export class HUD {
     this.updateToast(dt);
     this.updateGuide(dt);
     this.shop.update(dt);
+    this.build.update(dt);
     this.settings.update(dt);
     this.offline.update(dt);
     this.finale.update(dt);
@@ -415,8 +424,9 @@ export class HUD {
     this.autoQuality.update();
     this.perf.update();
     // on phones the shop is a bottom sheet over the FPS readout
-    if (this.layer.classList.contains('shop-open') !== this.shop.visible) {
-      this.layer.classList.toggle('shop-open', this.shop.visible);
+    const sheetOpen = this.shop.visible || this.build.visible;
+    if (this.layer.classList.contains('shop-open') !== sheetOpen) {
+      this.layer.classList.toggle('shop-open', sheetOpen);
     }
     const questsOpen = !this.quests.isCollapsed && !this.quests.isAllDone;
     if (this.layer.classList.contains('quests-open') !== questsOpen) {

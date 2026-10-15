@@ -37,6 +37,7 @@ import { Workshop } from '../stations/Workshop';
 import { UpgradePad } from '../stations/UpgradePad';
 import { Village } from '../village/Village';
 import { Town } from '../town/Town';
+import { settlePaidLots } from '../town/rules';
 import { Townsfolk } from '../npc/Townsfolk';
 
 export class Level {
@@ -121,6 +122,8 @@ export class Level {
     for (const id of Object.keys(PADS) as PadIdConst[]) if (ctx.state.unlocked[id]) this.buildStation(id, true);
 
     this.shopMat = new ShopMat(ctx);
+    // A town lot saved fully paid (last bundle in flight) counts as built before the village counts its people.
+    ctx.state.stats.townBuilt += settlePaidLots(ctx.state);
     this.village = new Village(ctx);
     this.town = new Town(ctx);
     this.townsfolk = new Townsfolk(ctx, this.town);

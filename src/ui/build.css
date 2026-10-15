@@ -1,0 +1,277 @@
+/* [T2] wave 9 build panel: the shop panel's look (hud.css .wl-shop) for the Market Town's build menu. */
+
+.wl-build {
+  --k: 0;
+  position: absolute;
+  left: max(8px, env(safe-area-inset-left));
+  right: max(8px, env(safe-area-inset-right));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  max-height: min(44vh, 380px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 8px;
+  border-radius: 22px;
+  background: linear-gradient(#4a5b7d, #2a3652);
+  border: 3px solid #fff;
+  box-shadow: 0 6px 0 rgba(20, 30, 55, 0.5), 0 10px 26px rgba(20, 30, 55, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.18);
+  pointer-events: auto;
+  touch-action: manipulation;
+  transform: translateY(calc((1 - var(--k)) * 115%));
+  will-change: transform, opacity;
+}
+
+.wl-build-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.wl-build-titles {
+  flex: 1;
+  min-width: 0;
+  padding-left: 6px;
+}
+
+.wl-build-title {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.wl-build-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.1;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wl-build-close {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 6px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #e8553e;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.wl-build-close svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-build-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 1px 1px 3px;
+}
+
+.wl-build-card {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 16px;
+  background: #f1f6ff;
+  color: #2a3652;
+  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-build-card:active:not(.is-locked) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(10, 18, 36, 0.35);
+}
+
+.wl-build-card.is-locked {
+  background: #dfe5f0;
+  cursor: default;
+}
+
+.wl-build-card.is-locked .wl-build-icon {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.wl-build-card.is-current {
+  background: #fff6d6;
+}
+
+.wl-build-icon {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: #dbe8fb;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.wl-build-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-build-mid {
+  flex: 1;
+  min-width: 0;
+}
+
+.wl-build-name {
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+.wl-build-blurb {
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 500;
+  color: #5b6a8a;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.wl-build-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+  margin-top: 3px;
+}
+
+.wl-build-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.wl-build-chip i {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
+
+.wl-build-chip svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-build-chip.is-people {
+  color: #2e7fd1;
+}
+
+.wl-build-flow {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.1;
+  color: #2e7fd1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wl-build-go {
+  flex: none;
+  min-width: 72px;
+  max-width: 104px;
+  min-height: 40px;
+  padding: 3px 8px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  border: 3px solid #fff;
+  background: linear-gradient(#5ee07a, #2e9c48);
+  font-size: 16px;
+  line-height: 1.05;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: 0 3px 0 rgba(20, 30, 55, 0.45);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  color: #fff;
+}
+
+.wl-build-card.is-current .wl-build-go {
+  background: linear-gradient(#ffd84a, #e8a21c);
+  color: #6b3a05;
+  text-shadow: none;
+}
+
+.wl-build-go.is-lock {
+  flex-direction: row;
+  gap: 4px;
+  background: #8591ab;
+  font-size: 12px;
+  text-shadow: none;
+}
+
+.wl-build-go .wl-lock {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.wl-build-go .wl-lock svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-build-go .wl-req {
+  text-align: left;
+  word-spacing: 2px;
+}
+
+@media (max-width: 420px) {
+  .wl-build-icon {
+    width: 46px;
+    height: 46px;
+  }
+  .wl-build-go {
+    min-width: 60px;
+    font-size: 15px;
+  }
+}
+
+/* wide screens: a side card under the top-right buttons */
+@media (min-width: 700px) {
+  .wl-build {
+    left: auto;
+    right: max(12px, env(safe-area-inset-right));
+    top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 60px);
+    bottom: auto;
+    width: 372px;
+    max-height: calc(100% - 140px);
+    padding: 10px;
+    transform: translateX(calc((1 - var(--k)) * 115%));
+  }
+  .wl-build-title {
+    font-size: 24px;
+  }
+}
