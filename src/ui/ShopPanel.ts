@@ -11,7 +11,7 @@ import { crewSlots, type CrewRole } from '../core/crew';
 import { authoredMax } from '../core/ladder';
 import type { GameContext } from '../core/types';
 import { ERAS } from '../eras/data';
-import { expansionOffered } from '../eras/layout';
+import { climbOpen } from '../eras/gate';
 import { eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopTabs, type ShopTab } from './agesLogic';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
@@ -224,13 +224,13 @@ export class ShopPanel {
   }
 
   /**
-   * Which tabs, era headers and cards are on show (0.9.0): Industry appears with the first expansion offer, lists the eras
+   * Which tabs, era headers and cards are on show (0.9.0): Industry appears once the climb opens (the Great Lodge), lists the eras
    * up to the one after the current age (the next one locked), Finance is always there.
    */
   private applyLayout(): void {
     const { state } = this.ctx;
     const age = state.eras.age;
-    const tabs = shopTabs(age, expansionOffered(state, 2));
+    const tabs = shopTabs(age, climbOpen(state));
     const key = `${this.tab}|${age}|${tabs.join(',')}`;
     if (key === this.layoutKey) return;
     this.layoutKey = key;

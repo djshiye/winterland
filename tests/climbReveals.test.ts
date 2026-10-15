@@ -1,7 +1,8 @@
 /**
  * The new-land reveals moved to the climb (docs/EXPANSION.md R2, order step 3): Winter City (village level 4) shows
  * nothing new, as in 0.8.0; the land, its roads, the era-2 pad, the map / era chip / Industry tab and the era guide
- * wait for the Great Lodge (eras/gate.ts climbOpen) or era 2.
+ * wait for the Great Lodge (eras/gate.ts climbOpen) or era 2. The era-2 pad then shows on preview (locked) until the
+ * era gate is met (order step 4).
  */
 import { describe, expect, it } from 'vitest';
 import { VILLAGE } from '../src/config';
@@ -11,6 +12,7 @@ import { climbOpen } from '../src/eras/gate';
 import { expansionOffered, expansionPreview, travelPoints } from '../src/eras/layout';
 import { eraChipVisible, reachNote, shopTabs } from '../src/ui/agesLogic';
 import { landVisible, roadOpen } from '../src/world/env/frontier';
+import { meetGate } from './gateHelpers';
 
 const WINTER_CITY = VILLAGE.levels.findIndex((l) => l.name === 'Winter City');
 
@@ -43,22 +45,32 @@ describe('Winter City shows no new land (0.8.0)', () => {
   it('keeps the map points, the era chip and the Industry tab closed', () => {
     const s = winterCity();
     expect(travelPoints(s).filter((p) => p.kind !== 'home').every((p) => !p.open)).toBe(true);
-    expect(eraChipVisible(s.eras.age, expansionOffered(s, 2))).toBe(false);
-    expect(shopTabs(s.eras.age, expansionOffered(s, 2))).not.toContain('industry');
+    expect(eraChipVisible(s.eras.age, climbOpen(s))).toBe(false);
+    expect(shopTabs(s.eras.age, climbOpen(s))).not.toContain('industry');
     expect(reachNote(2)).toBe('Build the Great Lodge first');
   });
 });
 
 describe('the Great Lodge opens the new land', () => {
-  it('shows the land and the first roads, and offers the era-2 pad', () => {
+  it('shows the land and the first roads, and previews the era-2 pad until its gate is met', () => {
     const s = winterCity();
     s.village.greatLodge.tier = 0;
     s.village.level = VILLAGE.levels.length - 1;
     expect(landVisible(s)).toBe(true);
     expect(ROADS.filter((r) => roadOpen(s, r.opensAt)).map((r) => r.id)).toEqual(['southAvenue', 'r1', 'cityLink', 'cityWest']);
+    expect(expansionOffered(s, 2)).toBe(false);
+    expect(expansionPreview(s, 2)).toBe(true);
+    expect(travelPoints(s).find((p) => p.id === 'region:2')!.open).toBe(false);
+    expect(eraChipVisible(s.eras.age, climbOpen(s))).toBe(true);
+    expect(shopTabs(s.eras.age, climbOpen(s))).toContain('industry');
+  });
+
+  it('offers the era-2 pad once every era-1 upgrade is at Lv 10', () => {
+    const s = winterCity();
+    meetGate(s, 2);
     expect(expansionOffered(s, 2)).toBe(true);
+    expect(expansionPreview(s, 2)).toBe(false);
     expect(travelPoints(s).find((p) => p.id === 'region:2')!.open).toBe(true);
-    expect(eraChipVisible(s.eras.age, expansionOffered(s, 2))).toBe(true);
   });
 
   it('a save already in era 2 keeps its land without the Lodge', () => {
