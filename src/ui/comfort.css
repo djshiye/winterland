@@ -81,8 +81,36 @@
 }
 
 .wl-cb .wl-shop-tab .wl-dot,
+.wl-cb .wl-shop-tab.has-hint .wl-dot,
 .wl-cb .wl-mk-glyph.is-index {
   background: #56b4e9;
+}
+
+/* market price moves: the one screen where red versus green carries the meaning (the base rules are !important) */
+.wl-cb .wl-market .is-up {
+  color: #1f6fc8 !important;
+}
+
+.wl-cb .wl-market .is-down {
+  color: #c45f00 !important;
+}
+
+/* 0.9 climb UI (era ring, gate card, raise buttons): harmless until those classes exist */
+.wl-cb .wl-ring-fg {
+  stroke: #56b4e9;
+}
+
+.wl-cb .wl-gate-fill {
+  background: linear-gradient(#9fd6f7, #2a8ad8);
+}
+
+.wl-cb .wl-gate-done {
+  color: #9fd6f7;
+}
+
+.wl-cb .wl-gate-raise:not(.is-poor),
+.wl-cb .wl-shop-raise:not(.is-poor) {
+  background: linear-gradient(#56b4e9, #1f78c8);
 }
 
 /* "+$12" popups over the world: the HUD writes their colour inline, so match the default money green */
