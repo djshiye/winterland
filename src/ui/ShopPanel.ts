@@ -20,7 +20,7 @@ import { authoredMax, base, introEra } from '../core/ladder';
 import type { GameContext } from '../core/types';
 import { ERAS, ERA_NAMES } from '../eras/data';
 import { climbOpen, gateNeed, raiseReserve } from '../eras/gate';
-import { BAND_PIPS, bandView, eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopTabs, type ShopTab } from './agesLogic';
+import { BAND_PIPS, bandView, eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
 import { hexCss, ICON_CLOSE, ICON_LOCK, upgradeIcon } from './icons';
@@ -523,7 +523,7 @@ export class ShopPanel {
         c.x10.className = `wl-shop-x10 ${x10}`;
         c.x10.disabled = x10 !== 'is-buy';
       }
-      const delta = isMax ? `${up.describe(id)} (max)` : `${up.describe(id)} → ${up.describe(id, lvl + 1)}`;
+      const delta = shopDelta(up.describe(id), isMax ? null : up.describe(id, lvl + 1), climb);
       if (delta !== c.shown.delta) {
         c.shown.delta = delta;
         c.delta.textContent = delta;

@@ -13,7 +13,8 @@ import { createGameState, type GameContext, type GameEvents, type GameState, typ
 import { Upgrades } from '../src/core/Upgrades';
 import { eraGate, gateCount, gateSize, nextGoal, openRows, raiseReserve, rowBuyable, settlementGoal } from '../src/eras/gate';
 import { GateTracker } from '../src/eras/GateTracker';
-import { bandView, BAND_PIPS, gateRowLine } from '../src/ui/agesLogic';
+import { CITY_BUILDINGS, DISTRICTS } from '../src/eras/data';
+import { bandView, BAND_PIPS, gateRowLine, shopDelta } from '../src/ui/agesLogic';
 import { meetGate } from './gateHelpers';
 
 /** Winterland with the Great Lodge built: the climb is open, nothing upgraded. */
@@ -99,6 +100,19 @@ describe('the checklist helpers', () => {
     const g = eraGate(t, 3);
     expect(settlementGoal(t, g).text).toMatch(/^Build a home in .+ \(\+\d+\) → Settlement 6$/);
     expect(settlementGoal(t, g).action).toEqual({ kind: 'build', target: 'district:2' });
+  });
+
+  it('settlementGoal: a district with no free lot asks for a swap (a chosen, unpaid lot is taken)', () => {
+    const t = lodge();
+    t.eras.age = 2;
+    const park = Object.values(CITY_BUILDINGS).find((d) => d.era === 2 && d.kind === 'park')!.id;
+    const lots = t.city.districts[2]!.lots;
+    lots.forEach((l, i) => Object.assign(l, { building: park, tier: i === 0 ? -1 : 0 }));
+    const goal = settlementGoal(t, eraGate(t, 3));
+    expect(goal.text).toBe(`Swap a park or shop for a home in ${DISTRICTS[2]!.name} → Settlement 6`);
+    expect(goal.action).toEqual({ kind: 'build', target: 'district:2' });
+    lots[0]!.building = '';
+    expect(settlementGoal(t, eraGate(t, 3)).text).toMatch(/^Build a home in /);
   });
 });
 
@@ -258,5 +272,14 @@ describe('the shop band view (R5)', () => {
     expect(gateRowLine(crew)).toMatch(/^Not hired → 10/);
     const pre = eraGate(lodge(), 2).rows.find((r) => r.state === 'prereq')!;
     expect(gateRowLine(pre)).toBe(pre.prereq);
+  });
+});
+
+describe("the shop card's effect line", () => {
+  it('says a level past the hard cap only adds Mastery during the climb', () => {
+    expect(shopDelta('40 items', '45 items', true)).toBe('40 items → 45 items');
+    expect(shopDelta('50 items', '50 items', true)).toBe('50 items (max) · +1 Mastery');
+    expect(shopDelta('50 items', null, false)).toBe('50 items (max)');
+    expect(shopDelta('50 items', '50 items', false)).toBe('50 items → 50 items');
   });
 });
