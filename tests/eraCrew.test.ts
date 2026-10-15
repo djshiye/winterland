@@ -266,7 +266,7 @@ describe('materialNeeds', () => {
 
   it('owes the next expansion extra while offered and unpaid', () => {
     const st = createGameState();
-    st.village.level = 4; // era 2's pad is on offer; its extra is crates (not a material)
+    st.village.greatLodge.tier = 0; // era 2's pad is on offer; its extra is crates (not a material)
     expect(materialNeeds(st).size).toBe(0);
     st.eras.age = 2; // era 3 offered: 35 bricks
     expect(materialNeeds(st).get('brick')).toBe(35);

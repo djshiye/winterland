@@ -8,8 +8,9 @@
  * mat right of it); MACHINE SLOTS fill the rest in a centred grid. The EXPANSION PAD sits on the road just outside
  * the gate. Machines face the front yard (their feed / take side toward the gate).
  */
-import { FIRST_EXPANSION_VILLAGE_LEVEL, DISTRICTS, ERAS, REGIONS, regionDef, type ERect, type GateSide } from './data';
+import { DISTRICTS, ERAS, REGIONS, regionDef, type ERect, type GateSide } from './data';
 import type { GameState } from '../core/types';
+import { climbOpen } from './gate';
 
 export interface XZ {
   x: number;
@@ -109,11 +110,19 @@ export function regionLayout(n: number): RegionLayout {
   };
 }
 
-/** True once era n's expansion pad is offered (era 2: Winter City; later eras: the previous era reached). */
+/** True once era n's expansion pad is offered (era 2: the Great Lodge is built; later eras: the previous era reached). */
 export function expansionOffered(state: GameState, n: number): boolean {
   if (!ERAS[n]) return false;
   if (state.eras.age >= n) return false;
-  return n === 2 ? state.village.level >= FIRST_EXPANSION_VILLAGE_LEVEL || state.eras.age >= 2 : state.eras.age >= n - 1;
+  return n === 2 ? climbOpen(state) || state.eras.age >= 2 : state.eras.age >= n - 1;
+}
+
+/**
+ * True while era n's land, roads and FOR SALE pad show but the pad does not take payment yet (docs/EXPANSION.md §C):
+ * the climb is open, era n is next, and its pad is not offered. The pad tile is greyed and refuses payment.
+ */
+export function expansionPreview(state: GameState, n: number): boolean {
+  return !!ERAS[n] && climbOpen(state) && state.eras.age === n - 1 && !expansionOffered(state, n);
 }
 
 export interface TravelPoint {

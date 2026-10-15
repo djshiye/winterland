@@ -13,6 +13,8 @@
  *   delay TIMING.padHoldDelay. Disable each zone as soon as its requirement is met (no 'stack:full' spam).
  * - rearm(target) switches to the next tier's totals (paidLogs/paidCash restore partial progress).
  * - show(instant) pops in (instant: no animation, no sound, no event); hide() pops out.
+ * - setLocked(note) (0.9 era pads on preview, docs/EXPANSION.md §C): the tile stays shown but greyed under a padlock and
+ *   `note`, takes nothing (zones off, canAccept / payDirect refuse) and never completes; setLocked(null) re-arms it.
  *
  * B7 implementation: the tile shows the shelter icon (tent / hut / cabin / lodge / great lodge drawn on the canvas),
  * a log icon + logs left and a bill icon + cash left (a finished requirement shows a check mark), a floating sign
@@ -83,6 +85,8 @@ export class ConstructionPad implements ItemHolder {
   private pendingExtra = 0;
   private shown = false;
   private completed = false;
+  /** Preview note while locked (greyed, refuses payment), null when payable. */
+  private lockNote: string | null = null;
   private readonly texture: THREE.CanvasTexture;
   private readonly logZone: Zone;
   private readonly cashZone: Zone;
@@ -202,6 +206,23 @@ export class ConstructionPad implements ItemHolder {
     });
   }
 
+  /** True while the pad shows on preview and refuses payment. */
+  get locked(): boolean {
+    return this.lockNote !== null;
+  }
+
+  /**
+   * Preview (note) or payable (null). A locked pad keeps its shown state and paid amounts but takes nothing; unlocking
+   * re-enables the zones (and completes a fully paid target). No-op when unchanged.
+   */
+  setLocked(note: string | null): void {
+    if (note === this.lockNote) return;
+    this.lockNote = note;
+    this.redraw();
+    this.syncZones();
+    this.completeIfPaid();
+  }
+
   /** Switch to a new target (the next tier). Keeps the shown / hidden state. */
   rearm(target: ConstructionTarget): void {
     this.target = fill(target);
@@ -220,9 +241,10 @@ export class ConstructionPad implements ItemHolder {
     const t = this.ctx.time.elapsed;
     const arms = this.ctx.player.arms;
     const eager =
-      (this.logsLeft - this.pendingLogs > 0 && arms.count('log') > 0) ||
-      (this.cashLeft - this.pendingCash > 0 && this.ctx.economy.money >= 5) ||
-      (this.target.extra !== null && this.extraLeft - this.pendingExtra > 0 && arms.count(this.target.extra.kind) > 0);
+      this.lockNote === null &&
+      ((this.logsLeft - this.pendingLogs > 0 && arms.count('log') > 0) ||
+        (this.cashLeft - this.pendingCash > 0 && this.ctx.economy.money >= 5) ||
+        (this.target.extra !== null && this.extraLeft - this.pendingExtra > 0 && arms.count(this.target.extra.kind) > 0));
     const amp = eager ? 0.05 : 0.02;
     const s = 1 + amp * Math.sin(t * (eager ? 5.5 : 3));
     this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
@@ -232,7 +254,7 @@ export class ConstructionPad implements ItemHolder {
 
   // --- ItemHolder -----------------------------------------------------------
   canAccept(kind: ItemKind): boolean {
-    if (!this.shown || this.completed) return false;
+    if (!this.shown || this.completed || this.lockNote !== null) return false;
     if (kind === 'log') return this.logsLeft - this.pendingLogs > 0;
     if (kind === 'cash') return this.cashLeft - this.pendingCash > 0;
     if (this.target.extra && kind === this.target.extra.kind) return this.extraLeft - this.pendingExtra > 0;
@@ -293,7 +315,7 @@ export class ConstructionPad implements ItemHolder {
    * Returns the amount credited (capped at what is left; 0 when hidden or complete).
    */
   payDirect(amount: number): number {
-    if (!this.shown || this.completed) return 0;
+    if (!this.shown || this.completed || this.lockNote !== null) return 0;
     const credit = Math.max(0, Math.min(amount, this.cashLeft));
     if (credit <= 0) return 0;
     this.target.paidCash += credit;
@@ -352,7 +374,7 @@ export class ConstructionPad implements ItemHolder {
    * will ever land, so complete the tier now (deferred a tick so the owner is not re-entered from show()/rearm()).
    */
   private completeIfPaid(): void {
-    if (!this.shown || this.completed || this.logsLeft > 0 || this.cashLeft > 0 || this.extraLeft > 0) return;
+    if (!this.shown || this.completed || this.lockNote !== null || this.logsLeft > 0 || this.cashLeft > 0 || this.extraLeft > 0) return;
     if (this.pendingLogs > 0 || this.pendingCash > 0 || this.pendingExtra > 0) return;
     this.completed = true;
     this.ctx.tweens.delay(0, () => {
@@ -381,8 +403,9 @@ export class ConstructionPad implements ItemHolder {
   /** A requirement's zone is on only while something of it is still missing (landed + in flight). */
   private syncZones(): void {
     // the item zone serves logs and the extra kind: on while either still misses something (landed + in flight)
-    this.logZone.setEnabled(this.shown && (this.logsLeft - this.pendingLogs > 0 || this.extraLeft - this.pendingExtra > 0));
-    this.cashZone.setEnabled(this.shown && this.cashLeft - this.pendingCash > 0);
+    const open = this.shown && this.lockNote === null;
+    this.logZone.setEnabled(open && (this.logsLeft - this.pendingLogs > 0 || this.extraLeft - this.pendingExtra > 0));
+    this.cashZone.setEnabled(open && this.cashLeft - this.pendingCash > 0);
   }
 
   private makeTexture(target?: THREE.CanvasTexture): THREE.CanvasTexture {
@@ -393,6 +416,7 @@ export class ConstructionPad implements ItemHolder {
       { left: this.cashLeft, total: t.cash },
       target,
       t.extra ? { left: this.extraLeft, total: t.extra.count, kind: t.extra.kind } : undefined,
+      this.lockNote ?? undefined,
     );
   }
 

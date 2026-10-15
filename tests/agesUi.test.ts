@@ -66,7 +66,7 @@ describe('cost text', () => {
   });
 
   it('says what a locked region needs first', () => {
-    expect(reachNote(2)).toBe('Reach Winter City first');
+    expect(reachNote(2)).toBe('Build the Great Lodge first');
     expect(reachNote(4)).toBe('Reach the Iron Age first');
   });
 });

@@ -16,13 +16,15 @@
  * Expansion pad of era n (2..10): ConstructionPad key `expansion:${n}`, logs 0, cash = unlock.cash, extra = unlock.extra,
  * at regionLayout(n).expansionPad. Shown while expansionOffered(state, n) (re-checked on 'village:changed' and once a
  * second) and the region is closed; its progress lives in state.eras.regions[n].cash / .extra. Paying it opens the era.
+ * While expansionPreview(state, n) the same pad shows greyed and locked (docs/EXPANSION.md §C): it takes nothing, and
+ * 'expansion:offered' fires only when it turns payable.
  */
 import * as THREE from 'three';
 import type { WorldSnapshot } from '../core/Save';
 import { REGION_SLOTS, type GameContext } from '../core/types';
 import { ConstructionPad } from '../stations/ConstructionPad';
 import { ERAS, MAX_ERA } from './data';
-import { expansionOffered, regionLayout } from './layout';
+import { expansionOffered, expansionPreview, regionLayout } from './layout';
 import { Region } from './Region';
 import type { RegionRuntime } from './runtime';
 import { settlePaidSlots } from './rules';
@@ -109,15 +111,22 @@ export class EraWorld {
   }
 
   // ---- expansion pads ---------------------------------------------------------------------------------------------
-  /** Show the pads that are on offer, hide the others. `live`: a newly shown pad pops in and announces itself. */
+  /**
+   * Show the pads that are on offer (payable) or on preview (greyed, locked), hide the others. `live`: a newly shown pad
+   * pops in, and a pad that turns payable announces itself.
+   */
   private refreshPads(live: boolean): void {
     const state = this.ctx.state;
     for (let n = 2; n <= MAX_ERA; n++) {
       if (!ERAS[n]) continue;
-      if (expansionOffered(state, n) && !this.regions[n]) {
+      const offered = expansionOffered(state, n);
+      if ((offered || expansionPreview(state, n)) && !this.regions[n]) {
         const pad = this.padFor(n);
-        if (pad.visible) continue;
-        pad.show(!live);
+        const wasPayable = pad.visible && !pad.locked;
+        // the gate's progress note arrives with eras/gate.ts eraGate (step 4); until then the padlock alone
+        pad.setLocked(offered ? null : '');
+        if (!pad.visible) pad.show(!live);
+        if (!offered || wasPayable) continue;
         if (live) {
           const p = regionLayout(n).expansionPad;
           this.ctx.events.emit('expansion:offered', { era: n, position: new THREE.Vector3(p.x, 0, p.z) });
