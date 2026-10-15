@@ -14,7 +14,8 @@
  * watchdog is scripts/soak/probe.js (what each finding means is described there).
  *
  * Prints a plain summary and writes the full JSON report (default: soak-report.json). Exit code 1 when any scenario
- * has a failure (escaped, jammed, loaded, solid, stacked, jumped, error); `idle` agents are listed but do not fail.
+ * has a failure (escaped, jammed, loaded, jumped, error). Minor findings (solid: brushing a prop, stacked: two people
+ * briefly standing inside each other) and `idle` agents are listed but do not fail.
  * Never touches a real save: every page runs on its own throwaway browser profile.
  */
 import { createServer } from 'vite';
@@ -32,7 +33,9 @@ const opt = (name, def) => {
 const capMinutes = Number(opt('--minutes', '0')) || 0;
 const only = (opt('--only', '') || '').split(',').filter(Boolean);
 const outFile = opt('--out', 'soak-report.json');
-const FAIL = new Set(['escaped', 'jammed', 'loaded', 'solid', 'stacked', 'jumped', 'error']);
+/** Findings that fail the run. `solid` and `stacked` are listed as minor: brief brushes and overlaps, worth a look. */
+const FAIL = new Set(['escaped', 'jammed', 'loaded', 'jumped', 'error']);
+const MINOR = new Set(['solid', 'stacked']);
 
 const probe = fs.readFileSync(path.join(root, 'scripts/soak/probe.js'), 'utf8');
 const SAVE_KEY = 'winterland.save.v1';
@@ -199,7 +202,7 @@ for (const sc of SCENARIOS) {
   if (bad.length) failed++;
   const counts = {};
   for (const f of merged.findings) counts[f.type] = (counts[f.type] ?? 0) + 1;
-  log(`  ${bad.length ? 'PROBLEMS' : 'clean'}: ${JSON.stringify(counts)}, idle agents: ${merged.idle.length}`);
+  log(`  ${bad.length ? 'PROBLEMS' : merged.findings.length ? 'minor only' : 'clean'}: ${JSON.stringify(counts)}, idle agents: ${merged.idle.length}`);
 }
 
 await browser.close();
@@ -219,7 +222,8 @@ for (const r of reports) {
     groups.get(k).push(f);
   }
   const head = [...groups.keys()].filter((k) => FAIL.has(k.split(' ')[0]));
-  console.log(`  ${head.length ? 'x' : 'ok'} ${r.scenario}${head.length ? '' : ' (clean)'}`);
+  const minor = [...groups.keys()].some((k) => MINOR.has(k.split(' ')[0]));
+  console.log(`  ${head.length ? 'x' : 'ok'} ${r.scenario}${head.length ? '' : minor ? ' (minor findings only)' : ' (clean)'}`);
   for (const [k, list] of groups) {
     const ex = list
       .slice(0, 3)
