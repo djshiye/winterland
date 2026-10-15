@@ -13,7 +13,7 @@ import { createGameState } from '../src/core/types';
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
 /** Every real save captured from a released build: each must keep loading as the state grows. */
-const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json'];
+const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json'];
 
 describe.each(FIXTURES)('%s', (name) => {
   it('loads every saved field and the world', () => {
@@ -170,6 +170,11 @@ describe('sanitizeState', () => {
     // a maxed plot has nothing left to pay
     expect(state.village.plots[0]!.logs).toBe(0);
     expect(state.village.plots[0]!.cash).toBe(0);
+  });
+
+  it('resets unknown crew priorities to balanced', () => {
+    const state = merged({ priorities: { wood: 'everything', town: 'toys' } });
+    expect(state.priorities).toEqual({ wood: 'balanced', town: 'toys' });
   });
 
   it('clamps paid progress to the next tier cost', () => {
