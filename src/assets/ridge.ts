@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { COLORS, LAYOUT, PALETTE } from '../config';
 import { Batch, vcMat } from '../render/batch';
 import { toon } from '../render/materials';
+import { registerGlow } from '../world/env/glow';
 
 const ROOF_RED = 0xc4472f;
 const ROOF_RED_DARK = 0x9e3524;
@@ -115,7 +116,7 @@ interface Baked {
 
 let glowMaterial: THREE.MeshToonMaterial | null = null;
 function glowMat(): THREE.MeshToonMaterial {
-  glowMaterial ??= toon(WARM, { emissive: 0xffb347, emissiveIntensity: 0.65 });
+  glowMaterial ??= registerGlow(toon(WARM, { emissive: 0xffb347, emissiveIntensity: 0.65 }));
   return glowMaterial;
 }
 

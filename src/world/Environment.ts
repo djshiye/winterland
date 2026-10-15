@@ -10,7 +10,9 @@
 import * as THREE from 'three';
 import { LAYOUT } from '../config';
 import type { GameContext } from '../core/types';
+import { buildAurora, type AuroraPart } from './env/aurora';
 import { buildBuildings } from './env/buildings';
+import { updateGlow } from './env/glow';
 import { Rng, type EnvPart } from './env/common';
 import { buildDecor, type ClearItem } from './env/decor';
 import { buildFences } from './env/fences';
@@ -47,6 +49,7 @@ export class Environment {
   private readonly parts: EnvPart[] = [];
   private readonly river: EnvPart;
   private readonly snowfall: EnvPart;
+  private readonly aurora: AuroraPart;
   private readonly fences: ReturnType<typeof buildFences>;
   private readonly ground: ReturnType<typeof buildGround>;
   private readonly gate: GatePart;
@@ -75,14 +78,22 @@ export class Environment {
     this.snowfall = buildSnowfall(ctx, rng);
     this.gate = buildGate();
     this.ridgeGate = buildRidgeGate();
+    this.aurora = buildAurora();
     this.chimney = buildings.chimney;
 
-    for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, roads, mountains, decor, buildings, this.snowfall]) {
+    for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, roads, mountains, decor, buildings, this.snowfall, this.aurora]) {
       this.parts.push(p);
       this.root.add(p.group);
     }
     decor.stripItems.forEach((item, i) => {
       this.strip.push({ item, baseScale: item.object.scale.x, delay: 0.1 + i * 0.09, puffed: false });
+    });
+
+    // Day / night: the renderer pulls ctx.dayNight.darkness every render() and tells us when it changes.
+    ctx.renderer.darknessSource = () => ctx.dayNight.darkness;
+    ctx.renderer.onDarkness((d) => {
+      updateGlow(d);
+      this.aurora.setDarkness(d);
     });
 
     ctx.colliders.setBounds(LAYOUT.yard);
@@ -117,6 +128,7 @@ export class Environment {
     this.gate.update?.(dt);
     this.ridgeGate.update?.(dt);
     this.snowfall.update?.(dt);
+    this.aurora.update?.(dt);
 
     this.smokeTimer -= dt;
     if (this.smokeTimer <= 0) {

@@ -4,6 +4,7 @@ import { LAYOUT, PALETTE } from '../../config';
 import { GAME_FONT, makeCanvasTexture, toon } from '../../render/materials';
 import type { GameContext } from '../../core/types';
 import { Batch, type EnvPart } from './common';
+import { buildHalos, registerGlow, type HaloSpot } from './glow';
 
 export interface BuildingsPart extends EnvPart {
   /** World position of the chimney mouth (smoke source). */
@@ -145,24 +146,27 @@ export function buildBuildings(ctx: GameContext): BuildingsPart {
   const glow = new Batch();
   const cabin = buildCabin(cx, cz, glow);
   group.add(cabin.mesh());
-  group.add(glow.mesh({ cast: false, material: toon(0xffffff, { emissive: WARM, emissiveIntensity: 0.9 }) }));
+  group.add(glow.mesh({ cast: false, material: registerGlow(toon(0xffffff, { emissive: WARM, emissiveIntensity: 0.9 })) }));
   ctx.colliders.addBox(c, 'cabin');
   const chimney = new THREE.Vector3(cx - 0.9, 0.28 + 1.75 + 0.05 + 2.2, cz - 0.55);
 
   // Lamp posts
   const lamps = new Batch();
   const lampGlow = new Batch();
+  const halos: HaloSpot[] = [];
   for (const [x, z] of LAMPS) {
     lamps.add(new THREE.CylinderGeometry(0.2, 0.26, 0.3, 8), PALETTE.metalDark, x, 0.15, z);
     lamps.add(new THREE.CylinderGeometry(0.07, 0.1, 3.0, 8), PALETTE.metalDark, x, 1.5, z);
     lamps.add(new THREE.BoxGeometry(0.46, 0.08, 0.46), PALETTE.metalDark, x, 3.05, z);
     lampGlow.add(new THREE.BoxGeometry(0.32, 0.42, 0.32), WARM, x, 3.3, z);
+    halos.push({ x, y: 3.3, z });
     lamps.add(new THREE.ConeGeometry(0.4, 0.3, 4), PALETTE.rubber, x, 3.66, z, { ry: Math.PI / 4 });
     lamps.add(new THREE.CylinderGeometry(0.2, 0.34, 0.1, 4), PALETTE.snow, x, 3.8, z, { ry: Math.PI / 4 });
     ctx.colliders.addCircle(x, z, 0.3, 'lamp');
   }
   group.add(lamps.mesh());
-  group.add(lampGlow.mesh({ cast: false, material: toon(0xffffff, { emissive: WARM, emissiveIntensity: 1 }) }));
+  group.add(lampGlow.mesh({ cast: false, material: registerGlow(toon(0xffffff, { emissive: WARM, emissiveIntensity: 1 })) }));
+  group.add(buildHalos(halos, { size: 2.6, pool: 6 }));
 
   // Sign outside the south fence, west of the walk-in gap (turned toward the camera for legibility).
   const signRoot = new THREE.Group();

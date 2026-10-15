@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { COLORS, LAYOUT, PALETTE } from '../config';
 import { Batch, vcMat } from '../render/batch';
 import { GAME_FONT, makeCanvasTexture, toon } from '../render/materials';
+import { registerGlow } from '../world/env/glow';
 
 const CLOTH = 0xe9503a;
 const CLOTH_LIGHT = 0xfff0d8;
@@ -42,7 +43,7 @@ interface Baked {
 
 let glowMaterial: THREE.MeshToonMaterial | null = null;
 function glowMat(): THREE.MeshToonMaterial {
-  glowMaterial ??= toon(WARM, { emissive: 0xffb347, emissiveIntensity: 0.65 });
+  glowMaterial ??= registerGlow(toon(WARM, { emissive: 0xffb347, emissiveIntensity: 0.65 }));
   return glowMaterial;
 }
 
