@@ -23,6 +23,7 @@
  */
 import * as THREE from 'three';
 import { PALETTE } from '../config';
+import { toggleFullscreen } from '../platform/desktop';
 import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
 import { AutoQuality } from './AutoQuality';
@@ -188,11 +189,7 @@ export class HUD {
     this.muteBtn.addEventListener('touchstart', stop, { passive: true });
     this.muteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      ctx.audio.unlock();
-      const muted = ctx.audio.toggleMute();
-      this.muteBtn.classList.toggle('is-muted', muted);
-      this.settings.sync();
-      if (!muted) ctx.audio.play('click');
+      this.toggleMute();
     });
     layer.appendChild(this.muteBtn);
 
@@ -257,10 +254,36 @@ export class HUD {
     ctx.scene.add(this.arrow);
 
     ctx.events.on('money:changed', (e) => this.setMoney(e.money, true));
+    // wave 10 keyboard shortcuts (Game turns the keys into events)
+    ctx.events.on('ui:escape', () => this.escape());
+    ctx.events.on('ui:mute', () => this.toggleMute());
+    ctx.events.on('ui:fullscreen', () => {
+      toggleFullscreen();
+      this.settings.sync();
+    });
     ctx.events.on('finale:start', () => {
       this.toastQueue.length = 0;
       this.finale.schedule();
     });
+  }
+
+  /** What the mute button does (also the M key). */
+  private toggleMute(): void {
+    const { audio } = this.ctx;
+    audio.unlock();
+    const muted = audio.toggleMute();
+    this.muteBtn.classList.toggle('is-muted', muted);
+    this.settings.sync();
+    if (!muted) audio.play('click');
+  }
+
+  /** Esc: close the topmost thing (settings, shop, build menu), else fold the quest card, else open Settings. */
+  private escape(): void {
+    if (this.settings.isOpen) this.settings.close();
+    else if (this.shop.visible) this.shop.close();
+    else if (this.build.visible) this.build.close();
+    else if (!this.quests.isCollapsed && !this.quests.isAllDone) this.quests.setCollapsed(true);
+    else this.settings.open();
   }
 
   private static buildArrow(): THREE.Group {

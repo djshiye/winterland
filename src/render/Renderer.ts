@@ -15,6 +15,9 @@
  * - OrthographicCamera is created here; CameraRig owns its placement & frustum.
  * - setQuality('high' | 'low'): high = PCF shadows + pixel ratio ≤ 2; low = no shadows, pixel ratio 1 (slow computers).
  *   Persisted in localStorage 'winterland:quality' and applied at construction. `stats` = last frame's draw calls / triangles.
+ * - setScale(s) (wave 10): render-resolution scale 0.5..1 in 0.05 steps, multiplies the pixel ratio (Low = 1 × scale).
+ *   Persisted in localStorage 'winterland:scale' (default 1, invalid → 1) and applied at construction. The canvas CSS
+ *   size stays the container size (setSize updateStyle), only the backing store shrinks, so it still fills the view.
  */
 import * as THREE from 'three';
 import { LIGHTING, PALETTE } from '../config';
@@ -22,6 +25,13 @@ import { LIGHTING, PALETTE } from '../config';
 export type Quality = 'high' | 'low';
 
 const QUALITY_KEY = 'winterland:quality';
+const SCALE_KEY = 'winterland:scale';
+
+/** Clamp to 0.5..1 and round to 0.05; non-finite → 1. */
+export function normalizeScale(s: number): number {
+  if (!Number.isFinite(s)) return 1;
+  return Math.round(Math.max(0.5, Math.min(1, s)) * 20) / 20;
+}
 
 // Day / dusk / night looks (hex = sRGB). Day is the original LIGHTING / PALETTE look and stays untouched.
 const SKY = { day: PALETTE.sky, dusk: 0xf0967a, night: 0x131b45 };
@@ -80,6 +90,8 @@ export class Renderer {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     try {
       if (localStorage.getItem(QUALITY_KEY) === 'low') this.q = 'low';
+      const raw = localStorage.getItem(SCALE_KEY);
+      if (raw !== null && raw.trim() !== '') this.scale = normalizeScale(Number(raw));
     } catch {
       /* storage unavailable */
     }
@@ -193,9 +205,15 @@ export class Renderer {
   /** Wave 10: render resolution scale 0.5..1 (persisted 'winterland:scale', default 1). Multiplies the pixel ratio. */
   scale = 1;
 
-  /** TODO(engine builder): clamp 0.5..1, persist, then resize(). */
+  /** Clamp 0.5..1, round to 0.05, persist, and resize the drawing buffer. */
   setScale(s: number): void {
-    this.scale = Math.max(0.5, Math.min(1, s));
+    this.scale = normalizeScale(s);
+    try {
+      localStorage.setItem(SCALE_KEY, String(this.scale));
+    } catch {
+      /* storage unavailable */
+    }
+    this.resize();
   }
 
   private pixelRatio(): number {

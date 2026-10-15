@@ -10,6 +10,10 @@
  * - focus(point | object, {duration, hold}): cinematic pan to a point (or track an Object3D while focused),
  *   then after `hold` seconds return to the follow target.
  * - setZoom(mult, duration): smooth zoom (phase 5 zooms out to CAMERA.expansionZoom).
+ * - setUserZoom(z): the player's own zoom (wheel / pinch / +-), clamped USER_ZOOM_MIN..USER_ZOOM_MAX and eased in
+ *   over ~0.15 s. It multiplies `zoom`, so phase / camera-moment zooms keep working on top of it. `userZoom` reads
+ *   the TARGET (so `setUserZoom(userZoom + delta)` accumulates correctly while the ease is still running); the
+ *   value actually applied to the frustum is the eased one.
  * - shake(intensity, duration): additive screen shake with decay. `target` stays the pure look-at point.
  * - screenToWorldDir: maps screen-space input (x right, y up) to world XZ using the camera yaw.
  *
@@ -26,6 +30,14 @@ const DEFAULT_FOCUS_DURATION = 0.9;
 export const USER_ZOOM_MIN = 0.8;
 export const USER_ZOOM_MAX = 1.3;
 const DEFAULT_FOCUS_HOLD = 0.8;
+/** Time constant of the user-zoom ease (s): ~95% of the way after 3 × this = 0.15 s. */
+const USER_ZOOM_TAU = 0.05;
+
+/** Clamp a player zoom request to USER_ZOOM_MIN..USER_ZOOM_MAX (non-finite → 1). */
+export function clampUserZoom(z: number): number {
+  if (!Number.isFinite(z)) return 1;
+  return Math.max(USER_ZOOM_MIN, Math.min(USER_ZOOM_MAX, z));
+}
 
 export class CameraRig {
   /** Current (smoothed) look-at point on the ground. */
@@ -34,8 +46,17 @@ export class CameraRig {
   /**
    * Wave 10: the player's own zoom (wheel / pinch / +-), a separate multiplier on top of `zoom` (which the game
    * animates for phases and camera moments). Clamped USER_ZOOM_MIN..USER_ZOOM_MAX. Not persisted.
+   * Reads the target; the eased value that is actually applied is `userZoomShown`.
    */
-  userZoom = 1;
+  get userZoom(): number {
+    return this.userZoomTarget;
+  }
+  set userZoom(z: number) {
+    this.setUserZoom(z);
+  }
+  private userZoomTarget = 1;
+  /** Eased user zoom currently applied to the frustum. */
+  userZoomShown = 1;
   private followed: THREE.Object3D | null = null;
   private aspect = 16 / 9;
   private viewW = 1280;
@@ -146,6 +167,7 @@ export class CameraRig {
 
   update(dt: number): void {
     this.updateZoom(dt);
+    this.updateUserZoom(dt);
     this.updateTarget(dt);
     if (this.shakeAmp > 0) {
       this.shakeT += dt;
@@ -160,6 +182,14 @@ export class CameraRig {
     this.zoomT += dt;
     const k = this.zoomDuration <= 0 ? 1 : Math.min(1, this.zoomT / this.zoomDuration);
     this.zoom = k >= 1 ? this.zoomTo : this.zoomFrom + (this.zoomTo - this.zoomFrom) * Ease.sineInOut(k);
+    this.applyFrustum();
+  }
+
+  private updateUserZoom(dt: number): void {
+    if (this.userZoomShown === this.userZoomTarget) return;
+    const diff = this.userZoomTarget - this.userZoomShown;
+    if (Math.abs(diff) < 0.0005) this.userZoomShown = this.userZoomTarget;
+    else this.userZoomShown += diff * (1 - Math.exp(-Math.max(0, dt) / USER_ZOOM_TAU));
     this.applyFrustum();
   }
 
@@ -210,14 +240,13 @@ export class CameraRig {
     }
   }
 
-  /** TODO(engine builder): clamp, smooth, applyFrustum(). */
+  /** Player zoom (1 = default, >1 closer): clamped, then eased toward in update(dt) over ~0.15 s. */
   setUserZoom(z: number): void {
-    this.userZoom = Math.max(USER_ZOOM_MIN, Math.min(USER_ZOOM_MAX, z));
-    this.applyFrustum();
+    this.userZoomTarget = clampUserZoom(z);
   }
 
   private applyFrustum(): void {
-    const z = Math.max(0.05, this.zoom * this.userZoom);
+    const z = Math.max(0.05, this.zoom * this.userZoomShown);
     let h = CAMERA.viewHeight / z;
     if (h * this.aspect < CAMERA.minViewWidth / z) h = CAMERA.minViewWidth / z / this.aspect;
     const w = h * this.aspect;

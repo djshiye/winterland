@@ -71,8 +71,7 @@ export class BuildPanel {
     close.setAttribute('aria-label', 'Close build menu');
     onTap(close, () => {
       ctx.audio.play('click');
-      this.dismissed = true;
-      this.syncOpen();
+      this.close();
     });
     head.appendChild(close);
     this.root.appendChild(head);
@@ -129,6 +128,12 @@ export class BuildPanel {
     this.wanted = open;
     this.dismissed = false;
     if (open) this.rebuild();
+    this.syncOpen();
+  }
+
+  /** Dismiss the panel like its X button (it stays shut until the player leaves and re-enters the spot). */
+  close(): void {
+    this.dismissed = true;
     this.syncOpen();
   }
 

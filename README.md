@@ -82,7 +82,11 @@ first run downloads the Electron runtime for each target (~100 MB each) and cach
   *"The SUID sandbox helper binary was found, but is not configured correctly"*), start it with
   `./winterland --no-sandbox`.
 
-Keys in the desktop app: **F11** fullscreen, **Ctrl+R** reload, **F12** developer tools.
+Settings → Display has a **Window mode** (Windowed / Fullscreen — borderless, so alt-tab stays friendly).
+**F11** or **Alt+Enter** toggles it from anywhere. The window size, position and mode are remembered in
+`window.json` next to the save, so the game opens the way you left it.
+
+Keys in the desktop app: **F11** / **Alt+Enter** fullscreen, **Ctrl+R** reload, **F12** developer tools.
 
 ## Develop
 

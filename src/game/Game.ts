@@ -227,6 +227,7 @@ export class Game {
     });
     input.onZoom((delta) => events.emit('camera:zoom', { delta }));
     events.on('settings:fps', ({ cap }) => this.setFpsCap(cap));
+    events.on('save:restore', ({ text }) => this.restore(text));
     events.on('camera:zoom', ({ delta }) => cameraRig.setUserZoom(cameraRig.userZoom + delta));
     events.on('season:new', () => this.newSeason());
     this.installDebugApi();
@@ -272,6 +273,18 @@ export class Game {
   private reset(): void {
     this.saving = false;
     clearSave();
+    location.reload();
+  }
+
+  /** Settings → Restore save: stop autosaving (the pagehide save would overwrite it), write the text, reload. */
+  private restore(text: string): void {
+    this.saving = false;
+    try {
+      localStorage.setItem(SAVE.key, text);
+    } catch {
+      this.ctx.hud.toast("Couldn't store the save.", { small: true });
+      return;
+    }
     location.reload();
   }
 
