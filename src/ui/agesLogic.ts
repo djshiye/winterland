@@ -7,6 +7,7 @@ import { CITY_RANKS, ERA_NAMES, ERAS, MATERIALS, MAX_ERA, isMaterial, unlockCash
 import type { TravelPoint } from '../eras/layout';
 import type { IncomeSource, ItemKind } from '../core/types';
 import { formatMoney } from './format';
+import { romanNumeral } from '../world/env/eras';
 
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
@@ -21,8 +22,8 @@ export function eraTitle(n: number): string {
 }
 
 /** The unlock banner's name for a village level: "SETTLEMENT · WINTER CITY" (the old village levels are not eras). */
-export function settlementTitle(levelName: string): string {
-  return `SETTLEMENT · ${levelName.toUpperCase()}`;
+export function settlementTitle(level: number): string {
+  return level > 0 ? `SETTLEMENT ${romanNumeral(level)}` : 'SETTLEMENT';
 }
 
 const SURVIVAL_LABELS: Record<string, string> = {

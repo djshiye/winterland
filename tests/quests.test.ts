@@ -1,8 +1,10 @@
 /** Wave 12: the amenity / happiness quests. */
 import { describe, expect, it } from 'vitest';
 import { AMENITIES, AMENITY_IDS } from '../src/config';
-import { QUEST_DEFS } from '../src/core/quests';
-import { createGameState } from '../src/core/types';
+import { Economy } from '../src/core/Economy';
+import { EventBus } from '../src/core/EventBus';
+import { QUEST_DEFS, Quests } from '../src/core/quests';
+import { createGameState, type GameEvents } from '../src/core/types';
 
 const def = (id: string) => QUEST_DEFS.find((q) => q.id === id)!;
 
@@ -63,5 +65,27 @@ describe('era quests (0.9.0)', () => {
     expect(def('era3').progress(s)).toBe(3);
     expect(def('era4').progress(s)).toBeLessThan(def('era4').target);
     expect(def('machines6').progress(s)).toBe(1);
+  });
+});
+
+describe('quest counter (0.9.0)', () => {
+  const make = () => {
+    const state = createGameState();
+    const events = new EventBus<GameEvents>();
+    return { state, quests: new Quests(state, new Economy(events, state, 0), events) };
+  };
+
+  it('counts only the Survival quests in era 1, as 0.8.0 did', () => {
+    const { state, quests } = make();
+    const survival = QUEST_DEFS.findIndex((q) => q.id === 'era2');
+    expect(quests.total).toBe(survival);
+    state.eras.age = 2;
+    expect(quests.total).toBe(QUEST_DEFS.length);
+  });
+
+  it('counts every quest once all Survival quests are done', () => {
+    const { state, quests } = make();
+    for (const q of QUEST_DEFS.slice(0, QUEST_DEFS.findIndex((d) => d.id === 'era2'))) state.quests[q.id] = true;
+    expect(quests.total).toBe(QUEST_DEFS.length);
   });
 });

@@ -444,7 +444,7 @@ export class MarketPanel {
 
   private ventureEra(card: ProductCard): number {
     const age = this.ctx.state.eras.age;
-    return card.picked >= 2 && card.picked <= age ? card.picked : age;
+    return card.picked >= INVEST.venture.era && card.picked <= age ? card.picked : age;
   }
 
   /** Dollars the chosen chip would invest now (never below the product's minimum; bonds never above the room left). */
@@ -565,7 +565,7 @@ export class MarketPanel {
       for (const k of c.chips) setCls(k.el, `wl-mk-chip-btn${k.pick === c.pick ? ' is-on' : ''}`);
       if (c.era && c.shownAge !== age) {
         c.shownAge = age;
-        this.fillRegions(c.era, 2, age);
+        this.fillRegions(c.era, INVEST.venture.era, age);
       }
       if (c.era) {
         const e = String(this.ventureEra(c));
