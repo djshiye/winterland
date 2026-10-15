@@ -10,7 +10,7 @@
  *
  * 0.9.0 climb: settlement levels 6..50 (docs/EXPANSION.md §B) show the same card on 'settlement:levelUp': "SETTLEMENT 12"
  * (or "CHARTER · SETTLEMENT 15" when a band is complete), the level's name, its era district and the perks it brought.
- * Each level has its own name, so the card never repeats one (ROADMAP §4.5).
+ * Each level has its own name, so the card never repeats one (a 0.9.0 review note).
  *
  * Wiring (ui/HUD.ts): constructor `this.era = new EraCard(ctx, layer);`  update(): `this.era.update(dt);`
  */
