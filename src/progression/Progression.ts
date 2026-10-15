@@ -36,7 +36,8 @@ import * as THREE from 'three';
 import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, QUARTERS, TOWN, VILLAGE, rect, type BusinessId, type Rect, type XZ } from '../config';
 import type { FlagId, GameContext, ItemKind, PadId, Phase } from '../core/types';
 import type { Level } from '../level/Level';
-import { ERAS, FIRST_EXPANSION_VILLAGE_LEVEL, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
+import { ERAS, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
+import { climbOpen } from '../eras/gate';
 import { expansionOffered, regionLayout } from '../eras/layout';
 import { MATERIAL_KINDS } from '../core/kinds';
 import { formatMoney } from '../ui/format';
@@ -743,12 +744,12 @@ export class Progression {
   }
 
   /**
-   * 0.9.0 era hints, only past Winter City or once an era is open (the Survival guide stays as it was): the next
-   * expansion pad once half its cash is in hand, then the first machine of the newest region.
+   * 0.9.0 era hints, only once the climb is open (the Great Lodge) or an era is reached (the Survival guide stays
+   * 0.8.0's): the next expansion pad once half its cash is in hand, then the first machine of the newest region.
    */
   private eraGuide(): boolean {
     const s = this.ctx.state;
-    if (s.village.level < FIRST_EXPANSION_VILLAGE_LEVEL && s.eras.age < 2) return false;
+    if (!climbOpen(s) && s.eras.age < 2) return false;
     const next = s.eras.age + 1;
     const era = ERAS[next];
     if (era && expansionOffered(s, next)) {

@@ -83,9 +83,6 @@ export function era(n: number): EraDef {
 }
 export const eraOfKey = (key: EraKey): number => ERA_KEYS.indexOf(key) + 2;
 
-/** Era 2's expansion pad is offered once the settlement reaches Winter City (village level 4). */
-export const FIRST_EXPANSION_VILLAGE_LEVEL = 4;
-
 // ---------------------------------------------------------------------------
 // Materials (new item kinds). Every one is carriable.
 // ---------------------------------------------------------------------------
@@ -274,8 +271,8 @@ export function regionDef(n: number): RegionLayoutDef {
 }
 
 /**
- * Roads (player-walkable once offered). `opensAt`: the era whose expansion pad must be OFFERED (era 2 = village level
- * FIRST_EXPANSION_VILLAGE_LEVEL; era n > 2 = age ≥ n − 1).
+ * Roads (player-walkable once offered). `opensAt`: the era whose expansion pad must be OFFERED or previewed (era 2 =
+ * the Great Lodge built, eras/gate.ts climbOpen; era n > 2 = age ≥ n − 1).
  */
 export const ROADS: readonly { id: string; rect: ERect; opensAt: number }[] = [
   { id: 'southAvenue', rect: R(26, 30, 38, 80), opensAt: 2 }, // town square's south edge → R1

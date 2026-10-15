@@ -59,9 +59,9 @@ export function expansionCostText(n: number): string {
   return `Expansion: ${costText(unlockCash(n), e.unlock.extra)}`;
 }
 
-/** What a locked era region needs first: "Reach the Iron Age first" (era 2: the settlement must reach Winter City). */
+/** What a locked era region needs first: "Reach the Iron Age first" (era 2: the Great Lodge opens the climb). */
 export function reachNote(n: number): string {
-  return n <= 2 ? 'Reach Winter City first' : `Reach the ${ERA_NAMES[n - 1] ?? 'previous'} first`;
+  return n <= 2 ? 'Build the Great Lodge first' : `Reach the ${ERA_NAMES[n - 1] ?? 'previous'} first`;
 }
 
 // ---------------------------------------------------------------------------

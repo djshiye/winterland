@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../src/core/EventBus';
+import type { ConstructionPad } from '../src/stations/ConstructionPad';
 import { createGameState, REGION_SLOTS, type GameContext, type GameEvents, type GameState, type Item, type ItemKind, type ManageRequest, type ChooseRequest } from '../src/core/types';
 import { DEMOLISH_MIN, ERAS, MACHINES, MACHINE_IDS, MAX_ERA, machinesOfEra, type MachineId } from '../src/eras/data';
 import { DOCK_FRAME, DEPOT_FRAME, INPUT_CAPACITY, OUTPUT_CAPACITY, chooseOptions, costText, demolishCost, inputCap, machineFrame, machineStatRows, settlePaidSlots, slotPaid, slotTarget, toWorld, worldRect, type LRect } from '../src/eras/rules';
@@ -153,6 +154,9 @@ interface FakeZone {
   setEnabled(on: boolean): void;
 }
 
+/** Prep: the Great Lodge is built (the climb is open, so era 2's pad is offered). */
+const lodge = (s: GameState): void => void (s.village.greatLodge.tier = 0);
+
 function makeWorld(age: number, villageLevel = 0, prep?: (s: GameState) => void) {
   const events = new EventBus<GameEvents>();
   const state = createGameState();
@@ -223,11 +227,13 @@ const run = (w: ReturnType<typeof makeWorld>, seconds: number, step = 1 / 30): v
 };
 
 describe('EraWorld construction', () => {
-  it('a fresh game has no regions and no events; the pad of era 2 waits for Winter City', () => {
+  it('a fresh game has no regions and no events; the pad of era 2 waits for the Great Lodge, not Winter City', () => {
     const w = makeWorld(1, 0);
     expect(w.world.region(2)).toBeNull();
     expect(w.log).toHaveLength(0);
-    const w2 = makeWorld(1, 4);
+    const city = makeWorld(1, 4);
+    expect(city.zones.some((z) => z.opts.id.startsWith('pad:expansion:'))).toBe(false);
+    const w2 = makeWorld(1, 5, lodge);
     expect(w2.zones.some((z) => z.opts.id === 'pad:expansion:2:logs')).toBe(true);
     expect(w2.log.filter((l) => l.type === 'expansion:offered')).toHaveLength(0); // restored on offer: silent
   });
@@ -273,7 +279,7 @@ describe('EraWorld construction', () => {
 
 describe('unlock', () => {
   it('emits era:unlocked for every newly opened era (also instant), raises the age, opens the next pad', () => {
-    const w = makeWorld(1, 4);
+    const w = makeWorld(1, 5, lodge);
     w.world.unlock(3, true);
     expect(w.of<{ era: number }>('era:unlocked').map((e) => e.era)).toEqual([2, 3]);
     expect(w.state.eras.age).toBe(3);
@@ -287,7 +293,7 @@ describe('unlock', () => {
   });
 
   it('pays the expansion pad: progress is kept in state, completing it opens the era', () => {
-    const w = makeWorld(1, 4);
+    const w = makeWorld(1, 5, lodge);
     const unlockCash = ERAS[2]!.unlock.cash;
     const extra = ERAS[2]!.unlock.extra;
     // the pad is a real ConstructionPad: reach it through its zones' holder via the world's private table
@@ -305,6 +311,22 @@ describe('unlock', () => {
     expect(w.state.eras.age).toBe(2);
     expect(w.state.eras.regions[2]!.cash).toBe(0);
     expect(w.of('era:unlocked')).toHaveLength(1);
+  });
+
+  it('a locked (preview) expansion pad stays shown but refuses payment until unlocked', () => {
+    const w = makeWorld(1, 5, lodge);
+    const extra = ERAS[2]!.unlock.extra;
+    const pad = (w.world as unknown as { pads: ConstructionPad[] }).pads[2]!;
+    const zone = (id: string): FakeZone => w.zones.find((z) => z.opts.id === `pad:expansion:2:${id}`)!;
+    pad.setLocked('3/23 · S2/5');
+    expect(pad.visible && pad.locked).toBe(true);
+    expect(pad.payDirect(1000)).toBe(0);
+    expect(pad.canAccept('cash') || pad.canAccept(extra.kind)).toBe(false);
+    expect(zone('cash').enabled || zone('logs').enabled).toBe(false);
+    expect(w.state.eras.regions[2]!.cash).toBe(0);
+    pad.setLocked(null);
+    expect(zone('cash').enabled && zone('logs').enabled).toBe(true);
+    expect(pad.payDirect(1000)).toBe(1000);
   });
 });
 

@@ -1,12 +1,13 @@
 /** 0.9.0 new land: road opening rules, walk connectivity (town → roads → region gates / districts), no overlap with the old map. */
 import { describe, expect, it } from 'vitest';
 import { LAYOUT, type Rect } from '../src/config';
-import { DISTRICTS, FIRST_EXPANSION_VILLAGE_LEVEL, REGIONS, ROADS } from '../src/eras/data';
+import { DISTRICTS, REGIONS, ROADS } from '../src/eras/data';
 import { regionLayout } from '../src/eras/layout';
 import { blockedNewLand, NEW_LAND } from '../src/world/env/common';
 import { gateWalk, landVisible, regionWalk, roadOpen } from '../src/world/env/frontier';
 
-const state = (level: number, age: number) => ({ village: { level }, eras: { age } });
+/** `lodge`: the Great Lodge is built (the climb is open, eras/gate.ts climbOpen). */
+const state = (lodge: boolean, age: number) => ({ village: { greatLodge: { tier: lodge ? 0 : -1 } }, eras: { age } });
 const EPS = 1e-6;
 /** True when the rects overlap or touch (shared edge counts). */
 const touch = (a: Rect, b: Rect): boolean => a.minX <= b.maxX + EPS && b.minX <= a.maxX + EPS && a.minZ <= b.maxZ + EPS && b.minZ <= a.maxZ + EPS;
@@ -17,36 +18,35 @@ const regions = REGIONS.filter((r) => r !== null).map((r) => r!);
 const districts = DISTRICTS.filter((d) => d !== null).map((d) => d!);
 
 describe('roadOpen', () => {
-  it('opens era 2 roads at Winter City or once era 2 is reached', () => {
-    for (let level = 0; level < FIRST_EXPANSION_VILLAGE_LEVEL; level++) expect(roadOpen(state(level, 1), 2)).toBe(false);
-    expect(roadOpen(state(FIRST_EXPANSION_VILLAGE_LEVEL, 1), 2)).toBe(true);
-    expect(roadOpen(state(5, 1), 2)).toBe(true);
-    expect(roadOpen(state(0, 2), 2)).toBe(true);
+  it('opens era 2 roads once the Great Lodge is built or era 2 is reached', () => {
+    expect(roadOpen(state(false, 1), 2)).toBe(false);
+    expect(roadOpen(state(true, 1), 2)).toBe(true);
+    expect(roadOpen(state(false, 2), 2)).toBe(true);
   });
 
   it('opens a later road once the previous era is reached (opensAt n → age ≥ n − 1)', () => {
     for (let n = 3; n <= 10; n++) {
-      expect(roadOpen(state(5, n - 2), n)).toBe(false);
-      expect(roadOpen(state(0, n - 1), n)).toBe(true);
-      expect(roadOpen(state(0, n), n)).toBe(true);
+      expect(roadOpen(state(true, n - 2), n)).toBe(false);
+      expect(roadOpen(state(false, n - 1), n)).toBe(true);
+      expect(roadOpen(state(false, n), n)).toBe(true);
     }
   });
 
-  it('matches the table: the first roads are open at level 4, the last one only from era 6', () => {
-    const open = (level: number, age: number): string[] => ROADS.filter((r) => roadOpen(state(level, age), r.opensAt)).map((r) => r.id);
-    expect(open(0, 1)).toEqual([]);
-    expect(open(4, 1)).toEqual(['southAvenue', 'r1', 'cityLink', 'cityWest']);
-    expect(open(4, 3)).toContain('cityV1');
-    expect(open(4, 3)).not.toContain('r2');
-    expect(open(4, 6)).toContain('r2');
-    expect(open(4, 5)).not.toContain('cityV2');
-    expect(open(4, 10)).toHaveLength(ROADS.length);
+  it('matches the table: the first roads are open with the Great Lodge, the last one only from era 6', () => {
+    const open = (lodge: boolean, age: number): string[] => ROADS.filter((r) => roadOpen(state(lodge, age), r.opensAt)).map((r) => r.id);
+    expect(open(false, 1)).toEqual([]);
+    expect(open(true, 1)).toEqual(['southAvenue', 'r1', 'cityLink', 'cityWest']);
+    expect(open(true, 3)).toContain('cityV1');
+    expect(open(true, 3)).not.toContain('r2');
+    expect(open(true, 6)).toContain('r2');
+    expect(open(true, 5)).not.toContain('cityV2');
+    expect(open(true, 10)).toHaveLength(ROADS.length);
   });
 
-  it('shows the new land only from Winter City or era 2 (the early game looks as before)', () => {
-    expect(landVisible(state(3, 1))).toBe(false);
-    expect(landVisible(state(4, 1))).toBe(true);
-    expect(landVisible(state(0, 2))).toBe(true);
+  it('shows the new land only with the Great Lodge or era 2 (era 1 looks like 0.8.0)', () => {
+    expect(landVisible(state(false, 1))).toBe(false);
+    expect(landVisible(state(true, 1))).toBe(true);
+    expect(landVisible(state(false, 2))).toBe(true);
   });
 });
 
@@ -105,8 +105,8 @@ describe('walk connectivity', () => {
     for (const r of regions) {
       const l = regionLayout(r.n);
       const road = ROADS.find((q) => touch(q.rect, gateWalk(l)))!;
-      // the pad is offered at age n − 1 (era 2: level 4): that road must be open by then
-      expect(roadOpen(state(FIRST_EXPANSION_VILLAGE_LEVEL, r.n - 1), road.opensAt), `region ${r.n} via ${road.id}`).toBe(true);
+      // the pad is offered or previewed at age n − 1 (era 2: the Great Lodge): that road must be open by then
+      expect(roadOpen(state(true, r.n - 1), road.opensAt), `region ${r.n} via ${road.id}`).toBe(true);
     }
   });
 });
