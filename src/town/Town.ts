@@ -25,6 +25,7 @@
  * - snapshot() / restore(): the world part of the save (WorldSnapshot['town'], one entry per lot): hopper counts by
  *   kind (+ the item being processed), out pile / counter count, till value (CashPile.value already counts cash in
  *   flight). Level adds the townsfolk's unpaid goods (Townsfolk.loadedByLot) to `out` before saving.
+ * - staffSpots(): visible workers (the "jobs" the town opens), read live by Townsfolk.
  * - padSpot(lot): the lot's pad position (the bot and the guide walk there). business(lot): the built business.
  *
  * Choices (choices(lot)): every BUSINESSES entry not in TOWN.hidden, with available = era ≤ village level, and
@@ -74,6 +75,14 @@ export class Town {
   }
 
   tills(): CashPile[] {
+    return [];
+  }
+
+  /**
+   * Where the workers of every built producer / shop stand (behind the counter, in the field…), ~1 per 2 jobs:
+   * Townsfolk shows a working person at each (idle bob / working gesture while the business works).
+   */
+  staffSpots(): { lot: number; x: number; z: number; yaw: number; working: boolean }[] {
     return [];
   }
 
