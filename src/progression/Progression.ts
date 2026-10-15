@@ -38,6 +38,15 @@ import type { FlagId, GameContext, ItemKind, PadId, Phase } from '../core/types'
 import type { Level } from '../level/Level';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
 
+/** " (hold E)" with a keyboard, " (hold)" on touch, for the guide's pickup / payment hints. */
+function holdHint(): string {
+  try {
+    return window.matchMedia('(pointer: coarse)').matches ? ' (hold)' : ' (hold E)';
+  } catch {
+    return ' (hold E)';
+  }
+}
+
 const GUIDE_INTERVAL = 0.25;
 /** Minimum time an objective stays on screen before it may change. */
 const GUIDE_DWELL = 0.7;
@@ -460,6 +469,10 @@ export class Progression {
   private setGoal(text: string | null, area: Rect | null, point?: THREE.Vector3): void {
     const ctx = this.ctx;
     const now = ctx.time.elapsed;
+    // hold-to-interact (core/interact.ts): pickups and payments need the key, so the hint says so
+    if (text && ctx.input.holdToInteract && /^(Pick up|Pay for|Bring |Build the Great Lodge|Take )/.test(text)) {
+      text += holdHint();
+    }
     if (text !== this.objective) {
       if (now - this.objectiveSince < GUIDE_DWELL) return; // keep the current hint a moment
       this.objective = text;

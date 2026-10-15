@@ -74,7 +74,7 @@ export class Workshop {
     this.input = new Pile(ctx, { id: 'pile:workshopIn', accepts: ['log'], position: new THREE.Vector3(W.hopper.x, WORKSHOP_HOPPER_Y, W.hopper.z), grid: W.hopper.grid });
     this.output = new Pile(ctx, { id: 'pile:workshopOut', accepts: ['furniture'], position: new THREE.Vector3(W.bench.x, WORKSHOP_BENCH_Y, W.bench.z), grid: W.bench.grid });
     this.inputZone = ctx.zones.addTransfer({ id: 'pile:workshopIn:feed', area: W.hopper.zone, from: ctx.player.arms, to: this.input, kinds: ['log'], interval: TIMING.dropInterval, marker: true });
-    this.outputZone = ctx.zones.addTransfer({ id: 'pile:workshopOut:pickup', area: W.bench.zone, from: this.output, to: ctx.player.arms, kinds: ['furniture'], interval: TIMING.pickupInterval, marker: true });
+    this.outputZone = ctx.zones.addTransfer({ id: 'pile:workshopOut:pickup', area: W.bench.zone, from: this.output, to: ctx.player.arms, kinds: ['furniture'], kind: 'take', interval: TIMING.pickupInterval, marker: true });
     this.mouth.set(W.x + this.model.mouth.x, this.model.mouth.y, W.z + this.model.mouth.z);
     this.saw.set(W.x + this.model.saw.x - 0.34, this.model.saw.y - 0.02, W.z + this.model.saw.z);
     ctx.scene.add(this.root);

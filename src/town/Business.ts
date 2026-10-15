@@ -212,6 +212,7 @@ export class Business {
           from: output,
           to: ctx.player.arms,
           kinds: [def.output],
+          kind: 'take',
           interval: TIMING.pickupInterval,
           marker: true,
           enabled: false,

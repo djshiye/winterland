@@ -21,9 +21,15 @@
  *   (wheel up = zoom in); two-finger pinch on the canvas → every pointermove emits
  *   (dist − lastDist) / startDist × 0.3, so doubling the finger distance sums to +0.3 and halving it to −0.15.
  *   Starting a pinch releases the joystick, and the finger left over after a pinch does not start a new one.
+ * - Wave 10b hold to interact (core/interact.ts): E and Space are "interact" keys (Space is only preventDefault-ed
+ *   when the target is not a button / input / textarea / select, so a focused button still clicks). `interactHeld`
+ *   is true when the setting is off, or while E / Space is down, or while the joystick pointer is down with its
+ *   knob still inside the dead zone (a drag that walked you onto a pad does NOT count; pinch is zoom, never a
+ *   hold), unless `interactOverride` (debug / bot) is non-null, which wins. Zones with kind 'take' / 'pay' read it.
  */
 import * as THREE from 'three';
 import './joystick.css';
+import { readHoldToInteract, writeHoldToInteract } from '../core/interact';
 
 const FULL_RADIUS = 55;
 const DEAD_ZONE = 0.08;
@@ -76,6 +82,32 @@ export function wheelDelta(deltaY: number): number {
   return -Math.sign(deltaY) * WHEEL_STEP;
 }
 
+/**
+ * Pure: the hold-to-interact rule. `override` wins; otherwise held when the setting is off, a key (E / Space) is
+ * down, or the joystick pointer is down with the raw knob magnitude (0..1, before the dead zone is removed) still
+ * inside the dead zone.
+ */
+export function heldFrom(s: {
+  hold: boolean;
+  key: boolean;
+  pointerDown: boolean;
+  stickLen: number;
+  deadZone: number;
+  override: boolean | null;
+}): boolean {
+  if (s.override !== null) return s.override;
+  return !s.hold || s.key || (s.pointerDown && s.stickLen < s.deadZone);
+}
+
+/** Pure: is this keydown/keyup one of the interact keys (E, Space)? */
+export function isInteractKey(e: { key: string; code: string }): boolean {
+  return e.code === 'KeyE' || e.key === 'e' || e.key === 'E' || e.code === 'Space' || e.key === ' ';
+}
+
+function interactToken(e: { key: string; code: string }): string {
+  return e.code === 'Space' || e.key === ' ' ? 'Space' : 'KeyE';
+}
+
 function isTyping(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
   if (!el || typeof el.tagName !== 'string') return false;
@@ -112,13 +144,35 @@ export class Input {
   /**
    * Wave 10b hold-to-interact (core/interact.ts). `holdToInteract` is the setting; `interactHeld` is true while E,
    * Space or a pointer press with the stick inside its dead zone is held; `interactOverride` (debug/bot) wins when
-   * non-null. When the setting is off, `interactHeld` is always true. TODO(engine builder): implement.
+   * non-null. When the setting is off, `interactHeld` is always true.
    */
-  holdToInteract = false;
+  holdToInteract: boolean;
   interactOverride: boolean | null = null;
+  /** Physical interact keys currently down (E, Space), by KeyboardEvent.code. */
+  private readonly holdKeys = new Set<string>();
+  /** Raw knob magnitude of the joystick pointer, 0..1 before the dead zone is removed. */
+  private stickRaw = 0;
+  get keyHeld(): boolean {
+    return this.holdKeys.size > 0;
+  }
+  get pointerHeld(): boolean {
+    return this.pointerId !== null && this.stickRaw < DEAD_ZONE;
+  }
   get interactHeld(): boolean {
-    if (this.interactOverride !== null) return this.interactOverride;
-    return !this.holdToInteract;
+    return heldFrom({
+      hold: this.holdToInteract,
+      key: this.keyHeld,
+      pointerDown: this.pointerId !== null,
+      stickLen: this.stickRaw,
+      deadZone: DEAD_ZONE,
+      override: this.interactOverride,
+    });
+  }
+
+  /** Settings switch: turn hold-to-interact on / off and persist it. */
+  setHoldToInteract(on: boolean): void {
+    this.holdToInteract = on;
+    writeHoldToInteract(on);
   }
 
   /** Escape, M (mute), F11 / Alt+Enter / F (fullscreen), + / - (zoom). Fired on keydown, not while typing in an input. */
@@ -132,6 +186,7 @@ export class Input {
   }
 
   constructor(readonly element: HTMLElement) {
+    this.holdToInteract = readHoldToInteract();
     this.joyRoot = document.createElement('div');
     this.joyRoot.className = 'wl-joy';
     const base = document.createElement('div');
@@ -242,6 +297,7 @@ export class Input {
     this.joyKnob.style.transform = 'translate(0px, 0px)';
     this.joyRoot.classList.add('is-active');
     this.stick.set(0, 0);
+    this.stickRaw = 0;
   };
 
   private readonly onPointerMove = (e: PointerEvent): void => {
@@ -274,6 +330,7 @@ export class Input {
     this.joyKnob.style.transform = `translate(${kx}px, ${ky}px)`;
     // analog magnitude: dead zone then linear to full
     let mag = Math.min(1, dist / FULL_RADIUS);
+    this.stickRaw = mag;
     mag = mag < DEAD_ZONE ? 0 : (mag - DEAD_ZONE) / (1 - DEAD_ZONE);
     if (mag === 0 || dist === 0) this.stick.set(0, 0);
     else this.stick.set((dx / dist) * mag, (-dy / dist) * mag); // screen y is down
@@ -295,6 +352,7 @@ export class Input {
   private releaseStick(): void {
     this.pointerId = null;
     this.stick.set(0, 0);
+    this.stickRaw = 0;
     this.joyRoot.classList.remove('is-active');
   }
 
@@ -308,6 +366,14 @@ export class Input {
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     this.fireGesture();
     if (isTyping(e.target)) return;
+    if (isInteractKey(e) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      this.holdKeys.add(interactToken(e));
+      if (e.code === 'Space' || e.key === ' ') {
+        const tag = ((e.target as HTMLElement | null)?.tagName ?? '').toUpperCase();
+        if (tag !== 'BUTTON' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') e.preventDefault();
+      }
+      return;
+    }
     const dir = KEY_MAP[e.code];
     if (dir) {
       this.keys[dir] = true;
@@ -324,6 +390,7 @@ export class Input {
   };
 
   private readonly onKeyUp = (e: KeyboardEvent): void => {
+    if (isInteractKey(e)) this.holdKeys.delete(interactToken(e));
     const dir = KEY_MAP[e.code];
     if (!dir) return;
     this.pressed.delete(e.code);
@@ -335,6 +402,7 @@ export class Input {
 
   private readonly releaseAll = (): void => {
     this.pressed.clear();
+    this.holdKeys.clear();
     this.keys.up = this.keys.down = this.keys.left = this.keys.right = false;
     this.pointers.clear();
     this.pinchIds = null;

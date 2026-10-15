@@ -101,13 +101,15 @@ export class ConstructionPad implements ItemHolder {
     ctx.scene.add(this.object);
     // The Village may not tick its pads: register ourselves (billboard sign, pulse). Calling update twice is harmless.
     ctx.addUpdatable(this);
-    const area = rect(opts.x, opts.z, opts.size * 1.2, opts.size * 1.2);
+    // the accept zone is the tile itself (was ×1.2): neighbouring village pads no longer overlap the street's lane
+    const area = rect(opts.x, opts.z, opts.size, opts.size);
     this.logZone = ctx.zones.addTransfer({
       id: `${this.id}:logs`,
       area,
       from: ctx.player.arms,
       to: this,
       kinds: ['log'],
+      kind: 'pay',
       interval: TIMING.dropInterval,
       delay: TIMING.padHoldDelay,
       enabled: false,
@@ -117,6 +119,7 @@ export class ConstructionPad implements ItemHolder {
       area,
       from: ctx.player.back,
       to: this,
+      kind: 'pay',
       interval: TIMING.payInterval,
       delay: TIMING.padHoldDelay,
       enabled: false,

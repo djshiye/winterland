@@ -96,6 +96,7 @@ export class UpgradePad implements ItemHolder {
       area: rect(def.x, def.z, def.size * ZONE_SCALE, def.size * ZONE_SCALE),
       from: ctx.player.back,
       to: this,
+      kind: 'pay',
       interval: TIMING.payInterval,
       delay: TIMING.padHoldDelay,
       enabled: false,

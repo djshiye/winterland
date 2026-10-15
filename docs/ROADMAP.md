@@ -11,7 +11,7 @@
 - **Wave 8 is done** (see `docs/DESIGN.md`): day/night with an aurora, 20 quests, VIP customers and rush hours, the onboarding hand, vibration, auto quality, and the furniture workshop with dog sleds.
 - **Wave 9 is done** (see `docs/DESIGN.md`): a bug-fix round (money formatting, in-flight accounting, the rail crossing, crash-safe saves, offline earnings), then eras and the Market Town: eight lots, six buildable businesses, an instanced crowd of townsfolk, the Porter crew, era visuals, the era card and fireworks.
 - The autoplay bot finishes in about 64 minutes. Milestones: Town 19, porter 23, farm 24, bakery 36, ranch 45, Winter City 56, finale 64. It sells about 190 town goods.
-- **Wave 10 is done** (desktop comfort, see `docs/DESIGN.md`): window modes remembered across launches, three volume sliders, a tabbed Settings card, Esc / M / F shortcuts, wheel and pinch zoom, a resolution scale, a frame-rate cap, and save backup / restore as a file.
+- **Wave 10 is done** (desktop comfort, see `docs/DESIGN.md`): window modes remembered across launches, three volume sliders, a tabbed Settings card, Esc / M / F shortcuts, wheel and pinch zoom, a resolution scale, a frame-rate cap, and save backup / restore as a file; then hold-to-interact (E / Space / a still press) and wider village pad spacing after a desktop playtest.
 - **Next for the town** (planned in wave 9, not built yet): a café/cocoa house, a skating pond, a bandstand and a snowman park; town happiness raising prices; carolers at night.
 - Late-game draw calls at High quality are about 810 at the village at night and about 440 at the full town square at night. The ceiling is ~950.
 - Saves from v0.1 and v0.2 load. Fixtures are in `tests/fixtures/`.

@@ -84,7 +84,7 @@ export class TreeFeller {
   ) {
     const d = LAYOUT.ridge.deck;
     this.deck = new Pile(ctx, { id: 'pile:deck', accepts: ['log'], position: new THREE.Vector3(d.x, 0, d.z), grid: d.grid });
-    ctx.zones.addTransfer({ id: 'pile:deck:pickup', area: d.zone, from: this.deck, to: ctx.player.arms, kinds: ['log'] });
+    ctx.zones.addTransfer({ id: 'pile:deck:pickup', area: d.zone, from: this.deck, to: ctx.player.arms, kinds: ['log'], kind: 'take' });
 
     this.model = createTreeFeller();
     this.root.add(this.model.root);

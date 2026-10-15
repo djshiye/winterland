@@ -19,7 +19,7 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
 |-------|--------|
 | WASD / arrow keys | Move (8 directions) |
 | Touch or mouse: press and drag anywhere | Floating virtual joystick |
-| Stand next to things | Pick up, drop off, pay. Everything happens automatically by proximity |
+| Stand next to things | Drop off and collect cash automatically. Picking up and paying also happen by proximity on touch; with a mouse you **hold E, Space or a still press** (Settings → Game → Hold to interact) |
 | Mouse wheel, pinch, + / − | Zoom the camera |
 | Esc | Close the open panel, or open Settings |
 | M, F | Mute; fullscreen (desktop: F11 or Alt+Enter) |

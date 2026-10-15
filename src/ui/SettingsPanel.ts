@@ -4,7 +4,7 @@
  * - Sound: Sound switch (same state as the mute button), Master / Effects volume sliders, Music switch + slider.
  * - Display: window mode (desktop app) or a Fullscreen switch (browser), Graphics High / Low (Low = no shadows, pixel
  *   ratio 1), Resolution slider, Frame rate Auto / 60 / 30, Show FPS (PerfOverlay), Day / night (ctx.dayNight).
- * - Game: Vibration (where navigator.vibrate exists), a controls hint, Back up / Restore save (ui/saveTransfer),
+ * - Game: Hold to interact (pickups and payments need E / Space / a press held), Vibration (where navigator.vibrate exists), a controls hint, Back up / Restore save (ui/saveTransfer),
  *   "Start a new season" (after the finale) and "Reset progress"; both, and Restore, sit behind in-page confirmations
  *   (no window.confirm) that replace the tabs. Confirming a reset emits 'game:reset'; the main session wipes the save
  *   and reloads. Picking a graphics quality by hand writes localStorage 'winterland:autoQuality' = 'manual' so the
@@ -55,6 +55,7 @@ const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'K
 const CONTROLS: readonly (readonly [string, string])[] = [
   ['WASD / arrows', 'move'],
   ['Drag', 'joystick'],
+  ['E / Space', 'pick up & pay (hold)'],
   ['Wheel / + \u2212', 'zoom'],
   ['Esc', 'menu'],
   ['M', 'mute'],
@@ -81,6 +82,7 @@ export class SettingsPanel {
   private readonly gfxSwitch: HTMLButtonElement;
   private readonly fpsSwitch: HTMLButtonElement;
   private readonly daySwitch: HTMLButtonElement;
+  private readonly holdSwitch: HTMLButtonElement;
   private readonly vibSwitch: HTMLButtonElement | null = null;
   private readonly fsSwitch: HTMLButtonElement | null = null;
   /** Sliders and segmented controls re-read their value in sync(). */
@@ -331,6 +333,12 @@ export class SettingsPanel {
 
     // Game
     const pg = page('game');
+    this.holdSwitch = sw(pg, 'Hold to interact', 'Hold E, Space or press to pick up and pay', () => {
+      ctx.audio.play('click');
+      const on = !ctx.input.holdToInteract;
+      ctx.input.setHoldToInteract(on);
+      ctx.events.emit('settings:hold', { on });
+    });
     if (hapticsAvailable()) {
       this.vibSwitch = sw(pg, 'Vibration', null, () => {
         ctx.audio.play('click');
@@ -343,6 +351,7 @@ export class SettingsPanel {
     const list = h('div', 'wl-controls-list');
     for (const [keys, what] of CONTROLS) list.appendChild(h('div', 'wl-controls-item', `<b>${keys}</b> ${what}`));
     controls.appendChild(list);
+    controls.appendChild(h('div', 'wl-controls-note', 'Drop-offs and cash collection are automatic.'));
     pg.appendChild(controls);
 
     const saveRow = h('div', 'wl-btn-row wl-save-row');
@@ -471,6 +480,7 @@ export class SettingsPanel {
     set(this.gfxSwitch, renderer.quality === 'high');
     set(this.fpsSwitch, this.perf.enabled);
     set(this.daySwitch, this.ctx.dayNight.enabled);
+    set(this.holdSwitch, this.ctx.input.holdToInteract);
     if (this.vibSwitch) set(this.vibSwitch, hapticsEnabled());
     if (this.fsSwitch) set(this.fsSwitch, !!document.fullscreenElement);
     const name = this.gfxSwitch.parentElement?.querySelector('.wl-row-name');
