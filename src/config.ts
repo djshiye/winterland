@@ -739,17 +739,18 @@ export const LAYOUT = {
       { x: 37.6, z: 33.6 },
     ] as XZ[],
     /**
-     * Wave 12: fixed amenity sites on the square (built like the Great Lodge: a pad in front, logs + cash). The pad
-     * sits `padOffset` toward the square's centre from the site. Provisional positions: the amenities builder
-     * verifies clearance from the lot pads (z 21.2 / 32.4 north-south rows at x 19 / 24.6 / 30.2; x 31.6 at
-     * z 23.8 / 30.4 for the east lots), benches, stalls, the tree ring, the snowman, the corridor mouth and
-     * the walk rects, and moves them if needed (tests/townAmenities.test.ts).
+     * Wave 12: fixed amenity sites on the square (built like the Great Lodge: a pad beside each, logs + cash).
+     * x / z = site centre, w / d = footprint in the model's frame (front = +Z, which faces the pad along the nearest
+     * axis: town/rules.ts amenityFrame); pad = the construction tile centre (any side, >= 0.3 m from the site).
+     * Placed (and sized) by the amenities builder so footprint and pad keep >= 0.3 m from the lots, lot pads, lot
+     * station zones + shop queue places, benches, stalls, snowman, tree, corridor mouth and lamps, and from each other
+     * (tests/townAmenities.test.ts checks all of it).
      */
     amenities: {
-      cafe: { x: 18.4, z: 32.6, w: 2.4, d: 1.6, pad: { x: 20.0, z: 30.4 } as XZ },
-      pond: { x: 28.0, z: 21.6, w: 3.4, d: 2.2, pad: { x: 26.2, z: 23.6 } as XZ },
-      bandstand: { x: 32.4, z: 27.1, w: 2.4, d: 2.4, pad: { x: 30.4, z: 29.0 } as XZ },
-      snowmanPark: { x: 18.4, z: 21.6, w: 2.6, d: 1.8, pad: { x: 20.4, z: 22.8 } as XZ },
+      cafe: { x: 21.2, z: 27.5, w: 2.2, d: 1.4, pad: { x: 21.6, z: 25.75 } as XZ },
+      pond: { x: 22.5, z: 30.1, w: 2.8, d: 1.8, pad: { x: 24.45, z: 29.7 } as XZ },
+      bandstand: { x: 22.5, z: 23.5, w: 2.2, d: 2.2, pad: { x: 24.65, z: 23.9 } as XZ },
+      snowmanPark: { x: 28.2, z: 27.1, w: 2.2, d: 1.6, pad: { x: 26.35, z: 27.1 } as XZ },
     },
     amenityPadSize: 1.5,
   },

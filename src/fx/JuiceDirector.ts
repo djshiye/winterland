@@ -39,7 +39,8 @@
  * 'stack:full' from upgrade / construction pads ('pad:' ids) is ignored.
  */
 import * as THREE from 'three';
-import { LAYOUT, PADS, PALETTE, QUARTERS, UPGRADES, VILLAGE } from '../config';
+import { AMENITIES, LAYOUT, PADS, PALETTE, QUARTERS, UPGRADES, VILLAGE } from '../config';
+import { townHappiness } from '../core/demand';
 import type { GameContext, ItemHolder } from '../core/types';
 import { formatMoney } from '../ui/format';
 import { Haptics } from './Haptics';
@@ -292,6 +293,18 @@ export class JuiceDirector {
       ctx.hud.toast(tier ? tier.label : 'Crew quarters', { sub: 'More crew can work now', duration: 3 });
     });
 
+    // Wave 12: an amenity opens on the square: cheer, confetti, a ring, and the new happiness.
+    ev.on('amenity:built', (e) => {
+      ctx.audio.play('chime');
+      ctx.audio.play('cheer');
+      ctx.particles.confetti(this.tmp.copy(e.position), 50);
+      ctx.particles.ring(e.position, { color: 0xffe066, radius: 3.4, life: 0.7 });
+      this.later(0.25, () => ctx.particles.confetti(this.tmp2.copy(e.position), 30));
+      ctx.cameraRig.shake(0.1, 0.2);
+      const pct = Math.round(townHappiness(ctx.state) * 100);
+      ctx.hud.toast(`${AMENITIES[e.id].label} built \u00b7 happiness \u2665 ${pct}%`, { duration: 3 });
+    });
+
     ev.on('village:levelUp', (e) => {
       ctx.audio.play('fanfare');
       this.tmp.copy(e.position);
@@ -351,6 +364,13 @@ export class JuiceDirector {
 
     ev.on('night:start', () => ctx.audio.setNight(true));
     ev.on('day:start', () => ctx.audio.setNight(false));
+    // Ambience: the town bell, three tolls at dusk and two at dawn, once the village is a Town (level 3, Great Lodge era)
+    const toll = (n: number): void => {
+      if (ctx.state.village.level < 3) return;
+      for (let i = 0; i < n; i++) this.later(i * 0.9, () => ctx.audio.play('bellToll'));
+    };
+    ev.on('night:start', () => toll(3));
+    ev.on('day:start', () => toll(2));
     if (ctx.dayNight.darkness >= 0.5) ctx.audio.setNight(true);
 
     new Haptics(ctx);

@@ -33,7 +33,7 @@
  *   stands in the target zone; the guide goes quiet once everything is automated.
  */
 import * as THREE from 'three';
-import { BUSINESSES, LAYOUT, QUARTERS, TOWN, VILLAGE, rect, type BusinessId, type Rect, type XZ } from '../config';
+import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, QUARTERS, TOWN, VILLAGE, rect, type BusinessId, type Rect, type XZ } from '../config';
 import type { FlagId, GameContext, ItemKind, PadId, Phase } from '../core/types';
 import type { Level } from '../level/Level';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
@@ -654,6 +654,19 @@ export class Progression {
         this.setGoal('Build something in the Market Town', rect(spot.x, spot.z, 1.8, 1.8), this.tmpPoint.set(spot.x, 0, spot.z));
         return true;
       }
+    }
+
+    // Low priority, after the lots (no lot payment or first-lot hint was due above): an affordable amenity on the
+    // square, pointed at its pad.
+    for (const id of AMENITY_IDS) {
+      const st = s.town.amenities[id];
+      const def = AMENITIES[id];
+      if (st.tier >= 0 || s.village.level < def.era) continue;
+      const cashLeft = def.cash - st.cash;
+      if (cashLeft > 0 && money < cashLeft) continue;
+      const pad = LAYOUT.town.amenities[id].pad;
+      this.setGoal(`Build the ${def.label} on the square`, rect(pad.x, pad.z, 1.8, 1.8), this.tmpPoint.set(pad.x, 0, pad.z));
+      return true;
     }
 
     // Keep the shops stocked: carry a producer's goods to a shop that is low on them.

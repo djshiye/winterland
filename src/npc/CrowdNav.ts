@@ -337,6 +337,70 @@ function joint(k: number, up: boolean, go: (x: number, z: number) => void): void
   }
 }
 
+const SQ_INSET = 0.05;
+const scratch = new Path();
+
+/** True for points on the town side of the village that the zone logic would misjudge (lot interiors, the square's rim). */
+function townInterior(x: number, z: number): boolean {
+  const A = LAYOUT.town.area;
+  if (x < SQUARE.minX || x > A.maxX || z < A.minZ || z > A.maxZ) return false;
+  return !(x > SQUARE.maxX && z > SQUARE.maxZ); // the south-east lane is a zone of its own
+}
+
+const inSquare = (x: number, z: number): boolean => x >= SQUARE.minX && x <= SQUARE.maxX && z >= SQUARE.minZ && z <= SQUARE.maxZ;
+const clampX = (x: number): number => Math.min(SQUARE.maxX - SQ_INSET, Math.max(SQUARE.minX + SQ_INSET, x));
+const clampZ = (z: number): number => Math.min(SQUARE.maxZ - SQ_INSET, Math.max(SQUARE.minZ + SQ_INSET, z));
+
+/**
+ * planPath for endpoints that may sit just outside the square's walk rect (a lot's door, a staff spot inside a lot,
+ * amenity spots on the rim): the route runs between the nearest square points and the real end points are tacked on.
+ */
+export function planTownPath(path: Path, ax: number, az: number, bx: number, bz: number, ignore = 0): void {
+  path.clear();
+  let sx = ax;
+  let sz = az;
+  if (townInterior(ax, az) && !inSquare(ax, az)) {
+    sx = clampX(ax);
+    sz = clampZ(az);
+    path.push(sx, sz);
+  }
+  let ex = bx;
+  let ez = bz;
+  const post = townInterior(bx, bz) && !inSquare(bx, bz);
+  if (post) {
+    ex = clampX(bx);
+    ez = clampZ(bz);
+  }
+  planPath(scratch, sx, sz, ex, ez, ignore);
+  for (let i = 0; i < scratch.n; i++) path.push(scratch.x[i]!, scratch.z[i]!);
+  if (post) path.push(bx, bz);
+}
+
+/** The doorstep of market-town lot `lot` (just outside its footprint, on the side facing the square). */
+export function lotDoor(lot: number, out: { x: number; z: number }): { x: number; z: number } {
+  const l = LAYOUT.town.lots[lot]!;
+  const d = LAYOUT.town.lotSize / 2 + 0.3;
+  out.x = l.x + l.face.x * d;
+  out.z = l.z + l.face.z * d;
+  return out;
+}
+
+/** The nearest of `doors` to (x, z), or the corridor entrance when there is none (people live outside the town). */
+export function nearestHome(x: number, z: number, doors: readonly { x: number; z: number }[], out: { x: number; z: number }): { x: number; z: number } {
+  let best: { x: number; z: number } = LAYOUT.town.entrances[0]!;
+  let bd = Infinity;
+  for (const d of doors) {
+    const dd = Math.hypot(d.x - x, d.z - z);
+    if (dd < bd) {
+      bd = dd;
+      best = d;
+    }
+  }
+  out.x = best.x;
+  out.z = best.z;
+  return out;
+}
+
 /** True when the point is inside any obstacle (with the person margin). */
 export function insideObstacle(x: number, z: number, ignore = 0, extra = 0): boolean {
   for (const o of OBSTACLES) {

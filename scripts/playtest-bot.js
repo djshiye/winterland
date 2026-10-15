@@ -17,6 +17,9 @@
 (() => {
   const W = window.__WINTERLAND__;
   const { LAYOUT, PADS, VILLAGE, QUARTERS, BUSINESSES } = W.config;
+  /** Wave 12: the square's amenities (plot id 'a:<id>'), built like the Great Lodge. */
+  const AMENITIES = W.config.AMENITIES || {};
+  const AMENITY_IDS = Object.keys(AMENITIES);
   const ctx = W.ctx;
   const level = W.level;
   const up = ctx.upgrades;
@@ -87,6 +90,7 @@
   on('quarters:built', ({ tier }) => (note({ quarters: tier }), mark(`quarters:${tier}`)));
   on('sale', ({ buyer }) => (buyer === 'sled' && mark('firstSled'), buyer === 'townsfolk' && mark('firstTownSale')));
   on('town:built', ({ building }) => (note({ town: building }), mark('firstTownBuilding'), mark(`town:${building}`)));
+  on('amenity:built', ({ id }) => (note({ amenity: id }), mark('firstAmenity'), mark(`amenity:${id}`)));
   on('finale:start', () => (note({ finale: true }), mark('finale')));
 
   // --- primitives --------------------------------------------------------------------------------------------
@@ -147,6 +151,7 @@
   function plotInfo(plot) {
     if (plot === 'q') return quartersInfo();
     if (typeof plot === 'string' && plot[0] === 't') return townInfo(Number(plot.slice(1)));
+    if (typeof plot === 'string' && plot.startsWith('a:')) return amenityInfo(plot.slice(2));
     const village = level.village;
     const spot = village && village.padSpot(plot);
     if (!spot) return null;
@@ -166,6 +171,15 @@
     return { plot: `t${i}`, spot, logsLeft: Math.max(0, def.logs - lot.logs), cashLeft: Math.max(0, def.cash - lot.cash) };
   }
 
+  /** A square amenity (plot id 'a:<id>'), same shape as plotInfo; null when built, not yet offered or unknown. */
+  function amenityInfo(id) {
+    const def = AMENITIES[id];
+    const a = ctx.state.town.amenities && ctx.state.town.amenities[id];
+    const site = LAYOUT.town.amenities && LAYOUT.town.amenities[id];
+    if (!def || !a || !site || a.tier >= 0 || !ctx.state.town.revealed || ctx.state.village.level < def.era) return null;
+    return { plot: `a:${id}`, spot: site.pad, logsLeft: Math.max(0, def.logs - a.logs), cashLeft: Math.max(0, def.cash - a.cash) };
+  }
+
   /** The crew bunkhouse's next tier on Timber Ridge (plot id 'q'), same shape as plotInfo. */
   function quartersInfo() {
     const spot = level.quarters && level.quarters.padSpot();
@@ -181,8 +195,10 @@
   const tierOf = (plot) =>
     plot === 'q'
       ? ctx.state.quarters.tier
-      : typeof plot === 'string'
-        ? ctx.state.town.lots[Number(plot.slice(1))].tier
+      : typeof plot === 'string' && plot.startsWith('a:')
+        ? ctx.state.town.amenities[plot.slice(2)].tier
+        : typeof plot === 'string'
+          ? ctx.state.town.lots[Number(plot.slice(1))].tier
         : plot < 0
           ? ctx.state.village.greatLodge.tier
           : ctx.state.village.plots[plot].tier;
@@ -206,7 +222,7 @@
       return true;
     }
     if (info.logsLeft === 0 && money() < info.cashLeft) return false; // logs done; earn the rest first
-    const what = info.plot === 'q' ? 'build:quarters' : typeof info.plot === 'string' ? 'build:town' : info.plot < 0 ? 'build:greatLodge' : 'build:plot';
+    const what = info.plot === 'q' ? 'build:quarters' : typeof info.plot === 'string' ? (info.plot.startsWith('a:') ? 'build:amenity' : 'build:town') : info.plot < 0 ? 'build:greatLodge' : 'build:plot';
     act(what, info.spot, 10, () => {
       const now = plotInfo(info.plot);
       return !now || tierOf(info.plot) !== buildTier || ((now.logsLeft === 0 || count(arms, 'log') === 0) && (now.cashLeft === 0 || money() < 5));
@@ -339,6 +355,13 @@
               return info ? startBuild(`t${i}`, info) : false;
             },
           });
+        }
+      }
+      // Wave 12: amenities on the square (happiness → prices), weighted like town builds.
+      if (s.town.revealed) {
+        for (const id of AMENITY_IDS) {
+          const info = amenityInfo(id);
+          if (info && ok(info.cashLeft)) options.push({ rank: TOWN_WEIGHT * (info.cashLeft + info.logsLeft * LOG_VALUE), run: () => startBuild(info.plot, info) });
         }
       }
       if (s.village.level < WINTER_CITY) {

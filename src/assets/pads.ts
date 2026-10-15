@@ -397,7 +397,9 @@ const ICONS: Record<PadIcon, (g: CanvasRenderingContext2D) => void> = {
 
 // --- shelter icons (village construction pads) -------------------------------------------------------------
 
-export type ShelterIcon = 'tent' | 'hut' | 'cabin' | 'lodge' | 'greatLodge' | TownIcon;
+export type ShelterIcon = 'tent' | 'hut' | 'cabin' | 'lodge' | 'greatLodge' | TownIcon | AmenityIcon;
+/** Wave 12 square amenities (AmenityId): drawn in SHELTER_ICONS below. */
+export type AmenityIcon = 'cafe' | 'pond' | 'bandstand' | 'snowmanPark';
 /** Wave 9 town buildings (BusinessId) + an empty lot ('lot'). [T1] draws them in SHELTER_ICONS. */
 export type TownIcon = 'farm' | 'bakery' | 'townhouse' | 'ranch' | 'butcher' | 'toyFactory' | 'lot';
 
@@ -697,6 +699,115 @@ function drawLot(g: CanvasRenderingContext2D): void {
   g.fillRect(-66, 54, 132, 6);
 }
 
+// --- wave 12 amenity icons (square amenities; white silhouettes, same ±64 box) --------------------------------
+
+/** Cocoa Café: a steaming mug with a handle, whipped top and a saucer. */
+function drawCafe(g: CanvasRenderingContext2D): void {
+  // mug body + handle ring
+  g.beginPath();
+  addRoundedRect(g, -40, -10, 66, 58, 12);
+  g.fill();
+  g.lineWidth = 11;
+  g.beginPath();
+  g.arc(30, 20, 20, -Math.PI / 2, Math.PI / 2);
+  g.stroke();
+  // whipped cream bumps on top
+  for (const [x, r] of [[-26, 10], [-8, 13], [12, 11]] as const) {
+    g.beginPath();
+    g.arc(x, -12, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  // saucer
+  g.fillRect(-58, 52, 112, 7);
+  // three curls of steam
+  g.lineWidth = 6;
+  g.lineCap = 'round';
+  for (const x of [-26, -4, 18]) {
+    g.beginPath();
+    g.moveTo(x, -34);
+    g.bezierCurveTo(x - 12, -44, x + 12, -52, x, -64);
+    g.stroke();
+  }
+}
+
+/** Skating Pond: an ice ellipse with a pair of figure skates on it. */
+function drawPond(g: CanvasRenderingContext2D): void {
+  // pond ring
+  g.beginPath();
+  g.ellipse(0, 36, 62, 22, 0, 0, Math.PI * 2);
+  g.ellipse(0, 36, 50, 14, 0, 0, Math.PI * 2);
+  g.fill('evenodd');
+  // a figure skate: boot, blade, and a curl at the toe
+  g.beginPath();
+  poly(g, [[-26, -46], [-8, -46], [-8, -4], [14, 8], [14, 22], [-26, 22]]);
+  g.fill();
+  g.fillRect(-32, 26, 54, 5); // blade
+  g.beginPath();
+  g.arc(22, 22, 8, -Math.PI / 2, Math.PI / 2);
+  g.lineWidth = 5;
+  g.stroke();
+  // a snowflake
+  g.lineWidth = 4.5;
+  g.lineCap = 'round';
+  for (let k = 0; k < 3; k++) {
+    const a = (k * Math.PI) / 3;
+    g.beginPath();
+    g.moveTo(40 - Math.cos(a) * 20, -22 - Math.sin(a) * 20);
+    g.lineTo(40 + Math.cos(a) * 20, -22 + Math.sin(a) * 20);
+    g.stroke();
+  }
+}
+
+/** Bandstand: an open eight-sided pavilion with a cone roof, posts, a raised deck and a flag. */
+function drawBandstand(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  poly(g, [[-62, -10], [0, -48], [62, -10]]); // roof
+  g.fill();
+  g.fillRect(-2.5, -66, 5, 20); // finial / pole
+  g.beginPath();
+  poly(g, [[2, -66], [22, -60], [2, -54]]); // pennant
+  g.fill();
+  for (const x of [-48, -16, 16, 48]) g.fillRect(x - 4, -8, 8, 52); // posts
+  g.fillRect(-60, -10, 120, 6); // beam
+  g.fillRect(-64, 44, 128, 10); // deck
+  g.fillRect(-52, 54, 104, 6); // step
+  // bunting between the posts
+  for (const x of [-32, 0, 32]) {
+    g.beginPath();
+    poly(g, [[x - 8, -2], [x + 8, -2], [x, 12]]);
+    g.fill();
+  }
+}
+
+/** Snowman Park: a snowman (three balls, hat, carrot, scarf, twig arms) beside a small one. */
+function drawSnowmanPark(g: CanvasRenderingContext2D): void {
+  const ball = (x: number, y: number, r: number): void => {
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  };
+  ball(-14, 38, 24);
+  ball(-14, 8, 18);
+  ball(-14, -16, 12);
+  g.fillRect(-28, -44, 28, 4); // hat brim
+  g.fillRect(-23, -62, 18, 20); // hat
+  g.lineWidth = 5;
+  g.lineCap = 'round';
+  g.beginPath(); // twig arms
+  g.moveTo(-30, 6);
+  g.lineTo(-56, -8);
+  g.moveTo(2, 6);
+  g.lineTo(28, -10);
+  g.stroke();
+  g.beginPath(); // carrot
+  poly(g, [[-14, -16], [6, -12], [-14, -10]]);
+  g.fill();
+  // the small one
+  ball(40, 46, 15);
+  ball(40, 26, 10);
+  g.fillRect(-64, 60, 128, 5); // ground
+}
+
 const SHELTER_ICONS: Record<ShelterIcon, (g: CanvasRenderingContext2D) => void> = {
   tent: drawTent,
   hut: drawHut,
@@ -710,6 +821,10 @@ const SHELTER_ICONS: Record<ShelterIcon, (g: CanvasRenderingContext2D) => void> 
   butcher: drawButcher,
   toyFactory: drawToyFactory,
   lot: drawLot,
+  cafe: drawCafe,
+  pond: drawPond,
+  bandstand: drawBandstand,
+  snowmanPark: drawSnowmanPark,
 };
 
 /** A small log lying on its side: bark body, LOG_CORE end cap with a ring. */

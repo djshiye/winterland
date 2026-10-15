@@ -10,7 +10,7 @@
  * only stand where a walk rect allows (v ≥ ~3.2 on the north / south rows, ≥ ~2.8 on the east column), so props sit
  * in v 1.4…2.5 (solid) and their zones reach out to v ≈ 3.9.
  */
-import { BUSINESSES, LAYOUT, TOWN, VILLAGE, type BusinessDef, type BusinessId, type Rect, type XZ } from '../config';
+import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, TOWN, VILLAGE, type AmenityId, type BusinessDef, type BusinessId, type Rect, type XZ } from '../config';
 import { LOT_COUNT, type GameState } from '../core/types';
 
 const T = LAYOUT.town;
@@ -79,6 +79,30 @@ export function settlePaidLots(state: GameState): number {
     n++;
   }
   return n;
+}
+
+/**
+ * Wave 12: a save written while an amenity's last bundle was still flying holds a fully paid, never-completed site
+ * (progress counts in-flight payments). Finish it silently (tier 0, paid reset), like settlePaidLots. Returns how
+ * many were settled. (No stat counts amenities: happiness comes from the tiers.)
+ */
+export function settlePaidAmenities(state: GameState): number {
+  let n = 0;
+  for (const id of AMENITY_IDS) {
+    const st = state.town.amenities[id];
+    const def = AMENITIES[id];
+    if (st.tier >= 0 || st.logs < def.logs || st.cash < def.cash) continue;
+    st.tier = 0;
+    st.logs = 0;
+    st.cash = 0;
+    n++;
+  }
+  return n;
+}
+
+/** True while amenity `id` is offered on the square: town revealed, village level reached, not built yet. */
+export function amenityOffered(state: GameState, id: AmenityId): boolean {
+  return state.town.revealed && state.village.level >= AMENITIES[id].era && state.town.amenities[id].tier < 0;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -259,4 +283,56 @@ export const layersFor = (slots: number): number => Math.max(1, Math.ceil(slots 
 /** Staff count shown for a business (about one worker per two jobs). */
 export function staffCount(def: BusinessDef): number {
   return def.kind === 'home' ? 0 : Math.max(1, Math.round(def.people / 2));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Amenity sites (wave 12)
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface AmenityFrame {
+  id: AmenityId;
+  x: number;
+  z: number;
+  /** Group rotation.y that turns the model's +Z front toward the pad, snapped to the nearest axis. */
+  yaw: number;
+  /** The model's local footprint (w along local x, d along local z). */
+  w: number;
+  d: number;
+  /** World footprint (axis-aligned: the yaw is a multiple of 90 degrees). */
+  rect: Rect;
+  pad: XZ;
+  /** World tile of the pad (LAYOUT.town.amenityPadSize square). */
+  padRect: Rect;
+}
+
+/** Where amenity `id` stands and which way it faces (toward its pad, along the dominant axis). */
+export function amenityFrame(id: AmenityId): AmenityFrame {
+  const a = T.amenities[id];
+  const dx = a.pad.x - a.x;
+  const dz = a.pad.z - a.z;
+  const alongX = Math.abs(dx) > Math.abs(dz);
+  const yaw = alongX ? (dx > 0 ? Math.PI / 2 : -Math.PI / 2) : dz > 0 ? 0 : Math.PI;
+  const ex = (alongX ? a.d : a.w) / 2;
+  const ez = (alongX ? a.w : a.d) / 2;
+  const ph = T.amenityPadSize / 2;
+  return {
+    id,
+    x: a.x,
+    z: a.z,
+    yaw,
+    w: a.w,
+    d: a.d,
+    rect: { minX: a.x - ex, maxX: a.x + ex, minZ: a.z - ez, maxZ: a.z + ez },
+    pad: { x: a.pad.x, z: a.pad.z },
+    padRect: { minX: a.pad.x - ph, maxX: a.pad.x + ph, minZ: a.pad.z - ph, maxZ: a.pad.z + ph },
+  };
+}
+
+/** A model-local point (lx, lz) of amenity `f` in world XZ. */
+export function amenityToWorld(f: AmenityFrame, lx: number, lz: number, out: XZ = { x: 0, z: 0 }): XZ {
+  const c = Math.cos(f.yaw);
+  const s = Math.sin(f.yaw);
+  out.x = f.x + lx * c + lz * s;
+  out.z = f.z - lx * s + lz * c;
+  return out;
 }

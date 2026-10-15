@@ -28,6 +28,8 @@ export interface EraLook {
   bunting: boolean;
   /** Festive string lights + wreaths (Winter City, level 4). */
   festive: boolean;
+  /** Night market: warm bulb strings + halos along the market stalls' awnings (Winter City, level 4). */
+  nightMarket: boolean;
   /** Extra sparkle in the air (Winterland, level 5). */
   sparkle: boolean;
 }
@@ -42,6 +44,7 @@ export function eraFor(level: number): EraLook {
     surface: lv <= 1 ? 'snow' : lv === 2 ? 'gravel' : 'cobble',
     bunting: lv >= 3,
     festive: lv >= 4,
+    nightMarket: lv >= 4,
     sparkle: lv >= 5,
   };
 }

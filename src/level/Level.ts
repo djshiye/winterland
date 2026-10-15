@@ -37,7 +37,7 @@ import { Workshop } from '../stations/Workshop';
 import { UpgradePad } from '../stations/UpgradePad';
 import { Village } from '../village/Village';
 import { Town } from '../town/Town';
-import { settlePaidLots } from '../town/rules';
+import { settlePaidAmenities, settlePaidLots } from '../town/rules';
 import { Townsfolk } from '../npc/Townsfolk';
 
 export class Level {
@@ -124,6 +124,7 @@ export class Level {
     this.shopMat = new ShopMat(ctx);
     // A town lot saved fully paid (last bundle in flight) counts as built before the village counts its people.
     ctx.state.stats.townBuilt += settlePaidLots(ctx.state);
+    settlePaidAmenities(ctx.state); // wave 12: same for a fully paid amenity site
     this.village = new Village(ctx);
     this.town = new Town(ctx);
     this.townsfolk = new Townsfolk(ctx, this.town);

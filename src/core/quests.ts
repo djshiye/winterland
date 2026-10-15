@@ -4,6 +4,8 @@
  * it is not yet shown completes the moment it is shown. At most one completes per COMPLETE_GAP seconds, so a
  * burst reads as a sequence of toasts. Rewards go straight to the money; 'quest:done' drives the juice.
  */
+import { AMENITY_IDS } from '../config';
+import { townHappiness } from './demand';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
 import type { GameEvents, GameState } from './types';
@@ -20,6 +22,7 @@ export interface QuestDef {
 const flag = (b: boolean) => (b ? 1 : 0);
 const townBuilt = (s: GameState, pred: (id: string) => boolean = () => true) =>
   s.town.lots.filter((l) => l.tier >= 0 && l.building !== '' && pred(l.building)).length;
+const amenitiesBuilt = (s: GameState) => AMENITY_IDS.filter((id) => s.town.amenities[id].tier >= 0).length;
 const hiredAny = (s: GameState) => flag(s.upgrades.crateRunner > 0 || s.upgrades.cashier > 0 || s.upgrades.logHauler > 0);
 
 export const QUEST_DEFS: readonly QuestDef[] = [
@@ -49,6 +52,10 @@ export const QUEST_DEFS: readonly QuestDef[] = [
   { id: 'winterCity', title: 'Reach the Winter City era', target: 4, reward: 6000, progress: (s) => s.village.level },
   { id: 'earn150k', title: 'Earn $150,000 in total', target: 150000, reward: 6000, progress: (s) => s.stats.moneyEarned },
   { id: 'greatLodge', title: 'Build the Great Lodge', target: 1, reward: 10000, progress: (s) => flag(s.village.greatLodge.tier >= 0) },
+  // Wave 12: amenities and town happiness.
+  { id: 'amenity1', title: 'Build something cosy on the square', target: 1, reward: 1500, progress: amenitiesBuilt },
+  { id: 'happy50', title: 'Reach 50% town happiness', target: 50, reward: 3000, progress: (s) => Math.round(townHappiness(s) * 100) },
+  { id: 'amenity4', title: 'Build every amenity', target: 4, reward: 12000, progress: amenitiesBuilt },
 ];
 
 /** How many quests are shown (and checked) at once. */
