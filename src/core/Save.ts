@@ -9,7 +9,7 @@
  * Storage can be missing, full or blocked (private windows, embedded pages): every access is wrapped and the game
  * simply runs without saving. `?fresh` in the URL ignores (but does not delete) the save.
  */
-import { BUSINESSES, DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, UPGRADES, VILLAGE, type BusinessId } from '../config';
+import { AMENITIES, AMENITY_IDS, BUSINESSES, DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, UPGRADES, VILLAGE, type BusinessId } from '../config';
 import { createGameState, LOT_COUNT, type FlagId, type GameContext, type GameState, type ItemKind } from './types';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
@@ -183,6 +183,8 @@ export function sanitizeState(state: GameState): void {
     const def = lot.building === '' ? undefined : BUSINESSES[lot.building as BusinessId];
     site(lot, def ? 0 : -1, (t) => (t < 0 && def ? def : undefined));
   }
+  // wave 12: amenities, one tier each (0 = built)
+  for (const id of AMENITY_IDS) site(state.town.amenities[id], 0, (t) => (t < 0 ? AMENITIES[id] : undefined));
   // wave 11: priorities are enums
   if (!PRIORITIES.wood.includes(state.priorities.wood)) state.priorities.wood = 'balanced';
   if (!PRIORITIES.town.includes(state.priorities.town)) state.priorities.town = 'balanced';

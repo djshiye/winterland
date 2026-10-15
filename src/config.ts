@@ -738,6 +738,20 @@ export const LAYOUT = {
       { x: 15.0, z: 26.7 },
       { x: 37.6, z: 33.6 },
     ] as XZ[],
+    /**
+     * Wave 12: fixed amenity sites on the square (built like the Great Lodge: a pad in front, logs + cash). The pad
+     * sits `padOffset` toward the square's centre from the site. Provisional positions: the amenities builder
+     * verifies clearance from the lot pads (z 21.2 / 32.4 north-south rows at x 19 / 24.6 / 30.2; x 31.6 at
+     * z 23.8 / 30.4 for the east lots), benches, stalls, the tree ring, the snowman, the corridor mouth and
+     * the walk rects, and moves them if needed (tests/townAmenities.test.ts).
+     */
+    amenities: {
+      cafe: { x: 18.4, z: 32.6, w: 2.4, d: 1.6, pad: { x: 20.0, z: 30.4 } as XZ },
+      pond: { x: 28.0, z: 21.6, w: 3.4, d: 2.2, pad: { x: 26.2, z: 23.6 } as XZ },
+      bandstand: { x: 32.4, z: 27.1, w: 2.4, d: 2.4, pad: { x: 30.4, z: 29.0 } as XZ },
+      snowmanPark: { x: 18.4, z: 21.6, w: 2.6, d: 1.8, pad: { x: 20.4, z: 22.8 } as XZ },
+    },
+    amenityPadSize: 1.5,
   },
 } as const;
 
@@ -1310,6 +1324,29 @@ export const BUSINESSES: Record<BusinessId, BusinessDef> = {
     inputs: [{ kind: 'crate', per: 1 }], output: 'toy', batch: 2, cycle: 2.4, price: 45, want: [3, 6], capacity: 24,
   },
 };
+
+/** Wave 12: amenities, the cosy things on the square that raise town happiness. */
+export type AmenityId = 'cafe' | 'pond' | 'bandstand' | 'snowmanPark';
+export interface AmenityDef {
+  id: AmenityId;
+  label: string;
+  blurb: string;
+  /** Minimum village level. */
+  era: number;
+  logs: number;
+  cash: number;
+  /** Happiness this amenity adds (the four sum to 1). */
+  happiness: number;
+}
+export const AMENITIES: Record<AmenityId, AmenityDef> = {
+  cafe: { id: 'cafe', label: 'Cocoa Café', blurb: 'Hot cocoa by the square. Townsfolk linger with a mug', era: 3, logs: 20, cash: 3000, happiness: 0.25 },
+  snowmanPark: { id: 'snowmanPark', label: 'Snowman Park', blurb: 'A family of snowmen the kids never leave alone', era: 3, logs: 14, cash: 1500, happiness: 0.2 },
+  bandstand: { id: 'bandstand', label: 'Bandstand', blurb: 'A little stage; a band plays at dusk', era: 3, logs: 28, cash: 5000, happiness: 0.25 },
+  pond: { id: 'pond', label: 'Skating Pond', blurb: 'Frozen and lit; skaters loop on it all night', era: 4, logs: 36, cash: 9000, happiness: 0.3 },
+};
+export const AMENITY_IDS: readonly AmenityId[] = ['cafe', 'snowmanPark', 'bandstand', 'pond'];
+/** Town happiness (0..1, the sum of built amenities) raises every sale price by up to this share. */
+export const HAPPINESS = { priceBonus: 0.3 } as const;
 
 export const TOWN = {
   /** Business ids not offered (none: every building has its model and goods). */

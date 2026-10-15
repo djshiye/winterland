@@ -2,7 +2,7 @@
  * [MAIN] Village → demand helpers. Pure functions of GameState and the config tables, so every reader stays live
  * (call them at spawn / pay time; never cache the result).
  */
-import { BUSINESSES, DEMAND, ECONOMY, PRESTIGE, UPGRADES, VILLAGE, type BusinessId, type DemandLevel, type ProductId } from '../config';
+import { AMENITIES, AMENITY_IDS, BUSINESSES, DEMAND, ECONOMY, HAPPINESS, PRESTIGE, UPGRADES, VILLAGE, type BusinessId, type DemandLevel, type ProductId } from '../config';
 import type { GameState } from './types';
 
 /** Buyer behaviour for the current village level. */
@@ -20,6 +20,18 @@ export function productMult(state: GameState, product: ProductId): number {
   return m;
 }
 
+/** Wave 12: town happiness 0..1, the sum of the built amenities' shares (AMENITIES[id].happiness). */
+export function townHappiness(state: GameState): number {
+  let h = 0;
+  for (const id of AMENITY_IDS) if (state.town.amenities[id].tier >= 0) h += AMENITIES[id].happiness;
+  return Math.min(1, h);
+}
+
+/** Every sale pays up to HAPPINESS.priceBonus more at full happiness (scope: all buyers, village and town alike). */
+export function happinessMult(state: GameState): number {
+  return 1 + HAPPINESS.priceBonus * townHappiness(state);
+}
+
 /** Permanent price bonus from New Seasons (1 in the first season). */
 export function seasonMult(state: GameState): number {
   return 1 + PRESTIGE.bonusPerSeason * Math.max(0, state.prestige.season);
@@ -32,7 +44,7 @@ export function seasonMult(state: GameState): number {
  */
 export function salePrice(state: GameState, product: ProductId, unitPrice: number, count: number): number {
   const b = ECONOMY.cashBundleValue;
-  const mult = demandOf(state).priceMult * productMult(state, product) * seasonMult(state);
+  const mult = demandOf(state).priceMult * productMult(state, product) * seasonMult(state) * happinessMult(state);
   return Math.max(b, Math.round((unitPrice * count * mult) / b) * b);
 }
 
