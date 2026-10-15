@@ -32,6 +32,15 @@ export function happinessMult(state: GameState): number {
   return 1 + HAPPINESS.priceBonus * townHappiness(state);
 }
 
+/** Wave 13: a transient multiplier written by WorldEvents (the aurora); not part of the state, so never saved. */
+let transientPriceMult = 1;
+export function setTransientPriceMult(m: number): void {
+  transientPriceMult = Number.isFinite(m) && m > 0 ? m : 1;
+}
+export function getTransientPriceMult(): number {
+  return transientPriceMult;
+}
+
 /** Permanent price bonus from New Seasons (1 in the first season). */
 export function seasonMult(state: GameState): number {
   return 1 + PRESTIGE.bonusPerSeason * Math.max(0, state.prestige.season);
@@ -44,7 +53,7 @@ export function seasonMult(state: GameState): number {
  */
 export function salePrice(state: GameState, product: ProductId, unitPrice: number, count: number): number {
   const b = ECONOMY.cashBundleValue;
-  const mult = demandOf(state).priceMult * productMult(state, product) * seasonMult(state) * happinessMult(state);
+  const mult = demandOf(state).priceMult * productMult(state, product) * seasonMult(state) * happinessMult(state) * transientPriceMult;
   return Math.max(b, Math.round((unitPrice * count * mult) / b) * b);
 }
 

@@ -9,7 +9,7 @@
  * Storage can be missing, full or blocked (private windows, embedded pages): every access is wrapped and the game
  * simply runs without saving. `?fresh` in the URL ignores (but does not delete) the save.
  */
-import { AMENITIES, AMENITY_IDS, BUSINESSES, DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, UPGRADES, VILLAGE, type BusinessId } from '../config';
+import { AMENITIES, AMENITY_IDS, BUSINESSES, CONTRACTS, DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, UPGRADES, VILLAGE, type BusinessId } from '../config';
 import { createGameState, LOT_COUNT, type FlagId, type GameContext, type GameState, type ItemKind } from './types';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
@@ -185,6 +185,22 @@ export function sanitizeState(state: GameState): void {
   }
   // wave 12: amenities, one tier each (0 = built)
   for (const id of AMENITY_IDS) site(state.town.amenities[id], 0, (t) => (t < 0 ? AMENITIES[id] : undefined));
+  // wave 13: the Grand Market (one tier) and the contract
+  site(state.town.grandMarket, 0, (t) => (t < 0 ? VILLAGE.grandMarket : undefined));
+  state.town.grandMarket.toys = int(state.town.grandMarket.toys, 0, state.town.grandMarket.tier < 0 ? VILLAGE.grandMarket.toys : 0);
+  {
+    const c = state.contract;
+    const offer = CONTRACTS.offers.find((o) => o.kind === c.kind);
+    if (!offer) {
+      c.kind = '';
+      c.target = c.progress = c.left = c.bonus = 0;
+    } else {
+      c.target = int(c.target, 1, 100000);
+      c.progress = int(c.progress, 0, c.target);
+      c.left = Math.max(0, Math.min(isNum(c.left) ? c.left : 0, CONTRACTS.seconds));
+      c.bonus = int(c.bonus, 0, 1_000_000);
+    }
+  }
   // wave 11: priorities are enums
   if (!PRIORITIES.wood.includes(state.priorities.wood)) state.priorities.wood = 'balanced';
   if (!PRIORITIES.town.includes(state.priorities.town)) state.priorities.town = 'balanced';

@@ -753,6 +753,11 @@ export const LAYOUT = {
       snowmanPark: { x: 28.2, z: 27.1, w: 2.2, d: 1.6, pad: { x: 26.35, z: 27.1 } as XZ },
     },
     amenityPadSize: 1.5,
+    /**
+     * Wave 13: the Grand Market hall in the south-east corner of the district (clear of the south lots x ≤ 32.4 and
+     * the east lots z ≤ 32.6); its pad in front, toward the square. The builder validates clearance.
+     */
+    grandMarket: { x: 35.4, z: 36.2, w: 4.2, d: 3.0, pad: { x: 35.4, z: 33.6 } as XZ, padSize: 1.8 },
   },
 } as const;
 
@@ -784,7 +789,8 @@ export type UpgradeIdConst =
   // wave 9
   | 'porter'
   | 'sledLoader'
-  | 'foreman';
+  | 'foreman'
+  | 'dog';
 
 /**
  * lumberjack + crew + sales: bought in the cabin shop panel (one tab each) · machine: the machine's own pad re-arms
@@ -841,6 +847,18 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     costs: [100, 300, 800, 2000, 5000, 9000, 15000, 24000, 38000],
     display: 'count',
     unit: 'items',
+  },
+  /** Wave 13: a husky companion. values = extra carry capacity (0 = no dog). */
+  dog: {
+    id: 'dog',
+    group: 'lumberjack',
+    label: 'Sled Dog',
+    blurb: 'A husky follows you and carries extra logs and crates',
+    values: [0, 2, 3, 4, 6],
+    costs: [2500, 9000, 25000, 60000],
+    display: 'count',
+    unit: 'extra items',
+    requires: { villageLevel: 2 },
   },
   speed: {
     id: 'speed',
@@ -1182,6 +1200,8 @@ export const VILLAGE = {
     { name: 'Winterland', minPopulation: Number.POSITIVE_INFINITY, perks: ['Everyone loves your mill'] },
   ] as readonly VillageLevelDef[],
   greatLodge: { label: 'GREAT LODGE', logs: 100, cash: 25000, requiresLevel: 4 },
+  /** Wave 13: the Winterland-era finale on the square; it also takes toys from the toy factory. */
+  grandMarket: { label: 'GRAND MARKET', logs: 120, cash: 60000, toys: 20, requiresLevel: 5 },
 } as const;
 
 /** What buyers do at each village level (index = GameState.village.level). Read live at spawn / pay time. */
@@ -1229,6 +1249,40 @@ export const VIP = {
  * Wave 8: rush hours (core/Rush.ts). Once the village reaches `minVillageLevel`, every `every` seconds a rush of
  * `seconds` starts: walk-in customers and tricycles arrive `spawnMult`× as often. Transient (not saved).
  */
+/**
+ * Wave 13: world events (core/WorldEvents.ts). One at a time, every `every` seconds once the village is a Village;
+ * transient (not saved). Snowstorm: slower walking, shops burn firewood faster, heavy snowfall. Festival: townsfolk
+ * buy twice as often. Aurora: a strong aurora and better prices, only at night.
+ */
+export type EventKind = 'snowstorm' | 'festival' | 'aurora';
+export const EVENTS = {
+  minVillageLevel: 2,
+  every: [240, 420] as readonly [number, number],
+  kinds: {
+    snowstorm: { seconds: 60, walkSpeedMult: 0.6, firewoodMult: 2, snowfall: 3, label: 'Snowstorm!', hint: 'Slow going, and the shops burn firewood fast' },
+    festival: { seconds: 90, townBuyMult: 2, label: 'Festival day!', hint: 'Townsfolk buy twice as much' },
+    aurora: { seconds: 120, priceMult: 1.25, requiresNight: true, label: 'Northern lights!', hint: 'Every sale pays 25% more' },
+  },
+} as const;
+
+/**
+ * Wave 13: delivery contracts (core/Contracts.ts). One offer at a time from the village gate's notice board: sell
+ * `count` of `kind` within `seconds` for a cash `bonus` on top of the sales. Saved (state.contract).
+ */
+export const CONTRACTS = {
+  minVillageLevel: 3,
+  every: [150, 260] as readonly [number, number],
+  seconds: 180,
+  offers: [
+    { kind: 'plank', count: 40, bonus: 800, requires: null },
+    { kind: 'crate', count: 30, bonus: 1200, requires: 'processor' },
+    { kind: 'bread', count: 20, bonus: 1500, requires: 'bakery' },
+    { kind: 'furniture', count: 12, bonus: 2000, requires: 'workshop' },
+    { kind: 'sausage', count: 15, bonus: 2500, requires: 'butcher' },
+    { kind: 'toy', count: 10, bonus: 3000, requires: 'toyFactory' },
+  ] as readonly { kind: ItemKind; count: number; bonus: number; requires: PadIdConst | BusinessId | null }[],
+} as const;
+
 export const RUSH = {
   minVillageLevel: 1,
   every: [150, 240] as readonly [number, number],
