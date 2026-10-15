@@ -470,7 +470,7 @@ export class Progression {
     const ctx = this.ctx;
     const now = ctx.time.elapsed;
     // hold-to-interact (core/interact.ts): pickups and payments need the key, so the hint says so
-    if (text && ctx.input.holdToInteract && /^(Pick up|Pay for|Bring |Build the Great Lodge|Take )/.test(text)) {
+    if (text && ctx.input.holdToInteract && /^(Pick up|Pay for|Bring logs to|Build the Great Lodge)/.test(text)) {
       text += holdHint();
     }
     if (text !== this.objective) {
