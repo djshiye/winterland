@@ -38,6 +38,7 @@ import { machineCatalog } from './machines';
 import { padCatalog } from './pads';
 import { ridgeCatalog } from './ridge';
 import { ridgeMachineCatalog } from './ridgeMachines';
+import { sledCatalog } from './sled';
 import { sceneryCatalog } from './scenery';
 import { sheltersCatalog } from './shelters';
 import { shopCatalog } from './shop';
@@ -66,4 +67,5 @@ export const ASSET_CATALOG: Record<string, Record<string, AssetBuilder>> = {
   shelters: sheltersCatalog,
   ridge: ridgeCatalog,
   ridgeMachines: ridgeMachineCatalog,
+  sled: sledCatalog,
 };

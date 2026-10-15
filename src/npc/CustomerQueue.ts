@@ -219,8 +219,7 @@ export class CustomerQueue {
     const have = c.stack.count();
     if (have !== c.shown) {
       c.shown = have;
-      c.bubble.show('plank', `${have}/${c.want}`);
-      if (c.vip) this.stampCrown(c);
+      c.bubble.show('plank', `${have}/${c.want}`, c.vip ? { badge: 'crown' } : undefined);
     }
 
     c.takeTimer -= dt;
@@ -255,42 +254,8 @@ export class CustomerQueue {
     c.mode = 'paid';
     c.timer = CHEER_TIME;
     c.rig.cheer();
-    c.bubble.show('check');
+    c.bubble.show('check', undefined, c.vip ? { badge: 'crown' } : undefined);
     this.ctx.tweens.popIn(c.bubble.sprite, { duration: 0.35 });
-  }
-
-  /**
-   * Draws a small gold crown in the corner of the VIP's speech bubble canvas, right after bubble.show() redrew it
-   * (same canvas / texture: no extra sprite, no extra draw call).
-   */
-  private stampCrown(c: Customer): void {
-    const mat = c.bubble.sprite.material;
-    const map = mat.map;
-    const canvas = map?.image as HTMLCanvasElement | undefined;
-    const g = canvas?.getContext('2d');
-    if (!g || !map) return;
-    const cx = 132;
-    const cy = 22;
-    g.beginPath();
-    g.moveTo(cx - 19, cy + 15);
-    g.lineTo(cx - 22, cy - 13);
-    g.lineTo(cx - 10, cy - 1);
-    g.lineTo(cx, cy - 17);
-    g.lineTo(cx + 10, cy - 1);
-    g.lineTo(cx + 22, cy - 13);
-    g.lineTo(cx + 19, cy + 15);
-    g.closePath();
-    g.fillStyle = '#ffc933';
-    g.fill();
-    g.lineWidth = 5;
-    g.lineJoin = 'round';
-    g.strokeStyle = '#9a6a00';
-    g.stroke();
-    g.fillStyle = '#ff5a5a';
-    g.beginPath();
-    g.arc(cx, cy + 6, 4, 0, Math.PI * 2);
-    g.fill();
-    map.needsUpdate = true;
   }
 
   private sendAway(c: Customer): void {
