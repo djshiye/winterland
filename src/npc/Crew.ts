@@ -21,6 +21,8 @@ import { LAYOUT } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
 import { LOT_COUNT, type GameContext, type ItemKind } from '../core/types';
 import type { Level } from '../level/Level';
+import { SledLoader } from './SledLoader';
+import { Foreman } from './Foreman';
 import {
   CREW_IDS,
   Cashier,
@@ -185,6 +187,10 @@ export class Crew {
         return new PineHauler(this.ctx, this.level, index);
       case 'porter':
         return new Porter(this.ctx, this.level, index);
+      case 'sledLoader':
+        return new SledLoader(this.ctx, this.level, index);
+      case 'foreman':
+        return new Foreman(this.ctx, this.level, index);
     }
   }
 }

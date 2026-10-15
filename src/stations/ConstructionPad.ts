@@ -261,6 +261,35 @@ export class ConstructionPad implements ItemHolder {
     }
   }
 
+  /**
+   * Wave 11: pay cash without an item (the foreman pays from the wallet). The caller spends the money; this credits
+   * the target like a landed bundle: progress is reported, 'construction:paid' fires, and a fully paid tier completes.
+   * Returns the amount credited (capped at what is left; 0 when hidden or complete).
+   */
+  payDirect(amount: number): number {
+    if (!this.shown || this.completed) return 0;
+    const credit = Math.max(0, Math.min(amount, this.cashLeft));
+    if (credit <= 0) return 0;
+    this.target.paidCash += credit;
+    this.redraw();
+    this.syncZones();
+    if (this.shown) this.ctx.tweens.punchScale(this.model, 0.08, 0.14);
+    this.ctx.events.emit('construction:paid', {
+      key: this.key,
+      kind: 'cash',
+      logsLeft: this.logsLeft,
+      cashLeft: this.cashLeft,
+      position: this.tmpPos.copy(this.object.position),
+    });
+    this.reportProgress();
+    if (!this.completed && this.logsLeft <= 0 && this.cashLeft <= 0) {
+      this.completed = true;
+      this.hide();
+      this.opts.onComplete();
+    }
+    return credit;
+  }
+
   cancel(slot: Slot): void {
     const s = slot as ConstructionSlot;
     if (!s.live) return;

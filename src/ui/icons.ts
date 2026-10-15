@@ -6,6 +6,8 @@ const svg = (inner: string, vb = '0 0 48 48'): string =>
 
 const OUT = '#1f2b46';
 
+/** Wave 11 placeholder until the real icons land. */
+const PLACEHOLDER = svg(`<circle cx="24" cy="24" r="14" fill="#8f5530" stroke="${OUT}" stroke-width="2.5"/>`);
 const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
   // sales: a smooth plank with a gold star
   plankQuality: svg(`
@@ -147,6 +149,9 @@ const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
       <path d="M36 33H46" stroke="#2f8f83" stroke-width="4"/>
       <circle cx="21" cy="40" r="6" fill="#2a3652"/><circle cx="21" cy="40" r="2" fill="#e0a526" stroke-width="1.6"/>
     </g>`),
+  // wave 11 placeholders (the UI builder draws real ones): a sled loader and a foreman
+  sledLoader: PLACEHOLDER,
+  foreman: PLACEHOLDER,
   // wave 7: a signed rail contract with a pine and a gold seal
   pineContracts: svg(`
     <g stroke="${OUT}" stroke-width="2.5">

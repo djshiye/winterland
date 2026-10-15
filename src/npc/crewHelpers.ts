@@ -47,7 +47,7 @@ import {
 } from './townRoutes';
 
 export type CrewId = CrewRole;
-export const CREW_IDS: readonly CrewId[] = ['crateRunner', 'cashier', 'logHauler', 'pineHauler', 'porter'];
+export const CREW_IDS: readonly CrewId[] = ['crateRunner', 'cashier', 'logHauler', 'pineHauler', 'porter', 'sledLoader', 'foreman'];
 
 const ACCEL = 12;
 const TURN_LAMBDA = 12;
@@ -113,6 +113,15 @@ const PORTER_LOOK: XZ = { x: TOWN.tree.x, z: TOWN.tree.z };
 /** Cabin door → gate → street → corridor → square → home. */
 const PORTER_ROUTE: XZ[] = [...CABIN_LEG, ...TRUNK, PORTER_HOME];
 
+// --- Wave 11: sled loader (east of the workshop bench, north of the sled lane) and foreman (yard, by the village gate)
+/** Builders of the two roles verify these spots are clear of the bench / sled counter / sled cash zones and the fences. */
+export const SLED_LOADER_HOME: XZ = { x: 29.6, z: 5.0 };
+export const SLED_LOADER_LOOK: XZ = { x: 27.3, z: 3.2 };
+const SLED_LOADER_ROUTE: XZ[] = [...TO_RIDGE, PINE_JUNCTION, PAD_BYPASS, { x: 29.6, z: 1.0 }, SLED_LOADER_HOME];
+export const FOREMAN_HOME: XZ = { x: 2.4, z: 8.4 };
+export const FOREMAN_LOOK: XZ = { x: 4.6, z: 10.4 };
+const FOREMAN_ROUTE: XZ[] = [{ x: 7.4, z: -2.0 }, { x: 4.0, z: 4.0 }, FOREMAN_HOME];
+
 /** Door → home post, used when a helper is hired. */
 const HOME_ROUTE: Record<CrewId, XZ[]> = {
   crateRunner: [{ x: 7.4, z: -2.0 }, { x: 7.4, z: 0.85 }, BENCH_POST],
@@ -120,6 +129,8 @@ const HOME_ROUTE: Record<CrewId, XZ[]> = {
   logHauler: [{ x: 4.8, z: -5.3 }, { x: -1.5, z: -4.6 }, DROP_POST],
   pineHauler: [...TO_RIDGE, PINE_JUNCTION, PINE_APPROACH, PINE_HOME],
   porter: PORTER_ROUTE,
+  sledLoader: SLED_LOADER_ROUTE,
+  foreman: FOREMAN_ROUTE,
 };
 const HOME: Record<CrewId, XZ> = {
   crateRunner: BENCH_POST,
@@ -127,6 +138,8 @@ const HOME: Record<CrewId, XZ> = {
   logHauler: DROP_POST,
   pineHauler: PINE_HOME,
   porter: PORTER_HOME,
+  sledLoader: SLED_LOADER_HOME,
+  foreman: FOREMAN_HOME,
 };
 const HOME_LOOK: Record<CrewId, XZ> = {
   crateRunner: BENCH_LOOK,
@@ -134,9 +147,11 @@ const HOME_LOOK: Record<CrewId, XZ> = {
   logHauler: DROP_LOOK,
   pineHauler: PINE_HOME_LOOK,
   porter: PORTER_LOOK,
+  sledLoader: SLED_LOADER_LOOK,
+  foreman: FOREMAN_LOOK,
 };
 /** Base character variant per role (the index shifts it so twins look different). */
-const VARIANT: Record<CrewId, number> = { crateRunner: 0, cashier: 1, logHauler: 2, pineHauler: 1, porter: PORTER_VARIANT };
+const VARIANT: Record<CrewId, number> = { crateRunner: 0, cashier: 1, logHauler: 2, pineHauler: 1, porter: PORTER_VARIANT, sledLoader: 2, foreman: 0 };
 /**
  * Lane steps for the 1st…4th helper of a role (metres). Every post is registered with the point its worker faces;
  * the helper stands beside the post along the line perpendicular to that look direction, so a second helper

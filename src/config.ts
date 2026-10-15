@@ -767,7 +767,9 @@ export type UpgradeIdConst =
   | 'workshop'
   | 'furnitureQuality'
   // wave 9
-  | 'porter';
+  | 'porter'
+  | 'sledLoader'
+  | 'foreman';
 
 /**
  * lumberjack + crew + sales: bought in the cabin shop panel (one tab each) · machine: the machine's own pad re-arms
@@ -918,6 +920,27 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     display: 'crew',
     requires: { villageLevel: 3 },
   },
+  // wave 11: automation
+  sledLoader: {
+    id: 'sledLoader',
+    group: 'crew',
+    label: 'Sled Loader',
+    blurb: 'Carries chairs to the dog sleds and keeps the workshop hopper fed',
+    values: [0, 1, 1.3, 1.65, 2.0, 2.4, 2.8],
+    costs: [6000, 14000, 28000, 45000, 65000, 90000],
+    display: 'crew',
+    requires: { unlocked: 'workshop' },
+  },
+  foreman: {
+    id: 'foreman',
+    group: 'crew',
+    label: 'Foreman',
+    blurb: 'Builds for you: hauls logs to the next house or lot and pays for it from your cash',
+    values: [0, 1, 1.3, 1.65, 2.0, 2.4, 2.8],
+    costs: [20000, 40000, 70000, 110000, 160000, 220000],
+    display: 'crew',
+    requires: { villageLevel: 4 },
+  },
   plankQuality: {
     id: 'plankQuality',
     group: 'sales',
@@ -1032,6 +1055,28 @@ export const CREW = {
   pineHauler: { walkSpeed: 3.0, capacity: 6 },
   /** Wave 9: carries producer goods (wheat, meat) and drop-zone firewood to the town shops' hoppers. */
   porter: { walkSpeed: 3.2, capacity: 6 },
+  /** Wave 11. */
+  sledLoader: { walkSpeed: 3.2, capacity: 6 },
+  /** Capacity in logs; cash is paid directly from the wallet (ConstructionPad.payDirect). */
+  foreman: { walkSpeed: 3.0, capacity: 8 },
+} as const;
+
+/** Wave 11: crew priorities (GameState.priorities) and the foreman's rules. */
+export type WoodPriority = 'balanced' | 'trucks' | 'trains' | 'workshop';
+export type TownPriority = 'balanced' | 'bakery' | 'butcher' | 'toys';
+export const PRIORITIES = {
+  wood: ['balanced', 'trucks', 'trains', 'workshop'] as readonly WoodPriority[],
+  town: ['balanced', 'bakery', 'butcher', 'toys'] as readonly TownPriority[],
+  /** Score bonus for the favoured target in pickJob / pickStop style scoring. */
+  weight: 1.5,
+  /** The foreman keeps this share of the wallet (and at least `reserveMin`) untouched. */
+  reserveShare: 0.2,
+  reserveMin: 500,
+  /** Cash per foreman payment chunk and seconds between chunks at work multiplier 1. */
+  payChunk: 250,
+  payInterval: 0.35,
+  /** The workshop hopper is "low" below this many logs (sled loader / pine hauler top-up). */
+  workshopLow: 6,
 } as const;
 
 /**
@@ -1051,6 +1096,8 @@ export const QUARTERS = {
     logHauler: [1, 1, 2, 3],
     porter: [1, 1, 2, 3],
     pineHauler: [1, 1, 2, 3],
+    sledLoader: [1, 1, 2, 2],
+    foreman: [1, 1, 1, 2],
   },
 } as const;
 
