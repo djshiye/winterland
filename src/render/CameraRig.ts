@@ -23,12 +23,19 @@ import { clamp } from '../core/math';
 type FocusPhase = 'none' | 'in' | 'hold' | 'out';
 
 const DEFAULT_FOCUS_DURATION = 0.9;
+export const USER_ZOOM_MIN = 0.8;
+export const USER_ZOOM_MAX = 1.3;
 const DEFAULT_FOCUS_HOLD = 0.8;
 
 export class CameraRig {
   /** Current (smoothed) look-at point on the ground. */
   readonly target = new THREE.Vector3();
   zoom = 1;
+  /**
+   * Wave 10: the player's own zoom (wheel / pinch / +-), a separate multiplier on top of `zoom` (which the game
+   * animates for phases and camera moments). Clamped USER_ZOOM_MIN..USER_ZOOM_MAX. Not persisted.
+   */
+  userZoom = 1;
   private followed: THREE.Object3D | null = null;
   private aspect = 16 / 9;
   private viewW = 1280;
@@ -203,8 +210,14 @@ export class CameraRig {
     }
   }
 
+  /** TODO(engine builder): clamp, smooth, applyFrustum(). */
+  setUserZoom(z: number): void {
+    this.userZoom = Math.max(USER_ZOOM_MIN, Math.min(USER_ZOOM_MAX, z));
+    this.applyFrustum();
+  }
+
   private applyFrustum(): void {
-    const z = Math.max(0.05, this.zoom);
+    const z = Math.max(0.05, this.zoom * this.userZoom);
     let h = CAMERA.viewHeight / z;
     if (h * this.aspect < CAMERA.minViewWidth / z) h = CAMERA.minViewWidth / z / this.aspect;
     const w = h * this.aspect;

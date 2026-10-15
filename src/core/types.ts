@@ -342,6 +342,14 @@ export interface GameEvents {
    */
   'upgrade:bought': { id: UpgradeId; level: number; position: THREE.Vector3 | null };
   /** The player stepped onto / off the cabin doormat (the HUD opens / closes the shop panel). */
+  /** Wave 10 (desktop comfort): keyboard shortcuts from Input, dispatched by Game. */
+  'ui:escape': Record<string, never>;
+  'ui:mute': Record<string, never>;
+  'ui:fullscreen': Record<string, never>;
+  /** Mouse wheel / pinch / +- keys: `delta` > 0 zooms in (about 0.1 per notch). */
+  'camera:zoom': { delta: number };
+  /** Settings → Display picked a frame cap (0 = uncapped); Game applies and persists it (core/fps.ts). */
+  'settings:fps': { cap: 0 | 30 | 60 };
   'shop:open': Record<string, never>;
   'shop:close': Record<string, never>;
   /** A construction pad received a log or a cash bundle. key: 'plot:<i>' | 'greatLodge'. */

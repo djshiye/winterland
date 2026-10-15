@@ -49,6 +49,7 @@ import { AudioFX } from '../fx/Audio';
 import { JuiceDirector } from '../fx/JuiceDirector';
 import { Fireworks } from '../fx/Fireworks';
 import { HUD } from '../ui/HUD';
+import { readFpsCap, writeFpsCap, type FpsCap } from '../core/fps';
 import { Level } from '../level/Level';
 
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
@@ -136,6 +137,9 @@ export class Game {
   private running = false;
   private paused = false;
   private lastTime = 0;
+  /** Frame cap; frames arriving early are skipped (sim and render) so the sim never slows (MAX_DT is 50 ms). */
+  fpsCap: FpsCap = readFpsCap();
+  private lastFrame = 0;
   /** Saving is off for `?fresh` pages and after a reset (until the reload). */
   private saving: boolean;
   private saveTimer: number = SAVE.interval;
@@ -214,6 +218,16 @@ export class Game {
       if (document.visibilityState === 'hidden') this.save();
     });
     events.on('game:reset', () => this.reset());
+    // wave 10: keyboard shortcuts and zoom become events; the HUD and the camera listen
+    input.onShortcut((s) => {
+      if (s === 'escape') events.emit('ui:escape', {});
+      else if (s === 'mute') events.emit('ui:mute', {});
+      else if (s === 'fullscreen') events.emit('ui:fullscreen', {});
+      else events.emit('camera:zoom', { delta: s === 'zoomIn' ? 0.1 : -0.1 });
+    });
+    input.onZoom((delta) => events.emit('camera:zoom', { delta }));
+    events.on('settings:fps', ({ cap }) => this.setFpsCap(cap));
+    events.on('camera:zoom', ({ delta }) => cameraRig.setUserZoom(cameraRig.userZoom + delta));
     events.on('season:new', () => this.newSeason());
     this.installDebugApi();
     this.level.start();
@@ -281,12 +295,23 @@ export class Game {
     const loop = (now: number) => {
       if (!this.running) return;
       requestAnimationFrame(loop);
+      if (this.fpsCap) {
+        // allow a little slack so a 60 Hz display under a 60 cap doesn't drop to 30 from jitter
+        if (now - this.lastFrame < 1000 / this.fpsCap - 2) return;
+        this.lastFrame = now;
+      }
       const dt = Math.min((now - this.lastTime) / 1000, MAX_DT);
       this.lastTime = now;
       if (!this.paused && dt > 0) this.step(dt);
       this.ctx.renderer.render();
     };
     requestAnimationFrame(loop);
+  }
+
+  /** Settings → Display: 0 (uncapped), 30 or 60. Persisted. */
+  setFpsCap(cap: FpsCap): void {
+    this.fpsCap = cap;
+    writeFpsCap(cap);
   }
 
   /** One simulation step. */

@@ -24,6 +24,7 @@
  *   on/off persists in 'winterland:music' (default on).
  */
 import { Music } from './Music';
+import { readVolume, writeVolume, type VolumeChannel } from './volume';
 
 export type SfxName =
   | 'pop'
@@ -113,6 +114,27 @@ export class AudioFX {
   muted = false;
   /** Music switch (independent of `muted`, which silences everything). */
   musicOn = true;
+  /** Wave 10: per-channel volumes 0..1 (see fx/volume.ts). Read at construction, persisted by setVolume. */
+  private readonly volumes: Record<VolumeChannel, number> = {
+    master: readVolume('master'),
+    sfx: readVolume('sfx'),
+    music: readVolume('music'),
+  };
+
+  /** Current volume of a channel, 0..1. */
+  getVolume(ch: VolumeChannel): number {
+    return this.volumes[ch];
+  }
+
+  /**
+   * Set a channel volume (0..1), live and persisted. master scales everything (MASTER_GAIN * volumeGain(master)),
+   * sfx scales the effects bus only, music scales the music's resting level (Music.setVolume).
+   * TODO(audio builder): apply to the gain nodes; this stub only stores and persists.
+   */
+  setVolume(ch: VolumeChannel, v: number): void {
+    this.volumes[ch] = Math.max(0, Math.min(1, v));
+    writeVolume(ch, this.volumes[ch]);
+  }
 
   private ac: AudioContext | null = null;
   private master: GainNode | null = null;

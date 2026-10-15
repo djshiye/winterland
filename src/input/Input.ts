@@ -30,6 +30,8 @@ const KEY_MAP: Record<string, 'up' | 'down' | 'left' | 'right'> = {
   ArrowRight: 'right',
 };
 
+export type Shortcut = 'escape' | 'mute' | 'fullscreen' | 'zoomIn' | 'zoomOut';
+
 export class Input {
   /** Screen-space movement intent; x → right, y → up, length 0..1. Updated by update(). */
   readonly move = new THREE.Vector2();
@@ -48,6 +50,19 @@ export class Input {
   private gestureCbs: (() => void)[] = [];
   private gestureFired = false;
   private allCbs: (() => void)[] = [];
+  /** Wave 10 shortcut listener (Game wires it to events). TODO(engine builder): fire from onKeyDown and wheel. */
+  protected shortcutCb: ((s: Shortcut) => void) | null = null;
+  protected zoomCb: ((delta: number) => void) | null = null;
+
+  /** Escape, M (mute), F11 / Alt+Enter / F (fullscreen), + / - (zoom). Fired on keydown, not while typing in an input. */
+  onShortcut(cb: (s: Shortcut) => void): void {
+    this.shortcutCb = cb;
+  }
+
+  /** Mouse wheel over the canvas and two-finger pinch: delta > 0 zooms in, about 0.1 per wheel notch. */
+  onZoom(cb: (delta: number) => void): void {
+    this.zoomCb = cb;
+  }
 
   constructor(readonly element: HTMLElement) {
     this.joyRoot = document.createElement('div');
