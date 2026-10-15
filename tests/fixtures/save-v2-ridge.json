@@ -1,0 +1,178 @@
+{
+ "v": 1,
+ "savedAt": 1792024494130,
+ "money": 1335,
+ "state": {
+  "phase": "expansion",
+  "unlocked": {
+   "harvester": true,
+   "processor": true,
+   "westConveyor": true,
+   "eastConveyor": true,
+   "megaSaw": true,
+   "ridge": true,
+   "treeFeller": true,
+   "truckLoader": true,
+   "cashTubes": false
+  },
+  "padsVisible": {
+   "harvester": false,
+   "processor": false,
+   "westConveyor": false,
+   "eastConveyor": false,
+   "megaSaw": false,
+   "ridge": false,
+   "treeFeller": false,
+   "truckLoader": false,
+   "cashTubes": true
+  },
+  "expanded": true,
+  "stats": {
+   "logsChopped": 7448,
+   "logsSold": 671,
+   "planksSold": 4622,
+   "cratesMade": 1746,
+   "cratesSold": 1740,
+   "moneyEarned": 104565,
+   "customersServed": 1049,
+   "tricyclesServed": 299,
+   "trucksServed": 55,
+   "sheltersBuilt": 24,
+   "upgradesBought": 28
+  },
+  "upgrades": {
+   "carry": 4,
+   "speed": 4,
+   "axe": 4,
+   "harvester": 3,
+   "processor": 2,
+   "megaSaw": 0,
+   "crateRunner": 2,
+   "cashier": 2,
+   "logHauler": 1,
+   "plankQuality": 2,
+   "crateQuality": 2,
+   "bulkDeals": 1,
+   "treeFeller": 0,
+   "cashTubes": 0,
+   "pineHauler": 1,
+   "pineContracts": 0
+  },
+  "village": {
+   "revealed": true,
+   "plots": [
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 2,
+     "logs": 0,
+     "cash": 0
+    }
+   ],
+   "greatLodge": {
+    "tier": -1,
+    "logs": 0,
+    "cash": 0
+   },
+   "population": 56,
+   "level": 3
+  },
+  "flags": {
+   "introDone": true,
+   "firstCustomerSale": true,
+   "reveal:harvesterPad": true,
+   "reveal:processorPad": true,
+   "shopRevealed": true,
+   "reveal:village": true,
+   "shopVisited": true,
+   "reveal:levelPad:harvester": true,
+   "seen:levelPadToast": true,
+   "conveyorsRevealed": true,
+   "firstTrikeSale": true,
+   "reveal:megaSawPad": true,
+   "reveal:levelPad:processor": true,
+   "reveal:levelPad:megaSaw": true,
+   "reveal:truckLoaderPad": true,
+   "reveal:ridgePad": true,
+   "reveal:treeFellerPad": true,
+   "reveal:cashTubesPad": true,
+   "seen:ridge": true,
+   "reveal:levelPad:treeFeller": true
+  },
+  "padPaid": {
+   "pad:harvester": 0,
+   "pad:processor": 0,
+   "pad:westConveyor": 0,
+   "pad:eastConveyor": 0,
+   "pad:megaSaw": 0,
+   "pad:truckLoader": 0,
+   "pad:ridge": 0,
+   "pad:treeFeller": 0
+  },
+  "playTime": 2238.166633334221,
+  "quarters": {
+   "tier": 0,
+   "logs": 0,
+   "cash": 0
+  },
+  "prestige": {
+   "season": 0
+  }
+ },
+ "world": {
+  "piles": {
+   "dropZone": 18,
+   "walkIn": 2,
+   "hopper": 8,
+   "bench": 5,
+   "se": 1,
+   "truck": 0,
+   "deck": 44,
+   "platform": 15
+  },
+  "cash": {
+   "walkIn": 1220,
+   "se": 840,
+   "truck": 520,
+   "platform": 0
+  },
+  "arms": {
+   "log": 0,
+   "crate": 0
+  }
+ },
+ "salesRate": 94.21666666666667
+}
