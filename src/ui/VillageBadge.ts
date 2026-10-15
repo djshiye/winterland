@@ -4,8 +4,10 @@
  */
 import { VILLAGE } from '../config';
 import type { GameContext } from '../core/types';
+import { eraLabel, romanNumeral } from '../world/env/eras';
 import { backOut, h } from './dom';
 import { ICON_HOUSE, ICON_PERSON } from './icons';
+import './era.css';
 
 export class VillageBadge {
   private readonly root: HTMLDivElement;
@@ -74,7 +76,12 @@ export class VillageBadge {
     const lvDef = VILLAGE.levels[Math.min(v.level, VILLAGE.levels.length - 1)]!;
     if (lvDef.name !== this.lastName) {
       this.lastName = lvDef.name;
-      this.nameEl.textContent = lvDef.name;
+      // wave 9: the era numeral ("Era III · Town"); the starting Camp has no number
+      this.nameEl.innerHTML = '';
+      const lv = Math.min(v.level, VILLAGE.levels.length - 1);
+      if (lv > 0) this.nameEl.append(h('span', 'wl-village-era', `Era ${romanNumeral(lv)} \u00b7`), lvDef.name);
+      else this.nameEl.textContent = lvDef.name;
+      this.nameEl.title = eraLabel(lv);
     }
     if (v.population !== this.lastPop) {
       this.lastPop = v.population;
