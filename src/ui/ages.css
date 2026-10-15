@@ -194,6 +194,15 @@
   font-weight: 700;
 }
 
+/* wide screens: the chip sits in the top row right of centre; the centred objective banner steps below the button row
+   (clear of the left column and the right-hand sheets) so the chip never covers it */
+@media (min-width: 700px) {
+  .wl-hud.has-erachip .wl-objective {
+    top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 58px);
+    max-width: max(240px, calc(100% - 800px));
+  }
+}
+
 /* phones: the chip drops under the button row (the objective banner already sits below the village badge) */
 @media (max-width: 699px) {
   .wl-hud .wl-erachip,
@@ -219,6 +228,10 @@
   }
   .wl-hud.has-erachip .wl-objective {
     top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 44px);
+  }
+  /* the village badge shares the chip's row: leave the chip its room (the name ellipsizes, pop / happy stay) */
+  .wl-hud.has-erachip .wl-village {
+    max-width: calc(100vw - 3 * var(--wl-pad) - 170px);
   }
 }
 
@@ -922,12 +935,12 @@
   display: block;
 }
 
+/* Buy and "→ Lv 10" side by side: one row stays the icon's height, so the top five rows fit without a scroll */
 .wl-gate-btns {
   flex: none;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
 }
 
 .wl-hud .wl-gate-buy {
@@ -938,7 +951,7 @@
 
 .wl-gate-to,
 .wl-gate-go {
-  min-height: 26px;
+  min-height: 36px;
   padding: 2px 10px;
   border-radius: 12px;
   border: 2px solid #fff;
@@ -1054,10 +1067,16 @@
   color: #b07a00;
 }
 
-/* phones: the checklist is taller than the other sheets (up to 64 % of the screen) */
+/* the checklist is taller than the other sheets: the top five rows, "+N more" and the settlement show at a glance */
+@media (min-width: 700px) {
+  .wl-hud .wl-gate {
+    max-height: calc(100% - 84px);
+  }
+}
+
 @media (max-width: 699px) {
   .wl-hud .wl-gate {
-    max-height: min(64vh, 560px);
+    max-height: min(72vh, 640px);
   }
 }
 

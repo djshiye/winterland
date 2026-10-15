@@ -229,7 +229,15 @@ describe('nextGoal', () => {
   it('puts an unmet prereq first', () => {
     const goal = nextGoal(lodge(), 1e12)!;
     expect(goal.action).toEqual({ kind: 'build', target: 'pad:harvester' });
-    expect(goal.text).toBe('Harvester: Build the Harvester first');
+    expect(goal.text).toBe('Build the Harvester first');
+  });
+
+  it('points at a pad already paid into (grandfathered), whatever the checklist', () => {
+    const s = lodge();
+    s.eras.regions[2]!.cash = 100;
+    const goal = nextGoal(s, 0)!;
+    expect(goal.text).toBe(`${ERAS[2]!.region} is for sale!`);
+    expect(goal.action).toEqual({ kind: 'go', target: 'region:2' });
   });
 
   it('then the cheapest affordable row, bought where it lives', () => {

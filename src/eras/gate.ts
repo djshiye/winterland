@@ -265,7 +265,11 @@ export function settlementGoal(s: GameState, g: EraGate): NextGoal {
   const age = s.eras.age;
   const home = Object.values(CITY_BUILDINGS).find((d) => d.era === age && d.kind === 'home');
   const where = DISTRICTS[age]?.name;
-  const text = home && where ? `Build a home in ${where} (+${home.people}) → Settlement ${g.settlement.level + 1}` : `Grow the city → Settlement ${g.settlementNeed}`;
+  // every lot taken (a chosen but unpaid lot counts): a home has to replace a park or shop (ManagePanel's demolish)
+  const lots = s.city.districts[age]?.lots;
+  const full = !!lots && lots.length > 0 && !lots.some((l) => l.building === '');
+  const next = `Settlement ${g.settlement.level + 1}`;
+  const text = !home || !where ? `Grow the city → Settlement ${g.settlementNeed}` : full ? `Swap a park or shop for a home in ${where} → ${next}` : `Build a home in ${where} (+${home.people}) → ${next}`;
   return { text, action: { kind: 'build', target: `district:${age}` } };
 }
 
@@ -277,10 +281,17 @@ export function settlementGoal(s: GameState, g: EraGate): NextGoal {
 export function nextGoal(s: GameState, money: number): NextGoal | null {
   const n = s.eras.age + 1;
   if (!climbOpen(s) || !ERAS[n]) return null;
+  // something already paid into the pad keeps it on sale (grandfathered, layout.expansionOffered): point there
+  if (padPaid(s, n) > 0) return { text: `${ERAS[n]!.region} is for sale!`, action: { kind: 'go', target: `region:${n}` } };
   const g = eraGate(s, n);
   const open = g.rows.filter((r) => r.state !== 'ok');
   const prereq = open.find((r) => r.state === 'prereq');
-  if (prereq) return { text: `${UPGRADES[prereq.id].label}: ${prereq.prereq}`, action: { kind: 'build', target: prereqTarget(prereq.id, s) } };
+  if (prereq) {
+    // "Build the Harvester first", not "Harvester: Build the Harvester first" (the upgrade named after its machine)
+    const label = UPGRADES[prereq.id].label;
+    const text = prereq.prereq!.includes(label) ? prereq.prereq! : `${label}: ${prereq.prereq}`;
+    return { text, action: { kind: 'build', target: prereqTarget(prereq.id, s) } };
+  }
   const next = (r: GateRow): number => stepCost(UPGRADES[r.id], s.upgrades[r.id]);
   const low = open.slice().sort((a, b) => next(a) - next(b) || a.costToNeed - b.costToNeed);
   const cheapest = low[0];

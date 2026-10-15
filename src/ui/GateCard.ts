@@ -22,7 +22,7 @@ import type { GameContext, UpgradeId } from '../core/types';
 import { ERAS } from '../eras/data';
 import { masteryTotal } from '../core/demand';
 import { masteryMult } from '../core/ladder';
-import { climbOpen, eraGate, openRows, prereqTarget, raiseReserve, raiseRows, rowBuyable, settlementGoal, stewardUnlocked, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
+import { climbOpen, eraGate, openRows, padPaid, prereqTarget, raiseReserve, raiseRows, rowBuyable, settlementGoal, stewardUnlocked, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
 import { travelPoints } from '../eras/layout';
 import { eraRoman, expansionCostText, gateRowLine, masteryLine } from './agesLogic';
 import { h, onTap } from './dom';
@@ -326,8 +326,10 @@ export class GateCard {
     if (this.barFill.style.width !== w) this.barFill.style.width = w;
     this.text(this.nextEl, g.ready ? 'Every upgrade is ready!' : `Then the ${expansionCostText(n).replace(/^Expansion/, 'expansion')}`);
 
-    this.show(this.ready, g.ready);
-    if (g.ready) this.text(this.readyText, `<b>${era.region} is for sale!</b><span>${expansionCostText(n)}</span>`);
+    // a pad with something already paid in stays on sale (grandfathered), whatever the checklist says
+    const offered = g.ready || padPaid(s, n) > 0;
+    this.show(this.ready, offered);
+    if (offered) this.text(this.readyText, `<b>${era.region} is for sale!</b><span>${expansionCostText(n)}</span>`);
 
     const open = openRows(g);
     this.show(this.doneEl, g.ok > 0);
