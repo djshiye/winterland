@@ -33,6 +33,7 @@ import { transferOne } from '../items/transfer';
 import type { ShopSpot } from '../town/types';
 import type { Town } from '../town/Town';
 import { BENCHES, SNOWMAN, STALLS, TREE_RING, type Spot, AMENITY_SPOTS } from '../town/spots';
+import { amenityFrame } from '../town/rules';
 import { Crowd, COAT_COLORS, GOODS_COLORS, TRIM_COLORS, type CrowdPerson } from './Crowd';
 import { NAV, OWNER_SNOWMAN, Path, insideObstacle, lotDoor, nearestHome, planPath, planTownPath, seatPoint, zoneOf } from './CrowdNav';
 
@@ -50,6 +51,17 @@ const PATIENCE = 45;
 const WAVE_RANGE = 3.4;
 const SNOWMAN_SLOTS = 6;
 const SNOWMAN_RING = 1.05;
+/** Snowman ring slot indices (of SNOWMAN_SLOTS) whose point stays clear of the snowman park (rect + 0.3 m). */
+const SNOW_SLOT_KEPT: readonly number[] = (() => {
+  const r = amenityFrame('snowmanPark').rect;
+  const m = 0.3;
+  return Array.from({ length: SNOWMAN_SLOTS }, (_, i) => i).filter((i) => {
+    const ang = (i / SNOWMAN_SLOTS) * Math.PI * 2 + 0.5;
+    const x = SNOWMAN.x + Math.sin(ang) * SNOWMAN_RING;
+    const z = SNOWMAN.z + Math.cos(ang) * SNOWMAN_RING;
+    return !(x >= r.minX - m && x <= r.maxX + m && z >= r.minZ - m && z <= r.maxZ + m);
+  });
+})();
 const STAFF_REFRESH = 0.3;
 const NIGHT_LANTERN_FROM = 0.35;
 const NIGHT_FEWER = 0.55;
@@ -304,7 +316,7 @@ export class Townsfolk {
   private readonly buyTimers = new Map<number, number>();
   private readonly seats: (Agent | null)[] = new Array(BENCHES.length * 2).fill(null);
   private readonly ring: (Agent | null)[] = new Array(TREE_RING.length).fill(null);
-  private readonly snow: (Agent | null)[] = new Array(SNOWMAN_SLOTS).fill(null);
+  private readonly snow: (Agent | null)[] = new Array(SNOW_SLOT_KEPT.length).fill(null);
   private readonly stallSpots: { x: number; z: number; yaw: number; stall: number; taken: Agent | null }[] = [];
   private t = 0;
   private spawnT = 1;
@@ -1378,7 +1390,7 @@ export class Townsfolk {
     const idx = pick(free);
     this.snow[idx] = a;
     a.snowIdx = idx;
-    const ang = (idx / SNOWMAN_SLOTS) * Math.PI * 2 + 0.5;
+    const ang = (SNOW_SLOT_KEPT[idx]! / SNOWMAN_SLOTS) * Math.PI * 2 + 0.5;
     const x = SNOWMAN.x + Math.sin(ang) * SNOWMAN_RING;
     const z = SNOWMAN.z + Math.cos(ang) * SNOWMAN_RING;
     a.standYaw = Math.atan2(SNOWMAN.x - x, SNOWMAN.z - z);
