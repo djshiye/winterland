@@ -552,8 +552,10 @@ export interface GameEvents {
   /**
    * An upgrade level was gained (shop purchase, level pad fully paid, crew hire = level 0 → 1).
    * position: the pad / machine, or null for a shop purchase (effects go to the player).
+   * batch: one of several levels bought by one press (Buy ×10, Raise all); the juice skips the per-level fanfare and the
+   * press itself plays one sound (the gate's row ticks come from 'gate:progress').
    */
-  'upgrade:bought': { id: UpgradeId; level: number; position: THREE.Vector3 | null };
+  'upgrade:bought': { id: UpgradeId; level: number; position: THREE.Vector3 | null; batch?: boolean };
   /** The player stepped onto / off the cabin doormat (the HUD opens / closes the shop panel). */
   /** Wave 10 (desktop comfort): keyboard shortcuts from Input, dispatched by Game. */
   'ui:escape': Record<string, never>;
@@ -655,6 +657,13 @@ export interface GameEvents {
    * district of the level's era.
    */
   'settlement:levelUp': { level: number; from: number; gift: number; charter: boolean; position: THREE.Vector3 };
+  /**
+   * The next era's gate moved (eras/GateTracker.ts, computed, nothing saved; never while loading): `ok` of `total` rows
+   * at need, `gained` rows finished since the last one (a Raise all can finish several), `readyNow` = it just became ready.
+   */
+  'gate:progress': { era: number; ok: number; total: number; gained: number; settlement: number; settlementNeed: number; ready: boolean; readyNow: boolean };
+  /** Open the era checklist (ui/GateCard.ts; the era chip). */
+  'gate:open': Record<string, never>;
   /** A Market Town business was demolished (the lot is for sale again). */
   'town:demolished': { lot: number; building: BusinessIdConst; position: THREE.Vector3 };
   /** Money credited that is not a buyer's sale (already added to the wallet). */

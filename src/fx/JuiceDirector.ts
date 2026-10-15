@@ -32,6 +32,9 @@
  *   (trees fall every few seconds). quarters:built → like shelter:built plus fanfare, confetti and the "More crew can
  *   work now" toast. sale from a 'train' → the usual sale sound / popup plus a train whistle (rate-limited in Audio).
  *
+ * 0.9.0 climb: gate:progress → a tick per finished row, a toast every 5 rows, confetti every 10 %, the fanfare and a camera
+ * look at the expansion pad when the gate is met; a batch 'upgrade:bought' (Buy ×10, Raise all) gets no per-level juice.
+ *
  * Wave 8: quest:done → 'quest' chime, "Quest complete!" toast and a coin burst flying to the money pill (HUD.coinBurst);
  * rush:start → service bell; sale with vip → gold "+$tip TIP!" popup (floatText) + sparkle; night:start / day:start →
  * softer music at night (AudioFX.setNight); haptics (fx/Haptics.ts) for pad unlocks, upgrades and cash pickups.
@@ -45,6 +48,9 @@ import { townHappiness } from '../core/demand';
 import type { GameContext, ItemHolder } from '../core/types';
 import { contractClock, contractItem } from '../core/Contracts';
 import { formatMoney } from '../ui/format';
+import { expansionCostText } from '../ui/agesLogic';
+import { ERAS } from '../eras/data';
+import { regionLayout } from '../eras/layout';
 import { Haptics } from './Haptics';
 
 const WOOD_CHIPS = [PALETTE.bark, PALETTE.barkDark, PALETTE.woodEnd, PALETTE.woodRing, PALETTE.plank];
@@ -186,6 +192,7 @@ export class JuiceDirector {
     // ------------------------------------------------------------------------------------------------
 
     ev.on('upgrade:bought', (e) => {
+      if (e.batch) return; // one press of Buy ×10 / Raise all: the press plays one sound, the gate ticks its rows
       const crewHire = UPGRADES[e.id].group === 'crew' && e.level === 1;
       const at = e.position ? this.tmp2.copy(e.position) : this.playerSpot(this.tmp2);
       ctx.audio.play('upgrade');
@@ -326,6 +333,34 @@ export class JuiceDirector {
       ctx.particles.confetti(this.tmp, e.charter ? 70 : 40);
       ctx.particles.ring(this.tmp, { color: PALETTE.padFill, radius: 3, life: 0.7 });
       if (e.charter) ctx.cameraRig.shake(0.15, 0.25);
+    });
+
+    // 0.9.0 climb (docs/EXPANSION.md §C rewards): the era checklist moves ('gate:progress', eras/GateTracker.ts). A soft
+    // tick per finished row (the era chip pulses itself), a small toast every 5 rows, mini-confetti at each 10 % of the
+    // list; the gate met: fanfare, a camera look at the expansion pad and "Iron Ridge is for sale!".
+    ev.on('gate:progress', (e) => {
+      const era = ERAS[e.era];
+      if (!era) return;
+      for (let i = 0; i < Math.min(e.gained, 8); i++) this.later(i * 0.09, () => ctx.audio.play('pop', { combo: true, pitch: 1.3, volume: 0.45 }));
+      if (e.gained > 0 && !e.ready) {
+        const before = e.ok - e.gained;
+        if (Math.floor(e.ok / 5) > Math.floor(before / 5)) {
+          ctx.hud.toast(`${e.ok}/${e.total} upgrades ready`, { sub: `${e.total - e.ok} more to open ${era.region}`, small: true, duration: 2.4 });
+        }
+        if (Math.floor((e.ok * 10) / e.total) > Math.floor((before * 10) / e.total)) ctx.particles.confetti(this.playerSpot(this.tmp), 24);
+      }
+      if (e.readyNow) {
+        const pad = regionLayout(e.era).expansionPad;
+        const at = new THREE.Vector3(pad.x, 0, pad.z);
+        ctx.audio.play('fanfare');
+        ctx.particles.confetti(this.playerSpot(this.tmp), 50);
+        this.later(0.9, () => {
+          ctx.particles.confetti(this.tmp2.copy(at), 60);
+          ctx.particles.ring(at, { color: 0xffd84a, radius: 3.4, life: 0.8 });
+        });
+        ctx.cameraRig.focus(at, { duration: 0.8, hold: 1.8 });
+        ctx.hud.toast(`${era.region} is for sale!`, { sub: expansionCostText(e.era), duration: 3.4 });
+      }
     });
 
     ev.on('finale:start', (e) => {

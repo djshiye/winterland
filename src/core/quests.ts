@@ -7,6 +7,7 @@
 import { AMENITY_IDS } from '../config';
 import { CITY_BUILDINGS, DISTRICTS, ERAS, ERA_SCALE, REGIONS, unlockCash, type CityBuildingKind } from '../eras/data';
 import { settlementLevel, townHappiness } from './demand';
+import { climbOpen, gateCount, gateNeed, gateSize } from '../eras/gate';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
 import type { GameEvents, GameState } from './types';
@@ -64,7 +65,7 @@ export const QUEST_DEFS: readonly QuestDef[] = [
 ];
 
 /**
- * 0.9.0: a few goals per era (the first machine, Jack, the market, the city) and one per era reached. Rewards are era
+ * 0.9.0: a few goals per era (the first machine, Jack, the market, the city), one per era gate and one per era reached. Rewards are era
  * economy (× ERA_SCALE, or a share of unlockCash); Jack's stays a Survival-sized tip.
  */
 function eraQuests(): QuestDef[] {
@@ -76,7 +77,18 @@ function eraQuests(): QuestDef[] {
     reward: Math.round(unlockCash(n) * 0.1),
     progress: age,
   });
+  // 0.9.0 climb (docs/EXPANSION.md §C): one quest per gate, before the era it opens; only once the Great Lodge opens the
+  // climb (era 1 below it reads exactly as 0.8.0). An era already reached counts its gate as met.
+  const gate = (n: number): QuestDef => ({
+    id: `gate${n}`,
+    title: `All upgrades Lv ${gateNeed(n)}`,
+    target: gateSize(n),
+    reward: Math.round((unlockCash(n) * 0.05) / 1000) * 1000,
+    unlocked: climbOpen,
+    progress: (s) => (s.eras.age >= n ? gateSize(n) : gateCount(s, n).ok),
+  });
   const out: QuestDef[] = [
+    gate(2),
     reach(2),
     ...questTrio(2),
     { id: 'machine1', title: 'Build your first era machine', target: 1, reward: 25000 * ERA_SCALE, progress: (s) => s.stats.machinesBuilt },
@@ -84,13 +96,14 @@ function eraQuests(): QuestDef[] {
     { id: 'materials100', title: 'Make 100 era materials', target: 100, reward: 40000 * ERA_SCALE, progress: (s) => s.stats.materialsMade },
     { id: 'city1', title: 'Build in the city', target: 1, reward: 50000 * ERA_SCALE, progress: (s) => s.stats.cityBuilt },
     { id: 'invest1', title: 'Make an investment at the market', target: 1, reward: 30000 * ERA_SCALE, progress: (s) => flag(s.market.investments.length > 0 || s.stats.investEarned > 0) },
+    gate(3),
     reach(3),
     ...questTrio(3),
     { id: 'machines6', title: 'Run 6 era machines', target: 6, reward: 120000 * ERA_SCALE, progress: (s) => s.eras.regions.reduce((n, r) => n + r.slots.filter((x) => x.machine !== '' && x.tier >= 0).length, 0) },
     { id: 'city12', title: 'Build 12 city buildings', target: 12, reward: 250000 * ERA_SCALE, progress: (s) => s.stats.cityBuilt },
   ];
   for (let n = 4; n <= 10; n++) {
-    out.push(reach(n), ...questTrio(n));
+    out.push(gate(n), reach(n), ...questTrio(n));
     out.push({ id: `materials${n}`, title: `Make ${(n * 250).toLocaleString('en-US')} era materials`, target: n * 250, reward: Math.round(unlockCash(n) * 0.05), progress: (s) => s.stats.materialsMade });
   }
   out.push({ id: 'city60', title: 'Build 60 city buildings', target: 60, reward: Math.round(unlockCash(10) * 0.2), progress: (s) => s.stats.cityBuilt });
@@ -120,7 +133,7 @@ function questTrio(n: number): QuestDef[] {
 }
 
 /** The era-1 quests (everything before the first era quest). */
-const SURVIVAL_QUESTS: readonly QuestDef[] = QUEST_DEFS.slice(0, QUEST_DEFS.findIndex((d) => d.id === 'era2'));
+const SURVIVAL_QUESTS: readonly QuestDef[] = QUEST_DEFS.slice(0, QUEST_DEFS.findIndex((d) => d.id === 'gate2'));
 
 /** How many quests are shown (and checked) at once. */
 export const ACTIVE_QUESTS = 3;

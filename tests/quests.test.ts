@@ -5,6 +5,9 @@ import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
 import { QUEST_DEFS, Quests } from '../src/core/quests';
 import { createGameState, type GameEvents } from '../src/core/types';
+import { VILLAGE } from '../src/config';
+import { gateSize } from '../src/eras/gate';
+import { meetGate } from './gateHelpers';
 
 const def = (id: string) => QUEST_DEFS.find((q) => q.id === id)!;
 
@@ -13,8 +16,9 @@ describe('amenity quests', () => {
     const ids = QUEST_DEFS.map((q) => q.id);
     const at = ids.indexOf('amenity1');
     expect(ids.slice(at, at + 3)).toEqual(['amenity1', 'happy50', 'amenity4']);
-    // 0.9.0: only the era quests come after them.
-    expect(ids[at + 3]).toBe('era2');
+    // 0.9.0: only the era quests come after them (the era-2 gate first, docs/EXPANSION.md §C).
+    expect(ids[at + 3]).toBe('gate2');
+    expect(ids[at + 4]).toBe('era2');
     expect(ids.indexOf('amenity1')).toBeGreaterThan(ids.indexOf('greatLodge'));
     expect([def('amenity1').target, def('happy50').target, def('amenity4').target]).toEqual([1, 50, 4]);
     expect(def('amenity1').reward).toBe(1500);
@@ -77,7 +81,7 @@ describe('quest counter (0.9.0)', () => {
 
   it('counts only the Survival quests in era 1, as 0.8.0 did', () => {
     const { state, quests } = make();
-    const survival = QUEST_DEFS.findIndex((q) => q.id === 'era2');
+    const survival = QUEST_DEFS.findIndex((q) => q.id === 'gate2');
     expect(quests.total).toBe(survival);
     state.eras.age = 2;
     expect(quests.total).toBe(QUEST_DEFS.length);
@@ -87,5 +91,49 @@ describe('quest counter (0.9.0)', () => {
     const { state, quests } = make();
     for (const q of QUEST_DEFS.slice(0, QUEST_DEFS.findIndex((d) => d.id === 'era2'))) state.quests[q.id] = true;
     expect(quests.total).toBe(QUEST_DEFS.length);
+  });
+});
+
+describe('gate quests (0.9.0 climb)', () => {
+  const lodge = () => {
+    const s = createGameState();
+    s.village.revealed = true;
+    s.village.level = VILLAGE.levels.length - 1;
+    s.village.greatLodge.tier = 0;
+    return s;
+  };
+
+  it('one per era gate, right before the era it opens: "All upgrades Lv 10" with the gate row count', () => {
+    const ids = QUEST_DEFS.map((q) => q.id);
+    for (let n = 2; n <= 10; n++) {
+      expect(ids.indexOf(`gate${n}`), `gate${n}`).toBe(ids.indexOf(`era${n}`) - 1);
+      expect(def(`gate${n}`).title).toBe(`All upgrades Lv ${10 * (n - 1)}`);
+      expect(def(`gate${n}`).target).toBe(gateSize(n));
+      expect(def(`gate${n}`).reward).toBeGreaterThan(0);
+    }
+  });
+
+  it('stay hidden below the Great Lodge, so era 1 lists exactly the 0.8.0 quests', () => {
+    const { state, quests } = (() => {
+      const state = createGameState();
+      const events = new EventBus<GameEvents>();
+      return { state, quests: new Quests(state, new Economy(events, state, 0), events) };
+    })();
+    for (const q of QUEST_DEFS.slice(0, QUEST_DEFS.findIndex((d) => d.id === 'gate2'))) state.quests[q.id] = true;
+    state.village.level = VILLAGE.levels.length - 2;
+    expect(def('gate2').unlocked!(state)).toBe(false);
+    expect(quests.active()[0]!.def.id).toBe('era2');
+    const s = lodge();
+    expect(def('gate2').unlocked!(s)).toBe(true);
+    expect(def('gate2').progress(s)).toBe(0);
+  });
+
+  it('count the rows at the gate level and complete with the gate; a reached era counts as met', () => {
+    const s = lodge();
+    meetGate(s, 2);
+    expect(def('gate2').progress(s)).toBe(def('gate2').target);
+    expect(def('gate3').progress(s)).toBeLessThan(def('gate3').target);
+    s.eras.age = 3;
+    expect(def('gate3').progress(s)).toBe(def('gate3').target);
   });
 });
