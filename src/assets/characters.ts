@@ -25,7 +25,7 @@
  */
 import * as THREE from 'three';
 import { COLORS, PALETTE } from '../config';
-import { bake } from '../render/batch';
+import { bake, shareBaked } from '../render/batch';
 import { geo, mesh, toon } from '../render/materials';
 
 /** 'worker': hired crew (crate runner / cashier / log hauler — variant 0 / 1 / 2; the porter is PORTER_VARIANT and up). */
@@ -106,7 +106,7 @@ export function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: 
   torso.position.y = BASE_Y + s.bodyH / 2 - HIP;
   torsoG.add(torso);
   s.torsoExtras?.(torsoG, topY);
-  squash.add(bake(torsoG, { name: 'torso' }));
+  squash.add(shareBaked(bake(torsoG, { name: 'torso' })));
 
   // head (+ eyes, beard, hat): pivot group with one mesh
   const headY = topY + s.headR * 0.6;
@@ -124,7 +124,7 @@ export function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: 
     headG.add(eye);
   }
   s.headExtras?.(headG);
-  head.add(bake(headG, { name: 'head' }));
+  head.add(shareBaked(bake(headG, { name: 'head' })));
   squash.add(head);
 
   // arms: pivot at the shoulder, hanging down; each is one mesh (sleeve + mitten)
@@ -142,7 +142,7 @@ export function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: 
     const h = mesh(geo.sphere(0.1, 10, 8), handMat);
     h.position.y = -CHARACTER_ARM_REACH;
     ag.add(a, h);
-    arm.add(bake(ag, { name: 'arm' }));
+    arm.add(shareBaked(bake(ag, { name: 'arm' })));
     squash.add(arm);
     arms.push(arm);
   }
@@ -162,7 +162,7 @@ export function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: 
     const boot = mesh(geo.box(0.22, 0.2, 0.32), bootMat);
     boot.position.set(0, -0.15, 0.05);
     lg.add(boot);
-    leg.add(bake(lg, { name: 'boot' }));
+    leg.add(shareBaked(bake(lg, { name: 'boot' })));
     root.add(leg);
     legs.push(leg);
   }

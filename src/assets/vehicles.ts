@@ -15,7 +15,8 @@
 import * as THREE from 'three';
 import { COLORS, PALETTE } from '../config';
 import { createCharacterRig, type CharacterRig } from '../render/characters';
-import { Batch, bake } from '../render/batch';
+import { Batch, bake, shareBaked } from '../render/batch';
+import { instanceAcrossScene } from '../render/instancer';
 import { geo, mesh, toon } from '../render/materials';
 import { trainCatalog } from './train';
 
@@ -42,7 +43,7 @@ function createWheel(radius: number, width: number, axis: 'x' | 'z'): THREE.Grou
   }
   parts.add(tyre, hub, spoke);
   // One mesh per wheel (tyre + hub + spoke baked); the pivot stays a separate node so it can spin.
-  pivot.add(bake(parts, { name: 'wheelMesh' }));
+  pivot.add(shareBaked(bake(parts, { name: 'wheelMesh' })));
   return pivot;
 }
 
@@ -153,7 +154,8 @@ export function createTricycle(): TricycleModel {
   riderSeat.position.set(0, 0.78, 0.0);
   body.add(riderSeat);
 
-  body.add(bake(parts, { name: 'tricycleBody' }));
+  body.add(shareBaked(bake(parts, { name: 'tricycleBody' })));
+  instanceAcrossScene(root); // wheels and bodies of every tricycle draw together
   return { root, body, wheels: [front, rl, rr], cargoPivot, riderSeat, bubbleY: 2.35 };
 }
 
@@ -320,9 +322,10 @@ export function createPickupTruck(color: number = PALETTE.truckRed): PickupTruck
   driverSeat.position.set(cabX + 0.25, floorY + 0.16, 0.38);
   body.add(driverSeat);
 
-  body.add(bake(parts, { name: 'truckBody' }));
+  body.add(shareBaked(bake(parts, { name: 'truckBody' })));
   // Lamps need emissive materials, so they cannot join the vertex-coloured body: one mesh each (head / tail).
   body.add(headLamps.mesh({ material: lamp, cast: false }), tailLamps.mesh({ material: tail, cast: false }));
+  instanceAcrossScene(root); // wheels (and same-colour bodies) of every truck draw together
   return { root, body, wheels, bedPivot, driverSeat, bubbleY: 2.5 };
 }
 
