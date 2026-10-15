@@ -1,0 +1,251 @@
+{
+  "era": 5,
+  "name": "Industrial",
+  "materials": [
+    {
+      "id": "ore",
+      "new": false,
+      "shape": "nugget",
+      "colors": ["#7c5a4a", "#b0704e"]
+    },
+    {
+      "id": "coal",
+      "new": false,
+      "shape": "lump",
+      "colors": ["#2c2b2e", "#4a484d"]
+    },
+    {
+      "id": "steel",
+      "new": false,
+      "shape": "beam",
+      "colors": ["#7f8b99", "#4b5562"]
+    },
+    {
+      "id": "girder",
+      "new": true,
+      "shape": "girder",
+      "size": [0.48, 0.22, 0.2],
+      "colors": ["#7f8b99", "#d0702a", "#34383d"],
+      "detail": "Heavy riveted steel lattice box girder segment with bright orange primer warning stripes",
+      "icon": "Riveted orange and grey steel lattice girder section"
+    },
+    {
+      "id": "snowplow",
+      "new": true,
+      "shape": "snowplow",
+      "size": [0.44, 0.28, 0.36],
+      "colors": ["#d0702a", "#34383d", "#f4f7fb", "#7f8b99"],
+      "detail": "Heavy curved steel V-blade plow attachment with high-vis warning stripes and snow dusting",
+      "icon": "Bold safety-orange steel V-snowplow blade with frosty cutting edge"
+    }
+  ],
+  "machines": [
+    {
+      "id": "deepMine",
+      "new": false,
+      "parts": [
+        { "name": "latticeTower", "primitive": "box", "size": [4.6, 5.2, 4.4], "pos": [0, 2.6, 0], "color": "#7f8b99" }
+      ],
+      "colors": ["#7f8b99", "#34383d", "#d0702a"]
+    },
+    {
+      "id": "cokeOven",
+      "new": false,
+      "parts": [
+        { "name": "battery", "primitive": "box", "size": [4.8, 3.6, 4.4], "pos": [0, 1.8, 0], "color": "#50555b" }
+      ],
+      "colors": ["#50555b", "#d0702a", "#ff9f1c"]
+    },
+    {
+      "id": "steelMill",
+      "new": false,
+      "parts": [
+        { "name": "converterHall", "primitive": "box", "size": [4.8, 4.4, 4.4], "pos": [0, 2.2, 0], "color": "#7f8b99" }
+      ],
+      "colors": ["#7f8b99", "#d0702a", "#ff9f1c"]
+    },
+    {
+      "id": "rollingMill",
+      "new": true,
+      "role": "processor",
+      "footprint": [5.0, 4.8],
+      "height": 4.2,
+      "parts": [
+        { "name": "concreteFoundation", "primitive": "box", "size": [4.6, 0.6, 4.4], "pos": [0, 0.3, 0], "color": "#8f9296" },
+        { "name": "heavyRollingGantry", "primitive": "box", "size": [2.6, 2.8, 1.4], "pos": [0, 1.7, -0.4], "color": "#7f8b99" },
+        { "name": "motorHousing", "primitive": "cylinder", "size": [1.2, 1.6, 1.2], "pos": [-1.4, 1.2, -0.4], "color": "#34383d" },
+        { "name": "rollerBedTrough", "primitive": "box", "size": [4.4, 0.4, 1.6], "pos": [0, 0.7, 0.5], "color": "#50555b" },
+        { "name": "safetyRailing", "primitive": "box", "size": [4.2, 0.8, 0.1], "pos": [0, 1.0, 1.4], "color": "#d0702a" },
+        { "name": "snowCappedGantry", "primitive": "box", "size": [2.8, 0.22, 1.6], "pos": [0, 3.15, -0.4], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "redHotBeam", "primitive": "box", "size": [3.6, 0.14, 0.24], "pos": [0, 0.95, 0.5], "color": "#ff9f1c" },
+        { "name": "warningBeacon", "primitive": "sphere", "size": [0.22, 0.22, 0.22], "pos": [1.1, 3.3, -0.4], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "mainDriveGear",
+        "pivot": [-1.4, 2.0, -0.4],
+        "motion": "spin",
+        "period": 1.4
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "plowWorks",
+      "new": true,
+      "role": "premium",
+      "footprint": [5.0, 4.6],
+      "height": 4.0,
+      "parts": [
+        { "name": "factorySlab", "primitive": "box", "size": [4.6, 0.5, 4.2], "pos": [0, 0.25, 0], "color": "#50555b" },
+        { "name": "assemblyHangar", "primitive": "box", "size": [4.2, 2.4, 3.2], "pos": [0, 1.5, -0.4], "color": "#7f8b99" },
+        { "name": "weldingJigCradle", "primitive": "box", "size": [2.2, 0.6, 1.6], "pos": [0.4, 0.7, 0.8], "color": "#34383d" },
+        { "name": "exhaustFilterTower", "primitive": "cylinder", "size": [0.6, 2.2, 0.6], "pos": [-1.5, 2.8, -1.2], "color": "#d0702a" },
+        { "name": "orangeCraneBeam", "primitive": "box", "size": [3.8, 0.3, 0.3], "pos": [0, 2.8, 0.2], "color": "#d0702a" },
+        { "name": "snowSawtoothRoof", "primitive": "box", "size": [4.4, 0.26, 3.4], "pos": [0, 2.75, -0.4], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "arcWeldingFlash", "primitive": "sphere", "size": [0.35, 0.35, 0.35], "pos": [0.4, 1.1, 0.8], "color": "#7fe0ff" },
+        { "name": "officeBayGlow", "primitive": "box", "size": [1.2, 0.6, 0.1], "pos": [-0.8, 1.8, 1.22], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "overheadHoistTrolley",
+        "pivot": [0, 2.7, 0.2],
+        "motion": "swing",
+        "period": 2.2
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "bankVault",
+      "new": true,
+      "role": "cash",
+      "footprint": [4.4, 4.4],
+      "height": 3.8,
+      "parts": [
+        { "name": "reinforcedPlinth", "primitive": "box", "size": [4.0, 0.5, 4.0], "pos": [0, 0.25, 0], "color": "#50555b" },
+        { "name": "steelVaultCube", "primitive": "box", "size": [3.0, 2.2, 2.8], "pos": [0, 1.4, -0.2], "color": "#7f8b99" },
+        { "name": "vaultDoorFrame", "primitive": "cylinder", "size": [1.6, 0.3, 1.6], "pos": [0, 1.4, 1.2], "color": "#34383d" },
+        { "name": "heavyCoinHopper", "primitive": "cone", "size": [0.9, 1.0, 0.9], "pos": [0, 2.8, -0.2], "color": "#d0702a" },
+        { "name": "cornerSecurityBolts", "primitive": "cylinder", "size": [0.2, 2.4, 0.2], "pos": [-1.4, 1.4, 1.1], "color": "#d0702a" },
+        { "name": "snowMantel", "primitive": "box", "size": [3.2, 0.2, 3.0], "pos": [0, 2.55, -0.2], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "combinationDialLight", "primitive": "sphere", "size": [0.24, 0.24, 0.24], "pos": [0, 1.4, 1.4], "color": "#ffd070" },
+        { "name": "alarmBeacon", "primitive": "sphere", "size": [0.18, 0.18, 0.18], "pos": [1.2, 2.6, 1.0], "color": "#ff9f1c" }
+      ],
+      "anim": {
+        "part": "circularVaultWheel",
+        "pivot": [0, 1.4, 1.35],
+        "motion": "spin",
+        "period": 3.0
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    }
+  ],
+  "workers": [
+    {
+      "role": "hauler",
+      "title": "Steelworker",
+      "hat": "hard helmet with safety visor + #d0702a",
+      "coat": "#4b5562",
+      "prop": "heavy steel tongs + [0.2, 0.75, 0.12] + #7f8b99",
+      "anim": "wide-stanced steady march carrying heavy steel beams"
+    },
+    {
+      "role": "feeder",
+      "title": "Crane Hand",
+      "hat": "industrial peaked cap + #34383d",
+      "coat": "#5a626c",
+      "prop": "spreader lifting bridle + [0.35, 0.7, 0.2] + #d0702a",
+      "anim": "waving hand signal gestures guiding heavy crane hook"
+    },
+    {
+      "role": "shipper",
+      "title": "Teamster",
+      "hat": "flat tweed driver cap + #3b4047",
+      "coat": "#40464e",
+      "prop": "heavy leather reins and team whip + [0.12, 0.8, 0.1] + #6d5a48",
+      "anim": "striding confidently with horse reins in hand"
+    },
+    {
+      "role": "porter",
+      "title": "Stevedore",
+      "hat": "ribbed dock beanie + #2d3339",
+      "coat": "#474f57",
+      "prop": "steel freight cargo hook + [0.14, 0.38, 0.1] + #7f8b99",
+      "anim": "quick pivoting hoist swinging palletized goods"
+    },
+    {
+      "role": "clerk",
+      "title": "Payroll Clerk",
+      "hat": "stiff felt fedora + #25282c",
+      "coat": "#393e45",
+      "prop": "brass security strongbox + [0.28, 0.22, 0.18] + #d0702a",
+      "anim": "stamping payroll receipts with heavy metal ink stamp"
+    },
+    {
+      "role": "foreman",
+      "title": "Plant Manager",
+      "hat": "white superintendent hard hat + #eef2f6",
+      "coat": "#353d47",
+      "prop": "rolled engineering schematic bundle + [0.12, 0.5, 0.12] + #d0702a",
+      "anim": "pointing sternly with rolled blueprint baton"
+    },
+    {
+      "role": "gatherer",
+      "title": "Slag Raker",
+      "hat": "protective welder hood + #2a2e33",
+      "coat": "#52433b",
+      "prop": "long slag rake tool + [0.25, 1.2, 0.12] + #4b5562",
+      "anim": "deep drag stroke raking crusty slag off molten basin"
+    }
+  ],
+  "gear": [
+    {
+      "slot": "carry",
+      "name": "Steel Barrow",
+      "look": "Heavy riveted steel plate wheelbarrow with cast iron wheel and ribbed legs",
+      "colors": ["#7f8b99", "#34383d", "#d0702a"]
+    },
+    {
+      "slot": "boots",
+      "name": "Work Boots",
+      "look": "Reinforced high-ankle steel-toed oil-tanned leather boots with lugged rubber tread",
+      "colors": ["#34383d", "#4b5562", "#7f8b99"]
+    },
+    {
+      "slot": "tool",
+      "name": "Rivet Hammer",
+      "look": "Pneumatic cast-steel rivet hammer with coiled black air hose connector",
+      "colors": ["#7f8b99", "#d0702a", "#34383d"]
+    }
+  ],
+  "pet": {
+    "name": "Draft Horse",
+    "parts": [
+      { "name": "muscularBody", "primitive": "capsule", "size": [0.85, 1.2, 0.75], "pos": [0, 0.9, 0], "color": "#403731" },
+      { "name": "archedNeckHead", "primitive": "box", "size": [0.4, 0.65, 0.55], "pos": [0, 1.45, 0.55], "color": "#22201e" },
+      { "name": "heavyHarness", "primitive": "box", "size": [0.9, 0.35, 0.45], "pos": [0, 1.05, 0.25], "color": "#50555b" },
+      { "name": "featheredLegs", "primitive": "cylinder", "size": [0.18, 0.7, 0.18], "pos": [-0.28, 0.35, 0.32], "color": "#22201e" },
+      { "name": "warmPaddedBlanket", "primitive": "box", "size": [0.75, 0.08, 0.85], "pos": [0, 1.3, 0], "color": "#d0702a" },
+      { "name": "snowOnMane", "primitive": "sphere", "size": [0.25, 0.15, 0.4], "pos": [0, 1.65, 0.35], "color": "#f4f7fb" }
+    ],
+    "colors": ["#403731", "#22201e", "#50555b", "#d0702a", "#f4f7fb"],
+    "anim": "Ponderous mighty march with billowing breath, heavy hooves and jingling harness"
+  },
+  "node": {
+    "name": "Slag Heap",
+    "parts": [
+      { "name": "vitrifiedBase", "primitive": "sphere", "size": [2.4, 1.6, 2.2], "pos": [0, 0.8, 0], "color": "#34383d" },
+      { "name": "crystallineCrag", "primitive": "box", "size": [1.5, 0.9, 1.3], "pos": [0.5, 0.7, -0.3], "color": "#8f9296" },
+      { "name": "calcinedCrust", "primitive": "box", "size": [1.2, 0.5, 1.0], "pos": [-0.6, 0.6, 0.5], "color": "#50555b" },
+      { "name": "snowDustedSummit", "primitive": "sphere", "size": [1.7, 0.35, 1.5], "pos": [0, 1.65, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#34383d", "#8f9296", "#d0702a", "#f4f7fb"],
+    "anim": "Dull volcanic rumbling releasing hot orange embers and crumbling vitrified slag crust"
+  }
+}
