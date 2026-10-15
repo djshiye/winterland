@@ -52,6 +52,7 @@ import { vehicleCatalog } from './vehicles';
 import { eraItemCatalog } from './eraItems';
 import { eraMachineCatalog } from './eraMachines';
 import { eraWorkerCatalog } from './eraWorkers';
+import { eraNodeCatalog } from './eraNodes';
 import { cityBuildingCatalog } from './cityBuildings';
 import { jackCatalog } from './jack';
 import { frontierCatalog } from './frontierProps';
@@ -90,6 +91,7 @@ export const ASSET_CATALOG: Record<string, Record<string, AssetBuilder>> = {
   eraItems: eraItemCatalog,
   eraMachines: eraMachineCatalog,
   eraWorkers: eraWorkerCatalog,
+  eraNodes: eraNodeCatalog,
   cityBuildings: cityBuildingCatalog,
   jack: jackCatalog,
   frontierProps: frontierCatalog,
