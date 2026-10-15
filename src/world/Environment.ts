@@ -113,6 +113,12 @@ export class Environment {
     this.ridgeGate.open(instant);
   }
 
+  /**
+   * [T4 — wave 9] Open the village's east fence gap + the town corridor / crossing so the Market Town can be
+   * reached (instant: no animation). Idempotent. Town.reveal calls it; a restored revealed town at construction.
+   */
+  openTownGate(_instant = false): void {}
+
   /** Highway road-surface height at world X (raised over the river bridge). */
   highwayY(x: number): number {
     return highwayY(x);

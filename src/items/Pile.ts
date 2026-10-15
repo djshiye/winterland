@@ -30,7 +30,7 @@ export interface PileOptions {
   overflowMerge?: boolean;
 }
 
-const KIND_INDEX: Record<ItemKind, number> = { log: 0, crate: 1, cash: 2, plank: 3, furniture: 4 };
+const KIND_INDEX: Record<ItemKind, number> = { log: 0, crate: 1, cash: 2, plank: 3, furniture: 4, wheat: 5, bread: 6, meat: 7, sausage: 8, toy: 9 };
 /** Max yaw jitter in radians (±3°). */
 const JITTER = (3 * Math.PI) / 180;
 

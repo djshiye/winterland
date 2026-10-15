@@ -9,8 +9,8 @@
  * Storage can be missing, full or blocked (private windows, embedded pages): every access is wrapped and the game
  * simply runs without saving. `?fresh` in the URL ignores (but does not delete) the save.
  */
-import { DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE } from '../config';
-import { createGameState, type FlagId, type GameContext, type GameState } from './types';
+import { BUSINESSES, DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE, type BusinessId } from '../config';
+import { createGameState, LOT_COUNT, type FlagId, type GameContext, type GameState, type ItemKind } from './types';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
 export interface WorldSnapshot {
@@ -37,7 +37,13 @@ export interface WorldSnapshot {
     platform: number;
     sled: number;
   };
-  arms: { log: number; crate: number; furniture: number };
+  arms: { log: number; crate: number; furniture: number; wheat: number; meat: number };
+  /**
+   * Wave 9 Market Town, one entry per LAYOUT.town.lots (absent in older saves): items in the business's input
+   * hopper by kind, items on its out pile / shop counter (its output kind), dollars in its till. Counts include
+   * items in flight toward it, items being processed, and goods already handed to an unpaid buyer.
+   */
+  town: { in: Partial<Record<ItemKind, number>>; out: number; cash: number }[];
 }
 
 export interface SaveData {
@@ -171,6 +177,12 @@ export function sanitizeState(state: GameState): void {
   for (const p of v.plots) site(p, VILLAGE.tiers.length - 1, (t) => VILLAGE.tiers[t + 1]);
   site(v.greatLodge, 0, (t) => (t < 0 ? VILLAGE.greatLodge : undefined));
   site(state.quarters, QUARTERS.tiers.length - 1, (t) => QUARTERS.tiers[t + 1]);
+  // Town lots: an unknown building id (a removed / renamed business) frees the lot; one building tier (0 = built).
+  for (const lot of state.town.lots) {
+    if (lot.building !== '' && !(lot.building in BUSINESSES)) lot.building = '';
+    const def = lot.building === '' ? undefined : BUSINESSES[lot.building as BusinessId];
+    site(lot, def ? 0 : -1, (t) => (t < 0 && def ? def : undefined));
+  }
   v.level = int(v.level, 0, VILLAGE.levels.length - 1);
   v.population = int(v.population, 0, Number.MAX_SAFE_INTEGER);
 
@@ -231,7 +243,8 @@ export class SalesMeter {
 const EMPTY_WORLD: WorldSnapshot = {
   piles: { dropZone: 0, walkIn: 0, hopper: 0, bench: 0, se: 0, truck: 0, deck: 0, platform: 0, workshopIn: 0, workshopOut: 0, sled: 0 },
   cash: { walkIn: 0, se: 0, truck: 0, platform: 0, sled: 0 },
-  arms: { log: 0, crate: 0, furniture: 0 },
+  arms: { log: 0, crate: 0, furniture: 0, wheat: 0, meat: 0 },
+  town: Array.from({ length: LOT_COUNT }, () => ({ in: {}, out: 0, cash: 0 })),
 };
 
 /**
@@ -276,7 +289,14 @@ export function sanitizeWorld(w: unknown): WorldSnapshot {
       sled: n(piles.sled),
     },
     cash: { walkIn: n(cash.walkIn), se: n(cash.se), truck: n(cash.truck), platform: n(cash.platform), sled: n(cash.sled) },
-    arms: { log: n(arms.log), crate: n(arms.crate), furniture: n(arms.furniture) },
+    arms: { log: n(arms.log), crate: n(arms.crate), furniture: n(arms.furniture), wheat: n(arms.wheat), meat: n(arms.meat) },
+    town: Array.from({ length: LOT_COUNT }, (_, i) => {
+      const lot = Array.isArray(o.town) && isObj(o.town[i]) ? (o.town[i] as Record<string, unknown>) : {};
+      const inp = isObj(lot.in) ? lot.in : {};
+      const ins: Partial<Record<ItemKind, number>> = {};
+      for (const k of Object.keys(inp)) if (n(inp[k]) > 0) ins[k as ItemKind] = n(inp[k]);
+      return { in: ins, out: n(lot.out), cash: n(lot.cash) };
+    }),
   };
 }
 

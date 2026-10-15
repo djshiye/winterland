@@ -7,7 +7,7 @@
  *   → camera → shadow focus → HUD (projects world anchors) → render
  */
 import * as THREE from 'three';
-import { CREW, DAYNIGHT, DEMAND, ECONOMY, LAYOUT, PADS, PLAYER, PRESTIGE, QUARTERS, RIDGE, SAVE, TIMING, UPGRADES, VILLAGE } from '../config';
+import { BUSINESSES, CREW, DAYNIGHT, DEMAND, ECONOMY, LAYOUT, PADS, PLAYER, PRESTIGE, QUARTERS, RIDGE, SAVE, TIMING, TOWN, UPGRADES, VILLAGE, type BusinessId } from '../config';
 import { EventBus } from '../core/EventBus';
 import { Economy } from '../core/Economy';
 import {
@@ -74,6 +74,8 @@ export interface DebugApi {
     QUARTERS: typeof QUARTERS;
     RIDGE: typeof RIDGE;
     PRESTIGE: typeof PRESTIGE;
+    BUSINESSES: typeof BUSINESSES;
+    TOWN: typeof TOWN;
   };
   state(): Record<string, unknown>;
   pause(): void;
@@ -99,6 +101,9 @@ export interface DebugApi {
   buildPlot(plot: number, tier: number): void;
   /** Set the crew bunkhouse to `tier` (−1 = none) at once (tests). */
   buildQuarters(tier: number): void;
+  /** Wave 9: open the Market Town now / choose + finish lot `lot` as building `id` (plays the build moment). */
+  revealTown(): void;
+  buildTown(lot: number, id: BusinessId): void;
   /** Start the next season (prestige) now: writes the new-season save and reloads. */
   newSeason(): void;
   /** Start a rush hour now (tests). */
@@ -368,7 +373,7 @@ export class Game {
       game: this,
       ctx,
       level: this.level,
-      config: { LAYOUT, PADS, ECONOMY, PLAYER, TIMING, UPGRADES, CREW, VILLAGE, DEMAND, QUARTERS, RIDGE, PRESTIGE },
+      config: { LAYOUT, PADS, ECONOMY, PLAYER, TIMING, UPGRADES, CREW, VILLAGE, DEMAND, QUARTERS, RIDGE, PRESTIGE, BUSINESSES, TOWN },
       state: () => this.snapshot(),
       pause: () => {
         this.paused = true;
@@ -400,6 +405,8 @@ export class Game {
       revealVillage: () => this.level.village.reveal(),
       buildPlot: (plot: number, tier: number) => this.level.village.debugBuild(plot, tier),
       buildQuarters: (tier: number) => this.level.quarters.debugBuild(tier),
+      revealTown: () => this.level.town.reveal(false),
+      buildTown: (lot: number, id: BusinessId) => this.level.town.debugBuild(lot, id),
       newSeason: () => ctx.events.emit('season:new', {}),
       startRush: (seconds?: number) => ctx.rush.start(seconds),
       setTimeOfDay: (p: number) => {

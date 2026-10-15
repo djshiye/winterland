@@ -184,7 +184,20 @@ export function createItemModel(kind: ItemKind): THREE.Mesh {
       return createCash();
     case 'furniture':
       return createFurniture();
+    case 'wheat':
+    case 'bread':
+    case 'meat':
+    case 'sausage':
+    case 'toy':
+      return createTownGood(kind);
   }
+}
+
+/** [T1 — wave 9] Town goods (ITEM_SIZE[kind]); placeholder box until the assets builder lands the real models. */
+export function createTownGood(kind: 'wheat' | 'bread' | 'meat' | 'sausage' | 'toy'): THREE.Mesh {
+  const z = ITEM_SIZE[kind];
+  const colors = { wheat: 0xc9a46a, bread: 0xb5733a, meat: 0xd98a8a, sausage: 0xa2523a, toy: 0xd94b3d };
+  return new THREE.Mesh(new THREE.BoxGeometry(z.w, z.h, z.d), new THREE.MeshLambertMaterial({ color: colors[kind] }));
 }
 
 export const itemCatalog: Record<string, () => THREE.Object3D> = {

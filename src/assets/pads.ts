@@ -397,7 +397,9 @@ const ICONS: Record<PadIcon, (g: CanvasRenderingContext2D) => void> = {
 
 // --- shelter icons (village construction pads) -------------------------------------------------------------
 
-export type ShelterIcon = 'tent' | 'hut' | 'cabin' | 'lodge' | 'greatLodge';
+export type ShelterIcon = 'tent' | 'hut' | 'cabin' | 'lodge' | 'greatLodge' | TownIcon;
+/** Wave 9 town buildings (BusinessId) + an empty lot ('lot'). [T1] draws them in SHELTER_ICONS. */
+export type TownIcon = 'farm' | 'bakery' | 'townhouse' | 'ranch' | 'butcher' | 'toyFactory' | 'lot';
 
 /** Add a closed polygon sub-path. */
 function poly(g: CanvasRenderingContext2D, pts: readonly (readonly [number, number])[]): void {
@@ -504,6 +506,14 @@ const SHELTER_ICONS: Record<ShelterIcon, (g: CanvasRenderingContext2D) => void> 
   cabin: drawCabin,
   lodge: drawLodge,
   greatLodge: drawGreatLodge,
+  // [T1 — wave 9] placeholders: the great-lodge outline until the town icons are drawn.
+  farm: drawGreatLodge,
+  bakery: drawGreatLodge,
+  townhouse: drawGreatLodge,
+  ranch: drawGreatLodge,
+  butcher: drawGreatLodge,
+  toyFactory: drawGreatLodge,
+  lot: drawTent,
 };
 
 /** A small log lying on its side: bark body, LOG_CORE end cap with a ring. */

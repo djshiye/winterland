@@ -411,6 +411,16 @@ export class Progression {
         }
         return;
       }
+      case 'town': {
+        L.town.reveal(instant);
+        if (!instant) {
+          const sq = LAYOUT.town.square;
+          const at = new THREE.Vector3((sq.minX + sq.maxX) / 2, 0, (sq.minZ + sq.maxZ) / 2);
+          this.ctx.events.emit('reveal', { what: 'town', position: at });
+          this.moment(at, 2.2);
+        }
+        return;
+      }
     }
   }
 

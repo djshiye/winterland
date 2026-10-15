@@ -2,7 +2,7 @@
  * [MAIN] Village → demand helpers. Pure functions of GameState and the config tables, so every reader stays live
  * (call them at spawn / pay time; never cache the result).
  */
-import { DEMAND, ECONOMY, PRESTIGE, UPGRADES, VILLAGE, type DemandLevel, type ProductId } from '../config';
+import { BUSINESSES, DEMAND, ECONOMY, PRESTIGE, UPGRADES, VILLAGE, type BusinessId, type DemandLevel, type ProductId } from '../config';
 import type { GameState } from './types';
 
 /** Buyer behaviour for the current village level. */
@@ -36,10 +36,15 @@ export function salePrice(state: GameState, product: ProductId, unitPrice: numbe
   return Math.max(b, Math.round((unitPrice * count * mult) / b) * b);
 }
 
-/** Residents of every built shelter (the Great Lodge houses nobody). */
+/**
+ * Residents of every built shelter (the Great Lodge houses nobody) + wave 9: the people every built town building
+ * brings (jobs at producers / shops, residents of homes; BUSINESSES[id].people). Eras are the village levels, so
+ * building up the town is what moves the settlement through them.
+ */
 export function villagePopulation(state: GameState): number {
   let n = 0;
   for (const p of state.village.plots) if (p.tier >= 0) n += VILLAGE.tiers[p.tier]!.residents;
+  for (const lot of state.town.lots) if (lot.tier >= 0 && lot.building !== '') n += BUSINESSES[lot.building as BusinessId].people;
   return n;
 }
 
