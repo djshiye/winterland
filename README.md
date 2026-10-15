@@ -31,7 +31,7 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
 4. **Upgrade shop** on the red cabin's doormat: carry capacity, walk speed and axe speed, plus three hired
    helpers (crate runner, cashier, log hauler) and a **Sales** tab of price upgrades.
 5. **The village** behind the south gate: carry logs and cash to the plots to raise tents, huts, cabins and
-   lodges. More villagers mean a higher village level (Camp → Hamlet → Village → Town → Winter City), which
+   lodges. More villagers mean a higher village level (the eras: Camp → Hamlet → Village → Town → Winter City), which
    brings more customers, bigger orders, better prices and new hires.
 6. **Late yard:** a **truck loader** belt and **cash tubes** take over the hauling and collecting.
    **Timber Ridge** lies through the east gate. It has a pine forest that a tree feller cuts onto a log deck,
@@ -39,7 +39,14 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
    helpers of every role work, and adds a pine hauler.
 7. **The workshop:** on the ridge, a log-cabin workshop turns logs into chairs, and dog sleds pay the best price
    in the game for them.
-8. **The finale:** at Winter City, build the Great Lodge for a celebration and a stats card. Play goes on after, or start a **New Season**. Everything resets, but every sale pays 25%
+8. **The Market Town and eras:** when the village reaches Town, a market square opens east of the village
+   with a lit tree, stalls, benches and eight lots for sale. Step on a lot to choose what to build: a farm,
+   bakery, ranch, butcher, townhouse or (at Winter City) a toy factory. Carry wheat, meat, firewood and crates to
+   the shops, and townsfolk queue up to buy bread, sausages and toys. Every business brings workers, so the town
+   pushes the village to the next era. Each era upgrades the whole settlement (torches to lanterns to iron lamps,
+   snow tracks to gravel to cobbles, bunting, string lights, fireworks), and a **Porter** can be hired to carry
+   the town's goods.
+9. **The finale:** at Winter City, build the Great Lodge for a celebration and a stats card. Play goes on after, or start a **New Season**. Everything resets, but every sale pays 25%
    more for each season played.
 
 Along the way: **quests** (three short goals at a time with cash rewards), **VIP customers** who tip, **rush
@@ -50,7 +57,7 @@ mill earned while you were away. Settings (the gear) has sound, music, graphics 
 computers; the game switches to Low by itself once if it runs slowly), day/night, vibration (phones), an FPS
 readout, New Season (after the finale) and a reset.
 
-A whole game takes the autoplay bot about 50–65 minutes (longer if you keep the workshop busy) (targets in [docs/DESIGN.md](docs/DESIGN.md)).
+A whole game takes the autoplay bot about 60–70 minutes (targets in [docs/DESIGN.md](docs/DESIGN.md)).
 
 ## Desktop app (Linux and Windows)
 

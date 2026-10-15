@@ -1,6 +1,6 @@
 # Winterland roadmap
 
-**Where it stands (2026-10-15, v0.3.0).**
+**Where it stands (2026-10-15, v0.4.0).**
 - The "make it a game" list is done, plus the village and the Great Lodge finale.
 - **Waves 6–7 are done:**
   - longer upgrade ladders and the Sales tab;
@@ -9,8 +9,9 @@
   - Timber Ridge, the bunkhouse, the feller, the loader, the tubes and trains;
   - New Season.
 - **Wave 8 is done** (see `docs/DESIGN.md`): day/night with an aurora, 20 quests, VIP customers and rush hours, the onboarding hand, vibration, auto quality, and the furniture workshop with dog sleds.
-- The autoplay bot finishes in about 64 minutes when it keeps the workshop busy (about 51 without it). Milestones: mega saw 14, Town 19, ridge 29, bunkhouse 33, workshop 38, Winter City 53, finale 64.
-- Late-game draw calls at High quality are about 880 at the village at night, about 540 elsewhere, and about 410 at the workshop. The ceiling is ~950.
+- **Wave 9 is done** (see `docs/DESIGN.md`): a bug-fix round (money formatting, in-flight accounting, the rail crossing, crash-safe saves, offline earnings), then eras and the Market Town: eight lots, six buildable businesses, an instanced crowd of townsfolk, the Porter crew, era visuals, the era card and fireworks.
+- The autoplay bot finishes in about 64 minutes. Milestones: Town 19, porter 23, farm 24, bakery 36, ranch 45, Winter City 56, finale 64. It sells about 190 town goods.
+- Late-game draw calls at High quality are about 810 at the village at night and about 440 at the full town square at night. The ceiling is ~950.
 - Saves from v0.1 and v0.2 load. Fixtures are in `tests/fixtures/`.
 
 Effort sizes: **S** is a small slice. **M** is about one builder for a wave. **L** is several waves.

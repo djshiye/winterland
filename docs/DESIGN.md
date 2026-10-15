@@ -270,3 +270,33 @@ All slices run in parallel. Stubs for every cross-slice API are already in place
   | workshop and chair | B6 (`stations/Workshop.ts`, `assets/items.ts`) |
   | progression | B7 |
   | everything else | main (`config`, `core`, `level`, `game`, the bot) |
+
+## Wave 9: bug round, eras and the Market Town
+
+### 9-0: bug round
+- **Money:** `ui/format.ts` handles NaN and a T tier. Cash piles, stacks and construction pads count money still in flight, so totals and pad progress no longer dip mid-throw.
+- **Rail crossing:** trains sweep the crossing and sleds wait for it (`TrainQueue.sweeping`, `SledQueue.onCrossing`). `rail.stopZ` moved to -0.8.
+- **Saves:** `sanitizeState` runs after every merge. A crash-looping save is copied to `.bak` and reset (sessionStorage guard). Offline earnings are credited at load. Fully paid tiers complete silently on load.
+- **HUD:** fewer per-frame DOM writes; banners hide while the shop is open; audio re-unlocks on every gesture.
+
+### 9A/9B: eras and the Market Town
+- **Eras are the village levels** (Camp 0 → Hamlet → Village → Town → Winter City → Winterland 5). There is no separate counter. The stored level is a floor on load, so older saves never drop an era. **Winter City now needs 110 people** (was 80); town buildings add `BUSINESSES[id].people` to `villagePopulation`.
+- **Era visuals** (`world/env/eras.ts`): lamps go torch → lantern → iron; streets go snow → gravel → cobbles; bunting from Town and string lights from Winter City. Each level-up shows the EraCard (`ui/EraCard.ts`, which replaced the level-up toast), and fireworks go off from Town on.
+- **Town** (`LAYOUT.town`, `town/*`): revealed 8 s after the village reaches Town (reveal rule 'town', with a camera moment and an open gate). A corridor from the village street leads to a market square with a lit tree, benches, stalls and a snowman, plus eight lots.
+- **Building:** an empty lot's pad opens the BuildPanel (`ui/BuildPanel.ts`), listing `choicesFor(era)`. The choice arms a ConstructionPad paid in logs and cash, and it can be changed until the first payment lands. `settlePaidLots` completes fully paid lots on load.
+- **Businesses** (`BUSINESSES`, one data-driven `town/Business.ts`):
+
+  | Building | Kind | Era | Cost | People | Makes |
+  |---|---|---|---|---|---|
+  | Farm | producer | Town | 24 logs, $2,500 | 4 | wheat every 2.6 s |
+  | Bakery | shop | Town | 30 logs, $4,000 | 6 | wheat + log → 3 loaves, $30 each |
+  | Ranch | producer | Town | 30 logs, $5,000 | 4 | meat every 3.2 s |
+  | Butcher | shop | Town | 36 logs, $9,000 | 6 | meat + log → 3 sausages, $55 each |
+  | Townhouse | home | Town | 40 logs, $6,000 | 10 | residents |
+  | Toy Factory | shop | Winter City | 50 logs, $14,000 | 10 | crate → 2 toys, $45 each |
+
+  Shops sell at their counter to townsfolk buyers (`TOWN.buyerGap` by era, `queuePerShop` 3), and the cash lands on each shop's till.
+- **Townsfolk** (`npc/Townsfolk.ts`, `Crowd.ts`, `CrowdNav.ts`): an instanced crowd (about 10 draw calls with shadows at any size, up to `TOWN.crowdMax` 48). They are wanderers who visit the tree, benches and stalls (`TOWN.wanderers` by era), plus shop buyers and shop staff.
+- **Porter** (upgrade 'porter', from Town; `npc/townJobs.ts`, `townRoutes.ts`): carries producer goods and firewood to shop hoppers. Cashiers also empty the town tills.
+- **Save** (additive; `SAVE.version` unchanged): `state.town = { revealed, lots[8] }`. The world snapshot adds `town[]` (per lot in/out/cash; porter and buyer loads go back to the lot) and arms wheat/meat. Unknown building ids free the lot, and paid amounts are capped. Fixture: `tests/fixtures/save-v3-market.json`.
+- **Budget:** the full town at night costs about 440 draw calls at the square and about 810 at the village (cash grid layers went from 20 to 10 to stay under 950).
