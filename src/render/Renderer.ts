@@ -190,8 +190,16 @@ export class Renderer {
     this.resize();
   }
 
+  /** Wave 10: render resolution scale 0.5..1 (persisted 'winterland:scale', default 1). Multiplies the pixel ratio. */
+  scale = 1;
+
+  /** TODO(engine builder): clamp 0.5..1, persist, then resize(). */
+  setScale(s: number): void {
+    this.scale = Math.max(0.5, Math.min(1, s));
+  }
+
   private pixelRatio(): number {
-    return this.q === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+    return (this.q === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 2)) * this.scale;
   }
 
   /** Canvas size in CSS pixels. */
