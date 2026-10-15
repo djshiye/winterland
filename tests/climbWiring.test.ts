@@ -40,7 +40,8 @@ describe('Upgrades on the ladder', () => {
     const { up } = make();
     for (const d of DEFS) {
       expect(up.maxLevel(d.id)).toBe(authoredMax(d));
-      for (let s = 0; s < authoredMax(d); s++) expect(stepCost(d, s)).toBe(d.costs[s]);
+      // era 1: the 0.8.0 tables; era 2+: no table, the band curve (era economy ×10)
+      for (let s = 0; s < authoredMax(d); s++) expect(stepCost(d, s)).toBe(introEra(d) >= 2 ? costAt(d, s) : d.costs[s]);
     }
     while (up.buy('carry'));
     expect(up.level('carry')).toBe(authoredMax(UPGRADES.carry));
@@ -71,12 +72,13 @@ describe('Upgrades on the ladder', () => {
     expect(up.isMax(id)).toBe(true);
   });
 
-  it('era-2+ ids keep their authored prices until step 6, then rise strictly past their max', () => {
+  it('era-2+ ids have no cost table: every step is on the band curve and rises strictly', () => {
     for (const d of DEFS.filter((x) => introEra(x) >= 2)) {
+      expect(d.costs).toHaveLength(0);
       let last = 0;
       for (let s = 0; s < maxStored(d, true); s++) {
         const c = stepCost(d, s);
-        if (s < authoredMax(d)) expect(c).toBe(d.costs[s]);
+        expect(c).toBe(costAt(d, s));
         expect(c % 5).toBe(0);
         expect(c).toBeGreaterThan(last);
         last = c;

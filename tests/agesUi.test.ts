@@ -55,13 +55,13 @@ describe('cost text', () => {
   });
 
   it('prices every era expansion from the data', () => {
-    expect(expansionCostText(2)).toBe('Expansion: $150,000 + 40 Crates');
+    expect(expansionCostText(2)).toBe('Expansion: $1.5M + 40 Crates');
     for (let n = 2; n <= 10; n++) {
       const t = expansionCostText(n);
       expect(t.startsWith('Expansion: $')).toBe(true);
       expect(t).toContain(`${ERAS[n]!.unlock.extra.count} `);
     }
-    expect(unlockCash(3)).toBe(450_000);
+    expect(unlockCash(3)).toBe(4_500_000); // era economy ×10 (ERA_SCALE)
     expect(expansionCostText(1)).toBe('');
   });
 

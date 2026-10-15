@@ -115,8 +115,8 @@ describe('rules', () => {
 
   it('the choose card lists every machine of the era with its price', () => {
     expect(chooseOptions(2).map((o) => o.id)).toEqual(machinesOfEra(2));
-    expect(costText(MACHINES.kiln)).toBe('$27,000 + 12 Stone');
-    expect(costText(MACHINES.quarry)).toBe('$15,000');
+    expect(costText(MACHINES.kiln)).toBe('$270,000 + 12 Stone');
+    expect(costText(MACHINES.quarry)).toBe('$150,000');
     for (let n = 2; n <= MAX_ERA; n++) expect(chooseOptions(n).length).toBeGreaterThan(0);
   });
 
@@ -131,13 +131,13 @@ describe('rules', () => {
     const t = slotTarget(MACHINES.kiln, 100, 3);
     expect(t.logs).toBe(0);
     expect(t.extra).toEqual({ kind: 'stone', count: 12, paid: 3 });
-    expect(slotPaid(MACHINES.kiln, { cash: 27000, extra: 12 })).toBe(true);
-    expect(slotPaid(MACHINES.kiln, { cash: 27000, extra: 11 })).toBe(false);
+    expect(slotPaid(MACHINES.kiln, { cash: 270000, extra: 12 })).toBe(true);
+    expect(slotPaid(MACHINES.kiln, { cash: 270000, extra: 11 })).toBe(false);
     const state = createGameState();
     state.eras.age = 2;
     state.eras.regions[2]!.unlocked = true;
-    state.eras.regions[2]!.slots[0] = { machine: 'kiln', tier: -1, cash: 27000, extra: 12 };
-    state.eras.regions[2]!.slots[1] = { machine: 'kiln', tier: -1, cash: 27000, extra: 3 };
+    state.eras.regions[2]!.slots[0] = { machine: 'kiln', tier: -1, cash: 270000, extra: 12 };
+    state.eras.regions[2]!.slots[1] = { machine: 'kiln', tier: -1, cash: 270000, extra: 3 };
     expect(settlePaidSlots(state)).toBe(1);
     expect(state.eras.regions[2]!.slots[0]).toEqual({ machine: 'kiln', tier: 0, cash: 0, extra: 0 });
     expect(state.eras.regions[2]!.slots[1]!.tier).toBe(-1);
@@ -262,8 +262,8 @@ describe('EraWorld construction', () => {
     const w = makeWorld(2, 0, (st) => {
       const slots = st.eras.regions[2]!.slots;
       slots[0] = { machine: 'quarry', tier: 0, cash: 0, extra: 0 };
-      slots[1] = { machine: 'kiln', tier: -1, cash: 5000, extra: 2 };
-      slots[2] = { machine: 'kiln', tier: -1, cash: 27000, extra: 12 };
+      slots[1] = { machine: 'kiln', tier: -1, cash: 50000, extra: 2 };
+      slots[2] = { machine: 'kiln', tier: -1, cash: 270000, extra: 12 };
     });
     expect(w.log).toHaveLength(0);
     const r = w.world.region(2)!;

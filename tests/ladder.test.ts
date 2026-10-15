@@ -1,6 +1,6 @@
 /** Upgrade ladders to level 100 (core/ladder.ts, docs/EXPANSION.md §A): frozen prefix, prices, caps, Mastery. */
 import { describe, expect, it } from 'vitest';
-import { GATE, price3, UPGRADES, type UpgradeDef } from '../src/config';
+import { CLIMB, GATE, price3, UPGRADES, type UpgradeDef } from '../src/config';
 import { authoredMax, base, costAt, hardCapStored, introEra, LEVEL_CAP, masteryMult, masteryPoints, maxStored, shown, valueAt } from '../src/core/ladder';
 
 const DEFS = Object.values(UPGRADES) as UpgradeDef[];
@@ -50,7 +50,7 @@ describe('ladder: levels', () => {
     expect(hardCapStored(rigs)).toBe(39); // 3.0 + 0.1 · 30 = 6 at stored 39 (shown 49)
     GATE.mode = 'literal';
     try {
-      expect(costAt(rigs, 0)).toBe(price3(0.9 * 250_000 / 2.6)); // band 1 at A 0
+      expect(costAt(rigs, 0)).toBe(price3((0.9 * CLIMB.unit) / CLIMB.bandGrowth)); // band 1 at A 0
       expect(hardCapStored(rigs)).toBe(39);
       expect(hardCapStored(UPGRADES.aiRigs)).toBe(39); // literal: reachable below 100
       for (const d of ERA1) expect(costAt(d, 0)).toBe(d.costs[0]);
@@ -74,11 +74,13 @@ describe('ladder: costs', () => {
     });
   }
 
-  it('matches the design sample prices', () => {
-    expect(costAt(UPGRADES.carry, 10)).toBe(125_000); // A 10, lumberjack
-    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(225_000); // A 10, industry
-    expect(costAt(UPGRADES.carry, 89)).toBe(201_000_000); // A 89, lumberjack
-    expect(costAt(UPGRADES.taxOffice, 79)).toBe(401_000_000); // A 89, finance
+  it('matches the calibrated sample prices', () => {
+    // design §A2 at U 250k, growth 2.6: $125k / $225k / $201M / $401M; the pacing model (core/pacing.ts) set
+    // U 300k, growth 4.3
+    expect(costAt(UPGRADES.carry, 10)).toBe(150_000); // A 10, lumberjack
+    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(270_000); // A 10, industry
+    expect(costAt(UPGRADES.carry, 89)).toBe(8_150_000_000); // A 89, lumberjack
+    expect(costAt(UPGRADES.taxOffice, 79)).toBe(16_300_000_000); // A 89, finance
   });
 
   it('a Survival id first continues its last authored price by 5 % a level', () => {

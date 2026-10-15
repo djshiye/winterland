@@ -14,7 +14,7 @@
  */
 
 import type { ItemKind } from './core/types';
-import { ERA_KEYS, ERA_NAMES, MATERIALS, MATERIAL_KINDS, unlockCash, type EraKey, type MaterialKind } from './eras/data';
+import { ERA_KEYS, ERA_NAMES, MATERIALS, MATERIAL_KINDS, ERA_SCALE, type EraKey, type MaterialKind } from './eras/data';
 
 export interface Rect {
   minX: number;
@@ -841,7 +841,10 @@ export interface UpgradeDef {
    * - sales: a price multiplier for `product` (core/demand.ts salePrice).
    */
   values: readonly number[];
-  /** costs[n] = price to go from level n to n + 1 (length = values.length − 1). Multiples of 5. */
+  /**
+   * costs[n] = price to go from level n to n + 1 (length = values.length − 1). Multiples of 5. Era 1 only (Survival +
+   * jack): ids from era 2 on leave it empty and are priced on the climb's band curve (core/ladder.ts costAt).
+   */
   costs: readonly number[];
   /** Upgrades.describe(): 'count' → "16 items", 'speed' → "7.4 m/s", 'rate' → items per second from an interval, 'crew' → "×1.3". */
   display: 'count' | 'speed' | 'rate' | 'crew' | 'mult' | 'boost' | 'share' | 'income' | 'factor';
@@ -1117,10 +1120,17 @@ export function price3(v: number): number {
  */
 export const CLIMB = {
   levelCap: 100,
+  /** Era economy (R11): expansion pads, machines, material values, city prices and income × this (eras/data.ts). */
+  eraScale: ERA_SCALE,
   /** Levels per band: era n's gate needs every owned upgrade at shown level bandSize · (n − 1). */
   bandSize: 10,
-  unit: 250_000,
-  bandGrowth: 2.6,
+  /**
+   * Calibrated with the pacing model (core/pacing.ts, tests/pacing.test.ts): every era 60–200 model minutes. The
+   * design's 250k / 2.6 left eras 3–10 at 40 → 1 min: an era's income grows about ×4.5 (×3 material prices, more slots,
+   * Rigs, Trade and Renown on every older region), so the band price has to grow almost as fast.
+   */
+  unit: 300_000,
+  bandGrowth: 4.3,
   stepGrowth: 1.08,
   legacyStep: 1.05,
   weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
@@ -1196,7 +1206,7 @@ function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> 
       id: 'taxOffice', group: 'finance', label: 'City Hall',
       blurb: 'Better bookkeeping: every city building earns more',
       values: [1, 1.15, 1.3, 1.45, 1.6, 1.8, 2.0, 2.25, 2.5, 3.0],
-      costs: [50000, 150000, 450000, 1.35e6, 4e6, 1.2e7, 3.6e7, 1.1e8, 3.3e8].map(price3),
+      costs: [],
       display: 'income',
       requires: { era: 2 },
     },
@@ -1204,7 +1214,7 @@ function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> 
       id: 'broker', group: 'finance', label: 'Stock Broker',
       blurb: 'Tighter trading spreads and better bond rates',
       values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0, 3.5],
-      costs: [40000, 120000, 360000, 1.1e6, 3.2e6, 9.7e6, 2.9e7, 8.7e7, 2.6e8].map(price3),
+      costs: [],
       display: 'factor',
       requires: { era: 2 },
     },
@@ -1212,34 +1222,30 @@ function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> 
 }
 
 /**
- * 0.9.0: three upgrades per era n (2..10), ten levels each ("level 10" = index 9):
+ * 0.9.0: three upgrades per era n (2..10), ten authored levels each ("level 10" = index 9):
  * - `${key}Rigs`: every machine of the era works faster (cycle ÷ value).
  * - `${key}Crew`: hires the era's workers (0 = none; workers = 1 / 2 / 3 at levels 1 / 4 / 7) and speeds them up.
  * - `${key}Trade`: the era's materials sell for more at export depots.
- * Prices scale with the era's expansion price (unlockCash).
+ * No cost tables: every step is priced on the climb's band curve (core/ladder.ts costAt, CLIMB), like taxOffice / broker.
  */
 function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade'}`, UpgradeDef> {
   const out = {} as Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade'}`, UpgradeDef>;
-  const RIGS = [0.03, 0.05, 0.08, 0.12, 0.17, 0.24, 0.33, 0.45, 0.6];
-  const CREWC = [0.02, 0.04, 0.07, 0.1, 0.15, 0.2, 0.28, 0.38, 0.5];
-  const TRADE = [0.04, 0.07, 0.1, 0.15, 0.21, 0.29, 0.4, 0.54, 0.7];
   ERA_KEYS.forEach((key, i) => {
     const n = i + 2;
-    const base = unlockCash(n);
     const name = ERA_NAMES[n]!;
     out[`${key}Rigs`] = {
       id: `${key}Rigs`, group: 'industry', era: n, label: `${name} Rigs`, blurb: `Every ${name} machine works faster`,
-      values: [1, 1.15, 1.3, 1.5, 1.7, 1.9, 2.15, 2.4, 2.7, 3.0], costs: RIGS.map((c) => price3(base * c)),
+      values: [1, 1.15, 1.3, 1.5, 1.7, 1.9, 2.15, 2.4, 2.7, 3.0], costs: [],
       display: 'boost', requires: { era: n },
     };
     out[`${key}Crew`] = {
       id: `${key}Crew`, group: 'industry', era: n, label: `${name} Crew`, blurb: `Workers haul ${name} materials between machines and the depot`,
-      values: [0, 1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0], costs: CREWC.map((c) => price3(base * c)),
+      values: [0, 1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0], costs: [],
       display: 'crew', requires: { era: n },
     };
     out[`${key}Trade`] = {
       id: `${key}Trade`, group: 'industry', era: n, label: `${name} Trade`, blurb: `${name} materials sell for more`,
-      values: [1, 1.1, 1.2, 1.32, 1.45, 1.6, 1.75, 1.9, 2.1, 2.4], costs: TRADE.map((c) => price3(base * c)),
+      values: [1, 1.1, 1.2, 1.32, 1.45, 1.6, 1.75, 1.9, 2.1, 2.4], costs: [],
       display: 'mult', requires: { era: n },
     };
   });

@@ -5,7 +5,7 @@
  * burst reads as a sequence of toasts. Rewards go straight to the money; 'quest:done' drives the juice.
  */
 import { AMENITY_IDS } from '../config';
-import { CITY_BUILDINGS, DISTRICTS, ERAS, REGIONS, unlockCash, type CityBuildingKind } from '../eras/data';
+import { CITY_BUILDINGS, DISTRICTS, ERAS, ERA_SCALE, REGIONS, unlockCash, type CityBuildingKind } from '../eras/data';
 import { settlementLevel, townHappiness } from './demand';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
@@ -63,7 +63,10 @@ export const QUEST_DEFS: readonly QuestDef[] = [
   ...eraQuests(),
 ];
 
-/** 0.9.0: a few goals per era (the first machine, Jack, the market, the city) and one per era reached. */
+/**
+ * 0.9.0: a few goals per era (the first machine, Jack, the market, the city) and one per era reached. Rewards are era
+ * economy (× ERA_SCALE, or a share of unlockCash); Jack's stays a Survival-sized tip.
+ */
 function eraQuests(): QuestDef[] {
   const age = (s: GameState) => s.eras.age;
   const reach = (n: number): QuestDef => ({
@@ -76,15 +79,15 @@ function eraQuests(): QuestDef[] {
   const out: QuestDef[] = [
     reach(2),
     ...questTrio(2),
-    { id: 'machine1', title: 'Build your first era machine', target: 1, reward: 25000, progress: (s) => s.stats.machinesBuilt },
+    { id: 'machine1', title: 'Build your first era machine', target: 1, reward: 25000 * ERA_SCALE, progress: (s) => s.stats.machinesBuilt },
     { id: 'jack1', title: "Sell something at Jack's cart", target: 1, reward: 5000, progress: (s) => flag(s.stats.jackEarned > 0) },
-    { id: 'materials100', title: 'Make 100 era materials', target: 100, reward: 40000, progress: (s) => s.stats.materialsMade },
-    { id: 'city1', title: 'Build in the city', target: 1, reward: 50000, progress: (s) => s.stats.cityBuilt },
-    { id: 'invest1', title: 'Make an investment at the market', target: 1, reward: 30000, progress: (s) => flag(s.market.investments.length > 0 || s.stats.investEarned > 0) },
+    { id: 'materials100', title: 'Make 100 era materials', target: 100, reward: 40000 * ERA_SCALE, progress: (s) => s.stats.materialsMade },
+    { id: 'city1', title: 'Build in the city', target: 1, reward: 50000 * ERA_SCALE, progress: (s) => s.stats.cityBuilt },
+    { id: 'invest1', title: 'Make an investment at the market', target: 1, reward: 30000 * ERA_SCALE, progress: (s) => flag(s.market.investments.length > 0 || s.stats.investEarned > 0) },
     reach(3),
     ...questTrio(3),
-    { id: 'machines6', title: 'Run 6 era machines', target: 6, reward: 120000, progress: (s) => s.eras.regions.reduce((n, r) => n + r.slots.filter((x) => x.machine !== '' && x.tier >= 0).length, 0) },
-    { id: 'city12', title: 'Build 12 city buildings', target: 12, reward: 250000, progress: (s) => s.stats.cityBuilt },
+    { id: 'machines6', title: 'Run 6 era machines', target: 6, reward: 120000 * ERA_SCALE, progress: (s) => s.eras.regions.reduce((n, r) => n + r.slots.filter((x) => x.machine !== '' && x.tier >= 0).length, 0) },
+    { id: 'city12', title: 'Build 12 city buildings', target: 12, reward: 250000 * ERA_SCALE, progress: (s) => s.stats.cityBuilt },
   ];
   for (let n = 4; n <= 10; n++) {
     out.push(reach(n), ...questTrio(n));
