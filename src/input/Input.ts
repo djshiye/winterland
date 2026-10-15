@@ -109,6 +109,17 @@ export class Input {
   /** Wave 10 shortcut / zoom listeners (Game wires them to events). */
   protected shortcutCb: ((s: Shortcut) => void) | null = null;
   protected zoomCb: ((delta: number) => void) | null = null;
+  /**
+   * Wave 10b hold-to-interact (core/interact.ts). `holdToInteract` is the setting; `interactHeld` is true while E,
+   * Space or a pointer press with the stick inside its dead zone is held; `interactOverride` (debug/bot) wins when
+   * non-null. When the setting is off, `interactHeld` is always true. TODO(engine builder): implement.
+   */
+  holdToInteract = false;
+  interactOverride: boolean | null = null;
+  get interactHeld(): boolean {
+    if (this.interactOverride !== null) return this.interactOverride;
+    return !this.holdToInteract;
+  }
 
   /** Escape, M (mute), F11 / Alt+Enter / F (fullscreen), + / - (zoom). Fired on keydown, not while typing in an input. */
   onShortcut(cb: (s: Shortcut) => void): void {
