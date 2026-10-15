@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { DEMAND, QUARTERS, UPGRADES, VILLAGE, type UpgradeDef } from '../src/config';
-import { productMult } from '../src/core/demand';
+import { productMult, renownMult, settlementLevel, settlementLevelFor } from '../src/core/demand';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
 import { base, costAt, introEra, masteryMult, masteryPoints, maxStored, valueAt } from '../src/core/ladder';
@@ -67,5 +67,17 @@ describe('era 1 is frozen at 0.8.0', () => {
 
   it('no Mastery before the climb', () => {
     expect(masteryMult(0)).toBe(1);
+  });
+
+  it('age 1: settlement never passes 5 and Renown is 1 at every village level', () => {
+    for (let lvl = 0; lvl < VILLAGE.levels.length; lvl++) {
+      const s = createGameState();
+      s.village.level = lvl;
+      if (lvl === VILLAGE.levels.length - 1) s.village.greatLodge.tier = 0;
+      expect(settlementLevel(s)).toBe(lvl);
+      expect(settlementLevel(s)).toBeLessThanOrEqual(5);
+      expect(renownMult(s)).toBe(1);
+    }
+    expect(settlementLevelFor(Number.MAX_SAFE_INTEGER, 1)).toBe(0);
   });
 });

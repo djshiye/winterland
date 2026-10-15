@@ -56,6 +56,10 @@ export class Fireworks implements Updatable {
     ctx.events.on('village:levelUp', (e) => {
       if (e.level >= 3) this.celebrate(e.level, e.position);
     });
+    // a settlement Charter (a completed era band, docs/EXPANSION.md §B): rockets over that era's district
+    ctx.events.on('settlement:levelUp', (e) => {
+      if (e.charter) this.launch(e.position, Math.round(12 * (1 + 0.8 * ctx.dayNight.darkness)), { spread: 9, delay: 0.5 });
+    });
   }
 
   /** The era show: `4 + level` rockets by day, up to 80 % more when it is dark, over the square (or the village). */

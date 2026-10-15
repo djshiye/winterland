@@ -7,8 +7,9 @@
  * Rows are built once (one per material, one card per product); refresh() rewrites only what changed, and runs when
  * something marked the panel dirty (at most ~5 times a second) or every second while open, because prices tick.
  */
-import { ERAS, ERA_NAMES, INVEST, INVEST_MAX_POSITIONS, MACHINES, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
+import { ERAS, ERA_NAMES, INVEST, MACHINES, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
 import { ORDER_MAX_UNITS } from '../core/Market';
+import { investMaxPositions } from '../core/demand';
 import type { GameContext, InvestmentState, ItemKind, MaterialKind } from '../core/types';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatDuration, formatMoney } from './format';
@@ -573,7 +574,8 @@ export class MarketPanel {
   private refreshInvest(age: number): void {
     const { market, economy } = this.ctx;
     const offered = new Set(market.products());
-    const full = market.positions().length >= INVEST_MAX_POSITIONS;
+    const max = investMaxPositions(this.ctx.state);
+    const full = market.positions().length >= max;
     for (const c of this.products) {
       const def = INVEST[c.id];
       const on = offered.has(c.id);
@@ -590,7 +592,7 @@ export class MarketPanel {
       }
       const amount = this.amountFor(c);
       let why = '';
-      if (full) why = `All ${INVEST_MAX_POSITIONS} positions are open`;
+      if (full) why = `All ${max} positions are open`;
       else if (amount < def.min) why = c.id === 'bond' && economy.money >= def.min ? `Bonds are capped at ${formatMoney(market.bondRoom() + market.bondTotal())} (half your net worth)` : `Needs at least ${formatMoney(def.min)}`;
       put(c.btn, `Invest<small>${formatMoney(amount)}</small>`);
       c.btn.disabled = why !== '';
@@ -609,7 +611,7 @@ export class MarketPanel {
   private refreshPositions(): void {
     const { market } = this.ctx;
     const list = market.positions();
-    put(this.positionTitle, `Your positions <small>${list.length}/${INVEST_MAX_POSITIONS}</small>`);
+    put(this.positionTitle, `Your positions <small>${list.length}/${investMaxPositions(this.ctx.state)}</small>`);
     const seen = new Set<number>();
     for (const p of list) {
       seen.add(p.id);

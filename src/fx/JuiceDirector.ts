@@ -40,7 +40,7 @@
  * 'stack:full' from upgrade / construction pads ('pad:' ids) is ignored.
  */
 import * as THREE from 'three';
-import { AMENITIES, LAYOUT, PADS, PALETTE, QUARTERS, UPGRADES, VILLAGE } from '../config';
+import { AMENITIES, LAYOUT, PADS, PALETTE, QUARTERS, SETTLEMENT, UPGRADES, VILLAGE } from '../config';
 import { townHappiness } from '../core/demand';
 import type { GameContext, ItemHolder } from '../core/types';
 import { contractClock, contractItem } from '../core/Contracts';
@@ -316,6 +316,16 @@ export class JuiceDirector {
       ctx.cameraRig.shake(0.2, 0.3);
       this.later(0.25, () => ctx.particles.confetti(this.tmp2.copy(e.position), 40));
       // The era card (ui/EraCard.ts) names the new era and its perks; no toast on top of it.
+    });
+
+    // 0.9.0 settlement 6..50: the card (ui/EraCard.ts) names the level; a chime (a fanfare for a Charter) and confetti
+    // over the city gift pile, where the gift lands.
+    ev.on('settlement:levelUp', (e) => {
+      ctx.audio.play(e.charter ? 'fanfare' : 'chime');
+      this.tmp.set(SETTLEMENT.giftPile.x, 0, SETTLEMENT.giftPile.z);
+      ctx.particles.confetti(this.tmp, e.charter ? 70 : 40);
+      ctx.particles.ring(this.tmp, { color: PALETTE.padFill, radius: 3, life: 0.7 });
+      if (e.charter) ctx.cameraRig.shake(0.15, 0.25);
     });
 
     ev.on('finale:start', (e) => {

@@ -223,6 +223,14 @@ describe('physical orders', () => {
     const { market } = setup({ upgrades: { frontierTrade: 2.4 } });
     expect(market.exportPrice('brick', 24)).toBeLessThan(market.orderCost('brick', 24));
   });
+
+  it('Renown (settlement 50) and a maxed broker still leave the order → depot loop at a loss', () => {
+    const { market, state } = setup({ age: 10, upgrades: { frontierTrade: 2.4, broker: 10 } });
+    state.village.greatLodge.tier = 0;
+    state.village.level = 5;
+    state.eras.settlement = 50;
+    expect(market.exportPrice('brick', 24)).toBeLessThan(market.orderCost('brick', 24));
+  });
 });
 
 describe('investments', () => {

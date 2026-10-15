@@ -236,6 +236,12 @@ export interface ErasState {
   age: number;
   /** regions[n] for eras 2..10 (indices 0 and 1 are unused placeholders with no slots). */
   regions: RegionState[];
+  /**
+   * Best settlement level ever reached past Winterland (6..50; 0 = none yet). Recomputed after every city / machine
+   * build, demolish, era and load as max(saved, level of the city population), so it never goes down
+   * (core/demand.ts refreshSettlement; settlementLevel reads it once the village is Winterland).
+   */
+  settlement: number;
 }
 
 /** One city lot (a district of eras/data.ts DISTRICTS[n]); same payment shape as a machine slot. */
@@ -480,6 +486,7 @@ export function createGameState(): GameState {
     contract: { kind: '', target: 0, progress: 0, left: 0, bonus: 0 },
     eras: {
       age: 1,
+      settlement: 0,
       regions: REGION_SLOTS.map((n) => ({ unlocked: false, cash: 0, extra: 0, slots: Array.from({ length: n }, () => ({ machine: '' as const, tier: -1, cash: 0, extra: 0 })) })),
     },
     city: {
@@ -640,6 +647,14 @@ export interface GameEvents {
   /** City population (whole settlement) or rank (eras/data.ts CITY_RANKS index) changed; rankUp after a new rank. */
   'city:changed': { population: number; rank: number };
   'city:rankUp': { rank: number; name: string; position: THREE.Vector3 | null };
+  /** The settlement level (core/demand.ts settlementLevel) changed; emitted by City after a build, demolish or era. */
+  'settlement:changed': { level: number; cityPopulation: number };
+  /**
+   * A settlement level ≥ 6 was reached (never while loading). `from` = the level before (several can be crossed at
+   * once), `gift` = dollars paid into the city gift pile, `charter` = a band was completed (j = 5). position: the
+   * district of the level's era.
+   */
+  'settlement:levelUp': { level: number; from: number; gift: number; charter: boolean; position: THREE.Vector3 };
   /** A Market Town business was demolished (the lot is for sale again). */
   'town:demolished': { lot: number; building: BusinessIdConst; position: THREE.Vector3 };
   /** Money credited that is not a buyer's sale (already added to the wallet). */
