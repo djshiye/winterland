@@ -317,7 +317,7 @@
     const lodge = plotInfo(-1);
     if (lodge) goal = goal === null ? lodge.cashLeft : Math.min(goal, lodge.cashLeft);
     const gm = grandMarketInfo();
-    if (gm) goal = goal === null ? gm.cashLeft : Math.min(goal, gm.cashLeft);
+    if (gm && gm.cashLeft > 0) goal = goal === null ? gm.cashLeft : Math.min(goal, gm.cashLeft);
     return goal;
   }
 
@@ -357,6 +357,9 @@
       if (lodge && lodge.cashLeft <= cash) options.push({ rank: -1, run: () => startBuild(-1, lodge) });
       const gm = grandMarketInfo();
       if (gm && gm.cashLeft <= cash) options.push({ rank: -1, run: () => startBuild('gm', gm) });
+      // The Grand Market's toys need a toy factory: build one first (cash in hand, so skip the saving rule).
+      const hasToyFactory = s.town.lots.some((l) => l.building === 'toyFactory' && l.tier >= 0);
+      const needFactory = gm && gm.toysLeft > 0 && !hasToyFactory;
       const q = quartersInfo();
       if (q && s.quarters.tier < 0 && q.cashLeft <= cash) options.push({ rank: -2, run: () => startBuild('q', q) });
       else if (q && ok(q.cashLeft)) options.push({ rank: q.cashLeft + q.logsLeft * LOG_VALUE, run: () => startBuild('q', q) });
@@ -371,9 +374,11 @@
           if (!def || def.era > s.village.level) continue;
           const cashLeft = def.cash - lot.cash;
           const logsLeft = def.logs - lot.logs;
-          if (!ok(cashLeft)) continue;
+          const urgent = needFactory && id === 'toyFactory';
+          if (!urgent && !ok(cashLeft)) continue;
+          if (needFactory && !urgent) continue;
           options.push({
-            rank: TOWN_WEIGHT * (cashLeft + logsLeft * LOG_VALUE),
+            rank: urgent ? -3 : TOWN_WEIGHT * (cashLeft + logsLeft * LOG_VALUE),
             run: () => {
               if (lot.building === '') {
                 act('town:choose', level.town.padSpot(i), 0.6);
@@ -459,7 +464,7 @@
     // 3. The shelter being built.
     if (build !== null) {
       const info = plotInfo(build);
-      if (!info || tierOf(build) !== buildTier || (info.logsLeft === 0 && info.cashLeft === 0)) build = null;
+      if (!info || tierOf(build) !== buildTier || (info.logsLeft === 0 && info.cashLeft === 0 && !(info.toysLeft > 0))) build = null;
       else if (buildTurn(info)) return;
     }
     // 4. Spend.
