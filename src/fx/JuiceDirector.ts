@@ -30,12 +30,17 @@
  * - tree:felled → snow puff + wood crack / thud, only when the tree is on screen or near the player, throttled
  *   (trees fall every few seconds). quarters:built → like shelter:built plus fanfare, confetti and the "More crew can
  *   work now" toast. sale from a 'train' → the usual sale sound / popup plus a train whistle (rate-limited in Audio).
+ *
+ * Wave 8: quest:done → 'quest' chime, "Quest complete!" toast and a coin burst flying to the money pill (HUD.coinBurst);
+ * rush:start → service bell; sale with vip → gold "+$tip TIP!" popup (floatText) + sparkle; night:start / day:start →
+ * softer music at night (AudioFX.setNight); haptics (fx/Haptics.ts) for pad unlocks, upgrades and cash pickups.
  * 'stack:full' from upgrade / construction pads ('pad:' ids) is ignored.
  */
 import * as THREE from 'three';
 import { PADS, PALETTE, QUARTERS, UPGRADES, VILLAGE } from '../config';
 import type { GameContext, ItemHolder } from '../core/types';
 import { formatMoney } from '../ui/format';
+import { Haptics } from './Haptics';
 
 const WOOD_CHIPS = [PALETTE.bark, PALETTE.barkDark, PALETTE.woodEnd, PALETTE.woodRing, PALETTE.plank];
 const SNOW = [0xffffff, 0xeaf4ff, 0xd4e6fa];
@@ -118,6 +123,18 @@ export class JuiceDirector {
       ctx.hud.floatText(this.tmp, `+${formatMoney(e.amount)}`, { color: '#5ee07a', size: 28 });
       ctx.particles.sparkle(e.position, 0xaaffbb);
       if (e.buyer === 'train') ctx.audio.play('whistle', { volume: 0.7 });
+      if (e.vip && e.tip && e.tip > 0) {
+        // VIP: a gold tip popup above the normal "+$" one (same world-to-screen float mechanism)
+        ctx.audio.play('sparkle');
+        ctx.hud.floatText(this.tmp.copy(e.position).setY(e.position.y + 3.5), `+${formatMoney(e.tip)} TIP!`, {
+          color: '#ffd84a',
+          size: 32,
+          duration: 1.5,
+          rise: 1.7,
+        });
+        ctx.particles.sparkle(this.tmp2.copy(e.position).setY(e.position.y + 1.4), 0xffe066);
+        ctx.particles.sparkle(this.tmp2.setY(e.position.y + 2.2), 0xffffff);
+      }
     });
 
     ev.on('stack:full', (e) => {
@@ -311,6 +328,26 @@ export class JuiceDirector {
     ev.on('offline:collected', (e) => {
       this.cashBurst(this.playerSpot(this.tmp2), e.amount);
     });
+
+    // ------------------------------------------------------------------------------------------------
+    // Wave 8: quests, rush hour, night
+    // ------------------------------------------------------------------------------------------------
+
+    ev.on('quest:done', (e) => {
+      ctx.audio.play('quest');
+      ctx.hud.toast('Quest complete!', { sub: `${e.title} +${formatMoney(e.reward)}`, duration: 2.6 });
+      ctx.hud.coinBurst(Math.min(14, 6 + Math.floor(Math.log10(Math.max(10, e.reward)) * 2)));
+    });
+
+    ev.on('rush:start', () => {
+      ctx.audio.play('bell');
+    });
+
+    ev.on('night:start', () => ctx.audio.setNight(true));
+    ev.on('day:start', () => ctx.audio.setNight(false));
+    if (ctx.dayNight.darkness >= 0.5) ctx.audio.setNight(true);
+
+    new Haptics(ctx);
 
     ev.on('intro:crash', (e) => {
       ctx.audio.play('crash');

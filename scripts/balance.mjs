@@ -27,5 +27,5 @@ const steps = [
   'eval:__bot.milestones().join("\\n")',
   'eval:__bot.report().timeline.filter((e) => e.bought || e.built !== undefined || e.unlocked).map((e) => `${(e.t / 60).toFixed(1)} ${e.bought ?? e.unlocked ?? `plot ${e.built} → ${e.tier}`} ($${e.money})`).join("\\n")',
 ];
-const r = spawnSync(process.execPath, [join(here, 'shot.mjs'), '--timeout', '600000', '--query', 'fresh', ...steps], { stdio: 'inherit' });
+const r = spawnSync(process.execPath, [join(here, 'shot.mjs'), '--timeout', '600000', '--query', 'fresh&noauto', ...steps], { stdio: 'inherit' });
 process.exit(r.status ?? 1);
