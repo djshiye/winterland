@@ -29,6 +29,9 @@
   const LOG_VALUE = 10;
   /** Shelters also cost hand-carried logs (time), so an upgrade of similar price goes first. */
   const SHELTER_WEIGHT = 1.6;
+  /** Seconds between workshop upkeep rounds (feed the hopper / clear the bench). */
+  const WORKSHOP_EVERY = 25;
+  let lastUpkeep = -Infinity;
   const WINTER_CITY = VILLAGE.levels.findIndex((l) => l.name === 'Winter City');
 
   const mid = (r) => ({ x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 });
@@ -277,6 +280,25 @@
     if (count(arms, 'crate') > 0 && se && room(se.pile)) {
       act('deliver:crates', spots.se, 4, () => count(arms, 'crate') === 0 || !room(se.pile));
       return;
+    }
+    // 2b. Keep the workshop running (chairs pay the most per log): clear the bench, keep the hopper fed.
+    // At most one upkeep round per WORKSHOP_EVERY seconds, so the village and upgrades still get turns.
+    const shop8 = level.workshop;
+    if (shop8 && ctx.time.elapsed - lastUpkeep >= WORKSHOP_EVERY) {
+      const deck8 = level.treeFeller && level.treeFeller.deck;
+      if (count(shop8.output, 'furniture') >= 4 && sledCounter && room(sledCounter.pile) && held(arms) < arms.capacity) {
+        act('fetch:furniture', spots.workshopBench, 4, () => held(arms) >= arms.capacity || count(shop8.output, 'furniture') === 0);
+        return;
+      }
+      if (count(shop8.input) < 3 && count(arms, 'log') > 0) {
+        lastUpkeep = ctx.time.elapsed;
+        act('deliver:workshop', spots.workshopFeed, 4, () => count(arms, 'log') === 0 || !room(shop8.input));
+        return;
+      }
+      if (count(shop8.input) < 3 && count(deck8, 'log') >= 4 && held(arms) < arms.capacity) {
+        act('fetch:pine', spots.deck, 4, () => held(arms) >= arms.capacity || count(deck8, 'log') === 0);
+        return;
+      }
     }
     // 3. The shelter being built.
     if (build !== null) {
