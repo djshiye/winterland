@@ -56,6 +56,7 @@ import { Contracts } from '../core/Contracts';
 import { Market } from '../core/Market';
 import { travelPoints } from '../eras/layout';
 import { GateTracker } from '../eras/GateTracker';
+import { Steward } from '../eras/Steward';
 import { climbOpen, eraGate, type EraGate } from '../eras/gate';
 import { base, introEra } from '../core/ladder';
 import { cityPopulation, settlementLevel } from '../core/demand';
@@ -242,6 +243,7 @@ export class Game {
     this.level = new Level(ctx);
     if (save) this.level.restoreWorld(save.world);
     new GateTracker(ctx); // 0.9.0 climb: computed 'gate:progress' (seeded from the loaded world, so a load is silent)
+    new Steward(ctx); // 0.9.0 climb: the Settlement 20 auto-raise toggle (eras/Steward.ts)
     this.sales = new SalesMeter(ctx, save?.salesRate ?? 0);
 
     input.onFirstGesture(() => ctx.audio.unlock());

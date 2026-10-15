@@ -1116,7 +1116,8 @@ export function price3(v: number): number {
  *   F(group, A) = weights[group] · unit · bandGrowth^(band − 2) · stepGrowth^(A mod 10), band = floor(A / 10) + 1
  * and a Survival id also never drops below its last authored price × legacyStep per level (first lever if the
  * climb runs long: legacyStep → 1.0). Mastery: every level bought at an effect's hard cap is a point;
- * multiplier 1 + masteryScale · log2(1 + points / masteryPoints).
+ * multiplier 1 + masteryScale · log2(1 + points / masteryPoints) on sales, exports and city income (core/demand.ts
+ * climbMult; 1 before the climb, where no level can reach a cap).
  */
 export const CLIMB = {
   levelCap: 100,
@@ -1143,6 +1144,12 @@ export const CLIMB = {
   crew: { walkMax: 3.5, capMaxSurvival: 2.8, capMaxEra: 4, cadenceMax: 8 },
   /** Broker factor bond payouts read at most (its authored top): past it the Broker only tightens the spread. */
   bondBrokerMax: 3.5,
+  /**
+   * The Steward (docs/EXPANSION.md §A2), a Settlement perk, not an upgrade (so no gate row): from settlement level
+   * `settlement` on, an opt-in toggle buys the cheapest level of the next era's checklist every `every` seconds while
+   * the wallet stays above Raise all's reserve (eras/Steward.ts).
+   */
+  steward: { settlement: 20, every: 2 },
 } as const;
 
 /**

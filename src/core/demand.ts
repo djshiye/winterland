@@ -5,7 +5,7 @@
 import { AMENITIES, AMENITY_IDS, BUSINESSES, DEMAND, ECONOMY, HAPPINESS, PRESTIGE, SETTLEMENT, UPGRADES, VILLAGE, type BusinessId, type DemandLevel, type ProductId } from '../config';
 import { CITY_BUILDINGS, DISTRICTS, INVEST_MAX_POSITIONS, MAX_ERA, REGIONS } from '../eras/data';
 import { cityTotals, type CityTotals } from '../city/rules';
-import { valueAt } from './ladder';
+import { masteryMult, masteryPoints, valueAt } from './ladder';
 import type { GameState } from './types';
 
 /** Buyer behaviour for the current village level. */
@@ -51,13 +51,13 @@ export function seasonMult(state: GameState): number {
 
 /**
  * What a buyer pays for `count` items of `product` at `unitPrice` (ECONOMY.plankPrice / cratePrice / truckLogPrice /
- * pinePrice): times the village price multiplier, the product's Sales upgrades, the season bonus and Renown (1 until
- * settlement 6, so era 1 pays exactly as before), rounded to the
+ * pinePrice): times the village price multiplier, the product's Sales upgrades, the season bonus and the climb's Renown ×
+ * Mastery (climbMult: 1 until settlement 6 and the first capped level, so era 1 pays exactly as before), rounded to the
  * nearest whole cash bundle (never below one bundle).
  */
 export function salePrice(state: GameState, product: ProductId, unitPrice: number, count: number): number {
   const b = ECONOMY.cashBundleValue;
-  const mult = demandOf(state).priceMult * productMult(state, product) * seasonMult(state) * happinessMult(state) * transientPriceMult * renownMult(state);
+  const mult = demandOf(state).priceMult * productMult(state, product) * seasonMult(state) * happinessMult(state) * transientPriceMult * climbMult(state);
   return Math.max(b, Math.round((unitPrice * count * mult) / b) * b);
 }
 
@@ -194,6 +194,29 @@ export function settlementName(level: number): string {
 export function renownMult(state: Pick<GameState, 'village' | 'eras'>): number {
   const over = settlementLevel(state) - SETTLEMENT.band;
   return over > 0 ? SETTLEMENT.renown ** over : 1;
+}
+
+/**
+ * Mastery points (docs/EXPANSION.md §A1): one per level bought while an upgrade's effect already sat at its hard cap,
+ * summed over every upgrade. 0 before the climb: no authored table reaches a cap (core/ladder.ts hardCapStored).
+ */
+export function masteryTotal(state: Pick<GameState, 'upgrades'>): number {
+  let points = 0;
+  for (const d of Object.values(UPGRADES)) points += masteryPoints(d, state.upgrades[d.id] ?? 0);
+  return points;
+}
+
+/** Mastery: the bounded, logarithmic multiplier of masteryTotal (exactly 1 with no points). */
+export function masteryOf(state: Pick<GameState, 'upgrades'>): number {
+  return masteryMult(masteryTotal(state));
+}
+
+/**
+ * What the climb adds to every sale, export and city income: Renown × Mastery. Exactly 1 in era 1 (settlement ≤ 5, no
+ * level past a cap), so 0.8.0 prices are untouched.
+ */
+export function climbMult(state: Pick<GameState, 'village' | 'eras' | 'upgrades'>): number {
+  return renownMult(state) * masteryOf(state);
 }
 
 /** How many era bands a level has reached band position `j` in (level ≥ 5(k − 1) + j for k = 2..MAX_ERA). */

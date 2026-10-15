@@ -22,7 +22,7 @@
 import * as THREE from 'three';
 import { CITY_BUILDINGS, CITY_HAPPINESS_BONUS, DISTRICT_MATERIAL, ERA_NAMES, districtDef, era, type CityBuildingDef, type CityBuildingId } from '../eras/data';
 import type { ChooseOption, GameContext } from '../core/types';
-import { renownMult, settledCityTotals } from '../core/demand';
+import { climbMult, settledCityTotals } from '../core/demand';
 import { Batch } from '../render/batch';
 import { geo } from '../render/materials';
 import { createCityBuilding, createCityScaffold, type CityBuildingModel } from '../assets/cityBuildings';
@@ -328,9 +328,9 @@ export class District {
     const ctx = this.ctx;
     const st = this.state(L);
     const def = CITY_BUILDINGS[st.building as CityBuildingId];
-    // what City pays: the decor happiness perk and Renown included (core/demand.ts, settlement 6..50)
+    // what City pays: the decor happiness perk, Renown and Mastery included (core/demand.ts, settlement 6..50)
     const t = settledCityTotals(ctx.state);
-    const k = (1 + CITY_HAPPINESS_BONUS * t.happiness) * ctx.upgrades.value('taxOffice') * renownMult(ctx.state);
+    const k = (1 + CITY_HAPPINESS_BONUS * t.happiness) * ctx.upgrades.value('taxOffice') * climbMult(ctx.state);
     const rows: { label: string; value: string }[] = [{ label: 'District', value: `${districtDef(this.n).name} (${ERA_NAMES[this.n]})` }];
     if (def.kind === 'home') {
       rows.push({ label: 'Residents', value: String(def.people) }, { label: 'Rent', value: `$${fmt(def.income * k)}/s` });

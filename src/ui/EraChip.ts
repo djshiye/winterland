@@ -7,6 +7,8 @@
  *   progress ring for the checklist, "ERA I · SURVIVAL  12/23 · S5/5" and "Next: Sharp Axe → Lv 10 ($42K)"
  *   (eras/gate.ts nextGoal, re-read 4× a second), "Frontier is for sale!" once ready. Tapping it opens the GateCard
  *   ('gate:open'); it pulses on each 'gate:progress' that finished a row.
+ *   Once a level has passed its hard cap, a small Mastery tag "✦ 340 · +41%" sits after the era name (desktop; the
+ *   GateCard shows the full line on every screen). Re-read on 'upgrade:bought' only.
  * - IncomeFeed: aggregates 'income' events (rent, business, interest, trade, Jack) into one "+$12.5K city" line every
  *   few seconds next to the money pill (never one line per event). Pure aggregation lives in agesLogic.IncomeTicker.
  * Both animate on simulation time from update(dt).
@@ -14,7 +16,9 @@
 import type { GameContext } from '../core/types';
 import { CITY_RANKS, ERAS } from '../eras/data';
 import { climbOpen, gateCount, gateNote, nextGoal } from '../eras/gate';
-import { cityStanding, eraChipVisible, eraRoman, formatPopulation, IncomeTicker, rankName } from './agesLogic';
+import { masteryTotal } from '../core/demand';
+import { masteryMult } from '../core/ladder';
+import { cityStanding, eraChipVisible, eraRoman, formatPopulation, IncomeTicker, masteryTag, rankName } from './agesLogic';
 import { cubicOut, h, onTap, shield } from './dom';
 import { hexCss } from './icons';
 
@@ -33,6 +37,9 @@ export class EraChip {
   private readonly ring: HTMLElement;
   private readonly ringFg: SVGCircleElement;
   private readonly countEl: HTMLSpanElement;
+  private readonly masteryEl: HTMLSpanElement;
+  private masteryDirty = true;
+  private lastMastery = '';
   private shown = false;
   /** The next era's gate is on show (climb open, an era left to reach). */
   private gating = false;
@@ -64,7 +71,8 @@ export class EraChip {
     const top = h('span', 'wl-erachip-top');
     this.eraEl = h('span', 'wl-erachip-era');
     this.countEl = h('span', 'wl-erachip-count');
-    top.append(this.eraEl, this.countEl);
+    this.masteryEl = h('span', 'wl-erachip-mastery');
+    top.append(this.eraEl, this.countEl, this.masteryEl);
     this.cityEl = h('span', 'wl-erachip-city');
     text.append(top, this.cityEl);
     this.root.append(this.dot, this.ring, text);
@@ -79,6 +87,9 @@ export class EraChip {
     ctx.events.on('gate:progress', (e) => {
       this.goalAcc = GOAL_EVERY; // re-read the goal at once
       if (e.gained > 0 || e.readyNow) this.pulse = 1;
+    });
+    ctx.events.on('upgrade:bought', () => {
+      this.masteryDirty = true;
     });
     ctx.events.on('city:changed', (e) => {
       this.population = e.population;
@@ -120,6 +131,15 @@ export class EraChip {
     if (era !== this.lastEra) {
       this.lastEra = era;
       this.eraEl.textContent = era;
+    }
+    if (this.masteryDirty) {
+      this.masteryDirty = false;
+      const points = masteryTotal(state);
+      const tag = points > 0 ? masteryTag(points, masteryMult(points)) : '';
+      if (tag !== this.lastMastery) {
+        this.lastMastery = tag;
+        this.masteryEl.textContent = tag;
+      }
     }
     if (age !== this.lastAge) {
       this.lastAge = age;
