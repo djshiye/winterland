@@ -1095,10 +1095,37 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
 };
 
 /** Round a price to 3 significant figures, then to a multiple of 5. */
-function price3(v: number): number {
+export function price3(v: number): number {
   const mag = 10 ** Math.max(0, Math.floor(Math.log10(Math.max(1, v))) - 2);
   return Math.max(5, Math.round(Math.round(v / mag) * mag / 5) * 5);
 }
+
+/**
+ * The ten-era climb (docs/EXPANSION.md §A): upgrade ladders to shown level `levelCap` (core/ladder.ts). Past an
+ * upgrade's authored max, the price of the step from shown level A to A + 1 is
+ *   F(group, A) = weights[group] · unit · bandGrowth^(band − 2) · stepGrowth^(A mod 10), band = floor(A / 10) + 1
+ * and a Survival id also never drops below its last authored price × legacyStep per level (first lever if the
+ * climb runs long: legacyStep → 1.0). Mastery: every level bought at an effect's hard cap is a point;
+ * multiplier 1 + masteryScale · log2(1 + points / masteryPoints).
+ */
+export const CLIMB = {
+  levelCap: 100,
+  /** Levels per band: era n's gate needs every owned upgrade at shown level bandSize · (n − 1). */
+  bandSize: 10,
+  unit: 250_000,
+  bandGrowth: 2.6,
+  stepGrowth: 1.08,
+  legacyStep: 1.05,
+  weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
+  masteryScale: 0.12,
+  masteryPoints: 25,
+} as const;
+
+/**
+ * The era gate's level convention (docs/EXPANSION.md R4). 'offset': an upgrade introduced in era e shows
+ * stored + 10 · (e − 1), so every era asks +10 levels of everything; 'literal': shown = stored for every id.
+ */
+export const GATE: { mode: 'offset' | 'literal' } = { mode: 'offset' };
 
 /** 0.9.0: Jack's swap cart (share of an item's value he pays), the tax office and the broker. */
 function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> {
