@@ -33,7 +33,9 @@ import {
   type GameEvents,
   type PadId,
   type Updatable,
-  type UpgradeId,, type ItemKind } from '../core/types';
+  type UpgradeId,
+  type ItemKind,
+} from '../core/types';
 import { Renderer } from '../render/Renderer';
 import { CameraRig } from '../render/CameraRig';
 import { Input } from '../input/Input';
