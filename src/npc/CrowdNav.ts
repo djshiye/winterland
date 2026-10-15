@@ -8,7 +8,8 @@
  *
  * Paths are written into a preallocated `Path` (no allocation while planning).
  */
-import { LAYOUT } from '../config';
+import { AMENITY_IDS, LAYOUT, type AmenityId } from '../config';
+import { amenityFrame, amenityToWorld } from '../town/rules';
 import { BENCHES, SNOWMAN, STALLS } from '../town/spots';
 
 /** Radius of a person plus a little air (added to every obstacle). */
@@ -31,6 +32,8 @@ export const OWNER_TREE = 1;
 export const OWNER_SNOWMAN = 2;
 export const ownerBench = (i: number): number => 10 + i;
 export const ownerStall = (i: number): number => 20 + i;
+/** Owner of the solid footprint of amenity `id` ('amenity:<id>'): pass it as `ignore` to reach a spot inside it. */
+export const ownerAmenity = (id: AmenityId): number => 30 + AMENITY_IDS.indexOf(id);
 
 /** Seats are this far from the bench centre, along the bench. */
 export const SEAT_OFFSET = 0.45;
@@ -56,6 +59,38 @@ function buildObstacles(): Obstacle[] {
     const cz = s.z + fz * 0.1;
     out.push({ x: cx - ax * 0.4, z: cz - az * 0.4, x2: cx + ax * 0.4, z2: cz + az * 0.4, r: 0.6, owner: ownerStall(i) });
   });
+  // the amenities (always present: their pads sit there anyway). A footprint rect becomes a stadium (capsule)
+  // along its long side; people walk around it, the pad tiles stay walkable. The café is only its kiosk body (the
+  // back, local z -hd + 0.1 .. -hd + 0.74): the stools and tables in front are where the crowd sits, so no
+  // `ignore` mask is needed for them.
+  for (const id of AMENITY_IDS) {
+    const f = amenityFrame(id);
+    let { minX, maxX, minZ, maxZ } = f.rect;
+    if (id === 'cafe') {
+      const kw = Math.min(1.8, f.w - 0.3);
+      const a = amenityToWorld(f, -kw / 2, -f.d / 2 + 0.1);
+      const b = amenityToWorld(f, kw / 2, -f.d / 2 + 0.74);
+      minX = Math.min(a.x, b.x);
+      maxX = Math.max(a.x, b.x);
+      minZ = Math.min(a.z, b.z);
+      maxZ = Math.max(a.z, b.z);
+    }
+    const cx = (minX + maxX) / 2;
+    const cz = (minZ + maxZ) / 2;
+    const hx = (maxX - minX) / 2;
+    const hz = (maxZ - minZ) / 2;
+    const r = Math.min(hx, hz);
+    const hl = Math.max(hx, hz) - r; // half length of the capsule axis
+    const alongX = hx >= hz;
+    out.push({
+      x: cx - (alongX ? hl : 0),
+      z: cz - (alongX ? 0 : hl),
+      x2: cx + (alongX ? hl : 0),
+      z2: cz + (alongX ? 0 : hl),
+      r,
+      owner: ownerAmenity(id),
+    });
+  }
   return out;
 }
 
@@ -426,6 +461,8 @@ export function seatPoint(i: number, seat: number, out: { x: number; z: number; 
 }
 
 export const NAV = {
+  /** Number of waypoint-graph nodes (Dijkstra is O(nodes²) per leg). */
+  nodes: NN,
   corridorZ: CORR_Z,
   gateStreet: GATE_STREET,
   gateSquare: GATE_SQUARE,

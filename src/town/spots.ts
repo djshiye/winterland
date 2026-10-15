@@ -6,6 +6,7 @@
 import { AMENITY_IDS, type AmenityId, type XZ } from '../config';
 import { CAFE_STOOLS } from '../assets/townAmenities';
 import { amenityFrame, amenityToWorld, type AmenityFrame } from './rules';
+import type { Rect } from '../config';
 
 export interface Spot extends XZ {
   yaw: number;
@@ -31,12 +32,22 @@ export const STALLS: readonly Spot[] = [
 /** A snowman (solid, r 0.5) kids gather around. */
 export const SNOWMAN: Spot = { x: 30.0, z: 27.1, yaw: -Math.PI / 2 };
 
-/** People stand around the big tree here (r ≈ 2.3 from it), facing it. */
+/** True when (x, z) lies inside `r` grown by `margin` on every side. */
+const insideGrown = (r: Rect, x: number, z: number, margin: number): boolean =>
+  x >= r.minX - margin && x <= r.maxX + margin && z >= r.minZ - margin && z <= r.maxZ + margin;
+
+/** Amenity footprints (rules.amenityFrame, rotated by facing) that the tree ring must keep clear of. */
+const AMENITY_RECTS: readonly Rect[] = AMENITY_IDS.map((id) => amenityFrame(id).rect);
+
+/**
+ * People stand around the big tree here (r ≈ 2.3 from it), facing it. Eight angles; any angle whose point falls inside
+ * an amenity footprint grown by 0.4 m is dropped (the remaining spots keep their angles).
+ */
 export const TREE_RING: readonly Spot[] = Array.from({ length: 8 }, (_, i) => {
   const a = (i / 8) * Math.PI * 2 + 0.3;
   const p = { x: TREE.x + Math.sin(a) * 2.3, z: TREE.z + Math.cos(a) * 2.3 };
   return { ...p, yaw: toward(p, TREE) };
-});
+}).filter((p) => !AMENITY_RECTS.some((r) => insideGrown(r, p.x, p.z, 0.4)));
 
 // ---------------------------------------------------------------------------------------------------------------
 // Wave 12: amenity spots for the crowd (town/Town.ts builds the sites; npc/Townsfolk.ts uses these)
