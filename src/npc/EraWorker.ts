@@ -354,12 +354,17 @@ export class EraWorker {
     return this.ctx.upgrades.value(this.upgradeId);
   }
 
+  /** Walk / capacity / cadence factors, each clamped past the authored table (Upgrades.crewStats). */
+  private get stats(): { walk: number; capacity: number; cadence: number } {
+    return this.ctx.upgrades.crewStats(this.upgradeId);
+  }
+
   get capacity(): number {
-    return Math.max(1, Math.floor(ERA_WORKER.capacity * this.mult));
+    return Math.max(1, Math.floor(ERA_WORKER.capacity * this.stats.capacity));
   }
 
   private get interval(): number {
-    return BASE_INTERVAL / Math.max(0.5, this.mult);
+    return BASE_INTERVAL / this.stats.cadence;
   }
 
   get moving(): boolean {
@@ -690,7 +695,7 @@ export class EraWorker {
       const dx = goal.x - p.x;
       const dz = goal.z - p.z;
       const d = Math.hypot(dx, dz);
-      const max = ERA_WORKER.walkSpeed * Math.max(0.5, this.mult);
+      const max = ERA_WORKER.walkSpeed * this.stats.walk;
       const target = last ? Math.min(max, 1.2 + d * 4) : max;
       this.speed = approach(this.speed, target, ACCEL * dt);
       const stepLen = this.speed * dt;

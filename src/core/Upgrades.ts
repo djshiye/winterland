@@ -6,10 +6,15 @@
  * Two ways to gain a level, both ending in levelUp() → 'upgrade:bought':
  * - buy(id): the shop panel (lumberjack + crew). Spends nextCost(id) at once.
  * - levelUp(id, position): a machine's level pad, after the pad collected nextCost(id) itself.
+ *
+ * Effects and prices come from core/ladder.ts: the authored tables up to their max, then the climb's curves. The
+ * levels past the authored max can only be bought once the climb is open (the Great Lodge, eras/gate.ts).
  */
 import type * as THREE from 'three';
-import { QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
+import { CLIMB, QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
 import { ERA_NAMES } from '../eras/data';
+import { climbOpen } from '../eras/gate';
+import { introEra, maxStored, shown, stepCost, valueAt } from './ladder';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
 import type { GameEvents, GameState, UpgradeId } from './types';
@@ -41,8 +46,14 @@ export class Upgrades {
     return this.state.upgrades[id];
   }
 
+  /** Highest stored level for sale now: the authored max, or shown level 100 once the climb is open. */
   maxLevel(id: UpgradeId): number {
-    return UPGRADES[id].values.length - 1;
+    return maxStored(UPGRADES[id], climbOpen(this.state));
+  }
+
+  /** The level the player sees (stored + the id's era offset, docs/EXPANSION.md R4). */
+  shownLevel(id: UpgradeId): number {
+    return shown(UPGRADES[id], this.level(id));
   }
 
   isMax(id: UpgradeId): boolean {
@@ -51,18 +62,29 @@ export class Upgrades {
 
   /** Current effect (see UpgradeDef.values). Crew not hired → 0. */
   value(id: UpgradeId): number {
-    const v = UPGRADES[id].values;
-    return v[Math.min(this.level(id), v.length - 1)]!;
+    return valueAt(UPGRADES[id], this.level(id));
   }
 
   /** Effect after the next purchase, or null at max level. */
   nextValue(id: UpgradeId): number | null {
-    return this.isMax(id) ? null : UPGRADES[id].values[this.level(id) + 1]!;
+    return this.isMax(id) ? null : valueAt(UPGRADES[id], this.level(id) + 1);
   }
 
   /** Price of the next level, or null at max level. */
   nextCost(id: UpgradeId): number | null {
-    return this.isMax(id) ? null : UPGRADES[id].costs[this.level(id)]!;
+    return this.isMax(id) ? null : stepCost(UPGRADES[id], this.level(id));
+  }
+
+  /**
+   * Crew work factors on the role's base stats (docs/EXPANSION.md §A1): walk ×walk, capacity ⌊base × capacity⌋,
+   * cadence base ÷ cadence. Each clamps on its own, so a crew past its table speeds up without carrying meshes it
+   * cannot draw; up to v = 2.8 all three equal today's linear reads (0.5 floor on walk and cadence as before).
+   */
+  crewStats(id: UpgradeId): { mult: number; walk: number; capacity: number; cadence: number } {
+    const v = this.value(id);
+    const c = CLIMB.crew;
+    const capMax = introEra(UPGRADES[id]) === 1 ? c.capMaxSurvival : c.capMaxEra;
+    return { mult: v, walk: Math.max(0.5, Math.min(v, c.walkMax)), capacity: Math.min(v, capMax), cadence: Math.max(0.5, Math.min(v, c.cadenceMax)) };
   }
 
   /** Crew: hired at all. */
@@ -114,15 +136,15 @@ export class Upgrades {
     this.events.emit('upgrade:bought', { id, level: this.state.upgrades[id], position });
   }
 
-  /** Debug / tests: jump to a level silently (clamped). Systems pick it up on their next read. */
+  /** Debug / tests: jump to a level silently (clamped to shown level 100, climb open or not). Systems pick it up on their next read. */
   setLevel(id: UpgradeId, level: number): void {
-    this.state.upgrades[id] = Math.max(0, Math.min(this.maxLevel(id), Math.round(level)));
+    this.state.upgrades[id] = Math.max(0, Math.min(maxStored(UPGRADES[id], true), Math.round(level)));
   }
 
   /** Short effect text for a level (default: current), e.g. "16 items", "7.4 m/s", "2.9 chops/s", "×1.3". */
   describe(id: UpgradeId, level = this.level(id)): string {
     const d = UPGRADES[id];
-    const v = d.values[Math.min(level, d.values.length - 1)]!;
+    const v = valueAt(d, level);
     switch (d.display) {
       case 'count':
         return `${v} ${d.unit ?? ''}`.trim();

@@ -10,6 +10,7 @@
  * (at most twelve) positions' ages. The random source is injectable so tests are deterministic.
  */
 import type * as THREE from 'three';
+import { CLIMB } from '../config';
 import { demandOf, seasonMult } from './demand';
 import { BOND_CAP_SHARE, ERAS, INVEST, INVEST_MAX_POSITIONS, isMaterial, MARKET, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
 import type { GameContext, InvestmentState, ItemKind, MaterialKind, Updatable } from './types';
@@ -253,9 +254,12 @@ export class Market implements Updatable {
     return (Object.keys(INVEST) as InvestProductId[]).filter((p) => INVEST[p].era <= this.ctx.state.eras.age);
   }
 
-  /** Dollars a bond pays at maturity per dollar of principal (the Broker raises the rate). */
+  /**
+   * Dollars a bond pays at maturity per dollar of principal (the Broker raises the rate). Broker levels past its
+   * table only tighten the spread: bonds stop at the authored top, exactly as in 0.9 (docs/EXPANSION.md §A1).
+   */
   bondPayout(): number {
-    return 1 + INVEST.bond.rate * Math.sqrt(this.ctx.upgrades.value('broker'));
+    return 1 + INVEST.bond.rate * Math.sqrt(Math.min(this.ctx.upgrades.value('broker'), CLIMB.bondBrokerMax));
   }
 
   /** Principal in bonds right now. */

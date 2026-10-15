@@ -8,6 +8,7 @@
  */
 import { PRIORITIES, QUARTERS, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
+import { authoredMax } from '../core/ladder';
 import type { GameContext } from '../core/types';
 import { ERAS } from '../eras/data';
 import { expansionOffered } from '../eras/layout';
@@ -267,7 +268,8 @@ export class ShopPanel {
     mid.appendChild(h('div', 'wl-shop-blurb', def.blurb));
     const pipRow = h('div', 'wl-pips');
     const pips: HTMLSpanElement[] = [];
-    const max = this.ctx.upgrades.maxLevel(id);
+    // the authored pips (0.8.0's row); levels past them, once the climb opens, show on the "Lv n/max" label
+    const max = authoredMax(def);
     const compact = max > COMPACT_PIPS;
     pipRow.classList.toggle('is-compact', compact);
     for (let i = 0; i < max; i++) {
@@ -367,7 +369,10 @@ export class ShopPanel {
       if (c.shown.pips !== lvl) {
         c.shown.pips = lvl;
         for (let i = 0; i < c.pips.length; i++) c.pips[i]!.classList.toggle('on', i < lvl);
-        if (c.lv) c.lv.textContent = `Lv ${lvl}/${c.pips.length}`;
+      }
+      if (c.lv) {
+        const lv = `Lv ${lvl}/${up.maxLevel(id)}`; // the max moves to shown 100 when the Great Lodge opens the climb
+        if (c.lv.textContent !== lv) c.lv.textContent = lv;
       }
       const delta = isMax ? `${up.describe(id)} (max)` : `${up.describe(id)} → ${up.describe(id, lvl + 1)}`;
       if (delta !== c.shown.delta) {

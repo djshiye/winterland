@@ -3,6 +3,7 @@
  * (call them at spawn / pay time; never cache the result).
  */
 import { AMENITIES, AMENITY_IDS, BUSINESSES, DEMAND, ECONOMY, HAPPINESS, PRESTIGE, UPGRADES, VILLAGE, type BusinessId, type DemandLevel, type ProductId } from '../config';
+import { valueAt } from './ladder';
 import type { GameState } from './types';
 
 /** Buyer behaviour for the current village level. */
@@ -15,7 +16,7 @@ export function productMult(state: GameState, product: ProductId): number {
   let m = 1;
   for (const d of Object.values(UPGRADES)) {
     if (d.group !== 'sales' || d.product !== product) continue;
-    m *= d.values[Math.min(state.upgrades[d.id] ?? 0, d.values.length - 1)]!;
+    m *= valueAt(d, state.upgrades[d.id] ?? 0);
   }
   return m;
 }

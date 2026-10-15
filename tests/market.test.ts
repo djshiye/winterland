@@ -247,7 +247,7 @@ describe('investments', () => {
   });
 
   it('bond: principal until the lock ends, then principal × (1 + rate × √broker)', () => {
-    const { market, economy, log } = setup({ money: 100_000, upgrades: { broker: 4 } });
+    const { market, economy, log } = setup({ money: 100_000, upgrades: { broker: 2.25 } });
     expect(market.invest('bond', 10_000)).toBe(true);
     const pos = market.positions()[0]!;
     expect(pos.value).toBe(10_000);
@@ -257,13 +257,13 @@ describe('investments', () => {
     const changed = log.filter((l) => l.type === 'invest:changed').length;
     run(market, 10, 5);
     expect(market.matured(pos)).toBe(true);
-    expect(pos.value).toBeCloseTo(10_000 * (1 + INVEST.bond.rate * 2), 6);
+    expect(pos.value).toBeCloseTo(10_000 * (1 + INVEST.bond.rate * 1.5), 6);
     expect(log.filter((l) => l.type === 'invest:changed').length).toBe(changed + 1); // matured, announced once
     run(market, 600, 5);
-    expect(pos.value).toBeCloseTo(10_000 * (1 + INVEST.bond.rate * 2), 6); // stays there
+    expect(pos.value).toBeCloseTo(10_000 * (1 + INVEST.bond.rate * 1.5), 6); // stays there
     const m0 = economy.money;
     const pay = market.withdraw(pos.id);
-    expect(pay).toBe(Math.round(10_000 * 1.24));
+    expect(pay).toBe(Math.round(10_000 * (1 + INVEST.bond.rate * 1.5)));
     expect(economy.money).toBe(m0 + pay);
     expect(market.positions().length).toBe(0);
     expect(log.some((l) => l.type === 'income' && (l.payload as { source: string }).source === 'interest')).toBe(true);

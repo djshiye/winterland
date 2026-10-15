@@ -141,12 +141,27 @@ function bandPrice(def: UpgradeDef, A: number): number {
  * Ids from era 2 on price every step on the band curve. Always a multiple of 5, strictly rising.
  */
 export function costAt(def: UpgradeDef, s: number): number {
+  if (introEra(def) >= 2) return price3(bandPrice(def, base(def) + s));
+  return legacyCost(def, s);
+}
+
+/** The era-1 rule: the authored table, then legacyStep per level, never below the band price from shown level 10. */
+function legacyCost(def: UpgradeDef, s: number): number {
   const m = authoredMax(def);
   const A = base(def) + s;
-  if (introEra(def) >= 2) return price3(bandPrice(def, A));
   if (s < m) return def.costs[s]!;
   const legacy = def.costs[m - 1]! * CLIMB.legacyStep ** (s - m + 1);
   return price3(A < CLIMB.bandSize ? legacy : Math.max(legacy, bandPrice(def, A)));
+}
+
+/**
+ * The price the game charges (Upgrades.nextCost). Until the era economy ×10 lands (docs/EXPANSION.md order, step 6)
+ * the ids from era 2 on still carry their authored cost tables, scaled to today's era income: while they do, they
+ * are priced like an era-1 id (table, then the legacy step, never below the band). Step 6 drops those tables, and
+ * every id then prices exactly as costAt.
+ */
+export function stepCost(def: UpgradeDef, s: number): number {
+  return introEra(def) >= 2 && def.costs.length === 0 ? costAt(def, s) : legacyCost(def, s);
 }
 
 /** Mastery points from one upgrade at stored level s: the levels bought while its effect was already at the cap. */
