@@ -2,7 +2,7 @@
  * Shared contracts. Every module codes against these; do not change them without the main session.
  */
 import type * as THREE from 'three';
-import type { BusinessId as BusinessIdConst, PadIdConst, UpgradeIdConst } from '../config';
+import type { BusinessId as BusinessIdConst, PadIdConst, TownPriority, UpgradeIdConst, WoodPriority } from '../config';
 import type { EventBus } from './EventBus';
 import type { TweenManager } from './Tween';
 import type { Economy } from './Economy';
@@ -220,6 +220,8 @@ export interface GameState {
   quests: Partial<Record<string, boolean>>;
   /** Wave 9: the Market Town. */
   town: TownState;
+  /** Wave 11: what the crew favours when wood or deliveries are short (config PRIORITIES). */
+  priorities: { wood: WoodPriority; town: TownPriority };
 }
 
 /** Must match LAYOUT.village.plots.length (kept literal so this file only imports types from config). */
@@ -281,6 +283,8 @@ export function createGameState(): GameState {
       workshop: 0,
       furnitureQuality: 0,
       porter: 0,
+      sledLoader: 0,
+      foreman: 0,
     },
     village: {
       revealed: false,
@@ -297,6 +301,7 @@ export function createGameState(): GameState {
     clock: 24, // DAYNIGHT.startAt × cycleSeconds (literal: this file imports only types from config)
     quests: {},
     town: { revealed: false, lots: Array.from({ length: LOT_COUNT }, () => ({ building: '', tier: -1, logs: 0, cash: 0 })) },
+    priorities: { wood: 'balanced', town: 'balanced' },
   };
 }
 
