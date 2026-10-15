@@ -87,6 +87,8 @@ export interface DebugApi {
   render(): void;
   /** Screen-space move override (x right, y up); pass null to release. */
   setMove(x: number | null, y?: number): void;
+  /** Force hold-to-interact held (true), released (false) or live input (null). */
+  setInteract(on: boolean | null): void;
   /** Autopilot the player toward a world XZ point (cleared on arrival). */
   moveTo(x: number, z: number): void;
   teleport(x: number, z: number): void;
@@ -427,6 +429,9 @@ export class Game {
         return this.snapshot();
       },
       render: () => ctx.renderer.render(),
+      setInteract: (on: boolean | null) => {
+        ctx.input.interactOverride = on;
+      },
       setMove: (x: number | null, y = 0) => {
         ctx.input.override = x === null ? null : new THREE.Vector2(x, y);
       },

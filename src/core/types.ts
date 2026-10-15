@@ -352,6 +352,10 @@ export interface GameEvents {
   'settings:fps': { cap: 0 | 30 | 60 };
   /** Settings → Restore save: validated save text. Game stops autosaving, writes it and reloads. */
   'save:restore': { text: string };
+  /** The player stands in a gated zone (hold to interact is on) with something to take or pay; `on` false when they leave or hold. */
+  'interact:prompt': { on: boolean; kind: 'take' | 'pay' };
+  /** Settings → Game toggled hold-to-interact (Input re-reads it). */
+  'settings:hold': { on: boolean };
   'shop:open': Record<string, never>;
   'shop:close': Record<string, never>;
   /** A construction pad received a log or a cash bundle. key: 'plot:<i>' | 'greatLodge'. */
