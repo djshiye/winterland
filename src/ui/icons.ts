@@ -172,6 +172,14 @@ const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
       <rect x="3" y="26" width="32" height="6" rx="3" fill="#f2b61f"/>
       <path d="M16 14v12M22 14v12" stroke="#f2b61f" stroke-width="2.4" fill="none"/>
     </g>`),
+  // wave 13: a husky head (placeholder until the dog builder draws the real one)
+  dog: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M12 16l8 4h8l8-4-2 14c0 6-5 10-10 10S10 36 10 30z" fill="#dfe6ee"/>
+      <path d="M12 16l3 10 5-6zM36 16l-3 10-5-6z" fill="#8fa3b8"/>
+      <circle cx="19" cy="25" r="2" fill="#2a3652"/><circle cx="29" cy="25" r="2" fill="#2a3652"/>
+      <path d="M22 30h4l-2 3z" fill="#2a3652"/>
+    </g>`),
   // wave 7: a signed rail contract with a pine and a gold seal
   pineContracts: svg(`
     <g stroke="${OUT}" stroke-width="2.5">

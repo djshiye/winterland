@@ -7,7 +7,7 @@
  *   → camera → shadow focus → HUD (projects world anchors) → render
  */
 import * as THREE from 'three';
-import { AMENITIES, BUSINESSES, CREW, DAYNIGHT, DEMAND, ECONOMY, HAPPINESS, LAYOUT, PADS, PLAYER, PRESTIGE, PRIORITIES, QUARTERS, RIDGE, SAVE, TIMING, TOWN, UPGRADES, VILLAGE, type AmenityId, type BusinessId } from '../config';
+import { AMENITIES, BUSINESSES, CREW, DAYNIGHT, DEMAND, ECONOMY, HAPPINESS, LAYOUT, PADS, PLAYER, PRESTIGE, PRIORITIES, QUARTERS, RIDGE, SAVE, TIMING, TOWN, UPGRADES, VILLAGE, type AmenityId, type BusinessId, type EventKind } from '../config';
 import { EventBus } from '../core/EventBus';
 import { Economy } from '../core/Economy';
 import {
@@ -33,8 +33,7 @@ import {
   type GameEvents,
   type PadId,
   type Updatable,
-  type UpgradeId,
-} from '../core/types';
+  type UpgradeId,, type ItemKind } from '../core/types';
 import { Renderer } from '../render/Renderer';
 import { CameraRig } from '../render/CameraRig';
 import { Input } from '../input/Input';
@@ -50,6 +49,8 @@ import { JuiceDirector } from '../fx/JuiceDirector';
 import { Fireworks } from '../fx/Fireworks';
 import { HUD } from '../ui/HUD';
 import { readFpsCap, writeFpsCap, type FpsCap } from '../core/fps';
+import { WorldEvents } from '../core/WorldEvents';
+import { Contracts } from '../core/Contracts';
 import { Level } from '../level/Level';
 
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
@@ -115,6 +116,9 @@ export interface DebugApi {
   buildAmenity(id: AmenityId): void;
   /** Start the next season (prestige) now: writes the new-season save and reloads. */
   newSeason(): void;
+  /** Wave 13: start a world event / offer a contract now (tests). */
+  startEvent(kind: EventKind, seconds?: number): void;
+  offerContract(kind?: ItemKind): void;
   /** Start a rush hour now (tests). */
   startRush(seconds?: number): void;
   /** Jump the day/night clock to cycle share `p` (0..1; 0.75 = deep night). */
@@ -187,6 +191,8 @@ export class Game {
       dayNight: new DayNight(state, events),
       rush: new RushHours(state, events),
       quests: new Quests(state, economy, events),
+      worldEvents: new WorldEvents(state, events, () => ctx.dayNight.darkness),
+      contracts: new Contracts(state, economy, events),
       time: { elapsed: 0, frame: 0 },
       addUpdatable: (u: Updatable) => {
         this.pendingRemovals.delete(u);
@@ -348,6 +354,8 @@ export class Game {
     c.dayNight.update(dt);
     c.rush.update(dt);
     c.quests.update(dt);
+    c.worldEvents.update(dt);
+    c.contracts.update(dt);
     this.flushRemovals();
     for (let i = 0; i < this.updatables.length; i++) {
       const u = this.updatables[i]!;
@@ -460,6 +468,8 @@ export class Game {
       buildAmenity: (id: AmenityId) => this.level.town.debugBuildAmenity(id),
       newSeason: () => ctx.events.emit('season:new', {}),
       startRush: (seconds?: number) => ctx.rush.start(seconds),
+      startEvent: (kind: EventKind, seconds?: number) => ctx.worldEvents.start(kind, seconds),
+      offerContract: (kind?: ItemKind) => ctx.contracts.offer(kind),
       setTimeOfDay: (p: number) => {
         ctx.state.clock = Math.max(0, Math.min(1, p)) * DAYNIGHT.cycleSeconds;
       },

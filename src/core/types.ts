@@ -2,13 +2,15 @@
  * Shared contracts. Every module codes against these; do not change them without the main session.
  */
 import type * as THREE from 'three';
-import type { AmenityId as AmenityIdConst, BusinessId as BusinessIdConst, PadIdConst, TownPriority, UpgradeIdConst, WoodPriority } from '../config';
+import type { AmenityId as AmenityIdConst, BusinessId as BusinessIdConst, EventKind, PadIdConst, TownPriority, UpgradeIdConst, WoodPriority } from '../config';
 import type { EventBus } from './EventBus';
 import type { TweenManager } from './Tween';
 import type { Economy } from './Economy';
 import type { DayNight } from './DayNight';
 import type { RushHours } from './Rush';
 import type { Quests } from './quests';
+import type { WorldEvents } from './WorldEvents';
+import type { Contracts } from './Contracts';
 import type { Renderer } from '../render/Renderer';
 import type { CameraRig } from '../render/CameraRig';
 import type { Input } from '../input/Input';
@@ -144,6 +146,7 @@ export type FlagId =
   | 'shopRevealed'
   | 'shopVisited'
   | 'finale'
+  | 'grandMarket'
   | `reveal:${string}`
   | `seen:${string}`;
 
@@ -173,6 +176,17 @@ export interface TownState {
   lots: LotState[];
   /** Wave 12: fixed amenity sites (tier -1 = not built, 0 = built), paid like the Great Lodge. */
   amenities: Record<AmenityIdConst, { tier: number; logs: number; cash: number }>;
+  /** Wave 13: the Grand Market (Winterland era finale): logs + cash + toys. */
+  grandMarket: { tier: number; logs: number; cash: number; toys: number };
+}
+
+/** Wave 13: the current delivery contract ('' kind = none). `left` counts down in play seconds. */
+export interface ContractState {
+  kind: ItemKind | '';
+  target: number;
+  progress: number;
+  left: number;
+  bonus: number;
 }
 
 /** Must match LAYOUT.town.lots.length. */
@@ -224,6 +238,8 @@ export interface GameState {
   town: TownState;
   /** Wave 11: what the crew favours when wood or deliveries are short (config PRIORITIES). */
   priorities: { wood: WoodPriority; town: TownPriority };
+  /** Wave 13: the delivery contract on the notice board. */
+  contract: ContractState;
 }
 
 /** Must match LAYOUT.village.plots.length (kept literal so this file only imports types from config). */
@@ -287,6 +303,7 @@ export function createGameState(): GameState {
       porter: 0,
       sledLoader: 0,
       foreman: 0,
+      dog: 0,
     },
     village: {
       revealed: false,
@@ -311,8 +328,10 @@ export function createGameState(): GameState {
         bandstand: { tier: -1, logs: 0, cash: 0 },
         snowmanPark: { tier: -1, logs: 0, cash: 0 },
       },
+      grandMarket: { tier: -1, logs: 0, cash: 0, toys: 0 },
     },
     priorities: { wood: 'balanced', town: 'balanced' },
+    contract: { kind: '', target: 0, progress: 0, left: 0, bonus: 0 },
   };
 }
 
@@ -404,6 +423,15 @@ export interface GameEvents {
   /** Wave 8: a quest's goal was met; its reward is already added to the money. */
   'quest:done': { id: string; title: string; reward: number };
   /** Wave 8: rush hour (core/Rush.ts) began / ended. */
+  /** Wave 13: world events (core/WorldEvents.ts). */
+  'event:start': { kind: EventKind; seconds: number };
+  'event:end': { kind: EventKind };
+  /** Wave 13: delivery contracts (core/Contracts.ts). */
+  'contract:offered': { kind: ItemKind; count: number; seconds: number; bonus: number };
+  'contract:done': { kind: ItemKind; bonus: number };
+  'contract:failed': { kind: ItemKind };
+  /** Wave 13: the Grand Market stands (town/Town.ts); the second finale. */
+  'finale2:start': { position: THREE.Vector3 };
   'rush:start': { seconds: number };
   'rush:end': Record<string, never>;
   /** Wave 8: darkness crossed 0.5 (core/DayNight.ts). Not emitted while day/night is off. */
@@ -466,6 +494,10 @@ export interface GameContext {
   readonly rush: RushHours;
   /** Wave 8: quests (short goals with cash rewards). */
   readonly quests: Quests;
+  /** Wave 13: world events (snowstorm, festival, aurora). */
+  readonly worldEvents: WorldEvents;
+  /** Wave 13: delivery contracts. */
+  readonly contracts: Contracts;
   /** Simulation clock (seconds since start, advanced by fixed/variable steps). */
   readonly time: { elapsed: number; frame: number };
   /** Register something to be updated every step (after zones, before flights). */
