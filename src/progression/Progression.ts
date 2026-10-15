@@ -22,6 +22,11 @@
  *   unlock plays a two-stop camera moment (east gate, then the ridge). The guide walks the player through the east
  *   gate, to the bunkhouse pad (Level.quarters.padSpot()), pine logs from the deck to the rail platform, and hiring
  *   the pine hauler.
+ * - Wave 8: the workshop pad appears 60 s after the tree feller (reveals.ts). Its unlock plays a feller-style pan. The
+ *   guide: "Build the Workshop ($15,000)" (the generic pad hint), then a one-off lesson "Feed logs to the workshop"
+ *   (hopper arrow; "Pick up logs for the workshop" fetches them from the deck / yard) until the first chair exists,
+ *   "Grab the chairs for the dog sleds" at the bench, and "Carry chairs to the dog sleds" at the sled counter. The sled
+ *   cash joins the "Collect your cash" biggest-pile pick through Level.cashPiles().
  * - Guide (re-evaluated ~4×/s): one objective at a time via ctx.hud.setObjective(text) +
  *   ctx.hud.setGuideTarget(world point) — chop → pick up → sell → collect cash → build pad → feed the
  *   processor → grab the crates → load the tricycles / trucks. The arrow is hidden while the player already
@@ -42,6 +47,8 @@ const SHOP_REMINDER = 120;
 const RULE_INTERVAL = 0.2;
 /** With the cash tubes built, "Collect your cash" only shows for a pile worth at least this much. */
 const CASH_BACKLOG = 300;
+/** The "feed logs to the workshop" lesson is offered this long after the workshop opens, and only until the first chair. */
+const WORKSHOP_LESSON = 600; // long enough that a busy village can't hide the lesson
 
 const PAD_ORDER = [
   'harvester',
@@ -300,8 +307,10 @@ export class Progression {
       }
       const anchor = this.level.anchorOf(id, this.tmpPoint);
       // The feller is a smaller beat than the big unlocks.
-      const hold = id === 'megaSaw' ? 2.0 : id === 'treeFeller' ? 1.0 : 1.4;
-      this.ctx.cameraRig.focus(anchor, { duration: id === 'treeFeller' ? 0.7 : 0.8, hold });
+      // The workshop gets the feller's quick pan with a slightly longer look (the cabin is the star).
+      const small = id === 'treeFeller' || id === 'workshop';
+      const hold = id === 'megaSaw' ? 2.0 : id === 'treeFeller' ? 1.0 : id === 'workshop' ? 1.5 : 1.4;
+      this.ctx.cameraRig.focus(anchor, { duration: small ? 0.7 : 0.8, hold });
     }
   }
 
@@ -573,6 +582,15 @@ export class Progression {
       return;
     }
 
+    // 2a. Wave 8: chairs in hand go to the dog sled counter (skipped while the counter is full: the sleds will empty it).
+    const armsChairs = arms.count('furniture');
+    const workshop = L.workshop;
+    const sledCounter = L.sledCounter;
+    if (armsChairs > 0 && sledCounter && sledCounter.pile.canAccept('furniture')) {
+      this.setGoal('Carry chairs to the dog sleds', sledCounter.zone.area);
+      return;
+    }
+
     // 2b. Timber Ridge is open but the player has not been through the east gate yet.
     if (s.unlocked.ridge && !s.unlocked.treeFeller && !s.flags['seen:ridge']) {
       if (inArea(LAYOUT.ridge.walk[1]!)) {
@@ -600,9 +618,27 @@ export class Progression {
     if (need && this.pursue(need)) return;
     if (quarters && this.pursue(quarters)) return;
 
-    // 4. Pine logs. Keep picking up while standing at a stocked deck; logs in hand on the ridge go to the train.
     const deck = L.treeFeller?.deck;
     const deckLogs = deck?.count('log') ?? 0;
+    // 3b. The workshop lesson (a one-off: until the first chair exists or the hopper holds a log, for a limited time):
+    // logs in hand go into the west hopper. Fetching the logs is the low-priority half (see 5c).
+    const feedLesson =
+      !!workshop &&
+      s.stats.furnitureMade === 0 &&
+      workshop.input.count('log') === 0 &&
+      workshop.input.canAccept('log') &&
+      this.query.sinceUnlock('workshop') < WORKSHOP_LESSON;
+    // (not while the player is still loading up at a stocked deck / drop zone)
+    const loadingUp =
+      armsLogs < PICKUP_STAY_UNTIL &&
+      !armsFull &&
+      ((deckLogs > 0 && inArea(LAYOUT.ridge.deck.zone)) || (dropCount > 0 && inArea(L.dropZone.zone.area)));
+    if (feedLesson && armsLogs > 0 && !loadingUp) {
+      this.setGoal('Feed logs to the workshop', LAYOUT.ridge.workshop.hopper.zone);
+      return;
+    }
+
+    // 4. Pine logs. Keep picking up while standing at a stocked deck; logs in hand on the ridge go to the train.
     const pickingDeck = !!deck && inArea(LAYOUT.ridge.deck.zone) && deckLogs > 0 && !armsFull && armsLogs < PICKUP_STAY_UNTIL;
     if (pickingDeck) {
       this.setGoal('Pick up pine logs', LAYOUT.ridge.deck.zone);
@@ -648,6 +684,26 @@ export class Progression {
     if (pile.value > (L.cashTubes ? CASH_BACKLOG : 0)) {
       this.setGoal('Collect your cash', pile.zone.area);
       return;
+    }
+
+    // 5a. Chairs waiting on the workshop bench (the counter must have room, or the trip would be pointless).
+    if (workshop && sledCounter && !armsFull && workshop.output.count('furniture') > 0 && sledCounter.pile.canAccept('furniture')) {
+      this.setGoal('Grab the chairs for the dog sleds', LAYOUT.ridge.workshop.bench.zone);
+      return;
+    }
+
+    // 5c. The workshop lesson, fetching half: the nearest stocked log pile to the hopper (the deck first on the ridge).
+    if (feedLesson && !armsFull) {
+      const hopper = LAYOUT.ridge.workshop.hopper;
+      const sources: Rect[] = [];
+      if (deckLogs > 0) sources.push(LAYOUT.ridge.deck.zone);
+      if (dropCount > 0) sources.push(L.dropZone.zone.area);
+      const dist = (a: Rect): number => Math.hypot((a.minX + a.maxX) / 2 - hopper.x, (a.minZ + a.maxZ) / 2 - hopper.z);
+      sources.sort((a, b) => dist(a) - dist(b));
+      if (sources[0]) {
+        this.setGoal('Pick up logs for the workshop', sources[0]);
+        return;
+      }
     }
 
     // 5b. Pine logs waiting on the deck and nobody hired to haul them.

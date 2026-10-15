@@ -609,6 +609,10 @@
   text-transform: uppercase;
 }
 
+.wl-stat.is-hot {
+  grid-column: 1 / -1;
+}
+
 .wl-stat.is-hot b {
   color: #5ee07a;
 }
@@ -625,7 +629,27 @@
   }
   .wl-stats {
     grid-template-columns: repeat(4, 1fr);
+    gap: 4px 8px;
     margin-bottom: 10px;
+  }
+  .wl-stat {
+    padding: 3px 4px 3px;
+  }
+  .wl-stat b {
+    font-size: 19px;
+  }
+  .wl-stat span {
+    font-size: 11px;
+  }
+  /* the hero cell becomes a single line: "$2.48M  MONEY EARNED" */
+  .wl-stat.is-hot {
+    flex-direction: row;
+    justify-content: center;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .wl-stat.is-hot b {
+    font-size: 24px;
   }
   .wl-card-title {
     font-size: 24px;

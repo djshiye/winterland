@@ -32,9 +32,9 @@ describe('reveal table', () => {
 
   it('every wave 7 pad has a pad rule and the two machines get level pads', () => {
     const pads = REVEALS.filter((r) => r.action.kind === 'pad').map((r) => (r.action.kind === 'pad' ? r.action.id : ''));
-    for (const id of ['truckLoader', 'ridge', 'treeFeller', 'cashTubes']) expect(pads).toContain(id);
+    for (const id of ['truckLoader', 'ridge', 'treeFeller', 'cashTubes', 'workshop']) expect(pads).toContain(id);
     const levels = REVEALS.filter((r) => r.action.kind === 'levelPad').map((r) => (r.action.kind === 'levelPad' ? r.action.id : ''));
-    for (const id of ['treeFeller', 'cashTubes']) expect(levels).toContain(id);
+    for (const id of ['treeFeller', 'cashTubes', 'workshop']) expect(levels).toContain(id);
   });
 });
 
@@ -89,5 +89,53 @@ describe('wave 7 reveal order', () => {
       expect(rule(`levelPad:${id}`).ready(query(s, { [id]: 10 }))).toBe(false);
       expect(rule(`levelPad:${id}`).ready(query(s, { [id]: 31 }))).toBe(true);
     }
+  });
+});
+
+describe('wave 8 workshop reveal', () => {
+  it('needs the tree feller, and shows 60 s after it was built', () => {
+    const s = afterMegaSaw();
+    s.unlocked.ridge = true;
+    // no feller yet: never, however long the ridge has been open
+    expect(rule('workshopPad').ready(query(s, { ridge: 999, treeFeller: 999 }))).toBe(false);
+    s.unlocked.treeFeller = true;
+    expect(rule('workshopPad').ready(query(s, { treeFeller: 0 }))).toBe(false);
+    expect(rule('workshopPad').ready(query(s, { treeFeller: 59 }))).toBe(false);
+    expect(rule('workshopPad').ready(query(s, { treeFeller: 60 }))).toBe(true);
+    expect(rule('workshopPad').ready(query(s, { treeFeller: 600 }))).toBe(true);
+  });
+
+  it('is a pad rule for the workshop and counts as done once it is unlocked (debug unlock / restore)', () => {
+    const r = rule('workshopPad');
+    expect(r.action).toEqual({ kind: 'pad', id: 'workshop' });
+    const s = afterMegaSaw();
+    expect(r.satisfied?.(query(s))).toBe(false);
+    s.unlocked.workshop = true;
+    expect(r.satisfied?.(query(s))).toBe(true);
+  });
+
+  it('does not collide with the other ridge pads (staggered: workshop after the feller, never with the tubes)', () => {
+    const s = afterMegaSaw();
+    s.unlocked.ridge = true;
+    s.unlocked.treeFeller = true;
+    // the workshop waits a full minute after the feller; the tubes pad needs only the ridge clock
+    expect(rule('workshopPad').ready(query(s, { ridge: 30, treeFeller: 20 }))).toBe(false);
+    expect(rule('cashTubesPad').ready(query(s, { ridge: 30, treeFeller: 20 }))).toBe(true);
+    expect(rule('workshopPad').delay).toBeGreaterThan(0);
+  });
+
+  it('the workshop level pad appears 30 s after the unlock and not before it', () => {
+    const s = afterMegaSaw();
+    const r = rule('levelPad:workshop');
+    expect(r.action).toEqual({ kind: 'levelPad', id: 'workshop' });
+    expect(r.ready(query(s, { workshop: 99 }))).toBe(false);
+    s.unlocked.workshop = true;
+    expect(r.ready(query(s, { workshop: 10 }))).toBe(false);
+    expect(r.ready(query(s, { workshop: 31 }))).toBe(true);
+  });
+
+  it('each rule keeps its own flag so a reload can re-apply it', () => {
+    expect(rule('workshopPad').flag ?? 'reveal:workshopPad').toBe('reveal:workshopPad');
+    expect(rule('levelPad:workshop').flag ?? 'reveal:levelPad:workshop').toBe('reveal:levelPad:workshop');
   });
 });

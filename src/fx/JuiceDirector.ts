@@ -34,10 +34,12 @@
  * Wave 8: quest:done → 'quest' chime, "Quest complete!" toast and a coin burst flying to the money pill (HUD.coinBurst);
  * rush:start → service bell; sale with vip → gold "+$tip TIP!" popup (floatText) + sparkle; night:start / day:start →
  * softer music at night (AudioFX.setNight); haptics (fx/Haptics.ts) for pad unlocks, upgrades and cash pickups.
+ * The workshop's chairs (no event of its own): an 'item:landed' on 'pile:workshopOut' → saw-whirr + sawdust
+ * (throttled, near or on screen only); a 'sale' from a dog sled adds a happy "woof".
  * 'stack:full' from upgrade / construction pads ('pad:' ids) is ignored.
  */
 import * as THREE from 'three';
-import { PADS, PALETTE, QUARTERS, UPGRADES, VILLAGE } from '../config';
+import { LAYOUT, PADS, PALETTE, QUARTERS, UPGRADES, VILLAGE } from '../config';
 import type { GameContext, ItemHolder } from '../core/types';
 import { formatMoney } from '../ui/format';
 import { Haptics } from './Haptics';
@@ -66,6 +68,7 @@ export class JuiceDirector {
   private lastDropFx = 0;
   private lastPadFx = 0;
   private lastFell = -10;
+  private lastSaw = -10;
   /** Delayed one-shots (simulation time), e.g. the splash a beat after the crash. */
   private readonly pending: Array<{ at: number; fn: () => void }> = [];
 
@@ -84,6 +87,9 @@ export class JuiceDirector {
         }
       } else if (holder.id.startsWith('pad:')) {
         // handled by 'pad:paid'
+      } else if (holder.id === 'pile:workshopOut' && e.item.kind === 'furniture') {
+        // a chair popped out onto the workshop bench (the workshop emits no event of its own)
+        this.chairMade();
       } else if (holder.id === 'npc:crew:deposit') {
         // the cashier banking bundles at the cabin door: a softer, lower "ching"
         ctx.audio.play('cash', { combo: true, volume: 0.45, pitch: 0.85 });
@@ -123,6 +129,7 @@ export class JuiceDirector {
       ctx.hud.floatText(this.tmp, `+${formatMoney(e.amount)}`, { color: '#5ee07a', size: 28 });
       ctx.particles.sparkle(e.position, 0xaaffbb);
       if (e.buyer === 'train') ctx.audio.play('whistle', { volume: 0.7 });
+      else if (e.buyer === 'sled') ctx.audio.play('woof', { pitch: 0.95 + Math.random() * 0.15, volume: 0.9 });
       if (e.vip && e.tip && e.tip > 0) {
         // VIP: a gold tip popup above the normal "+$" one (same world-to-screen float mechanism)
         ctx.audio.play('sparkle');
@@ -355,6 +362,23 @@ export class JuiceDirector {
       ctx.cameraRig.shake(0.6, 0.5);
       this.later(0.12, () => ctx.audio.play('splash'));
     });
+  }
+
+  /**
+   * A chair came out of the workshop: saw-whirr + a spray of sawdust over the cabin. Throttled, and only when the
+   * workshop is on screen or the player is near it (the ridge is off to the east of the yard).
+   */
+  private chairMade(): void {
+    const { ctx } = this;
+    const now = ctx.time.elapsed;
+    if (now - this.lastSaw < 0.7) return;
+    const W = LAYOUT.ridge.workshop;
+    const at = this.tmp.set(W.x, 1.3, W.z);
+    if (!(ctx.cameraRig.isOnScreen(at, 24) || ctx.player.position.distanceTo(at) < 14)) return;
+    this.lastSaw = now;
+    ctx.audio.play('saw', { pitch: 0.94 + Math.random() * 0.12, volume: 0.8 });
+    ctx.particles.burst(at, { colors: SAWDUST, count: 12, speed: 3.4, size: 0.14, spread: 1.5, life: 0.7, shape: 'cube', gravity: 7 });
+    ctx.particles.puff(at, { color: 0xf6e3bd, count: 3, size: 0.55, life: 0.7 });
   }
 
   /** Where shop purchases and other "no position" effects go: just above the player. */

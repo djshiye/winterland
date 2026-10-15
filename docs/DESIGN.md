@@ -225,3 +225,48 @@ All slices run in parallel. Stubs for every cross-slice API are already in place
   | B7 | progression | `progression/*`, `assets/pads.ts` |
   | B4 | UI and effects | `ui/*`, `fx/*` |
   | main | everything else | `config`, `core`, `level`, `game`, bot, docs |
+
+## Wave 8: day and night, quests, VIPs and rush hours, the furniture workshop
+
+### 8A: feel and depth
+- **Day/night** (`core/DayNight.ts`, `DAYNIGHT`):
+  - One day lasts 8 minutes. The clock is saved as `state.clock`. Darkness runs from 0 (day) to 1 (night).
+  - Dusk is warm and night is a moonlit blue. Windows and lamps glow (`world/env/glow.ts`), and a screen-space aurora with stars appears (`world/env/aurora.ts`). This costs at most 4 extra draw calls.
+  - Day looks exactly as before. Settings → Day/night turns it off (localStorage).
+  - It is purely visual; the music gets softer at night.
+- **Quests** (`core/quests.ts`):
+  - 20 short goals with cash rewards, three on show at a time, in list order. Progress is read from state, so only `state.quests` (completed ids) is saved.
+  - At most one completes every 1.5 s. Rewards were halved in tuning, so early pacing barely moves.
+  - The UI is `ui/QuestPanel.ts`, a collapsible chip and card.
+  - A New Season resets quests. This is deliberate: the rewards can be earned again each season.
+- **VIP customers** (`DEMAND[].vipChance`, `VIP.tipMult`):
+  - VIPs wear a top hat and gold scarf and have a crown on their order bubble.
+  - They tip on top of the sale. The 'sale' event carries `vip` and `tip`, and `amount` excludes the tip. The offline sales rate includes tips.
+  - There are no VIPs at Camp level.
+- **Rush hours** (`core/Rush.ts`, `RUSH`):
+  - Rush hours start once the village is a Hamlet: every 150–240 s comes a 35 s rush.
+  - During a rush, walk-ins and tricycles arrive 2.2× as often, and the walk-in queue grows by 2. A banner shows a countdown.
+  - Rushes are transient and not saved.
+- **Polish:**
+  - A one-time "drag to move" hand after the intro (`seen:moveHand`).
+  - Vibration on phones, with a Settings switch.
+  - **Auto quality:** after 8 s under 40 fps at High, the game switches to Low once, with a toast. It never switches back on its own, and never after a manual choice. It is off in automated runs (`?noauto`, `navigator.webdriver`).
+
+### 8B: furniture workshop and dog sleds
+- **Workshop** (pad 'workshop', $15,000, on Timber Ridge; it appears 60 s after the tree feller): logs go into the west hopper and chairs (`'furniture'` items) come out on the east bench, one every `value('workshop')` s. Upgrades are the workshop machine levels and the Sales upgrade "Fine Joinery" (`furnitureQuality`).
+- **Dog sleds** (`npc/SledQueue.ts`):
+  - A husky team arrives along `LAYOUT.ridge.sledLane` and buys chairs at the sled counter for `ECONOMY.furniturePrice` ($60 each, the best price per log in the game).
+  - The money goes to the sled cash pile, which also gets a cash tube.
+- **Save**:
+  - The world snapshot adds `piles.workshopIn`, `workshopOut` and `sled`, `cash.sled` and `arms.furniture`, and chairs on a loading sled go back onto the counter.
+  - `tests/fixtures/save-v2-ridge.json`, a v0.2.0 save, must keep loading.
+- **Ownership, wave 8**:
+
+  | Area | Owner |
+  |---|---|
+  | day/night visuals | B3 (`render/Renderer.ts`, `world/*`) |
+  | quests UI and polish | B4 (`ui/*`, `fx/*`) |
+  | VIPs, rush hours and sleds | B5 (`npc/*`) |
+  | workshop and chair | B6 (`stations/Workshop.ts`, `assets/items.ts`) |
+  | progression | B7 |
+  | everything else | main (`config`, `core`, `level`, `game`, the bot) |
