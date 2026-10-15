@@ -1,0 +1,163 @@
+{
+  "palettes": {
+    "1": {
+      "ground": "#9e8272",
+      "fence": "#d68646",
+      "body": "#8a5a3b",
+      "accent": "#e8b341",
+      "trim": "#5c3b22",
+      "glow": "#ffd070",
+      "coat": "#1e6fd9"
+    },
+    "2": {
+      "ground": "#b9b2a6",
+      "fence": "#7a6650",
+      "body": "#a7a39b",
+      "accent": "#b5543c",
+      "trim": "#6d5a48",
+      "glow": "#ffd070",
+      "coat": "#b5543c"
+    },
+    "3": {
+      "ground": "#9a8f88",
+      "fence": "#4f4a48",
+      "body": "#3d3a3a",
+      "accent": "#7c4a33",
+      "trim": "#5d6268",
+      "glow": "#ff8a30",
+      "coat": "#5d6268"
+    },
+    "4": {
+      "ground": "#8a8580",
+      "fence": "#3a3532",
+      "body": "#8e4030",
+      "accent": "#b08a3e",
+      "trim": "#2f2b2b",
+      "glow": "#ff8a30",
+      "coat": "#3a3532"
+    },
+    "5": {
+      "ground": "#8f9296",
+      "fence": "#50555b",
+      "body": "#7f8b99",
+      "accent": "#d0702a",
+      "trim": "#34383d",
+      "glow": "#ff9f1c",
+      "coat": "#4b5562"
+    },
+    "6": {
+      "ground": "#a3a7a0",
+      "fence": "#5a6b74",
+      "body": "#4f7a8c",
+      "accent": "#c9773a",
+      "trim": "#2e4a5a",
+      "glow": "#ffd070",
+      "coat": "#2e4a5a"
+    },
+    "7": {
+      "ground": "#9d9a93",
+      "fence": "#44474e",
+      "body": "#272a30",
+      "accent": "#e0b03a",
+      "trim": "#5a5e68",
+      "glow": "#ffd070",
+      "coat": "#e0b03a"
+    },
+    "8": {
+      "ground": "#c9cdd2",
+      "fence": "#8a98a6",
+      "body": "#eef2f6",
+      "accent": "#3aa0d8",
+      "trim": "#2a3a4a",
+      "glow": "#7fe0ff",
+      "coat": "#eef2f6"
+    },
+    "9": {
+      "ground": "#b7c2b0",
+      "fence": "#6e7d6a",
+      "body": "#b5b8bb",
+      "accent": "#7bd04a",
+      "trim": "#2d3b2a",
+      "glow": "#9dff6a",
+      "coat": "#7bd04a"
+    },
+    "10": {
+      "ground": "#d6dbe6",
+      "fence": "#8c90b8",
+      "body": "#1f2240",
+      "accent": "#9b6cff",
+      "trim": "#dfe3ec",
+      "glow": "#b48cff",
+      "coat": "#dfe3ec"
+    }
+  },
+  "machineRules": [
+    "Footprint must stay within a 5.2 × 5.2 m bounding square centred at (0, 0, 0) and height under 6.0 m.",
+    "Maximum 3 meshes per machine: merged body (toon vertex colours), merged glow (unlit emissive), and one animated pivot.",
+    "Floor-level origin: (0, 0, 0) is the ground centre slab; +Y is vertical up, +Z is front facing the yard/path.",
+    "Standardised loading bays: input hopper / intake pile sits front-left at [-1.6, 2.6], output pile sits front-right at [1.6, 2.6].",
+    "Cosy toy-diorama proportions: bevelled silhouettes, rounded corners, chunky forms readable from a 45° isometric camera at 25 m distance.",
+    "Procedural low-poly primitives only: box, cylinder, cone, sphere, torus, capsule merged into single draw calls.",
+    "Generous snow blankets: top-facing roofs and horizontal ledges carry rounded caps in snow white #f4f7fb with overhang drips.",
+    "Warm interior life: every machine has a lit window, glow vent, or furnace aperture to ensure no era feels cold, menacing, or abandoned.",
+    "Cycle-driven animation: the single 'pivot' mesh spins, bobs, or swings during active production and drops to a gentle idle crawl when quiet.",
+    "Zero per-frame runtime allocations: uses shared vertex-colour material (vcMat) and shared registered emissive material (eraGlowMaterial)."
+  ],
+  "workerBody": {
+    "height": 1.6,
+    "parts": [
+      { "name": "body", "primitive": "capsule", "size": [0.5, 0.6, 0.36], "pos": [0, 0.72, 0] },
+      { "name": "head", "primitive": "sphere", "size": [0.36, 0.36, 0.36], "pos": [0, 1.22, 0] },
+      { "name": "hat", "primitive": "box", "size": [0.42, 0.2, 0.42], "pos": [0, 1.42, 0] },
+      { "name": "arm_left", "primitive": "capsule", "size": [0.14, 0.48, 0.14], "pos": [-0.32, 0.78, 0] },
+      { "name": "arm_right", "primitive": "capsule", "size": [0.14, 0.48, 0.14], "pos": [0.32, 0.78, 0] },
+      { "name": "leg_left", "primitive": "cylinder", "size": [0.16, 0.42, 0.16], "pos": [-0.14, 0.25, 0] },
+      { "name": "leg_right", "primitive": "cylinder", "size": [0.16, 0.42, 0.16], "pos": [0.14, 0.25, 0] },
+      { "name": "boot_left", "primitive": "box", "size": [0.18, 0.16, 0.26], "pos": [-0.14, 0.08, 0.04] },
+      { "name": "boot_right", "primitive": "box", "size": [0.18, 0.16, 0.26], "pos": [0.14, 0.08, 0.04] },
+      { "name": "prop", "primitive": "box", "size": [0.2, 0.35, 0.15], "pos": [0.36, 0.62, 0.18] }
+    ]
+  },
+  "materialKit": [
+    { "shape": "block", "size": [0.4, 0.28, 0.32], "notes": "Chunky dressed stone block with bevelled corners and top chisel slab" },
+    { "shape": "brick", "size": [0.42, 0.22, 0.28], "notes": "Two-course running bond masonry brick with mortar lines" },
+    { "shape": "slab", "size": [0.4, 0.2, 0.3], "notes": "Smooth moist clay slab with thumbed edge depression" },
+    { "shape": "tile", "size": [0.38, 0.18, 0.32], "notes": "Curved terracotta roof tile pair with drainage lip" },
+    { "shape": "hearth", "size": [0.4, 0.32, 0.36], "notes": "Miniature masonry fireplace with glowing firebox recess" },
+    { "shape": "nugget", "size": [0.38, 0.26, 0.34], "notes": "Irregular rock clump with gleaming metallic ore facets" },
+    { "shape": "charcoal", "size": [0.36, 0.22, 0.32], "notes": "Faceted carbonized wood briquettes with ash dust highlights" },
+    { "shape": "ingot", "size": [0.44, 0.16, 0.22], "notes": "Trapezoidal foundry ingot with stamped top ingot recess" },
+    { "shape": "tools", "size": [0.42, 0.2, 0.3], "notes": "Crossed forged hammer and tongs tied with leather thong" },
+    { "shape": "rail", "size": [0.48, 0.16, 0.22], "notes": "Dual miniature iron T-rail segments on wooden sleeper tie" },
+    { "shape": "lump", "size": [0.38, 0.26, 0.34], "notes": "Chunky bituminous coal lump with glassy fracture planes" },
+    { "shape": "scrap", "size": [0.38, 0.24, 0.32], "notes": "Bundle of curled metal offcuts and crimped brass tubing" },
+    { "shape": "gear", "size": [0.4, 0.12, 0.4], "notes": "Heavy brass spur gear with 8 square teeth and keyed central axle hub" },
+    { "shape": "boiler", "size": [0.38, 0.34, 0.34], "notes": "Rivet-banded cylindrical pressure drum with brass pressure dial" },
+    { "shape": "steamEngine", "size": [0.44, 0.32, 0.32], "notes": "Toy steam cylinder assembly with miniature brass flywheel" },
+    { "shape": "beam", "size": [0.46, 0.18, 0.2], "notes": "Rolled structural steel I-beam with rivet dots on top flange" },
+    { "shape": "girder", "size": [0.48, 0.22, 0.2], "notes": "Trussed box girder section with diagonal cross-bracing" },
+    { "shape": "snowplow", "size": [0.44, 0.28, 0.36], "notes": "Curved steel V-plow blade with orange mounting brackets" },
+    { "shape": "coil", "size": [0.4, 0.22, 0.4], "notes": "Wound copper wire spool with bright burnished copper sheen" },
+    { "shape": "quartz", "size": [0.36, 0.3, 0.3], "notes": "Translucent hexagonal silica crystal cluster with lilac highlights" },
+    { "shape": "bulb", "size": [0.32, 0.38, 0.32], "notes": "Pear-shaped incandescent glass vacuum bulb with glowing filament cage" },
+    { "shape": "radio", "size": [0.4, 0.26, 0.28], "notes": "Retro tabletop radio chassis with brass dial knob and speaker grille" },
+    { "shape": "barrel", "size": [0.34, 0.42, 0.34], "notes": "Steel oil drum with circumferential stiffening ribs and yellow bung" },
+    { "shape": "gas", "size": [0.32, 0.42, 0.32], "notes": "Pressurized gas cylinder bottle with brass needle valve collar" },
+    { "shape": "pellet", "size": [0.4, 0.24, 0.32], "notes": "Container crate filled with glossy cyan polymer resin beads" },
+    { "shape": "fuel", "size": [0.36, 0.4, 0.26], "notes": "Military-style jerrycan with embossed X-stiffener and triple handle" },
+    { "shape": "snowmobile", "size": [0.46, 0.3, 0.36], "notes": "Chunky arctic snowmobile with front twin skis and rubber track" },
+    { "shape": "crystal", "size": [0.36, 0.3, 0.3], "notes": "Polygonal hyper-pure polysilicon ingot boule with sliced wafer edge" },
+    { "shape": "gold", "size": [0.4, 0.18, 0.24], "notes": "Pair of polished gold bullion bars with stamped 999 fineness mark" },
+    { "shape": "chip", "size": [0.4, 0.1, 0.4], "notes": "Square emerald green ceramic microchip with gold heat spreader" },
+    { "shape": "board", "size": [0.42, 0.12, 0.34], "notes": "Populated PCB circuit board with surface-mount chips and capacitors" },
+    { "shape": "computer", "size": [0.38, 0.34, 0.34], "notes": "Cute retro desktop computer with CRT monitor and beige floppy drive" },
+    { "shape": "rod", "size": [0.46, 0.16, 0.16], "notes": "Zircaloy nuclear fuel rod bundle inside lead-trimmed transport sleeve" },
+    { "shape": "graphite", "size": [0.38, 0.28, 0.32], "notes": "Dense machined graphite moderator brick with central boron control hole" },
+    { "shape": "power", "size": [0.3, 0.36, 0.3], "notes": "Glowing cyan plasma storage cell with positive/negative brass endcaps" },
+    { "shape": "battery", "size": [0.38, 0.28, 0.26], "notes": "Heavy-duty industrial battery pack with charge-level LED bar" },
+    { "shape": "core", "size": [0.34, 0.34, 0.34], "notes": "Translucent floating optical AI core cube with violet photonic circuitry" },
+    { "shape": "robot", "size": [0.36, 0.46, 0.3], "notes": "Folded companion automaton with round ocular screen and soft antenna" },
+    { "shape": "quantumCore", "size": [0.36, 0.36, 0.36], "notes": "Suspended icosahedral quantum processor trapped in cryo-cage" }
+  ],
+  "iconStyle": "Icons are drawn as 64×64 pixel crisp flat vector illustrations framed on a soft rounded square tile tinted with the era's ground color and a clean 2 px inner rim. Subjects are rendered in high-readability 3/4 isometric perspective with bold 2 px dark silhouette contours, 3 distinct cel-shaded tone steps, and no gradients or micro-noise. All assets feature a cozy toy-diorama charm with soft rounded corners, warm natural materials harmonised with snow (#f4f7fb), pine (#2f6b3f), timber (#8a5a3b), and gold (#e8b341), topped with a clean 3 px white specular glint in the upper-left quadrant."
+}
