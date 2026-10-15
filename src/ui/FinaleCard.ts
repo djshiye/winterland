@@ -81,13 +81,16 @@ export class FinaleCard {
   private fill(): void {
     const s = this.ctx.state;
     const st = s.stats;
+    // Money earned is a full-width hero cell (.is-hot); the other 12 cells are tidy in the 2-, 3- and 4-column layouts
+    // (phone, desktop, short landscape): keep that count a multiple of 12.
     const rows: Array<[string, string, boolean?]> = [
-      ['Time played', formatDuration(s.playTime)],
       ['Money earned', formatMoney(st.moneyEarned), true],
+      ['Time played', formatDuration(s.playTime)],
       ['Logs chopped', formatCount(st.logsChopped)],
       ['Planks sold', formatCount(st.planksSold)],
       ['Crates sold', formatCount(st.cratesSold)],
       ['Logs sold', formatCount(st.logsSold)],
+      ['Chairs sold', formatCount(st.furnitureSold)],
       ['Customers', formatCount(st.customersServed)],
       ['Tricycles', formatCount(st.tricyclesServed)],
       ['Trucks', formatCount(st.trucksServed)],

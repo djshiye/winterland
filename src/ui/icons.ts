@@ -147,13 +147,30 @@ const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
       <circle cx="35" cy="33" r="7.5" fill="#ffd84a"/>
       <path d="M31.5 33l2.6 2.8 4.4-5" fill="none" stroke="#c97a10" stroke-width="2.6"/>
     </g>`),
-  // wave 8 placeholders (the UI builder draws real ones)
-  get workshop() {
-    return UPGRADE_ICONS.processor;
-  },
-  get furnitureQuality() {
-    return UPGRADE_ICONS.plankQuality;
-  },
+  // wave 8: a log cabin workshop with a red roof, a chimney and a chair standing in front
+  workshop: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="31" y="6" width="7" height="12" fill="#8f5530"/>
+      <rect x="4" y="21" width="40" height="22" rx="3" fill="#d9aa66"/>
+      <path d="M4 28h40M4 35h40" stroke="#a8693a" stroke-width="2.2" fill="none"/>
+      <path d="M1 23L24 6l23 17z" fill="#e8553e"/>
+      <rect x="31" y="27" width="9" height="9" rx="1.5" fill="#cdeeff" stroke-width="2"/>
+      <rect x="4" y="43" width="40" height="3" rx="1.5" fill="#8f5530" stroke-width="2"/>
+      <rect x="9" y="26" width="3.6" height="17" fill="#f6dca8" stroke-width="2"/>
+      <rect x="9" y="33" width="15" height="4" rx="1.5" fill="#f6dca8" stroke-width="2"/>
+      <rect x="20.4" y="37" width="3.6" height="6" fill="#f6dca8" stroke-width="2"/>
+    </g>`),
+  // wave 8: a joined wooden chair with a gold star
+  furnitureQuality: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="9" y="6" width="5" height="38" rx="1.5" fill="#a8693a"/>
+      <rect x="9" y="6" width="22" height="22" rx="3" fill="#d9aa66"/>
+      <path d="M14 14h12M14 21h12" stroke="#a8693a" stroke-width="2.6" fill="none"/>
+      <rect x="6" y="28" width="30" height="7" rx="3" fill="#e0b070"/>
+      <rect x="29" y="35" width="5" height="10" rx="1.5" fill="#a8693a"/>
+      <rect x="9" y="35" width="5" height="10" rx="1.5" fill="#a8693a"/>
+      <path d="M36 3l2.9 6 6.5.9-4.7 4.5 1.2 6.4-5.9-3.1-5.9 3.1 1.2-6.4-4.7-4.5 6.5-.9z" fill="#ffd84a"/>
+    </g>`),
 };
 
 export function upgradeIcon(id: UpgradeIdConst): string {

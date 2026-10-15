@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Headless end-to-end check of the wave 7 reveal order and of save/restore, through the debug API.
+ * Headless end-to-end check of the wave 7 + 8 reveal order (incl. the furniture workshop) and of save/restore, through the debug API.
  *
  *   node scripts/check-reveals.mjs [--shots dir]
  *
@@ -20,9 +20,10 @@ const shotsIdx = process.argv.indexOf('--shots');
 const shotsDir = shotsIdx > 0 ? process.argv[shotsIdx + 1] : null;
 
 const W = '__WINTERLAND__';
-const vis = `(v=>['truckLoader','ridge','treeFeller','cashTubes'].filter(k=>v[k]).join(','))(${W}.ctx.state.padsVisible)`;
+const vis = `(v=>['truckLoader','ridge','treeFeller','cashTubes','workshop'].filter(k=>v[k]).join(','))(${W}.ctx.state.padsVisible)`;
 const flag = (k) => `!!${W}.ctx.state.flags['${k}']`;
 const quiet = `(${W}.level.cashPiles().forEach(p=>Object.defineProperty(p,'value',{get:()=>0})),${W}.ctx.economy.spend(${W}.ctx.economy.money),0)`;
+const broke = `(${W}.ctx.economy.spend(${W}.ctx.economy.money),0)`;
 const obj = `${W}.level.progression.objective`;
 
 /** [step, label, expected (omit for plain steps)] */
@@ -68,6 +69,11 @@ const steps = [
   ['eval:' + `(${W}.setUpgrade('pineHauler',1),0)`, 'pine hauler hired'],
   ['sim:31'],
   ['eval:' + `${W}.ctx.state.flags['reveal:levelPad:treeFeller']===true`, 'feller level pad revealed 30 s after the unlock', true],
+  // wave 8: the workshop pad shows 60 s after the feller (+ the 3.4 s rule delay); ~48 s have passed since the feller
+  ['eval:' + `!!${W}.ctx.state.padsVisible.workshop`, 'workshop pad is not shown yet (feller + ~48 s)', false],
+  ['sim:18'],
+  ['eval:' + `!!${W}.ctx.state.padsVisible.workshop&&!${W}.ctx.state.unlocked.workshop`, 'workshop pad appears about 60 s after the feller', true],
+  ['eval:' + flag('reveal:workshopPad'), 'its reveal flag is recorded', true],
   // restore: save, reload, the same pads are shown and nothing new fires
   ['eval:' + `(${W}.save(),0)`, 'save'],
   ['eval:' + `JSON.stringify([${W}.ctx.state.padsVisible,${W}.ctx.state.unlocked,Object.keys(${W}.ctx.state.flags).sort()])`, 'state before reload', 'CAPTURE'],
@@ -78,6 +84,47 @@ const steps = [
   ['sim:8'],
   ['eval:' + `JSON.stringify([${W}.ctx.state.padsVisible,${W}.ctx.state.unlocked,Object.keys(${W}.ctx.state.flags).sort()])`, 'no spurious reveal after the reload', 'SAME'],
   ['shot:after-reload'],
+  // wave 8 after the reload: the workshop pad is still on the floor, then the guide walks the lesson
+  ['eval:' + `${W}.level.pads.workshop.visible&&!${W}.level.pads.workshop.unlocked`, 'restored: workshop pad on the floor, not built', true],
+  ['eval:' + `(${W}.unlock('cashTubes'),${W}.teleport(24,-1),${W}.ctx.economy.spend(${W}.ctx.economy.money),${W}.addMoney(15000),0)`, 'tubes built, $15,000 in hand'],
+  ['sim:1'],
+  ['eval:' + obj, 'guide: build the workshop', 'Build the Workshop ($15,000)'],
+  ['shot:workshop-pad-guide'],
+  ['eval:' + `(${quiet},${W}.unlock('workshop'),0)`, 'quiet the yard, build the workshop (unlock pan plays)'],
+  ['sim:1.5'],
+  // the 'workshop' quest paid its reward: spend it, or the village pad (affordable, higher priority) leads the guide
+  ['eval:' + broke, 'quest reward spent'],
+  ['eval:' + `!!${W}.level.workshop&&!!${W}.level.sledCounter&&!!${W}.level.sledCash`, 'workshop, sled counter and sled cash exist', true],
+  ['eval:' + `(${W}.level.treeFeller.deck.fill('log',6),${W}.teleport(22.8,4.7),0)`, 'logs on the deck, player beside the hopper'],
+  ['sim:1'],
+  ['eval:' + obj, 'guide: fetch logs for the workshop', 'Pick up logs for the workshop'],
+  ['eval:' + `(${W}.ctx.player.arms.addImmediate(${W}.ctx.items.create('log')),${W}.teleport(22.8,4.7),${broke})`, 'a log in hand'],
+  ['sim:1'],
+  ['eval:' + obj, 'guide: feed the workshop', 'Feed logs to the workshop'],
+  ['shot:feed-guide'],
+  ['eval:' + `(${W}.level.workshop.output.fill('furniture',3),0)`, 'chairs on the bench'],
+  ['sim:0.5'],
+  ['eval:' + `(${W}.ctx.player.arms.take('log'),${broke})`, 'logs out of hand, no money'],
+  ['sim:1'],
+  ['eval:' + obj, 'guide: grab the chairs', 'Grab the chairs for the dog sleds'],
+  ['eval:' + `(${W}.ctx.player.arms.addImmediate(${W}.ctx.items.create('furniture')),${broke})`, 'a chair in hand'],
+  ['sim:0.5'],
+  ['eval:' + obj, 'guide: carry chairs to the sleds', 'Carry chairs to the dog sleds'],
+  ['shot:carry-guide'],
+  ['eval:' + `(${W}.level.sledCash.restoreValue(500),${broke})`, 'cash on the sled pile, no money'],
+  ['eval:' + `(${W}.ctx.player.arms.take('furniture'),${W}.level.workshop.output.take('furniture'),${W}.level.workshop.output.take('furniture'),${W}.level.workshop.output.take('furniture'),0)`, 'all chairs gone'],
+  ['sim:1'],
+  ['eval:' + obj, 'guide: collect the sled cash', 'Collect your cash'],
+  // the workshop survives a reload too
+  ['eval:' + `${W}.level.sledCash.value`, 'sled cash before the save', undefined],
+  ['eval:' + `(${W}.save(),0)`, 'save'],
+  ['eval:' + `JSON.stringify([${W}.ctx.state.padsVisible,${W}.ctx.state.unlocked,Object.keys(${W}.ctx.state.flags).sort()])`, 'state before reload', 'CAPTURE'],
+  ['reload'],
+  ['eval:' + `JSON.stringify([${W}.ctx.state.padsVisible,${W}.ctx.state.unlocked,Object.keys(${W}.ctx.state.flags).sort()])`, 'workshop state after reload is identical', 'SAME'],
+  ['eval:' + `!!${W}.level.workshop&&${W}.level.pads.workshop.unlocked`, 'restored: workshop built', true],
+  ['eval:' + `Math.abs(${W}.level.sledCash.value-500)<=15`, 'restored: sled cash pile value (within one bundle of 500)', true],
+  ['sim:8'],
+  ['eval:' + `JSON.stringify([${W}.ctx.state.padsVisible,${W}.ctx.state.unlocked,Object.keys(${W}.ctx.state.flags).sort()])`, 'no spurious reveal after the workshop reload', 'SAME'],
 ];
 
 const args = ['scripts/shot.mjs', '--size', '800x450'];

@@ -13,7 +13,8 @@
  *   major arpeggio: village level-up, finale), cheer (crowd "yay" for a new hire), thunk (light wood knock: a log
  *   into a construction pad), firework (crackle + thud), timber (a pine falling: wood crack + soft thud), whistle
  *   (two-tone freight-train horn), wave 8: quest (bright rising chime + coin ping), bell (rush hour: three
- *   service-bell dings), sparkle (VIP tip: glittering high arpeggio).
+ *   service-bell dings), sparkle (VIP tip: glittering high arpeggio), saw (the furniture workshop's saw-whirr: a
+ *   rising blade whine with a wood bite, ending in a knock), woof (a dog sled's cheerful two-bark "wuff wuff").
  * - combo: repeats of the same sound within ~0.35 s rise in pitch (semitone steps, capped at +12)
  *   — the classic stacking pickup feel. Rapid repeats are rate-limited per sound and the number of
  *   simultaneous voices is capped, so streams never clip.
@@ -50,7 +51,9 @@ export type SfxName =
   | 'whistle'
   | 'quest'
   | 'bell'
-  | 'sparkle';
+  | 'sparkle'
+  | 'saw'
+  | 'woof';
 
 export interface PlayOptions {
   /** Playback-rate / frequency multiplier (1 = normal). */
@@ -99,6 +102,9 @@ const MIN_GAP: Record<SfxName, number> = {
   quest: 0.3,
   bell: 1.5,
   sparkle: 0.2,
+  /** A workshop chair every ~2-3 s: one whirr per ~0.7 s even if two sources ask for it. */
+  saw: 0.7,
+  woof: 0.5,
 };
 
 type AudioCtor = typeof AudioContext;
@@ -526,6 +532,24 @@ export class AudioFX {
         this.hiss(t + 0.05, 'highpass', 7000, 9000, 0.25, 0.03 * v, 0.02);
         break;
       }
+      case 'saw':
+        // woodworking: the blade spins up (sawtooth sweep + a detuned second), a gritty bite into the board, a final knock
+        this.tone(t, 'sawtooth', 210 * p, 760 * p, 0.3, 0.09 * v, 0.03, 2600);
+        this.tone(t, 'sawtooth', 316 * p, 1140 * p, 0.3, 0.05 * v, 0.03, 2600);
+        this.tone(t + 0.3, 'sawtooth', 760 * p, 640 * p, 0.14, 0.07 * v, 0.01, 2400);
+        this.hiss(t + 0.05, 'bandpass', 2600 * p, 4200 * p, 0.34, 0.14 * v, 0.04, 1.1);
+        this.hiss(t + 0.18, 'highpass', 5000, 7000, 0.18, 0.05 * v, 0.03);
+        this.tone(t + 0.46, 'sine', 300 * p, 140 * p, 0.08, 0.2 * v, 0.002);
+        this.hiss(t + 0.46, 'bandpass', 1500 * p, 800 * p, 0.04, 0.1 * v, 0.001, 1.4);
+        break;
+      case 'woof':
+        // a happy double bark: each "wuff" is a falling voiced growl through a lowpass plus a breathy burst
+        for (const [at, f] of [[0, 430], [0.2, 500]] as const) {
+          this.tone(t + at, 'sawtooth', f * p, f * 0.55 * p, 0.13, 0.22 * v, 0.008, 1300);
+          this.tone(t + at, 'square', f * 0.5 * p, f * 0.3 * p, 0.12, 0.08 * v, 0.008, 700);
+          this.hiss(t + at, 'bandpass', 1100 * p, 600 * p, 0.09, 0.12 * v, 0.004, 1.2);
+        }
+        break;
       case 'firework':
         // distant crackle + soft thud
         this.tone(t, 'sine', 120 * p, 45 * p, 0.28, 0.4 * v, 0.003);

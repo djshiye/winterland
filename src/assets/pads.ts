@@ -341,6 +341,47 @@ function drawTubes(g: CanvasRenderingContext2D): void {
   g.fill();
 }
 
+/** Workshop: a wooden chair (slatted back, seat, legs) beside a toothed saw blade throwing sawdust. Local box ≈ ±60. */
+function drawWorkshop(g: CanvasRenderingContext2D): void {
+  // chair: slatted back (two slots cut out), seat, legs and a stretcher
+  g.beginPath();
+  addRoundedRect(g, -52, -54, 38, 50, 5);
+  addRoundedRect(g, -45, -46, 24, 10, 3);
+  addRoundedRect(g, -45, -29, 24, 10, 3);
+  g.fill('evenodd');
+  g.beginPath();
+  addRoundedRect(g, -58, -6, 52, 14, 5); // seat
+  g.fill();
+  g.fillRect(-54, 8, 9, 46);
+  g.fillRect(-19, 8, 9, 46);
+  g.fillRect(-45, 34, 26, 6);
+  // saw blade: toothed disc with an arbor hole
+  const cx = 30;
+  const cy = 18;
+  const teeth = 10;
+  g.beginPath();
+  for (let i = 0; i < teeth; i++) {
+    const a0 = (i / teeth) * Math.PI * 2;
+    const a1 = ((i + 0.8) / teeth) * Math.PI * 2;
+    const a2 = ((i + 1) / teeth) * Math.PI * 2;
+    if (i === 0) g.moveTo(cx + Math.cos(a0) * 24, cy + Math.sin(a0) * 24);
+    g.lineTo(cx + Math.cos(a1) * 33, cy + Math.sin(a1) * 33);
+    g.lineTo(cx + Math.cos(a1 + 0.05) * 24, cy + Math.sin(a1 + 0.05) * 24);
+    g.lineTo(cx + Math.cos(a2) * 24, cy + Math.sin(a2) * 24);
+  }
+  g.closePath();
+  g.moveTo(cx + 7, cy);
+  g.arc(cx, cy, 7, 0, Math.PI * 2, true);
+  g.fill('evenodd');
+  // sawdust flying off the blade
+  g.beginPath();
+  g.arc(24, -28, 4, 0, Math.PI * 2);
+  g.arc(38, -38, 3.2, 0, Math.PI * 2);
+  g.arc(50, -26, 3.6, 0, Math.PI * 2);
+  g.arc(12, -40, 2.6, 0, Math.PI * 2);
+  g.fill();
+}
+
 const ICONS: Record<PadIcon, (g: CanvasRenderingContext2D) => void> = {
   saw: drawSaw,
   factory: drawFactory,
@@ -350,7 +391,7 @@ const ICONS: Record<PadIcon, (g: CanvasRenderingContext2D) => void> = {
   feller: drawFeller,
   loader: drawLoader,
   tubes: drawTubes,
-  workshop: drawFactory, // placeholder until the wave-8 icon lands
+  workshop: drawWorkshop,
 };
 
 
