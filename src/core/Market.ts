@@ -11,8 +11,8 @@
  */
 import type * as THREE from 'three';
 import { CLIMB } from '../config';
-import { demandOf, seasonMult } from './demand';
-import { BOND_CAP_SHARE, ERAS, INVEST, INVEST_MAX_POSITIONS, isMaterial, MARKET, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
+import { demandOf, investMaxPositions, renownMult, seasonMult } from './demand';
+import { BOND_CAP_SHARE, ERAS, INVEST, isMaterial, MARKET, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
 import type { GameContext, InvestmentState, ItemKind, MaterialKind, Updatable } from './types';
 
 /** Most physical units one order may deliver to an import dock. */
@@ -63,10 +63,11 @@ export class Market implements Updatable {
     return MATERIALS[kind].value * this.index(kind) * (1 - (this.ctx.state.market.pressure[kind] ?? 0));
   }
 
-  /** What an export depot pays for `count` units of `kind` now (× the era's Trade upgrade × season bonus). */
+  /** What an export depot pays for `count` units of `kind` now (× the era's Trade upgrade × season bonus × Renown). */
   exportPrice(kind: ItemKind, count: number): number {
     if (!isMaterial(kind)) return Math.round(this.unitValue(kind) * count);
-    return Math.round(this.unitValue(kind) * count * this.tradeMult(kind) * seasonMult(this.ctx.state));
+    const s = this.ctx.state;
+    return Math.round(this.unitValue(kind) * count * this.tradeMult(kind) * seasonMult(s) * renownMult(s));
   }
 
   /** An export depot received `count` units: credit the money, apply supply pressure, stats, 'sale' {buyer 'export'}. */
@@ -225,12 +226,13 @@ export class Market implements Updatable {
 
   /**
    * Dollars an order of `units` (clamped to ORDER_MAX_UNITS) delivered to a dock costs: the buy quote plus the delivery
-   * surcharge. It also carries the era's Trade upgrade and the season bonus, so carrying an order straight to an
-   * export depot can never print money (it always loses the spread and the surcharge).
+   * surcharge. It also carries the era's Trade upgrade, the season bonus and Renown (every multiplier exportPrice has),
+   * so carrying an order straight to an export depot can never print money (it always loses the spread and the surcharge).
    */
   orderCost(kind: MaterialKind, units: number): number {
     const n = Math.max(1, Math.min(ORDER_MAX_UNITS, Math.floor(units)));
-    return Math.max(1, Math.round(this.quote(kind, 'buy') * n * (1 + MARKET.delivery) * this.tradeMult(kind) * seasonMult(this.ctx.state)));
+    const s = this.ctx.state;
+    return Math.max(1, Math.round(this.quote(kind, 'buy') * n * (1 + MARKET.delivery) * this.tradeMult(kind) * seasonMult(s) * renownMult(s)));
   }
 
   /** Buy `units` physical units delivered to era `era`'s import dock (spends money, emits 'market:order'). */
@@ -280,7 +282,7 @@ export class Market implements Updatable {
     const { state, economy } = this.ctx;
     amount = Math.floor(amount);
     if (!def || def.era > state.eras.age || amount < def.min || amount > economy.money) return false;
-    if (state.market.investments.length >= INVEST_MAX_POSITIONS) return false;
+    if (state.market.investments.length >= investMaxPositions(state)) return false;
     let backed = 0;
     if (product === 'venture') {
       backed = era === 0 ? state.eras.age : era;

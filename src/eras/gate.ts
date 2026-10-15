@@ -15,8 +15,8 @@ import { UPGRADES, type UpgradeDef } from '../config';
 import { base, introEra, shown, stepCost } from '../core/ladder';
 import { upgradeRequirement } from '../core/Upgrades';
 import type { GameState, UpgradeId } from '../core/types';
-import { cityTotals } from '../city/rules';
-import { ERAS } from './data';
+import { cityPopulation, settlementLevel, settlementPop } from '../core/demand';
+import { CITY_BUILDINGS, DISTRICTS, ERAS } from './data';
 import { formatMoney } from '../ui/format';
 
 /** The slice of the game state `climbOpen` reads (the frontier tests pass a plain object). */
@@ -60,7 +60,7 @@ export interface EraGate {
   /** Rows at need, of `total`. */
   ok: number;
   total: number;
-  /** nextPop: city population of the next settlement level (null until settlement 6+ lands, EXPANSION.md step 5). */
+  /** cityPop: district residents + machine staff; nextPop: what the next level needs (null below Winterland / at 50). */
   settlement: { level: number; need: number; cityPop: number; nextPop: number | null };
   /** Every row ok and the settlement reached: the expansion pad takes payment. */
   ready: boolean;
@@ -79,14 +79,8 @@ export function settlementNeed(n: number): number {
   return 5 * (n - 1);
 }
 
-/**
- * Settlement level (docs/EXPANSION.md §B). Below Winterland it is the village level. The city-population scale for
- * levels 6..50 (state.eras.settlement) arrives in step 5; until then every era already reached counts its band of
- * five as complete (5 · age), so the gate's upgrade rows are the only thing that holds the next era back.
- */
-export function settlementLevel(s: Pick<GameState, 'village' | 'eras'>): number {
-  return s.village.level < 5 ? s.village.level : Math.max(5, 5 * s.eras.age);
-}
+/** Settlement level (docs/EXPANSION.md §B): the village level until Winterland, then state.eras.settlement (6..50). */
+export { settlementLevel };
 
 const idsCache = new Map<number, readonly UpgradeId[]>();
 
@@ -161,7 +155,7 @@ export function eraGate(s: GameState, n: number): EraGate {
     rows,
     ok,
     total: rows.length,
-    settlement: { level, need, cityPop: cityTotals(s.city).residents, nextPop: null },
+    settlement: { level, need, cityPop: cityPopulation(s), nextPop: s.village.level < 5 ? null : settlementPop(level + 1) },
     ready: !!ERAS[n] && ok === rows.length && level >= need,
     padCash: unlock?.cash ?? 0,
     padExtra: { kind: unlock?.extra.kind ?? '', count: unlock?.extra.count ?? 0 },
@@ -222,7 +216,12 @@ export function nextGoal(s: GameState, money: number): NextGoal | null {
   if (g.settlement.level < g.settlementNeed) {
     // below Winterland the village itself is the settlement (levels 0..5)
     if (s.village.level < 5) return { text: `Grow the village → Settlement ${g.settlementNeed}`, action: { kind: 'build', target: 'village' } };
-    return { text: `Grow the city → Settlement ${g.settlementNeed}`, action: { kind: 'build', target: `district:${s.eras.age}` } };
+    // the next level is in the current era's band: one more home of that era is about one level (§B)
+    const age = s.eras.age;
+    const home = Object.values(CITY_BUILDINGS).find((d) => d.era === age && d.kind === 'home');
+    const where = DISTRICTS[age]?.name;
+    const text = home && where ? `Build a home in ${where} (+${home.people}) → Settlement ${g.settlement.level + 1}` : `Grow the city → Settlement ${g.settlementNeed}`;
+    return { text, action: { kind: 'build', target: `district:${age}` } };
   }
   if (cheapest) {
     return { text: `${rowText(cheapest)}: ${formatMoney(next(cheapest) - money)} to go`, action: buyAction(cheapest) };

@@ -823,6 +823,8 @@ export interface UpgradeRequirement {
   quarters?: number;
   /** 0.9.0: minimum era (GameState.eras.age; 1 = Survival). */
   era?: number;
+  /** Minimum settlement level (core/demand.ts settlementLevel; the era roles of docs/EXPANSION.md §B perks j = 2 / 4). */
+  settlement?: number;
 }
 
 export interface UpgradeDef {
@@ -1138,6 +1140,47 @@ export const CLIMB = {
  * stored + 10 · (e − 1), so every era asks +10 levels of everything; 'literal': shown = stored for every id.
  */
 export const GATE: { mode: 'offset' | 'literal' } = { mode: 'offset' };
+
+/**
+ * Settlement levels 6..50 (docs/EXPANSION.md §B; the pure rules are in core/demand.ts). Levels 0..5 stay the village
+ * levels (VILLAGE.levels); from Winterland on, level L = 5·(k − 1) + j (band k = era 2..10, j = 1..5) needs age ≥ k
+ * and a city population (district residents + region machine staff, the village excluded) of at least P(L). Band 2
+ * climbs linearly from 0 to its anchor A₂, later bands geometrically from A_{k−1} to A_k; A_k = anchorShare × the city's
+ * capacity through era k (each district (lots − 2) homes + a work building + a landmark, every region slot built),
+ * rounded to 2 significant figures. The best level ever reached is saved (state.eras.settlement).
+ */
+export const SETTLEMENT = {
+  max: 50,
+  /** Levels per era band. */
+  band: 5,
+  /** Region staff per built machine of era n: round(staffBase · staffGrowth^(n − 2)), ¼ of an era-n home. */
+  staffBase: 10,
+  staffGrowth: 2.2,
+  anchorShare: 0.75,
+  /** Renown: every level past Winterland multiplies sales, exports and city income by this (×2.2 at 45). */
+  renown: 1.02,
+  /** Every level's gift pile is worth this many seconds of city income (at least giftMin); a Charter (j = 5) adds charterSeconds. */
+  giftSeconds: 60,
+  charterSeconds: 300,
+  giftMin: 1_000,
+  /** The gift pile (walk over it to collect): on the city avenue where the road from the Market Town comes in. */
+  giftPile: { x: 42, z: 27, grid: CASH_GRID, zone: rect(42, 27, 2.2, 2.0) },
+  /** Perks by band position: j = 3 adds city happiness, j = 4 one more investment position (per band reached). */
+  decorHappiness: 0.05,
+  investPerBand: 1,
+  /** Level names, index = L − 6 (levels 0..5 are VILLAGE.levels). */
+  names: [
+    'Frontier Post', 'Stone Village', 'Brick Town', 'Kiln Borough', 'Frontier Town',
+    'Iron Village', 'Forge Town', 'Mining Borough', 'Railway Town', 'Iron City',
+    'Coal Town', 'Gearworks', 'Steam Borough', 'Clockwork Town', 'Steam City',
+    'Foundry Town', 'Smokestack Borough', 'Steel Town', 'Factory City', 'Industrial City',
+    'Bright Town', 'Copperfield', 'Tram City', 'Radio Town', 'Electric City',
+    'Boomtown', 'Derrick City', 'Highway City', 'Skyline City', 'Oil Capital',
+    'Silicon Town', 'Circuit City', 'Byte Bay', 'Network City', 'Digital Capital',
+    'Atom Town', 'Reactor City', 'Science City', 'Fusion Capital', 'Atomic Metropolis',
+    'Smart City', 'Neural City', 'Robot Metropolis', 'Arcology', 'Winterland Prime',
+  ] as readonly string[],
+} as const;
 
 /** 0.9.0: Jack's swap cart (share of an item's value he pays), the tax office and the broker. */
 function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> {

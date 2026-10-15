@@ -15,6 +15,7 @@ import { CLIMB, QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup 
 import { ERA_NAMES } from '../eras/data';
 import { climbOpen } from '../eras/gate';
 import { introEra, maxStored, shown, stepCost, valueAt } from './ladder';
+import { settlementLevel } from './demand';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
 import type { GameEvents, GameState, UpgradeId } from './types';
@@ -172,6 +173,9 @@ export function upgradeRequirement(state: Pick<GameState, 'unlocked' | 'village'
   }
   if (r.era !== undefined && state.eras.age < r.era) {
     return `Needs the ${ERA_NAMES[r.era] ?? 'next'} era`;
+  }
+  if (r.settlement !== undefined && settlementLevel(state) < r.settlement) {
+    return `Reach Settlement ${r.settlement}`;
   }
   return null;
 }

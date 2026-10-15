@@ -11,13 +11,21 @@
  * - 'city:changed' fires when the whole-settlement population or the rank changes; 'city:rankUp' on a rank increase
  *   (never while loading).
  * - The skyline (world/env/skyline.ts) is a child of `root` and re-sizes with the population and era.
+ * - Settlement 6..50 (docs/EXPANSION.md §B): after every city / machine build or demolish and every era, the saved
+ *   best level is raised to what the city population reaches (core/demand.ts refreshSettlement). A new level emits
+ *   'settlement:changed' and 'settlement:levelUp' (never while loading) and pays a gift into the walk-collect gift
+ *   pile on the city avenue: SETTLEMENT.giftSeconds of city income per level, + charterSeconds for a completed band.
+ *   City income is × Renown and its happiness gets the decor perk (settlementHappiness).
  */
 import * as THREE from 'three';
-import { CITY_BUILDINGS, CITY_RANKS, CITY_TICK, DISTRICTS, MAX_ERA, type CityBuildingId } from '../eras/data';
+import { SETTLEMENT } from '../config';
+import { CITY_BUILDINGS, CITY_RANKS, CITY_TICK, DISTRICTS, MAX_ERA, districtDef, type CityBuildingId } from '../eras/data';
+import { cityPopulation, refreshSettlement, renownMult, settledCityTotals, settlementBand, settlementLevel } from '../core/demand';
 import type { GameContext } from '../core/types';
+import { CashPile } from '../stations/CashPile';
 import { Skyline } from '../world/env/skyline';
 import { District } from './District';
-import { cityTotals, incomePerSecond, incomeSplit, rankFor, settlePaidCity } from './rules';
+import { cityTotals, incomeSplit, rankFor, settlePaidCity } from './rules';
 
 export class City {
   /** Everything the city draws hangs under this group. */
@@ -29,6 +37,10 @@ export class City {
   /** Highest rank announced this session: a demolish / rebuild across a threshold must not replay the banner. */
   private maxRank = 0;
   private lastPopulation = -1;
+  /** Settlement level last seen (settlementLevel), so a rise is announced once. */
+  private lastSettlement = 0;
+  /** The settlement gift pile, made the first time it is needed (a gift or a restored save). */
+  private gift: CashPile | null = null;
 
   constructor(protected readonly ctx: GameContext) {
     this.root.name = 'city';
@@ -42,6 +54,11 @@ export class City {
       this.recompute(true);
     });
     ctx.events.on('village:changed', () => this.recompute(true));
+    // machine staff count toward the city population (settlement levels)
+    ctx.events.on('machine:built', () => this.recompute(true));
+    ctx.events.on('machine:demolished', () => this.recompute(true));
+    refreshSettlement(ctx.state);
+    this.lastSettlement = settlementLevel(ctx.state);
     this.lastRank = rankFor(this.totalPopulation, ctx.state.eras.age);
     this.maxRank = this.lastRank;
     this.recompute(false);
@@ -67,9 +84,19 @@ export class City {
     return CITY_RANKS[this.rank]!.name;
   }
 
-  /** City income per second right now (rent + staffed businesses, × happiness × City Hall). */
+  /** City income per second right now (rent + staffed businesses, × happiness × City Hall × Renown). */
   get incomeRate(): number {
-    return incomePerSecond(cityTotals(this.ctx.state.city), this.ctx.upgrades.value('taxOffice'));
+    return incomeSplit(settledCityTotals(this.ctx.state), this.ctx.upgrades.value('taxOffice')).total * renownMult(this.ctx.state);
+  }
+
+  /** Dollars waiting on the settlement gift pile (save snapshot). */
+  get giftValue(): number {
+    return this.gift?.value ?? 0;
+  }
+
+  /** Restoring a save: put the uncollected settlement gift back on its pile. */
+  restoreGift(value: number): void {
+    if (value > 0) this.giftPile().restoreValue(value);
   }
 
   /** The district of era n, once it is open. */
@@ -95,6 +122,8 @@ export class City {
 
   update(dt: number): void {
     for (const d of this.districts.values()) d.update(dt);
+    // the gift pile only draws while something is on it
+    if (this.gift) this.gift.pile.root.visible = this.gift.value > 0;
     this.timer += dt;
     while (this.timer >= CITY_TICK) {
       this.timer -= CITY_TICK;
@@ -116,9 +145,8 @@ export class City {
 
   /** Credit one tick of income. */
   private pay(): void {
-    const t = cityTotals(this.ctx.state.city);
-    const split = incomeSplit(t, this.ctx.upgrades.value('taxOffice'));
-    const amount = Math.round(split.total * CITY_TICK);
+    const split = incomeSplit(settledCityTotals(this.ctx.state), this.ctx.upgrades.value('taxOffice'));
+    const amount = Math.round(split.total * CITY_TICK * renownMult(this.ctx.state));
     if (amount < 1) return;
     this.ctx.economy.add(amount);
     this.ctx.state.stats.cityEarned += amount;
@@ -138,5 +166,42 @@ export class City {
     this.lastRank = rank;
     this.maxRank = Math.max(this.maxRank, rank);
     this.lastPopulation = total;
+    this.recomputeSettlement(announce);
+  }
+
+  /** Raise the saved settlement to the city's population; announce a new level and pay its gift when `announce`. */
+  private recomputeSettlement(announce: boolean): void {
+    const ctx = this.ctx;
+    refreshSettlement(ctx.state);
+    const level = settlementLevel(ctx.state);
+    const from = this.lastSettlement;
+    if (level === from) return;
+    this.lastSettlement = level;
+    ctx.events.emit('settlement:changed', { level, cityPopulation: cityPopulation(ctx.state) });
+    if (!announce || level <= from || level <= SETTLEMENT.band) return;
+    // every level crossed is a gift; a level that completes its band (j = 5) is a Charter
+    let seconds = 0;
+    let charter = false;
+    for (let L = Math.max(from, SETTLEMENT.band) + 1; L <= level; L++) {
+      seconds += SETTLEMENT.giftSeconds;
+      if (L % SETTLEMENT.band === 0) {
+        seconds += SETTLEMENT.charterSeconds;
+        charter = true;
+      }
+    }
+    const gift = Math.max(SETTLEMENT.giftMin, Math.round(this.incomeRate * seconds));
+    const district = districtDef(Math.min(MAX_ERA, settlementBand(level))).rect;
+    const position = new THREE.Vector3((district.minX + district.maxX) / 2, 0, (district.minZ + district.maxZ) / 2);
+    const pile = this.giftPile();
+    pile.pay(gift, new THREE.Vector3(pile.opts.x, 6, pile.opts.z));
+    ctx.events.emit('settlement:levelUp', { level, from, gift, charter, position });
+  }
+
+  private giftPile(): CashPile {
+    if (!this.gift) {
+      const g = SETTLEMENT.giftPile;
+      this.gift = new CashPile(this.ctx, { id: 'pile:settlementGift', x: g.x, z: g.z, grid: g.grid, zone: g.zone });
+    }
+    return this.gift;
   }
 }

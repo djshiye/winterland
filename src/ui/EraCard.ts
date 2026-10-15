@@ -8,10 +8,17 @@
  * (`.wl-hud.shop-open`: shop or build panel) owns the screen; sits bottom-centre so it clears the quest panel, the
  * shop / build side card and the objective banner at 800x450 and 390x844 (see era.css).
  *
+ * 0.9.0 climb: settlement levels 6..50 (docs/EXPANSION.md §B) show the same card on 'settlement:levelUp': "SETTLEMENT 12"
+ * (or "CHARTER · SETTLEMENT 15" when a band is complete), the level's name, its era district and the perks it brought.
+ * Each level has its own name, so the card never repeats one (ROADMAP §4.5).
+ *
  * Wiring (ui/HUD.ts): constructor `this.era = new EraCard(ctx, layer);`  update(): `this.era.update(dt);`
  */
-import { VILLAGE } from '../config';
+import { SETTLEMENT, VILLAGE } from '../config';
+import { bandsWith, settlementBand, settlementName } from '../core/demand';
 import type { GameContext } from '../core/types';
+import { ERAS } from '../eras/data';
+import { formatMoney } from './format';
 import { settlementTitle } from './agesLogic';
 import { backOut, h } from './dom';
 import { ICON_STAR } from './icons';
@@ -51,6 +58,7 @@ export class EraCard {
     this.root.append(stars, this.eraEl, this.nameEl, this.tagEl, this.perksEl);
     layer.appendChild(this.root);
     ctx.events.on('village:levelUp', (e) => this.show(e.level));
+    ctx.events.on('settlement:levelUp', (e) => this.showSettlement(e.level, e.from, e.gift, e.charter));
   }
 
   /** True while the card is on screen (so a toast with the same perks can be skipped). */
@@ -69,6 +77,22 @@ export class EraCard {
     this.perksEl.replaceChildren(...def.perks.map((p) => h('span', 'wl-era-perk', p)));
     this.perksEl.style.display = def.perks.length ? '' : 'none';
     this.root.setAttribute('aria-label', `Settlement: ${def.name}`);
+    this.t = 0;
+    this.lastOpacity = '';
+    this.lastTransform = '';
+    this.root.style.display = '';
+  }
+
+  /** Show the card for settlement level `level` (6..50), reached from `from`; `gift` dollars wait on the gift pile. */
+  showSettlement(level: number, from: number, gift: number, charter: boolean): void {
+    const lv = Math.max(SETTLEMENT.band + 1, Math.min(SETTLEMENT.max, Math.floor(level)));
+    const district = ERAS[settlementBand(lv)]?.district ?? '';
+    this.eraEl.textContent = charter ? `CHARTER \u00b7 SETTLEMENT ${lv}` : `SETTLEMENT ${lv}`;
+    this.nameEl.textContent = settlementName(lv);
+    this.tagEl.textContent = charter ? `${district} is complete!` : `${district} is growing`;
+    this.perksEl.replaceChildren(...settlementPerks(lv, from, gift).map((p) => h('span', 'wl-era-perk', p)));
+    this.perksEl.style.display = '';
+    this.root.setAttribute('aria-label', `Settlement ${lv}: ${settlementName(lv)}`);
     this.t = 0;
     this.lastOpacity = '';
     this.lastTransform = '';
@@ -98,4 +122,14 @@ export class EraCard {
       this.root.style.transform = tf;
     }
   }
+}
+
+/** The perk chips of a settlement level-up (from `from` to `level`): Renown, the gift and what the band positions crossed bring. */
+export function settlementPerks(level: number, from: number, gift: number): string[] {
+  const out = [`Renown \u00d7${(SETTLEMENT.renown ** (level - SETTLEMENT.band)).toFixed(2)}`, `${formatMoney(gift)} gift on the avenue`];
+  const crossed = (j: number): boolean => bandsWith(level, j) > bandsWith(Math.max(from, SETTLEMENT.band), j);
+  if (crossed(1)) out.push('New quests');
+  if (crossed(3)) out.push(`City happiness +${Math.round(SETTLEMENT.decorHappiness * 100)}%`);
+  if (crossed(4)) out.push('+1 investment slot');
+  return out;
 }

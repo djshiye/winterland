@@ -5,8 +5,8 @@
  * burst reads as a sequence of toasts. Rewards go straight to the money; 'quest:done' drives the juice.
  */
 import { AMENITY_IDS } from '../config';
-import { ERAS, unlockCash } from '../eras/data';
-import { townHappiness } from './demand';
+import { CITY_BUILDINGS, DISTRICTS, ERAS, REGIONS, unlockCash, type CityBuildingKind } from '../eras/data';
+import { settlementLevel, townHappiness } from './demand';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
 import type { GameEvents, GameState } from './types';
@@ -18,6 +18,8 @@ export interface QuestDef {
   readonly reward: number;
   /** Current progress toward `target` (clamped by the caller). */
   progress(s: GameState): number;
+  /** Shown only once this is true (absent = always); a locked quest is skipped, it never blocks the list. */
+  unlocked?(s: GameState): boolean;
 }
 
 const flag = (b: boolean) => (b ? 1 : 0);
@@ -73,21 +75,45 @@ function eraQuests(): QuestDef[] {
   });
   const out: QuestDef[] = [
     reach(2),
+    ...questTrio(2),
     { id: 'machine1', title: 'Build your first era machine', target: 1, reward: 25000, progress: (s) => s.stats.machinesBuilt },
     { id: 'jack1', title: "Sell something at Jack's cart", target: 1, reward: 5000, progress: (s) => flag(s.stats.jackEarned > 0) },
     { id: 'materials100', title: 'Make 100 era materials', target: 100, reward: 40000, progress: (s) => s.stats.materialsMade },
     { id: 'city1', title: 'Build in the city', target: 1, reward: 50000, progress: (s) => s.stats.cityBuilt },
     { id: 'invest1', title: 'Make an investment at the market', target: 1, reward: 30000, progress: (s) => flag(s.market.investments.length > 0 || s.stats.investEarned > 0) },
     reach(3),
+    ...questTrio(3),
     { id: 'machines6', title: 'Run 6 era machines', target: 6, reward: 120000, progress: (s) => s.eras.regions.reduce((n, r) => n + r.slots.filter((x) => x.machine !== '' && x.tier >= 0).length, 0) },
     { id: 'city12', title: 'Build 12 city buildings', target: 12, reward: 250000, progress: (s) => s.stats.cityBuilt },
   ];
   for (let n = 4; n <= 10; n++) {
-    out.push(reach(n));
+    out.push(reach(n), ...questTrio(n));
     out.push({ id: `materials${n}`, title: `Make ${(n * 250).toLocaleString('en-US')} era materials`, target: n * 250, reward: Math.round(unlockCash(n) * 0.05), progress: (s) => s.stats.materialsMade });
   }
   out.push({ id: 'city60', title: 'Build 60 city buildings', target: 60, reward: Math.round(unlockCash(10) * 0.2), progress: (s) => s.stats.cityBuilt });
   return out;
+}
+
+/** Built city buildings of `kind` in district n. */
+const districtBuilt = (s: GameState, n: number, kind: CityBuildingKind): number =>
+  (s.city.districts[n]?.lots ?? []).filter((l) => l.tier >= 0 && l.building !== '' && CITY_BUILDINGS[l.building].kind === kind).length;
+
+/**
+ * Settlement perk j = 1 (docs/EXPANSION.md §B): era n's quest trio unlocks at the first level of its band
+ * (settlement 5·(n − 1) + 1): homes in its district, every machine slot of its region, its landmark.
+ */
+function questTrio(n: number): QuestDef[] {
+  const e = ERAS[n]!;
+  const homes = Math.max(1, (DISTRICTS[n]?.lots ?? 2) - 2);
+  const slots = REGIONS[n]?.slots ?? 1;
+  const landmark = Object.values(CITY_BUILDINGS).find((d) => d.era === n && d.kind === 'landmark');
+  const unlocked = (s: GameState): boolean => settlementLevel(s) >= 5 * (n - 1) + 1;
+  const reward = (share: number): number => Math.round((unlockCash(n) * share) / 1000) * 1000;
+  return [
+    { id: `trio${n}homes`, title: `Build ${homes} homes in ${e.district}`, target: homes, reward: reward(0.04), unlocked, progress: (s) => districtBuilt(s, n, 'home') },
+    { id: `trio${n}machines`, title: `Fill all ${slots} machine slots in ${e.region}`, target: slots, reward: reward(0.06), unlocked, progress: (s) => s.eras.regions[n]?.slots.filter((x) => x.machine !== '' && x.tier >= 0).length ?? 0 },
+    { id: `trio${n}landmark`, title: `Raise the ${landmark?.label ?? 'landmark'} in ${e.district}`, target: 1, reward: reward(0.08), unlocked, progress: (s) => districtBuilt(s, n, 'landmark') },
+  ];
 }
 
 /** The era-1 quests (everything before the first era quest). */
@@ -118,7 +144,7 @@ export class Quests {
   active(): ActiveQuest[] {
     const out: ActiveQuest[] = [];
     for (const def of QUEST_DEFS) {
-      if (this.state.quests[def.id]) continue;
+      if (this.state.quests[def.id] || (def.unlocked && !def.unlocked(this.state))) continue;
       out.push({ def, progress: Math.min(def.target, Math.max(0, def.progress(this.state))) });
       if (out.length >= ACTIVE_QUESTS) break;
     }

@@ -9,10 +9,11 @@
  * Storage can be missing, full or blocked (private windows, embedded pages): every access is wrapped and the game
  * simply runs without saving. `?fresh` in the URL ignores (but does not delete) the save.
  */
-import { AMENITIES, AMENITY_IDS, BUSINESSES, CONTRACTS, DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, UPGRADES, VILLAGE, type BusinessId } from '../config';
+import { AMENITIES, AMENITY_IDS, BUSINESSES, CONTRACTS, DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, SETTLEMENT, UPGRADES, VILLAGE, type BusinessId } from '../config';
 import { CARRY_KINDS, createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type CarryKind, type FlagId, type GameContext, type GameState, type InvestmentState, type ItemKind } from './types';
 import { maxStored } from './ladder';
-import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, INVEST_MAX_POSITIONS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
+import { INVEST_POSITIONS_CAP } from './demand';
+import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
 export interface WorldSnapshot {
@@ -38,6 +39,8 @@ export interface WorldSnapshot {
     truck: number;
     platform: number;
     sled: number;
+    /** 0.9.0 the city's settlement gift pile (absent in older saves → 0). */
+    gift: number;
   };
   /** Items in the player's arms by kind (every CARRY_KINDS entry; 0.9.0 added the era materials). */
   arms: Record<CarryKind, number>;
@@ -131,7 +134,7 @@ export function mergeState(target: GameState, saved: unknown): void {
   // 0.9.0: open-ended arrays (the fresh one is empty, so mergeInto keeps nothing): copied here, sanitized later.
   const inv = isObj(saved) && isObj(saved.market) ? saved.market.investments : undefined;
   if (Array.isArray(inv)) {
-    target.market.investments = inv.filter(isObj).slice(0, INVEST_MAX_POSITIONS).map((o) => ({
+    target.market.investments = inv.filter(isObj).slice(0, INVEST_POSITIONS_CAP).map((o) => ({
       id: isNum(o.id) ? o.id : 0,
       product: (typeof o.product === 'string' ? o.product : '') as InvestmentState['product'],
       era: isNum(o.era) ? o.era : 0,
@@ -255,6 +258,9 @@ export function sanitizeState(state: GameState): void {
       paidSite(lot, lot.building === '' ? undefined : CITY_BUILDINGS[lot.building as CityBuildingId]);
     }
   }
+  // settlement 6..50: a best-ever level, never above the age's band (city/City.ts raises it to the city's population
+  // when it is built, so a valid save stays untouched here)
+  e.settlement = int(e.settlement, 0, Math.min(SETTLEMENT.max, SETTLEMENT.band * e.age));
   {
     const m = state.market;
     for (const k of Object.keys(m.index) as (keyof typeof m.index)[]) {
@@ -356,7 +362,7 @@ export class SalesMeter {
 
 const EMPTY_WORLD: WorldSnapshot = {
   piles: { dropZone: 0, walkIn: 0, hopper: 0, bench: 0, se: 0, truck: 0, deck: 0, platform: 0, workshopIn: 0, workshopOut: 0, sled: 0 },
-  cash: { walkIn: 0, se: 0, truck: 0, platform: 0, sled: 0 },
+  cash: { walkIn: 0, se: 0, truck: 0, platform: 0, sled: 0, gift: 0 },
   arms: Object.fromEntries(CARRY_KINDS.map((k) => [k, 0])) as Record<CarryKind, number>,
   town: Array.from({ length: LOT_COUNT }, () => ({ in: {}, out: 0, cash: 0 })),
   eras: REGION_SLOTS.map((n) => ({ slots: Array.from({ length: n }, () => ({ in: {}, out: 0 })), dock: {} })),
@@ -403,7 +409,7 @@ export function sanitizeWorld(w: unknown): WorldSnapshot {
       workshopOut: n(piles.workshopOut),
       sled: n(piles.sled),
     },
-    cash: { walkIn: n(cash.walkIn), se: n(cash.se), truck: n(cash.truck), platform: n(cash.platform), sled: n(cash.sled) },
+    cash: { walkIn: n(cash.walkIn), se: n(cash.se), truck: n(cash.truck), platform: n(cash.platform), sled: n(cash.sled), gift: n(cash.gift) },
     arms: Object.fromEntries(CARRY_KINDS.map((k) => [k, n(arms[k])])) as Record<CarryKind, number>,
     town: Array.from({ length: LOT_COUNT }, (_, i) => {
       const lot = Array.isArray(o.town) && isObj(o.town[i]) ? (o.town[i] as Record<string, unknown>) : {};
