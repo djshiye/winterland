@@ -33,6 +33,7 @@ import { MoveHand } from './MoveHand';
 import { OfflineCard } from './OfflineCard';
 import { PerfOverlay } from './PerfOverlay';
 import { QuestPanel } from './QuestPanel';
+import { EraCard } from './EraCard';
 import { RushBanner } from './RushBanner';
 import { SeasonBadge } from './SeasonBadge';
 import { SettingsPanel } from './SettingsPanel';
@@ -112,6 +113,8 @@ export class HUD {
   private readonly finale: FinaleCard;
   private readonly quests: QuestPanel;
   private readonly rushBanner: RushBanner;
+  /** Wave 9: era card on each village level-up (replaces the old level-up toast). */
+  private readonly era: EraCard;
   private readonly moveHand: MoveHand;
   private readonly coins: CoinBurst;
   private readonly autoQuality: AutoQuality;
@@ -206,6 +209,7 @@ export class HUD {
     this.quests = new QuestPanel(ctx, layer);
     layer.classList.add('has-quests');
     this.rushBanner = new RushBanner(ctx, layer);
+    this.era = new EraCard(ctx, layer);
     this.autoQuality = new AutoQuality(ctx, () => {
       this.settings.sync();
       this.toast('Switched to Low graphics for smoother play (Settings)', { small: true, duration: 4.5 });
@@ -419,6 +423,7 @@ export class HUD {
     this.finale.update(dt);
     this.quests.update(dt);
     this.rushBanner.update(dt);
+    this.era.update(dt);
     this.moveHand.update(dt);
     this.coins.update(dt);
     this.autoQuality.update();

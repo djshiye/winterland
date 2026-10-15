@@ -293,7 +293,6 @@ export class JuiceDirector {
     });
 
     ev.on('village:levelUp', (e) => {
-      const def = VILLAGE.levels[e.level];
       ctx.audio.play('fanfare');
       this.tmp.copy(e.position);
       ctx.particles.confetti(this.tmp, 70);
@@ -301,7 +300,7 @@ export class JuiceDirector {
       ctx.particles.ring(this.tmp, { color: 0xffffff, radius: 3, life: 0.55 });
       ctx.cameraRig.shake(0.2, 0.3);
       this.later(0.25, () => ctx.particles.confetti(this.tmp2.copy(e.position), 40));
-      if (def) ctx.hud.toast(def.name, { sub: def.perks.length ? def.perks.join(' \u00b7 ') : undefined, duration: 3.2 });
+      // The era card (ui/EraCard.ts) names the new era and its perks; no toast on top of it.
     });
 
     ev.on('finale:start', (e) => {
