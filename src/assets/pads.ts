@@ -500,20 +500,216 @@ function drawGreatLodge(g: CanvasRenderingContext2D): void {
   g.fillRect(-70, 54, 140, 6);
 }
 
+// --- wave 9 town icons (white silhouettes on the pad, same ±64 box as the shelter icons) ---------------------
+
+/** Farm: a gambrel barn with a big X door, a hay-loft window and a little windmill behind it. */
+function drawFarm(g: CanvasRenderingContext2D): void {
+  // windmill (right, behind): tower + four sails
+  g.beginPath();
+  poly(g, [[34, 52], [40, -10], [56, -10], [62, 52]]);
+  g.fill();
+  g.beginPath();
+  poly(g, [[38, -10], [48, -26], [58, -10]]);
+  g.fill();
+  g.save();
+  g.translate(48, -12);
+  g.rotate(Math.PI / 5);
+  for (let i = 0; i < 4; i++) {
+    g.fillRect(-2.5, -34, 5, 34);
+    g.fillRect(2.5, -34, 10, 20);
+    g.rotate(Math.PI / 2);
+  }
+  g.restore();
+  // barn
+  g.beginPath();
+  poly(g, [[-62, 52], [-62, -4], [-46, -26], [-22, -44], [2, -26], [18, -4], [18, 52]]);
+  addRoundedRect(g, -48, 16, 40, 36, 2); // door
+  addRoundedRect(g, -36, -14, 16, 14, 2); // loft window
+  g.fill('evenodd');
+  g.lineWidth = 4;
+  g.beginPath();
+  g.moveTo(-46, 18);
+  g.lineTo(-10, 50);
+  g.moveTo(-10, 18);
+  g.lineTo(-46, 50);
+  g.moveTo(-28, 16);
+  g.lineTo(-28, 52);
+  g.stroke();
+  g.fillRect(-66, 52, 132, 6);
+}
+
+/** Bakery: a gabled shop with a big chimney (and smoke puffs), a scalloped awning and a round loaf on the sign. */
+function drawBakery(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  poly(g, [[-62, -4], [-8, -40], [46, -4]]); // roof
+  g.fill();
+  g.fillRect(14, -52, 18, 34); // chimney
+  g.fillRect(11, -56, 24, 7);
+  for (const [x, y, r] of [[26, -66, 5], [34, -76, 6]] as const) {
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.beginPath();
+  addRoundedRect(g, -54, 0, 92, 54, 3);
+  addRoundedRect(g, 14, 18, 18, 36, 8); // door
+  addRoundedRect(g, -46, 20, 44, 18, 3); // shop window
+  g.fill('evenodd');
+  // scalloped awning
+  for (let i = 0; i < 4; i++) {
+    g.beginPath();
+    g.arc(-40 + i * 14, 10, 7, 0, Math.PI);
+    g.fill();
+  }
+  // hanging loaf sign
+  g.fillRect(40, -2, 22, 4);
+  g.beginPath();
+  g.ellipse(54, 22, 10, 16, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillRect(-58, 54, 122, 5);
+}
+
+/** Townhouse: a narrow two-storey house with a steep roof, chimney, four windows and a wreath on the door. */
+function drawTownhouse(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  poly(g, [[-46, -22], [0, -60], [46, -22]]); // roof
+  g.fill();
+  g.fillRect(16, -56, 14, 26); // chimney
+  g.beginPath();
+  addRoundedRect(g, -40, -18, 80, 74, 3);
+  addRoundedRect(g, -30, -8, 20, 20, 3); // upper windows
+  addRoundedRect(g, 10, -8, 20, 20, 3);
+  addRoundedRect(g, -30, 22, 16, 18, 3); // lower windows
+  addRoundedRect(g, 14, 22, 16, 18, 3);
+  addRoundedRect(g, -9, 24, 18, 32, 3); // door
+  g.fill('evenodd');
+  // wreath on the door
+  g.lineWidth = 4;
+  g.beginPath();
+  g.arc(0, 36, 5, 0, Math.PI * 2);
+  g.stroke();
+  g.fillRect(-48, 56, 96, 5);
+}
+
+/** Ranch: a snug barn, a fence and a chunky cow. */
+function drawRanch(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  poly(g, [[-64, 6], [-64, -14], [-40, -44], [-16, -14], [-16, 6]]); // barn gable
+  g.fill();
+  g.beginPath();
+  addRoundedRect(g, -64, 6, 48, 46, 2);
+  addRoundedRect(g, -52, 20, 24, 32, 2);
+  g.fill('evenodd');
+  // cow (facing right)
+  g.beginPath();
+  addRoundedRect(g, -2, 14, 50, 24, 10); // body
+  addRoundedRect(g, 40, 6, 22, 20, 6); // head
+  g.fill();
+  g.fillRect(2, 36, 7, 18);
+  g.fillRect(14, 36, 7, 18);
+  g.fillRect(32, 36, 7, 18);
+  g.fillRect(44, 36, 7, 18);
+  g.beginPath();
+  poly(g, [[44, 6], [48, -4], [52, 6]]);
+  poly(g, [[54, 6], [58, -4], [62, 6]]);
+  g.fill();
+  // fence
+  g.fillRect(-66, 40, 130, 4);
+  for (let x = -62; x <= 62; x += 31) g.fillRect(x, 32, 5, 24);
+  g.fillRect(-66, 54, 132, 5);
+}
+
+/** Butcher: a striped-awning shop, a smokehouse chimney and a hanging ham. */
+function drawButcher(g: CanvasRenderingContext2D): void {
+  // smokehouse (right) with chimney pipe
+  g.beginPath();
+  poly(g, [[22, -20], [40, -40], [58, -20]]);
+  g.fill();
+  g.fillRect(36, -62, 8, 24);
+  g.beginPath();
+  addRoundedRect(g, 24, -20, 32, 74, 2);
+  addRoundedRect(g, 31, 14, 18, 20, 2);
+  g.fill('evenodd');
+  // shop roof + body
+  g.beginPath();
+  poly(g, [[-62, -10], [-20, -34], [22, -10]]);
+  g.fill();
+  g.beginPath();
+  addRoundedRect(g, -56, -4, 74, 58, 3);
+  addRoundedRect(g, -46, 22, 28, 26, 3); // window
+  addRoundedRect(g, -10, 22, 18, 32, 3); // door
+  g.fill('evenodd');
+  // awning stripes (alternate filled / empty bars)
+  for (let i = 0; i < 6; i++) if (i % 2 === 0) g.fillRect(-58 + i * 13, 8, 12, 12);
+  g.beginPath();
+  poly(g, [[-62, 8], [-62, 2], [22, 2], [22, 8]]);
+  g.fill();
+  // hanging ham
+  g.fillRect(-6, -2, 2.5, 8);
+  g.fillRect(-60, 54, 122, 5);
+}
+
+/** Toy factory: sawtooth roof, tall chimney, a big cog on the wall and a little train sign. */
+function drawToyFactory(g: CanvasRenderingContext2D): void {
+  g.fillRect(-56, -62, 12, 40); // chimney
+  g.fillRect(-59, -66, 18, 6);
+  g.beginPath();
+  poly(g, [[-62, -2], [-62, -28], [-34, -2], [-34, -28], [-6, -2], [-6, -28], [22, -2], [22, -28], [50, -2]]); // saw teeth
+  g.fill();
+  g.beginPath();
+  addRoundedRect(g, -62, -2, 112, 56, 3);
+  addRoundedRect(g, -52, 22, 26, 32, 2); // door
+  addRoundedRect(g, -18, 12, 20, 16, 2); // window
+  g.fill('evenodd');
+  // cog
+  g.save();
+  g.translate(26, 30);
+  g.beginPath();
+  g.arc(0, 0, 14, 0, Math.PI * 2);
+  g.arc(0, 0, 5, 0, Math.PI * 2, true);
+  g.fill('evenodd');
+  for (let i = 0; i < 8; i++) {
+    g.rotate(Math.PI / 4);
+    g.fillRect(-4, -21, 8, 10);
+  }
+  g.restore();
+  g.fillRect(-66, 54, 130, 5);
+}
+
+/** Lot: an empty plot with rope stakes and a FOR SALE signboard. */
+function drawLot(g: CanvasRenderingContext2D): void {
+  // sign
+  g.fillRect(-4, -4, 7, 58);
+  g.beginPath();
+  addRoundedRect(g, -42, -44, 84, 46, 5);
+  addRoundedRect(g, -34, -36, 68, 30, 3);
+  g.fill('evenodd');
+  g.fillRect(-26, -30, 52, 5);
+  g.fillRect(-20, -18, 40, 5);
+  // stakes + rope
+  for (const x of [-58, 56]) {
+    g.fillRect(x - 3, 22, 6, 32);
+    g.beginPath();
+    g.arc(x, 20, 6, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.fillRect(-58, 34, 114, 3);
+  g.fillRect(-66, 54, 132, 6);
+}
+
 const SHELTER_ICONS: Record<ShelterIcon, (g: CanvasRenderingContext2D) => void> = {
   tent: drawTent,
   hut: drawHut,
   cabin: drawCabin,
   lodge: drawLodge,
   greatLodge: drawGreatLodge,
-  // [T1 — wave 9] placeholders: the great-lodge outline until the town icons are drawn.
-  farm: drawGreatLodge,
-  bakery: drawGreatLodge,
-  townhouse: drawGreatLodge,
-  ranch: drawGreatLodge,
-  butcher: drawGreatLodge,
-  toyFactory: drawGreatLodge,
-  lot: drawTent,
+  farm: drawFarm,
+  bakery: drawBakery,
+  townhouse: drawTownhouse,
+  ranch: drawRanch,
+  butcher: drawButcher,
+  toyFactory: drawToyFactory,
+  lot: drawLot,
 };
 
 /** A small log lying on its side: bark body, LOG_CORE end cap with a ring. */
@@ -1011,6 +1207,13 @@ export const padCatalog: Record<string, () => THREE.Object3D> = {
   padTubes: () => createPadModel(2.0, createPadTexture('tubes', '$14k', 0.2)),
   padHarvesterLevel: () => createPadModel(2.2, createPadTexture('saw', '$400', 0.4, undefined, 'LV 2')),
   padHut: () => createPadModel(1.4, createConstructionTexture('hut', { left: 8, total: 12 }, { left: 350, total: 350 })),
+  padFarm: () => createPadModel(1.8, createConstructionTexture('farm', { left: 24, total: 24 }, { left: 2500, total: 2500 })),
+  padBakery: () => createPadModel(1.8, createConstructionTexture('bakery', { left: 20, total: 30 }, { left: 4000, total: 4000 })),
+  padTownhouse: () => createPadModel(1.8, createConstructionTexture('townhouse', { left: 40, total: 40 }, { left: 6000, total: 6000 })),
+  padRanch: () => createPadModel(1.8, createConstructionTexture('ranch', { left: 30, total: 30 }, { left: 5000, total: 5000 })),
+  padButcher: () => createPadModel(1.8, createConstructionTexture('butcher', { left: 36, total: 36 }, { left: 9000, total: 9000 })),
+  padToyFactory: () => createPadModel(1.8, createConstructionTexture('toyFactory', { left: 50, total: 50 }, { left: 14000, total: 14000 })),
+  padLot: () => createPadModel(1.8, createConstructionTexture('lot', { left: 10, total: 10 }, { left: 1000, total: 1000 })),
   padGreatLodge: () => createPadModel(1.8, createConstructionTexture('greatLodge', { left: 120, total: 120 }, { left: 40000, total: 40000 })),
   shopMat: () => createMatModel(2.2, 1.6),
   padSign: () => {

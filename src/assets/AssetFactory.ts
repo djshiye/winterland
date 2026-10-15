@@ -30,6 +30,7 @@
  *   pads.ts       — createPadTexture, upgrade-pad tile
  *   scenery.ts    — palisade fence post
  *   shelters.ts   — village shelters (tent → hut → cabin → lodge), lot, scaffold, Great Lodge
+ *   town.ts       — wave 9 Market Town: six business models, lot for sale, scaffold, hopper / counter / pallet props
  */
 import type * as THREE from 'three';
 import { characterCatalog } from './characters';
@@ -42,6 +43,7 @@ import { sledCatalog } from './sled';
 import { sceneryCatalog } from './scenery';
 import { sheltersCatalog } from './shelters';
 import { shopCatalog } from './shop';
+import { townCatalog } from './town';
 import { vehicleCatalog } from './vehicles';
 
 export * from './characters';
@@ -52,6 +54,7 @@ export * from './machines';
 export * from './pads';
 export * from './scenery';
 export * from './shelters';
+export * from './town';
 
 export type AssetBuilder = () => THREE.Object3D;
 
@@ -68,4 +71,5 @@ export const ASSET_CATALOG: Record<string, Record<string, AssetBuilder>> = {
   ridge: ridgeCatalog,
   ridgeMachines: ridgeMachineCatalog,
   sled: sledCatalog,
+  town: townCatalog,
 };
