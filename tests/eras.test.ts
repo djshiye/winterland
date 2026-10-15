@@ -4,8 +4,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LAYOUT, VILLAGE } from '../src/config';
 import type { GameContext } from '../src/core/types';
 import { Fireworks } from '../src/fx/Fireworks';
+import { STALLS } from '../src/town/spots';
 import { blocked } from '../src/world/env/common';
+import { buildLampSet, LAMP_HEAD, LAMP_TOP, type LampSpot } from '../src/world/env/lamps';
+import { CORRIDOR_LAMPS, SQUARE_LAMPS } from '../src/world/env/town';
+import { villageLamps } from '../src/world/env/village';
 import { applyEra, currentEra, eraFor, eraLabel, registerEra, resetEras, romanNumeral } from '../src/world/env/eras';
+
+// The halo mesh paints a canvas texture (DOM); everything else of glow.ts is real. Halos are checked separately.
+vi.mock('../src/world/env/glow', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../src/world/env/glow')>();
+  return { ...real, buildHalos: () => new THREE.Mesh() };
+});
 
 afterEach(() => resetEras());
 
@@ -128,5 +138,69 @@ describe('Fireworks', () => {
     const night = make(1);
     night.handlers.get('village:levelUp')!({ level: 3, position: new THREE.Vector3(4, 0, 20) });
     expect(night.fw.pending).toBeGreaterThan(dayCount);
+  });
+});
+
+describe('lamp variants', () => {
+  // Lamps are NOT instanced: each generation is one baked post mesh + one glow mesh (merged geometry), so the
+  // "instance matrix" of a lamp is its vertices. Every vertex must be finite and stay within one lamp's footprint.
+  const sets: ReadonlyArray<[string, readonly LampSpot[]]> = [
+    ['village street', villageLamps()],
+    ['town', [...SQUARE_LAMPS, ...CORRIDOR_LAMPS]],
+  ];
+  const kinds = ['torch', 'lantern', 'iron'] as const;
+  const REACH = 0.6; // widest part of any lamp (iron roof / torch bowl) from its post
+  const MAX_Y = 3.8; // iron finial is 3.58
+
+  for (const [label, spots] of sets) {
+    for (const kind of kinds) {
+      it(`${label}: ${kind} lamps are finite, ground-standing and inside their own footprint`, () => {
+        const group = buildLampSet(kind, spots);
+        expect(group.name).toBe(`lamps-${kind}`);
+        const meshes: THREE.Mesh[] = [];
+        group.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
+        });
+        expect(meshes.length).toBeGreaterThanOrEqual(2);
+        group.updateMatrixWorld(true);
+        for (const m of meshes) {
+          expect((m as unknown as THREE.InstancedMesh).isInstancedMesh).toBeFalsy();
+          // a visible lamp part must not carry a scale at all (identity transform, nothing to go stale)
+          const s = new THREE.Vector3().setFromMatrixScale(m.matrixWorld);
+          expect([s.x, s.y, s.z]).toEqual([1, 1, 1]);
+          const pos = m.geometry.getAttribute('position');
+          if (!pos) continue; // stubbed halo
+          let minY = Infinity;
+          let maxY = -Infinity;
+          for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i);
+            const y = pos.getY(i);
+            const z = pos.getZ(i);
+            expect(Number.isFinite(x + y + z)).toBe(true);
+            const near = spots.some((sp) => Math.abs(x - sp.x) <= REACH && Math.abs(z - sp.z) <= REACH);
+            if (!near) throw new Error(`${kind} vertex (${x}, ${y}, ${z}) is not within ${REACH} m of any lamp`);
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+          }
+          expect(minY).toBeGreaterThanOrEqual(-0.1);
+          expect(maxY).toBeLessThanOrEqual(MAX_Y);
+        }
+      });
+    }
+  }
+
+  it('every lamp head sits at its generation height and the strings attach above it', () => {
+    for (const kind of kinds) expect(LAMP_TOP[kind]).toBeGreaterThan(LAMP_HEAD[kind]);
+    expect(LAMP_HEAD.torch).toBeLessThan(LAMP_HEAD.lantern);
+    expect(LAMP_HEAD.lantern).toBeLessThan(LAMP_HEAD.iron);
+  });
+
+  it('keeps the corridor-mouth lamp out of the village street and every lamp clear of the market stalls', () => {
+    const street = LAYOUT.village.street;
+    for (const sp of villageLamps()) expect(sp.x === street.minX + 0.05 || sp.x === street.maxX - 0.05).toBe(true);
+    expect(villageLamps().some((sp) => sp.x === street.maxX - 0.05 && sp.z >= LAYOUT.town.gate.minZ - 0.8)).toBe(false);
+    for (const st of STALLS) {
+      for (const sp of [...SQUARE_LAMPS, ...CORRIDOR_LAMPS]) expect(Math.hypot(sp.x - st.x, sp.z - st.z)).toBeGreaterThan(1.2);
+    }
   });
 });

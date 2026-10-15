@@ -64,7 +64,7 @@ describe('canChoose', () => {
     expect(canChoose(s, -1, 'bakery')).toBe(false);
     expect(canChoose(s, LOT_COUNT, 'bakery')).toBe(false);
     expect(canChoose(s, 0.5, 'bakery')).toBe(false);
-    expect(canChoose(s, 0, 'ranch')).toBe(false); // hidden
+    expect(canChoose(s, 0, 'toyFactory')).toBe(false); // era 4 (Winter City)
     expect(canChoose(s, 0, 'nope' as BusinessId)).toBe(false);
     s.village.level = TOWN_LEVEL - 1;
     expect(canChoose(s, 0, 'bakery')).toBe(false); // era not reached

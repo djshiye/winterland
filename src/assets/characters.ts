@@ -28,7 +28,7 @@ import { COLORS, PALETTE } from '../config';
 import { bake } from '../render/batch';
 import { geo, mesh, toon } from '../render/materials';
 
-/** 'worker': hired crew (crate runner / cashier / log hauler — variant 0 / 1 / 2). */
+/** 'worker': hired crew (crate runner / cashier / log hauler — variant 0 / 1 / 2; the porter is PORTER_VARIANT and up). */
 export type CharacterKind = 'player' | 'customer' | 'courier' | 'driver' | 'worker';
 
 /** Height of the body pivot (hips) above the feet, shared by every character. */
@@ -393,7 +393,50 @@ export const WORKER_ROLES = ['crateRunner', 'cashier', 'logHauler'] as const;
  *   1 cashier:      green vest over white sleeves, flat dark cap, a little brown satchel on the hip.
  *   2 log hauler:   red/black plaid jacket, black beanie with a red cuff, brown beard.
  */
+/** Worker variants at or above this are town porters (createPorterModel). */
+export const PORTER_VARIANT = 3;
+
+/**
+ * Wave 9 porter: a deep-teal duffel coat with a mustard scarf, a leather chest strap and a cream woolly hat with a
+ * pompom. Same structure as the other workers (6 baked meshes).
+ */
+function createPorterModel(): CharacterModel {
+  const COAT = 0x2f8f83;
+  const SCARF = 0xe0a526;
+  const m = npcBody(
+    COAT,
+    COLORS.PLAYER_SKIN,
+    PALETTE.rubber,
+    (g, topY) => {
+      g.add(torusRing(0.288, 0.07, SCARF, topY - 0.02 - HIP)); // chunky mustard scarf
+      g.add(torusRing(0.303, 0.03, PALETTE.barkDark, BASE_Y + 0.2 - HIP)); // belt
+      const strap = mesh(geo.box(0.05, 0.78, 0.04), toon(PALETTE.barkDark));
+      strap.position.set(0.02, BASE_Y + 0.5 - HIP, 0.285);
+      strap.rotation.z = 0.6;
+      const buckle = mesh(geo.box(0.09, 0.09, 0.03), toon(SCARF));
+      buckle.position.set(0.02, BASE_Y + 0.5 - HIP, 0.3);
+      g.add(strap, buckle);
+    },
+    (g) => {
+      const wool = toon(0xf1e6cf);
+      const dome = mesh(geo.sphere(0.25, 16, 10), wool);
+      dome.scale.set(1, 0.8, 1);
+      dome.position.y = 0.11;
+      const cuff = mesh(geo.torus(0.23, 0.05, 8, 18), toon(SCARF));
+      cuff.rotation.x = Math.PI / 2;
+      cuff.position.y = 0.08;
+      const pom = mesh(geo.sphere(0.08, 10, 8), wool);
+      pom.position.y = 0.34;
+      g.add(dome, cuff, pom);
+    },
+    COAT,
+  );
+  m.height = m.headY + 0.11 + 0.25 * 0.8 + 0.12;
+  return m;
+}
+
 export function createWorkerModel(variant = 0): CharacterModel {
+  if (variant >= PORTER_VARIANT) return createPorterModel();
   const role = ((variant % 3) + 3) % 3;
   if (role === 0) {
     const m = npcBody(
@@ -535,6 +578,7 @@ export const characterCatalog: Record<string, () => THREE.Object3D> = {
   driver: () => createDriverModel(0).root,
   'driver (grey)': () => createDriverModel(1).root,
   'worker: crate runner': () => createWorkerModel(0).root,
+  'worker: porter': () => createWorkerModel(PORTER_VARIANT).root,
   'worker: cashier': () => createWorkerModel(1).root,
   'worker: log hauler': () => createWorkerModel(2).root,
   'axe (lv 0, wood + iron)': () => createAxe(0),

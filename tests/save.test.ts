@@ -13,7 +13,7 @@ import { createGameState } from '../src/core/types';
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
 /** Every real save captured from a released build: each must keep loading as the state grows. */
-const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json'];
+const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json'];
 
 describe.each(FIXTURES)('%s', (name) => {
   it('loads every saved field and the world', () => {
@@ -196,5 +196,43 @@ describe('sanitizeState', () => {
     expect(state.playTime).toBe(0);
     expect(state.stats.moneyEarned).toBe(0);
     expect(state.padPaid['pad:harvester']).toBe(0);
+  });
+});
+
+describe('v3 Market Town fixture', () => {
+  it('restores lots (built, mid-payment, empty) and the town world untouched by sanitizeState', () => {
+    const save = load('save-v3-market.json');
+    const state = createGameState();
+    mergeState(state, save.state);
+    const before = JSON.stringify(state);
+    sanitizeState(state);
+    expect(JSON.stringify(state)).toBe(before);
+    expect(state.town.revealed).toBe(true);
+    expect(state.town.lots.map((l) => l.building)).toEqual(save.state.town.lots.map((l) => l.building));
+    const mid = state.town.lots[5]!;
+    expect(mid).toEqual({ building: 'bakery', tier: -1, logs: 7, cash: 1200 });
+    const world = sanitizeWorld(save.world);
+    expect(world.town).toEqual(save.world.town.map((t) => ({ ...t, in: Object.fromEntries(Object.entries(t.in).filter(([, n]) => (n ?? 0) > 0)) })));
+  });
+
+  it('older saves get an empty, hidden town', () => {
+    for (const name of ['save-v1-town.json', 'save-v2-ridge.json']) {
+      const state = createGameState();
+      mergeState(state, load(name).state);
+      sanitizeState(state);
+      expect(state.town.revealed).toBe(false);
+      expect(state.town.lots.every((l) => l.building === '' && l.tier === -1)).toBe(true);
+      expect(sanitizeWorld(load(name).world).town.every((t) => t.out === 0 && t.cash === 0)).toBe(true);
+    }
+  });
+
+  it('an unknown building id frees the lot; paid amounts are capped at the building cost', () => {
+    const state = createGameState();
+    state.town.lots[0] = { building: 'castle' as never, tier: 0, logs: 5, cash: 50 };
+    state.town.lots[1] = { building: 'farm', tier: -1, logs: 999, cash: 1e9 };
+    sanitizeState(state);
+    expect(state.town.lots[0]).toEqual({ building: '', tier: -1, logs: 0, cash: 0 });
+    expect(state.town.lots[1]!.logs).toBeLessThanOrEqual(24);
+    expect(state.town.lots[1]!.cash).toBeLessThanOrEqual(2500);
   });
 });

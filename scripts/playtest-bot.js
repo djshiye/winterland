@@ -34,7 +34,7 @@
   let lastUpkeep = -Infinity;
   const WINTER_CITY = VILLAGE.levels.findIndex((l) => l.name === 'Winter City');
   /** Wave 9: what the bot builds on each Market Town lot (in lot order), and how often it restocks the shops. */
-  const TOWN_PLAN = ['farm', 'bakery', 'townhouse', 'townhouse', 'farm', 'bakery', 'townhouse', 'townhouse'];
+  const TOWN_PLAN = ['farm', 'bakery', 'ranch', 'butcher', 'townhouse', 'townhouse', 'toyFactory', 'townhouse'];
   const TOWN_EVERY = 20;
   /** Town builds compete with shelters at this weight (they also earn: shops sell bread). */
   const TOWN_WEIGHT = 1.4;

@@ -7,6 +7,8 @@
  * - On 'upgrade:bought' (a crew id) and 'quarters:built' the reconcile runs at once in "walk-out" mode: every new
  *   helper walks out of the cabin door (LAYOUT.shop.door) to its post (staggered when several arrive together) and
  *   'helper:hired' is emitted once per new helper.
+ * - porter (wave 9): town producer pallets / drop-zone firewood / bench crates → the shops' hoppers; the cashiers
+ *   also empty the town tills. Home: the market square by the corridor mouth.
  * - Work speed / capacity = CREW[id] base × ctx.upgrades.value(id), read live (levels apply at once).
  * - crateRunner: processor output (bench) → SE counter. cashier: cash piles → the cabin door, where the bundles
  *   fly in and their value is added to the money. logHauler: drop zone → truck counter (or the walk-in counter
@@ -17,7 +19,7 @@
 import * as THREE from 'three';
 import { LAYOUT } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
-import type { GameContext, ItemKind } from '../core/types';
+import { LOT_COUNT, type GameContext, type ItemKind } from '../core/types';
 import type { Level } from '../level/Level';
 import {
   CREW_IDS,
@@ -30,7 +32,9 @@ import {
   Helper,
   LogHauler,
   PineHauler,
+  Porter,
   type CrewId,
+  type PorterCarried,
 } from './crewHelpers';
 
 /** Seconds between two helpers walking out of the door in one reconcile. */
@@ -86,6 +90,24 @@ export class Crew {
     for (const h of this.helpers.get(role) ?? []) n += h.stack.count(kind) + flights.inFlightTo(h.stack, kind);
     for (const h of this.leaving) if (h.id === role) n += h.stack.count(kind) + flights.inFlightTo(h.stack, kind);
     return n;
+  }
+
+  /**
+   * Wave 9 (the save): everything the porters hold (in their arms and still flying in), already sorted for the save:
+   *   in[lot][kind]  goods heading into that shop's hopper -> add to the lot's `in`,
+   *   out[lot]       wheat / meat to put back on that producer lot's pallet -> add to the lot's `out`,
+   *   loose.log / loose.crate  no shop to take them -> add to the drop zone / the bench.
+   * This REPLACES carried('porter', kind) in the snapshot (do not add both). Arrays have length LOT_COUNT.
+   */
+  townCarried(): PorterCarried {
+    const out: PorterCarried = {
+      in: Array.from({ length: LOT_COUNT }, () => ({})),
+      out: new Array<number>(LOT_COUNT).fill(0),
+      loose: {},
+    };
+    for (const h of this.helpers.get('porter') ?? []) if (h instanceof Porter) h.addCarried(out);
+    for (const h of this.leaving) if (h instanceof Porter) h.addCarried(out);
+    return out;
   }
 
   carriedValue(role: CrewRole): number {
@@ -161,6 +183,8 @@ export class Crew {
         return new LogHauler(this.ctx, this.level, index);
       case 'pineHauler':
         return new PineHauler(this.ctx, this.level, index);
+      case 'porter':
+        return new Porter(this.ctx, this.level, index);
     }
   }
 }

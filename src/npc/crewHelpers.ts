@@ -10,23 +10,44 @@
  *   touches the Timber Ridge log deck.
  * - PineHauler: Timber Ridge log deck (level.treeFeller.deck) → platform counter (level.platformCounter.input).
  *   Rests near the quarters while the deck is empty. It never touches the drop zone.
+ * - Porter (wave 9): keeps the Market Town shops stocked: producer pallets (wheat, meat) → shop hoppers, drop-zone
+ *   firewood → shops short of logs, bench crates → the toy factory. Pure job choice in npc/townJobs.ts, routes
+ *   (yard → village gate → street → corridor → square, around the square's props) in npc/townRoutes.ts. The cashiers
+ *   also collect the town tills along the same routes.
  *
  * Several helpers of one role may work (core/crew.ts crewSlots): each has an `index`, a small lane offset on its
  * posts, a staggered start, and `peers` (the role's helpers) so cashiers do not pile onto the same cash pile.
  */
 import * as THREE from 'three';
-import { CREW, LAYOUT, PLAYER, type XZ } from '../config';
+import { CREW, LAYOUT, PLAYER, type Rect, type XZ } from '../config';
 import { approach, dampAngle, yawFromDir } from '../core/math';
 import type { CrewRole } from '../core/crew';
-import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
+import { PORTER_VARIANT } from '../assets/characters';
+import { LOT_COUNT, type GameContext, type Item, type ItemHolder, type ItemKind, type Slot } from '../core/types';
 import { CarryStack } from '../items/CarryStack';
 import { transferOne } from '../items/transfer';
 import { createCharacterRig, type CharacterRig } from '../render/characters';
 import type { Level } from '../level/Level';
 import type { CashPile } from '../stations/CashPile';
+import type { Business } from '../town/Business';
+import { hopperPerKind } from '../town/rules';
+import { destKey, pickJob, pickShop, type Claims, type PorterJob, type ShopView, type SourceView } from './townJobs';
+import {
+  BENCH_LEG,
+  CABIN_LEG,
+  CLEARANCE,
+  DROP_LEG,
+  ENTRY,
+  TRUNK,
+  planSquare,
+  TILL_SHIFT,
+  travel,
+  zoneStand,
+  type Stop,
+} from './townRoutes';
 
 export type CrewId = CrewRole;
-export const CREW_IDS: readonly CrewId[] = ['crateRunner', 'cashier', 'logHauler', 'pineHauler'];
+export const CREW_IDS: readonly CrewId[] = ['crateRunner', 'cashier', 'logHauler', 'pineHauler', 'porter'];
 
 const ACCEL = 12;
 const TURN_LAMBDA = 12;
@@ -85,27 +106,37 @@ const PLATFORM_LOOK: XZ = { x: RIDGE.platform.x, z: RIDGE.platform.z };
 const PAD_BYPASS: XZ = { x: 27.0, z: -1.2 };
 const DECK_TO_PLATFORM: XZ[] = [PINE_JUNCTION, PAD_BYPASS, PLATFORM_POST];
 
+// --- Market Town: the porters' home on the square, beside the corridor mouth (clear of every zone and queue) ------
+const TOWN = LAYOUT.town;
+const PORTER_HOME: XZ = { x: 18.2, z: 28.4 };
+const PORTER_LOOK: XZ = { x: TOWN.tree.x, z: TOWN.tree.z };
+/** Cabin door → gate → street → corridor → square → home. */
+const PORTER_ROUTE: XZ[] = [...CABIN_LEG, ...TRUNK, PORTER_HOME];
+
 /** Door → home post, used when a helper is hired. */
 const HOME_ROUTE: Record<CrewId, XZ[]> = {
   crateRunner: [{ x: 7.4, z: -2.0 }, { x: 7.4, z: 0.85 }, BENCH_POST],
   cashier: [CASHIER_HOME],
   logHauler: [{ x: 4.8, z: -5.3 }, { x: -1.5, z: -4.6 }, DROP_POST],
   pineHauler: [...TO_RIDGE, PINE_JUNCTION, PINE_APPROACH, PINE_HOME],
+  porter: PORTER_ROUTE,
 };
 const HOME: Record<CrewId, XZ> = {
   crateRunner: BENCH_POST,
   cashier: CASHIER_HOME,
   logHauler: DROP_POST,
   pineHauler: PINE_HOME,
+  porter: PORTER_HOME,
 };
 const HOME_LOOK: Record<CrewId, XZ> = {
   crateRunner: BENCH_LOOK,
   cashier: DOOR_LOOK,
   logHauler: DROP_LOOK,
   pineHauler: PINE_HOME_LOOK,
+  porter: PORTER_LOOK,
 };
 /** Base character variant per role (the index shifts it so twins look different). */
-const VARIANT: Record<CrewId, number> = { crateRunner: 0, cashier: 1, logHauler: 2, pineHauler: 1 };
+const VARIANT: Record<CrewId, number> = { crateRunner: 0, cashier: 1, logHauler: 2, pineHauler: 1, porter: PORTER_VARIANT };
 /**
  * Lane steps for the 1st…4th helper of a role (metres). Every post is registered with the point its worker faces;
  * the helper stands beside the post along the line perpendicular to that look direction, so a second helper
@@ -125,6 +156,7 @@ registerPost(TRUCK_POST, TRUCK_LOOK);
 registerPost(PINE_HOME, PINE_HOME_LOOK);
 registerPost(DECK_POST, DECK_LOOK);
 registerPost(PLATFORM_POST, PLATFORM_LOOK);
+registerPost(PORTER_HOME, PORTER_LOOK);
 
 // --- the deposit sink ---------------------------------------------------------------------------
 /** Where the cashier's bundles land: the cabin door. receive() banks the value and recycles the bundle. */
@@ -190,7 +222,8 @@ export abstract class Helper {
     readonly index: number,
     accepts: readonly ItemKind[],
   ) {
-    this.rig = createCharacterRig('worker', (VARIANT[id] + index) % 3);
+    // porters have their own model (variant >= PORTER_VARIANT, the index only varies the build); the rest cycle 0..2
+    this.rig = createCharacterRig('worker', id === 'porter' ? PORTER_VARIANT + index : (VARIANT[id] + index) % 3);
     this.laneStep = LANE_STEP[Math.min(index, LANE_STEP.length - 1)]!;
     this.group.add(this.rig.root);
     this.group.name = index === 0 ? `crew:${id}` : `crew:${id}:${index}`;
@@ -425,11 +458,15 @@ export class CrateRunner extends Helper {
 type CashierPhase = 'idle' | 'go' | 'collect' | 'back' | 'deposit';
 
 interface PileStop {
-  route: XZ[];
+  /** Waypoints from the cabin to just before `post` (a getter for the town tills: planned only when chosen). */
+  readonly route: XZ[];
   post: XZ;
   look: XZ;
   pile: () => CashPile | null;
 }
+
+/** A town till is worth the long walk once it holds at least this much. */
+export const TILL_MIN_TRIP = 150;
 
 export class Cashier extends Helper {
   private phase: CashierPhase = 'idle';
@@ -526,12 +563,38 @@ export class Cashier extends Helper {
     return mine !== null && mine === s.pile();
   }
 
+  /** Stops for the town tills worth a trip right now (read live: shops are built and tills fill at any time). */
+  private townStops(): PileStop[] {
+    const out: PileStop[] = [];
+    const town = this.level.town;
+    for (let lot = 0; lot < LOT_COUNT; lot++) {
+      const b = town.business(lot);
+      const till = b?.till;
+      if (!b || !till || till.value < TILL_MIN_TRIP) continue;
+      // stand just in front of the till, toward the square
+      const post = zoneStand(till.zone.area, { x: b.frame.fx, z: b.frame.fz }, 0, TILL_SHIFT).p;
+      const look: XZ = { x: till.opts.x, z: till.opts.z };
+      let route: XZ[] | null = null;
+      const blocked = (x: number, z: number): boolean => this.ctx.colliders.overlaps(x, z, CLEARANCE);
+      out.push({
+        get route(): XZ[] {
+          route ??= [...CABIN_LEG, ...TRUNK, ...planSquare(ENTRY, post, blocked).slice(0, -1)];
+          return route;
+        },
+        post,
+        look,
+        pile: () => till,
+      });
+    }
+    return out;
+  }
+
   /** Richest pile (value, discounted by distance) holding at least two bundles' worth. */
   private pickStop(): PileStop | null {
     let best: PileStop | null = null;
     let bestScore = 0;
     const p = this.group.position;
-    for (const s of this.stops) {
+    for (const s of [...this.stops, ...this.townStops()]) {
       // a pile another cashier is already working is left to it
       if (this.peers.some((o) => o !== this && o instanceof Cashier && o.stopOf(s))) continue;
       const src = s.pile();
@@ -718,6 +781,314 @@ export class PineHauler extends Helper {
   private back(): void {
     this.goReverse(DECK_TO_PLATFORM.slice(0, -1), DECK_POST);
     this.phase = 'return';
+  }
+}
+
+// --- porter -------------------------------------------------------------------------------------------
+type PorterPhase = 'idle' | 'toSource' | 'load' | 'putBack' | 'toShop' | 'unload' | 'toHome';
+
+/** Where a porter loads: a pile it takes from, the stop it stands at and the point it faces. */
+interface SourceRef {
+  key: string;
+  holder: ItemHolder;
+  stop: Stop;
+  look: XZ;
+  /** The producer lot (null for the drop zone / bench): wheat / meat in the arms go back there on a save. */
+  lot: number | null;
+}
+
+interface ShopRef {
+  key: string;
+  business: Business;
+  stop: Stop;
+  look: XZ;
+}
+
+interface PorterRefs {
+  sources: Map<string, SourceRef>;
+  shops: Map<string, ShopRef>;
+  sourceViews: SourceView[];
+  shopViews: ShopView[];
+}
+
+const PORTER_KINDS: readonly ItemKind[] = ['wheat', 'meat', 'log', 'crate'];
+/** The drop zone / bench trips need at least this many items waiting. */
+const SHARED_MIN_TAKE = 2;
+
+const DROP_STOP: Stop = { p: DROP_POST, leg: DROP_LEG };
+const BENCH_STOP: Stop = { p: BENCH_POST, leg: BENCH_LEG };
+const HOME_STOP: Stop = { p: PORTER_HOME, leg: null };
+
+/** Items of `kind` the shop's hopper still takes (landed + in flight counted). */
+function shopRoom(ctx: GameContext, b: Business, kind: ItemKind): number {
+  const input = b.input;
+  if (!input || !b.def.inputs.some((i) => i.kind === kind)) return 0;
+  return Math.max(0, hopperPerKind(b.def) - input.count(kind) - ctx.flights.inFlightTo(input, kind));
+}
+
+/** Porters' loads for the save (Crew.townCarried): per town lot (arrays of LOT_COUNT) and loose (no lot to take it). */
+export interface PorterCarried {
+  /** Goods on their way into a shop's hopper, by lot and kind. */
+  in: Partial<Record<ItemKind, number>>[];
+  /** Producer goods (wheat / meat) to put back on the producer lot's pallet. */
+  out: number[];
+  /** Logs / crates with no shop to go to: back to the drop zone / bench. */
+  loose: Partial<Record<ItemKind, number>>;
+}
+
+export class Porter extends Helper {
+  private phase: PorterPhase = 'idle';
+  private job: PorterJob | null = null;
+  private src: SourceRef | null = null;
+  private dest: ShopRef | null = null;
+  /** Where the porter stands (or is walking to). */
+  private at: Stop = HOME_STOP;
+  private pickTimer = 0;
+  private idleFor = 0;
+  /** Producer lot the wheat / meat in the arms came from (for the save), or null. */
+  private fromLot: number | null = null;
+  private readonly blockedAt = (x: number, z: number): boolean => this.ctx.colliders.overlaps(x, z, CLEARANCE);
+
+  constructor(ctx: GameContext, level: Level, index = 0) {
+    super(ctx, level, 'porter', index, PORTER_KINDS);
+    this.pickTimer = 0.5 + index * 0.3;
+  }
+
+  /** What a peer porter must not chase: the pallet it loads from and the (shop, kind) hopper it feeds. */
+  claim(): { source: string | null; shop: string; kind: ItemKind; amount: number } | null {
+    const job = this.job;
+    if (!job) return null;
+    const loading = this.phase === 'toSource' || this.phase === 'load';
+    // before the load is in the arms the planned amount is reserved; afterwards what is held (a failed load is back at 0)
+    const amount = loading ? Math.max(job.take, this.stack.size) : this.stack.size;
+    if (this.phase === 'putBack' || amount <= 0) return null;
+    return { source: loading ? job.source : null, shop: this.dest?.key ?? job.shop, kind: job.kind, amount };
+  }
+
+  /**
+   * For the save: what the arms hold (flying in included) and where the save should put it. A porter walking to / at a
+   * shop (or loading for one) hands it to that shop's hopper: the one place sure to have room (room was checked before
+   * departing and peers' reservations keep the sum within it). Otherwise wheat / meat go back on their producer's
+   * pallet and logs / crates are `loose` (drop zone / bench).
+   */
+  addCarried(into: PorterCarried): void {
+    const flights = this.ctx.flights;
+    const toShop = this.phase === 'load' || this.phase === 'toShop' || this.phase === 'unload';
+    for (const kind of PORTER_KINDS) {
+      const n = this.stack.count(kind) + flights.inFlightTo(this.stack, kind);
+      if (n <= 0) continue;
+      if (toShop && this.dest) {
+        const lot = this.dest.business.lot;
+        const m = (into.in[lot] ??= {});
+        m[kind] = (m[kind] ?? 0) + n;
+      } else if ((kind === 'wheat' || kind === 'meat') && this.fromLot !== null) {
+        into.out[this.fromLot] = (into.out[this.fromLot] ?? 0) + n;
+      } else {
+        into.loose[kind] = (into.loose[kind] ?? 0) + n;
+      }
+    }
+  }
+
+  private claims(): Claims {
+    const sources = new Set<string>();
+    const dests = new Map<string, number>();
+    for (const o of this.peers) {
+      if (o === this || !(o instanceof Porter)) continue;
+      const c = o.claim();
+      if (!c) continue;
+      if (c.source) sources.add(c.source);
+      dests.set(destKey(c.shop, c.kind), (dests.get(destKey(c.shop, c.kind)) ?? 0) + c.amount);
+    }
+    return { sources, dests };
+  }
+
+  /** Stand point in front of a zone (toward the square), shifted along the zone's lateral axis per porter. */
+  private zoneStop(b: Business, zone: Rect): { stop: Stop; look: XZ } {
+    const { p, look } = zoneStand(zone, { x: b.frame.fx, z: b.frame.fz }, this.index);
+    return { stop: { p, leg: null }, look };
+  }
+
+  /** Read the town now: every producer pallet, shop hopper, the drop zone and the bench. */
+  private refs(): PorterRefs {
+    const sources = new Map<string, SourceRef>();
+    const shops = new Map<string, ShopRef>();
+    const sourceViews: SourceView[] = [];
+    const shopViews: ShopView[] = [];
+    const town = this.level.town;
+    for (let lot = 0; lot < LOT_COUNT; lot++) {
+      const b = town.business(lot);
+      if (!b) continue;
+      if (b.def.kind === 'producer' && b.output && b.def.output && b.pickupZone) {
+        const { stop, look } = this.zoneStop(b, b.pickupZone);
+        const key = `pallet:${lot}`;
+        sources.set(key, { key, holder: b.output, stop, look, lot });
+        sourceViews.push({ key, kind: b.def.output, count: b.output.count(b.def.output), minTake: 2, pos: stop.p, shared: false });
+      } else if (b.def.kind === 'shop' && b.input && b.feedZone) {
+        const { stop, look } = this.zoneStop(b, b.feedZone);
+        const key = `shop:${lot}`;
+        shops.set(key, { key, business: b, stop, look });
+        const room: Partial<Record<ItemKind, number>> = {};
+        const stock: Partial<Record<ItemKind, number>> = {};
+        for (const i of b.def.inputs) {
+          room[i.kind] = shopRoom(this.ctx, b, i.kind);
+          stock[i.kind] = b.input.count(i.kind) + this.ctx.flights.inFlightTo(b.input, i.kind);
+        }
+        shopViews.push({ key, pos: stop.p, room, stock });
+      }
+    }
+    const dz = this.level.dropZone.pile;
+    sources.set('drop', { key: 'drop', holder: dz, stop: DROP_STOP, look: DROP_LOOK, lot: null });
+    sourceViews.push({ key: 'drop', kind: 'log', count: dz.count('log'), minTake: SHARED_MIN_TAKE, pos: DROP_POST, shared: true });
+    const bench = this.level.processor?.output;
+    if (bench) {
+      sources.set('bench', { key: 'bench', holder: bench, stop: BENCH_STOP, look: BENCH_LOOK, lot: null });
+      sourceViews.push({ key: 'bench', kind: 'crate', count: bench.count('crate'), minTake: SHARED_MIN_TAKE, pos: BENCH_POST, shared: true });
+    }
+    return { sources, shops, sourceViews, shopViews };
+  }
+
+  private heldKind(): ItemKind | null {
+    for (const k of PORTER_KINDS) if (this.stack.count(k) > 0) return k;
+    return null;
+  }
+
+  /** Walk to a stop along walkable ground and remember it as the place the porter will be. */
+  private goTo(stop: Stop): void {
+    this.go(travel(this.at, stop, this.blockedAt));
+    this.at = stop;
+  }
+
+  private startDelivery(shop: ShopRef): void {
+    this.dest = shop;
+    this.goTo(shop.stop);
+    this.phase = 'toShop';
+  }
+
+  private park(delay: number): void {
+    this.job = null;
+    this.src = null;
+    this.phase = 'idle';
+    this.pickTimer = delay;
+  }
+
+  protected think(dt: number): void {
+    switch (this.phase) {
+      case 'idle': {
+        if (this.at === HOME_STOP) this.look = PORTER_LOOK;
+        if (this.moving) return;
+        this.pickTimer -= dt;
+        if (this.pickTimer > 0) return;
+        this.pickTimer = 0.4;
+        const refs = this.refs();
+        const held = this.heldKind();
+        if (this.stack.size > 0) {
+          // leftovers (a shop filled up under us): first try to place them anywhere that wants them
+          if (!held || !this.settled) return;
+          const shop = pickShop(refs.shopViews, held, this.claims(), this.at.p);
+          const ref = shop ? refs.shops.get(shop.key) : undefined;
+          if (ref) {
+            this.job = { source: '', shop: ref.key, kind: held, take: this.stack.size, score: 0 };
+            this.startDelivery(ref);
+          }
+          return;
+        }
+        const job = pickJob(refs.sourceViews, refs.shopViews, this.capacity, this.claims(), this.at.p);
+        const src = job ? refs.sources.get(job.source) : undefined;
+        const dest = job ? refs.shops.get(job.shop) : undefined;
+        if (job && src && dest) {
+          this.job = job;
+          this.src = src;
+          this.dest = dest;
+          this.fromLot = src.lot;
+          this.idleFor = 0;
+          this.goTo(src.stop);
+          this.phase = 'toSource';
+          return;
+        }
+        this.idleFor += 0.4;
+        if (this.idleFor > 2 && this.at !== HOME_STOP) {
+          this.goTo(HOME_STOP);
+          this.phase = 'toHome';
+        }
+        return;
+      }
+      case 'toHome':
+        if (this.moving) return;
+        this.phase = 'idle';
+        return;
+      case 'toSource':
+        if (this.moving) return;
+        this.look = this.src!.look;
+        this.phase = 'load';
+        this.blocked = 0;
+        this.idle = 0;
+        return;
+      case 'load': {
+        const job = this.job!;
+        const src = this.src!;
+        const dest = this.dest!;
+        this.look = src.look;
+        const kind = job.kind;
+        const want = Math.min(job.take, this.capacity);
+        // never take more than the hopper has room for (the arms are not counted in its room yet)
+        const room = shopRoom(this.ctx, dest.business, kind);
+        if (this.stack.size < want && this.stack.size < room && src.holder.count(kind) > 0 && this.move(src.holder, this.stack, kind)) return;
+        this.idle += dt;
+        if (!this.settled) return;
+        const full = this.stack.size >= want || this.stack.size >= room;
+        if (!(full || this.idle > PATIENCE)) return;
+        if (this.stack.count(kind) === 0) return this.park(1.5); // somebody else emptied the pile
+        // choose where to go now: the planned shop if it still has room, else the hungriest other one
+        if (room > 0) return this.startDelivery(dest);
+        const refs = this.refs();
+        const other = pickShop(refs.shopViews, kind, this.claims(), this.at.p);
+        const ref = other ? refs.shops.get(other.key) : undefined;
+        if (ref) {
+          this.job = { ...job, shop: ref.key };
+          return this.startDelivery(ref);
+        }
+        // nowhere to take it: put it back rather than carry it around
+        this.phase = 'putBack';
+        return;
+      }
+      case 'putBack': {
+        const src = this.src!;
+        const kind = this.job!.kind;
+        if (this.stack.count(kind) > 0 && this.move(this.stack, src.holder, kind)) return;
+        if (this.stack.size === 0) this.park(2);
+        return;
+      }
+      case 'toShop':
+        if (this.moving) return;
+        this.look = this.dest!.look;
+        this.phase = 'unload';
+        this.blocked = 0;
+        return;
+      case 'unload': {
+        const dest = this.dest!;
+        const kind = this.heldKind() ?? this.job!.kind;
+        if (this.stack.size === 0) {
+          this.park(0.1); // pick the next job from here, no detour home
+          return;
+        }
+        const to = dest.business.input;
+        if (to && this.stack.count(kind) > 0 && to.canAccept(kind)) {
+          this.blocked = 0;
+          this.move(this.stack, to, kind);
+        } else if (this.settled) {
+          this.blocked += dt;
+          if (this.blocked > BLOCKED_GIVE_UP) {
+            // the hopper filled up under us: try another shop, else wait with the load (idle retries; no ping-pong)
+            const refs = this.refs();
+            const other = pickShop(refs.shopViews, kind, this.claims(), this.at.p, dest.key);
+            const ref = other ? refs.shops.get(other.key) : undefined;
+            if (ref) this.startDelivery(ref);
+            else this.park(2);
+          }
+        }
+        return;
+      }
+    }
   }
 }
 
