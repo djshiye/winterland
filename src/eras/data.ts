@@ -1,0 +1,476 @@
+/**
+ * [MAIN] 0.9.0 "Ages": every data table for the ten eras, their materials, machines, regions, city districts and
+ * buildings, the market (prices, trading, investments), taxes and Jack's swap cart. Pure data + pure helpers only:
+ * no THREE, no GameContext. Shared contract — change only from the main session.
+ *
+ * Era numbering: era 1 = Survival = everything that existed before 0.9.0 (mill, ridge, village, Market Town; the old
+ * village levels Camp … Winterland are now "settlement levels" inside Survival). Eras 2..10 = ERA_KEYS[n - 2]; each
+ * is opened by paying its expansion pad (cash + the previous era's refined material) at its region's gate. Paying it
+ * raises state.eras.age to n, opens the region (machine slots) and the city district of that era.
+ */
+import { ERA_KEYS, MATERIAL_KINDS, type EraKey, type MaterialKind } from '../core/kinds';
+import type { ItemKind } from '../core/types';
+
+export { ERA_KEYS, MATERIAL_KINDS, type EraKey, type MaterialKind };
+
+/** Axis-aligned rectangle on the ground (same shape as config Rect; kept local so this file has no runtime imports). */
+export interface ERect {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+const R = (minX: number, maxX: number, minZ: number, maxZ: number): ERect => ({ minX, maxX, minZ, maxZ });
+
+// ---------------------------------------------------------------------------
+// Eras
+// ---------------------------------------------------------------------------
+
+export const MAX_ERA = 10;
+
+/** Names of all ten eras, index = era number (index 0 unused). */
+export const ERA_NAMES: readonly string[] = ['', 'Survival', 'Frontier', 'Iron Age', 'Steam Age', 'Industrial', 'Electric Age', 'Oil Age', 'Computer Age', 'Nuclear Power', 'AI Era'];
+
+export interface EraDef {
+  n: number;
+  key: EraKey;
+  name: string;
+  /** One line for the era card / map. */
+  tagline: string;
+  /** The region's place name ("Granite Hollow"). */
+  region: string;
+  /** The era's worker (UPGRADES `${key}Crew`). */
+  worker: { label: string; plural: string };
+  /** City district name. */
+  district: string;
+  /** Visual palette (hex): region ground, accent (machines / signs), trim, fence. Builders may derive shades. */
+  colors: { ground: number; accent: number; trim: number; fence: number };
+  /** Expansion pad: cash + the previous era's refined material. */
+  unlock: { cash: number; extra: { kind: ItemKind; count: number } };
+  /** Shown on the era card. */
+  perks: readonly string[];
+}
+
+/** Expansion price of era n (2..10): 150k × 3^(n − 2). */
+export function unlockCash(n: number): number {
+  return 150_000 * 3 ** (n - 2);
+}
+
+function eraDef(n: number, key: EraKey, tagline: string, region: string, worker: [string, string], district: string, colors: EraDef['colors'], extra: { kind: ItemKind; count: number }, perks: string[]): EraDef {
+  return { n, key, name: ERA_NAMES[n]!, tagline, region, worker: { label: worker[0], plural: worker[1] }, district, colors, unlock: { cash: unlockCash(n), extra }, perks };
+}
+
+/** ERAS[n] for n = 2..10 (indices 0 and 1 are null: Survival has no region). */
+export const ERAS: readonly (EraDef | null)[] = [
+  null,
+  null,
+  eraDef(2, 'frontier', 'Stone and brick: the settlement digs in', 'Granite Hollow', ['Quarryman', 'Quarrymen'], 'Brickside', { ground: 0xb9b2a6, accent: 0xb5543c, trim: 0x6d5a48, fence: 0x7a6650 }, { kind: 'crate', count: 40 }, ['Quarries and brick kilns', 'Quarrymen for hire', 'The Brickside district']),
+  eraDef(3, 'iron', 'Ore in the hills, fire in the smelters', 'Iron Ridge', ['Miner', 'Miners'], 'Foundry Row', { ground: 0x9a8f88, accent: 0x7c4a33, trim: 0x3d3a3a, fence: 0x4f4a48 }, { kind: 'brick', count: 35 }, ['Iron mines and smelters', 'Miners for hire', 'The Foundry Row district']),
+  eraDef(4, 'steam', 'Coal, gears and the hiss of steam', 'Coalbank Basin', ['Stoker', 'Stokers'], 'Steamworks Quarter', { ground: 0x8a8580, accent: 0xb08a3e, trim: 0x2f2b2b, fence: 0x3a3532 }, { kind: 'iron', count: 40 }, ['Coal pits and steam works', 'Stokers for hire', 'The Steamworks Quarter']),
+  eraDef(5, 'industrial', 'Steel mills light up the night', 'Forge Flats', ['Steelworker', 'Steelworkers'], 'Mill Town', { ground: 0x8f9296, accent: 0xd0702a, trim: 0x34383d, fence: 0x50555b }, { kind: 'gear', count: 45 }, ['Deep mines, coke ovens, steel mills', 'Steelworkers for hire', 'The Mill Town district']),
+  eraDef(6, 'electric', 'Copper wire hums across the snow', 'Copper Gorge', ['Lineman', 'Linemen'], 'Lamplight Avenue', { ground: 0xa3a7a0, accent: 0xc9773a, trim: 0x2e4a5a, fence: 0x5a6b74 }, { kind: 'steel', count: 50 }, ['Copper mines and wire mills', 'Linemen for hire', 'Lamplight Avenue']),
+  eraDef(7, 'oil', 'Black gold under the permafrost', 'Tundra Fields', ['Roughneck', 'Roughnecks'], 'Midtown', { ground: 0x9d9a93, accent: 0xe0b03a, trim: 0x272a30, fence: 0x44474e }, { kind: 'wire', count: 55 }, ['Oil pumps and refineries', 'Roughnecks for hire', 'The Midtown towers']),
+  eraDef(8, 'computer', 'Silicon from sand, chips from silicon', 'Silicon Shore', ['Technician', 'Technicians'], 'Glass Heights', { ground: 0xc9cdd2, accent: 0x3aa0d8, trim: 0x2a3a4a, fence: 0x8a98a6 }, { kind: 'plastic', count: 60 }, ['Sand pits and chip fabs', 'Technicians for hire', 'The Glass Heights district']),
+  eraDef(9, 'nuclear', 'Splitting atoms to light a city', 'Atom Valley', ['Atom Tech', 'Atom Techs'], 'Reactor Row', { ground: 0xb7c2b0, accent: 0x7bd04a, trim: 0x2d3b2a, fence: 0x6e7d6a }, { kind: 'chip', count: 65 }, ['Uranium mines, enrichers, reactors', 'Atom Techs for hire', 'The Reactor Row skyscrapers']),
+  eraDef(10, 'ai', 'Thinking machines build the metropolis', 'Neural Plateau', ['Robot', 'Robots'], 'Metropolis Core', { ground: 0xd6dbe6, accent: 0x9b6cff, trim: 0x1f2240, fence: 0x8c90b8 }, { kind: 'power', count: 70 }, ['Fusion plants, nano fabs, data centers, robot works', 'Robots for hire', 'The Metropolis Core']),
+];
+
+/** Era n (2..10) definition; throws on other numbers. */
+export function era(n: number): EraDef {
+  const d = ERAS[n];
+  if (!d) throw new Error(`no era ${n}`);
+  return d;
+}
+export const eraOfKey = (key: EraKey): number => ERA_KEYS.indexOf(key) + 2;
+
+/** Era 2's expansion pad is offered once the settlement reaches Winter City (village level 4). */
+export const FIRST_EXPANSION_VILLAGE_LEVEL = 4;
+
+// ---------------------------------------------------------------------------
+// Materials (new item kinds). Every one is carriable.
+// ---------------------------------------------------------------------------
+
+export type MaterialShape = 'block' | 'brick' | 'nugget' | 'ingot' | 'lump' | 'gear' | 'beam' | 'coil' | 'barrel' | 'pellet' | 'crystal' | 'chip' | 'rod' | 'cell' | 'core' | 'robot';
+
+export interface MaterialDef {
+  kind: MaterialKind;
+  label: string;
+  /** Era it belongs to (its price ladder rung and market). */
+  era: number;
+  /** raw = an extractor's product; refined = a processor's. */
+  grade: 'raw' | 'refined';
+  /** Base export price in dollars per unit (market index 1, no upgrades). */
+  value: number;
+  shape: MaterialShape;
+  color: number;
+  accent: number;
+  /** Item box (metres) and stacking pitch, like config ITEM_SIZE. Footprints fit a 0.48 m pile grid. */
+  size: { w: number; h: number; d: number; stackHeight: number };
+}
+
+const RAW = (n: number): number => 180 * 3 ** (n - 2);
+const REF = (n: number): number => 700 * 3 ** (n - 2);
+function mat(kind: MaterialKind, label: string, n: number, grade: 'raw' | 'refined', value: number, shape: MaterialShape, color: number, accent: number, w: number, h: number, d: number): MaterialDef {
+  return { kind, label, era: n, grade, value: Math.round(value / 5) * 5, shape, color, accent, size: { w, h, d, stackHeight: h + 0.01 } };
+}
+
+export const MATERIALS: Record<MaterialKind, MaterialDef> = {
+  stone: mat('stone', 'Stone', 2, 'raw', RAW(2), 'block', 0xa7a39b, 0x8a857c, 0.4, 0.28, 0.32),
+  brick: mat('brick', 'Bricks', 2, 'refined', REF(2), 'brick', 0xb5543c, 0xd9cfc0, 0.42, 0.22, 0.28),
+  ore: mat('ore', 'Iron Ore', 3, 'raw', RAW(3), 'nugget', 0x7c5a4a, 0xb0704e, 0.38, 0.26, 0.34),
+  iron: mat('iron', 'Iron', 3, 'refined', REF(3), 'ingot', 0x8d949c, 0x5d6268, 0.44, 0.16, 0.22),
+  coal: mat('coal', 'Coal', 4, 'raw', RAW(4), 'lump', 0x2c2b2e, 0x4a484d, 0.38, 0.26, 0.34),
+  gear: mat('gear', 'Gears', 4, 'refined', REF(4), 'gear', 0xb08a3e, 0x6f5a2c, 0.4, 0.12, 0.4),
+  steel: mat('steel', 'Steel', 5, 'refined', REF(5), 'beam', 0x7f8b99, 0x4b5562, 0.46, 0.18, 0.2),
+  copper: mat('copper', 'Copper', 6, 'raw', RAW(6), 'nugget', 0xc9773a, 0x8f4f25, 0.38, 0.26, 0.34),
+  wire: mat('wire', 'Wire', 6, 'refined', REF(6), 'coil', 0xd88a45, 0x5a3a20, 0.4, 0.22, 0.4),
+  crude: mat('crude', 'Crude Oil', 7, 'raw', RAW(7), 'barrel', 0x2a2d33, 0xe0b03a, 0.34, 0.42, 0.34),
+  plastic: mat('plastic', 'Plastic', 7, 'refined', REF(7), 'pellet', 0x48c0e8, 0xf2f2f2, 0.4, 0.24, 0.32),
+  silicon: mat('silicon', 'Silicon', 8, 'raw', RAW(8), 'crystal', 0x8ea2b8, 0xdfe8f2, 0.36, 0.3, 0.3),
+  chip: mat('chip', 'Microchips', 8, 'refined', REF(8), 'chip', 0x2f6f4e, 0xe8c650, 0.4, 0.1, 0.4),
+  uranium: mat('uranium', 'Uranium', 9, 'raw', RAW(9), 'pellet', 0x7bd04a, 0x2d3b2a, 0.38, 0.26, 0.34),
+  fuelRod: mat('fuelRod', 'Fuel Rods', 9, 'refined', REF(9), 'rod', 0x9fe070, 0x5a6470, 0.46, 0.16, 0.16),
+  power: mat('power', 'Power Cells', 9, 'refined', REF(9) * 0.5, 'cell', 0x3ad1ff, 0x1d2a38, 0.3, 0.36, 0.3),
+  aiCore: mat('aiCore', 'AI Cores', 10, 'refined', REF(10), 'core', 0x9b6cff, 0x1f2240, 0.34, 0.34, 0.34),
+  robot: mat('robot', 'Robots', 10, 'refined', REF(10) * 2.6, 'robot', 0xdfe3ec, 0x9b6cff, 0.36, 0.46, 0.3),
+};
+
+export function isMaterial(kind: ItemKind): kind is MaterialKind {
+  return (MATERIAL_KINDS as readonly string[]).includes(kind);
+}
+
+/**
+ * Base dollar value of one Survival item (Jack's swap cart, market display). Survival goods never fluctuate: their
+ * value is this × the village demand price multiplier (deterministic, so era 1 plays exactly as before 0.9.0).
+ */
+export const SURVIVAL_VALUE: Record<Exclude<ItemKind, MaterialKind>, number> = {
+  log: 10,
+  plank: 5,
+  crate: 15,
+  cash: 0,
+  furniture: 60,
+  wheat: 8,
+  bread: 30,
+  meat: 12,
+  sausage: 55,
+  toy: 45,
+};
+
+// ---------------------------------------------------------------------------
+// Machines (built on region slots)
+// ---------------------------------------------------------------------------
+
+export type MachineId =
+  | 'quarry' | 'kiln'
+  | 'ironMine' | 'smelter'
+  | 'coalPit' | 'steamWorks'
+  | 'deepMine' | 'cokeOven' | 'steelMill'
+  | 'copperMine' | 'wireMill'
+  | 'oilPump' | 'refinery'
+  | 'sandPit' | 'chipFab'
+  | 'uraniumMine' | 'enricher' | 'reactor'
+  | 'fusionPlant' | 'nanoFab' | 'dataCenter' | 'robotWorks';
+
+export interface MachineDef {
+  id: MachineId;
+  era: number;
+  /** extractor: makes `output` from the ground (no inputs). processor: consumes `inputs` per cycle. */
+  kind: 'extractor' | 'processor';
+  label: string;
+  blurb: string;
+  inputs: readonly { kind: ItemKind; per: number }[];
+  output: ItemKind;
+  /** Items one cycle makes. */
+  batch: number;
+  /** Seconds per cycle at Rigs ×1 (divided by the era's `${key}Rigs` value). */
+  cycle: number;
+  /** Construction: cash + optional material (paid on the slot's construction pad). */
+  cash: number;
+  extra?: { kind: ItemKind; count: number };
+  /** Model style hint for assets/eraMachines.ts (free-form, documented there). */
+  style: string;
+}
+
+/** Input / output pile grids for every machine (small: every pile item is a mesh + a shadow draw call). */
+export const MACHINE_PILES = {
+  in: { cols: 2, rows: 2, layers: 2, spacing: { x: 0.5, y: 0.3, z: 0.5 } },
+  out: { cols: 3, rows: 2, layers: 2, spacing: { x: 0.5, y: 0.3, z: 0.5 } },
+} as const;
+
+function machine(id: MachineId, n: number, kind: 'extractor' | 'processor', label: string, blurb: string, inputs: { kind: ItemKind; per: number }[], output: ItemKind, batch: number, cycle: number, costShare: number, extra: { kind: ItemKind; count: number } | undefined, style: string): MachineDef {
+  const cash = Math.round((unlockCash(n) * costShare) / 1000) * 1000;
+  return { id, era: n, kind, label, blurb, inputs, output, batch, cycle, cash, ...(extra ? { extra } : {}), style };
+}
+
+export const MACHINES: Record<MachineId, MachineDef> = {
+  quarry: machine('quarry', 2, 'extractor', 'Quarry', 'Cuts stone blocks out of the hillside', [], 'stone', 1, 1.8, 0.1, undefined, 'crane over a stepped pit'),
+  kiln: machine('kiln', 2, 'processor', 'Brick Kiln', '2 stone → bricks, fired in a beehive kiln', [{ kind: 'stone', per: 2 }], 'brick', 1, 2.4, 0.18, { kind: 'stone', count: 12 }, 'domed beehive kiln with chimney'),
+  ironMine: machine('ironMine', 3, 'extractor', 'Iron Mine', 'A headframe winds ore out of the mountain', [], 'ore', 1, 1.8, 0.1, undefined, 'wooden headframe + mine cart'),
+  smelter: machine('smelter', 3, 'processor', 'Smelter', '2 ore → an iron ingot', [{ kind: 'ore', per: 2 }], 'iron', 1, 2.4, 0.18, { kind: 'ore', count: 12 }, 'blast furnace tower, glowing mouth'),
+  coalPit: machine('coalPit', 4, 'extractor', 'Coal Pit', 'Steam diggers bring up coal', [], 'coal', 1, 1.8, 0.1, undefined, 'steam shovel over a black pit'),
+  steamWorks: machine('steamWorks', 4, 'processor', 'Steam Works', 'Iron + coal → gears', [{ kind: 'iron', per: 1 }, { kind: 'coal', per: 1 }], 'gear', 1, 2.6, 0.18, { kind: 'coal', count: 12 }, 'brick hall, big flywheel, steam stacks'),
+  deepMine: machine('deepMine', 5, 'extractor', 'Deep Ore Mine', 'A steel headframe, twice as deep', [], 'ore', 2, 2.0, 0.08, undefined, 'steel lattice headframe'),
+  cokeOven: machine('cokeOven', 5, 'extractor', 'Coke Ovens', 'A battery of ovens baking coal', [], 'coal', 2, 2.0, 0.08, undefined, 'row of brick ovens + quench tower'),
+  steelMill: machine('steelMill', 5, 'processor', 'Steel Mill', 'Ore + 2 coal → steel beams', [{ kind: 'ore', per: 1 }, { kind: 'coal', per: 2 }], 'steel', 1, 2.6, 0.18, { kind: 'coal', count: 16 }, 'converter vessel pouring sparks, tall stack'),
+  copperMine: machine('copperMine', 6, 'extractor', 'Copper Mine', 'An electric hoist lifts copper ore', [], 'copper', 1, 1.8, 0.1, undefined, 'electric hoist tower with pylons'),
+  wireMill: machine('wireMill', 6, 'processor', 'Wire Mill', '2 copper → a coil of wire', [{ kind: 'copper', per: 2 }], 'wire', 1, 2.4, 0.18, { kind: 'copper', count: 12 }, 'long shed with spinning spools'),
+  oilPump: machine('oilPump', 7, 'extractor', 'Oil Pump', 'A nodding pumpjack fills barrels', [], 'crude', 1, 1.8, 0.1, undefined, 'pumpjack with walking beam'),
+  refinery: machine('refinery', 7, 'processor', 'Refinery', '2 crude → plastic pellets', [{ kind: 'crude', per: 2 }], 'plastic', 1, 2.4, 0.18, { kind: 'crude', count: 12 }, 'distillation columns, pipes, flare stack'),
+  sandPit: machine('sandPit', 8, 'extractor', 'Sand Pit', 'Dredges pure quartz sand into silicon', [], 'silicon', 1, 1.8, 0.1, undefined, 'conveyor dredge + crystal grower'),
+  chipFab: machine('chipFab', 8, 'processor', 'Chip Fab', 'Silicon + wire → microchips', [{ kind: 'silicon', per: 1 }, { kind: 'wire', per: 1 }], 'chip', 1, 2.8, 0.18, { kind: 'silicon', count: 12 }, 'white clean-room block with air vents'),
+  uraniumMine: machine('uraniumMine', 9, 'extractor', 'Uranium Mine', 'Robotic diggers in lead-lined suits', [], 'uranium', 1, 1.8, 0.1, undefined, 'shielded headframe, hazard stripes'),
+  enricher: machine('enricher', 9, 'processor', 'Enrichment Plant', '2 uranium → a fuel rod', [{ kind: 'uranium', per: 2 }], 'fuelRod', 1, 2.6, 0.18, { kind: 'uranium', count: 12 }, 'centrifuge cascade hall'),
+  reactor: machine('reactor', 9, 'processor', 'Reactor', 'A fuel rod → 3 power cells', [{ kind: 'fuelRod', per: 1 }], 'power', 3, 3.2, 0.25, { kind: 'fuelRod', count: 6 }, 'cooling tower + containment dome'),
+  fusionPlant: machine('fusionPlant', 10, 'extractor', 'Fusion Plant', 'A tokamak spins out power cells', [], 'power', 1, 2.0, 0.08, undefined, 'torus ring reactor with glow'),
+  nanoFab: machine('nanoFab', 10, 'extractor', 'Nano Fab', 'Self-assembling microchips', [], 'chip', 1, 2.0, 0.08, undefined, 'sleek block with holo panels'),
+  dataCenter: machine('dataCenter', 10, 'processor', 'Data Center', 'Chip + power cell → an AI core', [{ kind: 'chip', per: 1 }, { kind: 'power', per: 1 }], 'aiCore', 1, 3.0, 0.2, { kind: 'chip', count: 10 }, 'server halls with blinking racks'),
+  robotWorks: machine('robotWorks', 10, 'processor', 'Robot Works', 'Steel + AI core → a robot', [{ kind: 'steel', per: 1 }, { kind: 'aiCore', per: 1 }], 'robot', 1, 3.4, 0.25, { kind: 'aiCore', count: 4 }, 'assembly hall with robot arms'),
+};
+export const MACHINE_IDS = Object.keys(MACHINES) as MachineId[];
+export const machinesOfEra = (n: number): MachineId[] => MACHINE_IDS.filter((id) => MACHINES[id].era === n);
+
+/** Demolishing a built machine / city building / town business costs this share of its cash price (no refund). */
+export const DEMOLISH_SHARE = 0.2;
+/** Minimum demolition price. */
+export const DEMOLISH_MIN = 250;
+
+// ---------------------------------------------------------------------------
+// World layout of the new land (ground plane grows to ±320, see world/env/ground.ts)
+// ---------------------------------------------------------------------------
+
+/** Side of the region whose edge holds its gate (and faces its road). */
+export type GateSide = 'north' | 'south';
+
+export interface RegionLayoutDef {
+  n: number;
+  rect: ERect;
+  gate: GateSide;
+  /** Machine slots in this region (bigger eras get more). */
+  slots: number;
+}
+
+/**
+ * Era regions south of the old map, joined by roads. Rows: era 2 / 3 hang below road R1 (z 76..80) with their gates on
+ * their SOUTH edge; eras 4–6 sit under R1 with gates NORTH; eras 7–10 under road R2 (z 112..116), gates NORTH.
+ * The world builder may nudge numbers to dodge scenery but keeps the topology.
+ */
+export const REGIONS: readonly (RegionLayoutDef | null)[] = [
+  null,
+  null,
+  { n: 2, rect: R(-6, 24, 52, 76), gate: 'south', slots: 4 },
+  { n: 3, rect: R(-50, -18, 50, 76), gate: 'south', slots: 4 },
+  { n: 4, rect: R(-40, -6, 80, 108), gate: 'north', slots: 5 },
+  { n: 5, rect: R(-2, 34, 80, 110), gate: 'north', slots: 5 },
+  { n: 6, rect: R(-80, -42, 80, 112), gate: 'north', slots: 6 },
+  { n: 7, rect: R(-44, -4, 116, 150), gate: 'north', slots: 6 },
+  { n: 8, rect: R(0, 42, 116, 152), gate: 'north', slots: 7 },
+  { n: 9, rect: R(-92, -48, 116, 154), gate: 'north', slots: 7 },
+  { n: 10, rect: R(46, 94, 116, 156), gate: 'north', slots: 8 },
+];
+export function regionDef(n: number): RegionLayoutDef {
+  const r = REGIONS[n];
+  if (!r) throw new Error(`no region ${n}`);
+  return r;
+}
+
+/**
+ * Roads (player-walkable once offered). `opensAt`: the era whose expansion pad must be OFFERED (era 2 = village level
+ * FIRST_EXPANSION_VILLAGE_LEVEL; era n > 2 = age ≥ n − 1).
+ */
+export const ROADS: readonly { id: string; rect: ERect; opensAt: number }[] = [
+  { id: 'southAvenue', rect: R(26, 30, 38, 80), opensAt: 2 }, // town square's south edge → R1
+  { id: 'r1', rect: R(-84, 40, 76, 80), opensAt: 2 },
+  { id: 'r1r2east', rect: R(34, 38, 80, 116), opensAt: 4 },
+  { id: 'r1r2west', rect: R(-6, -2, 80, 116), opensAt: 4 },
+  { id: 'r2', rect: R(-96, 98, 112, 116), opensAt: 7 },
+  // city (east): the avenue from the town to the districts, then the grid streets
+  { id: 'cityLink', rect: R(32, 44, 19, 23), opensAt: 2 },
+  { id: 'cityWest', rect: R(40, 44, 14, 106), opensAt: 2 },
+  { id: 'cityV1', rect: R(74, 78, 14, 106), opensAt: 4 },
+  { id: 'cityV2', rect: R(108, 112, 14, 106), opensAt: 7 },
+  { id: 'cityH1', rect: R(40, 142, 42, 46), opensAt: 3 },
+  { id: 'cityH2', rect: R(40, 142, 74, 78), opensAt: 6 },
+];
+
+// ---------------------------------------------------------------------------
+// City (districts of lots east of the Market Town)
+// ---------------------------------------------------------------------------
+
+export interface DistrictDef {
+  n: number;
+  name: string;
+  rect: ERect;
+  /** Lots in this district (laid out by city/rules.ts districtLots). */
+  lots: number;
+}
+const D = (n: number, minX: number, minZ: number, lots: number): DistrictDef => ({ n, name: era(n).district, rect: R(minX, minX + 30, minZ, minZ + 28), lots });
+/** DISTRICTS[n] for eras 2..10: a 3×3 grid, columns x 44/78/112, rows z 14/46/78 (30 × 28 m each). */
+export const DISTRICTS: readonly (DistrictDef | null)[] = [
+  null,
+  null,
+  D(2, 44, 14, 6),
+  D(3, 44, 46, 6),
+  D(4, 78, 14, 6),
+  D(5, 78, 46, 8),
+  D(6, 44, 78, 8),
+  D(7, 112, 14, 8),
+  D(8, 78, 78, 9),
+  D(9, 112, 46, 9),
+  D(10, 112, 78, 12),
+];
+export function districtDef(n: number): DistrictDef {
+  const d = DISTRICTS[n];
+  if (!d) throw new Error(`no district ${n}`);
+  return d;
+}
+
+export type CityBuildingRole = 'Home' | 'Work' | 'Park' | 'Landmark';
+export type CityBuildingId = `${EraKey}${CityBuildingRole}`;
+export type CityBuildingKind = 'home' | 'work' | 'park' | 'landmark';
+
+export interface CityBuildingDef {
+  id: CityBuildingId;
+  era: number;
+  kind: CityBuildingKind;
+  label: string;
+  blurb: string;
+  /** Construction: cash + the era's refined material. */
+  cash: number;
+  extra: { kind: ItemKind; count: number };
+  /** Residents (home) — they count toward the city population and fill jobs. */
+  people: number;
+  /** Jobs (work / landmark) — income needs workers: employment = min(1, residents / jobs). */
+  jobs: number;
+  /** Dollars per second at full employment (work, landmark) or rent (home, independent of jobs). */
+  income: number;
+  /** City happiness share (park, landmark), summed and capped at 1. */
+  happiness: number;
+  /** Roof height in metres (models scale with it; skyscrapers from the Oil Age on). */
+  height: number;
+}
+
+/** Refined material each district's buildings are made of. */
+export const DISTRICT_MATERIAL: readonly (ItemKind | null)[] = [null, null, 'brick', 'iron', 'gear', 'steel', 'wire', 'plastic', 'chip', 'power', 'aiCore'];
+
+const CITY_NAMES: Record<EraKey, [string, string, string, string]> = {
+  frontier: ['Brick Cottages', 'Trading Post', 'Village School', 'Clock Tower'],
+  iron: ['Iron Tenements', 'Foundry Office', 'Iron Bridge Park', 'Railway Station'],
+  steam: ['Steam Row', 'Mill Office', 'Steam Baths', 'Grand Exchange'],
+  industrial: ['Brick Apartments', 'Factory Office', 'Public Library', 'Expo Hall'],
+  electric: ['Art-Deco Flats', 'Power Company', 'Picture Palace', 'Radio Tower'],
+  oil: ['High-Rise Flats', 'Oil Company Tower', 'Shopping Mall', 'Sky Needle'],
+  computer: ['Glass Condos', 'Tech Campus', 'Arcade Plaza', 'Data Spire'],
+  nuclear: ['Skyscraper Homes', 'Energy Exchange', 'Science Museum', 'Atomic Monument'],
+  ai: ['Arcology', 'AI Headquarters', 'Holo Park', 'Singularity Spire'],
+};
+const CITY_BLURBS: Record<CityBuildingRole, string> = {
+  Home: 'Homes for new citizens: they pay rent and fill jobs',
+  Work: 'Jobs and business: earns money while staffed',
+  Park: 'Makes the city happier: every building earns more',
+  Landmark: 'One per district: income, happiness and pride',
+};
+
+function cityBuildings(): Record<CityBuildingId, CityBuildingDef> {
+  const out = {} as Record<CityBuildingId, CityBuildingDef>;
+  for (const key of ERA_KEYS) {
+    const n = eraOfKey(key);
+    const k = 3 ** (n - 2);
+    const p = 2.2 ** (n - 2);
+    const material = DISTRICT_MATERIAL[n]!;
+    const h = [5, 7, 9, 12, 16, 26, 34, 46, 62][n - 2]!;
+    const names = CITY_NAMES[key];
+    const mk = (role: CityBuildingRole, i: number, cash: number, count: number, people: number, jobs: number, income: number, happiness: number, height: number): void => {
+      const id = `${key}${role}` as CityBuildingId;
+      out[id] = { id, era: n, kind: role.toLowerCase() as CityBuildingKind, label: names[i]!, blurb: CITY_BLURBS[role], cash: Math.round((cash * k) / 1000) * 1000, extra: { kind: material, count }, people: Math.round(people * p), jobs: Math.round(jobs * p), income: Math.round(income * k), happiness, height };
+    };
+    mk('Home', 0, 40_000, 15, 40, 0, 4, 0, h);
+    mk('Work', 1, 60_000, 20, 0, 30, 45, 0, h * 1.15);
+    mk('Park', 2, 30_000, 10, 0, 4, 2, 0.12, 4);
+    mk('Landmark', 3, 250_000, 60, 0, 60, 120, 0.3, h * 1.8);
+  }
+  return out;
+}
+export const CITY_BUILDINGS: Record<CityBuildingId, CityBuildingDef> = cityBuildings();
+export const CITY_BUILDING_IDS = Object.keys(CITY_BUILDINGS) as CityBuildingId[];
+export const cityBuildingsOfEra = (n: number): CityBuildingId[] => CITY_BUILDING_IDS.filter((id) => CITY_BUILDINGS[id].era === n);
+
+/** City happiness multiplies all city income by up to 1 + this. */
+export const CITY_HAPPINESS_BONUS = 0.5;
+
+/** City rank by total population (village + Market Town + districts); Metropolis also needs era 10. */
+export const CITY_RANKS: readonly { name: string; minPopulation: number; minEra: number }[] = [
+  { name: 'Town', minPopulation: 0, minEra: 1 },
+  { name: 'City', minPopulation: 500, minEra: 2 },
+  { name: 'Big City', minPopulation: 5_000, minEra: 4 },
+  { name: 'Megacity', minPopulation: 40_000, minEra: 7 },
+  { name: 'Metropolis', minPopulation: 100_000, minEra: 10 },
+];
+
+/** City income is credited every this many seconds (an 'income' event each time). */
+export const CITY_TICK = 5;
+
+// ---------------------------------------------------------------------------
+// Market: prices, trading, investments
+// ---------------------------------------------------------------------------
+
+export const MARKET = {
+  /** Seconds between price ticks (each tick appends a history point). */
+  tick: 4,
+  /** History points kept for sparklines (not saved; regenerated). */
+  history: 48,
+  /** Random-walk step (share of the index) per tick and the pull back toward 1 per tick. */
+  volatility: 0.045,
+  reversion: 0.06,
+  /** The price index stays inside this band. */
+  min: 0.55,
+  max: 1.8,
+  /** Supply pressure: every exported unit of a kind adds this much (refined); raw adds half. Decays per second. */
+  pressurePerUnit: 0.002,
+  pressureDecay: 0.01,
+  pressureMax: 0.4,
+  /** Trading spread (buy above / sell below the price), reduced by the Broker upgrade (divides it). */
+  spread: 0.05,
+  /** Physical orders delivered to a region's import dock pay this delivery surcharge on top of the buy price. */
+  delivery: 0.1,
+} as const;
+
+export type InvestProductId = 'bond' | 'index' | 'venture';
+
+export interface InvestProductDef {
+  id: InvestProductId;
+  label: string;
+  blurb: string;
+  /** Smallest deposit. */
+  min: number;
+  /** bond: seconds until maturity (early withdrawal returns the principal only). */
+  lock?: number;
+  /** bond: total return at maturity. index / venture: expected growth per minute (drift). */
+  rate: number;
+  /** index / venture: random step per tick (share of value). */
+  volatility: number;
+  /** Era needed before it is offered. */
+  era: number;
+}
+
+export const INVEST: Record<InvestProductId, InvestProductDef> = {
+  bond: { id: 'bond', label: 'Winter Bonds', blurb: 'Safe: +12% after 10 minutes. Early withdrawal returns your deposit only', min: 1_000, lock: 600, rate: 0.12, volatility: 0, era: 2 },
+  index: { id: 'index', label: 'Snow Index Fund', blurb: 'Tracks the whole market: grows over time, wobbles on the way', min: 1_000, rate: 0.015, volatility: 0.012, era: 2 },
+  venture: { id: 'venture', label: 'Era Ventures', blurb: 'Back the newest era: big swings, big rewards', min: 10_000, rate: 0.03, volatility: 0.04, era: 3 },
+};
+export const INVEST_IDS: readonly InvestProductId[] = ['bond', 'index', 'venture'];
+/** Total money in bonds may not exceed this share of net worth (keeps the risk-free rate from dominating). */
+export const BOND_CAP_SHARE = 0.5;
+export const INVEST_MAX_POSITIONS = 12;
+
+// ---------------------------------------------------------------------------
+// Jack of all trades (swap cart)
+// ---------------------------------------------------------------------------
+
+export const JACK = {
+  /** Seconds the player must linger at the cart before Jack starts buying (no accidental discards when passing). */
+  delay: 0.7,
+  /** Seconds between items at Jack level 0 (shrinks with the upgrade like other zones). */
+  interval: 0.16,
+  /** The yard cart (world x/z) — away from the customer path, trikes and the bot's routes. */
+  yard: { x: -7.6, z: 6.6 },
+} as const;

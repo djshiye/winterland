@@ -6,7 +6,8 @@ const svg = (inner: string, vb = '0 0 48 48'): string =>
 
 const OUT = '#1f2b46';
 
-const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
+/** 0.9.0: era / finance upgrades may be missing here: upgradeIcon() falls back to a generic icon. */
+const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
   // sales: a smooth plank with a gold star
   plankQuality: svg(`
     <g stroke="${OUT}" stroke-width="2.5">
@@ -225,7 +226,7 @@ const UPGRADE_ICONS: Record<UpgradeIdConst, string> = {
 };
 
 export function upgradeIcon(id: UpgradeIdConst): string {
-  return UPGRADE_ICONS[id];
+  return UPGRADE_ICONS[id] ?? UPGRADE_ICONS.carry!;
 }
 
 export const ICON_LOCK = svg(

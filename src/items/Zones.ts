@@ -22,7 +22,7 @@
 import * as THREE from 'three';
 import { PALETTE, TIMING, type Rect } from '../config';
 import { damp, inRect } from '../core/math';
-import type { GameContext, Item, ItemHolder, ItemKind } from '../core/types';
+import { ALL_ITEM_KINDS, type GameContext, type Item, type ItemHolder, type ItemKind } from '../core/types';
 import { basic } from '../render/materials';
 import type { FlightOptions } from './FlightSystem';
 import type { CashStack } from './CashStack';
@@ -264,7 +264,7 @@ class TransferZone extends Zone {
   }
 }
 
-const ALL_KINDS: readonly ItemKind[] = ['log', 'plank', 'crate', 'cash', 'furniture', 'wheat', 'bread', 'meat', 'sausage', 'toy'];
+const ALL_KINDS: readonly ItemKind[] = ALL_ITEM_KINDS;
 
 interface HasTop {
   topWorldPosition(out: THREE.Vector3): THREE.Vector3;

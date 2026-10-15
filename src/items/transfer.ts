@@ -2,11 +2,11 @@
  * [B2 — items] The ONLY place items change holders.
  */
 import type * as THREE from 'three';
-import type { GameContext, Item, ItemHolder, ItemKind } from '../core/types';
+import { ALL_ITEM_KINDS, type GameContext, type Item, type ItemHolder, type ItemKind } from '../core/types';
 import type { CashStack } from './CashStack';
 import type { FlightOptions } from './FlightSystem';
 
-const ALL_KINDS: readonly ItemKind[] = ['log', 'plank', 'crate', 'cash', 'furniture', 'wheat', 'bread', 'meat', 'sausage', 'toy'];
+const ALL_KINDS: readonly ItemKind[] = ALL_ITEM_KINDS;
 
 /**
  * Move one item from `from` to `to` with a flight. Tries `kinds` in order (default: every kind);

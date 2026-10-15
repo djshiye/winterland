@@ -24,15 +24,22 @@ import type { Particles } from '../fx/Particles';
 import type { AudioFX } from '../fx/Audio';
 import type { HUD } from '../ui/HUD';
 import type { Upgrades } from './Upgrades';
+import type { Market } from './Market';
+import type { CityBuildingId, InvestProductId, MachineId } from '../eras/data';
+import { ERA_KEYS, MATERIAL_KINDS, type MaterialKind } from './kinds';
+
+export { MATERIAL_KINDS, type MaterialKind };
 
 // ---------------------------------------------------------------------------
 // Items
 // ---------------------------------------------------------------------------
 
 /** log: raw small log · plank: plank bundle (made from a log at the walk-in counter) · crate · cash. */
-export type ItemKind = 'log' | 'plank' | 'crate' | 'cash' | 'furniture' | 'wheat' | 'bread' | 'meat' | 'sausage' | 'toy';
-/** Wave 9: kinds the player's arms (and the save's arms record) may hold. */
-export const CARRY_KINDS = ['log', 'crate', 'furniture', 'wheat', 'meat', 'toy'] as const;
+export type ItemKind = 'log' | 'plank' | 'crate' | 'cash' | 'furniture' | 'wheat' | 'bread' | 'meat' | 'sausage' | 'toy' | MaterialKind;
+/** Every item kind, in a fixed order (pools, piles, zones and transfers iterate this; never keep a private copy). */
+export const ALL_ITEM_KINDS: readonly ItemKind[] = ['log', 'plank', 'crate', 'cash', 'furniture', 'wheat', 'bread', 'meat', 'sausage', 'toy', ...MATERIAL_KINDS];
+/** Wave 9: kinds the player's arms (and the save's arms record) may hold. 0.9.0: plus every era material. */
+export const CARRY_KINDS = ['log', 'crate', 'furniture', 'wheat', 'meat', 'toy', ...MATERIAL_KINDS] as const;
 export type CarryKind = (typeof CARRY_KINDS)[number];
 
 /** A physical, visible item. Created/recycled only through ItemPool. */
@@ -132,6 +139,18 @@ export interface GameStats {
   townBuilt: number;
   goodsMade: number;
   goodsSold: number;
+  /** 0.9.0 Ages: era materials made by machines / sold at export depots; machines and city buildings completed. */
+  materialsMade: number;
+  materialsSold: number;
+  machinesBuilt: number;
+  cityBuilt: number;
+  /** Buildings / machines demolished (any kind). */
+  demolished: number;
+  /** Dollars from city rent + business income, Jack's swap cart, closed trades (profit only, may be < 0 → 0) and investments (gains). */
+  cityEarned: number;
+  jackEarned: number;
+  tradeProfit: number;
+  investEarned: number;
 }
 
 /**
@@ -192,6 +211,114 @@ export interface ContractState {
 /** Must match LAYOUT.town.lots.length. */
 export const LOT_COUNT = 8;
 
+// ---------------------------------------------------------------------------
+// 0.9.0 Ages: eras, regions, machines, city districts, market
+// ---------------------------------------------------------------------------
+
+/** One machine slot in an era region. machine '' = empty; tier −1 = being paid (cash / extra paid so far), 0 = built. */
+export interface SlotState {
+  machine: MachineId | '';
+  tier: number;
+  cash: number;
+  extra: number;
+}
+
+/** An era region (eras/data.ts REGIONS[n]). `cash` / `extra` = paid toward its expansion pad while locked. */
+export interface RegionState {
+  unlocked: boolean;
+  cash: number;
+  extra: number;
+  slots: SlotState[];
+}
+
+export interface ErasState {
+  /** Highest era reached: 1 = Survival … 10 = AI Era. */
+  age: number;
+  /** regions[n] for eras 2..10 (indices 0 and 1 are unused placeholders with no slots). */
+  regions: RegionState[];
+}
+
+/** One city lot (a district of eras/data.ts DISTRICTS[n]); same payment shape as a machine slot. */
+export interface CityLotState {
+  building: CityBuildingId | '';
+  tier: number;
+  cash: number;
+  extra: number;
+}
+
+export interface CityState {
+  /** districts[n].lots for eras 2..10 (0 and 1 unused, no lots). A district opens with its era. */
+  districts: { lots: CityLotState[] }[];
+}
+
+/** An open investment position (core/Market.ts). */
+export interface InvestmentState {
+  id: number;
+  product: InvestProductId;
+  /** Venture: the era it backs (2..10); 0 for bond / index. */
+  era: number;
+  /** Dollars deposited. */
+  principal: number;
+  /** Current value in dollars (bond: principal until it matures). */
+  value: number;
+  /** Seconds held. */
+  age: number;
+}
+
+export interface MarketState {
+  /** Price index per era material (missing = 1). Survival goods have no index (always 1). */
+  index: Partial<Record<MaterialKind, number>>;
+  /** Supply pressure per material (0..MARKET.pressureMax), lowers its export price; decays over time. */
+  pressure: Partial<Record<MaterialKind, number>>;
+  /** Trading: units held per material and their average buy price per unit. */
+  holdings: Partial<Record<MaterialKind, number>>;
+  basis: Partial<Record<MaterialKind, number>>;
+  investments: InvestmentState[];
+  /** Index fund level (1 at the start; the fund's positions scale with it). */
+  fund: number;
+  nextId: number;
+}
+
+/** Where money that is not a sale came from ('income' event). */
+export type IncomeSource = 'rent' | 'business' | 'interest' | 'trade' | 'jack';
+
+/** 'manage:open': the info / demolish card for something already built (ui/ManagePanel.ts renders it). */
+export interface ManageRequest {
+  /** Stable key of the thing ('town:3', 'slot:4:2', 'city:5:7'); the panel closes on 'manage:close' or when another opens. */
+  key: string;
+  title: string;
+  subtitle?: string;
+  /** Inline SVG string (ui/icons style), optional. */
+  icon?: string;
+  /** Rows shown on the card ("Makes", "2 stone → bricks"). */
+  stats?: readonly { label: string; value: string }[];
+  /** Price to demolish, or null when it cannot be demolished (the button is hidden). */
+  demolishCost: number | null;
+  /** Called after the player confirms; returns false (and nothing changes) if it could not be done (money, state). */
+  onDemolish: () => boolean;
+}
+
+/** One option of a 'choose:open' card. */
+export interface ChooseOption {
+  id: string;
+  label: string;
+  blurb: string;
+  icon?: string;
+  /** Price line, e.g. "$27,000 + 12 Stone". */
+  costText: string;
+  /** Why it can't be chosen right now (shown greyed out); undefined = available. */
+  locked?: string;
+}
+
+/** 'choose:open': pick what to build on an empty slot / lot (ui/ChoosePanel.ts renders it). */
+export interface ChooseRequest {
+  key: string;
+  title: string;
+  options: readonly ChooseOption[];
+  /** Returns false if the choice was refused (nothing changes, the card stays). */
+  onChoose: (id: string) => boolean;
+}
+
 export interface VillageState {
   /** The gate is open and the village can be built. */
   revealed: boolean;
@@ -240,6 +367,12 @@ export interface GameState {
   priorities: { wood: WoodPriority; town: TownPriority };
   /** Wave 13: the delivery contract on the notice board. */
   contract: ContractState;
+  /** 0.9.0: the era ladder and its regions. */
+  eras: ErasState;
+  /** 0.9.0: city districts beyond the Market Town. */
+  city: CityState;
+  /** 0.9.0: market prices, trading holdings and investments. */
+  market: MarketState;
 }
 
 /** Must match LAYOUT.village.plots.length (kept literal so this file only imports types from config). */
@@ -280,6 +413,15 @@ export function createGameState(): GameState {
       townBuilt: 0,
       goodsMade: 0,
       goodsSold: 0,
+      materialsMade: 0,
+      materialsSold: 0,
+      machinesBuilt: 0,
+      cityBuilt: 0,
+      demolished: 0,
+      cityEarned: 0,
+      jackEarned: 0,
+      tradeProfit: 0,
+      investEarned: 0,
     },
     upgrades: {
       carry: 0,
@@ -304,6 +446,10 @@ export function createGameState(): GameState {
       sledLoader: 0,
       foreman: 0,
       dog: 0,
+      jack: 0,
+      taxOffice: 0,
+      broker: 0,
+      ...eraUpgradeLevels(),
     },
     village: {
       revealed: false,
@@ -332,14 +478,39 @@ export function createGameState(): GameState {
     },
     priorities: { wood: 'balanced', town: 'balanced' },
     contract: { kind: '', target: 0, progress: 0, left: 0, bonus: 0 },
+    eras: {
+      age: 1,
+      regions: REGION_SLOTS.map((n) => ({ unlocked: false, cash: 0, extra: 0, slots: Array.from({ length: n }, () => ({ machine: '' as const, tier: -1, cash: 0, extra: 0 })) })),
+    },
+    city: {
+      districts: DISTRICT_LOTS.map((n) => ({ lots: Array.from({ length: n }, () => ({ building: '' as const, tier: -1, cash: 0, extra: 0 })) })),
+    },
+    market: { index: {}, pressure: {}, holdings: {}, basis: {}, investments: [], fund: 1, nextId: 1 },
   };
 }
+
+/** Machine slots per region, index = era (must match eras/data.ts REGIONS[n].slots; tests/eras.test.ts checks). */
+export const REGION_SLOTS: readonly number[] = [0, 0, 4, 4, 5, 5, 6, 6, 7, 7, 8];
+/** Lots per city district, index = era (must match eras/data.ts DISTRICTS[n].lots). */
+export const DISTRICT_LOTS: readonly number[] = [0, 0, 6, 6, 6, 8, 8, 8, 9, 9, 12];
+
+/** Level 0 for every era upgrade (`${key}Rigs` / `${key}Crew` / `${key}Trade`). */
+function eraUpgradeLevels(): Record<EraUpgradeId, number> {
+  const out = {} as Record<EraUpgradeId, number>;
+  for (const k of ERA_KEYS) {
+    out[`${k}Rigs`] = 0;
+    out[`${k}Crew`] = 0;
+    out[`${k}Trade`] = 0;
+  }
+  return out;
+}
+export type EraUpgradeId = `${(typeof ERA_KEYS)[number]}${'Rigs' | 'Crew' | 'Trade'}`;
 
 // ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
 
-export type Buyer = 'customer' | 'tricycle' | 'truck' | 'train' | 'sled' | 'townsfolk';
+export type Buyer = 'customer' | 'tricycle' | 'truck' | 'train' | 'sled' | 'townsfolk' | 'export' | 'jack';
 export type LogSource = 'player' | 'harvester' | 'megaSaw';
 
 /** Event name → payload. Emitted via ctx.events. Vectors in payloads are transient: copy if kept. */
@@ -391,7 +562,8 @@ export interface GameEvents {
   'interact:prompt': { on: boolean; kind: 'take' | 'pay' };
   /** Settings → Game toggled hold-to-interact (Input re-reads it). */
   'settings:hold': { on: boolean };
-  'shop:open': Record<string, never>;
+  /** `tab` (0.9.0): open on that shop tab (an UpgradeGroup, e.g. 'industry' from a region's shop mat). */
+  'shop:open': { tab?: string };
   'shop:close': Record<string, never>;
   /** A construction pad received a log or a cash bundle. key: 'plot:<i>' | 'greatLodge'. */
   'construction:paid': { key: string; kind: 'log' | 'cash'; logsLeft: number; cashLeft: number; position: THREE.Vector3 };
@@ -451,6 +623,46 @@ export interface GameEvents {
   'town:built': { lot: number; building: BusinessIdConst; position: THREE.Vector3; object: THREE.Object3D };
   /** A town producer / shop made one item. */
   'goods:made': { lot: number; kind: ItemKind; position: THREE.Vector3 };
+
+  // --- 0.9.0 Ages ---
+  /** Era n's expansion pad appeared at its region gate. */
+  'expansion:offered': { era: number; position: THREE.Vector3 };
+  /** Era n's expansion was paid: state.eras.age = n, its region and city district are open. */
+  'era:unlocked': { era: number; position: THREE.Vector3 };
+  /** A machine finished building on a region slot / was demolished (state already updated). */
+  'machine:built': { era: number; slot: number; machine: MachineId; position: THREE.Vector3; object: THREE.Object3D };
+  'machine:demolished': { era: number; slot: number; machine: MachineId; position: THREE.Vector3 };
+  /** A machine cycle finished: `count` items of `kind` popped onto its out pile. */
+  'material:made': { era: number; kind: ItemKind; count: number; position: THREE.Vector3 };
+  /** A city building finished / was demolished (district = era n). */
+  'city:built': { era: number; lot: number; building: CityBuildingId; position: THREE.Vector3; object: THREE.Object3D };
+  'city:demolished': { era: number; lot: number; building: CityBuildingId; position: THREE.Vector3 };
+  /** City population (whole settlement) or rank (eras/data.ts CITY_RANKS index) changed; rankUp after a new rank. */
+  'city:changed': { population: number; rank: number };
+  'city:rankUp': { rank: number; name: string; position: THREE.Vector3 | null };
+  /** A Market Town business was demolished (the lot is for sale again). */
+  'town:demolished': { lot: number; building: BusinessIdConst; position: THREE.Vector3 };
+  /** Money credited that is not a buyer's sale (already added to the wallet). */
+  income: { source: IncomeSource; amount: number; position: THREE.Vector3 | null };
+  /** Market panel (HUD button / exchange mat) and the map / fast-travel panel. */
+  'market:open': Record<string, never>;
+  'market:close': Record<string, never>;
+  'map:open': Record<string, never>;
+  'map:close': Record<string, never>;
+  /** Info / demolish card and the build chooser for slots and city lots (ui/ManagePanel.ts, ui/ChoosePanel.ts). */
+  'manage:open': ManageRequest;
+  'manage:close': { key: string };
+  'choose:open': ChooseRequest;
+  'choose:close': { key: string };
+  /** Fast travel: the map asks Level to move the player; Level answers with travel:done after the teleport. */
+  'travel:request': { x: number; z: number; label: string };
+  'travel:done': { x: number; z: number; label: string };
+  /** The market bought `count` physical units for era n's import dock (money already spent); the region spawns them. */
+  'market:order': { kind: MaterialKind; count: number; era: number };
+  /** A trade of virtual holdings closed (`amount` dollars moved; profit for sells, 0 for buys). */
+  'market:trade': { kind: MaterialKind; units: number; side: 'buy' | 'sell'; amount: number; profit: number };
+  /** Positions opened / closed / matured. */
+  'invest:changed': Record<string, never>;
 }
 
 // ---------------------------------------------------------------------------
@@ -498,6 +710,8 @@ export interface GameContext {
   readonly worldEvents: WorldEvents;
   /** Wave 13: delivery contracts. */
   readonly contracts: Contracts;
+  /** 0.9.0: material prices, trading, investments (core/Market.ts). */
+  readonly market: Market;
   /** Simulation clock (seconds since start, advanced by fixed/variable steps). */
   readonly time: { elapsed: number; frame: number };
   /** Register something to be updated every step (after zones, before flights). */

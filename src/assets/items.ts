@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { COLORS, ITEM_SIZE, PALETTE } from '../config';
 import type { ItemKind } from '../core/types';
+import { createEraItemModel } from './eraItems';
 import { Batch, vcMat } from '../render/batch';
 
 // ---------------------------------------------------------------------------
@@ -190,6 +191,8 @@ export function createItemModel(kind: ItemKind): THREE.Mesh {
     case 'sausage':
     case 'toy':
       return createTownGood(kind);
+    default:
+      return createEraItemModel(kind);
   }
 }
 

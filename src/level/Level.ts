@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import { CAMERA, LAYOUT, PADS, type PadIdConst, type XZ } from '../config';
 import type { WorldSnapshot } from '../core/Save';
-import type { GameContext, ItemKind, PadId } from '../core/types';
+import { CARRY_KINDS, type CarryKind, type GameContext, type ItemKind, type PadId } from '../core/types';
 import type { Pile } from '../items/Pile';
 import { Crew } from '../npc/Crew';
 import { CustomerQueue } from '../npc/CustomerQueue';
@@ -434,14 +434,7 @@ export class Level {
         sled: this.sledCash?.value ?? 0,
       },
       // Items flying onto the player's arms have left their pile already.
-      arms: {
-        log: arms.count('log') + flights.inFlightTo(arms, 'log'),
-        crate: arms.count('crate') + flights.inFlightTo(arms, 'crate'),
-        furniture: arms.count('furniture') + flights.inFlightTo(arms, 'furniture'),
-        wheat: arms.count('wheat') + flights.inFlightTo(arms, 'wheat'),
-        meat: arms.count('meat') + flights.inFlightTo(arms, 'meat'),
-        toy: arms.count('toy') + flights.inFlightTo(arms, 'toy'),
-      },
+      arms: Object.fromEntries(CARRY_KINDS.map((k) => [k, arms.count(k) + flights.inFlightTo(arms, k)])) as Record<CarryKind, number>,
       // Goods handed to townsfolk who haven't paid yet go back onto their shop's counter.
       town: this.town.snapshot().map((lot, i) => {
         const carried = pc.in[i] ?? {};
@@ -449,6 +442,8 @@ export class Level {
         for (const [kind, n] of Object.entries(carried)) if (n) ins[kind as ItemKind] = (ins[kind as ItemKind] ?? 0) + n;
         return { ...lot, in: ins, out: lot.out + this.townsfolk.loadedByLot(i) + (pc.out[i] ?? 0) };
       }),
+      // 0.9.0 era regions (integration: this.eras.snapshot())
+      eras: [],
     };
   }
 
