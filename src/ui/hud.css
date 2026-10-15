@@ -408,13 +408,240 @@
 /* ---- settings -------------------------------------------------------------------------------------- */
 
 .wl-settings {
-  width: min(320px, 100%);
+  width: min(380px, 100%);
 }
 
+/* tabs: same look as the shop's (own classes) */
+.wl-settings-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.wl-settings-tab {
+  position: relative;
+  flex: 1;
+  min-height: 34px;
+  padding: 0 6px;
+  border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(10, 18, 36, 0.35);
+  font-size: 15px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.wl-settings-tab.is-on {
+  background: #3fa7ff;
+  border-color: #fff;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* the pane scrolls inside the card when a tab is taller than the window (the card scrolls too as a fallback) */
 .wl-settings-main {
+  max-height: calc(100vh - 190px);
+  max-height: calc(100dvh - 190px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  /* room for the switches' drop shadow and the buttons' bottom edge */
+  padding: 0 2px 6px;
+  margin: 0 -2px;
+}
+
+.wl-settings-page {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* slider rows */
+.wl-row-slider {
+  gap: 10px;
+}
+
+.wl-slider {
+  flex: 0 1 140px;
+  min-width: 70px;
+  width: 140px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  /* required: the card is touch-action: pan-y, which would steal horizontal drags */
+  touch-action: none;
+  --p: 100%;
+}
+
+.wl-slider:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.wl-slider::-webkit-slider-runnable-track {
+  height: 20px;
+  border-radius: 10px;
+  border: 3px solid #fff;
+  background: linear-gradient(to right, #38b957 var(--p), #6c7893 var(--p));
+}
+
+.wl-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  margin-top: -6px;
+  border-radius: 50%;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.wl-slider::-moz-range-track {
+  height: 14px;
+  border-radius: 10px;
+  border: 3px solid #fff;
+  background: #6c7893;
+}
+
+.wl-slider::-moz-range-progress {
+  height: 14px;
+  border-radius: 10px 0 0 10px;
+  background: #38b957;
+}
+
+.wl-slider::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.wl-slider-val {
+  flex: none;
+  min-width: 44px;
+  text-align: right;
+  font-size: 17px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.wl-row-slider .wl-row-label {
+  flex: 1 0 auto;
+  font-size: 19px;
+  white-space: nowrap;
+}
+
+.wl-row-seg .wl-row-label {
+  white-space: nowrap;
+}
+
+/* segmented control (a pill like the switches) */
+.wl-segs {
+  flex: none;
+  display: flex;
+  margin-left: 10px;
+  height: 36px;
+  box-sizing: border-box;
+  border-radius: 18px;
+  border: 3px solid #fff;
+  background: #6c7893;
+  overflow: hidden;
+}
+
+.wl-seg {
+  min-width: 44px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-seg.is-on {
+  background: #38b957;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* controls hint + save transfer */
+.wl-controls {
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.wl-controls-title {
+  font-size: 15px;
+  margin-bottom: 4px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.wl-controls-item {
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 500;
+  color: #c9d6ee;
+}
+
+.wl-controls-item b {
+  font-weight: 600;
+  color: #fff;
+}
+
+.wl-save-msg {
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 500;
+  color: #c9d6ee;
+  margin-top: -6px;
+}
+
+.wl-save-msg.is-error {
+  color: #ffb4a8;
+}
+
+.wl-save-row .wl-btn {
+  padding: 0 8px;
+  font-size: 18px;
+  white-space: nowrap;
+}
+
+@media (min-width: 520px) {
+  .wl-controls-list {
+    columns: 2;
+    column-gap: 16px;
+  }
+  .wl-controls-item {
+    break-inside: avoid;
+  }
+}
+
+@media (max-width: 420px) {
+  .wl-row-slider {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+  .wl-row-slider .wl-slider {
+    order: 3;
+    flex: 1 0 100%;
+    width: 100%;
+  }
+  .wl-row-seg {
+    flex-wrap: wrap;
+  }
 }
 
 .wl-row {
@@ -487,8 +714,15 @@
 }
 
 @media (max-height: 520px) {
-  .wl-settings-main {
+  .wl-settings-page {
     gap: 8px;
+  }
+  .wl-settings-tabs {
+    margin-bottom: 8px;
+  }
+  .wl-settings-main {
+    max-height: calc(100vh - 150px);
+    max-height: calc(100dvh - 150px);
   }
   .wl-settings .wl-card-title {
     margin-bottom: 8px;
@@ -1702,13 +1936,21 @@
   .wl-settings {
     width: min(560px, 100%);
   }
-  .wl-settings-main {
+  .wl-settings-page {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    grid-auto-flow: row dense;
     gap: 8px 12px;
   }
-  .wl-settings-main > .wl-btn {
+  .wl-settings-page > .wl-btn,
+  .wl-settings-page > .wl-btn-row,
+  .wl-settings-page > .wl-controls,
+  .wl-settings-page > .wl-save-msg,
+  .wl-settings-page > .wl-row-slider,
+  .wl-settings-page > .wl-row-seg:first-child {
     grid-column: 1 / -1;
+  }
+  .wl-settings-page > .wl-btn {
     min-height: 40px;
   }
   .wl-settings .wl-row-hint {

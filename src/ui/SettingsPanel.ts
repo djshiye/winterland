@@ -1,25 +1,79 @@
 /**
- * [B4] Settings: a gear button (next to the mute button) opening a small centred card with a Sound switch (same
- * state as the mute button), a Music switch, a Graphics High / Low switch (Low = no shadows, pixel ratio 1), a
- * Show FPS switch (PerfOverlay) and "Reset progress" behind an in-page confirmation (no window.confirm). Confirming
- * emits 'game:reset'; the main session wipes the save and reloads. Wave 8: Day / night switch (ctx.dayNight) and, where
- * navigator.vibrate exists, a Vibration switch (fx/Haptics). Picking a graphics quality by hand writes
- * localStorage 'winterland:autoQuality' = 'manual' so the automatic drop to Low never overrides the player.
+ * [B4] Settings: a gear button (next to the mute button) opening a small centred card with three tabs (the last one
+ * is remembered in localStorage 'winterland:settingsTab'):
+ * - Sound: Sound switch (same state as the mute button), Master / Effects volume sliders, Music switch + slider.
+ * - Display: window mode (desktop app) or a Fullscreen switch (browser), Graphics High / Low (Low = no shadows, pixel
+ *   ratio 1), Resolution slider, Frame rate Auto / 60 / 30, Show FPS (PerfOverlay), Day / night (ctx.dayNight).
+ * - Game: Vibration (where navigator.vibrate exists), a controls hint, Back up / Restore save (ui/saveTransfer),
+ *   "Start a new season" (after the finale) and "Reset progress"; both, and Restore, sit behind in-page confirmations
+ *   (no window.confirm) that replace the tabs. Confirming a reset emits 'game:reset'; the main session wipes the save
+ *   and reloads. Picking a graphics quality by hand writes localStorage 'winterland:autoQuality' = 'manual' so the
+ *   automatic drop to Low never overrides the player.
+ * Sliders run on 'input' (live) and are not shielded: the row stops pointerdown / touchstart instead.
  * On short screens (<= 520 px tall) the switches sit in two columns so the card fits 800x450.
  */
 import { hapticsAvailable, hapticsEnabled, buzz, setHapticsEnabled } from '../fx/Haptics';
+import { readFpsCap, FPS_CAPS, type FpsCap } from '../core/fps';
+import type { VolumeChannel } from '../fx/volume';
 import type { GameContext } from '../core/types';
+import { desktop, toggleFullscreen, type WindowMode } from '../platform/desktop';
 import { backOut, h, onTap, shield, Slide } from './dom';
 import { ICON_CLOSE, ICON_GEAR } from './icons';
 import type { PerfOverlay } from './PerfOverlay';
 import { SeasonConfirm } from './SeasonConfirm';
+import { exportSave, importSave, validateSaveText } from './saveTransfer';
+
+export type SettingsTab = 'sound' | 'display' | 'game';
+export const SETTINGS_TABS: readonly { id: SettingsTab; label: string }[] = [
+  { id: 'sound', label: 'Sound' },
+  { id: 'display', label: 'Display' },
+  { id: 'game', label: 'Game' },
+];
+const TAB_KEY = 'winterland:settingsTab';
+
+/** The tab the player had open last (default Sound; storage errors and unknown values fall back to it). */
+export function readSettingsTab(): SettingsTab {
+  try {
+    const v = localStorage.getItem(TAB_KEY);
+    return SETTINGS_TABS.some((t) => t.id === v) ? (v as SettingsTab) : 'sound';
+  } catch {
+    return 'sound';
+  }
+}
+
+export function writeSettingsTab(tab: SettingsTab): void {
+  try {
+    localStorage.setItem(TAB_KEY, tab);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** Keys the player's controls (and the camera zoom) listen to on window: a focused slider must keep them to itself. */
+const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract']);
+
+const CONTROLS: readonly (readonly [string, string])[] = [
+  ['WASD / arrows', 'move'],
+  ['Drag', 'joystick'],
+  ['Wheel / + \u2212', 'zoom'],
+  ['Esc', 'menu'],
+  ['M', 'mute'],
+  ['F', 'fullscreen (desktop: F11 / Alt+Enter)'],
+];
 
 export class SettingsPanel {
   readonly button: HTMLButtonElement;
   private readonly backdrop: HTMLDivElement;
   private readonly card: HTMLDivElement;
+  /** Tabs + the scrolling pane (replaced as a whole by the confirm / season / restore views). */
+  private readonly body: HTMLDivElement;
   private readonly main: HTMLDivElement;
+  private readonly pages = new Map<SettingsTab, HTMLDivElement>();
+  private readonly tabEls = new Map<SettingsTab, HTMLButtonElement>();
   private readonly confirm: HTMLDivElement;
+  private readonly restoreView: HTMLDivElement;
+  private readonly saveMsg: HTMLDivElement;
+  private readonly fileInput: HTMLInputElement;
   private readonly season: SeasonConfirm;
   private readonly seasonBtn: HTMLButtonElement;
   private readonly soundSwitch: HTMLButtonElement;
@@ -28,7 +82,13 @@ export class SettingsPanel {
   private readonly fpsSwitch: HTMLButtonElement;
   private readonly daySwitch: HTMLButtonElement;
   private readonly vibSwitch: HTMLButtonElement | null = null;
+  private readonly fsSwitch: HTMLButtonElement | null = null;
+  /** Sliders and segmented controls re-read their value in sync(). */
+  private readonly refreshers: (() => void)[] = [];
   private readonly slide = new Slide();
+  private tab: SettingsTab = readSettingsTab();
+  private windowMode: WindowMode = 'windowed';
+  private pendingFile: File | null = null;
   private resetting = false;
 
   /** Called when the sound state changes from inside the panel (the HUD syncs the mute button). */
@@ -64,13 +124,39 @@ export class SettingsPanel {
     x.setAttribute('aria-label', 'Close settings');
     onTap(x, () => this.close());
 
-    // --- main view
+    // --- main view: tabs over a scrolling pane
+    this.body = h('div', 'wl-settings-body');
+    const tabs = h('div', 'wl-settings-tabs');
+    tabs.setAttribute('role', 'tablist');
     this.main = h('div', 'wl-settings-main');
-    const sw = (label: string, hint: string | null, tap: () => void): HTMLButtonElement => {
-      const row = h('div', 'wl-row');
+    for (const t of SETTINGS_TABS) {
+      const b = h('button', 'wl-settings-tab', t.label);
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      onTap(b, () => {
+        ctx.audio.unlock();
+        ctx.audio.play('click');
+        this.setTab(t.id);
+      });
+      tabs.appendChild(b);
+      this.tabEls.set(t.id, b);
+      const page = h('div', 'wl-settings-page');
+      this.pages.set(t.id, page);
+      this.main.appendChild(page);
+    }
+    this.body.append(tabs, this.main);
+    const page = (t: SettingsTab): HTMLDivElement => this.pages.get(t)!;
+
+    const rowFor = (to: HTMLElement, label: string, hint: string | null, cls = ''): HTMLDivElement => {
+      const row = h('div', `wl-row ${cls}`.trim());
       const lab = h('span', 'wl-row-label', `<span class="wl-row-name">${label}</span>`);
       if (hint) lab.appendChild(h('small', 'wl-row-hint', hint));
       row.appendChild(lab);
+      to.appendChild(row);
+      return row;
+    };
+    const sw = (to: HTMLElement, label: string, hint: string | null, tap: () => void): HTMLButtonElement => {
+      const row = rowFor(to, label, hint);
       const b = h('button', 'wl-switch', '<i></i>');
       b.type = 'button';
       b.setAttribute('role', 'switch');
@@ -81,19 +167,143 @@ export class SettingsPanel {
         this.sync();
       });
       row.appendChild(b);
-      this.main.appendChild(row);
       return b;
     };
-    this.soundSwitch = sw('Sound', null, () => {
+    /** A 0..100 % range input; get / set work in 0..1. Driven by 'input' (live), not by taps. */
+    const slider = (
+      to: HTMLElement,
+      label: string,
+      get: () => number,
+      set: (v: number) => void,
+      opts: { min?: number; step?: number; release?: boolean } = {},
+    ): void => {
+      const row = rowFor(to, label, null, 'wl-row-slider');
+      const input = h('input', 'wl-slider');
+      input.type = 'range';
+      input.min = String(opts.min ?? 0);
+      input.max = '100';
+      input.step = String(opts.step ?? 1);
+      input.setAttribute('aria-label', label);
+      const val = h('span', 'wl-slider-val');
+      const paint = (): void => {
+        const n = Number(input.value);
+        const lo = Number(input.min);
+        val.textContent = `${n}%`;
+        input.style.setProperty('--p', `${(((n - lo) / (100 - lo)) * 100).toFixed(1)}%`);
+      };
+      input.addEventListener('input', () => {
+        ctx.audio.unlock();
+        set(Number(input.value) / 100);
+        paint();
+      });
+      if (opts.release) {
+        input.addEventListener('change', () => ctx.audio.play('pop'));
+      }
+      // after a mouse / touch drag give the keyboard back to the player (arrows would nudge the slider otherwise)
+      input.addEventListener('pointerup', () => input.blur());
+      input.addEventListener('keydown', (e) => {
+        if (e.code === 'Escape') {
+          e.stopPropagation();
+          this.close();
+        } else if (GAME_KEYS.has(e.code)) e.stopPropagation();
+      });
+      // the joystick under the HUD must never start from a slider drag
+      const stop = (ev: Event): void => ev.stopPropagation();
+      row.addEventListener('pointerdown', stop);
+      row.addEventListener('touchstart', stop, { passive: true });
+      row.append(input, val);
+      this.refreshers.push(() => {
+        input.value = String(Math.round(get() * 100));
+        paint();
+      });
+    };
+    /** A pill of 2-3 buttons, one on at a time. */
+    const seg = <T extends string | number>(
+      to: HTMLElement,
+      label: string,
+      options: readonly { value: T; text: string }[],
+      get: () => T,
+      set: (v: T) => void,
+    ): void => {
+      const row = rowFor(to, label, null, 'wl-row-seg');
+      const pill = h('div', 'wl-segs');
+      pill.setAttribute('role', 'radiogroup');
+      pill.setAttribute('aria-label', label);
+      const btns = options.map((o) => {
+        const b = h('button', 'wl-seg', o.text);
+        b.type = 'button';
+        b.setAttribute('role', 'radio');
+        onTap(b, () => {
+          ctx.audio.unlock();
+          ctx.audio.play('click');
+          set(o.value);
+          this.sync();
+        });
+        pill.appendChild(b);
+        return b;
+      });
+      row.appendChild(pill);
+      this.refreshers.push(() => {
+        const cur = get();
+        options.forEach((o, i) => {
+          btns[i]!.classList.toggle('is-on', o.value === cur);
+          btns[i]!.setAttribute('aria-checked', String(o.value === cur));
+        });
+      });
+    };
+    const volume = (ch: VolumeChannel) => ({ get: () => ctx.audio.getVolume(ch), set: (v: number) => ctx.audio.setVolume(ch, v) });
+
+    // Sound
+    const ps = page('sound');
+    this.soundSwitch = sw(ps, 'Sound', null, () => {
       const muted = ctx.audio.toggleMute();
       if (!muted) ctx.audio.play('click');
       this.onSoundChanged?.();
     });
-    this.musicSwitch = sw('Music', null, () => {
+    slider(ps, 'Master volume', volume('master').get, volume('master').set, { release: true });
+    slider(ps, 'Effects volume', volume('sfx').get, volume('sfx').set, { release: true });
+    this.musicSwitch = sw(ps, 'Music', null, () => {
       if (ctx.audio.toggleMusic()) ctx.audio.play('click');
     });
+    slider(ps, 'Music volume', volume('music').get, volume('music').set);
+
+    // Display
+    const pd = page('display');
+    const bridge = desktop();
+    if (bridge) {
+      seg<WindowMode>(
+        pd,
+        'Window',
+        [
+          { value: 'windowed', text: 'Windowed' },
+          { value: 'fullscreen', text: 'Fullscreen' },
+        ],
+        () => this.windowMode,
+        (m) => {
+          this.windowMode = m;
+          bridge.setWindowMode(m);
+        },
+      );
+      bridge
+        .getWindowMode()
+        .then((m) => {
+          this.windowMode = m;
+          this.sync();
+        })
+        .catch(() => undefined);
+      bridge.onWindowMode((m) => {
+        this.windowMode = m;
+        this.sync();
+      });
+    } else if (document.fullscreenEnabled) {
+      this.fsSwitch = sw(pd, 'Fullscreen', null, () => {
+        ctx.audio.play('click');
+        toggleFullscreen();
+      });
+      document.addEventListener('fullscreenchange', () => this.sync());
+    }
     // on = High; the hint tells what Low does
-    this.gfxSwitch = sw('Graphics', 'Low turns off shadows for slower computers', () => {
+    this.gfxSwitch = sw(pd, 'Graphics', 'Low turns off shadows for slower computers', () => {
       ctx.audio.play('click');
       try {
         localStorage.setItem('winterland:autoQuality', 'manual');
@@ -102,21 +312,74 @@ export class SettingsPanel {
       }
       ctx.renderer.setQuality(ctx.renderer.quality === 'high' ? 'low' : 'high');
     });
-    this.fpsSwitch = sw('Show FPS', null, () => {
+    slider(pd, 'Resolution', () => ctx.renderer.scale, (v) => ctx.renderer.setScale(v), { min: 50, step: 5 });
+    seg<FpsCap>(
+      pd,
+      'Frame rate',
+      FPS_CAPS.slice().sort((a, b) => (a === 0 ? -1 : b === 0 ? 1 : b - a)).map((c) => ({ value: c, text: c === 0 ? 'Auto' : String(c) })),
+      () => readFpsCap(),
+      (cap) => ctx.events.emit('settings:fps', { cap }),
+    );
+    this.fpsSwitch = sw(pd, 'Show FPS', null, () => {
       ctx.audio.play('click');
       perf.enabled = !perf.enabled;
     });
-    this.daySwitch = sw('Day / night', null, () => {
+    this.daySwitch = sw(pd, 'Day / night', null, () => {
       ctx.audio.play('click');
       ctx.dayNight.setEnabled(!ctx.dayNight.enabled);
     });
+
+    // Game
+    const pg = page('game');
     if (hapticsAvailable()) {
-      this.vibSwitch = sw('Vibration', null, () => {
+      this.vibSwitch = sw(pg, 'Vibration', null, () => {
         ctx.audio.play('click');
         setHapticsEnabled(!hapticsEnabled());
         if (hapticsEnabled()) buzz(15);
       });
     }
+    const controls = h('div', 'wl-controls');
+    controls.appendChild(h('div', 'wl-controls-title', 'Controls'));
+    const list = h('div', 'wl-controls-list');
+    for (const [keys, what] of CONTROLS) list.appendChild(h('div', 'wl-controls-item', `<b>${keys}</b> ${what}`));
+    controls.appendChild(list);
+    pg.appendChild(controls);
+
+    const saveRow = h('div', 'wl-btn-row wl-save-row');
+    const backup = h('button', 'wl-btn wl-btn-green', 'Back up save');
+    backup.type = 'button';
+    onTap(backup, () => {
+      if (exportSave()) {
+        ctx.audio.play('chime');
+        this.setSaveMsg('Save downloaded.', false);
+      } else {
+        ctx.audio.play('click');
+        this.setSaveMsg('No save to back up yet.', true);
+      }
+    });
+    const restore = h('button', 'wl-btn wl-btn-grey', 'Restore save');
+    restore.type = 'button';
+    this.fileInput = h('input');
+    this.fileInput.type = 'file';
+    this.fileInput.accept = '.json,application/json';
+    this.fileInput.style.display = 'none';
+    onTap(restore, () => {
+      ctx.audio.play('click');
+      this.fileInput.value = '';
+      this.fileInput.click();
+    });
+    // the synthetic click on the hidden input bubbles up to the card; keep it from closing anything
+    this.fileInput.addEventListener('click', (e) => e.stopPropagation());
+    this.fileInput.addEventListener('change', () => {
+      const file = this.fileInput.files?.[0];
+      if (file) void this.chooseFile(file);
+    });
+    saveRow.append(backup, restore);
+    pg.appendChild(saveRow);
+    this.saveMsg = h('div', 'wl-save-msg');
+    this.saveMsg.style.display = 'none';
+    pg.appendChild(this.saveMsg);
+
     // prestige: only after the finale (open() shows / hides it, the flag can flip mid-session)
     this.seasonBtn = h('button', 'wl-btn wl-btn-gold', 'Start a new season');
     this.seasonBtn.type = 'button';
@@ -125,14 +388,14 @@ export class SettingsPanel {
       ctx.audio.play('click');
       this.showSeason(true);
     });
-    this.main.appendChild(this.seasonBtn);
+    pg.appendChild(this.seasonBtn);
     const reset = h('button', 'wl-btn wl-btn-danger', 'Reset progress');
     reset.type = 'button';
     onTap(reset, () => {
       ctx.audio.play('click');
       this.showConfirm(true);
     });
-    this.main.appendChild(reset);
+    pg.appendChild(reset);
 
     // --- confirm view
     this.confirm = h('div', 'wl-settings-confirm');
@@ -155,16 +418,46 @@ export class SettingsPanel {
     buttons.append(cancel, go);
     this.confirm.appendChild(buttons);
 
+    // --- restore-save confirm view
+    this.restoreView = h('div', 'wl-settings-confirm');
+    this.restoreView.style.display = 'none';
+    this.restoreView.appendChild(h('div', 'wl-confirm-text', 'Replace your current mill with this save?'));
+    const rbuttons = h('div', 'wl-btn-row');
+    const rcancel = h('button', 'wl-btn wl-btn-grey', 'Cancel');
+    rcancel.type = 'button';
+    onTap(rcancel, () => {
+      ctx.audio.play('click');
+      this.pendingFile = null;
+      this.showRestore(false);
+    });
+    const rgo = h('button', 'wl-btn wl-btn-green', 'Restore');
+    rgo.type = 'button';
+    onTap(rgo, () => {
+      const file = this.pendingFile;
+      if (!file) return;
+      this.pendingFile = null;
+      ctx.audio.play('chime');
+      void importSave(file, (text) => ctx.events.emit('save:restore', { text })).then((err) => {
+        if (err) {
+          this.showRestore(false);
+          this.setSaveMsg(err, true);
+        }
+      });
+    });
+    rbuttons.append(rcancel, rgo);
+    this.restoreView.appendChild(rbuttons);
+
     this.season = new SeasonConfirm(ctx, () => this.showSeason(false));
     this.season.el.style.display = 'none';
 
-    this.card.append(x, title, this.main, this.confirm, this.season.el);
+    this.card.append(x, title, this.body, this.confirm, this.restoreView, this.season.el, this.fileInput);
     this.backdrop.appendChild(this.card);
     layer.appendChild(this.backdrop);
+    this.showTab();
     this.sync();
   }
 
-  /** Re-read every switch (the HUD calls this when the mute button is pressed). */
+  /** Re-read every switch, slider and segmented control (the HUD calls this when the mute button is pressed). */
   sync(): void {
     const { audio, renderer } = this.ctx;
     const set = (el: HTMLButtonElement, on: boolean): void => {
@@ -177,8 +470,56 @@ export class SettingsPanel {
     set(this.fpsSwitch, this.perf.enabled);
     set(this.daySwitch, this.ctx.dayNight.enabled);
     if (this.vibSwitch) set(this.vibSwitch, hapticsEnabled());
+    if (this.fsSwitch) set(this.fsSwitch, !!document.fullscreenElement);
     const name = this.gfxSwitch.parentElement?.querySelector('.wl-row-name');
     if (name) name.textContent = renderer.quality === 'high' ? 'Graphics: High' : 'Graphics: Low';
+    for (const r of this.refreshers) r();
+  }
+
+  /** The tab showing now. */
+  get activeTab(): SettingsTab {
+    return this.tab;
+  }
+
+  /** Switch tab (remembered in localStorage). */
+  setTab(tab: SettingsTab): void {
+    this.tab = tab;
+    writeSettingsTab(tab);
+    this.showTab();
+  }
+
+  private showTab(): void {
+    for (const [id, el] of this.tabEls) {
+      el.classList.toggle('is-on', id === this.tab);
+      el.setAttribute('aria-selected', String(id === this.tab));
+    }
+    for (const [id, el] of this.pages) el.style.display = id === this.tab ? '' : 'none';
+    this.main.scrollTop = 0;
+  }
+
+  private setSaveMsg(text: string, error: boolean): void {
+    this.saveMsg.textContent = text;
+    this.saveMsg.classList.toggle('is-error', error);
+    this.saveMsg.style.display = text ? '' : 'none';
+  }
+
+  /** A file was picked: check it looks like a save, then ask before replacing the current one. */
+  private async chooseFile(file: File): Promise<void> {
+    let text = '';
+    try {
+      text = await file.text();
+    } catch {
+      /* validated below as not a save */
+    }
+    const bad = validateSaveText(text);
+    if (bad) {
+      this.ctx.audio.play('click');
+      this.setSaveMsg(bad, true);
+      return;
+    }
+    this.setSaveMsg('', false);
+    this.pendingFile = file;
+    this.showRestore(true);
   }
 
   get isOpen(): boolean {
@@ -193,6 +534,8 @@ export class SettingsPanel {
   open(): void {
     this.sync();
     this.seasonBtn.style.display = this.ctx.state.flags.finale ? '' : 'none';
+    this.setSaveMsg('', false);
+    this.pendingFile = null;
     this.showConfirm(false);
     this.slide.open = true;
     this.backdrop.style.display = 'flex';
@@ -204,19 +547,28 @@ export class SettingsPanel {
     if (this.slide.k === 0) this.backdrop.style.display = 'none';
   }
 
-  /** For tests: show the confirmation view. */
-  showConfirm(on: boolean): void {
-    this.main.style.display = on ? 'none' : '';
-    this.confirm.style.display = on ? '' : 'none';
-    this.season.el.style.display = 'none';
+  /** Show one view: the tabbed body, or one of the confirmations that replace it. */
+  private view(v: 'main' | 'reset' | 'season' | 'restore'): void {
+    this.body.style.display = v === 'main' ? '' : 'none';
+    this.confirm.style.display = v === 'reset' ? '' : 'none';
+    this.season.el.style.display = v === 'season' ? '' : 'none';
+    this.restoreView.style.display = v === 'restore' ? '' : 'none';
   }
 
-  /** The New Season confirmation view (replaces the switches; Cancel returns to them). */
+  /** For tests: show the confirmation view. */
+  showConfirm(on: boolean): void {
+    this.view(on ? 'reset' : 'main');
+  }
+
+  /** The New Season confirmation view (replaces the tabs; Cancel returns to them). */
   showSeason(on: boolean): void {
     if (on) this.season.refresh();
-    this.main.style.display = on ? 'none' : '';
-    this.confirm.style.display = 'none';
-    this.season.el.style.display = on ? '' : 'none';
+    this.view(on ? 'season' : 'main');
+  }
+
+  /** The "Replace your current mill with this save?" view. */
+  showRestore(on: boolean): void {
+    this.view(on ? 'restore' : 'main');
   }
 
   update(dt: number): void {

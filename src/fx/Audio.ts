@@ -18,13 +18,18 @@
  * - combo: repeats of the same sound within ~0.35 s rise in pitch (semitone steps, capped at +12)
  *   — the classic stacking pickup feel. Rapid repeats are rate-limited per sound and the number of
  *   simultaneous voices is capped, so streams never clip.
+ * - Wave 10: three volume channels (fx/volume.ts), each 0..1, persisted in 'winterland:vol:master' / ':sfx' / ':music'
+ *   (default 1) and passed through the perceptual curve volumeGain (v^2). Graph: voices -> compressor -> sfxGain ->
+ *   master -> destination, music -> master. master gain = MASTER_GAIN * volumeGain(master), or 0 while muted; sfxGain
+ *   = volumeGain(sfx); music volume is folded into Music's resting level (Music.setVolume). setVolume before the
+ *   first unlock() only stores and persists; init() applies all three.
  * - Mute state persists in localStorage ('winterland:muted'), wrapped in try/catch.
  * - Background music (fx/Music.ts) shares the AudioContext and the master gain: it starts after unlock(), runs only
  *   while the music switch is on, sound isn't muted and the tab is visible, and dips ~40 % under loud SFX. Its own
  *   on/off persists in 'winterland:music' (default on).
  */
 import { Music } from './Music';
-import { readVolume, writeVolume, type VolumeChannel } from './volume';
+import { clampVolume, readVolume, volumeGain, writeVolume, type VolumeChannel } from './volume';
 
 export type SfxName =
   | 'pop'
@@ -129,17 +134,38 @@ export class AudioFX {
   /**
    * Set a channel volume (0..1), live and persisted. master scales everything (MASTER_GAIN * volumeGain(master)),
    * sfx scales the effects bus only, music scales the music's resting level (Music.setVolume).
-   * TODO(audio builder): apply to the gain nodes; this stub only stores and persists.
+   * Before init() (no unlock yet) it only stores and persists; init() then applies all three channels.
    */
   setVolume(ch: VolumeChannel, v: number): void {
-    this.volumes[ch] = Math.max(0, Math.min(1, v));
-    writeVolume(ch, this.volumes[ch]);
+    const vol = clampVolume(v);
+    this.volumes[ch] = vol;
+    writeVolume(ch, vol);
+    try {
+      const ac = this.ac;
+      if (!ac) return;
+      const now = ac.currentTime;
+      if (ch === 'master') {
+        if (this.master && !this.muted) this.master.gain.setTargetAtTime(this.masterLevel(), now, 0.03);
+      } else if (ch === 'sfx') {
+        this.sfxGain?.gain.setTargetAtTime(volumeGain(vol), now, 0.03);
+      } else {
+        this.music?.setVolume(vol);
+      }
+    } catch {
+      /* audio must never break the game */
+    }
+  }
+
+  /** Master gain when not muted. */
+  private masterLevel(): number {
+    return MASTER_GAIN * volumeGain(this.volumes.master);
   }
 
   private ac: AudioContext | null = null;
   private master: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   private compIn: DynamicsCompressorNode | null = null;
+  private sfxGain: GainNode | null = null;
   private music: Music | null = null;
   private failed = false;
   private night = false;
@@ -211,7 +237,7 @@ export class AudioFX {
       /* storage unavailable */
     }
     if (this.master && this.ac) {
-      this.master.gain.setTargetAtTime(m ? 0 : MASTER_GAIN, this.ac.currentTime, 0.02);
+      this.master.gain.setTargetAtTime(m ? 0 : this.masterLevel(), this.ac.currentTime, 0.02);
     }
     this.syncMusic();
   }
@@ -276,8 +302,11 @@ export class AudioFX {
     comp.attack.value = 0.004;
     comp.release.value = 0.16;
     const master = ac.createGain();
-    master.gain.value = this.muted ? 0 : MASTER_GAIN;
-    comp.connect(master);
+    master.gain.value = this.muted ? 0 : this.masterLevel();
+    const sfxGain = ac.createGain();
+    sfxGain.gain.value = volumeGain(this.volumes.sfx);
+    comp.connect(sfxGain);
+    sfxGain.connect(master);
     master.connect(ac.destination);
 
     // 1 s of white noise, shared by every noise voice.
@@ -290,9 +319,11 @@ export class AudioFX {
     this.master = master;
     this.noise = buf;
     this.compIn = comp;
+    this.sfxGain = sfxGain;
     try {
       // music goes straight to the master gain (not through the SFX compressor) so it never pumps the SFX
       this.music = new Music(ac, master);
+      this.music.setVolume(this.volumes.music);
       if (this.night) this.music.setNight(true);
       ac.onstatechange = () => this.syncMusic();
     } catch {

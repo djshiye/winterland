@@ -7,10 +7,14 @@
  * - Lookahead scheduler on the AudioContext clock: a single 100 ms timer schedules every note due in the next 0.6 s
  *   at exact audio times, so the timer's jitter never reaches the sound. Few voices (≈ 12 nodes per bar), no convolution.
  * - Wave 8: setNight(on) softens the mix (-20 %, darker pad) over ~2 s for night ambience.
+ * - Wave 10: setVolume(v) takes the 0..1 music slider value and applies the perceptual curve (volumeGain) itself. The
+ *   volume is folded into the resting level (musicRestLevel: LEVEL * night factor * volumeGain) so setNight() and
+ *   dip() both respect it; the first dusk never resets the slider.
  * - Everything routes through one level node (`duck`) -> `fade` -> the destination handed in by AudioFX (its master gain,
  *   so the master mute silences music too). duck() dips the level ~40 % for ~0.4 s under loud SFX.
  * - AudioFX owns the on/off decisions (unlocked, music switch, mute, tab visible) and calls start()/stop().
  */
+import { clampVolume, volumeGain } from './volume';
 
 const BPM = 78;
 const BEAT = 60 / BPM;
@@ -25,6 +29,13 @@ const DUCK_TO = 0.6;
 const NIGHT_LEVEL = 0.8;
 const PAD_DAY = 1300;
 const PAD_NIGHT = 800;
+
+/**
+ * Resting level of the `duck` node: LEVEL, a bit lower at night, times the music volume. `vol` is the 0..1 slider
+ * value; the perceptual curve (volumeGain) is applied here. Pure, so the night/volume fold is unit-testable.
+ */
+export const musicRestLevel = (night: boolean, vol: number): number =>
+  LEVEL * (night ? NIGHT_LEVEL : 1) * volumeGain(vol);
 
 const mtof = (m: number): number => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -60,8 +71,9 @@ export class Music {
   private next = 0;
   private step = 0;
   private tune: number[][] = MELODY;
-  /** Current resting level of `duck` (LEVEL by day, a bit lower at night). */
-  private level = LEVEL;
+  private night = false;
+  /** Music slider value 0..1 (volumeGain is applied in restLevel()). */
+  private vol = 1;
 
   constructor(
     private readonly ac: AudioContext,
@@ -71,7 +83,7 @@ export class Music {
     this.fade.gain.value = 0;
     this.fade.connect(dest);
     this.duck = ac.createGain();
-    this.duck.gain.value = LEVEL;
+    this.duck.gain.value = this.restLevel;
     this.duck.connect(this.fade);
 
     this.pad = ac.createBiquadFilter();
@@ -96,6 +108,11 @@ export class Music {
     fb.connect(delay);
     tone.connect(wet);
     wet.connect(this.duck);
+  }
+
+  /** Current resting level of `duck`: day/night level times the music volume. */
+  private get restLevel(): number {
+    return musicRestLevel(this.night, this.vol);
   }
 
   get isRunning(): boolean {
@@ -130,17 +147,26 @@ export class Music {
     const now = this.ac.currentTime;
     const g = this.duck.gain;
     g.cancelScheduledValues(now);
-    g.setTargetAtTime(this.level * DUCK_TO, now, 0.03);
-    g.setTargetAtTime(this.level, now + 0.4, 0.25);
+    g.setTargetAtTime(this.restLevel * DUCK_TO, now, 0.03);
+    g.setTargetAtTime(this.restLevel, now + 0.4, 0.25);
+  }
+
+  /** Music volume, the 0..1 slider value (the perceptual curve is applied here). Ramps the resting level (~0.05 s). */
+  setVolume(v: number): void {
+    this.vol = clampVolume(v);
+    const now = this.ac.currentTime;
+    const g = this.duck.gain;
+    g.cancelScheduledValues(now);
+    g.setTargetAtTime(this.restLevel, now, 0.05);
   }
 
   /** Night ambience: a slow crossfade (~2 s) to a softer, duller mix (-20 % level, darker pad) and back. */
   setNight(on: boolean): void {
-    this.level = on ? LEVEL * NIGHT_LEVEL : LEVEL;
+    this.night = on;
     const now = this.ac.currentTime;
     const g = this.duck.gain;
     g.cancelScheduledValues(now);
-    g.setTargetAtTime(this.level, now, 0.7);
+    g.setTargetAtTime(this.restLevel, now, 0.7);
     const f = this.pad.frequency;
     f.cancelScheduledValues(now);
     f.setTargetAtTime(on ? PAD_NIGHT : PAD_DAY, now, 0.7);

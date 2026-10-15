@@ -350,6 +350,8 @@ export interface GameEvents {
   'camera:zoom': { delta: number };
   /** Settings → Display picked a frame cap (0 = uncapped); Game applies and persists it (core/fps.ts). */
   'settings:fps': { cap: 0 | 30 | 60 };
+  /** Settings → Restore save: validated save text. Game stops autosaving, writes it and reloads. */
+  'save:restore': { text: string };
   'shop:open': Record<string, never>;
   'shop:close': Record<string, never>;
   /** A construction pad received a log or a cash bundle. key: 'plot:<i>' | 'greatLodge'. */

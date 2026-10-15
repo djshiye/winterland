@@ -79,8 +79,7 @@ export class ShopPanel {
     close.setAttribute('aria-label', 'Close shop');
     onTap(close, () => {
       ctx.audio.play('click');
-      this.dismissed = true;
-      this.syncOpen();
+      this.close();
     });
     head.appendChild(close);
     this.root.appendChild(head);
@@ -132,6 +131,12 @@ export class ShopPanel {
     this.wanted = open;
     this.dismissed = false;
     this.dirty = true;
+    this.syncOpen();
+  }
+
+  /** Dismiss the panel like its X button (it stays shut until the player leaves and re-enters the spot). */
+  close(): void {
+    this.dismissed = true;
     this.syncOpen();
   }
 

@@ -11,6 +11,16 @@
  *   WebAudio can be re-resumed after iOS suspends it ('interrupted' after backgrounding); callbacks must be cheap and
  *   idempotent (audio.unlock() is a no-op while the context runs).
  * - `enabled = false` makes `move` read as zero (intro cinematic) but still tracks gestures.
+ * - Wave 10 shortcuts (onShortcut, fired on keydown, never while typing in an input / textarea / contenteditable,
+ *   never on key repeat, never with Ctrl / Meta held): Escape → 'escape'; M → 'mute'; F, F11 and Alt+Enter →
+ *   'fullscreen' (F11 / Alt+Enter are only reported when `location.protocol !== 'app:'`, because the Electron shell
+ *   already toggles fullscreen for those and both would cancel out; the browser's own F11 / Alt+Enter are
+ *   preventDefault-ed); + / = / NumpadAdd → 'zoomIn'; - / NumpadSubtract → 'zoomOut'. Movement keys are ignored
+ *   while typing in a field so arrows still drive sliders.
+ * - Zoom (onZoom): mouse wheel on the canvas only (non-passive, preventDefault) → -sign(deltaY) × 0.1 per event
+ *   (wheel up = zoom in); two-finger pinch on the canvas → every pointermove emits
+ *   (dist − lastDist) / startDist × 0.3, so doubling the finger distance sums to +0.3 and halving it to −0.15.
+ *   Starting a pinch releases the joystick, and the finger left over after a pinch does not start a new one.
  */
 import * as THREE from 'three';
 import './joystick.css';
@@ -32,6 +42,47 @@ const KEY_MAP: Record<string, 'up' | 'down' | 'left' | 'right'> = {
 
 export type Shortcut = 'escape' | 'mute' | 'fullscreen' | 'zoomIn' | 'zoomOut';
 
+const WHEEL_STEP = 0.1;
+/** Total zoom delta for a pinch that changes the finger distance by 100% of its starting value. */
+const PINCH_GAIN = 0.3;
+/** Fingers closer than this at the start count as this far apart (avoids huge ratios). */
+const PINCH_MIN_START = 30;
+
+/** Pure: shortcut for a keydown, or null. `desktop` = running inside the Electron shell (protocol 'app:'). */
+export function shortcutForKey(
+  e: { key: string; code: string; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean },
+  desktop = false,
+): Shortcut | null {
+  if (e.ctrlKey || e.metaKey) return null;
+  const { key, code } = e;
+  if (key === 'Escape' || code === 'Escape') return 'escape';
+  if (code === 'KeyM' || key === 'm' || key === 'M') return 'mute';
+  if (code === 'KeyF' || key === 'f' || key === 'F') return 'fullscreen';
+  if (key === 'F11' || code === 'F11' || (e.altKey && (key === 'Enter' || code === 'Enter' || code === 'NumpadEnter'))) {
+    return desktop ? null : 'fullscreen';
+  }
+  if (key === '+' || key === '=' || code === 'NumpadAdd' || code === 'Equal') return 'zoomIn';
+  if (key === '-' || code === 'NumpadSubtract' || code === 'Minus') return 'zoomOut';
+  return null;
+}
+
+/** Pure: incremental zoom delta for a pinch step. Summed over a gesture it equals (dist / startDist − 1) × 0.3. */
+export function pinchDelta(dist: number, lastDist: number, startDist: number): number {
+  return ((dist - lastDist) / Math.max(PINCH_MIN_START, startDist)) * PINCH_GAIN;
+}
+
+/** Pure: wheel notch → zoom delta (wheel up = deltaY < 0 = zoom in). */
+export function wheelDelta(deltaY: number): number {
+  return -Math.sign(deltaY) * WHEEL_STEP;
+}
+
+function isTyping(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  if (!el || typeof el.tagName !== 'string') return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true;
+}
+
 export class Input {
   /** Screen-space movement intent; x → right, y → up, length 0..1. Updated by update(). */
   readonly move = new THREE.Vector2();
@@ -43,6 +94,11 @@ export class Input {
   private readonly pressed = new Set<string>();
   private readonly stick = new THREE.Vector2();
   private pointerId: number | null = null;
+  /** Every pointer currently pressed on the canvas (joystick finger + pinch fingers). */
+  private readonly pointers = new Map<number, { x: number; y: number }>();
+  private pinchIds: [number, number] | null = null;
+  private pinchStart = 0;
+  private pinchLast = 0;
   private originX = 0;
   private originY = 0;
   private readonly joyRoot: HTMLDivElement;
@@ -50,7 +106,7 @@ export class Input {
   private gestureCbs: (() => void)[] = [];
   private gestureFired = false;
   private allCbs: (() => void)[] = [];
-  /** Wave 10 shortcut listener (Game wires it to events). TODO(engine builder): fire from onKeyDown and wheel. */
+  /** Wave 10 shortcut / zoom listeners (Game wires them to events). */
   protected shortcutCb: ((s: Shortcut) => void) | null = null;
   protected zoomCb: ((delta: number) => void) | null = null;
 
@@ -82,6 +138,7 @@ export class Input {
     element.addEventListener('lostpointercapture', this.onPointerEnd);
     element.addEventListener('contextmenu', (e) => e.preventDefault());
     element.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+    element.addEventListener('wheel', this.onWheel, { passive: false });
     // capture: UI panels shield pointerup, but a tap on them is still a user activation worth re-unlocking audio on
     window.addEventListener('pointerup', this.onGestureAgain, true);
     window.addEventListener('keydown', this.onKeyDown);
@@ -141,14 +198,33 @@ export class Input {
   private readonly onPointerDown = (e: PointerEvent): void => {
     this.fireGesture();
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    if (this.pointerId !== null) return;
+    if (this.pointers.has(e.pointerId)) return;
     e.preventDefault();
-    this.pointerId = e.pointerId;
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try {
       this.element.setPointerCapture(e.pointerId);
     } catch {
       /* capture is best-effort */
     }
+    if (this.pinchIds) return; // a third finger is ignored while pinching
+    if (this.pointers.size >= 2) {
+      // second finger: pinch-zoom instead of the joystick
+      let other = -1;
+      for (const id of this.pointers.keys()) {
+        if (id !== e.pointerId) {
+          other = id;
+          break;
+        }
+      }
+      this.releaseStick();
+      const a = this.pointers.get(other);
+      if (!a) return;
+      this.pinchIds = [other, e.pointerId];
+      this.pinchLast = Math.hypot(a.x - e.clientX, a.y - e.clientY);
+      this.pinchStart = Math.max(PINCH_MIN_START, this.pinchLast);
+      return;
+    }
+    this.pointerId = e.pointerId;
     this.originX = e.clientX;
     this.originY = e.clientY;
     this.joyRoot.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
@@ -158,6 +234,23 @@ export class Input {
   };
 
   private readonly onPointerMove = (e: PointerEvent): void => {
+    const p = this.pointers.get(e.pointerId);
+    if (p) {
+      p.x = e.clientX;
+      p.y = e.clientY;
+    }
+    if (this.pinchIds) {
+      if (e.pointerId !== this.pinchIds[0] && e.pointerId !== this.pinchIds[1]) return;
+      e.preventDefault();
+      const a = this.pointers.get(this.pinchIds[0]);
+      const b = this.pointers.get(this.pinchIds[1]);
+      if (!a || !b) return;
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const d = pinchDelta(dist, this.pinchLast, this.pinchStart);
+      this.pinchLast = dist;
+      if (d !== 0) this.zoomCb?.(d);
+      return;
+    }
     if (e.pointerId !== this.pointerId) return;
     e.preventDefault();
     const dx = e.clientX - this.originX;
@@ -176,10 +269,10 @@ export class Input {
   };
 
   private readonly onPointerEnd = (e: PointerEvent): void => {
+    this.pointers.delete(e.pointerId);
+    if (this.pinchIds && (e.pointerId === this.pinchIds[0] || e.pointerId === this.pinchIds[1])) this.pinchIds = null;
     if (e.pointerId !== this.pointerId) return;
-    this.pointerId = null;
-    this.stick.set(0, 0);
-    this.joyRoot.classList.remove('is-active');
+    this.releaseStick();
     try {
       if (this.element.hasPointerCapture(e.pointerId)) this.element.releasePointerCapture(e.pointerId);
     } catch {
@@ -187,13 +280,36 @@ export class Input {
     }
   };
 
+  /** Drop the joystick (no more movement from it, ring hidden). */
+  private releaseStick(): void {
+    this.pointerId = null;
+    this.stick.set(0, 0);
+    this.joyRoot.classList.remove('is-active');
+  }
+
+  private readonly onWheel = (e: WheelEvent): void => {
+    if (e.target !== this.element) return;
+    e.preventDefault();
+    if (e.deltaY === 0) return;
+    this.zoomCb?.(wheelDelta(e.deltaY));
+  };
+
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     this.fireGesture();
+    if (isTyping(e.target)) return;
     const dir = KEY_MAP[e.code];
-    if (!dir) return;
-    this.keys[dir] = true;
-    this.pressed.add(e.code);
-    e.preventDefault();
+    if (dir) {
+      this.keys[dir] = true;
+      this.pressed.add(e.code);
+      e.preventDefault();
+      return;
+    }
+    if (e.repeat) return;
+    const desktop = typeof location !== 'undefined' && location.protocol === 'app:';
+    const s = shortcutForKey(e, desktop);
+    const browserKey = e.key === 'F11' || (e.altKey && e.key === 'Enter');
+    if (browserKey) e.preventDefault(); // stop the browser's own fullscreen from fighting ours
+    if (s) this.shortcutCb?.(s);
   };
 
   private readonly onKeyUp = (e: KeyboardEvent): void => {
@@ -209,10 +325,8 @@ export class Input {
   private readonly releaseAll = (): void => {
     this.pressed.clear();
     this.keys.up = this.keys.down = this.keys.left = this.keys.right = false;
-    if (this.pointerId !== null) {
-      this.pointerId = null;
-      this.stick.set(0, 0);
-      this.joyRoot.classList.remove('is-active');
-    }
+    this.pointers.clear();
+    this.pinchIds = null;
+    if (this.pointerId !== null) this.releaseStick();
   };
 }
