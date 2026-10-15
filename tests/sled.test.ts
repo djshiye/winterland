@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { LAYOUT, rect, type Rect } from '../src/config';
-import { SLED_HALF_WIDTH, SLED_LANE_Z, TEAM_OFFSETS, createSledTrack } from '../src/assets/sled';
+import { SLED_HALF_WIDTH, SLED_LANE_Z, SLED_RETURN_Z, TEAM_OFFSETS, TRAIN_HALF_WIDTH, createSledTrack, sledCrossingBands } from '../src/assets/sled';
 import { ROUTES } from '../src/stations/CashTubes';
 
 const R = LAYOUT.ridge;
@@ -102,6 +102,45 @@ describe('dog sled path', () => {
     for (let s = track.sStart; s < track.sExit; s += 0.1) {
       track.at(s, p);
       expect(p.z).toBeGreaterThanOrEqual(SLED_LANE_Z - 1e-3);
+    }
+  });
+});
+
+describe('rail crossing bands (sled <-> train mutual exclusion)', () => {
+  const railX = R.rail.x;
+  const bands = sledCrossingBands(track, railX);
+  const p = new THREE.Vector3();
+
+  /** Sled arc-length -> the x extent of the convoy [back .. nose] along the track. */
+  const convoyXs = (s: number): number[] => {
+    const out: number[] = [];
+    for (let a = -1.15; a <= TEAM_OFFSETS[1] + 0.7; a += 0.05) out.push(track.at(s + a, p).x);
+    return out;
+  };
+  const inCorridor = (x: number): boolean => Math.abs(x - railX) < TRAIN_HALF_WIDTH + SLED_HALF_WIDTH;
+
+  it('covers every pose in which the convoy overlaps the rail corridor', () => {
+    for (let s = track.sStart; s < track.sExit; s += 0.05) {
+      const overlaps = convoyXs(s).some(inCorridor);
+      const inBand = (s >= bands.arrive.start && s <= bands.arrive.end) || (s >= bands.leave.start && s <= bands.leave.end);
+      if (overlaps) expect(inBand, `s=${s.toFixed(2)}`).toBe(true);
+    }
+  });
+
+  it('has one band per lane/return line, ordered along the track, with the counter stop outside both', () => {
+    expect(bands.arrive.start).toBeLessThan(bands.arrive.end);
+    expect(bands.arrive.end).toBeLessThan(track.sStop);
+    expect(track.sStop).toBeLessThan(bands.leave.start);
+    expect(bands.leave.end).toBeLessThan(track.sExit);
+    track.at(bands.arrive.start + 5, p);
+    expect(p.z).toBeCloseTo(SLED_LANE_Z, 3);
+    track.at(bands.leave.start + 5, p);
+    expect(p.z).toBeCloseTo(SLED_RETURN_Z, 3);
+  });
+
+  it('keeps the whole convoy clear of the corridor while held 1 m before a band', () => {
+    for (const b of [bands.arrive, bands.leave]) {
+      for (const x of convoyXs(b.start - 1)) expect(inCorridor(x)).toBe(false);
     }
   });
 });

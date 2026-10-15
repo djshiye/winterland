@@ -168,6 +168,15 @@ export class Processor {
 
   // ---------------------------------------------------------------------------
 
+  /**
+   * 1 while a log has been taken from the hopper and its crate has not been launched yet (busy / blocked), else 0.
+   * Saves must add this to the hopper's log count (the log is gone from every holder meanwhile); once launched the
+   * product is counted by ctx.flights.inFlightTo(output, 'crate') and then by the output pile.
+   */
+  get inProcess(): number {
+    return this.state === 'busy' || this.state === 'blocked' ? 1 : 0;
+  }
+
   private isIdle(): boolean {
     return this.state === 'idle';
   }

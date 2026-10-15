@@ -582,7 +582,7 @@ export const LAYOUT = {
     /** Pine logs land here from the feller (pile; player / pine hauler pick up from `zone`). */
     deck: { x: 19.6, z: -5.6, grid: { cols: 3, rows: 4, layers: 4, spacing: LOG_GRID_SPACING } as PileGrid, zone: rect(19.6, -3.9, 2.6, 1.4) },
     /** Freight line along the east edge, trains run along Z (arrive from −Z, leave toward +Z). */
-    rail: { x: 33.6, spawnZ: -60, exitZ: 60, stopZ: 0.2 },
+    rail: { x: 33.6, spawnZ: -60, exitZ: 60, stopZ: -0.8 },
     platform: {
       x: 31.4,
       z: 0.2,

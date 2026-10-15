@@ -118,6 +118,16 @@ export class CustomerQueue {
     return !!c && c.mode === 'queue' && c.atSlot;
   }
 
+  /**
+   * Planks carried by customers still queueing and UNPAID (landed or in flight): taken off the counter but not sold.
+   * The save adds them back to the counter. Paid / leaving customers are excluded (already counted as sold).
+   */
+  get loadedUnits(): number {
+    let n = 0;
+    for (const c of this.queue) if (c.mode === 'queue') n += c.stack.size;
+    return n;
+  }
+
   update(dt: number): void {
     if (dt <= 0) return;
     this.spawnStep(dt);

@@ -14,7 +14,7 @@
  * - A loaded-but-unpaid sled holds chairs that no pile counts; `loadedPieces` reports them so the save keeps them.
  */
 import * as THREE from 'three';
-import { ECONOMY, TIMING } from '../config';
+import { ECONOMY, LAYOUT, TIMING } from '../config';
 import { approach, randRange } from '../core/math';
 import { demandOf, salePrice } from '../core/demand';
 import type { GameContext } from '../core/types';
@@ -27,6 +27,8 @@ import {
   createSled,
   createSledTrack,
   createSledTrail,
+  sledCrossingBands,
+  type CrossingBand,
   type PairPose,
   type SledModel,
   type SledTrack,
@@ -38,6 +40,12 @@ import type { Counter } from '../stations/Counter';
 export interface SledQueueOptions {
   counter: Counter;
   cash: CashPile;
+  /**
+   * True while a train sweeps the rail corridor (TrainQueue.sweeping). The sled lane and the return line both cross
+   * the rail (LAYOUT.ridge.rail.x); the leaving train sweeps both rows, so a sled that has not yet committed to the
+   * crossing waits in front of it. Optional: without it the sled never waits.
+   */
+  trainSweeping?: () => boolean;
 }
 
 const DRIVE_SPEED = 9;
@@ -49,6 +57,13 @@ const TURN_SPEED = 4.6;
 const FIRST_SLED_DELAY = 4;
 const PAID_HOLD = 1.0;
 const HOP_TIME = 0.7;
+/**
+ * Braking lead (metres) in front of a rail crossing: the sled decides here whether to commit to the crossing or to
+ * stop short of it. 9 m covers a stop from the leaving speed (10.35 m/s at 7 m/s^2 needs 7.7 m).
+ */
+const CROSSING_LEAD = 9;
+/** A held sled stands this far before its crossing band. */
+const CROSSING_STOP_GAP = 1;
 
 type Mode = 'idle' | 'arrive' | 'load' | 'paid' | 'leave';
 
@@ -77,6 +92,11 @@ export class SledQueue {
   private cargo: Pile | null = null;
   private bubble: SpeechBubble | null = null;
   private readonly track: SledTrack;
+  /** Where the convoy overlaps the train corridor: on the arrival lane and on the return line. */
+  private readonly bands: { arrive: CrossingBand; leave: CrossingBand };
+  /** The sled has committed to cross (the train must not leave until it is through) on the arrival / return band. */
+  private committedArrive = false;
+  private committedLeave = false;
   private readonly pairs: PairPose[] = [
     { x: 0, z: 0, yaw: 0 },
     { x: 0, z: 0, yaw: 0 },
@@ -87,6 +107,7 @@ export class SledQueue {
     readonly opts: SledQueueOptions,
   ) {
     this.track = createSledTrack();
+    this.bands = sledCrossingBands(this.track, LAYOUT.ridge.rail.x);
     ctx.scene.add(createSledTrail(this.track));
   }
 
@@ -105,6 +126,16 @@ export class SledQueue {
     return this.mode === 'load' ? (this.cargo?.total ?? 0) : 0;
   }
 
+  /**
+   * True while the sled is committed to the rail crossing (some part of it is inside, or about to enter, the train
+   * corridor and it will not stop short): the train must not start leaving. A sled held in front of the crossing, or
+   * one that is through, is NOT on the crossing, so neither side can wait on the other.
+   */
+  get onCrossing(): boolean {
+    if (this.mode === 'idle') return false;
+    return (this.committedArrive && this.s <= this.bands.arrive.end) || (this.committedLeave && this.s <= this.bands.leave.end);
+  }
+
   update(dt: number): void {
     if (dt <= 0) return;
     switch (this.mode) {
@@ -113,6 +144,7 @@ export class SledQueue {
         if (this.timer <= 0) this.spawn();
         return;
       case 'arrive':
+        if (this.holdForTrain(this.bands.arrive, true, dt)) break;
         if (this.driveTo(this.track.sStop, dt)) this.arrived();
         break;
       case 'load':
@@ -154,6 +186,8 @@ export class SledQueue {
     this.want = Math.min(SLED_CARGO_CAPACITY, Math.max(1, Math.round(randRange(dm.sledWant[0] - 0.49, dm.sledWant[1] + 0.49))));
     this.cargo!.clear();
     this.s = this.track.sStart;
+    this.committedArrive = false;
+    this.committedLeave = false;
     this.speed = DRIVE_SPEED * 0.8;
     this.accelNow = 0;
     this.pitch = 0;
@@ -263,8 +297,26 @@ export class SledQueue {
     return false;
   }
 
+  /**
+   * Rail crossing gate. Once the sled is CROSSING_LEAD short of `band` it either commits (no train sweeping: from now
+   * on `onCrossing` keeps the train at the platform until the sled is through) or stands still CROSSING_STOP_GAP
+   * before the band until the train has cleared. Returns true while it is holding (the driving is done here).
+   */
+  private holdForTrain(band: CrossingBand, arriving: boolean, dt: number): boolean {
+    if (arriving ? this.committedArrive : this.committedLeave) return false;
+    if (this.s < band.start - CROSSING_LEAD) return false;
+    if (this.opts.trainSweeping?.()) {
+      this.driveTo(band.start - CROSSING_STOP_GAP, dt);
+      return true;
+    }
+    if (arriving) this.committedArrive = true;
+    else this.committedLeave = true;
+    return false;
+  }
+
   /** Leaving: speed up, but ease through the U-turn (from the head entering the arc to the sled leaving it). */
   private leave(dt: number): void {
+    if (this.holdForTrain(this.bands.leave, false, dt)) return;
     const t = this.track;
     const turning = this.s > t.sLoopStart - 1 && this.s < t.sLoopEnd + 0.5;
     const prev = this.speed;

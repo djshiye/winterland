@@ -6,7 +6,7 @@ import type { GameContext, Item, ItemHolder, ItemKind } from '../core/types';
 import type { CashStack } from './CashStack';
 import type { FlightOptions } from './FlightSystem';
 
-const ALL_KINDS: readonly ItemKind[] = ['log', 'plank', 'crate', 'cash'];
+const ALL_KINDS: readonly ItemKind[] = ['log', 'plank', 'crate', 'cash', 'furniture'];
 
 /**
  * Move one item from `from` to `to` with a flight. Tries `kinds` in order (default: every kind);
