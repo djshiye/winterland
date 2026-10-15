@@ -7,7 +7,9 @@
  *   (dead-zone ~8%, full at ~55px); release hides it. Never scrolls/zooms the page.
  * - `move` is SCREEN space: x → right, y → up, length 0..1. Keyboard overrides joystick when both.
  * - `override` (tests/autopilot) replaces live input when non-null.
- * - onFirstGesture(cb): fire once on the first pointerdown/keydown (used to unlock WebAudio).
+ * - onFirstGesture(cb): fires on the first pointerdown/keydown and then again on every later pointerup/keydown, so
+ *   WebAudio can be re-resumed after iOS suspends it ('interrupted' after backgrounding); callbacks must be cheap and
+ *   idempotent (audio.unlock() is a no-op while the context runs).
  * - `enabled = false` makes `move` read as zero (intro cinematic) but still tracks gestures.
  */
 import * as THREE from 'three';
@@ -45,6 +47,7 @@ export class Input {
   private readonly joyKnob: HTMLDivElement;
   private gestureCbs: (() => void)[] = [];
   private gestureFired = false;
+  private allCbs: (() => void)[] = [];
 
   constructor(readonly element: HTMLElement) {
     this.joyRoot = document.createElement('div');
@@ -64,6 +67,8 @@ export class Input {
     element.addEventListener('lostpointercapture', this.onPointerEnd);
     element.addEventListener('contextmenu', (e) => e.preventDefault());
     element.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+    // capture: UI panels shield pointerup, but a tap on them is still a user activation worth re-unlocking audio on
+    window.addEventListener('pointerup', this.onGestureAgain, true);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.releaseAll);
@@ -77,6 +82,7 @@ export class Input {
 
   /** Register a callback fired once, on the first pointerdown/keydown (browser audio unlock). */
   onFirstGesture(cb: () => void): void {
+    this.allCbs.push(cb);
     if (this.gestureFired) cb();
     else this.gestureCbs.push(cb);
   }
@@ -102,12 +108,20 @@ export class Input {
 
   // --- internals --------------------------------------------------------------
   private fireGesture(): void {
-    if (this.gestureFired) return;
+    if (this.gestureFired) {
+      // later gestures: re-run every registered callback (cheap idempotent unlock)
+      for (const cb of this.allCbs) cb();
+      return;
+    }
     this.gestureFired = true;
     const cbs = this.gestureCbs;
     this.gestureCbs = [];
     for (const cb of cbs) cb();
   }
+
+  private readonly onGestureAgain = (): void => {
+    if (this.gestureFired) this.fireGesture();
+  };
 
   private readonly onPointerDown = (e: PointerEvent): void => {
     this.fireGesture();

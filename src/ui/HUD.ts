@@ -118,12 +118,14 @@ export class HUD {
   private moneyTarget = 0;
   private moneyShown = 0;
   private moneyText = '';
+  private moneyRounded = Number.NaN;
   private bump = 0;
 
   // --- objective ---
   private objWant: string | null = null;
   private objShown: string | null = null;
   private objK = 0;
+  private objStyleKey = '';
 
   // --- toast ---
   private toastAge = 0;
@@ -437,6 +439,9 @@ export class HUD {
   // ---------------------------------------------------------------------------------------------
 
   private writeMoney(): void {
+    const rounded = Math.round(this.moneyShown);
+    if (rounded === this.moneyRounded) return;
+    this.moneyRounded = rounded;
     const text = formatMoney(this.moneyShown);
     if (text !== this.moneyText) {
       this.moneyText = text;
@@ -487,9 +492,14 @@ export class HUD {
     }
     const k = this.objK;
     const e = backOut(Math.min(1, k));
+    const opacity = String(Math.min(1, k * 2.5));
+    const transform = `translate(-50%, ${((1 - e) * -26).toFixed(1)}px) scale(${(0.8 + 0.2 * e).toFixed(3)})`;
+    const key = `${opacity}|${transform}`;
+    if (key === this.objStyleKey && el.style.visibility === 'visible') return;
+    this.objStyleKey = key;
     el.style.visibility = 'visible';
-    el.style.opacity = String(Math.min(1, k * 2.5));
-    el.style.transform = `translate(-50%, ${((1 - e) * -26).toFixed(1)}px) scale(${(0.8 + 0.2 * e).toFixed(3)})`;
+    el.style.opacity = opacity;
+    el.style.transform = transform;
   }
 
   private updateFloats(dt: number): void {

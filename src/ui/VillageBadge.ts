@@ -19,6 +19,9 @@ export class VillageBadge {
   private barSnap = true;
   private lastName = '';
   private lastPop = -1;
+  private lastBar = '';
+  private lastTransform = '';
+  private lastOpacity = '';
 
   constructor(
     private readonly ctx: GameContext,
@@ -94,20 +97,32 @@ export class VillageBadge {
       this.barShown += (target - this.barShown) * (1 - Math.exp(-6 * dt));
       if (Math.abs(target - this.barShown) < 0.002) this.barShown = target;
     }
-    this.fill.style.transform = `scaleX(${this.barShown.toFixed(3)})`;
+    const bar = `scaleX(${this.barShown.toFixed(3)})`;
+    if (bar !== this.lastBar) {
+      this.lastBar = bar;
+      this.fill.style.transform = bar;
+    }
     this.root.classList.toggle('is-max', maxed);
 
     let sc = 1;
     if (this.appear < 1) {
       this.appear = Math.min(1, this.appear + dt / 0.45);
       sc = 0.2 + 0.8 * backOut(this.appear);
-      this.root.style.opacity = Math.min(1, this.appear * 3).toFixed(2);
+      const op = Math.min(1, this.appear * 3).toFixed(2);
+      if (op !== this.lastOpacity) {
+        this.lastOpacity = op;
+        this.root.style.opacity = op;
+      }
     }
     if (this.bump > 0) {
       this.bump = Math.max(0, this.bump - dt / 0.6);
       sc *= 1 + 0.18 * Math.sin(Math.PI * (1 - this.bump));
     }
-    this.root.style.transform = sc === 1 ? '' : `scale(${sc.toFixed(3)})`;
+    const tf = sc === 1 ? '' : `scale(${sc.toFixed(3)})`;
+    if (tf !== this.lastTransform) {
+      this.lastTransform = tf;
+      this.root.style.transform = tf;
+    }
     return true;
   }
 }

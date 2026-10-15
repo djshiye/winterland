@@ -1551,6 +1551,21 @@
   }
 }
 
+/* the shop owns the screen while it is open: on phones (bottom sheet) the pill steps aside, on wide screens (side card
+   under the top-right buttons) it re-centres in the space left of the card */
+@media (max-width: 640px) {
+  .wl-hud.shop-open .wl-rush {
+    display: none;
+  }
+}
+
+@media (min-width: 700px) {
+  .wl-hud.shop-open .wl-rush {
+    left: calc((100% - 376px) / 2);
+    max-width: calc(100% - 376px - 24px);
+  }
+}
+
 /* ---- wave 8: coins, small toast, onboarding hand --------------------------------------------------- */
 
 .wl-coin {
@@ -1664,6 +1679,11 @@
   font-size: 15px;
   line-height: 1.1;
   text-shadow: none;
+}
+
+/* the first-run hint never draws over the shop sheet / card */
+.wl-hud.shop-open .wl-hand {
+  display: none;
 }
 
 @media (max-height: 520px) {
