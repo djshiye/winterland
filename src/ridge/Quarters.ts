@@ -65,6 +65,14 @@ export class Quarters {
     this.root.add(this.site);
 
     const st = ctx.state.quarters;
+    // A save written while the last bundle was still flying holds a fully paid, never-completed tier: state is the
+    // truth, finish it silently (no event / particles) before the pad is armed.
+    const paid = QUARTERS.tiers[st.tier + 1];
+    if (paid && st.logs >= paid.logs && st.cash >= paid.cash) {
+      st.tier++;
+      st.logs = 0;
+      st.cash = 0;
+    }
     const next = Math.min(QUARTERS.tiers.length - 1, st.tier + 1);
     this.pad = new ConstructionPad(ctx, {
       ...target(next, st.logs, st.cash),

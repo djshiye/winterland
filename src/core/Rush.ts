@@ -34,6 +34,9 @@ export class RushHours {
 
   /** Start a rush now (debug / tests). */
   start(seconds: number = RUSH.seconds): void {
+    // A non-positive length would never count down (update() only ends a rush that has `left > 0`) and would
+    // re-fire 'rush:start' every frame.
+    if (!(seconds > 0)) return;
     this.left = seconds;
     this.events.emit('rush:start', { seconds });
   }
@@ -50,7 +53,10 @@ export class RushHours {
     }
     if (this.state.village.level < RUSH.minVillageLevel) return;
     this.timer -= dt;
-    if (this.timer <= 0) this.start();
+    if (this.timer <= 0) {
+      this.timer = this.nextGap(); // never re-enter while the start is refused
+      this.start();
+    }
   }
 
   private nextGap(): number {

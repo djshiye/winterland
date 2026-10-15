@@ -90,6 +90,18 @@ export class Village {
     this.root.add(this.scenery);
 
     const state = ctx.state.village;
+    // A save written while the last bundle of a tier was still flying holds a fully paid, never-completed tier
+    // (progress counts in-flight payments). State is the truth: finish it silently, before any pad is armed.
+    state.plots.forEach((st) => {
+      const t = VILLAGE.tiers[st.tier + 1];
+      if (!t || st.logs < t.logs || st.cash < t.cash) return;
+      st.tier++;
+      st.logs = 0;
+      st.cash = 0;
+      ctx.state.stats.sheltersBuilt++; // the live path counts in onComplete(), which never ran for this tier
+    });
+    // The Great Lodge is NOT settled here: its completion drives the finale (shelter:built, plot -1), which a silent
+    // restore would skip forever. ConstructionPad.completeIfPaid() fires it normally once the pad shows.
     V.plots.forEach((p, i) => {
       const st = state.plots[i]!;
       const next = Math.min(VILLAGE.tiers.length - 1, st.tier + 1);

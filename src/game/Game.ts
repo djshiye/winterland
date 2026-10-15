@@ -16,6 +16,7 @@ import {
   freshRequested,
   loadSave,
   mergeState,
+  sanitizeState,
   newSeasonSave,
   offlineEarnings,
   writeSave,
@@ -143,7 +144,10 @@ export class Game {
     this.saving = !fresh;
     const save = fresh ? null : loadSave();
     const state = createGameState();
-    if (save) mergeState(state, save.state);
+    if (save) {
+      mergeState(state, save.state);
+      sanitizeState(state);
+    }
     const economy = new Economy(events, state, save ? save.money : ECONOMY.startMoney);
     const upgrades = new Upgrades(state, economy, events);
     const colliders = new ColliderWorld();
@@ -210,9 +214,13 @@ export class Game {
     if (save) {
       const away = offlineEarnings(save, Date.now());
       if (away.amount > 0) {
+        // Credit NOW and write it down at once: an autosave / pagehide before the player taps the card would
+        // otherwise rewrite savedAt and the earnings would vanish. The card is only informational; the new
+        // savedAt also makes a second credit from the same absence impossible.
+        ctx.economy.add(away.amount);
+        this.save();
         ctx.hud.showOfflineEarnings(away.amount, away.seconds, () => {
-          ctx.economy.add(away.amount);
-          ctx.events.emit('offline:collected', { amount: away.amount });
+          ctx.events.emit('offline:collected', { amount: away.amount }); // coin burst only
         });
       }
     }
@@ -224,7 +232,8 @@ export class Game {
     return {
       v: SAVE.version,
       savedAt: Date.now(),
-      money: c.economy.money,
+      // Cash bundles still flying back to the wallet are not banked yet (CashStack.inFlightValue).
+      money: c.economy.money + c.player.back.inFlightValue,
       state: c.state,
       world: this.level.snapshotWorld(),
       salesRate: this.sales.rate,
@@ -248,7 +257,12 @@ export class Game {
   /** After the finale: start the next season (prestige) from a fresh save and reload. */
   private newSeason(): void {
     this.saving = false;
-    writeSave(newSeasonSave(this.ctx.state, Date.now()));
+    if (!writeSave(newSeasonSave(this.ctx.state, Date.now()))) {
+      // Storage is full / blocked: reloading would restart the old season without the bonus. Stay put.
+      this.saving = true;
+      this.ctx.hud.toast("Couldn't save the new season", { sub: 'Check your browser storage and try again', duration: 4 });
+      return;
+    }
     location.reload();
   }
 
@@ -306,6 +320,7 @@ export class Game {
 
   /** Fast-forward the simulation (tests). */
   simulate(seconds: number, dt = 1 / 60): void {
+    if (!(dt > 0) || !Number.isFinite(dt)) dt = 1 / 60; // a zero step would never advance the loop
     const steps = Math.max(0, Math.round(seconds / dt));
     for (let i = 0; i < steps; i++) this.step(dt);
     this.ctx.renderer.render();
@@ -323,7 +338,8 @@ export class Game {
     return {
       t: Math.round(c.time.elapsed * 100) / 100,
       phase: c.state.phase,
-      money: c.economy.money,
+      // Cash bundles still flying back to the wallet are not banked yet (CashStack.inFlightValue).
+      money: c.economy.money + c.player.back.inFlightValue,
       player: { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100 },
       arms: { log: c.player.arms.count('log'), crate: c.player.arms.count('crate'), size: c.player.arms.size },
       cashBundles: c.player.back.count('cash'),

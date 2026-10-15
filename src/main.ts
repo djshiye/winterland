@@ -3,13 +3,41 @@ import '@fontsource/fredoka/latin-500.css';
 import '@fontsource/fredoka/latin-600.css';
 import '@fontsource/fredoka/latin-700.css';
 import './style.css';
+import { SAVE } from './config';
 import { Game } from './game/Game';
+import { freshRequested } from './core/Save';
 
 function showFatal(message: string): void {
   const el = document.createElement('div');
   el.className = 'fatal';
   el.textContent = message;
   document.body.appendChild(el);
+}
+
+const RECOVERY_FLAG = 'winterland.recovery';
+
+/**
+ * Starting the game threw. If a save exists it is the likely culprit (a corrupt / incompatible save would otherwise
+ * brick the game on every reload): move it to `<key>.bak`, clear it and reload ONCE into a fresh game. A
+ * sessionStorage flag stops the retry loop when the crash has another cause. Returns true when a reload was started.
+ */
+function recoverFromBadSave(): boolean {
+  try {
+    if (freshRequested() || sessionStorage.getItem(RECOVERY_FLAG)) return false;
+    const raw = localStorage.getItem(SAVE.key);
+    if (!raw) return false;
+    sessionStorage.setItem(RECOVERY_FLAG, '1');
+    try {
+      localStorage.setItem(`${SAVE.key}.bak`, raw);
+    } catch {
+      // backup is best effort (storage full): still clear the broken save
+    }
+    localStorage.removeItem(SAVE.key);
+    location.reload();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function hasWebGL(): boolean {
@@ -37,8 +65,16 @@ if (!app || !hud) {
   try {
     const game = new Game(app, hud);
     game.start();
+    // Started fine: the next crash (e.g. after another bad save in this tab) may recover again.
+    try {
+      sessionStorage.removeItem(RECOVERY_FLAG);
+    } catch {
+      // no sessionStorage
+    }
   } catch (err) {
     console.error(err);
-    showFatal(`Winterland crashed while starting: ${err instanceof Error ? err.message : String(err)}`);
+    if (!recoverFromBadSave()) {
+      showFatal(`Winterland crashed while starting: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 }
