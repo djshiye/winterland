@@ -2,7 +2,7 @@
  * Shared contracts. Every module codes against these; do not change them without the main session.
  */
 import type * as THREE from 'three';
-import type { BusinessId as BusinessIdConst, PadIdConst, TownPriority, UpgradeIdConst, WoodPriority } from '../config';
+import type { AmenityId as AmenityIdConst, BusinessId as BusinessIdConst, PadIdConst, TownPriority, UpgradeIdConst, WoodPriority } from '../config';
 import type { EventBus } from './EventBus';
 import type { TweenManager } from './Tween';
 import type { Economy } from './Economy';
@@ -171,6 +171,8 @@ export interface TownState {
   /** The corridor is open and lots can be built. */
   revealed: boolean;
   lots: LotState[];
+  /** Wave 12: fixed amenity sites (tier -1 = not built, 0 = built), paid like the Great Lodge. */
+  amenities: Record<AmenityIdConst, { tier: number; logs: number; cash: number }>;
 }
 
 /** Must match LAYOUT.town.lots.length. */
@@ -300,7 +302,16 @@ export function createGameState(): GameState {
     prestige: { season: 0 },
     clock: 24, // DAYNIGHT.startAt × cycleSeconds (literal: this file imports only types from config)
     quests: {},
-    town: { revealed: false, lots: Array.from({ length: LOT_COUNT }, () => ({ building: '', tier: -1, logs: 0, cash: 0 })) },
+    town: {
+      revealed: false,
+      lots: Array.from({ length: LOT_COUNT }, () => ({ building: '', tier: -1, logs: 0, cash: 0 })),
+      amenities: {
+        cafe: { tier: -1, logs: 0, cash: 0 },
+        pond: { tier: -1, logs: 0, cash: 0 },
+        bandstand: { tier: -1, logs: 0, cash: 0 },
+        snowmanPark: { tier: -1, logs: 0, cash: 0 },
+      },
+    },
     priorities: { wood: 'balanced', town: 'balanced' },
   };
 }
@@ -396,6 +407,8 @@ export interface GameEvents {
   'rush:start': { seconds: number };
   'rush:end': Record<string, never>;
   /** Wave 8: darkness crossed 0.5 (core/DayNight.ts). Not emitted while day/night is off. */
+  /** Wave 12: an amenity finished (town/Town.ts); happiness changed. */
+  'amenity:built': { id: AmenityIdConst; position: THREE.Vector3 };
   'night:start': Record<string, never>;
   'day:start': Record<string, never>;
   // --- wave 9 ---
