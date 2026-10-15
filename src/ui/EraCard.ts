@@ -1,6 +1,6 @@
 /**
  * [T4 — wave 9] Settlement card: a short cosy banner when the village reaches a new level ('village:levelUp'). 0.9.0: the
- * village levels are no longer called eras (the ten Ages are, see AgeCard), so it reads "SETTLEMENT · WINTER CITY" /
+ * village levels are no longer called eras (the ten Ages are, see AgeCard), so it reads "SETTLEMENT IV" /
  * "Winter City" / a tagline / the perks of that level (VILLAGE.levels[i].perks).
  *
  * It is an ADDITION to the level-up toast (MAIN decides whether it supersedes it: `eraCard.visible` is true while
@@ -63,7 +63,7 @@ export class EraCard {
     const lv = Math.max(0, Math.min(VILLAGE.levels.length - 1, Math.floor(level)));
     if (lv < 1) return;
     const def = VILLAGE.levels[lv]!;
-    this.eraEl.textContent = settlementTitle(def.name);
+    this.eraEl.textContent = settlementTitle(lv);
     this.nameEl.textContent = def.name;
     this.tagEl.textContent = TAGLINES[lv] ?? '';
     this.perksEl.replaceChildren(...def.perks.map((p) => h('span', 'wl-era-perk', p)));

@@ -90,6 +90,9 @@ function eraQuests(): QuestDef[] {
   return out;
 }
 
+/** The era-1 quests (everything before the first era quest). */
+const SURVIVAL_QUESTS: readonly QuestDef[] = QUEST_DEFS.slice(0, QUEST_DEFS.findIndex((d) => d.id === 'era2'));
+
 /** How many quests are shown (and checked) at once. */
 export const ACTIVE_QUESTS = 3;
 const COMPLETE_GAP = 1.5;
@@ -122,12 +125,18 @@ export class Quests {
     return out;
   }
 
+  /** Quests counted on the panel: era 1 counts the Survival list only (as in 0.8.0) until the ages are in play. */
+  private counted(): readonly QuestDef[] {
+    const survivalDone = SURVIVAL_QUESTS.every((d) => this.state.quests[d.id]);
+    return this.state.eras.age >= 2 || survivalDone ? QUEST_DEFS : SURVIVAL_QUESTS;
+  }
+
   get doneCount(): number {
-    return QUEST_DEFS.filter((d) => this.state.quests[d.id]).length;
+    return this.counted().filter((d) => this.state.quests[d.id]).length;
   }
 
   get total(): number {
-    return QUEST_DEFS.length;
+    return this.counted().length;
   }
 
   update(dt: number): void {

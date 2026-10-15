@@ -35,8 +35,9 @@ describe('era labels', () => {
   });
 
   it('calls village levels settlements, not eras', () => {
-    expect(settlementTitle('Winter City')).toBe('SETTLEMENT · WINTER CITY');
-    expect(settlementTitle('Camp')).not.toMatch(/ERA/);
+    expect(settlementTitle(4)).toBe('SETTLEMENT IV');
+    expect(settlementTitle(0)).toBe('SETTLEMENT');
+    expect(settlementTitle(5)).not.toMatch(/ERA/);
   });
 });
 

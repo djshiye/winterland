@@ -275,7 +275,7 @@ export class Market implements Updatable {
     let backed = 0;
     if (product === 'venture') {
       backed = era === 0 ? state.eras.age : era;
-      if (!Number.isInteger(backed) || backed < 2 || backed > state.eras.age) return false;
+      if (!Number.isInteger(backed) || backed < def.era || backed > state.eras.age) return false;
     }
     if (product === 'bond' && amount > this.bondRoom()) return false;
     if (!economy.spend(amount)) return false;
