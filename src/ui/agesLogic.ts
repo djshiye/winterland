@@ -276,10 +276,6 @@ export function masteryTag(points: number, mult: number): string {
 }
 
 /**
- * A card's effect line: "50 items → 60 items", "50 items (max)" at the top, and past an effect's hard cap during the
- * climb (a level that only adds Mastery, docs/EXPANSION.md) "50 items (max) · +1 Mastery" instead of "50 → 50".
- */
-/**
  * 0.9.5: an era crew card's effect line, short enough for the card: "Hires 1 worker", "2 → 3 workers · ×1.6" on the
  * levels that hire, "×1.6 → ×1.7 speed" otherwise, "3 workers · ×2.4 (max)" at the top. `v` is the work multiplier
  * at `level` / `level + 1` (null at max).
@@ -294,8 +290,12 @@ export function eraCrewDelta(level: number, v: number, vNext: number | null): st
   return m !== n ? `${n} → ${workers(m)} · ${x(vNext)}` : `${x(v)} → ${x(vNext)} speed`;
 }
 
-export function shopDelta(now: string, next: string | null, climb: boolean): string {
+/**
+ * A card's effect line: "50 items → 60 items", "50 items (max)" at the top. 0.9.6: the old "(max) · +1 Mastery" line
+ * is gone: it showed on levels that earned no Mastery, and no level for sale leaves its effect unchanged any more
+ * (tests/ladderLevels.test.ts). `climb` is kept for the callers.
+ */
+export function shopDelta(now: string, next: string | null, _climb: boolean): string {
   if (next === null) return `${now} (max)`;
-  if (next === now && climb) return `${now} (max) · +1 Mastery`;
   return `${now} → ${next}`;
 }

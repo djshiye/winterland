@@ -255,7 +255,7 @@ describe('the shop band view (R5)', () => {
 describe("the shop card's effect line", () => {
   it('says a level past the hard cap only adds Mastery during the climb', () => {
     expect(shopDelta('40 items', '45 items', true)).toBe('40 items → 45 items');
-    expect(shopDelta('50 items', '50 items', true)).toBe('50 items (max) · +1 Mastery');
+    expect(shopDelta('50 items', '50 items', true)).not.toContain('Mastery'); // 0.9.6: never promises Mastery
     expect(shopDelta('50 items', null, false)).toBe('50 items (max)');
     expect(shopDelta('50 items', '50 items', false)).toBe('50 items → 50 items');
   });

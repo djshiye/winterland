@@ -146,7 +146,7 @@ describe('caps', () => {
     const d = UPGRADES.broker;
     for (let s = 0; s <= maxStored(d, true); s++) expect(valueAt(d, s)).toBeLessThanOrEqual(10);
     expect(valueAt(d, maxStored(d, true))).toBe(10);
-    expect(valueAt(d, d.values.length - 1)).toBe(CLIMB.bondBrokerMax);
+    expect(valueAt(d, d.values.length - 2)).toBe(CLIMB.bondBrokerMax); // 0.9.6: Lv 10 authored above it
     const s = lodge(3);
     const { ctx } = make(s, 0);
     const market = new Market(ctx, { rng: () => 0.5 });

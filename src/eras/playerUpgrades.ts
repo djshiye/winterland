@@ -7,8 +7,8 @@
  * - `${key}Boots`: walk speed ×value;
  * - `${key}Tool`: seconds per swing at the era's hand node (eras/HandNode.ts);
  * - `${key}Pal`: the era's companion carries extra items (0 = not adopted).
- * Ten authored levels each; no cost tables: every step is priced on the era's band curve (core/ladder.ts costAt),
- * like the other era upgrades. Pure data + pure helpers (no THREE, no GameContext).
+ * Eleven authored values each (Lv 0..10; 0.9.6: Lv 10 is authored and the biggest step). No cost tables: every step is
+ * priced on the era's band curve (core/ladder.ts costAt), like the other era upgrades. Pure data + pure helpers (no THREE, no GameContext).
  */
 import type { UpgradeDef } from '../config';
 import { ERA_KEYS, ERA_NAMES, REGIONS, type EraKey } from './data';
@@ -19,13 +19,13 @@ export type EraPlayerKind = (typeof ERA_PLAYER_KINDS)[number];
 export type EraPlayerUpgradeId = `${EraKey}${EraPlayerKind}`;
 
 /** Extra arms capacity per Carry level (Strong Arms adds about 3 a level in Survival). */
-export const ERA_CARRY_VALUES: readonly number[] = [0, 2, 4, 6, 8, 10, 12, 14, 17, 20];
+export const ERA_CARRY_VALUES: readonly number[] = [0, 2, 4, 6, 8, 10, 12, 14, 17, 20, 24];
 /** Walk speed multiplier per Boots level. */
-export const ERA_BOOTS_VALUES: readonly number[] = [1, 1.04, 1.08, 1.12, 1.16, 1.2, 1.25, 1.3, 1.35, 1.4];
+export const ERA_BOOTS_VALUES: readonly number[] = [1, 1.04, 1.08, 1.12, 1.16, 1.2, 1.25, 1.3, 1.35, 1.4, 1.5];
 /** Seconds per swing per Tool level (eras/HandNode.ts NODE_BASE_INTERVAL at level 0, ×0.92 a level). */
-export const ERA_TOOL_VALUES: readonly number[] = [0.5, 0.46, 0.42, 0.39, 0.36, 0.33, 0.3, 0.27, 0.25, 0.22];
-/** Extra items the pal carries per Pal level (0 = not adopted; the Sled Dog carries 3 at level 1). */
-export const ERA_PAL_VALUES: readonly number[] = [0, 3, 4, 5, 6, 7, 8, 9, 10, 12];
+export const ERA_TOOL_VALUES: readonly number[] = [0.5, 0.46, 0.42, 0.39, 0.36, 0.33, 0.3, 0.27, 0.25, 0.22, 0.19];
+/** Extra items the pal carries per Pal level (0 = not adopted; 12 at Lv 10, the count cap, so Lv 10 adds two). */
+export const ERA_PAL_VALUES: readonly number[] = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12];
 
 export function eraPlayerUpgrades(): Record<EraPlayerUpgradeId, UpgradeDef> {
   const out = {} as Record<EraPlayerUpgradeId, UpgradeDef>;

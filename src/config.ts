@@ -840,7 +840,7 @@ export type UpgradeIdConst =
   | 'jack'
   | 'taxOffice'
   | 'broker'
-  | `${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Dock' | 'Stall' | 'Cash'}`
+  | `${EraKey}${'Rigs' | 'Crew' | 'Dock' | 'Stall' | 'Cash'}`
   // 0.9.5: the player's era upgrades (eras/playerUpgrades.ts)
   | EraPlayerUpgradeId
   // 0.9.5: the rest of each era's crew (six roles beside the Crew hauler), its conveyor belts and one level per machine
@@ -947,7 +947,7 @@ export const ERA_ROLE_NAMES: readonly (readonly string[])[] = [
 ];
 
 /** Crew work multipliers (index = stored level; 0 = not hired), shared by every era role. */
-const ERA_CREW_VALUES = [0, 1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0] as const;
+const ERA_CREW_VALUES = [0, 1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0, 3.5] as const;
 
 export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
   // 0.9.0: Jack, finance and the era upgrades (shop tabs Finance / Industry)
@@ -1256,8 +1256,9 @@ export function price3(v: number): number {
  * The ten-era climb (docs/EXPANSION.md §A): upgrade ladders to shown level `levelCap` (core/ladder.ts). Past an
  * upgrade's authored max, the price of the step from shown level A to A + 1 is
  *   F(group, A) = weights[group] · unit · bandGrowth^(band − 2) · bandTilt[band] · stepGrowth^(A mod 10), band = floor(A / 10) + 1
- * and a Survival id also never drops below its last authored price × legacyStep per level (first lever if the
- * climb runs long: legacyStep → 1.0). Mastery: every level bought at an effect's hard cap is a point;
+ * and a Survival id also never drops below its last authored price × legacyStep per level (0.9.6: 1.01, the lowest
+ * that keeps every price strictly rising after price3; the five Survival price upgrades also gain +0.5 a level past
+ * their tables, core/ladder.ts, so the post-Lodge climb takes about 80 model minutes, CODE_AUDIT P1-9). Mastery: every level bought at an effect's hard cap is a point;
  * multiplier 1 + masteryScale · log2(1 + points / masteryPoints) on sales, exports and city income (core/demand.ts
  * climbMult; 1 before the climb, where no level can reach a cap).
  */
@@ -1279,11 +1280,11 @@ export const CLIMB = {
   /**
    * Per-band price multiplier (index = band = the era whose own upgrades it prices; bands past the end use the last), on top of
    * bandGrowth^(band − 2). Era 2 starts from Survival income alone while era 3 inherits a running region, so band 3
-   * steps up hard; later bands ease off as each older region's Rigs, Trade and Renown compound less. Solved with the
-   * pacing model (bisection per era, 0.9.5).
+   * steps up hard; later bands ease off as each older region's Rigs, sales upgrades and Renown compound less. Solved
+   * with the pacing model (bisection per era; re-solved in 0.9.6 after the Trade/Fine merge and the authored Lv 10s).
    */
-  bandTilt: [1, 1, 1.78, 6.37, 6.07, 6.06, 3.76, 3.71, 3.48, 3.14, 2.88] as readonly number[],
-  legacyStep: 1.05,
+  bandTilt: [1, 1, 1.94, 6, 5.92, 5.4, 3.38, 3.17, 2.94, 2.64, 2.43] as readonly number[],
+  legacyStep: 1.01,
   weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
   masteryScale: 0.12,
   masteryPoints: 25,
@@ -1292,7 +1293,7 @@ export const CLIMB = {
    * ×min(v, capMax) (Survival crews draw carried meshes, era crews are instanced), cadence ÷min(v, cadenceMax).
    */
   crew: { walkMax: 3.5, capMaxSurvival: 2.8, capMaxEra: 4, cadenceMax: 8 },
-  /** Broker factor bond payouts read at most (its authored top): past it the Broker only tightens the spread. */
+  /** Broker factor bond payouts read at most (its Lv 9, the 0.9.5 top): Lv 10 and past only tighten the spread. */
   bondBrokerMax: 3.5,
 } as const;
 
@@ -1364,7 +1365,7 @@ function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> 
     taxOffice: {
       id: 'taxOffice', group: 'finance', label: 'City Hall',
       blurb: 'Better bookkeeping: every city building earns more',
-      values: [1, 1.15, 1.3, 1.45, 1.6, 1.8, 2.0, 2.25, 2.5, 3.0],
+      values: [1, 1.15, 1.3, 1.45, 1.6, 1.8, 2.0, 2.25, 2.5, 3.0, 3.6],
       costs: [],
       display: 'income',
       requires: { era: 2 },
@@ -1372,7 +1373,7 @@ function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> 
     broker: {
       id: 'broker', group: 'finance', label: 'Stock Broker',
       blurb: 'Tighter trading spreads and better bond rates',
-      values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0, 3.5],
+      values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0, 3.5, 4.2],
       costs: [],
       display: 'factor',
       requires: { era: 2 },
@@ -1381,11 +1382,11 @@ function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> 
 }
 
 /**
- * Upgrades of era n (2..10), ten authored levels each; every one is bought hands-on at the era's shop mat or the
- * machine's level pad, and caps at Lv 10 (core/ladder.ts capStored): era n + 1 opens once all of them reach it.
+ * Upgrades of era n (2..10), eleven authored values each (Lv 0..10; 0.9.6: Lv 10 is authored and the biggest step);
+ * every one is bought hands-on at the era's shop mat or the machine's level pad, and caps at Lv 10 (core/ladder.ts
+ * capStored): era n + 1 opens once all of them reach it.
  * - `${key}Rigs`: every machine of the era works faster (cycle ÷ value).
  * - `${key}Crew`: hires the era's haulers (0 = none; workers = 1 / 2 / 3 at levels 1 / 4 / 7) and speeds them up.
- * - `${key}Trade`: the era's materials sell for more at export depots.
  * - 0.9.5 `${key}<Role>`: the six other crew roles (ERA_ROLES; workers ERA_ROLE_COUNT).
  * - 0.9.5 `${key}Belts`: conveyor belts between the era's machines (Lv 1 builds them, each level speeds them up).
  * - 0.9.5 one level per machine type (the MachineId): that machine works faster, bought on its level pad.
@@ -1393,20 +1394,20 @@ function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> 
  * - 0.9.5 `${key}Stall`: the region market's stall grows and its walk-in shoppers come more often.
  * No cost tables: every step is priced on the climb's band curve (core/ladder.ts costAt, CLIMB), like taxOffice / broker.
  */
-function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | 'Dock' | 'Stall' | 'Cash' | EraRoleKey}` | MachineId, UpgradeDef> {
-  const out = {} as Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | 'Dock' | 'Stall' | 'Cash' | EraRoleKey}` | MachineId, UpgradeDef>;
+function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Belts' | 'Dock' | 'Stall' | 'Cash' | EraRoleKey}` | MachineId, UpgradeDef> {
+  const out = {} as Record<`${EraKey}${'Rigs' | 'Crew' | 'Belts' | 'Dock' | 'Stall' | 'Cash' | EraRoleKey}` | MachineId, UpgradeDef>;
   ERA_KEYS.forEach((key, i) => {
     const n = i + 2;
     const name = ERA_NAMES[n]!;
     const band = 5 * (n - 1);
     out[`${key}Rigs`] = {
       id: `${key}Rigs`, group: 'industry', era: n, label: `${name} Rigs`, blurb: `Every ${name} machine works faster`,
-      values: [1, 1.15, 1.3, 1.5, 1.7, 1.9, 2.15, 2.4, 2.7, 3.0], costs: [],
+      values: [1, 1.15, 1.3, 1.5, 1.7, 1.9, 2.15, 2.4, 2.7, 3.0, 3.6], costs: [],
       display: 'boost', requires: { era: n },
     };
     out[`${key}Belts`] = {
       id: `${key}Belts`, group: 'industry', era: n, label: `${name} Belts`, blurb: 'Conveyor belts link the machines that feed each other',
-      values: [0, 1, 1.15, 1.3, 1.45, 1.6, 1.8, 2.0, 2.25, 2.5], costs: [],
+      values: [0, 1, 1.15, 1.3, 1.45, 1.6, 1.8, 2.0, 2.25, 2.5, 2.9], costs: [],
       display: 'belt', requires: { era: n },
     };
     out[`${key}Crew`] = {
@@ -1422,11 +1423,6 @@ function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' |
         display: 'crew', requires: r.settlement > 0 ? { era: n, settlement: band + r.settlement } : { era: n },
       };
     });
-    out[`${key}Trade`] = {
-      id: `${key}Trade`, group: 'industry', era: n, label: `${name} Trade`, blurb: `${name} materials sell for more`,
-      values: [1, 1.1, 1.2, 1.32, 1.45, 1.6, 1.75, 1.9, 2.1, 2.4], costs: [],
-      display: 'mult', requires: { era: n },
-    };
     for (const m of MACHINE_IDS) {
       const d = MACHINES[m];
       if (d.era !== n) continue;
@@ -1439,12 +1435,12 @@ function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' |
     // 0.9.5: the region market (eras/RegionMarket.ts), era 1's Truck Dock and Shop Counter for the era's buyers
     out[`${key}Dock`] = {
       id: `${key}Dock`, group: 'sales', era: n, label: `${name} Loading Dock`, blurb: 'A bigger loading dock: buyers drive up more often and load faster',
-      values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5, 2.75, 3.0], costs: [],
+      values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5, 2.75, 3.0, 3.5], costs: [],
       display: 'boost', requires: { era: n },
     };
     out[`${key}Stall`] = {
       id: `${key}Stall`, group: 'sales', era: n, label: `${name} Market Stall`, blurb: 'A bigger market stall: shoppers drop by more often',
-      values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5, 2.75, 3.0], costs: [],
+      values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5, 2.75, 3.0, 3.5], costs: [],
       display: 'boost', requires: { era: n },
     };
     // 0.9.5: the era's cash machine (eras/CashMachine.ts), era 1's Cash Tubes: Lv 1 builds it on its level pad by the
@@ -1487,19 +1483,22 @@ export function eraCashMachine(n: number): { id: string; label: string } | undef
 }
 
 /** 0.9.0: era workers per `${key}Crew` level (index = level; 0 = not hired). */
-export const ERA_CREW_COUNT: readonly number[] = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3];
+export const ERA_CREW_COUNT: readonly number[] = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3];
 
 /**
- * 0.9.5: `${kind}Quality` for every era material, era 1's Fine Planks / Sturdy Crates for the eras: buyers at a region
- * market pay this much more for that material. It belongs to the material's own era (MATERIALS[kind].era).
+ * 0.9.5: `${kind}Quality` for every era material, era 1's Fine Planks / Sturdy Crates for the eras. It belongs to the
+ * material's own era (MATERIALS[kind].era). 0.9.6 (decision 9): the era's Trade upgrade is merged into it, so it is the
+ * one sales upgrade per material: buyers pay this much more for it at every counter (export depot, loading dock, stall;
+ * core/Market.ts salesMult). Its table is about the old Trade × Fine product, Lv 10 the biggest step. Old saves carry
+ * max(Trade, Fine) over (core/Save.ts).
  */
 function qualityUpgrades(): Record<`${MaterialKind}Quality`, UpgradeDef> {
   const out = {} as Record<`${MaterialKind}Quality`, UpgradeDef>;
   for (const kind of MATERIAL_KINDS) {
     const m = MATERIALS[kind];
     out[`${kind}Quality`] = {
-      id: `${kind}Quality`, group: 'sales', era: m.era, label: `Fine ${m.label}`, blurb: `Market buyers pay more for ${m.label.toLowerCase()}`,
-      values: [1, 1.1, 1.2, 1.3, 1.45, 1.6, 1.75, 1.9, 2.05, 2.2], costs: [],
+      id: `${kind}Quality`, group: 'sales', era: m.era, label: `Fine ${m.label}`, blurb: `${m.label} sells for more, wherever you sell it`,
+      values: [1, 1.15, 1.3, 1.5, 1.75, 2.0, 2.3, 2.65, 3.05, 3.5, 4.2], costs: [],
       display: 'mult', requires: { era: m.era },
     };
   }
