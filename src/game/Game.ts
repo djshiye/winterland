@@ -8,21 +8,31 @@
  */
 import { OcclusionFade } from '../render/OcclusionFade';
 import * as THREE from 'three';
-import { AMENITIES, BUSINESSES, CREW, DAYNIGHT, DEMAND, ECONOMY, HAPPINESS, LAYOUT, PADS, PLAYER, PRESTIGE, PRIORITIES, QUARTERS, RIDGE, SAVE, TIMING, TOWN, UPGRADES, VILLAGE, type AmenityId, type BusinessId, type EventKind } from '../config';
+import { AMENITIES, BUSINESSES, CREW, DAYNIGHT, DEMAND, ECONOMY, HAPPINESS, LAYOUT, PADS, PLAYER, PRESTIGE, PRIORITIES, QUARTERS, RIDGE, SAVE, SETTLEMENT, TIMING, TOWN, UPGRADES, VILLAGE, type AmenityId, type BusinessId, type EventKind } from '../config';
 import { EventBus } from '../core/EventBus';
 import { Economy } from '../core/Economy';
 import {
   SalesMeter,
   clearSave,
   freshRequested,
-  loadSave,
+  migrateState,
   mergeState,
+  parseSave,
+  readSave,
   sanitizeState,
   newSeasonSave,
   offlineEarnings,
   writeSave,
+  type MigrationReport,
   type SaveData,
+  type SaveRead,
 } from '../core/Save';
+import { keepUnreadable, pushBackup, readBackup, readRawSave, snapshotBefore } from '../core/saveVault';
+import { GAME_VERSION } from '../core/version';
+import { debugAllowed } from '../platform/debug';
+import { desktop } from '../platform/desktop';
+import { exportText, saveFileName } from '../ui/saveTransfer';
+import type { Notice } from '../ui/NoticeCard';
 import { TweenManager } from '../core/Tween';
 import { Upgrades } from '../core/Upgrades';
 import { DayNight } from '../core/DayNight';
@@ -63,6 +73,9 @@ import { cityPopulation, settlementLevel } from '../core/demand';
 import { Level } from '../level/Level';
 
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
+
+/** src/main.ts sets this (localStorage) when a save crashed the start and was set aside; Game tells the player once. */
+export const RECOVERED_FLAG = 'winterland.recovered';
 
 /** Longest step the real-time loop will take (tab switches, hitches). */
 const MAX_DT = 1 / 20;
@@ -146,7 +159,7 @@ export interface DebugApi {
   gate(n?: number): EraGate;
   /** Every upgrade of the eras reached to shown level `shown` (crews hired), for free. */
   setAllUpgrades(shown: number): void;
-  /** Best settlement level `L` (clamped to 5 · age; needs Winterland to show). */
+  /** Best settlement level `L` (era 1: up to 5; from era 2 up to SETTLEMENT.max; needs Winterland to show). */
   setSettlement(L: number): void;
   /** 0.9.0: fast travel to a travelPoints() id ('yard', 'town', 'region:3', 'district:5'). */
   travel(id: string): boolean;
@@ -181,6 +194,8 @@ export class Game {
   /** Saving is off for `?fresh` pages and after a reset (until the reload). */
   private saving: boolean;
   private saveTimer: number = SAVE.interval;
+  /** 0.9.6: seconds until the save on disk is next copied into the rolling backups (core/saveVault.ts). */
+  private backupTimer: number = SAVE.backupInterval;
   private readonly sales: SalesMeter;
 
   constructor(container: HTMLElement, hudRoot: HTMLElement) {
@@ -190,13 +205,18 @@ export class Game {
     // Load BEFORE anything is built: every system initialises itself from state (see docs/DESIGN.md).
     const fresh = freshRequested();
     this.saving = !fresh;
-    const save = fresh ? null : loadSave();
+    const read: SaveRead = fresh ? { kind: 'none' } : readSave();
+    const save = read.kind === 'ok' ? read.data : null;
+    // 0.9.6 (S5): a save that can't be opened is never replaced by a fresh game without a copy of its exact text.
+    const notices = this.saveNotices(read);
     const state = createGameState();
     if (save) {
       mergeState(state, save.state);
       sanitizeState(state);
     }
-    const economy = new Economy(events, state, save ? save.money : ECONOMY.startMoney);
+    const migration = migrateState(state, !save);
+    const startMoney = save ? Math.min(Number.MAX_SAFE_INTEGER, save.money + migration.refund) : ECONOMY.startMoney;
+    const economy = new Economy(events, state, startMoney);
     const upgrades = new Upgrades(state, economy, events);
     const colliders = new ColliderWorld();
     const input = new Input(renderer.domElement);
@@ -271,9 +291,11 @@ export class Game {
     input.onZoom((delta) => events.emit('camera:zoom', { delta }));
     events.on('settings:fps', ({ cap }) => this.setFpsCap(cap));
     events.on('save:restore', ({ text }) => this.restore(text));
+    events.on('save:restoreBackup', ({ key }) => this.restoreBackup(key));
+    events.on('game:quit', () => this.quit());
     events.on('camera:zoom', ({ delta }) => cameraRig.setUserZoom(cameraRig.userZoom + delta));
     events.on('season:new', () => this.newSeason());
-    this.installDebugApi();
+    if (debugAllowed()) this.installDebugApi();
     this.level.start();
 
     if (save) {
@@ -289,6 +311,71 @@ export class Game {
         });
       }
     }
+    // 0.9.6 migrations changed the save (the refund is already in the wallet): write it down now, like offline earnings
+    if (migration.applied.length > 0) this.save();
+    const welcome = refundNotice(migration);
+    if (welcome) notices.push(welcome);
+    for (const n of notices) ctx.hud.showNotice(n);
+  }
+
+  /**
+   * Keep what was on disk safe before anything is written over it, and say what happened: an unreadable save's exact
+   * text is kept (or, if even that fails, saving stays off so the original is never overwritten); a save from a newer
+   * build is snapshotted; the save this session starts from goes into the rolling backups. Also picks up the
+   * crash-rescue flag left by src/main.ts.
+   */
+  private saveNotices(read: SaveRead): Notice[] {
+    const out: Notice[] = [];
+    const download = (raw: string, prefix: string) => (): false => {
+      void exportText(raw, saveFileName(new Date(), prefix));
+      return false; // keep the card open
+    };
+    if (read.kind === 'unreadable') {
+      const kept = keepUnreadable(read.raw);
+      // A save from a newer build is left exactly where it is: updating the game will open it. A corrupt one is set
+      // aside (kept) so the fresh game may save; if the copy failed, nothing is saved at all.
+      if (!kept || read.reason === 'newer-format') this.saving = false;
+      out.push({
+        icon: 'shield',
+        title: 'Your save is safe',
+        lines:
+          read.reason === 'newer-format'
+            ? [
+                'Your save was made by a newer version of Winterland, so this copy started a fresh game.',
+                'Your save is untouched and nothing here will be saved over it. Update Winterland to keep playing it.',
+              ]
+            : kept
+              ? ["Winterland couldn't open your last save, so it started a fresh game.", 'An exact copy of the old save is kept, so nothing is lost. You can download it here.']
+              : ["Winterland couldn't open your last save, so it started a fresh game.", 'Saving is paused so the old save is never overwritten. Download a copy before you reset.'],
+        buttons: [{ label: 'Download', style: 'grey', onTap: download(read.raw, 'winterland-unreadable-save') }, { label: 'OK' }],
+      });
+    } else if (read.kind === 'ok') {
+      pushBackup(read.raw);
+      if (read.newer) {
+        snapshotBefore(read.raw, 'newer');
+        out.push({
+          icon: 'shield',
+          title: 'A save from a newer version',
+          lines: [
+            `This save was made by Winterland ${read.newer}, and this copy is ${GAME_VERSION}. Anything added after ${GAME_VERSION} may be lost if you keep playing here.`,
+            'A copy of it as it was is kept in Settings, Game, Earlier saves.',
+          ],
+        });
+      }
+    }
+    try {
+      if (localStorage.getItem(RECOVERED_FLAG)) {
+        localStorage.removeItem(RECOVERED_FLAG);
+        out.push({
+          icon: 'shield',
+          title: 'Your save is safe',
+          lines: ["Your save stopped Winterland from starting, so it started a fresh game instead.", 'The old save is kept: you can bring it back from Settings, Game, Earlier saves.'],
+        });
+      }
+    } catch {
+      /* no storage */
+    }
+    return out;
   }
 
   /** The save as it would be written now. */
@@ -296,6 +383,7 @@ export class Game {
     const c = this.ctx;
     return {
       v: SAVE.version,
+      game: GAME_VERSION,
       savedAt: Date.now(),
       // Cash bundles still flying back to the wallet are not banked yet (CashStack.inFlightValue).
       money: c.economy.money + c.player.back.inFlightValue,
@@ -312,28 +400,67 @@ export class Game {
     return writeSave(data) ? data : null;
   }
 
-  /** Settings → Reset: wipe the save and start over. */
-  private reset(): void {
+  /**
+   * 0.9.6: before a Reset, a Restore or a New Season replaces the save, write the latest progress and keep it as the
+   * "before" backup (Settings → Game → Earlier saves brings it back). Saving stops here: the pagehide save on the way
+   * out would otherwise write the old game over whatever replaces it.
+   */
+  private keepBefore(why: string): void {
+    this.save();
     this.saving = false;
+    snapshotBefore(readRawSave(), why);
+  }
+
+  /** Settings → Reset: wipe the save and start over (the old one stays in Earlier saves). */
+  private reset(): void {
+    this.keepBefore('reset');
     clearSave();
     location.reload();
   }
 
-  /** Settings → Restore save: stop autosaving (the pagehide save would overwrite it), write the text, reload. */
+  /** Settings → Restore save: keep the current one, write the text, reload. */
   private restore(text: string): void {
-    this.saving = false;
+    if (parseSave(text).kind !== 'ok') {
+      this.ctx.hud.toast("That file isn't a Winterland save.", { small: true });
+      return;
+    }
+    const was = this.saving;
+    this.keepBefore('restore');
     try {
       localStorage.setItem(SAVE.key, text);
     } catch {
+      this.saving = was;
       this.ctx.hud.toast("Couldn't store the save.", { small: true });
       return;
     }
     location.reload();
   }
 
+  /** Settings → Earlier saves: bring back one of the kept copies (core/saveVault.ts). */
+  private restoreBackup(key: string): void {
+    const text = readBackup(key);
+    if (!text) {
+      this.ctx.hud.toast("That earlier save isn't there any more.", { small: true });
+      return;
+    }
+    this.restore(text);
+  }
+
+  /** Settings → Save & quit (desktop app): write the save, then close the app. Stays open if the save failed. */
+  private quit(): void {
+    const d = desktop();
+    if (!d?.quit) return;
+    if (this.saving && !this.save()) {
+      this.ctx.hud.toast("Couldn't save just now", { sub: 'Your game is still open. Try again in a moment.', duration: 4 });
+      return;
+    }
+    this.saving = false; // nothing may write after the final save
+    d.quit();
+  }
+
   /** After the finale: start the next season (prestige) from a fresh save and reload. */
   private newSeason(): void {
-    this.saving = false;
+    this.keepBefore('season');
     if (!writeSave(newSeasonSave(this.ctx.state, Date.now()))) {
       // Storage is full / blocked: reloading would restart the old season without the bonus. Stay put.
       this.saving = true;
@@ -403,8 +530,15 @@ export class Game {
     c.hud.update(dt);
 
     this.saveTimer -= dt;
+    this.backupTimer -= dt;
     if (this.saveTimer <= 0) {
       this.saveTimer = SAVE.interval;
+      if (this.backupTimer <= 0 && this.saving) {
+        // copy the save on disk into the rolling backups just before it is overwritten
+        this.backupTimer = SAVE.backupInterval;
+        const raw = readRawSave();
+        if (raw) pushBackup(raw);
+      }
       this.save();
     }
   }
@@ -516,7 +650,7 @@ export class Game {
       },
       setSettlement: (L: number) => {
         const e = ctx.state.eras;
-        e.settlement = Math.max(0, Math.min(5 * Math.max(1, e.age), Math.round(L)));
+        e.settlement = Math.max(0, Math.min(e.age >= 2 ? SETTLEMENT.max : SETTLEMENT.band, Math.round(L)));
         ctx.events.emit('settlement:changed', { level: settlementLevel(ctx.state), cityPopulation: cityPopulation(ctx.state) });
       },
       addMoney: (n: number) => ctx.economy.add(n),
@@ -544,4 +678,16 @@ export class Game {
         offlineEarnings({ ...this.saveData(), savedAt: Date.now() - seconds * 1000 }, Date.now()),
     };
   }
+}
+
+/** The one-off "welcome to the new rule" card for a save whose levels past 10 were refunded (null when none were). */
+function refundNotice(m: MigrationReport): Notice | null {
+  if (m.refundedLevels <= 0) return null;
+  const lines = [
+    'Every upgrade now tops out at Lv 10, in every era.',
+    `The ${m.refundedLevels.toLocaleString('en-US')} level${m.refundedLevels === 1 ? '' : 's'} you had bought past Lv 10 ${m.refundedLevels === 1 ? 'is' : 'are'} refunded in full:`,
+  ];
+  const n: Notice = { icon: 'coin', title: 'Welcome to the new level rule', lines, amount: m.refund, buttons: [{ label: 'Lovely!' }] };
+  if (m.masteryMult > 1.0001) n.after = [`Your Mastery bonus stays with you for good: +${Math.round((m.masteryMult - 1) * 100)}% on every sale.`];
+  return n;
 }
