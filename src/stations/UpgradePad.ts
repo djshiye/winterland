@@ -104,6 +104,7 @@ export class UpgradePad implements ItemHolder {
     this.object.position.set(def.x, 0, def.z);
     this.object.visible = false;
     ctx.scene.add(this.object);
+    ctx.occlusion?.addTarget(this.object, def.size, () => this.shown);
     this.zone = ctx.zones.addTransfer({
       id: `${this.id}:pay`,
       area: rect(def.x, def.z, def.size * ZONE_SCALE, def.size * ZONE_SCALE),

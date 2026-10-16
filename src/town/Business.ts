@@ -147,6 +147,7 @@ export class Business {
     this.group.visible = false;
     this.group.add(model.root);
     (parent ?? ctx.scene).add(this.group);
+    ctx.occlusion?.addOccluder(model.root); // 0.9.3: fades when it hides the player or a pad
 
     const p = toWorld(f, 0, L.front + 0.05);
     this.door.set(p.x, 0.9, p.z);
@@ -388,6 +389,7 @@ export class Business {
     }
     if (flying) return false;
     for (const p of piles) p.dispose();
+    this.ctx.occlusion?.removeOccluder(this.model.root);
     this.group.removeFromParent();
     this.gone = true;
     return true;

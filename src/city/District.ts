@@ -277,6 +277,7 @@ export class District {
     const model = createCityBuilding(st.building, seed, { w: f.w, d: f.d });
     L.model = model;
     L.group.add(model.root);
+    this.ctx.occlusion?.addOccluder(model.root); // 0.9.3: fades when it hides the player or a pad
     if (!instant && this.root.visible) {
       this.ctx.tweens.popIn(model.root, { duration: 0.6 });
       this.ctx.particles.puff(this.tmp.set(f.x, 0.4, f.z), { color: 0xffffff, count: 12, size: 1.6, life: 1.0 });
@@ -409,6 +410,7 @@ export class District {
     if (!this.ctx.economy.spend(demolishCost(def))) return false;
     const id = demolishLot(this.ctx.state, this.n, lot);
     if (L.model) {
+      this.ctx.occlusion?.removeOccluder(L.model.root);
       L.group.remove(L.model.root);
       L.model = null;
     }
@@ -431,7 +433,10 @@ export class District {
     const L = this.lots[lot];
     if (!L) return;
     Object.assign(this.state(L), emptyLot());
-    if (L.model) L.group.remove(L.model.root);
+    if (L.model) {
+      this.ctx.occlusion?.removeOccluder(L.model.root);
+      L.group.remove(L.model.root);
+    }
     L.model = null;
     if (L.collider) this.ctx.colliders.remove(L.collider);
     L.collider = null;
