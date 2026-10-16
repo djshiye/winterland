@@ -93,7 +93,7 @@ describe('HandNode', () => {
   });
 
   it('the node stands at the layout node place, else mid harvest zone facing the gate, else nowhere', () => {
-    const L = regionLayout(5);
+    const { node: _node, ...L } = regionLayout(5);
     expect(handNodePlace({ ...L, node: { x: 1, z: 2, yaw: 0 } } as never)).toEqual({ x: 1, z: 2, yaw: 0 });
     const harvest = { minX: 0, maxX: 20, minZ: 30, maxZ: 40 };
     expect(handNodePlace({ ...L, inward: 1, zones: { harvest } } as never)).toEqual({ x: 8.7, z: 35, yaw: Math.PI });

@@ -504,7 +504,7 @@ export function createGameState(): GameState {
 }
 
 /** Machine slots per region, index = era (must match eras/data.ts REGIONS[n].slots; tests/eras.test.ts checks). */
-export const REGION_SLOTS: readonly number[] = [0, 0, 4, 4, 5, 5, 6, 6, 7, 7, 8];
+export const REGION_SLOTS: readonly number[] = [0, 0, 4, 4, 5, 6, 6, 6, 7, 7, 8];
 /** Lots per city district, index = era (must match eras/data.ts DISTRICTS[n].lots). */
 export const DISTRICT_LOTS: readonly number[] = [0, 0, 6, 6, 6, 8, 8, 8, 9, 9, 12];
 

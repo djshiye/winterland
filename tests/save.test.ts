@@ -302,7 +302,7 @@ describe('v7 eras save fixture', () => {
     const world = sanitizeWorld(save.world);
     expect(world.eras[2]!.slots[1]).toEqual({ in: { stone: 4 }, out: 3 });
     expect(world.eras[2]!.dock).toEqual({ ore: 5 });
-    expect(world.eras.map((r) => r.slots.length)).toEqual([0, 0, 4, 4, 5, 5, 6, 6, 7, 7, 8]);
+    expect(world.eras.map((r) => r.slots.length)).toEqual([0, 0, 4, 4, 5, 6, 6, 6, 7, 7, 8]); // 0.9.5: an old save gains era 5's sixth (empty) slot
   });
 
   it('older saves start in the Survival era with an empty city and market', () => {
