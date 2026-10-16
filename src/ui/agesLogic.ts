@@ -6,7 +6,7 @@
 import { CITY_RANKS, ERA_NAMES, ERAS, MATERIALS, MAX_ERA, isMaterial, unlockCash } from '../eras/data';
 import type { TravelPoint } from '../eras/layout';
 import type { GameState, IncomeSource, ItemKind, UpgradeId } from '../core/types';
-import { UPGRADES } from '../config';
+import { UPGRADES, eraRoleCount } from '../config';
 import { cityTotals, rankFor } from '../city/rules';
 import { formatMoney } from './format';
 import { romanNumeral } from '../world/env/eras';
@@ -279,6 +279,21 @@ export function masteryTag(points: number, mult: number): string {
  * A card's effect line: "50 items → 60 items", "50 items (max)" at the top, and past an effect's hard cap during the
  * climb (a level that only adds Mastery, docs/EXPANSION.md) "50 items (max) · +1 Mastery" instead of "50 → 50".
  */
+/**
+ * 0.9.5: an era crew card's effect line, short enough for the card: "Hires 1 worker", "2 → 3 workers · ×1.6" on the
+ * levels that hire, "×1.6 → ×1.7 speed" otherwise, "3 workers · ×2.4 (max)" at the top. `v` is the work multiplier
+ * at `level` / `level + 1` (null at max).
+ */
+export function eraCrewDelta(level: number, v: number, vNext: number | null): string {
+  const x = (k: number): string => `×${Math.round(k * 100) / 100}`;
+  const n = eraRoleCount(level);
+  const workers = (k: number): string => `${k} worker${k === 1 ? '' : 's'}`;
+  if (vNext === null) return `${workers(n)} · ${x(v)} (max)`;
+  if (level <= 0 || v <= 0) return `Hires ${workers(eraRoleCount(level + 1))}`;
+  const m = eraRoleCount(level + 1);
+  return m !== n ? `${n} → ${workers(m)} · ${x(vNext)}` : `${x(v)} → ${x(vNext)} speed`;
+}
+
 export function shopDelta(now: string, next: string | null, climb: boolean): string {
   if (next === null) return `${now} (max)`;
   if (next === now && climb) return `${now} (max) · +1 Mastery`;
