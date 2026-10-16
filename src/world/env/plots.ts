@@ -32,7 +32,9 @@ export const HUT_MAX_H = 4.6;
 export const SHOP_MAX_H = 4.4;
 
 type HutKind = 'cabin' | 'cottage' | 'row' | 'bunk' | 'deco' | 'trailer' | 'modular' | 'quonset' | 'pod';
-type BedKind = 'slabs' | 'pools' | 'heaps' | 'ridges' | 'crystals' | 'dunes' | 'vents';
+type BedKind = 'slabs' | 'pools' | 'heaps' | 'ridges' | 'crystals' | 'dunes' | 'vents' | 'outcrop' | 'jack' | 'tank' | 'cleanroom' | 'pit' | 'geode' | 'pad';
+/** The yard floor's pattern under the machine grid. */
+type YardKind = 'cells' | 'flags' | 'asphalt' | 'tiles' | 'hazard' | 'rings';
 type GreenKind = 'fire' | 'well' | 'brazier' | 'lamps' | 'kiosk' | 'fountain' | 'orb';
 
 interface PlotStyle {
@@ -47,9 +49,12 @@ interface PlotStyle {
   pave: number;
   line: number;
   green: GreenKind;
-  /** The two resource beds of the harvest field (alternating rows): shape and colour; `glow` lights the second. */
+  /** The resource beds of the harvest field (bed k 0 and 1): shape and colour; `glow` lists the lit ones. */
   beds: [BedKind, number, BedKind, number];
-  glow?: boolean;
+  glow?: readonly number[];
+  /** Bed k 2, where the era has one (era 8's clean room). */
+  special?: [BedKind, number];
+  yard: YardKind;
 }
 
 /**
@@ -60,15 +65,20 @@ interface PlotStyle {
 const STYLE: readonly (PlotStyle | null)[] = [
   null,
   null,
-  { hut: 'cabin', wall: 0x9a7350, roof: 0x7a5a48, shop: 0xc9b9a0, shopRoof: 0x8e6a52, street: 0xb7aea0, pave: 0xc3bcb0, line: 0xa69c8e, green: 'fire', beds: ['slabs', 0xbab4aa, 'pools', 0xc27a56] },
-  { hut: 'cottage', wall: 0xb3aa9c, roof: 0x6d7378, shop: 0xa8836a, shopRoof: 0x5f6870, street: 0xa89c92, pave: 0xb8afa6, line: 0x978b80, green: 'well', beds: ['heaps', 0xa65a3e, 'heaps', 0x7a6c64] },
-  { hut: 'row', wall: 0xa85a43, roof: 0x5e6266, shop: 0xb5664c, shopRoof: 0x585d61, street: 0x9c948d, pave: 0xaaa39c, line: 0x8a827b, green: 'brazier', beds: ['heaps', 0x9c8b7b, 'heaps', 0x675d58] },
-  { hut: 'bunk', wall: 0x7d8c96, roof: 0xb4553a, shop: 0x8a98a2, shopRoof: 0xc0673e, street: 0x8d9095, pave: 0x9fa3a8, line: 0x7f8388, green: 'brazier', beds: ['ridges', 0xb4553a, 'heaps', 0x6f6460], glow: true },
-  { hut: 'deco', wall: 0xd8cbb2, roof: 0x4c7a74, shop: 0xe0d2b8, shopRoof: 0x3f706a, street: 0x96a09c, pave: 0xa8b0ac, line: 0x8a9490, green: 'lamps', beds: ['crystals', 0x5fae96, 'crystals', 0xe4eef2] },
-  { hut: 'trailer', wall: 0xe3c07a, roof: 0xc44536, shop: 0xe6d3a8, shopRoof: 0xc44536, street: 0x8e8e8e, pave: 0xa3a19c, line: 0x86847f, green: 'brazier', beds: ['pools', 0x5a4c45, 'vents', 0xd99b26], glow: true },
-  { hut: 'modular', wall: 0xeee8d8, roof: 0x5c9aa0, shop: 0xf0eadb, shopRoof: 0x45858c, street: 0xc9c8c2, pave: 0xd6d4cc, line: 0xb8b6ae, green: 'kiosk', beds: ['dunes', 0xeee2c2, 'pools', 0xe5c05a] },
-  { hut: 'quonset', wall: 0xdfe6e8, roof: 0x5bb391, shop: 0xe4eaec, shopRoof: 0x4ea885, street: 0xb7c2c6, pave: 0xc6d0d3, line: 0xa5b1b5, green: 'fountain', beds: ['crystals', 0x86e8c4, 'slabs', 0x8a8684], glow: true },
-  { hut: 'pod', wall: 0xf6f1e7, roof: 0xb9a3e8, shop: 0xf3eee6, shopRoof: 0xa58fd6, street: 0xd4d6e0, pave: 0xe0e1ea, line: 0xc4c6d4, green: 'orb', beds: ['crystals', 0xb9a3e8, 'vents', 0xe6f2ff], glow: true },
+  { hut: 'cabin', wall: 0x9a7350, roof: 0x7a5a48, shop: 0xc9b9a0, shopRoof: 0x8e6a52, street: 0xb7aea0, pave: 0xc3bcb0, line: 0xa69c8e, green: 'fire', beds: ['slabs', 0xbab4aa, 'pools', 0xc27a56], yard: 'cells' },
+  { hut: 'cottage', wall: 0xb3aa9c, roof: 0x6d7378, shop: 0xa8836a, shopRoof: 0x5f6870, street: 0xa89c92, pave: 0xb8afa6, line: 0x978b80, green: 'well', beds: ['heaps', 0xa65a3e, 'heaps', 0x7a6c64], yard: 'cells' },
+  { hut: 'row', wall: 0xa85a43, roof: 0x5e6266, shop: 0xb5664c, shopRoof: 0x585d61, street: 0x9c948d, pave: 0xaaa39c, line: 0x8a827b, green: 'brazier', beds: ['heaps', 0x9c8b7b, 'heaps', 0x675d58], yard: 'cells' },
+  { hut: 'bunk', wall: 0x7d8c96, roof: 0xb4553a, shop: 0x8a98a2, shopRoof: 0xc0673e, street: 0x8d9095, pave: 0x9fa3a8, line: 0x7f8388, green: 'brazier', beds: ['ridges', 0xb4553a, 'heaps', 0x6f6460], glow: [1], yard: 'cells' },
+  // 6 copper + quartz: patina-green deco arcades, flagstone yard, a grove of copper outcrops and quartz clumps
+  { hut: 'deco', wall: 0xd8cbb2, roof: 0x4c7a74, shop: 0xe0d2b8, shopRoof: 0x3f706a, street: 0xa7b3a9, pave: 0xb9c2b6, line: 0x8a9490, green: 'lamps', beds: ['outcrop', 0xc0784a, 'crystals', 0xe4eef2], glow: [1], yard: 'flags' },
+  // 7 crude + gas: trailers and a roadside strip on dark asphalt, pumpjacks and a tank farm in the field
+  { hut: 'trailer', wall: 0xe3c07a, roof: 0xc44536, shop: 0xe6d3a8, shopRoof: 0xc44536, street: 0x77757a, pave: 0x8a888a, line: 0xe8d27a, green: 'brazier', beds: ['jack', 0x5a4c45, 'tank', 0xd99b26], yard: 'asphalt' },
+  // 8 silica + gold: white modular blocks on clean tiles, glass pavilions, sand dunes with gold pans and a clean room
+  { hut: 'modular', wall: 0xeee8d8, roof: 0x5c9aa0, shop: 0xf0eadb, shopRoof: 0x45858c, street: 0xd8d6cf, pave: 0xe2e0d8, line: 0xc4c2ba, green: 'kiosk', beds: ['dunes', 0xeee2c2, 'pools', 0xe5c05a], special: ['cleanroom', 0xf3f4f6], glow: [1], yard: 'tiles' },
+  // 9 uranium + graphite: quonset barracks, a hazard-striped yard, a fenced grid of glowing pits
+  { hut: 'quonset', wall: 0xdfe6e8, roof: 0x5bb391, shop: 0xe4eaec, shopRoof: 0x4ea885, street: 0xa9b3b6, pave: 0xbcc5c8, line: 0xe8c547, green: 'fountain', beds: ['pit', 0x86e8c4, 'slabs', 0x6f6c6b], glow: [0], yard: 'hazard' },
+  // 10 rare earth + helium-3: pods and domes on lavender regolith, a geode crater with skimmer pads
+  { hut: 'pod', wall: 0xf6f1e7, roof: 0xb9a3e8, shop: 0xf3eee6, shopRoof: 0xa58fd6, street: 0xc9c6dc, pave: 0xd6d2e6, line: 0xb9b2d8, green: 'orb', beds: ['geode', 0xb9a3e8, 'pad', 0xe6f2ff], glow: [0, 1], yard: 'rings' },
 ];
 
 const SNOW = PALETTE.snow;
@@ -124,7 +134,8 @@ function annexOnly(h: HutPlace): Rect {
 
 /** Footprint of a shopfront (or the stall's counter + awning posts). */
 export function shopFootprint(s: ShopPlace): Rect {
-  return box(s.x, s.z, s.w / 2, s.d / 2);
+  // a shop fronting east (a courtyard's west side) lies the other way round
+  return Math.abs(Math.sin(s.yaw)) > 0.5 ? box(s.x, s.z, s.d / 2, s.w / 2) : box(s.x, s.z, s.w / 2, s.d / 2);
 }
 
 /** Centre piece of the crew green. */
@@ -141,8 +152,34 @@ export function placeSolids(n: number): PlaceSolid[] {
   for (const l of P.lamps) out.push({ what: 'lamp', r: box(l.x, l.z, 0.2, 0.2), h: 3.2 });
   const g = greenCentre(P);
   out.push({ what: 'green centre', r: box(g.x, g.z, 0.9, 0.9), h: 2.2 });
-  for (const b of P.beds) out.push({ what: 'bed', r: b, h: 1.0 });
+  const st = STYLE[n]!;
+  for (const b of P.beds) out.push({ what: `bed ${bedKind(st, b.k)}`, r: b, h: BED_H[bedKind(st, b.k)] });
+  if (P.plan.field === 'pits') for (const r of fenceSides(P.field)) out.push({ what: 'hazard fence', r, h: FENCE_H });
   return out;
+}
+
+/** Tallest part of each bed kind (pumpjack heads, tank tops, the clean room's roof vents), metres. */
+const BED_H: Record<BedKind, number> = { slabs: 1, pools: 1, heaps: 1, ridges: 1, crystals: 1, dunes: 1, vents: 1, outcrop: 1.5, jack: 2.5, tank: 2.6, cleanroom: 2.6, pit: 1.1, geode: 1.6, pad: 1.5 };
+const FENCE_H = 1.2;
+
+function bedKind(st: PlotStyle, k: 0 | 1 | 2): BedKind {
+  return k === 2 ? (st.special?.[0] ?? st.beds[2]) : k === 1 ? st.beds[2] : st.beds[0];
+}
+
+function bedColor(st: PlotStyle, k: 0 | 1 | 2): number {
+  return k === 2 ? (st.special?.[1] ?? st.beds[3]) : k === 1 ? st.beds[3] : st.beds[1];
+}
+
+/** The four thin sides of the hazard fence round a field (inset 0.3 from its edge). */
+function fenceSides(F: Rect): Rect[] {
+  const a = { minX: F.minX + 0.3, maxX: F.maxX - 0.3, minZ: F.minZ + 0.3, maxZ: F.maxZ - 0.3 };
+  const t = 0.1;
+  return [
+    { minX: a.minX, maxX: a.maxX, minZ: a.minZ - t, maxZ: a.minZ + t },
+    { minX: a.minX, maxX: a.maxX, minZ: a.maxZ - t, maxZ: a.maxZ + t },
+    { minX: a.minX - t, maxX: a.minX + t, minZ: a.minZ, maxZ: a.maxZ },
+    { minX: a.maxX - t, maxX: a.maxX + t, minZ: a.minZ, maxZ: a.maxZ },
+  ];
 }
 
 /** Workers a crew role has (0..3): the hauler crew from ERA_CREW_COUNT, the six roles from eraRoleCount. */
@@ -359,6 +396,17 @@ function buildShop(body: Batch, glow: Batch, st: PlotStyle, s: ShopPlace, i: num
     const n = Math.max(4, Math.round(w / 0.55));
     for (let k = 0; k < n; k++) f.put(geo.box(w / n, 0.06, depth), k % 2 ? CREAM : accent, -w / 2 + ((k + 0.5) * w) / n, y, z, { rx: tilt });
   };
+  if (s.stall && st.hut === 'trailer') {
+    // the strip's fuel canopy: a flat lit canopy on four posts over two pumps and a kiosk counter
+    for (const x of [-w / 2 + 0.3, w / 2 - 0.3]) for (const z of [-d / 2 + 0.3, d / 2 - 0.3]) f.put(geo.boxBase(0.18, s.h, 0.18), 0xdedad2, x, 0, z);
+    f.put(geo.box(w + 0.4, 0.35, d + 0.4), st.shopRoof, 0, s.h + 0.17, 0);
+    f.put(geo.box(w + 0.42, 0.06, d + 0.42), SNOW, 0, s.h + 0.37, 0);
+    g.put(geo.box(w + 0.2, 0.1, 0.05), WINDOW, 0, s.h + 0.05, d / 2 + 0.21);
+    for (const x of [-w / 4, w / 4]) f.put(geo.boxBase(0.5, 1.2, 0.4), CREAM, x, 0, d / 2 - 0.9).put(geo.box(0.36, 0.3, 0.05), accent, x, 0.95, d / 2 - 0.68);
+    f.put(geo.boxBase(w - 0.6, 0.95, 0.7), st.shop, 0, 0, -d / 2 + 0.8);
+    for (let k = 0; k < 3; k++) f.put(geo.boxBase(0.5, 0.32, 0.45), goods[k % 2]!, -w / 2 + 1.0 + k * 0.9, 0.95, -d / 2 + 0.8);
+    return;
+  }
   if (s.stall) {
     // open-air stall: four posts, a striped awning, a counter with crates of the era's goods
     for (const x of [-w / 2 + 0.2, w / 2 - 0.2]) for (const z of [-d / 2 + 0.3, d / 2 - 0.3]) f.put(geo.boxBase(0.14, s.h, 0.14), shade(st.shopRoof, 0.9), x, 0, z);
@@ -372,23 +420,96 @@ function buildShop(body: Batch, glow: Batch, st: PlotStyle, s: ShopPlace, i: num
   }
   const h = s.h;
   const wall = i % 2 ? st.shop : mix(st.shop, accent, 0.18);
-  f.put(geo.boxBase(w, h, d), wall, 0, 0, 0);
-  // roof: flat with a cornice (later eras) or a shallow gable (eras 2-5)
-  if (st.hut === 'cabin' || st.hut === 'cottage' || st.hut === 'row' || st.hut === 'bunk') f.gable(w, d, h, 0.7, st.shopRoof);
-  else {
-    f.put(geo.box(w + 0.2, 0.2, d + 0.2), st.shopRoof, 0, h + 0.1, 0);
-    f.put(geo.box(w + 0.22, 0.05, d + 0.22), SNOW, 0, h + 0.22, 0);
+  const goodsOut = (): void => {
+    f.put(geo.boxBase(0.5, 0.45, 0.45), goods[i % 2]!, -w / 2 + 0.4, 0, d / 2 + 0.45);
+    f.put(geo.cylinder(0.22, 0.22, 0.6, 10), goods[(i + 1) % 2]!, -w / 2 + 0.95, 0.3, d / 2 + 0.4);
+  };
+  const sign = (y: number, z: number): void => {
+    f.put(geo.box(w * 0.7, 0.5, 0.1), CREAM, 0, y, z);
+    f.put(geo.box(w * 0.5, 0.14, 0.04), accent, 0, y, z + 0.06);
+  };
+  switch (st.hut) {
+    case 'deco': {
+      // an arcaded deco terrace: a stepped parapet, tall lit windows, a colonnade in front under a shared arcade roof
+      f.put(geo.boxBase(w, h, d), wall, 0, 0, 0);
+      f.put(geo.box(w + 0.1, 0.22, d + 0.1), st.shopRoof, 0, h + 0.11, 0);
+      f.put(geo.boxBase(w * 0.4, 0.45, 0.3), st.shopRoof, 0, h + 0.22, d / 2 - 0.15);
+      f.put(geo.box(w + 0.12, 0.05, d + 0.12), SNOW, 0, h + 0.25, 0);
+      g.put(geo.box(w - 1.6, 1.5, 0.06), WINDOW, -0.4, 1.3, d / 2 + 0.03);
+      f.put(geo.box(0.8, 1.7, 0.1), shade(st.shopRoof, 0.95), w / 2 - 0.7, 0.85, d / 2 + 0.01);
+      sign(h - 0.5, d / 2 + 0.03);
+      // the arcade: two columns per shop and a roof slab joining the terrace
+      f.put(geo.box(w + 0.12, 0.18, 1.3), st.shopRoof, 0, 2.55, d / 2 + 0.65);
+      f.put(geo.box(w + 0.12, 0.05, 1.3), SNOW, 0, 2.67, d / 2 + 0.65);
+      for (const x of [-w / 2 + 0.2, w / 4]) f.put(geo.cylinder(0.13, 0.15, 2.45, 10), CREAM, x, 1.22, d / 2 + 1.15);
+      break;
+    }
+    case 'trailer': {
+      // a low roadside store: a long flat roof with a big lit sign, a wide window and a bench by the door
+      f.put(geo.boxBase(w, h, d), wall, 0, 0, 0);
+      f.put(geo.box(w + 0.6, 0.22, d + 0.9), st.shopRoof, 0, h + 0.11, 0.3);
+      f.put(geo.box(w + 0.6, 0.05, d + 0.9), SNOW, 0, h + 0.24, 0.3);
+      f.put(geo.box(w * 0.8, 0.7, 0.12), CREAM, 0, h + 0.6, d / 2 - 0.2);
+      g.put(geo.box(w * 0.65, 0.35, 0.05), mix(WINDOW, accent, 0.35), 0, h + 0.6, d / 2 - 0.12);
+      g.put(geo.box(w - 2.2, 1.1, 0.06), WINDOW, -0.6, 1.2, d / 2 + 0.03);
+      f.put(geo.box(0.9, 1.7, 0.1), 0xdedad2, w / 2 - 0.8, 0.85, d / 2 + 0.01);
+      f.put(geo.boxBase(1.4, 0.45, 0.45), shade(st.shopRoof, 0.85), -w / 2 + 1.0, 0, d / 2 + 0.5);
+      break;
+    }
+    case 'modular': {
+      // a glass pavilion: thin white frame, a glazed front, a canopy blade
+      f.put(geo.boxBase(w, 0.2, d), 0xd6d4cc, 0, 0, 0);
+      f.put(geo.boxBase(w - 0.2, h - 0.3, d - 0.4), shade(wall, 0.96), 0, 0.2, -0.2);
+      f.put(geo.box(w + 0.3, 0.18, d + 0.2), wall, 0, h, 0);
+      f.put(geo.box(w + 0.32, 0.05, d + 0.22), SNOW, 0, h + 0.11, 0);
+      g.put(geo.box(w - 0.5, h - 0.8, 0.05), 0xbfeff0, 0, (h - 0.1) / 2 + 0.2, d / 2 - 0.15);
+      for (const x of [-w / 2 + 0.15, -w / 6, w / 6, w / 2 - 0.15]) f.put(geo.box(0.08, h - 0.3, 0.1), wall, x, 0.2 + (h - 0.3) / 2, d / 2 - 0.12);
+      f.put(geo.box(w * 0.55, 0.08, 1.0), st.shopRoof, -w * 0.15, 2.3, d / 2 + 0.35);
+      f.put(geo.box(w * 0.4, 0.3, 0.06), accent, -w * 0.15, h - 0.35, d / 2 - 0.08);
+      goodsOut();
+      break;
+    }
+    case 'quonset': {
+      // an arched quonset store with a flat glazed front wall and a sign over the door
+      const r = Math.min(w / 2, h - 0.2);
+      f.put(geo.boxBase(w + 0.2, 0.18, d + 0.2), 0xb5bfc3, 0, 0, 0);
+      f.put(geo.cylinder(r, r, d, 18), wall, 0, 0.18, 0, { rx: Math.PI / 2, sx: w / 2 / r });
+      for (let z = -d / 2 + 0.3; z < d / 2; z += 0.6) f.put(geo.torus(r + 0.01, 0.03, 6, 20), shade(wall, 0.86), 0, 0.18, z, { sx: w / 2 / r });
+      f.put(geo.box(w * 0.5, 0.06, d), SNOW, 0, 0.18 + r + 0.02, 0);
+      f.put(geo.box(w * 0.8, Math.min(2.2, r), 0.1), shade(wall, 0.92), 0, 0.18 + Math.min(2.2, r) / 2, d / 2);
+      g.put(geo.box(w * 0.45, 1.0, 0.05), WINDOW, -w * 0.12, 1.1, d / 2 + 0.06);
+      f.put(geo.box(0.7, 1.5, 0.08), st.shopRoof, w * 0.25, 0.93, d / 2 + 0.06);
+      f.put(geo.box(w * 0.5, 0.3, 0.06), accent, 0, Math.min(2.2, r) + 0.35, d / 2 + 0.05);
+      goodsOut();
+      break;
+    }
+    case 'pod': {
+      // a dome shop: a drum with a glowing band of windows under a lavender dome and a ring at its crown
+      const r = Math.min(w, d) / 2;
+      f.put(geo.cylinder(r + 0.15, r + 0.25, 0.2, 22), 0xd9dae6, 0, 0.1, 0);
+      f.put(geo.cylinder(r, r, h - r * 0.55, 22), wall, 0, 0.2 + (h - r * 0.55) / 2, 0);
+      f.put(geo.sphere(r, 22, 10), st.shopRoof, 0, 0.2 + h - r * 0.55, 0, { sy: 0.55 });
+      f.put(geo.sphere(r * 0.6, 14, 6), SNOW, 0, 0.2 + h - r * 0.1, 0, { sy: 0.18 });
+      g.put(geo.torus(r + 0.01, 0.09, 6, 30), 0xe6dcff, 0, 1.5, 0, { rx: Math.PI / 2 });
+      f.put(geo.box(1.0, 1.6, 0.4), shade(wall, 0.92), 0, 0.8, r - 0.1);
+      f.put(geo.box(0.7, 1.4, 0.06), st.shopRoof, 0, 0.72, r + 0.12);
+      goodsOut();
+      break;
+    }
+    default: {
+      f.put(geo.boxBase(w, h, d), wall, 0, 0, 0);
+      // roof: a shallow gable (eras 2-5)
+      f.gable(w, d, h, 0.7, st.shopRoof);
+      // shop window + door, a sign board, a striped awning over the window
+      f.put(geo.box(w - 0.5, 1.4, 0.08), shade(wall, 0.72), -0.35, 1.25, d / 2);
+      g.put(geo.box(w - 1.7, 1.15, 0.06), WINDOW, -0.85, 1.25, d / 2 + 0.03);
+      f.put(geo.box(0.8, 1.6, 0.1), shade(st.shopRoof, 0.95), w / 2 - 0.75, 0.8, d / 2 + 0.01);
+      sign(h - 0.45, d / 2 + 0.03);
+      stripe(2.25, d / 2 + 0.45, 0.95, 0.38);
+      // goods outside: a crate and a barrel in the era's resource colours
+      goodsOut();
+    }
   }
-  // shop window + door, a sign board, a striped awning over the window
-  f.put(geo.box(w - 0.5, 1.4, 0.08), shade(wall, 0.72), -0.35, 1.25, d / 2);
-  g.put(geo.box(w - 1.7, 1.15, 0.06), WINDOW, -0.85, 1.25, d / 2 + 0.03);
-  f.put(geo.box(0.8, 1.6, 0.1), shade(st.shopRoof, 0.95), w / 2 - 0.75, 0.8, d / 2 + 0.01);
-  f.put(geo.box(w * 0.7, 0.5, 0.1), CREAM, 0, h - 0.45, d / 2 + 0.03);
-  f.put(geo.box(w * 0.5, 0.14, 0.04), accent, 0, h - 0.45, d / 2 + 0.09);
-  stripe(2.25, d / 2 + 0.45, 0.95, 0.38);
-  // goods outside: a crate and a barrel in the era's resource colours
-  f.put(geo.boxBase(0.5, 0.45, 0.45), goods[i % 2]!, -w / 2 + 0.4, 0, d / 2 + 0.45);
-  f.put(geo.cylinder(0.22, 0.22, 0.6, 10), goods[(i + 1) % 2]!, -w / 2 + 0.95, 0.3, d / 2 + 0.4);
 }
 
 /** A rounded heap / ridge / crystal / pool along a bed rect (rows along X). */
@@ -433,11 +554,97 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
       break;
     }
     case 'crystals': {
-      for (let x = r.minX + 0.6; x < r.maxX - 0.5; x += rng.range(0.9, 1.5)) {
-        const hgt = rng.range(0.5, 0.95);
-        glowTo.add(geo.cylinder(0.02, 0.2, hgt, 6), color, x, hgt / 2, cz + rng.range(-0.25, 0.25), { rz: rng.range(-0.3, 0.3), rx: rng.range(-0.3, 0.3) });
-        body.add(geo.dodecahedron(0.18), mix(color, 0x8a8684, 0.35), x + 0.2, 0.08, cz + 0.2);
+      // a row of crystals along a strip bed, or a clump filling a square one
+      const zs = dz > 1.6 ? [r.minZ + dz * 0.3, r.minZ + dz * 0.7] : [cz];
+      for (const z of zs) {
+        for (let x = r.minX + 0.5; x < r.maxX - 0.4; x += rng.range(0.6, 1.4)) {
+          const hgt = rng.range(0.5, 0.95);
+          glowTo.add(geo.cylinder(0.02, 0.2, hgt, 6), color, x, hgt / 2, z + rng.range(-0.25, 0.25), { rz: rng.range(-0.3, 0.3), rx: rng.range(-0.3, 0.3) });
+          body.add(geo.dodecahedron(0.18), mix(color, 0x8a8684, 0.35), x + 0.2, 0.08, z + 0.2);
+        }
       }
+      break;
+    }
+    case 'outcrop': {
+      // a rocky clump of copper ore, green patina on its shoulders
+      const cx = (r.minX + r.maxX) / 2;
+      const s = Math.min(len, dz) / 2;
+      body.add(geo.dodecahedron(1), mix(color, 0x8a8684, 0.3), cx, s * 0.35, cz, { sx: s * 0.75, sy: 0.9, sz: s * 0.7 });
+      body.add(geo.dodecahedron(0.5), color, cx + s * 0.45, 0.3, cz + s * 0.3, { sx: 0.9, sy: 0.8 });
+      body.add(geo.dodecahedron(0.4), shade(color, 1.1), cx - s * 0.5, 0.25, cz + s * 0.25);
+      body.add(geo.sphere(0.5, 8, 5), 0x6fb8a0, cx - s * 0.1, s * 0.35 + 0.65, cz - 0.1, { sx: s * 0.6, sy: 0.25, sz: s * 0.5 });
+      body.add(geo.sphere(0.5, 8, 5), SNOW, cx + 0.1, s * 0.35 + 0.85, cz, { sx: s * 0.35, sy: 0.15, sz: s * 0.3 });
+      break;
+    }
+    case 'jack': {
+      // a pumpjack on a gravel pad with its wellhead: walking beam, horse head, counterweight
+      const cx = (r.minX + r.maxX) / 2;
+      body.add(geo.box(len, 0.06, dz), 0x9b958e, cx, 0.04, cz);
+      body.add(geo.boxBase(1.6, 0.25, 0.9), 0x8a8580, cx, 0, cz);
+      for (const s of [-0.3, 0.3]) body.add(geo.box(0.12, 1.9, 0.12), shade(color, 1.3), cx, 1.15, cz + s, { rx: -s * 0.35 });
+      body.add(geo.box(2.4, 0.22, 0.24), 0xd9a63a, cx + 0.2, 2.05, cz, { rz: 0.12 });
+      body.add(geo.box(0.35, 0.8, 0.3), 0xd9a63a, cx + 1.45, 1.75, cz, { rz: 0.12 });
+      body.add(geo.cylinder(0.45, 0.45, 0.25, 12), color, cx - 1.0, 1.0, cz, { rx: Math.PI / 2 });
+      body.add(geo.cylinder(0.14, 0.18, 0.7, 8), 0x5f5f66, cx + 1.45, 0.35, cz);
+      body.add(geo.box(2.4, 0.06, 0.26), SNOW, cx + 0.2, 2.19, cz, { rz: 0.12 });
+      // a crude-oil seep beside the wellhead
+      body.add(geo.cylinder(1, 1, 0.03, 14), color, cx + 0.6, 0.06, cz + dz * 0.32, { sx: 0.55, sz: 0.3 });
+      break;
+    }
+    case 'tank': {
+      // a gas storage sphere on legs, a stair and a glowing valve band
+      const cx = (r.minX + r.maxX) / 2;
+      const rad = Math.min(len, dz) / 2 - 0.35;
+      body.add(geo.box(len, 0.06, dz), 0xa9a49c, cx, 0.04, cz);
+      for (const [lx, lz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) body.add(geo.box(0.14, 0.9, 0.14), 0x8f8a84, cx + lx * rad * 0.6, 0.45, cz + lz * rad * 0.6);
+      body.add(geo.sphere(rad, 18, 12), 0xeee8de, cx, 0.5 + rad * 0.55, cz, { sy: 0.55 });
+      body.add(geo.torus(rad * 0.98, 0.07, 6, 28), color, cx, 0.5 + rad * 0.55, cz, { rx: Math.PI / 2 });
+      body.add(geo.sphere(rad * 0.7, 12, 6), SNOW, cx, 0.5 + rad * 1.0, cz, { sy: 0.15 });
+      break;
+    }
+    case 'cleanroom': {
+      // a white clean-room block where the silicon is pulled: glazed front, roof vents
+      const cx = (r.minX + r.maxX) / 2;
+      body.add(geo.boxBase(len - 0.2, 2.0, dz - 0.2), color, cx, 0, cz);
+      body.add(geo.box(len, 0.14, dz), 0xc9ccd2, cx, 2.07, cz);
+      body.add(geo.box(len - 0.1, 0.05, dz - 0.1), SNOW, cx, 2.17, cz);
+      for (const dx of [-len / 4, len / 4]) body.add(geo.cylinder(0.3, 0.3, 0.4, 10), 0xb8bec4, cx + dx, 2.4, cz - dz / 4);
+      glow.add(geo.box(len - 1.2, 0.9, 0.05), 0xbfeff0, cx, 1.15, r.maxZ - 0.07);
+      body.add(geo.box(0.9, 1.6, 0.08), 0x9fb0b8, cx + len / 2 - 0.9, 0.8, r.maxZ - 0.05);
+      break;
+    }
+    case 'pit': {
+      // a square pit with a concrete rim, glowing ore inside
+      const cx = (r.minX + r.maxX) / 2;
+      body.add(geo.boxBase(len, 0.35, 0.25), 0xb8bdbf, cx, 0, r.minZ + 0.12).add(geo.boxBase(len, 0.35, 0.25), 0xb8bdbf, cx, 0, r.maxZ - 0.12);
+      body.add(geo.boxBase(0.25, 0.35, dz), 0xb8bdbf, r.minX + 0.12, 0, cz).add(geo.boxBase(0.25, 0.35, dz), 0xb8bdbf, r.maxX - 0.12, 0, cz);
+      body.add(geo.box(len - 0.5, 0.02, dz - 0.5), shade(color, 0.45), cx, 0.03, cz);
+      for (let k = 0; k < 4; k++) glowTo.add(geo.dodecahedron(0.22), color, cx + rng.range(-0.6, 0.6), 0.2, cz + rng.range(-0.6, 0.6));
+      // a hazard flag on the rim
+      body.add(geo.box(0.05, 0.7, 0.05), 0x6f6c6b, r.maxX - 0.15, 0.35 + 0.35, r.minZ + 0.15).add(geo.box(0.04, 0.2, 0.3), 0xe8c547, r.maxX - 0.15, 0.62, r.minZ + 0.32);
+      break;
+    }
+    case 'geode': {
+      // a split geode: a rough shell with a ring of glowing crystals in its heart
+      const cx = (r.minX + r.maxX) / 2;
+      const s = Math.min(len, dz) / 2;
+      body.add(geo.sphere(1, 12, 8), 0x9a93a8, cx, 0, cz, { sx: s * 0.95, sy: s * 0.55, sz: s * 0.95 });
+      body.add(geo.cylinder(s * 0.6, s * 0.7, 0.06, 14), shade(color, 0.6), cx, s * 0.5, cz);
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        glowTo.add(geo.cylinder(0.02, 0.12, s * 0.55, 6), color, cx + Math.cos(a) * s * 0.35, s * 0.5 + s * 0.2, cz + Math.sin(a) * s * 0.35, { rz: Math.cos(a) * 0.4, rx: -Math.sin(a) * 0.4 });
+      }
+      body.add(geo.sphere(1, 10, 5), SNOW, cx - s * 0.3, s * 0.42, cz - s * 0.3, { sx: s * 0.35, sy: 0.12, sz: s * 0.3 });
+      break;
+    }
+    case 'pad': {
+      // a helium-3 skimmer pad: a round deck, a glowing landing ring and a little beacon mast
+      const cx = (r.minX + r.maxX) / 2;
+      const s = Math.min(len, dz) / 2;
+      body.add(geo.cylinder(s, s + 0.1, 0.3, 22), 0xd9dae6, cx, 0.15, cz);
+      glowTo.add(geo.torus(s * 0.7, 0.05, 6, 28), color, cx, 0.32, cz, { rx: Math.PI / 2 });
+      body.add(geo.cylinder(0.05, 0.05, 1.0, 6), 0xa9a6b8, cx + s - 0.3, 0.8, cz - s + 0.3);
+      glowTo.add(geo.sphere(0.12, 8, 6), 0xb9a3e8, cx + s - 0.3, 1.32, cz - s + 0.3);
       break;
     }
     case 'vents': {
@@ -448,6 +655,140 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
       }
       break;
     }
+  }
+}
+
+/** The yard floor's era pattern on top of its paving (the machine cells stay marked over it). */
+function buildYardPattern(body: Batch, glow: Batch, st: PlotStyle, Y: Rect, rng: Rng): void {
+  const w = Y.maxX - Y.minX;
+  const d = Y.maxZ - Y.minZ;
+  const cx = (Y.minX + Y.maxX) / 2;
+  const cz = (Y.minZ + Y.maxZ) / 2;
+  switch (st.yard) {
+    case 'flags':
+      // big two-tone flagstones, offset every other course
+      for (let j = 0, z = Y.minZ + 0.1; z < Y.maxZ - 0.5; j++, z += 1.8) {
+        for (let x = Y.minX + 0.1 + (j % 2) * 1.1; x < Y.maxX - 0.5; x += 2.2) {
+          const fw = Math.min(2.0, Y.maxX - 0.1 - x);
+          const fd = Math.min(1.6, Y.maxZ - 0.1 - z);
+          if (fw > 0.4 && fd > 0.4) body.add(geo.box(fw, 0.008, fd), shade(st.pave, rng.range(0.93, 1.05)), x + fw / 2, 0.028, z + fd / 2);
+        }
+      }
+      break;
+    case 'asphalt':
+      // dark tarmac with oil stains and a painted edge line
+      body.add(geo.box(w - 0.4, 0.008, d - 0.4), shade(st.pave, 0.82), cx, 0.027, cz);
+      for (let k = 0; k < Math.round((w * d) / 30); k++) body.add(geo.circleGround(1, 12), 0x55504e, rng.range(Y.minX + 1, Y.maxX - 1), 0.03 + (k % 8) * 0.0003, rng.range(Y.minZ + 1, Y.maxZ - 1), { sx: rng.range(0.3, 0.9), sz: rng.range(0.2, 0.6), ry: rng.range(0, 3) });
+      for (const z of [Y.minZ + 0.35, Y.maxZ - 0.35]) body.add(geo.box(w - 0.6, 0.01, 0.12), st.line, cx, 0.036, z);
+      break;
+    case 'tiles':
+      // a fine clean-room tile grid
+      for (let x = Y.minX + 1.25; x < Y.maxX; x += 1.25) body.add(geo.box(0.04, 0.008, d - 0.3), shade(st.pave, 0.9), x, 0.03, cz);
+      for (let z = Y.minZ + 1.25; z < Y.maxZ; z += 1.25) body.add(geo.box(w - 0.3, 0.008, 0.04), shade(st.pave, 0.9), cx, 0.03, z);
+      break;
+    case 'hazard':
+      // a yellow-and-grey hazard border round the yard
+      for (let x = Y.minX + 0.4; x < Y.maxX - 0.4; x += 1.0) {
+        const c = Math.round((x - Y.minX) / 1.0) % 2 ? st.line : 0x6f6c6b;
+        for (const z of [Y.minZ + 0.3, Y.maxZ - 0.3]) body.add(geo.box(0.98, 0.01, 0.4), c, x + 0.5, 0.034, z, { ry: 0 });
+      }
+      for (let z = Y.minZ + 0.6; z < Y.maxZ - 0.6; z += 1.0) {
+        const c = Math.round((z - Y.minZ) / 1.0) % 2 ? st.line : 0x6f6c6b;
+        for (const x of [Y.minX + 0.3, Y.maxX - 0.3]) body.add(geo.box(0.4, 0.01, 0.98), c, x, 0.034, z + 0.5);
+      }
+      break;
+    case 'rings':
+      // lavender regolith marked with soft landing rings
+      for (let k = 0; k < Math.max(2, Math.round(w / 14)); k++) {
+        const x = Y.minX + ((k + 0.5) * w) / Math.max(2, Math.round(w / 14));
+        body.add(geo.ringGround(2.4, 2.7, 32), st.line, x, 0.03, cz);
+        glow.add(geo.ringGround(0.5, 0.62, 18), 0xe6dcff, x, 0.032, cz);
+      }
+      break;
+    default:
+  }
+}
+
+/** One market street / forecourt / plaza in the era's style. */
+function buildStreet(body: Batch, st: PlotStyle, P: PlotPlaces, S: Rect, rng: Rng): void {
+  const w = S.maxX - S.minX;
+  const d = S.maxZ - S.minZ;
+  const cx = (S.minX + S.maxX) / 2;
+  const cz = (S.minZ + S.maxZ) / 2;
+  body.add(geo.box(w, 0.03, d), st.street, cx, 0.03, cz);
+  switch (P.plan.street) {
+    case 'strip':
+      // the forecourt: parking bays and a white kerb on the road side
+      for (let x = S.minX + 3; x < S.maxX - 1; x += 3) body.add(geo.box(0.1, 0.01, d * 0.42), 0xf2efe8, x, 0.05, S.maxZ - d * 0.25);
+      body.add(geo.box(w, 0.12, 0.22), shade(st.street, 1.3), cx, 0.06, S.maxZ);
+      break;
+    case 'court':
+    case 'crescent':
+      // a paved plaza: a border of lighter setts and a round centrepiece
+      body.add(geo.box(w - 0.8, 0.01, d - 0.8), shade(st.street, 1.08), cx, 0.045, cz);
+      body.add(geo.ringGround(Math.min(w, d) * 0.22, Math.min(w, d) * 0.28, 36), shade(st.street, 0.86), cx, 0.055, cz);
+      body.add(geo.cylinder(0.9, 1.0, 0.45, 18), shade(st.shop, 0.92), cx, 0.22, cz);
+      body.add(geo.sphere(0.7, 12, 8), 0xf4f8ff, cx, 0.45, cz, { sy: 0.5 });
+      break;
+    case 'campus':
+      // a walkway of pale slabs with lawn strips either side
+      for (let x = S.minX + 0.6; x < S.maxX - 0.6; x += 1.6) body.add(geo.box(1.3, 0.01, d - 0.5), shade(st.street, rng.range(1.02, 1.08)), x + 0.65, 0.045, cz);
+      break;
+    default:
+      for (const z of [S.minZ, S.maxZ]) body.add(geo.box(w, 0.12, 0.22), shade(st.street, 1.12), cx, 0.06, z);
+  }
+}
+
+/** The field's own dressing beyond its beds: the hazard fence, the crater bowl, the pipelines, the dune ripples. */
+function buildFieldDressing(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlaces, rng: Rng): void {
+  const F = P.field;
+  const cx = (F.minX + F.maxX) / 2;
+  const cz = (F.minZ + F.maxZ) / 2;
+  switch (P.plan.field) {
+    case 'pits':
+      for (const r of fenceSides(F)) {
+        const along = r.maxX - r.minX > r.maxZ - r.minZ;
+        const len = along ? r.maxX - r.minX : r.maxZ - r.minZ;
+        const mx = (r.minX + r.maxX) / 2;
+        const mz = (r.minZ + r.maxZ) / 2;
+        for (const y of [0.55, 1.05]) body.add(geo.box(along ? len : 0.06, 0.07, along ? 0.06 : len), 0xb8bdbf, mx, y, mz);
+        for (let t = 0; t <= len + 0.01; t += 2.4) {
+          const x = along ? r.minX + Math.min(t, len) : mx;
+          const z = along ? mz : r.minZ + Math.min(t, len);
+          body.add(geo.boxBase(0.1, FENCE_H, 0.1), 0x8a8f92, x, 0, z);
+        }
+      }
+      // hazard signs on the fence's camera sides
+      for (let x = F.minX + 4; x < F.maxX - 3; x += 9) body.add(geo.box(0.7, 0.5, 0.04), st.line, x, 0.85, F.maxZ - 0.22).add(geo.box(0.3, 0.3, 0.05), 0x3d3a39, x, 0.85, F.maxZ - 0.2);
+      break;
+    case 'crater': {
+      const R = Math.min(F.maxX - F.minX, F.maxZ - F.minZ) / 2 - 1.8;
+      body.add(geo.circleGround(R, 40), mix(st.beds[1], 0x8a8684, 0.55), cx, 0.02, cz);
+      body.add(geo.circleGround(R * 0.8, 40), mix(st.beds[1], 0x6f6a7c, 0.6), cx, 0.025, cz);
+      body.add(geo.torus(R, 0.35, 6, 48), mix(st.beds[1], SNOW, 0.6), cx, 0.05, cz, { rx: Math.PI / 2, sz: 0.6 });
+      glow.add(geo.ringGround(R * 0.4, R * 0.43, 40), st.beds[1], cx, 0.03, cz);
+      break;
+    }
+    case 'rigs': {
+      // a low pipeline from each pumpjack pad east to the tank farm
+      const tanksX = Math.min(...P.beds.filter((b) => b.k === 1).map((b) => b.minX), F.maxX);
+      for (const b of P.beds) {
+        if (b.k !== 0) continue;
+        const z = (b.minZ + b.maxZ) / 2 + 0.9;
+        const x0 = b.maxX;
+        if (tanksX - x0 > 0.3) body.add(geo.box(tanksX - x0, 0.14, 0.14), 0x8a8580, (x0 + tanksX) / 2, 0.2, z);
+      }
+      break;
+    }
+    case 'dunes':
+      // wind ripples in the sand between the dunes
+      for (let k = 0; k < 18; k++) body.add(geo.box(rng.range(1.5, 3.5), 0.01, 0.08), shade(st.beds[1], 0.9), rng.range(F.minX + 2, F.maxX - 2), 0.03, rng.range(F.minZ + 1, F.maxZ - 1), { ry: rng.range(-0.25, 0.25) });
+      break;
+    case 'grove':
+      // stepping stones winding through the grove
+      for (let k = 0, x = F.minX + 1; x < F.maxX - 1; k++, x += 1.3) body.add(geo.circleGround(0.4, 10), shade(st.pave, 0.95), x, 0.03, cz + Math.sin(k * 0.7) * 2.5);
+      break;
+    default:
   }
 }
 
@@ -543,10 +884,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
       for (let z = z0 + 0.5; z <= Y.maxZ + 0.01; z += L.rowPitch) body.add(geo.box(Y.maxX - Y.minX - 0.6, 0.01, 0.1), st.line, (Y.minX + Y.maxX) / 2, 0.034, Math.min(z, Y.maxZ - 0.05));
     }
   }
-  for (const S of P.streets) {
-    body.add(geo.box(S.maxX - S.minX, 0.03, S.maxZ - S.minZ), st.street, (S.minX + S.maxX) / 2, 0.03, (S.minZ + S.maxZ) / 2);
-    for (const z of [S.minZ, S.maxZ]) body.add(geo.box(S.maxX - S.minX, 0.12, 0.22), shade(st.street, 1.12), (S.minX + S.maxX) / 2, 0.06, z);
-  }
+  buildYardPattern(body, glow, st, Y, rng);
+  for (const S of P.streets) buildStreet(body, st, P, S, rng);
   P.shops.forEach((s, i) => buildShop(body, glow, st, s, i, e.colors.accent, goods));
   const bulbs = new Batch();
   for (const l of P.lamps) {
@@ -554,10 +893,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
     body.add(geo.box(0.5, 0.08, 0.12), shade(st.shopRoof, 0.85), l.x, 2.95, l.z + L.inward * 0.18);
     bulbs.add(geo.sphere(0.17, 10, 8), 0xffffff, l.x, 2.82, l.z + L.inward * 0.38);
   }
-  P.beds.forEach((b, i) => {
-    const second = i % 2 === 1;
-    buildBed(body, glow, second ? st.beds[2] : st.beds[0], second ? st.beds[3] : st.beds[1], b, rng, !!st.glow && second);
-  });
+  for (const b of P.beds) buildBed(body, glow, bedKind(st, b.k), bedColor(st, b.k), b, rng, !!st.glow?.includes(b.k));
+  buildFieldDressing(body, glow, st, P, rng);
   buildGreen(body, glow, st, P, e.colors.accent, e.colors.glow);
 
   const statics = body.mesh({ cast: true, receive: true });

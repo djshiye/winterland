@@ -221,22 +221,56 @@ export interface ShopPlace {
   stall: boolean;
 }
 
+/**
+ * How each era lays its places out (R37: every era area has its own look, built around its resource). Eras 2-5 share
+ * the era-1 pattern (an L of huts, rows of shops, rows of beds); from era 6 each era has a shape of its own:
+ *  6 copper + quartz: an arcaded terrace boulevard, a grove of outcrops and crystal clumps
+ *  7 crude + gas:     a trailer park, a roadside strip with a fuel canopy, scattered pumpjack pads and a tank farm
+ *  8 silica + gold:   a modular terrace, a staggered tech campus, wind-swept dunes with a clean-room block
+ *  9 uranium + graphite: quonset barracks, shops round a courtyard, a fenced hazard yard of pits
+ * 10 rare earth + He-3: pods in an arc, a crescent of dome shops, a geode crater ringed with skimmer pads
+ */
+export type HutShape = 'L' | 'park' | 'terrace' | 'barracks' | 'arc';
+export type StreetShape = 'rows' | 'arcade' | 'strip' | 'campus' | 'court' | 'crescent';
+export type FieldShape = 'rows' | 'grove' | 'rigs' | 'dunes' | 'pits' | 'crater';
+
+export interface PlotPlan {
+  huts: HutShape;
+  street: StreetShape;
+  field: FieldShape;
+}
+
+const PLOT_PLAN: Readonly<Record<number, PlotPlan>> = {
+  6: { huts: 'L', street: 'arcade', field: 'grove' },
+  7: { huts: 'park', street: 'strip', field: 'rigs' },
+  8: { huts: 'terrace', street: 'campus', field: 'dunes' },
+  9: { huts: 'barracks', street: 'court', field: 'pits' },
+  10: { huts: 'arc', street: 'crescent', field: 'crater' },
+};
+
+export function plotPlan(n: number): PlotPlan {
+  return PLOT_PLAN[n] ?? { huts: 'L', street: 'rows', field: 'rows' };
+}
+
+/** One resource bed of the harvest field; `k` picks the era's bed kind (0 = main resource, 1 = second, 2 = special). */
+export type BedPlace = ERect & { k: 0 | 1 | 2 };
+
 /** 0.9.7: where each era-1-style place of a region stands (R34). World rects / points, deterministic, pure. */
 export interface PlotPlaces {
-  /** Seven crew homes in an L round a little green, one per crew role. */
+  plan: PlotPlan;
+  /** Seven crew homes round a little green, one per crew role. */
   huts: HutPlace[];
   /** The crew green the huts face (a fire pit / well / kiosk stands in its middle). */
   green: ERect;
-  /** The market streets: paved strips across the back of the market (1 to 3, more in deeper markets), each with its
-   * row of shopfronts on its north side and lamps on its south kerb. */
+  /** The market's paved ground: streets, a forecourt or a plaza (1 to 3), each with its shopfronts beside it. */
   streets: ERect[];
   shops: ShopPlace[];
   lamps: XZ[];
   /** The processing yard's paved floor under the whole machine grid (room slots, not only the live ones). */
   yardPave: ERect;
-  /** The harvest field: the era's resource beds east of the hand node, rows along X. */
+  /** The harvest field: the era's resource beds east of the hand node. */
   field: ERect;
-  beds: ERect[];
+  beds: BedPlace[];
 }
 
 /** Hut body footprint limits (metres) and the depth the annex adds behind it. */
@@ -264,6 +298,292 @@ function depthOf(L: RegionLayout, z: number): number {
   return (z - L.gate.z) * L.inward;
 }
 
+// The places face the camera (it sits toward +X/+Z), so their doors, windows and awnings show: every gate is on the
+// north edge since 0.9.5, so "toward the camera" is also "away from the gate" (south) and east.
+const faceSouth = 0; // local +Z → world +Z
+const faceEast = Math.PI / 2; // local +Z → world +X
+
+/** The seven crew huts (roles 0..6, in order) and their green inside the huts area x0..x1 × z0..z1. */
+function hutPlaces(shape: HutShape, hx0: number, hx1: number, hz0: number, hz1: number): { huts: HutPlace[]; green: ERect } {
+  const huts: HutPlace[] = [];
+  const south = (role: number, x: number, z: number, w: number): void => void huts.push({ role, x, z, yaw: faceSouth, w, d: HUT_D, backX: 0, backZ: -1 });
+  const east = (role: number, x: number, z: number, w: number): void => void huts.push({ role, x, z, yaw: faceEast, w, d: HUT_D, backX: -1, backZ: 0 });
+  switch (shape) {
+    case 'park': {
+      // a trailer park: two staggered rows, doors south, the second row in the gaps of the first
+      const pitch = Math.min(9, (hx1 - hx0) / 4);
+      const w = Math.min(HUT_W, pitch - 0.9);
+      const zA = hz0 + HUT_ANNEX + HUT_D / 2;
+      const zB = zA + HUT_D + HUT_ANNEX + 2.4;
+      for (let i = 0; i < 4; i++) south(i, hx0 + pitch * (i + 0.5), zA, w);
+      for (let i = 0; i < 3; i++) south(4 + i, hx0 + pitch * (i + 1), zB, w);
+      return { huts, green: { minX: hx0 + 1, maxX: hx1 - 1, minZ: zB + HUT_D / 2 + 1.2, maxZ: hz1 } };
+    }
+    case 'terrace': {
+      // one modular terrace of seven units side by side, doors south onto a wide plaza
+      const pitch = (hx1 - hx0) / 7;
+      const w = Math.min(HUT_W, pitch - 0.45);
+      const z = hz0 + HUT_ANNEX + HUT_D / 2;
+      for (let i = 0; i < 7; i++) south(i, hx0 + pitch * (i + 0.5), z, w);
+      return { huts, green: { minX: hx0 + 1, maxX: hx1 - 1, minZ: z + HUT_D / 2 + 1.5, maxZ: hz1 } };
+    }
+    case 'barracks': {
+      // two columns of quonset huts, doors east, the second column staggered; the parade green east of them
+      const pitch = Math.min(9, (hz1 - hz0) / 4);
+      const w = Math.min(HUT_W, pitch - 0.9);
+      const xA = hx0 + HUT_ANNEX + HUT_D / 2;
+      const xB = xA + HUT_D + HUT_ANNEX + 2.4;
+      for (let i = 0; i < 4; i++) east(i, xA, hz0 + pitch * (i + 0.5), w);
+      for (let i = 0; i < 3; i++) east(4 + i, xB, hz0 + pitch * (i + 1), w);
+      return { huts, green: { minX: xB + HUT_D / 2 + 1.2, maxX: hx1, minZ: hz0 + 0.5, maxZ: hz1 - 0.5 } };
+    }
+    default: {
+      // an L round the green: a row along the north edge (doors south) and a column along the west edge (doors
+      // east); annexes grow behind them. 'arc' bends the L's ends toward the camera, round the green.
+      const bend = shape === 'arc' ? [0, 0, 0.9, 2.0] : [0, 0, 0, 0];
+      const bendCol = shape === 'arc' ? [0, 0.9, 2.0] : [0, 0, 0];
+      const rowPitch = Math.min(9, (hx1 - hx0) / 4);
+      const rowW = Math.min(HUT_W, rowPitch - 0.9);
+      const rowZ = hz0 + HUT_ANNEX + HUT_D / 2;
+      for (let i = 0; i < 4; i++) south(i, hx0 + rowPitch * (i + 0.5), rowZ + bend[i]!, rowW);
+      const colTop = rowZ + HUT_D / 2 + 1.0;
+      const colPitch = Math.min(9, (hz1 - colTop) / 3);
+      const colW = Math.min(HUT_W, colPitch - 0.9);
+      const colX = hx0 + HUT_ANNEX + HUT_D / 2;
+      for (let i = 0; i < 3; i++) east(4 + i, colX + bendCol[i]!, colTop + colPitch * (i + 0.5), colW);
+      const greenX1 = Math.min(hx1, hx0 + rowPitch * 4) - 0.6;
+      const inX = shape === 'arc' ? 3.0 : 1.0;
+      const minZ = shape === 'arc' ? rowZ + HUT_D / 2 + 3.0 : colTop;
+      const green: ERect = { minX: colX + HUT_D / 2 + inX, maxX: Math.max(colX + HUT_D / 2 + inX + 4, greenX1), minZ, maxZ: Math.min(hz1, colTop + colPitch * 3) };
+      return { huts, green };
+    }
+  }
+}
+
+/** The market's streets / forecourt / plaza with their shops and lamps, past the counters and the vault. */
+function marketStreets(shape: StreetShape, L: RegionLayout, n: number): { streets: ERect[]; shops: ShopPlace[]; lamps: XZ[] } {
+  const M = L.zones.market;
+  const mFar = Math.max(depthOf(L, M.minZ), depthOf(L, M.maxZ));
+  const mx0 = M.minX + 2.4;
+  const mx1 = M.maxX - 1.4;
+  const avail = mFar - 1.0 - STREET_MIN_DEPTH;
+  const streets: ERect[] = [];
+  const shops: ShopPlace[] = [];
+  const lamps: XZ[] = [];
+  const zAt = (depth: number): number => L.gate.z + L.inward * depth;
+  const height = (i: number, row: number): number => 2.9 + ((i * 7 + n + row * 5) % 3) * 0.3;
+  const lampRow = (x0: number, x1: number, depth: number, every: number): void => {
+    const k = Math.max(2, Math.round((x1 - x0) / every));
+    for (let i = 0; i < k; i++) lamps.push({ x: x0 + ((x1 - x0) * (i + 0.5)) / k, z: zAt(depth) });
+  };
+  /** Rows of shopfronts, each with its street in front (the era-1 pattern and its variants). */
+  const rows = (o: { streetW: number; gap: number; shopW: (pitch: number) => number; minPitch: number; lampIn: boolean }): void => {
+    const need = SHOP_D + 0.4 + o.streetW;
+    const rowsN = Math.max(1, Math.min(3, Math.floor((avail + o.gap) / (need + o.gap))));
+    const slack = Math.max(0, avail - rowsN * need - (rowsN - 1) * o.gap);
+    const first = STREET_MIN_DEPTH + Math.min(3, slack / 2);
+    const count = Math.max(3, Math.floor((mx1 - mx0) / o.minPitch));
+    const pitch = (mx1 - mx0) / count;
+    for (let row = 0; row < rowsN; row++) {
+      const shopNear = first + row * (need + o.gap);
+      const streetNear = shopNear + SHOP_D + 0.4;
+      streets.push(depthRect(L, mx0, mx1, streetNear, streetNear + o.streetW));
+      // the open stall sits mid-row on the first street, then shifts so the rows don't line up
+      const stallAt = Math.floor((count - 1) / 2);
+      for (let i = 0; i < count; i++) {
+        const stall = row === 0 && i === stallAt;
+        shops.push({ x: mx0 + pitch * (i + 0.5), z: zAt(shopNear + SHOP_D / 2), yaw: faceSouth, w: o.shopW(pitch), d: SHOP_D, h: stall ? 2.5 : height(i, row), stall });
+      }
+      lampRow(mx0, mx1, o.lampIn ? streetNear + o.streetW - 0.35 : streetNear + o.streetW + 0.45, 7);
+    }
+  };
+
+  switch (shape) {
+    case 'arcade':
+      // attached shopfronts under one arcade along a broad boulevard; lamps stand on the boulevard's edge
+      rows({ streetW: 3.8, gap: 0.6, shopW: (p) => p - 0.12, minPitch: 4.4, lampIn: true });
+      break;
+    case 'strip': {
+      // a roadside strip: a few wide low shops behind a deep forecourt, the fuel canopy (the stall) at its east end
+      const count = Math.max(3, Math.floor((mx1 - mx0) / 7.2));
+      const pitch = (mx1 - mx0) / count;
+      const shopNear = STREET_MIN_DEPTH + Math.min(2, Math.max(0, avail - 11) / 2);
+      const courtNear = shopNear + SHOP_D + 0.4;
+      streets.push(depthRect(L, mx0, mx1, courtNear, courtNear + 7));
+      for (let i = 0; i < count; i++) {
+        const stall = i === count - 1;
+        shops.push({ x: mx0 + pitch * (i + 0.5), z: zAt(shopNear + SHOP_D / 2), yaw: faceSouth, w: Math.min(6.4, pitch - 0.8), d: SHOP_D, h: stall ? 3.0 : 2.6 + (i % 2) * 0.3, stall });
+      }
+      lampRow(mx0, mx1, courtNear + 7 + 0.45, 8);
+      break;
+    }
+    case 'campus': {
+      // a tech campus: two rows of mixed-width pavilions, every other one set back, with lawn between the rows
+      const STAG = 1.2;
+      const walk = 2.8;
+      const gap = 2.0;
+      const need = STAG + SHOP_D + 0.4 + walk;
+      const rowsN = Math.max(1, Math.min(3, Math.floor((avail + gap) / (need + gap))));
+      const widths = [6.0, 4.0, 4.4];
+      for (let row = 0; row < rowsN; row++) {
+        const base = STREET_MIN_DEPTH + row * (need + gap);
+        const walkNear = base + STAG + SHOP_D + 0.4;
+        streets.push(depthRect(L, mx0, mx1, walkNear, walkNear + walk));
+        const placed: ShopPlace[] = [];
+        let x = mx0;
+        for (let i = 0; ; i++) {
+          const w = widths[(i + row) % widths.length]!;
+          if (x + w > mx1 + 1e-6) break;
+          const back = (i + row) % 2 === 0 ? 0 : STAG;
+          placed.push({ x: x + w / 2, z: zAt(base + back + SHOP_D / 2), yaw: faceSouth, w, d: SHOP_D, h: height(i, row), stall: false });
+          x += w + 0.9;
+        }
+        if (row === 0) {
+          const mid = placed[Math.floor((placed.length - 1) / 2)]!;
+          mid.stall = true;
+          mid.h = 2.5;
+        }
+        shops.push(...placed);
+        lampRow(mx0, mx1, walkNear + walk + 0.45, 7);
+      }
+      break;
+    }
+    case 'court': {
+      // shops round a courtyard: a row along its north side (fronts south) and a column down its west side (fronts east)
+      const shopNear = STREET_MIN_DEPTH + 0.5;
+      const plazaNear = shopNear + SHOP_D + 0.4;
+      const plazaFar = Math.min(mFar - 1.6, plazaNear + 14);
+      const px0 = mx0 + SHOP_D + 0.4;
+      streets.push(depthRect(L, px0, mx1, plazaNear, plazaFar));
+      const count = Math.max(3, Math.floor((mx1 - px0) / 5.4));
+      const pitch = (mx1 - px0) / count;
+      const stallAt = Math.floor((count - 1) / 2);
+      for (let i = 0; i < count; i++) {
+        const stall = i === stallAt;
+        shops.push({ x: px0 + pitch * (i + 0.5), z: zAt(shopNear + SHOP_D / 2), yaw: faceSouth, w: Math.min(4.6, pitch - 0.7), d: SHOP_D, h: stall ? 2.5 : height(i, 0), stall });
+      }
+      const colN = Math.max(1, Math.floor((plazaFar - plazaNear) / 5.4));
+      const colPitch = (plazaFar - plazaNear) / colN;
+      for (let i = 0; i < colN; i++) {
+        shops.push({ x: mx0 + SHOP_D / 2, z: zAt(plazaNear + colPitch * (i + 0.5)), yaw: faceEast, w: Math.min(4.6, colPitch - 0.7), d: SHOP_D, h: height(i, 1), stall: false });
+      }
+      lampRow(px0, mx1, plazaFar + 0.45, 7);
+      break;
+    }
+    case 'crescent': {
+      // dome shops on a shallow crescent, its ends swung toward the camera round a plaza
+      const W = 4.0;
+      const BEND = 2.4;
+      const plazaD = 4.5;
+      const count = Math.max(5, Math.floor((mx1 - mx0) / 5.0));
+      const pitch = (mx1 - mx0) / count;
+      const mid = (count - 1) / 2;
+      const off = (i: number): number => BEND * ((i - mid) / mid) ** 2;
+      const innerOff = off(1);
+      const need = Math.max(BEND + W, innerOff + W + 0.4 + plazaD);
+      const gap = 1.2;
+      const rowsN = Math.max(1, Math.min(3, Math.floor((avail + gap) / (need + gap))));
+      for (let row = 0; row < rowsN; row++) {
+        const base = STREET_MIN_DEPTH + row * (need + gap);
+        const plazaNear = base + innerOff + W + 0.4;
+        streets.push(depthRect(L, mx0 + pitch + 0.3, mx1 - pitch - 0.3, plazaNear, plazaNear + plazaD));
+        const stallAt = Math.floor(mid);
+        for (let i = 0; i < count; i++) {
+          const stall = row === 0 && i === stallAt;
+          shops.push({ x: mx0 + pitch * (i + 0.5), z: zAt(base + off(i) + W / 2), yaw: faceSouth, w: Math.min(W, pitch - 0.6), d: W, h: stall ? 2.5 : height(i, row), stall });
+        }
+        lampRow(mx0 + pitch, mx1 - pitch, plazaNear + plazaD + 0.45, 6);
+      }
+      break;
+    }
+    default:
+      rows({ streetW: STREET_W, gap: 1.6, shopW: (p) => Math.min(4.6, p - 0.7), minPitch: 5.4, lampIn: false });
+  }
+  return { streets, shops, lamps };
+}
+
+/** The resource beds of a harvest field `F` (world rect), laid out in the era's own pattern. */
+function fieldBeds(shape: FieldShape, F: ERect): BedPlace[] {
+  const beds: BedPlace[] = [];
+  const bed = (x0: number, z0: number, x1: number, z1: number, k: 0 | 1 | 2): void => {
+    const r = { minX: Math.max(F.minX + 0.4, x0), maxX: Math.min(F.maxX - 0.4, x1), minZ: Math.max(F.minZ + 0.4, z0), maxZ: Math.min(F.maxZ - 0.4, z1), k };
+    if (r.maxX - r.minX >= 1.2 && r.maxZ - r.minZ >= 1.2) beds.push(r);
+  };
+  const W = F.maxX - F.minX;
+  const D = F.maxZ - F.minZ;
+  switch (shape) {
+    case 'grove': {
+      // clumps of copper outcrops and quartz crystals on an offset grid, with clearings
+      for (let j = 0, z = F.minZ + 0.6; z + 2.0 <= F.maxZ - 0.4; j++, z += 3.9) {
+        for (let i = 0, x = F.minX + 0.6 + (j % 2) * 2.0; x + 2.0 <= F.maxX - 0.4; i++, x += 4.0) {
+          if ((i * 7 + j * 3) % 5 === 0) continue;
+          const big = (i + j) % 3 !== 0;
+          bed(x, z, x + (big ? 2.4 : 1.8), z + (big ? 2.4 : 1.8), big ? 0 : 1);
+        }
+      }
+      break;
+    }
+    case 'rigs': {
+      // pumpjack pads scattered over the field, a tank farm of gas spheres along its east side
+      for (let j = 0, z = F.minZ + 0.8; z + 3.0 <= F.maxZ - 0.4; j++, z += 6.4) {
+        for (let x = F.minX + 0.8 + (j % 2) * 3.6; x + 3.0 <= F.maxX - 6.0; x += 7.2) bed(x, z, x + 3.0, z + 3.0, 0);
+      }
+      for (let z = F.minZ + 1.0; z + 4.2 <= F.maxZ - 0.4; z += 5.4) bed(F.maxX - 4.8, z, F.maxX - 0.6, z + 4.2, 1);
+      break;
+    }
+    case 'dunes': {
+      // wind-swept dunes of silica sand in staggered swells, gold pans in the hollows, one clean-room block
+      const room = { minX: F.maxX - 6.0, maxX: F.maxX - 0.6, minZ: F.maxZ - 5.0, maxZ: F.maxZ - 0.6 };
+      bed(room.minX, room.minZ, room.maxX, room.maxZ, 2);
+      const lens = [7, 5, 8, 6];
+      for (let j = 0, z = F.minZ + 0.6; z + 3.0 <= F.maxZ - 0.4; j++, z += 4.4) {
+        for (let i = 0, x = F.minX + 0.6 + (j % 2) * 2.6; x < F.maxX - 1.6; i++) {
+          const pan = (i + j) % 3 === 2;
+          const len = pan ? 2.6 : lens[(i + j) % lens.length]!;
+          const d = pan ? 2.2 : 3.0;
+          const x1 = Math.min(x + len, F.maxX - 0.4);
+          const clear = x1 <= room.minX - 0.6 || z + d <= room.minZ - 0.6;
+          if (clear) bed(x, z, x1, z + d, pan ? 1 : 0);
+          x += len + 1.6;
+        }
+      }
+      break;
+    }
+    case 'pits': {
+      // a fenced hazard yard: square uranium pits in a grid, every third a stack of graphite bars
+      const p = 2.4;
+      const g = 1.4;
+      for (let j = 0, z = F.minZ + 1.2; z + p <= F.maxZ - 1.0; j++, z += p + g) {
+        for (let i = 0, x = F.minX + 1.2; x + p <= F.maxX - 1.0; i++, x += p + g) bed(x, z, x + p, z + p, (i + 2 * j) % 3 === 2 ? 1 : 0);
+      }
+      break;
+    }
+    case 'crater': {
+      // a geode crater: a big geode at its heart, a ring of geodes round it, helium-3 skimmer pads at the corners
+      const cx = (F.minX + F.maxX) / 2;
+      const cz = (F.minZ + F.maxZ) / 2;
+      const R = Math.min(W, D) / 2 - 1.8;
+      bed(cx - 1.4, cz - 1.4, cx + 1.4, cz + 1.4, 0);
+      const ring = R * 0.62;
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2;
+        const x = cx + Math.cos(a) * ring;
+        const z = cz + Math.sin(a) * ring;
+        bed(x - 1.0, z - 1.0, x + 1.0, z + 1.0, 0);
+      }
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+        const x = sx < 0 ? F.minX + 0.5 : F.maxX - 3.5;
+        const z = sz < 0 ? F.minZ + 0.5 : F.maxZ - 3.5;
+        bed(x, z, x + 3.0, z + 3.0, 1);
+      }
+      break;
+    }
+    default:
+      for (let i = 0, z = F.minZ + 0.4; z + 1.4 <= F.maxZ - 0.2; i++, z += 2.6) beds.push({ minX: F.minX + 0.4, maxX: F.maxX - 0.4, minZ: z, maxZ: z + 1.4, k: (i % 2) as 0 | 1 });
+  }
+  return beds;
+}
+
 /** Era n's places (2..10). Cached per plot shape, so the slot / room numbers are part of the key. */
 export function plotPlaces(n: number): PlotPlaces {
   const def = regionDef(n);
@@ -273,67 +593,15 @@ export function plotPlaces(n: number): PlotPlaces {
   const L = regionLayout(n);
   const Z = L.zones;
 
-  // The places face the camera (it sits toward +X/+Z), so their doors, windows and awnings show: every gate is on the
-  // north edge since 0.9.5, so "toward the camera" is also "away from the gate" (south) and east.
-  const faceSouth = 0; // local +Z → world +Z
-  const faceEast = Math.PI / 2; // local +Z → world +X
-
-  // ---- huts: an L of crew homes round a green in the zone's south-east: a row along the zone's north edge (doors
-  // south) and a column along its west edge (doors east); annexes grow behind them (north / west)
+  const plan = plotPlan(n);
   const H = Z.huts;
   const hx0 = H.minX + 2.4; // clear of the path along the column split
   const hx1 = H.maxX - 1.4; // clear of the fence
   const hz0 = H.minZ + 1.2;
   const hz1 = H.maxZ - 1.2;
-  const huts: HutPlace[] = [];
-  const rowRoles = [0, 1, 2, 3];
-  const colRoles = [4, 5, 6];
-  const rowPitch = Math.min(9, (hx1 - hx0) / rowRoles.length);
-  const rowW = Math.min(HUT_W, rowPitch - 0.9);
-  const rowZ = hz0 + HUT_ANNEX + HUT_D / 2;
-  rowRoles.forEach((role, i) => huts.push({ role, x: hx0 + rowPitch * (i + 0.5), z: rowZ, yaw: faceSouth, w: rowW, d: HUT_D, backX: 0, backZ: -1 }));
-  const colTop = rowZ + HUT_D / 2 + 1.0;
-  const colPitch = Math.min(9, (hz1 - colTop) / colRoles.length);
-  const colW = Math.min(HUT_W, colPitch - 0.9);
-  const colX = hx0 + HUT_ANNEX + HUT_D / 2;
-  colRoles.forEach((role, i) => huts.push({ role, x: colX, z: colTop + colPitch * (i + 0.5), yaw: faceEast, w: colW, d: HUT_D, backX: -1, backZ: 0 }));
-  const greenX1 = Math.min(hx1, hx0 + rowPitch * rowRoles.length) - 0.6;
-  const green: ERect = { minX: colX + HUT_D / 2 + 1.0, maxX: Math.max(colX + HUT_D / 2 + 5, greenX1), minZ: colTop, maxZ: Math.min(hz1, colTop + colPitch * colRoles.length) };
+  const { huts, green } = hutPlaces(plan.huts, hx0, hx1, hz0, hz1);
 
-  // ---- market streets behind the counters: rows of shopfronts (windows south), each with its street in front and
-  // lamps on the street's far kerb. Placed past the vault so nothing hides a pad or the cash machine. A deeper market
-  // (later eras) gets a second and third street, so the market grows into a little market town.
-  const M = Z.market;
-  const mFar = Math.max(depthOf(L, M.minZ), depthOf(L, M.maxZ));
-  const mx0 = M.minX + 2.4;
-  const mx1 = M.maxX - 1.4;
-  const need = SHOP_D + 0.4 + STREET_W;
-  const GAP = 1.6;
-  const avail = mFar - 1.0 - STREET_MIN_DEPTH;
-  const rowsN = Math.max(1, Math.min(3, Math.floor((avail + GAP) / (need + GAP))));
-  const slack = Math.max(0, avail - rowsN * need - (rowsN - 1) * GAP);
-  const first = STREET_MIN_DEPTH + Math.min(3, slack / 2);
-  const streets: ERect[] = [];
-  const shops: ShopPlace[] = [];
-  const lamps: XZ[] = [];
-  const count = Math.max(2, Math.floor((mx1 - mx0) / 5.4));
-  const pitch = (mx1 - mx0) / count;
-  for (let row = 0; row < rowsN; row++) {
-    const shopNear = first + row * (need + GAP);
-    const streetNear = shopNear + SHOP_D + 0.4;
-    streets.push(depthRect(L, mx0, mx1, streetNear, streetNear + STREET_W));
-    // the open stall sits mid-row on the first street, then shifts so the rows don't line up
-    const stallAt = (Math.floor((count - 1) / 2) + row * 2) % count;
-    for (let i = 0; i < count; i++) {
-      const x = mx0 + pitch * (i + 0.5);
-      const z = L.gate.z + L.inward * (shopNear + SHOP_D / 2);
-      const stall = row === 0 ? i === stallAt : false;
-      shops.push({ x, z, yaw: faceSouth, w: Math.min(4.6, pitch - 0.7), d: SHOP_D, h: stall ? 2.5 : 2.9 + ((i * 7 + n + row * 5) % 3) * 0.3, stall });
-    }
-    const lampN = Math.max(2, Math.round((mx1 - mx0) / 7));
-    for (let i = 0; i < lampN; i++) lamps.push({ x: mx0 + ((mx1 - mx0) * (i + 0.5)) / lampN, z: L.gate.z + L.inward * (streetNear + STREET_W + 0.45) });
-  }
-
+  const { streets, shops, lamps } = marketStreets(plan.street, L, n);
   // ---- processing yard floor: the full room grid, so slots that open later already stand on paving
   const room = Math.max(def.slots, def.room);
   const cols = Math.max(1, L.slots.filter((s) => Math.abs(s.z - L.slots[0]!.z) < 0.01).length);
@@ -349,10 +617,9 @@ export function plotPlaces(n: number): PlotPlaces {
   const fNear = Math.min(depthOf(L, F.minZ), depthOf(L, F.maxZ)) + 2;
   const fFar = Math.max(depthOf(L, F.minZ), depthOf(L, F.maxZ)) - 1.6;
   const field = depthRect(L, fx0, Math.max(fx0 + 4, fx1), fNear, fFar);
-  const beds: ERect[] = [];
-  for (let d = fNear + 0.4; d + 1.4 <= fFar - 0.2; d += 2.6) beds.push(depthRect(L, fx0 + 0.4, fx1 - 0.4, d, d + 1.4));
+  const beds = fieldBeds(plan.field, field);
 
-  const out: PlotPlaces = { huts, green, streets, shops, lamps, yardPave, field, beds };
+  const out: PlotPlaces = { plan, huts, green, streets, shops, lamps, yardPave, field, beds };
   placesCache.set(key, out);
   return out;
 }

@@ -11,7 +11,7 @@ import { HUT_ANNEX, HUT_D, plotPlaces, regionLayout, STREET_MIN_DEPTH, type Plot
 import { marketPlaces, DOCK_BODY, STALL_BODY } from '../src/eras/market';
 import { LEVEL_PAD_SIZE, levelPadLocal, MACHINE_NOMINAL, machineFrame, toWorld, worldRect } from '../src/eras/rules';
 import { nodePatch, regionPaths } from '../src/world/env/frontier';
-import { HUT_MAX_H, hutFootprint, placeSolids, SHOP_MAX_H } from '../src/world/env/plots';
+import { HUT_MAX_H, hutFootprint, placeSolids, shopFootprint, SHOP_MAX_H } from '../src/world/env/plots';
 
 const EPS = 1e-6;
 const ERA_NS = REGIONS.filter((r) => r !== null).map((r) => r!.n);
@@ -101,7 +101,7 @@ describe('0.9.7 era plot places', () => {
       }
       expect(P.shops.length).toBeGreaterThanOrEqual(3 * P.streets.length);
       expect(P.shops.filter((s) => s.stall).length).toBe(1);
-      const rects = P.shops.map((s) => box(s.x, s.z, s.w / 2, s.d / 2));
+      const rects = P.shops.map(shopFootprint);
       rects.forEach((r, i) => {
         expect(inside(r, Z.market), 'shop in market').toBe(true);
         for (const S of P.streets) expect(overlap(r, S), 'shop on a street').toBe(false);
