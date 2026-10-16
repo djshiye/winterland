@@ -113,6 +113,7 @@ export class Level {
       display: 'plank',
       grid: wc.grid,
       playerZone: wc.playerZone,
+      limit: () => dockRoom(wc.baseRoom, ctx.upgrades.value('shopDock')),
     });
     const wcash = LAYOUT.walkInCash;
     this.walkInCash = new CashPile(ctx, { id: 'pile:walkInCash', x: wcash.x, z: wcash.z, grid: wcash.grid, zone: wcash.zone });
@@ -277,6 +278,7 @@ export class Level {
       accepts: 'furniture',
       grid: sc.grid,
       playerZone: sc.playerZone,
+      limit: () => dockRoom(sc.baseRoom, ctx.upgrades.value('sledDock')),
     });
     this.sledCounter.appear(instant);
     const cash = LAYOUT.ridge.sledCash;
@@ -304,6 +306,7 @@ export class Level {
       accepts: 'log',
       grid: pl.grid,
       playerZone: pl.playerZone,
+      limit: () => dockRoom(pl.baseRoom, ctx.upgrades.value('railDock')),
     });
     this.platformCounter.appear(instant);
     const pc = LAYOUT.ridge.platformCash;

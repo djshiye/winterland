@@ -87,7 +87,8 @@ type Buy =
 
 const IDS = Object.keys(UPGRADES) as UpgradeId[];
 const value = (s: GameState, id: UpgradeId): number => valueAt(UPGRADES[id], s.upgrades[id]);
-const SURVIVAL_SALES = IDS.map((id) => UPGRADES[id]).filter((d) => d.group === 'sales' && introEra(d) === 1);
+/** Survival price upgrades (0.9.2: the delivery docks are throughput, not price, so they stay out of the mean gain). */
+const SURVIVAL_SALES = IDS.map((id) => UPGRADES[id]).filter((d) => d.group === 'sales' && introEra(d) === 1 && d.display !== 'boost');
 
 /** What one unit of a kind costs to order in (material extras on pads; imported processor inputs). */
 function orderPrice(kind: ItemKind): number {

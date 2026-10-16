@@ -44,6 +44,32 @@ const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
       <rect x="6" y="15" width="22" height="7" rx="3.5" fill="#a8693a"/>
       <circle cx="12" cy="37" r="5" fill="#f3f6fb"/><circle cx="36" cy="37" r="5" fill="#f3f6fb"/>
     </g>`),
+  // 0.9.2 sales: a shop counter with a plank stack and an awning (Shop Counter)
+  shopDock: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M6 16l4-8h28l4 8z" fill="#e8553e"/>
+      <path d="M14 8l-2 8M24 8v8M34 8l2 8" fill="none"/>
+      <rect x="8" y="28" width="32" height="12" rx="2" fill="#a8693a"/>
+      <rect x="13" y="21" width="22" height="4" rx="1.5" fill="#f0c98a"/>
+      <rect x="15" y="25" width="18" height="3" rx="1.5" fill="#e0b070"/>
+    </g>`),
+  // 0.9.2 sales: a dog sled with a chair on it (Sled Dock)
+  sledDock: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M6 36h32c4 0 6-3 6-6" fill="none"/>
+      <rect x="10" y="26" width="24" height="7" rx="2" fill="#d9483b"/>
+      <path d="M17 26V12h10v8h-6v6" fill="#c98a4b"/>
+      <path d="M14 33v3M30 33v3" fill="none"/>
+    </g>`),
+  // 0.9.2 sales: a flatcar on rails with pine logs (Rail Platform)
+  railDock: svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M4 42h40" fill="none"/>
+      <rect x="6" y="28" width="36" height="7" rx="1.5" fill="#5a6b7d"/>
+      <rect x="9" y="16" width="30" height="6" rx="3" fill="#a8693a"/>
+      <rect x="11" y="22" width="26" height="6" rx="3" fill="#b9774a"/>
+      <circle cx="13" cy="38" r="4" fill="#f3f6fb"/><circle cx="35" cy="38" r="4" fill="#f3f6fb"/>
+    </g>`),
   // sales: a log end with a red "%" price tag
   bulkDeals: svg(`
     <g stroke="${OUT}" stroke-width="2.5">

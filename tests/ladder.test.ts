@@ -19,8 +19,8 @@ describe('ladder: frozen prefix', () => {
 });
 
 describe('ladder: levels', () => {
-  it('25 era-1 ids (22 Survival + jack + the two 0.9.2 docks) sit at offset 0; era-n ids at 10 · (n − 1)', () => {
-    expect(ERA1).toHaveLength(25);
+  it('28 era-1 ids (22 Survival + jack + the five 0.9.2 docks) sit at offset 0; era-n ids at 10 · (n − 1)', () => {
+    expect(ERA1).toHaveLength(28);
     expect(ERA1.map((d) => d.id)).toContain('jack');
     for (const d of ERA1) expect(base(d)).toBe(0);
     expect(base(UPGRADES.taxOffice)).toBe(10);
@@ -88,7 +88,7 @@ describe('ladder: costs', () => {
     expect(costAt(UPGRADES.jack, 9)).toBe(788_000);
   });
 
-  it('the era-2 gate (every era-1 id to Lv 10) costs about $11.1M over 93 steps (0.9.2: + the two docks)', () => {
+  it('the era-2 gate (every era-1 id to Lv 10) costs about $11.8M over 102 steps (0.9.2: + the five docks)', () => {
     let steps = 0;
     let total = 0;
     for (const d of ERA1) {
@@ -97,9 +97,9 @@ describe('ladder: costs', () => {
         total += costAt(d, s);
       }
     }
-    expect(steps).toBe(93);
-    expect(total).toBeGreaterThan(11.1e6 * 0.95);
-    expect(total).toBeLessThan(11.1e6 * 1.05);
+    expect(steps).toBe(102);
+    expect(total).toBeGreaterThan(11.8e6 * 0.95);
+    expect(total).toBeLessThan(11.8e6 * 1.05);
   });
 });
 

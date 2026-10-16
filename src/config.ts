@@ -408,8 +408,9 @@ export const LAYOUT = {
     /** Long axis along X. */
     ...COUNTER_SIZE,
     rotationY: 0,
-    /** Plank bundles on the table top. Capacity 36. */
-    grid: { cols: 3, rows: 2, layers: 6, spacing: PLANK_GRID_SPACING } as PileGrid,
+    /** Plank bundles on the table top: 36, up to 72 with the Shop Counter upgrade (0.9.2: the grid holds the most it can reach). */
+    grid: { cols: 3, rows: 2, layers: 12, spacing: PLANK_GRID_SPACING } as PileGrid,
+    baseRoom: 36,
     /** Player stands here (inside the yard) to drop logs on the counter. */
     playerZone: rect(-4.0, 9.0, 2.2, 1.4),
   },
@@ -613,7 +614,9 @@ export const LAYOUT = {
       z: 0.2,
       ...COUNTER_SIZE,
       rotationY: Math.PI / 2,
-      grid: { cols: 2, rows: 3, layers: 5, spacing: LOG_GRID_SPACING } as PileGrid,
+      /** Pine logs: 30, up to 60 with the Rail Platform upgrade (0.9.2). */
+      grid: { cols: 2, rows: 3, layers: 10, spacing: LOG_GRID_SPACING } as PileGrid,
+      baseRoom: 30,
       playerZone: rect(30.1, 0.2, 1.4, 2.4),
     },
     platformCash: { x: 30.4, z: 3.6, grid: CASH_GRID, zone: rect(30.4, 3.6, 2.0, 1.8) },
@@ -636,7 +639,9 @@ export const LAYOUT = {
       z: 6.9,
       ...COUNTER_SIZE,
       rotationY: 0,
-      grid: { cols: 3, rows: 2, layers: 3, spacing: { x: 0.48, y: 0.5, z: 0.48 } } as PileGrid,
+      /** Furniture: 18, up to 36 with the Sled Dock upgrade (0.9.2). */
+      grid: { cols: 3, rows: 2, layers: 6, spacing: { x: 0.48, y: 0.5, z: 0.48 } } as PileGrid,
+      baseRoom: 18,
       playerZone: rect(25.0, 5.9, 2.4, 1.0),
     },
     sledCash: { x: 21.6, z: 6.0, grid: CASH_GRID, zone: rect(21.6, 6.0, 2.0, 1.8) },
@@ -811,6 +816,9 @@ export type UpgradeIdConst =
   // 0.9.2: the delivery docks (bigger counters, more customers)
   | 'trikeDock'
   | 'truckDock'
+  | 'shopDock'
+  | 'sledDock'
+  | 'railDock'
   // 0.9.0 Ages: Jack's swap cart + finance, and three upgrades per era (generated: eraUpgrades below)
   | 'jack'
   | 'taxOffice'
@@ -1022,6 +1030,16 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     product: 'plank',
     requires: { villageLevel: 1 },
   },
+  shopDock: {
+    id: 'shopDock',
+    group: 'sales',
+    label: 'Shop Counter',
+    blurb: 'A bigger plank counter, and customers come more often and buy faster',
+    values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5],
+    costs: [300, 900, 2500, 6000, 12000, 22000, 40000],
+    display: 'boost',
+    requires: { villageLevel: 1 },
+  },
   crateQuality: {
     id: 'crateQuality',
     group: 'sales',
@@ -1100,6 +1118,16 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     display: 'crew',
     requires: { unlocked: 'treeFeller', quarters: 0 },
   },
+  railDock: {
+    id: 'railDock',
+    group: 'sales',
+    label: 'Rail Platform',
+    blurb: 'A bigger log platform, and trains come more often and load faster',
+    values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5],
+    costs: [1200, 3500, 8000, 16000, 30000, 50000, 80000],
+    display: 'boost',
+    requires: { unlocked: 'treeFeller' },
+  },
   pineContracts: {
     id: 'pineContracts',
     group: 'sales',
@@ -1121,6 +1149,16 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     costs: [14000, 26000, 45000, 70000, 100000],
     display: 'rate',
     unit: 'pieces/s',
+    requires: { unlocked: 'workshop' },
+  },
+  sledDock: {
+    id: 'sledDock',
+    group: 'sales',
+    label: 'Sled Dock',
+    blurb: 'A bigger furniture table, and dog sleds come more often and load faster',
+    values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5],
+    costs: [1500, 4000, 9000, 18000, 32000, 55000, 90000],
+    display: 'boost',
     requires: { unlocked: 'workshop' },
   },
   furnitureQuality: {
