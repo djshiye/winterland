@@ -287,7 +287,7 @@ export interface MarketState {
 }
 
 /** Where money that is not a sale came from ('income' event). */
-export type IncomeSource = 'rent' | 'business' | 'interest' | 'trade' | 'jack';
+export type IncomeSource = 'rent' | 'business' | 'interest' | 'trade' | 'jack' | 'harvest';
 
 /** 'manage:open': the info / demolish card for something already built (ui/ManagePanel.ts renders it). */
 export interface ManageRequest {

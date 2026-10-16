@@ -8,18 +8,21 @@
  *   swings every `interval` seconds (`${key}Tool` upgrade when it exists, else NODE_BASE_INTERVAL).
  * - Every 'player:chopHit' carrying this era: node.hit() (the era's reaction), one unit of ERA_NODES[n].yields
  *   launched onto the node pile, stats.materialsMade++, 'material:made' (so era quests and stats count it).
+ * - 0.9.6 (F11): each strike also pays a small harvest bonus scaled to the era (nodeStrikeBonus), so swinging the
+ *   era's tool matters as much in the AI era as in the Frontier ('income' {source: 'harvest'}).
  * - Node pile: a small pile beside the node. The player takes from it (hold to interact); the era's Gatherer role
- *   reads `pile` as its source.
+ *   carries it to the processors, or to the depot when nobody wants it (npc/EraWorker.ts), so harvesting never stalls.
  */
 import * as THREE from 'three';
-import { TIMING, UPGRADES, rect } from '../config';
+import { TIMING, UPGRADES, rect, type UpgradeDef } from '../config';
+import { costAt, introEra } from '../core/ladder';
 import { createNodeModel, ERA_NODES, type NodeModel } from '../assets/eraNodes';
 import type { GameContext, ItemKind } from '../core/types';
 import { Pile } from '../items/Pile';
 import { launchNew } from '../items/transfer';
 import type { Zone } from '../items/Zones';
 import type { ColliderHandle } from '../world/Colliders';
-import { ERAS } from './data';
+import { ERAS, MATERIALS, isMaterial } from './data';
 import type { RegionLayout, XZ } from './layout';
 
 /** Seconds per swing at Tool level 0 (the Survival axe starts at 0.4 s; era tools are a touch heavier). */
@@ -41,6 +44,33 @@ export function handNodePlace(L: RegionLayout): { x: number; z: number; yaw: num
   if (!h) return null;
   // the node's +Z faces the processing yard (toward the gate): north gate → −Z (yaw π), south gate → +Z (yaw 0)
   return { x: (h.minX + h.maxX) / 2 - 1.3, z: (h.minZ + h.maxZ) / 2, yaw: L.inward > 0 ? Math.PI : 0 };
+}
+
+/**
+ * 0.9.6 (F11): this many strikes earn as much as one of the era's own upgrades costs from Lv 0 to Lv 10 (the average
+ * gate row), in every era from 3 on. That is about 1 % of a second of the era's income per strike everywhere (the
+ * pacing model), like era 2's stone; later eras used to need 50-190k strikes a row, so the tool stopped mattering.
+ */
+export const NODE_STRIKES_PER_ROW = 20_000;
+
+const strikeBonus = new Map<number, number>();
+
+/**
+ * 0.9.6 (F11): dollars one strike pays on top of the unit it drops: the era's average gate row (each of its own
+ * upgrades from Lv 0 to Lv 10) ÷ NODE_STRIKES_PER_ROW, less the unit's own value; 0 where the unit already pays that.
+ */
+export function nodeStrikeBonus(n: number): number {
+  const hit = strikeBonus.get(n);
+  if (hit !== undefined) return hit;
+  const defs = (Object.values(UPGRADES) as UpgradeDef[]).filter((d) => introEra(d) === n);
+  let row = 0;
+  for (const d of defs) for (let l = 0; l < 10; l++) row += costAt(d, l);
+  row = defs.length > 0 ? row / defs.length : 0;
+  const kind = ERA_NODES[n]?.yields;
+  const unit = kind && isMaterial(kind) ? MATERIALS[kind].value : 0;
+  const bonus = Math.max(0, Math.round(row / NODE_STRIKES_PER_ROW - unit));
+  strikeBonus.set(n, bonus);
+  return bonus;
 }
 
 /** Tool swing interval for era n: the `${key}Tool` upgrade's value when the upgrade exists. */
@@ -139,6 +169,11 @@ export class HandNode {
     if (!item) return false;
     this.model.hit();
     this.ctx.state.stats.materialsMade++;
+    const bonus = nodeStrikeBonus(this.era);
+    if (bonus > 0) {
+      this.ctx.economy.add(bonus);
+      this.ctx.events.emit('income', { source: 'harvest', amount: bonus, position: this.fromTmp.copy(from) });
+    }
     return true;
   }
 
