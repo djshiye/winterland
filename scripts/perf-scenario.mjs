@@ -72,6 +72,9 @@ const fillEras = `(() => {
   const N = ${eras};
   if (N < 2) return 'eras skipped';
   W.unlockEra(N);
+  // 0.9.5: every crew role hired and every belt built (full era automation: the late game's worst case)
+  W.setAllUpgrades(10);
+  W.setSettlement(5 * N);
   const M = ${JSON.stringify(machinesByEra)};
   const K = ${JSON.stringify(ERA_KEYS)};
   const L = ${JSON.stringify(DISTRICT_LOTS)};
