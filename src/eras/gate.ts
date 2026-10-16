@@ -211,7 +211,8 @@ export function eraGate(s: GameState, n: number): EraGate {
  * then the cheapest to finish. Done rows are left out (the card folds them into "✓ 37 done").
  */
 export function openRows(g: EraGate): GateRow[] {
-  const rank = (r: GateRow): number => (r.state === 'prereq' ? 0 : 1);
+  // something to do now first (build a prereq, then buy), rows that only wait for the settlement last
+  const rank = (r: GateRow): number => (settlementPrereq(r) ? 2 : r.state === 'prereq' ? 0 : 1);
   return g.rows.filter((r) => r.state !== 'ok').sort((a, b) => rank(a) - rank(b) || a.costToNeed - b.costToNeed);
 }
 

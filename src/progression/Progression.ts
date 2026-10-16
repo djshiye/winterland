@@ -42,7 +42,7 @@ import { climbOpen, eraMatOf, nextGoal } from '../eras/gate';
 import { expansionOffered, regionLayout } from '../eras/layout';
 import { MAT_SIZE, machinePadTarget } from '../eras/rules';
 import { MATERIAL_KINDS } from '../core/kinds';
-import { formatMoney } from '../ui/format';
+import { article, formatMoney } from '../ui/format';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
 import { grandMarketOffered } from '../town/rules';
 
@@ -877,7 +877,7 @@ export class Progression {
     const first = machinesOfEra(n).find((id) => MACHINES[id].kind === 'extractor') ?? machinesOfEra(n)[0];
     const slot = regionLayout(n).slots[0];
     if (!first || !slot) return false;
-    this.setGoal(`Build ${/^[aeiou]/i.test(MACHINES[first].label) ? 'an' : 'a'} ${MACHINES[first].label.toLowerCase()} in ${ERAS[n]!.region}`, rect(slot.x, slot.z, 3, 3), this.tmpPoint.set(slot.x, 0, slot.z));
+    this.setGoal(`Build ${article(MACHINES[first].label)} ${MACHINES[first].label.toLowerCase()} in ${ERAS[n]!.region}`, rect(slot.x, slot.z, 3, 3), this.tmpPoint.set(slot.x, 0, slot.z));
     return true;
   }
 

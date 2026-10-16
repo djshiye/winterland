@@ -8,7 +8,7 @@
  *   grow to Settlement 10, then buy Iron Ridge.") and the expansion's price. Once the gate is met a gold "Iron Ridge is
  *   for sale!" with Go replaces it.
  * - One small bar per group (0.9.6: Machines 3/6 · Crew 2/7 · Industry · Sales · You · Finance), so nothing hides.
- * - "✓ 12 done", then the TOP 5 open rows (eras/gate.ts openRows: prereqs first, then cheapest to finish) and
+ * - "✓ 12 done", then the TOP 5 open rows (eras/gate.ts openRows: prereqs to build first, then cheapest to finish, settlement-locked rows last) and
  *   "+8 more · Show all" (tap: every open row; tap again: back to 5). Every row has Go (fast travel to where it is
  *   bought): a shop row to the cabin's shop mat, an Industry row to its era's shop mat, a pad row ("pad LV 8 → LV 10")
  *   to the level pad, a prereq row to what unlocks it. A row that only waits for the settlement says "Locked"
