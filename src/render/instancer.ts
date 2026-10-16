@@ -14,7 +14,7 @@
  * the scene's onBeforeRender (world matrices are fresh there); every run of 2+ visible copies is copied into its
  * InstancedMesh and the originals are hidden for that one frame. `restoreInstances()` (right after) shows them again.
  *
- * Only simple meshes qualify: a Mesh (not instanced / skinned / morphed), no children of its own, one material,
+ * Only simple meshes qualify: a Mesh (not instanced / skinned / morphed), no children of its own, one opaque material,
  * render order 0, frustum culling on, no custom onBeforeRender, not opted out with `userData.noInstance`. Anything
  * else renders as usual. No per-frame allocations once the buckets exist. Registrations are weak: a dropped object
  * that never called stopInstancing() is simply forgotten.
@@ -53,6 +53,7 @@ function eligible(o: THREE.Object3D): o is THREE.Mesh {
     m.userData.instancerOwned !== true &&
     m.children.length === 0 &&
     !Array.isArray(m.material) &&
+    !(m.material as THREE.Material).transparent && // transparent copies need their own depth sorting
     m.renderOrder === 0 &&
     m.frustumCulled &&
     m.onBeforeRender === noop &&
