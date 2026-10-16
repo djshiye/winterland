@@ -33,6 +33,7 @@ import { toggleFullscreen } from '../platform/desktop';
 import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
 import { climbOpen } from '../eras/gate';
+import { ERA_NAMES } from '../eras/data';
 import { AgeCard } from './AgeCard';
 import { AutoQuality } from './AutoQuality';
 import { BuildPanel } from './BuildPanel';
@@ -139,6 +140,7 @@ export class HUD {
   private readonly marketBtn: HTMLButtonElement;
   private hasMapBtn = false;
   private hasMarketBtn = false;
+  private marketLocked = false;
   private hasEraChip = false;
   private readonly settings: SettingsPanel;
   private readonly perf: PerfOverlay;
@@ -377,6 +379,11 @@ export class HUD {
   }
 
   private toggleMarket(): void {
+    if (this.ctx.state.eras.age < 2 && !this.market.visible) {
+      // shown early (once the climb opens) so players know where trading and investing will live
+      this.toast(`The Market opens in the ${ERA_NAMES[2]}`, { sub: 'Trade goods and invest your savings there once you reach era 2' });
+      return;
+    }
     if (this.market.visible) this.market.close();
     else this.ctx.events.emit('market:open', {});
   }
@@ -650,12 +657,23 @@ export class HUD {
   // Per-frame pieces
   // ---------------------------------------------------------------------------------------------
 
-  /** Map / Market buttons and the era chip appear with the Ages (map: the climb open, i.e. the new land on show; market: era 2). */
+  /**
+   * Map / Market buttons and the era chip appear with the Ages (the climb open, i.e. the new land on show, or era 2). Before
+   * era 2 the Market button is on show but locked: a tap says when it opens.
+   */
   private updateAgeButtons(): void {
     const { state } = this.ctx;
     const age = state.eras.age;
     const mapOn = age >= 2 || climbOpen(state);
-    const marketOn = age >= 2;
+    const marketOn = mapOn;
+    const marketLocked = age < 2;
+    if (marketLocked !== this.marketLocked) {
+      this.marketLocked = marketLocked;
+      this.marketBtn.classList.toggle('is-locked', marketLocked);
+      const label = marketLocked ? `Market (B): opens in the ${ERA_NAMES[2]}` : 'Market (B)';
+      this.marketBtn.title = label;
+      this.marketBtn.setAttribute('aria-label', label);
+    }
     if (mapOn !== this.hasMapBtn) {
       this.hasMapBtn = mapOn;
       this.mapBtn.style.display = mapOn ? '' : 'none';
