@@ -11,7 +11,7 @@
  * bulbs+glow 1, sign 1, halos 1, lamps 3, bunting 1, festive 2).
  */
 import * as THREE from 'three';
-import { LAYOUT, PALETTE, rect } from '../../config';
+import { LAYOUT, PALETTE, rect, townZ } from '../../config';
 import { palisadeMaterial, palisadePostGeometry, PALISADE } from '../../assets/scenery';
 import { Batch, instanced, Rng, vcMat, type EnvPart, type Placement } from './common';
 import { addSparkleSpot, registerEra } from './eras';
@@ -40,9 +40,9 @@ export const SQUARE_LAMPS: readonly LampSpot[] = [
   { x: 16.2, z: 29.2 },
   { x: 21.8, z: 21.7 },
   { x: 27.4, z: 21.7 },
-  { x: 21.8, z: 32.5 },
-  { x: 27.4, z: 32.5 },
-  { x: 31.8, z: 27.1 },
+  { x: 21.8, z: townZ(35.8) - 3.3 },
+  { x: 27.4, z: townZ(35.8) - 3.3 },
+  { x: 31.8, z: townZ(27.1) },
 ];
 export const CORRIDOR_LAMPS: readonly LampSpot[] = [
   { x: 10.35, z: 25.45 },
@@ -244,7 +244,7 @@ export function buildTown(ctx: GameContext, rng: Rng): TownPart {
     const r = rng.range(0.5, 1.0);
     statics.add(mound, PALETTE.snow, x, -0.02, z, { sx: r * 1.3, sy: r * 0.5, sz: r, ry: rng.range(0, 3) });
   }
-  for (const [bx, bz, kind] of [[16.3, 21.9, 0], [17.1, 21.4, 1], [16.5, 32.5, 0]] as const) {
+  for (const [bx, bz, kind] of [[16.3, 21.9, 0], [17.1, 21.4, 1], [16.5, townZ(35.8) - 3.3, 0]] as const) {
     if (kind === 0) {
       statics.add(cyl(0.26, 0.28, 0.6, 9), 0x8a5a2b, bx, 0.3, bz);
       statics.add(cyl(0.28, 0.28, 0.05, 9), 0x30353d, bx, 0.18, bz);
