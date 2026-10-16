@@ -18,8 +18,9 @@
  */
 import * as THREE from 'three';
 import type { MachineId } from '../eras/data';
-import { ERAS, MACHINES } from '../eras/data';
+import { ERAS, MACHINE_IDS, MACHINES } from '../eras/data';
 import { vcMat } from '../render/batch';
+import { ERA4_MACHINES, createEraMachine4, type Era4MachineId } from './eraMachines4';
 import { SNOW, SNOW_SH, Kit, eraGlowMaterial, hcyl, lattice, pixelText, pixelTextWidth, rotor, seeded, wheel, type V3 } from './eraKit';
 
 export interface MachineModel {
@@ -927,7 +928,8 @@ const robotWorks: Recipe = ({ body: b, glow: g, pivot: p }) => {
   return { at: [1.6, 0.4, 1.1], axis: 'y', mode: 'swing', speed: 0.28, amp: 0.85 };
 };
 
-const RECIPES: Record<MachineId, Recipe> = {
+/** Machines built here; later machines route to their own builder files in createMachineModel. */
+const RECIPES: Partial<Record<MachineId, Recipe>> = {
   quarry, kiln, ironMine, smelter, coalPit, steamWorks, deepMine, cokeOven, steelMill, copperMine, wireMill, oilPump,
   refinery, sandPit, chipFab, uraniumMine, enricher, reactor, fusionPlant, nanoFab, dataCenter, robotWorks,
 };
@@ -942,7 +944,7 @@ function build(id: MachineId): Built {
   let built = builtCache.get(id);
   if (built) return built;
   const parts: Parts = { body: new Kit(), glow: new Kit(), pivot: new Kit() };
-  const spec = RECIPES[id](parts);
+  const spec = RECIPES[id]!(parts);
   const body = parts.body.geometry();
   const glow = parts.glow.batch.empty ? null : parts.glow.geometry();
   const pivot = spec && !parts.pivot.batch.empty ? parts.pivot.geometry() : null;
@@ -959,6 +961,7 @@ function build(id: MachineId): Built {
 const IDLE = 0.12;
 
 export function createMachineModel(id: MachineId): MachineModel {
+  if (id in ERA4_MACHINES) return createEraMachine4(id as Era4MachineId);
   const built = build(id);
   const root = new THREE.Group();
   root.name = `machine:${id}:${MACHINES[id].era}`;
@@ -1150,7 +1153,7 @@ export function createDockModel(era: number): THREE.Group {
 // ---------------------------------------------------------------------------
 
 const catalog: Record<string, () => THREE.Object3D> = {};
-for (const id of Object.keys(RECIPES) as MachineId[]) catalog[id] = () => createMachineModel(id).root;
+for (const id of MACHINE_IDS) catalog[id] = () => createMachineModel(id).root;
 for (const era of [2, 4, 6, 8, 10]) {
   catalog[`depot${era}`] = () => createDepotModel(era);
   catalog[`dock${era}`] = () => createDockModel(era);
