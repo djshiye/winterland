@@ -71,7 +71,8 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
    the **settlement** past Winterland (levels 6 to 50, Frontier Post to Winterland Prime); each level adds Renown
    (+2 % on everything you sell) and a gift of cash. The **Market** (B) has prices that move, trading, orders delivered
    to a dock, bonds, an index fund and ventures. **Jack's** swap cart buys any item you carry for part of its value. A
-   built lot, slot or city building can be **demolished** for a fee. The **Map** (T) fast-travels between the yard, the
+   built lot, slot or city building can be **demolished** for a fee to build something else there: step on its
+   **MANAGE** tile and tap **Demolish** (from the Frontier era on). The **Map** (T) fast-travels between the yard, the
    village, the town, the regions and the districts. Levels bought past an upgrade's cap earn **Mastery**, and from
    Settlement 20 you earn the **Founder's Scarf** (and a little more Renown).
 

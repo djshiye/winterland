@@ -18,6 +18,7 @@
 import * as THREE from 'three';
 import { TIMING } from '../config';
 import { createMachineModel, type MachineModel } from '../assets/eraMachines';
+import { createPadSign } from '../assets/pads';
 import { smoothstep } from '../core/math';
 import type { GameContext, Item, ItemKind } from '../core/types';
 import { Pile } from '../items/Pile';
@@ -28,6 +29,10 @@ import { ERAS, MACHINE_PILES, type MachineDef } from './data';
 import type { SlotPlace, XZ } from './layout';
 import type { MachineRuntime } from './runtime';
 import { OUTPUT_CAPACITY, inputCap, machineFrame, toWorld, worldRect, type LRect, type MachineFrame } from './rules';
+
+/** The MANAGE label over the info zone: big enough to read from the usual camera distance. */
+const SIGN_SCALE = 0.9;
+const SIGN_HEIGHT = 1.3;
 
 /** Share of the cycle the inputs spend hopping to the door. */
 const F_DOOR = 0.4;
@@ -93,6 +98,8 @@ export class Machine implements MachineRuntime {
   private readonly tmp = new THREE.Vector3();
   private readonly zones: Zone[] = [];
   private readonly collider: ColliderHandle;
+  /** Floating "MANAGE" label over the info zone (the info / demolish card opens there). */
+  private readonly sign: THREE.Mesh;
   private dead = false;
 
   constructor(
@@ -156,7 +163,12 @@ export class Machine implements MachineRuntime {
     } else {
       this.input = null;
     }
-    this.zones.push(ctx.zones.add({ id: `${id}:manage`, area: w(f.manage), marker: true, onEnter: hooks.onManage, onExit: hooks.onManageExit }));
+    const manage = w(f.manage);
+    this.zones.push(ctx.zones.add({ id: `${id}:manage`, area: manage, marker: true, onEnter: hooks.onManage, onExit: hooks.onManageExit }));
+    this.sign = createPadSign('MANAGE');
+    this.sign.scale.setScalar(SIGN_SCALE);
+    this.sign.position.set((manage.minX + manage.maxX) / 2, SIGN_HEIGHT, (manage.minZ + manage.maxZ) / 2);
+    (parent ?? ctx.scene).add(this.sign);
   }
 
   /** Visible and running; not instant: pop-in + puff. */
@@ -202,6 +214,7 @@ export class Machine implements MachineRuntime {
     if (this.def.kind === 'extractor') this.updateExtractor(dt, cyc);
     else this.updateProcessor(dt, cyc);
     this.model.animate(dt, this.working);
+    this.sign.quaternion.copy(this.ctx.camera.quaternion);
   }
 
   // ---- save -------------------------------------------------------------------------------------------------
@@ -259,6 +272,10 @@ export class Machine implements MachineRuntime {
     this.output.dispose();
     ctx.tweens.killTweensOf(this.group);
     this.group.removeFromParent();
+    this.sign.removeFromParent();
+    const mat = this.sign.material as THREE.MeshBasicMaterial;
+    mat.map?.dispose();
+    mat.dispose();
   }
 
   // ---- cycle ------------------------------------------------------------------------------------------------
