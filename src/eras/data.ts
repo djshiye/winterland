@@ -290,7 +290,7 @@ export function regionDef(n: number): RegionLayoutDef {
  * the Great Lodge built, eras/gate.ts climbOpen; era n > 2 = age ≥ n − 1).
  */
 export const ROADS: readonly { id: string; rect: ERect; opensAt: number }[] = [
-  { id: 'southAvenue', rect: R(26, 30, 38, 80), opensAt: 2 }, // town square's south edge → R1
+  { id: 'southAvenue', rect: R(26, 30, 46.8, 80), opensAt: 2 }, // town's south fence (0.9.4: 0.6 m inside it) → R1
   { id: 'r1', rect: R(-84, 40, 76, 80), opensAt: 2 },
   { id: 'r1r2east', rect: R(34, 38, 80, 116), opensAt: 7 }, // the trail's turn from VI down to VII
   { id: 'r1r2west', rect: R(-6, -2, 80, 116), opensAt: 7 }, // a shortcut between V and VI
