@@ -124,6 +124,8 @@ interface BuildNeed {
   text: string;
   /** Shown while fetching logs. */
   pick: string;
+  /** 0.9.2: the foreman builds this site (village plots, town lots, the bunkhouse; never the Great Lodge). */
+  crew?: boolean;
 }
 
 export class Progression {
@@ -539,6 +541,7 @@ export class Progression {
           cashLeft,
           text: logsLeft > 0 ? 'Bring logs to the village' : `Pay for the shelter (${fmtMoney(cashLeft)})`,
           pick: 'Pick up logs for the village',
+          crew: true,
         };
       }
     }
@@ -562,6 +565,7 @@ export class Progression {
       cashLeft,
       text: logsLeft > 0 ? `Bring logs to the ${name}` : `Pay for the ${name} (${fmtMoney(cashLeft)})`,
       pick: `Pick up logs for the ${name}`,
+      crew: true,
     };
   }
 
@@ -573,6 +577,9 @@ export class Progression {
     const L = this.level;
     const arms = this.ctx.player.arms;
     const armsLogs = arms.count('log');
+    // 0.9.2: once the foreman hauls the logs and pays for this site, fetching / paying hints are noise; logs already in
+    // hand still get a place to go
+    if (need.crew && this.ctx.upgrades.isHired('foreman') && armsLogs === 0) return false;
     const want = Math.min(need.logsLeft, arms.capacity);
     if (need.logsLeft <= 0 || armsLogs >= want) {
       const spotArea = rect(need.spot.x, need.spot.z, 2.4, 2.4);
@@ -656,6 +663,7 @@ export class Progression {
           cashLeft,
           text: logsLeft > 0 ? `Bring logs to the ${name}` : `Pay for the ${name} (${fmtMoney(cashLeft)})`,
           pick: `Pick up logs for the ${name}`,
+          crew: true,
         })
       )
         return true;
@@ -688,9 +696,11 @@ export class Progression {
       return true;
     }
 
-    // Keep the shops stocked: carry a producer's goods to a shop that is low on them.
+    // Keep the shops stocked: carry a producer's goods to a shop that is low on them. 0.9.2: not once a porter does it
+    // (wheat or meat already in hand is still pointed at a shop, townGoodsInHand).
     const arms = ctx.player.arms;
-    if (arms.count() < arms.capacity) {
+    const porter = ctx.upgrades.isHired('porter');
+    if (!porter && arms.count() < arms.capacity) {
       for (let i = 0; i < LAYOUT.town.lots.length; i++) {
         const b = town.business(i);
         if (!b || b.def.kind !== 'producer' || !b.output || !b.pickupZone || !b.def.output) continue;
@@ -702,8 +712,8 @@ export class Progression {
         return true;
       }
     }
-    // Logs in hand and a shop out of firewood.
-    if (arms.count('log') > 0) {
+    // Logs in hand and a shop out of firewood (the porter's job once hired).
+    if (!porter && arms.count('log') > 0) {
       const shop = this.townShopNeeding('log');
       if (shop && shop.have < 2) {
         this.setGoal(`Bring firewood to the ${shop.def.label.toLowerCase()}`, shop.zone);
@@ -1010,7 +1020,8 @@ export class Progression {
       s.stats.furnitureMade === 0 &&
       workshop.input.count('log') === 0 &&
       workshop.input.canAccept('log') &&
-      this.query.sinceUnlock('workshop') < WORKSHOP_LESSON;
+      this.query.sinceUnlock('workshop') < WORKSHOP_LESSON &&
+      !ctx.upgrades.isHired('sledLoader'); // 0.9.2: the sled loader fills the hopper itself
     // (not while the player is still loading up at a stocked deck / drop zone)
     const loadingUp =
       armsLogs < PICKUP_STAY_UNTIL &&
@@ -1061,16 +1072,16 @@ export class Progression {
     }
 
     // 5. Cash waiting (the bigger pile first).
-    // Once the cash tubes bank the piles themselves, only point at a big backlog.
+    // Once the cash tubes or a cashier bank the piles, only point at a big backlog.
     let pile = L.walkInCash;
     for (const p of [...L.cashPiles(), ...L.town.tills()]) if (p.value > pile.value) pile = p;
-    if (pile.value > (L.cashTubes ? CASH_BACKLOG : 0)) {
+    if (pile.value > (L.cashTubes || ctx.upgrades.isHired('cashier') ? CASH_BACKLOG : 0)) {
       this.setGoal('Collect your cash', pile.zone.area);
       return;
     }
 
     // 5a. Chairs waiting on the workshop bench (the counter must have room, or the trip would be pointless).
-    if (workshop && sledCounter && !armsFull && workshop.output.count('furniture') > 0 && sledCounter.pile.canAccept('furniture')) {
+    if (workshop && sledCounter && !armsFull && !ctx.upgrades.isHired('sledLoader') && workshop.output.count('furniture') > 0 && sledCounter.pile.canAccept('furniture')) {
       this.setGoal('Grab the chairs for the dog sleds', LAYOUT.ridge.workshop.bench.zone);
       return;
     }
@@ -1096,7 +1107,7 @@ export class Progression {
     }
 
     // 6. Crates ready on the workbench.
-    if (L.processor && !armsFull && L.processor.output.count('crate') > 0) {
+    if (L.processor && !armsFull && !ctx.upgrades.isHired('crateRunner') && L.processor.output.count('crate') > 0) {
       this.setGoal('Grab the crates', L.processor.outputZone.area);
       return;
     }
@@ -1125,7 +1136,7 @@ export class Progression {
     // 9. Logs waiting in the drop zone (unless both belts carry them away).
     const belts = !!L.westConveyor && !!L.eastConveyor;
     const chopping = inArea(L.giantLog.chopZone.area) && !L.dropZone.isFull && dropCount < 4 && !s.unlocked.harvester;
-    if ((!belts || (trucksWaiting > 0 && !L.truckLoader)) && !armsFull && dropCount > 0 && !chopping) {
+    if ((!belts || (trucksWaiting > 0 && !L.truckLoader)) && !ctx.upgrades.isHired('logHauler') && !armsFull && dropCount > 0 && !chopping) {
       this.setGoal('Pick up the logs', L.dropZone.zone.area);
       return;
     }

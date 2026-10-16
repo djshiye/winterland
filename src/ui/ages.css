@@ -199,7 +199,8 @@
 @media (min-width: 700px) {
   .wl-hud.has-erachip .wl-objective {
     top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 58px);
-    max-width: max(240px, calc(100% - 800px));
+    /* 0.9.2: ui/bannerStack.ts narrows it where the left column or a side sheet shares its rows */
+    max-width: calc(100% - 24px);
   }
 }
 
@@ -782,7 +783,8 @@
 
 @media (min-width: 700px) {
   .wl-hud .wl-agecard {
-    width: min(380px, calc(100vw - 540px));
+    /* 0.9.2: never narrower than a phone's card (at 700-860 px the old rule squeezed it to 160 px, buttons spilling out) */
+    width: min(380px, max(330px, calc(100vw - 540px)));
   }
 }
 

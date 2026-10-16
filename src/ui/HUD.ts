@@ -52,6 +52,7 @@ import { PerfOverlay } from './PerfOverlay';
 import { QuestPanel } from './QuestPanel';
 import { EraCard } from './EraCard';
 import { EventBanner } from './EventBanner';
+import { BannerStack } from './bannerStack';
 import { RushBanner } from './RushBanner';
 import { SeasonBadge } from './SeasonBadge';
 import { SettingsPanel } from './SettingsPanel';
@@ -150,6 +151,8 @@ export class HUD {
   /** Wave 13: the delivery contract card under the quests. */
   private readonly contractCard: ContractCard;
   private readonly eventBanner: EventBanner;
+  /** 0.9.2: keeps the objective, rush and event banners in one column, clear of the HUD around them. */
+  private readonly banners: BannerStack;
   /** Wave 9: era card on each village level-up (replaces the old level-up toast). */
   private readonly era: EraCard;
   private readonly moveHand: MoveHand;
@@ -250,6 +253,7 @@ export class HUD {
     this.rushBanner = new RushBanner(ctx, layer);
     this.contractCard = new ContractCard(ctx, layer);
     this.eventBanner = new EventBanner(ctx, layer, () => this.rushBanner.visible);
+    this.banners = new BannerStack(layer, this.objectiveEl, () => this.objShown !== null, this.rushBanner.element, this.eventBanner.element);
     this.era = new EraCard(ctx, layer);
     this.ageCard = new AgeCard(ctx, layer);
     this.eraChip = new EraChip(ctx, layer);
@@ -609,6 +613,7 @@ export class HUD {
     this.rushBanner.update(dt);
     this.contractCard.update(dt);
     this.eventBanner.update(dt);
+    this.banners.update(dt);
     this.era.update(dt);
     this.moveHand.update(dt);
     this.coins.update(dt);
