@@ -19,6 +19,7 @@ import { climbOpen } from '../eras/gate';
 import { atEraCap, capStored, introEra, maxStored, shown, stepCost, valueAt } from './ladder';
 import { settlementLevel } from './demand';
 import type { Economy } from './Economy';
+import { article } from '../ui/format';
 import type { EventBus } from './EventBus';
 import type { GameEvents, GameState, UpgradeId } from './types';
 
@@ -198,7 +199,7 @@ export function upgradeRequirement(state: Pick<GameState, 'unlocked' | 'village'
   const def = UPGRADES[id];
   // (the era cash machine `${key}Cash` is the exception: its pad builds it at Lv 1, eras/CashMachine.ts)
   if (def.group === 'machine' && def.era !== undefined && def.era >= 2 && id !== `${ERAS[def.era]?.key}Cash` && !machineBuilt(state, id)) {
-    return `Build ${/^[AEIOU]/i.test(def.label) ? 'an' : 'a'} ${def.label} first`;
+    return `Build ${article(def.label)} ${def.label} first`;
   }
   return null;
 }

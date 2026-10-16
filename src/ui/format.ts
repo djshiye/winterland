@@ -43,3 +43,13 @@ export function formatDuration(seconds: number): string {
   if (h === 0) return `${m} min`;
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }
+
+/**
+ * "a" or "an" for a noun phrase: "an Oil Well", "a Uranium Mine". A leading "u" that sounds like "you" (uni-, uran-,
+ * use-, usu-, uti-) takes "a"; so does "one-" and "eu-".
+ */
+export function article(word: string): 'a' | 'an' {
+  const w = word.trim().toLowerCase();
+  if (/^(uni|ura|use|usu|uti|eu|one)/.test(w)) return 'a';
+  return /^[aeiou]/.test(w) ? 'an' : 'a';
+}

@@ -9,7 +9,8 @@ import { IncomeWindow, sig2Money } from '../src/core/incomeWindow';
 import { QUEST_DEFS, QUEST_INCOME_SECONDS, Quests, questEra } from '../src/core/quests';
 import { createGameState, type GameEvents, type GameState, type ItemKind } from '../src/core/types';
 import { ERAS, MACHINES, MATERIALS, machinesOfEra, type MaterialKind } from '../src/eras/data';
-import { eraGate, gateGroups, gateRuleShort, gateRuleText } from '../src/eras/gate';
+import { eraGate, gateGroups, gateRuleShort, gateRuleText, openRows, waitsForSettlement } from '../src/eras/gate';
+import { article } from '../src/ui/format';
 import { MANAGE_FAR, MANAGE_NEAR, manageSignAlpha } from '../src/fx/manageSign';
 
 function eraState(age: number): GameState {
@@ -143,6 +144,27 @@ describe('the Lv 10 rule in words, and the gate groups', () => {
     expect(groups.map((c) => c.label)).toContain('Machines');
     expect(groups.map((c) => c.label)).toContain('Crew');
     for (const r of g.rows) expect(UPGRADES[r.id]).toBeDefined();
+  });
+});
+
+describe('validator nits (PR #34)', () => {
+  it('a/an reads right for era machines', () => {
+    expect(article('Uranium Mine')).toBe('a');
+    expect(article('Oil Well')).toBe('an');
+    expect(article('Coal Pit')).toBe('a');
+    expect(article('Ice Saw')).toBe('an');
+    expect(article('Utility Pole')).toBe('a');
+    expect(article('Umbrella Stand')).toBe('an');
+  });
+
+  it('gate rows: something to do first, settlement-locked rows last', () => {
+    for (const age of [3, 4, 8]) {
+      const rows = openRows(eraGate(eraState(age), age + 1));
+      const firstLocked = rows.findIndex(waitsForSettlement);
+      if (firstLocked < 0) continue;
+      expect(rows.slice(firstLocked).every(waitsForSettlement)).toBe(true);
+      expect(firstLocked).toBeGreaterThan(0);
+    }
   });
 });
 
