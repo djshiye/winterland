@@ -20,7 +20,7 @@ import * as THREE from 'three';
 import type { MachineId } from '../eras/data';
 import { ERAS, MACHINE_IDS, MACHINES } from '../eras/data';
 import { vcMat } from '../render/batch';
-import { ERA4_MACHINES, createEraMachine4, type Era4MachineId } from './eraMachines4';
+import { ERA4_MACHINE_IDS, createEraMachine4 } from './eraMachines4';
 import { SNOW, SNOW_SH, Kit, eraGlowMaterial, hcyl, lattice, pixelText, pixelTextWidth, rotor, seeded, wheel, type V3 } from './eraKit';
 
 export interface MachineModel {
@@ -960,8 +960,15 @@ function build(id: MachineId): Built {
 /** Idle crawl as a share of the working speed. */
 const IDLE = 0.12;
 
+/** 0.9.5: machines whose models live in their era's own builder file. */
+const OWN_MODELS: Partial<Record<MachineId, () => MachineModel>> = {
+  // eras 8-10 (assets/eraMachines4.ts; the cash machines are not MachineIds)
+  ...Object.fromEntries(ERA4_MACHINE_IDS.filter((id) => (MACHINE_IDS as string[]).includes(id)).map((id) => [id, () => createEraMachine4(id)])),
+};
+
 export function createMachineModel(id: MachineId): MachineModel {
-  if (id in ERA4_MACHINES) return createEraMachine4(id as Era4MachineId);
+  const own = OWN_MODELS[id];
+  if (own) return own();
   const built = build(id);
   const root = new THREE.Group();
   root.name = `machine:${id}:${MACHINES[id].era}`;

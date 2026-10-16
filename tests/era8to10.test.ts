@@ -35,7 +35,7 @@ describe('eras 8-10 content', () => {
         if (m.kind !== 'processor') continue;
         const inValue = m.inputs.reduce((sum, i) => sum + MATERIALS[i.kind as MaterialKind].value * i.per, 0);
         const outValue = MATERIALS[m.output as MaterialKind].value * m.batch;
-        expect(outValue, id).toBeGreaterThan(inValue * 1.15);
+        expect(outValue, id).toBeGreaterThanOrEqual(inValue * 1.3);
       }
     }
   });
