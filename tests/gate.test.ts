@@ -36,13 +36,13 @@ afterEach(() => {
 });
 
 describe('eraGate rows', () => {
-  it('lists every id introduced before era n: 25 for era 2 (0.9.2: + the two docks), then 25 + 2 + 3·(n − 2)', () => {
+  it('lists every id introduced before era n: 28 for era 2 (0.9.2: + the five docks), then 28 + 2 + 3·(n − 2)', () => {
     const s = lodge();
-    expect(eraGate(s, 2).total).toBe(25);
+    expect(eraGate(s, 2).total).toBe(28);
     for (let n = 3; n <= MAX_ERA; n++) {
       s.eras.age = n - 1;
       const g = eraGate(s, n);
-      expect(g.total, `era ${n}`).toBe(25 + 2 + 3 * (n - 2));
+      expect(g.total, `era ${n}`).toBe(28 + 2 + 3 * (n - 2));
       expect(g.rows.every((r) => introEra(UPGRADES[r.id]) <= n - 1)).toBe(true);
     }
     expect(eraGate(s, MAX_ERA + 1).total).toBe(0);
@@ -161,9 +161,9 @@ describe('ready and the settlement', () => {
     const s = allBuilt(lodge());
     s.upgrades.carry = 10;
     s.upgrades.speed = 10;
-    expect(gateNote(eraGate(s, 2))).toBe('2/25 · S5/5');
+    expect(gateNote(eraGate(s, 2))).toBe('2/28 · S5/5');
     s.village.level = 3;
-    expect(gateNote(eraGate(s, 2))).toBe('2/25 · S3/5');
+    expect(gateNote(eraGate(s, 2))).toBe('2/28 · S3/5');
   });
 });
 
