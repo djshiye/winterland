@@ -114,7 +114,8 @@ try {
     errors.push(err.message);
   });
 
-  const url = `http://127.0.0.1:${port}/index.html${opts.query ? `?${opts.query}` : ''}`;
+  // `debug`: the built game only installs window.__WINTERLAND__ when asked (src/platform/debug.ts)
+  const url = `http://127.0.0.1:${port}/index.html?${opts.query ? `${opts.query}&` : ''}debug`;
   await page.goto(url, { waitUntil: 'load', timeout: opts.timeout });
   await page.waitForFunction(() => !!window.__WINTERLAND__, null, { timeout: opts.timeout });
   if (!opts.live) await page.evaluate(() => window.__WINTERLAND__.pause());

@@ -9,32 +9,74 @@ import { DAYNIGHT, OFFLINE, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE } from '
 import { salePrice } from '../src/core/demand';
 import { authoredMax, LEVEL_CAP } from '../src/core/ladder';
 import { EventBus } from '../src/core/EventBus';
-import { mergeState, newSeasonSave, offlineEarnings, SalesMeter, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
+import { legacyTradeDef } from '../src/core/salesMerge';
+import { refundPrice } from '../src/core/refund';
+import { mergeState, migrateState, newSeasonSave, offlineEarnings, SalesMeter, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
 import { createGameState, MATERIAL_KINDS, REGION_SLOTS, type GameContext, type GameEvents } from '../src/core/types';
 import { MATERIALS } from '../src/eras/data';
 
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
 /** Every real save captured from a released build: each must keep loading as the state grows. */
-const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json', 'save-v7-eras.json', 'save-v8-climb.json'];
+const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json', 'save-v7-eras.json', 'save-v8-climb.json',
+  // 0.9.6: one save written by each of 0.9.1-0.9.5 (tests/saveSafety.test.ts covers their migration)
+  'save-v9-0.9.1-era3.json', 'save-v9-0.9.2-era5.json', 'save-v9-0.9.3-era7.json', 'save-v9-0.9.4-era10-mastery.json', 'save-v9-0.9.5-era4-lv10.json'];
 
-describe('0.9.6 Trade merged into the material sales upgrades', () => {
-  it('every material of an era takes max(its Fine level, the era\'s old Trade level), not capped here (the Lv 10 refund handles levels past 10)', () => {
+describe('0.9.6 Trade merged into the material sales upgrades (migration 0.9.6-trade-merge)', () => {
+  const era = (n: number) => MATERIAL_KINDS.filter((k) => MATERIALS[k].era === n);
+  const loadOld = (upgrades: Record<string, number>) => {
+    const state = createGameState();
+    mergeState(state, { upgrades });
+    sanitizeState(state);
+    const report = migrateState(state, false, { salesRate: 0, upgrades });
+    return { state, report };
+  };
+
+  it('every material takes max(its Fine level, the era\'s Trade level); the fixture keeps its Trade 5 as Fine 5', () => {
     const save = load('save-v8-climb.json');
     expect((save.state.upgrades as Record<string, number>).frontierTrade).toBe(5);
     const state = createGameState();
     mergeState(state, save.state);
-    const era2 = MATERIAL_KINDS.filter((k) => MATERIALS[k].era === 2);
-    expect(era2.length).toBeGreaterThan(0);
-    for (const k of era2) expect(state.upgrades[`${k}Quality`]).toBe(5);
-    for (const k of MATERIAL_KINDS.filter((x) => MATERIALS[x].era === 3)) expect(state.upgrades[`${k}Quality`]).toBe(0);
+    sanitizeState(state);
+    const report = migrateState(state, false, { salesRate: 0, upgrades: save.state.upgrades });
+    for (const k of era(2)) expect(state.upgrades[`${k}Quality`]).toBe(5);
+    for (const k of era(3)) expect(state.upgrades[`${k}Quality`]).toBe(0);
     expect('frontierTrade' in state.upgrades).toBe(false);
-    // a higher Fine level wins; a Trade level past 10 is kept for the refund migration
-    const s2 = createGameState();
-    mergeState(s2, { upgrades: { frontierTrade: 30, stoneQuality: 4, brickQuality: 40, ironTrade: 3, ironQuality: 7 } });
-    expect(s2.upgrades.stoneQuality).toBe(30);
-    expect(s2.upgrades.brickQuality).toBe(40); // sanitizeState clamps it later
-    expect(s2.upgrades.ironQuality).toBe(7);
+    expect(report.tradeLevels).toBe(0); // no Fine levels yet: all five Trade levels carried over
+    expect(report.applied).toContain('0.9.6-trade-merge');
+  });
+
+  it('refunds the Trade levels no material needs: both at Lv 10 keeps Lv 10 and pays all ten Trade levels back', () => {
+    const fine = Object.fromEntries(era(2).map((k) => [`${k}Quality`, 10]));
+    const { state, report } = loadOld({ frontierTrade: 10, ...fine });
+    for (const k of era(2)) expect(state.upgrades[`${k}Quality`]).toBe(10);
+    expect(report.tradeLevels).toBe(10);
+    const def = legacyTradeDef(2);
+    let want = 0;
+    for (let s = 0; s < 10; s++) want += refundPrice(def, s);
+    expect(report.refund).toBe(Math.floor(want));
+    expect(report.refund).toBeGreaterThan(0);
+  });
+
+  it('a Trade level that lifts the lowest Fine is kept as Fine, not refunded; Trade past 10 is refunded', () => {
+    const [a, ...rest] = era(2);
+    const up: Record<string, number> = { frontierTrade: 6, [`${a}Quality`]: 2 };
+    for (const k of rest) up[`${k}Quality`] = 8;
+    const { state, report } = loadOld(up);
+    expect(state.upgrades[`${a}Quality`]).toBe(6);
+    for (const k of rest) expect(state.upgrades[`${k}Quality`]).toBe(8);
+    expect(report.tradeLevels).toBe(2); // the lowest Fine (2) already had Trade levels 0 and 1
+    const big = loadOld({ ironTrade: 14 });
+    for (const k of era(3)) expect(big.state.upgrades[`${k}Quality`]).toBe(10);
+    expect(big.report.tradeLevels).toBe(4);
+  });
+
+  it('runs once, and never on a fresh game', () => {
+    const { state } = loadOld({ frontierTrade: 3 });
+    const again = migrateState(state, false, { salesRate: 0, upgrades: { frontierTrade: 3 } });
+    expect(again.tradeLevels).toBe(0);
+    const fresh = createGameState();
+    expect(migrateState(fresh, true, { salesRate: 0, upgrades: { frontierTrade: 3 } }).refund).toBe(0);
   });
 });
 

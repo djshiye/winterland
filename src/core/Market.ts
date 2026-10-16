@@ -408,6 +408,12 @@ export class Market implements Updatable {
   private ageBonds(dt: number): void {
     let changed = false;
     for (const p of this.ctx.state.market.investments) {
+      // index / venture: the value follows the trend as time passes (the wobble moves on price ticks, tickInvestments)
+      if (p.product === 'index' || p.product === 'venture') {
+        const t0 = this.trend(p, p.age);
+        const w = t0 > 0 ? p.value / t0 : 1;
+        if (inBand(w, INVEST[p.product])) p.value = this.trend(p, p.age + dt) * w;
+      }
       p.age += dt;
       if (p.product === 'bond' && p.value <= p.principal && this.matured(p)) {
         p.value = p.principal * this.bondPayout();
@@ -415,6 +421,12 @@ export class Market implements Updatable {
       }
     }
     if (changed) this.ctx.events.emit('invest:changed', {});
+  }
+
+  /** An index / venture position's trend value at `age` seconds: principal × (1 + rate)^hours, at most × top. */
+  private trend(p: InvestmentState, age: number): number {
+    const def = INVEST[p.product];
+    return p.principal * Math.min(def.top ?? 1, (1 + def.rate) ** (age / HOUR));
   }
 
   /** Roughly normal noise (sum of three uniforms), mean 0, standard deviation 1, |x| ≤ 3. */
@@ -457,11 +469,12 @@ export class Market implements Updatable {
 
   /**
    * One tick of the index fund and the ventures (0.9.6). A position is worth principal × trend × wobble: the trend grows
-   * at the product's rate per HOUR, and the wobble is a mean-reverting walk around 1 (leaning a little with the market),
-   * held inside [1 − dip, 1 + rise]. So nothing compounds per minute and an hour can never beat × (1 + rate) × (1 + rise).
+   * at the product's rate per HOUR up to its `top` (×2 fund, ×3 ventures), and the wobble is a mean-reverting walk around
+   * 1 (leaning a little with the market), held inside [1 − dip, 1 + rise]. So a position never beats top × (1 + rise),
+   * however long it is left.
    * Every new position starts at wobble 1, so timing a buy gains nothing. index positions share one noise draw per tick
    * (they track one market), each venture draws its own. A position from an older save whose value already sits outside
-   * the band keeps its value and only follows the trend.
+   * the band (0.9.5 compounded per minute) keeps its value and stops growing.
    */
   private tickInvestments(): void {
     const m = this.ctx.state.market;
@@ -481,12 +494,9 @@ export class Market implements Updatable {
     for (const p of m.investments) {
       if (p.product !== 'index' && p.product !== 'venture') continue;
       const def = INVEST[p.product];
-      const trend = p.principal * (1 + def.rate) ** (p.age / HOUR);
+      const trend = this.trend(p, p.age);
       const w = trend > 0 ? p.value / trend : 1;
-      if (w > 1 + (def.rise ?? 0) + 1e-9 || w < 1 - (def.dip ?? 0) - 1e-9) {
-        p.value *= (1 + def.rate) ** (MARKET.tick / HOUR);
-        continue;
-      }
+      if (!inBand(w, def)) continue;
       const target = p.product === 'index' ? fundTarget : 1 + clamp((this.eraIndex(p.era) - 1) * VENTURE_INDEX_PULL, -0.03, 0.03);
       p.value = trend * wobble(w, target, def, p.product === 'index' ? g : this.gauss());
     }
@@ -517,6 +527,11 @@ export class Market implements Updatable {
     }
     return out;
   }
+}
+
+/** A wobble inside [1 − dip, 1 + rise] (outside: a position from an older save, which keeps its value as it is). */
+function inBand(w: number, def: InvestProductDef): boolean {
+  return w <= 1 + (def.rise ?? 0) + 1e-9 && w >= 1 - (def.dip ?? 0) - 1e-9;
 }
 
 /** One step of a mean-reverting wobble toward `target`, kept inside [1 − dip, 1 + rise]. */
