@@ -126,7 +126,9 @@ function regionIncome(s: GameState, n: number, k: PacingKnobs): number {
     // supply pressure: each unit adds pressurePerUnit (raw half), decaying linearly; a smooth steady-state estimate
     const inflow = units * MARKET.pressurePerUnit * (m.grade === 'raw' ? 0.5 : 1);
     const pressure = Math.min(MARKET.pressureMax, (MARKET.pressureMax * inflow) / MARKET.pressureDecay);
-    sales += units * m.value * (1 - pressure) * value(s, `${ERAS[m.era]!.key}Trade`);
+    // 0.9.5: the region market's buyers pay the export price × the material's Quality (eras/RegionMarket.ts); the dock
+    // and stall keep up with the machines, so every unit sells there
+    sales += units * m.value * (1 - pressure) * value(s, `${ERAS[m.era]!.key}Trade`) * Math.max(1, value(s, `${kind}Quality`));
   }
   return sales - imports;
 }

@@ -52,9 +52,11 @@ export interface WorldSnapshot {
   town: { in: Partial<Record<ItemKind, number>>; out: number; cash: number }[];
   /**
    * 0.9.0, index = era (0 and 1 empty): per machine slot the items in its input pile (by kind) and on its out pile
-   * (its output kind), and the region import dock's contents by kind. Absent in older saves (→ empty).
+   * (its output kind), and the region import dock's contents by kind. Absent in older saves (→ empty). 0.9.5 `market`: the
+   * loading dock and market stall goods (+ goods held by unpaid buyers) by kind and the market cash pile's dollars
+   * (absent before 0.9.5 → empty).
    */
-  eras: { slots: { in: Partial<Record<ItemKind, number>>; out: number }[]; dock: Partial<Record<ItemKind, number>> }[];
+  eras: { slots: { in: Partial<Record<ItemKind, number>>; out: number }[]; dock: Partial<Record<ItemKind, number>>; market?: { dock: Partial<Record<ItemKind, number>>; stall: Partial<Record<ItemKind, number>>; cash: number } }[];
 }
 
 export interface SaveData {
@@ -433,6 +435,9 @@ export function sanitizeWorld(w: unknown): WorldSnapshot {
           return { in: kinds(sl.in), out: n(sl.out) };
         }),
         dock: kinds(r.dock),
+        market: isObj(r.market)
+          ? { dock: kinds((r.market as Record<string, unknown>).dock), stall: kinds((r.market as Record<string, unknown>).stall), cash: n((r.market as Record<string, unknown>).cash) }
+          : undefined,
       };
     }),
   };

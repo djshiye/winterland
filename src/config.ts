@@ -350,7 +350,7 @@ export const PADS: Record<PadIdConst, PadDef> = {
 const LOG_GRID_SPACING = { x: 0.66, y: 0.24, z: 0.26 };
 const PLANK_GRID_SPACING = { x: 0.52, y: 0.125, z: 0.31 };
 const CRATE_GRID_SPACING = { x: 0.48, y: 0.46, z: 0.48 };
-const CASH_GRID: PileGrid = { cols: 3, rows: 3, layers: 10, spacing: { x: 0.37, y: 0.125, z: 0.22 } };
+export const CASH_GRID: PileGrid = { cols: 3, rows: 3, layers: 10, spacing: { x: 0.37, y: 0.125, z: 0.22 } };
 /** Every sales counter is the art-spec wooden table: 1.6 long × 0.6 deep × 0.8 high (FENCE_WOOD). */
 const COUNTER_SIZE = { length: 1.6, depth: 0.6, height: 0.8 };
 
@@ -840,13 +840,15 @@ export type UpgradeIdConst =
   | 'jack'
   | 'taxOffice'
   | 'broker'
-  | `${EraKey}${'Rigs' | 'Crew' | 'Trade'}`
+  | `${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Dock' | 'Stall'}`
   // 0.9.5: the player's era upgrades (eras/playerUpgrades.ts)
   | EraPlayerUpgradeId
   // 0.9.5: the rest of each era's crew (six roles beside the Crew hauler), its conveyor belts and one level per machine
   | `${EraKey}${EraRoleKey}`
   | `${EraKey}Belts`
-  | MachineId;
+  | MachineId
+  // 0.9.5: one quality upgrade per era material (its buyers pay more), in that material's era
+  | `${MaterialKind}Quality`;
 
 /**
  * lumberjack + crew + sales: bought in the cabin shop panel (one tab each) · machine: the machine's own pad re-arms
@@ -923,7 +925,7 @@ export const ERA_ROLES: readonly { key: EraRoleKey; role: EraRole; settlement: n
   { key: 'Porter', role: 'porter', settlement: 2, blurb: 'Brings import-dock goods to the machines', scarf: 0x6fa8dc },
   { key: 'Gatherer', role: 'gatherer', settlement: 2, blurb: 'Clears full extractors into a reserve on the dock', scarf: 0x58b8a8 },
   { key: 'Foreman', role: 'foreman', settlement: 4, blurb: 'Hauls materials to machines you are building', scarf: 0xe07a5f },
-  { key: 'Clerk', role: 'clerk', settlement: 4, blurb: 'Keeps the fullest piles moving to the depot', scarf: 0xb48ad6 },
+  { key: 'Clerk', role: 'clerk', settlement: 4, blurb: 'Banks the market cash, then keeps the fullest piles moving', scarf: 0xb48ad6 },
 ];
 
 /**
@@ -952,6 +954,7 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
   ...financeUpgrades(),
   ...eraUpgrades(),
   ...eraPlayerUpgrades(),
+  ...qualityUpgrades(),
   carry: {
     id: 'carry',
     group: 'lumberjack',
@@ -1386,10 +1389,12 @@ function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> 
  * - 0.9.5 `${key}<Role>`: the six other crew roles (ERA_ROLES; workers ERA_ROLE_COUNT).
  * - 0.9.5 `${key}Belts`: conveyor belts between the era's machines (Lv 1 builds them, each level speeds them up).
  * - 0.9.5 one level per machine type (the MachineId): that machine works faster, bought on its level pad.
+ * - 0.9.5 `${key}Dock`: the region market's loading dock grows and its buyer vehicles come more often and load faster.
+ * - 0.9.5 `${key}Stall`: the region market's stall grows and its walk-in shoppers come more often.
  * No cost tables: every step is priced on the climb's band curve (core/ladder.ts costAt, CLIMB), like taxOffice / broker.
  */
-function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | EraRoleKey}` | MachineId, UpgradeDef> {
-  const out = {} as Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | EraRoleKey}` | MachineId, UpgradeDef>;
+function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | 'Dock' | 'Stall' | EraRoleKey}` | MachineId, UpgradeDef> {
+  const out = {} as Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | 'Dock' | 'Stall' | EraRoleKey}` | MachineId, UpgradeDef>;
   ERA_KEYS.forEach((key, i) => {
     const n = i + 2;
     const name = ERA_NAMES[n]!;
@@ -1431,6 +1436,17 @@ function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' |
         display: 'boost', requires: { era: n },
       };
     }
+    // 0.9.5: the region market (eras/RegionMarket.ts), era 1's Truck Dock and Shop Counter for the era's buyers
+    out[`${key}Dock`] = {
+      id: `${key}Dock`, group: 'sales', era: n, label: `${name} Loading Dock`, blurb: 'A bigger loading dock: buyers drive up more often and load faster',
+      values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5, 2.75, 3.0], costs: [],
+      display: 'boost', requires: { era: n },
+    };
+    out[`${key}Stall`] = {
+      id: `${key}Stall`, group: 'sales', era: n, label: `${name} Market Stall`, blurb: 'A bigger market stall: shoppers drop by more often',
+      values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5, 2.75, 3.0], costs: [],
+      display: 'boost', requires: { era: n },
+    };
   });
   return out;
 }
@@ -1442,6 +1458,57 @@ export function eraRoleCount(level: number): number {
 
 /** 0.9.0: era workers per `${key}Crew` level (index = level; 0 = not hired). */
 export const ERA_CREW_COUNT: readonly number[] = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3];
+
+/**
+ * 0.9.5: `${kind}Quality` for every era material, era 1's Fine Planks / Sturdy Crates for the eras: buyers at a region
+ * market pay this much more for that material. It belongs to the material's own era (MATERIALS[kind].era).
+ */
+function qualityUpgrades(): Record<`${MaterialKind}Quality`, UpgradeDef> {
+  const out = {} as Record<`${MaterialKind}Quality`, UpgradeDef>;
+  for (const kind of MATERIAL_KINDS) {
+    const m = MATERIALS[kind];
+    out[`${kind}Quality`] = {
+      id: `${kind}Quality`, group: 'sales', era: m.era, label: `Fine ${m.label}`, blurb: `Market buyers pay more for ${m.label.toLowerCase()}`,
+      values: [1, 1.1, 1.2, 1.3, 1.45, 1.6, 1.75, 1.9, 2.05, 2.2], costs: [],
+      display: 'mult', requires: { era: m.era },
+    };
+  }
+  return out;
+}
+
+/**
+ * 0.9.5: every era region's market (eras/RegionMarket.ts) in its layout zone (eras/layout.ts zones.market): a loading
+ * dock by the fence where buyer vehicles (npc/EraBuyers.ts) stop on the road, and a market stall where walk-in shoppers
+ * (npc/EraShoppers.ts) queue, both paying into the market's cash pile (era 1's CashPile: the player or a crew collects
+ * it). The export depot hands what it receives to the dock (raw goods) or the stall (refined goods) while they have
+ * room, and sells at once only when both are full. Buyers pay the depot price × the material's Quality upgrade.
+ * `${key}Dock` / `${key}Stall` multiply room, arrival rate and loading speed (up to TIMING.dockLoadMax) like era 1's
+ * docks.
+ */
+export const TRADE_POST = {
+  /** Room on each counter at ×1 (× the dock / stall value, up to the grid's 5 × 2 × 4 = 40). */
+  room: 14,
+  grid: { cols: 5, rows: 2, layers: 4, spacing: { x: 0.56, y: 0.34, z: 0.4 } } as PileGrid,
+  /** Seconds between two vehicles at Dock ×1 (÷ the Dock value) and units per order. */
+  gap: [7, 11] as readonly [number, number],
+  want: [4, 10] as readonly [number, number],
+  maxWant: 12,
+  maxQueue: 3,
+  /** Metres between queued vehicles (a pickup is about 3.6 m long). */
+  spacing: 4.6,
+  driveSpeed: 6.5,
+  /** A buyer at the counter that gets nothing for this long pays for what it has and leaves. */
+  patience: 5,
+  /** Material in the pickup bed: 3 × 3 × 2 = 18 ≥ maxWant. */
+  bedGrid: { cols: 3, rows: 3, layers: 2, spacing: { x: 0.44, y: 0.32, z: 0.48 } } as PileGrid,
+  /** Walk-in shoppers: seconds between two at Stall ×1, units each, line length, walk speed. */
+  shopGap: [4, 7] as readonly [number, number],
+  shopWant: [1, 4] as readonly [number, number],
+  shopQueue: 4,
+  shopSpacing: 1.1,
+  walkSpeed: 2.6,
+} as const;
+
 /** 0.9.0: era worker base stats at work multiplier 1 (×`${key}Crew` value). */
 export const ERA_WORKER = { walkSpeed: 3.6, capacity: 6 } as const;
 
