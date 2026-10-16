@@ -33,6 +33,7 @@ import { debugAllowed } from '../platform/debug';
 import { desktop } from '../platform/desktop';
 import { exportText, saveFileName } from '../ui/saveTransfer';
 import type { Notice } from '../ui/NoticeCard';
+import { formatMoney } from '../ui/format';
 import { TweenManager } from '../core/Tween';
 import { Upgrades } from '../core/Upgrades';
 import { DayNight } from '../core/DayNight';
@@ -214,8 +215,8 @@ export class Game {
       mergeState(state, save.state);
       sanitizeState(state);
     }
-    const migration = migrateState(state, !save);
-    const startMoney = save ? Math.min(Number.MAX_SAFE_INTEGER, save.money + migration.refund) : ECONOMY.startMoney;
+    const migration = migrateState(state, !save, { salesRate: save?.salesRate ?? 0 });
+    const startMoney = save ? Math.min(Number.MAX_SAFE_INTEGER, save.money + migration.refund + migration.masteryPayout) : ECONOMY.startMoney;
     const economy = new Economy(events, state, startMoney);
     const upgrades = new Upgrades(state, economy, events);
     const colliders = new ColliderWorld();
@@ -687,7 +688,12 @@ function refundNotice(m: MigrationReport): Notice | null {
     'Every upgrade now tops out at Lv 10, in every era.',
     `The ${m.refundedLevels.toLocaleString('en-US')} level${m.refundedLevels === 1 ? '' : 's'} you had bought past Lv 10 ${m.refundedLevels === 1 ? 'is' : 'are'} refunded in full:`,
   ];
-  const n: Notice = { icon: 'coin', title: 'Welcome to the new level rule', lines, amount: m.refund, buttons: [{ label: 'Lovely!' }] };
-  if (m.masteryMult > 1.0001) n.after = [`Your Mastery bonus stays with you for good: +${Math.round((m.masteryMult - 1) * 100)}% on every sale.`];
+  const n: Notice = { icon: 'coin', title: 'Welcome to the new level rule', lines, amount: m.refund + m.masteryPayout, buttons: [{ label: 'Lovely!' }] };
+  const pct = Math.round((m.masteryHad - 1) * 100);
+  if (m.masteryPayout > 0) {
+    n.after = [`That includes ${formatMoney(m.masteryPayout)} for your Mastery bonus (+${pct}% on sales), now retired: about what it would have earned you over one era of play.`];
+  } else if (m.masteryMult > 1.0001) {
+    n.after = [`Your Mastery bonus stays with you for good: +${Math.round((m.masteryMult - 1) * 100)}% on every sale.`];
+  }
   return n;
 }
