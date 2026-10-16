@@ -1,12 +1,25 @@
-/** Big soft low-poly snow-capped mountain ranges on the horizon (north, west and a hint of east). */
+/**
+ * Big soft low-poly snow-capped mountain ranges on the horizon (north, west and a hint of east).
+ *
+ * 0.9.3: a few peaks of the western and eastern ranges stand where the 0.9.0 new land (era regions, roads, city
+ * districts) now lies; one sat right on a corner of a region. Those peaks go into their own mesh, which shows only while
+ * the new land is hidden (`landShown` false: era 1 below the Great Lodge still looks like 0.8.0) and clears away once
+ * the land appears. Every peak still draws the same random numbers, so the rest of the ranges do not move.
+ */
 import * as THREE from 'three';
 import { LAYOUT, PALETTE } from '../../config';
-import { Batch, Rng, W, type EnvPart } from './common';
+import { Batch, blockedNewLand, occludesNewLand, Rng, W, type EnvPart } from './common';
 
-export function buildMountains(rng: Rng): EnvPart {
+/** True when a peak at (x, z), radius `r`, height `h` would stand on or, in the isometric view, cover the new land. */
+export function peakOnNewLand(x: number, z: number, r: number, h: number): boolean {
+  return blockedNewLand(x, z, r) || occludesNewLand(x, z, h);
+}
+
+export function buildMountains(rng: Rng, landShown: () => boolean = () => false): EnvPart {
   const group = new THREE.Group();
   group.name = 'mountains';
-  const b = new Batch();
+  const kept = new Batch();
+  const onLand = new Batch();
   const riverX = (LAYOUT.river.minX + LAYOUT.river.maxX) / 2;
 
   const mountain = (x: number, z: number, r: number, h: number, pale: number): void => {
@@ -14,6 +27,7 @@ export function buildMountains(rng: Rng): EnvPart {
     const cone = new THREE.ConeGeometry(1, 1, 7, 1, true);
     const ry = rng.range(0, 6.28);
     const rz = r * rng.range(0.85, 1.1);
+    const b = peakOnNewLand(x, z, Math.max(r, rz), h) ? onLand : kept;
     b.add(cone, base, x, h / 2 - 1, z, { sx: r, sy: h, sz: rz, ry });
     const snow = rng.range(0.38, 0.5);
     const ch = h * snow;
@@ -47,7 +61,16 @@ export function buildMountains(rng: Rng): EnvPart {
     mountain(92 + rng.range(0, 14), z, rng.range(12, 18), rng.range(12, 20), 1);
   }
 
-  const mesh = b.mesh({ cast: false, receive: false, flat: true });
-  group.add(mesh);
-  return { group };
+  group.add(kept.mesh({ cast: false, receive: false, flat: true }));
+  if (onLand.empty) return { group };
+  const cleared = onLand.mesh({ cast: false, receive: false, flat: true });
+  cleared.name = 'mountains:newLand';
+  cleared.visible = !landShown();
+  group.add(cleared);
+  return {
+    group,
+    update(): void {
+      cleared.visible = !landShown();
+    },
+  };
 }

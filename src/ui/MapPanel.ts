@@ -5,11 +5,16 @@
  * the roads, a "you are here" dot) and the travel list from travelPoints(state) grouped Home / Regions / City. Locked
  * regions show their expansion price and what to reach first. Tapping an open point (list row or map shape) emits
  * 'travel:request' { x, z, label } and closes the map; Level answers with 'travel:done' (HUD shows the welcome toast).
+ *
+ * 0.9.3: regions read as big era-coloured plots with their number and name; the city districts read as dark city
+ * blocks under a "City" heading with their district name, so the two never look like two "era II" places. A dashed
+ * trail (eras/layout.ts eraTrail) runs from the town along the roads through every region gate in era order and ends
+ * on the next era's gate, so the way on is always on the map.
  */
 import type { GameContext } from '../core/types';
 import { DISTRICTS, ERAS, REGIONS, ROADS, type ERect } from '../eras/data';
 import { climbOpen } from '../eras/gate';
-import { travelPoints, type TravelPoint } from '../eras/layout';
+import { eraTrail, travelPoints, type TravelPoint } from '../eras/layout';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { eraRoman, groupTravelPoints, travelNote } from './agesLogic';
 import { hexCss, ICON_CLOSE, ICON_LOCK, ICON_PIN, shadeCss } from './icons';
@@ -148,17 +153,31 @@ export class MapPanel {
       out.push(`<rect ${rectAttrs(p.rect)} rx="2" fill="${p.fill}" stroke="#fff" stroke-width="0.9"/>`);
       out.push(`<text class="wl-map-old" x="${(p.rect.minX + p.rect.maxX) / 2}" y="${p.rect.minZ - 1.6}">${p.label}</text>`);
     }
-    // city districts
+    // city districts: dark city blocks with their district name (not just a number, which read as a second region)
+    let cityMinX = Infinity;
+    let cityMaxX = -Infinity;
+    let cityMinZ = Infinity;
+    for (let n = 2; n < DISTRICTS.length; n++) {
+      const d = DISTRICTS[n];
+      if (!d) continue;
+      cityMinX = Math.min(cityMinX, d.rect.minX);
+      cityMaxX = Math.max(cityMaxX, d.rect.maxX);
+      cityMinZ = Math.min(cityMinZ, d.rect.minZ);
+    }
+    if (age >= 2 || climbOpen(state)) out.push(`<text class="wl-map-city" x="${(cityMinX + cityMaxX) / 2}" y="${cityMinZ - 2.2}">City</text>`);
     for (let n = 2; n < DISTRICTS.length; n++) {
       const d = DISTRICTS[n];
       const e = ERAS[n];
       if (!d || !e) continue;
       const open = age >= n;
       const tp = pts.find((p) => p.id === `district:${n}`);
+      const cx = (d.rect.minX + d.rect.maxX) / 2;
+      const cz = (d.rect.minZ + d.rect.maxZ) / 2;
       out.push(
         `<g ${open && tp ? `data-tp="${tp.id}" class="is-open"` : ''}>` +
-          `<rect ${rectAttrs(d.rect)} rx="2.5" fill="${shadeCss(e.colors.ground, 0.2)}" stroke="${hexCss(e.colors.accent)}" stroke-width="1.1" ${open ? '' : 'opacity="0.4" stroke-dasharray="3 2"'}/>` +
-          `<text class="wl-map-num" x="${(d.rect.minX + d.rect.maxX) / 2}" y="${(d.rect.minZ + d.rect.maxZ) / 2 + 3}" ${open ? '' : 'opacity="0.55"'}>${eraRoman(n)}</text></g>`,
+          `<rect ${rectAttrs(d.rect)} rx="2.5" fill="#4a5672" stroke="${hexCss(e.colors.accent)}" stroke-width="1.1" ${open ? '' : 'opacity="0.35" stroke-dasharray="3 2"'}/>` +
+          `<text class="wl-map-dnum" x="${cx}" y="${cz - 1}" ${open ? '' : 'opacity="0.6"'}>${eraRoman(n)}</text>` +
+          `<text class="wl-map-dname" x="${cx}" y="${cz + 6}" ${d.name.length > 14 ? 'textLength="26" lengthAdjust="spacingAndGlyphs"' : ''} ${open ? '' : 'opacity="0.6"'}>${d.name}</text></g>`,
       );
     }
     // era regions
@@ -175,6 +194,16 @@ export class MapPanel {
           `<text class="wl-map-num" x="${(r.rect.minX + r.rect.maxX) / 2}" y="${(r.rect.minZ + r.rect.maxZ) / 2 + 3}" fill="${shadeCss(e.colors.accent, -0.35)}" ${bought ? '' : 'opacity="0.55"'}>${eraRoman(n)}</text>` +
           `<text class="wl-map-name" x="${(r.rect.minX + r.rect.maxX) / 2}" y="${(r.rect.minZ + r.rect.maxZ) / 2 + 9}" ${bought ? '' : 'opacity="0.55"'}>${e.region}</text></g>`,
       );
+    }
+    // the era trail: town → every region gate in order → the next era's gate
+    if (age >= 2 || climbOpen(state)) {
+      const goal = Math.min(age + 1, REGIONS.length - 1);
+      const trail = eraTrail(goal);
+      const line = trail.map((q) => `${q.x},${q.z}`).join(' ');
+      const end = trail[trail.length - 1]!;
+      out.push(`<polyline class="wl-map-trail-bg" points="${line}"/>`);
+      out.push(`<polyline class="wl-map-trail" points="${line}"/>`);
+      if (age < REGIONS.length - 1) out.push(`<circle class="wl-map-next" cx="${end.x}" cy="${end.z}" r="2.6"/>`);
     }
     // home points as tappable pins
     for (const p of pts) {
@@ -203,7 +232,12 @@ export class MapPanel {
     row.type = 'button';
     row.classList.toggle('is-locked', !p.open);
     const badge = h('div', 'wl-map-badge', p.era >= 2 ? eraRoman(p.era) : ICON_PIN);
-    if (e) {
+    if (e && p.kind === 'district') {
+      // a city block: dark like the map's blocks, the number in the era's colour
+      badge.style.background = '#4a5672';
+      badge.style.color = hexCss(e.colors.accent);
+      badge.style.boxShadow = `inset 0 0 0 2px ${hexCss(e.colors.accent)}`;
+    } else if (e) {
       badge.style.background = hexCss(e.colors.accent);
       badge.style.color = '#fff';
     }
