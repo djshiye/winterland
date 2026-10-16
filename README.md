@@ -132,7 +132,7 @@ Settings → Display has a **Window mode** (Windowed / Fullscreen — borderless
 **F11** or **Alt+Enter** toggles it from anywhere. The window size, position and mode are remembered in
 `window.json` next to the save, so the game opens the way you left it.
 
-Keys in the desktop app: **F11** / **Alt+Enter** fullscreen, **Ctrl+R** reload, **F12** developer tools.
+Keys in the desktop app: **F11** / **Alt+Enter** fullscreen, **Ctrl+R** reload. Settings → Game has **Save & quit** and **Earlier saves** (the game keeps a copy of your save every 10 minutes and before any reset or restore).
 
 ## Develop
 
