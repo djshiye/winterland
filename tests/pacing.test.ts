@@ -119,7 +119,7 @@ describe('ladder invariants', () => {
     const cap: Partial<Record<UpgradeDef['display'], number>> = { speed: 13.5, crew: 8, boost: 6, factor: 10, share: 0.9 };
     for (const d of DEFS) {
       const top = maxStored(d, true);
-      const limit = d.display === 'count' ? (d.id === 'carry' ? 50 : 12) : cap[d.display];
+      const limit = d.display === 'count' ? (d.id === 'carry' || d.id.endsWith('Carry') ? 50 : 12) : cap[d.display];
       const hc = hardCapStored(d);
       for (let s = 0; s <= top; s++) {
         const v = valueAt(d, s);
