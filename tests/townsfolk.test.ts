@@ -438,7 +438,7 @@ describe('Townsfolk buyers', () => {
 
 describe('Townsfolk wanderers', () => {
   const walk = [...LAYOUT.village.walk, ...LAYOUT.town.walk].map((r) => rect((r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2, r.maxX - r.minX + 1.4, r.maxZ - r.minZ + 1.4));
-  const lane = { minX: LAYOUT.town.square.maxX - 2, maxX: 39, minZ: LAYOUT.town.square.maxZ - 2, maxZ: 35 };
+  const lane = { minX: LAYOUT.town.square.maxX - 2, maxX: 39, minZ: LAYOUT.town.square.maxZ - 2, maxZ: LAYOUT.town.entrances[1]!.z + 1.4 };
   const yardGate = { minX: 2.5, maxX: 7, minZ: 9, maxZ: 12 };
   const inside = (x: number, z: number): boolean => [...walk, lane, yardGate].some((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ);
 

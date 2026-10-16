@@ -69,10 +69,17 @@ export function marketGateWalk(l: RegionLayout): Rect {
   return { minX: g.x - g.width / 2 + 0.3, maxX: g.x + g.width / 2 - 0.3, minZ: Math.min(z0, z1), maxZ: Math.max(z0, z1) };
 }
 
+/** The Market Town fence's south edge (where the south avenue leaves). */
+const TOWN_SOUTH = LAYOUT.town.area.maxZ;
+
 /** The gap the Market Town's fence gets when a road leaves the town through it (carved when the road opens). */
 const TOWN_GAPS: Record<string, { gap: Rect; wall: Rect; walk?: Rect }> = {
-  // `walk` joins the square's walk rect (z ≤ 33.2) to the avenue (z ≥ 38) between the south lots
-  southAvenue: { gap: { minX: 26, maxX: 30, minZ: 38.3, maxZ: 38.9 }, wall: { minX: 26, maxX: 30, minZ: 38.2, maxZ: 39.0 }, walk: { minX: 26.2, maxX: 29.8, minZ: 33.0, maxZ: 38.8 } },
+  // `walk` joins the square's walk rect to the avenue between the south lots (0.9.4: both follow the stretched town)
+  southAvenue: {
+    gap: { minX: 26, maxX: 30, minZ: TOWN_SOUTH - 0.3, maxZ: TOWN_SOUTH + 0.3 },
+    wall: { minX: 26, maxX: 30, minZ: TOWN_SOUTH - 0.4, maxZ: TOWN_SOUTH + 0.4 },
+    walk: { minX: 26.2, maxX: 29.8, minZ: LAYOUT.town.square.maxZ - 0.2, maxZ: TOWN_SOUTH + 0.2 },
+  },
   cityLink: { gap: { minX: 37.7, maxX: 38.3, minZ: 19, maxZ: 23 }, wall: { minX: 37.8, maxX: 38.2, minZ: 19, maxZ: 23 } },
 };
 
