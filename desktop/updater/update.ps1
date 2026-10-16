@@ -125,7 +125,11 @@ try {
   catch { Stop-Update "the download didn't finish. Check your internet connection and try again." }
 
   Write-Host 'Checking the download is genuine (SHA-256)... ' -NoNewline
-  $GotSha = (Get-FileHash -LiteralPath $Zip -Algorithm SHA256).Hash.ToLowerInvariant()
+  # Plain .NET rather than Get-FileHash / Expand-Archive: those live in modules that some setups fail to load.
+  $hasher = [Security.Cryptography.SHA256]::Create()
+  $stream = [IO.File]::OpenRead($Zip)
+  try { $GotSha = -join ($hasher.ComputeHash($stream) | ForEach-Object { $_.ToString('x2') }) }
+  finally { $stream.Dispose(); $hasher.Dispose() }
   if ($GotSha -ne $WantSha) {
     Say 'no match' 'Red'
     Stop-Update "the downloaded file doesn't match the release's checksum, so it was thrown away."
@@ -136,7 +140,10 @@ try {
   Say 'Installing...'
   if (Test-Path -LiteralPath $Stage) { Remove-Item -LiteralPath $Stage -Recurse -Force } # leftovers were put back above
   $Unpacked = Join-Path $Stage 'unpacked'
-  try { Expand-Archive -LiteralPath $Zip -DestinationPath $Unpacked }
+  try {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($Zip, $Unpacked) # refuses entries that point outside $Unpacked
+  }
   catch { Stop-Update "couldn't unpack the download." }
   $tops = @(Get-ChildItem -LiteralPath $Unpacked -Force)
   if ($tops.Count -ne 1 -or -not $tops[0].PSIsContainer) { Stop-Update "the download isn't laid out as expected." }
