@@ -51,6 +51,7 @@ import { townAmenityCatalog } from './townAmenities';
 import { vehicleCatalog } from './vehicles';
 import { eraItemCatalog } from './eraItems';
 import { eraMachineCatalog, eraSheetCatalog } from './eraMachines';
+import { eraMachine2Catalog } from './eraMachines2';
 import { eraWorkerCatalog } from './eraWorkers';
 import { eraNodeCatalog } from './eraNodes';
 import { cityBuildingCatalog } from './cityBuildings';
@@ -90,6 +91,7 @@ export const ASSET_CATALOG: Record<string, Record<string, AssetBuilder>> = {
   // 0.9.0 Ages (each file owns its catalog)
   eraItems: eraItemCatalog,
   eraMachines: eraMachineCatalog,
+  eraMachines2: eraMachine2Catalog,
   eraSheets: eraSheetCatalog,
   eraWorkers: eraWorkerCatalog,
   eraNodes: eraNodeCatalog,
