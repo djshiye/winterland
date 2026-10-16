@@ -1,7 +1,7 @@
 /** 0.9.0 new land: road opening rules, walk connectivity (town → roads → region gates / districts), no overlap with the old map. */
 import { describe, expect, it } from 'vitest';
 import { LAYOUT, type Rect } from '../src/config';
-import { DISTRICTS, REGIONS, RIVER_POND, ROADS, TRIKE_ROAD_END_Z } from '../src/eras/data';
+import { DISTRICTS, REGIONS, RIVER_END_Z, RIVER_POND, ROADS, TRIKE_ROAD_END_Z } from '../src/eras/data';
 import { eraTrail, regionLayout } from '../src/eras/layout';
 import { peakOnNewLand } from '../src/world/env/mountains';
 import { blockedNewLand, NEW_LAND } from '../src/world/env/common';
@@ -115,7 +115,9 @@ describe('walk connectivity', () => {
 describe('the new land keeps off the old map', () => {
   const old: Record<string, Rect> = {
     yard: { ...LAYOUT.yard, minZ: LAYOUT.expandedMinZ },
-    river: LAYOUT.river,
+    // as drawn once the new land shows: it ends in its pond and the channel past it is snowed over
+    river: { ...LAYOUT.river, maxZ: RIVER_END_Z },
+    pond: RIVER_POND,
     village: LAYOUT.village.area,
     town: LAYOUT.town.area,
     ridge: LAYOUT.ridge.area,
@@ -130,13 +132,12 @@ describe('the new land keeps off the old map', () => {
     for (const d of districts) for (const [name, o] of Object.entries(old)) expect(overlap(d.rect, o), `district ${d.n} vs ${name}`).toBe(false);
   });
 
-  it('lets only the two roads that leave the Market Town touch the old rects (and only the town), and R1 bridge the river', () => {
+  it('lets only the two roads that leave the Market Town touch the old rects (and only the town)', () => {
     for (const r of ROADS) {
       const hits = Object.entries(old).filter(([, o]) => overlap(r.rect, o)).map(([name]) => name);
       if (r.id === 'southAvenue') expect(hits, r.id).toEqual(['town']);
       // the avenue to the city has always crossed the Timber Ridge rail at a level crossing
       else if (r.id === 'cityLink') expect(hits, r.id).toEqual(['town', 'rail']);
-      else if (r.id === 'r1') expect(hits, r.id).toEqual(['river']);
       else expect(hits, r.id).toEqual([]);
     }
   });
@@ -149,10 +150,10 @@ describe('the new land keeps off the old map', () => {
     // the trikes leave the map before the road ends, so none drives onto the hidden tail
     expect(LAYOUT.tricycles.exitZ).toBeLessThan(TRIKE_ROAD_END_Z);
     expect(LAYOUT.ridge.rail.exitZ + 0.8).toBeLessThan(r1.minZ);
-    // the river runs under R1 and out into the pond, which covers its end
-    expect(LAYOUT.river.maxZ).toBeGreaterThan(r1.maxZ);
-    expect(RIVER_POND.minZ).toBeLessThanOrEqual(LAYOUT.river.maxZ);
-    expect(RIVER_POND.maxZ).toBeGreaterThan(LAYOUT.river.maxZ);
+    // the river ends inside its pond, north of R1; the pond covers the whole channel width
+    expect(RIVER_END_Z).toBeGreaterThan(RIVER_POND.minZ);
+    expect(RIVER_END_Z).toBeLessThan(RIVER_POND.maxZ);
+    expect(RIVER_POND.maxZ).toBeLessThan(r1.minZ);
     expect(RIVER_POND.minX).toBeLessThan(LAYOUT.river.minX);
     expect(RIVER_POND.maxX).toBeGreaterThan(LAYOUT.river.maxX);
     for (const r of regions) expect(overlap(r.rect, RIVER_POND), `pond vs region ${r.n}`).toBe(false);

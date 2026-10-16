@@ -18,7 +18,7 @@
 import * as THREE from 'three';
 import { LAYOUT, PALETTE, type Rect } from '../../config';
 import { eraPropGeometry, PROP_RADIUS, PROP_ROLES, strungWires, type PropRole } from '../../assets/frontierProps';
-import { ERAS, REGIONS, RIVER_POND, ROADS, unlockCash } from '../../eras/data';
+import { ERAS, REGIONS, RIVER_END_Z, RIVER_POND, ROADS, unlockCash } from '../../eras/data';
 import { climbOpen } from '../../eras/gate';
 import { regionLayout, type RegionLayout } from '../../eras/layout';
 import type { GameContext } from '../../core/types';
@@ -470,7 +470,14 @@ function propFree(l: RegionLayout, x: number, z: number, rad: number): boolean {
   if (x < r.minX + rad + 0.9 || x > r.maxX - rad - 0.9 || z < r.minZ + rad + 0.9 || z > r.maxZ - rad - 0.9) return false;
   const H = l.zones.harvest;
   if (!(x > H.minX + rad + 0.6 && x < H.maxX - rad - 0.6 && z > H.minZ + rad + 0.6 && z < H.maxZ - rad - 0.6)) return false;
+  if (inZone(nodePatch(l), x, z, rad + 0.3)) return false;
   return !regionPaths(l).some((q) => inZone(q, x, z, rad + 0.3));
+}
+
+/** The hand node's patch kept clear of props: the node (r ≈ 2.2 m), its pile 2.6 m to the right and the take mat. Pure. */
+export function nodePatch(l: RegionLayout): Rect {
+  const n = l.node;
+  return { minX: n.x - 4, maxX: n.x + 6, minZ: n.z - 3.5, maxZ: n.z + 3.5 };
 }
 
 function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
@@ -593,7 +600,8 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   const sb = new Batch();
   for (const s of l.slots) {
     const h = l.cell / 2 - 0.9;
-    for (const [dx, dz] of [[-h, -h], [h, -h], [-h, h], [h, h]] as const) {
+    const v = l.rowPitch / 2 - 0.9;
+    for (const [dx, dz] of [[-h, -v], [h, -v], [-h, v], [h, v]] as const) {
       sb.add(geo.box(0.07, 0.8, 0.07), 0x8a6a46, s.x + dx, 0.4, s.z + dz);
       sb.add(geo.box(0.3, 0.17, 0.03), 0xd0453a, s.x + dx + 0.15, 0.72, s.z + dz, { ry: 0.5 });
     }
@@ -687,33 +695,18 @@ function carveTownGap(ctx: GameContext, town: THREE.Object3D, road: string): voi
 // ---------------------------------------------------------------------------
 
 /**
- * The seams between era 1 and the new land, shown only with the new land: R1's footbridge over the river, the frozen
- * pond the river ends in (it used to stop dead in the snow) and a buffer stop where the Timber Ridge rail ends by R1.
+ * The seams between era 1 and the new land, shown only with the new land: the frozen pond the river ends in (it used
+ * to stop dead in the snow), the snow over its channel past the pond, and a buffer stop where the Timber Ridge rail
+ * ends by R1.
  */
 function buildSeams(): THREE.Group {
   const group = new THREE.Group();
   group.name = 'seams';
   const b = new Batch();
   const rv = LAYOUT.river;
-  const r1 = ROADS.find((q) => q.id === 'r1')!.rect;
 
-  // ---- footbridge: plank deck over the channel, rails on both sides, stone abutments
-  const x0 = rv.minX - 0.6;
-  const x1 = rv.maxX + 0.6;
-  const bw = x1 - x0;
-  const bx = (x0 + x1) / 2;
-  b.add(geo.box(bw, 0.12, r1.maxZ - r1.minZ), 0x9c7a55, bx, 0.02, (r1.minZ + r1.maxZ) / 2);
-  for (let x = x0 + 0.25; x < x1; x += 0.5) b.add(geo.box(0.05, 0.012, r1.maxZ - r1.minZ - 0.2), 0x7d5f40, x, 0.084, (r1.minZ + r1.maxZ) / 2);
-  for (const z of [r1.minZ + 0.12, r1.maxZ - 0.12]) {
-    for (let x = x0; x <= x1 + 0.01; x += bw / 4) {
-      b.add(geo.box(0.16, 1.0, 0.16), 0x6e5238, x, 0.5, z);
-      b.add(geo.box(0.22, 0.05, 0.22), PALETTE.snow, x, 1.02, z);
-    }
-    b.add(geo.box(bw, 0.1, 0.12), 0x8a6a46, bx, 0.9, z);
-    b.add(geo.box(bw, 0.05, 0.16), PALETTE.snow, bx, 0.97, z);
-    b.add(geo.box(bw, 0.08, 0.08), 0x8a6a46, bx, 0.5, z);
-  }
-  for (const x of [x0 - 0.3, x1 + 0.3]) b.add(geo.box(0.8, 0.34, r1.maxZ - r1.minZ + 0.6), PALETTE.rock, x, 0.1, (r1.minZ + r1.maxZ) / 2);
+  // ---- the river past its pond is snowed over (it used to run on under R1 into era II's plot)
+  b.add(geo.box(rv.maxX - rv.minX + 0.6, 0.02, rv.maxZ - RIVER_END_Z + 0.4), PALETTE.snow, (rv.minX + rv.maxX) / 2, 0.006, (RIVER_END_Z + rv.maxZ) / 2);
 
   // ---- frozen pond where the river ends: an ice oval over the channel's last metres, a snowy rim, skate swirls
   const P = RIVER_POND;
