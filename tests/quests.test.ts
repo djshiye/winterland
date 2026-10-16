@@ -6,6 +6,7 @@ import { EventBus } from '../src/core/EventBus';
 import { QUEST_DEFS, Quests } from '../src/core/quests';
 import { createGameState, type GameEvents } from '../src/core/types';
 import { VILLAGE } from '../src/config';
+import { ERAS } from '../src/eras/data';
 import { gateSize } from '../src/eras/gate';
 import { meetGate } from './gateHelpers';
 
@@ -107,7 +108,7 @@ describe('gate quests (0.9.0 climb)', () => {
     const ids = QUEST_DEFS.map((q) => q.id);
     for (let n = 2; n <= 10; n++) {
       expect(ids.indexOf(`gate${n}`), `gate${n}`).toBe(ids.indexOf(`era${n}`) - 1);
-      expect(def(`gate${n}`).title).toBe(`All upgrades Lv ${10 * (n - 1)}`);
+      expect(def(`gate${n}`).title).toBe(n === 2 ? 'All upgrades Lv 10' : `All ${ERAS[n - 1]!.region} upgrades Lv 10`);
       expect(def(`gate${n}`).target).toBe(gateSize(n));
       expect(def(`gate${n}`).reward).toBeGreaterThan(0);
     }

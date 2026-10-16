@@ -19,45 +19,48 @@ describe('ladder: frozen prefix', () => {
 });
 
 describe('ladder: levels', () => {
-  it('28 era-1 ids (22 Survival + jack + the five 0.9.2 docks) sit at offset 0; era-n ids at 10 · (n − 1)', () => {
+  it('28 era-1 ids (22 Survival + jack + the five 0.9.2 docks) sit at offset 0; era-n ids at 10 · (n − 1) in offset mode', () => {
     expect(ERA1).toHaveLength(28);
     expect(ERA1.map((d) => d.id)).toContain('jack');
-    for (const d of ERA1) expect(base(d)).toBe(0);
-    expect(base(UPGRADES.taxOffice)).toBe(10);
-    expect(base(UPGRADES.broker)).toBe(10);
-    expect(base(UPGRADES.frontierCrew)).toBe(10);
-    expect(base(UPGRADES.ironRigs)).toBe(20);
-    expect(base(UPGRADES.aiTrade)).toBe(90);
-    expect(shown(UPGRADES.ironRigs, 3)).toBe(23);
+    for (const d of ERA1) expect(base(d, 'offset')).toBe(0);
+    expect(base(UPGRADES.taxOffice, 'offset')).toBe(10);
+    expect(base(UPGRADES.broker, 'offset')).toBe(10);
+    expect(base(UPGRADES.frontierCrew, 'offset')).toBe(10);
+    expect(base(UPGRADES.ironRigs, 'offset')).toBe(20);
+    expect(base(UPGRADES.aiTrade, 'offset')).toBe(90);
+    expect(shown(UPGRADES.ironRigs, 3, 'offset')).toBe(23);
   });
 
-  it('the climb runs every id to shown level 100', () => {
+  it('the climb runs every id to shown level 100 (offset mode)', () => {
     for (const d of DEFS) {
-      expect(maxStored(d, true)).toBe(LEVEL_CAP - base(d));
-      expect(shown(d, maxStored(d, true))).toBe(LEVEL_CAP);
+      expect(maxStored(d, true, 'offset')).toBe(LEVEL_CAP - base(d, 'offset'));
+      expect(shown(d, maxStored(d, true, 'offset'), 'offset')).toBe(LEVEL_CAP);
     }
   });
 
-  it("'literal' mode drops every offset", () => {
+  it("'literal' mode (the 0.9.5 default) drops every offset", () => {
+    expect(GATE.mode).toBe('literal');
     for (const d of DEFS) {
       expect(base(d, 'literal')).toBe(0);
       expect(maxStored(d, true, 'literal')).toBe(LEVEL_CAP);
     }
   });
 
-  it("prices and caps follow GATE.mode (the cap cache is per mode)", () => {
+  it('prices follow the era, not the display mode; caps follow GATE.mode (the cap cache is per mode)', () => {
     const rigs = UPGRADES.frontierRigs;
-    expect(hardCapStored(rigs)).toBe(39); // 3.0 + 0.1 · 30 = 6 at stored 39 (shown 49)
-    GATE.mode = 'literal';
+    // era 2's first step is band 2's price in either mode (Dino 0.9.5: the economy scales era by era)
+    expect(costAt(rigs, 0)).toBe(price3((0.9 * CLIMB.unit * (CLIMB.bandTilt[2] ?? 1))));
+    expect(hardCapStored(rigs)).toBe(39); // literal: 3.0 + 0.1 · 30 = 6 at stored 39
+    expect(hardCapStored(UPGRADES.aiRigs)).toBe(39); // literal: reachable below 100
+    for (const d of ERA1) expect(costAt(d, 0)).toBe(d.costs[0]);
+    GATE.mode = 'offset';
     try {
-      expect(costAt(rigs, 0)).toBe(price3((0.9 * CLIMB.unit) / CLIMB.bandGrowth)); // band 1 at A 0
+      expect(costAt(rigs, 0)).toBe(price3((0.9 * CLIMB.unit * (CLIMB.bandTilt[2] ?? 1))));
       expect(hardCapStored(rigs)).toBe(39);
-      expect(hardCapStored(UPGRADES.aiRigs)).toBe(39); // literal: reachable below 100
-      for (const d of ERA1) expect(costAt(d, 0)).toBe(d.costs[0]);
+      expect(hardCapStored(UPGRADES.aiRigs)).toBeNull(); // offset: base 90 leaves only 10 levels
     } finally {
-      GATE.mode = 'offset';
+      GATE.mode = 'literal';
     }
-    expect(hardCapStored(UPGRADES.aiRigs)).toBeNull(); // offset: base 90 leaves only 10 levels
   });
 });
 
@@ -76,11 +79,14 @@ describe('ladder: costs', () => {
 
   it('matches the calibrated sample prices', () => {
     // design §A2 at U 250k, growth 2.6: $125k / $225k / $201M / $401M; the pacing model (core/pacing.ts) set
-    // U 300k, growth 4.3; 0.9.0 (every era longer than the last): U 190k, growth 4.3 × bandTilt
-    expect(costAt(UPGRADES.carry, 10)).toBe(95_000); // A 10, lumberjack
-    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(171_000); // A 10, industry
-    expect(costAt(UPGRADES.carry, 89)).toBe(10_900_000_000); // A 89, lumberjack
-    expect(costAt(UPGRADES.taxOffice, 79)).toBe(21_800_000_000); // A 89, finance
+    // U 300k, growth 4.3; 0.9.0 (every era longer than the last): U 190k, growth 4.3 × bandTilt; 0.9.5 (literal gate)
+    // re-solved bandTilt
+    expect(costAt(UPGRADES.carry, 10)).toBe(186_000); // A 10, lumberjack
+    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(335_000); // A 10, industry: era 2's first level
+    expect(costAt(UPGRADES.frontierRigs, 9)).toBe(670_000); // era 2's last level
+    expect(costAt(UPGRADES.quarry, 0)).toBe(298_000); // A 10, machine level pad
+    expect(costAt(UPGRADES.carry, 89)).toBe(17_100_000_000); // A 89, lumberjack
+    expect(costAt(UPGRADES.taxOffice, 79)).toBe(34_200_000_000); // A 89, finance
   });
 
   it('a Survival id first continues its last authored price by 5 % a level', () => {

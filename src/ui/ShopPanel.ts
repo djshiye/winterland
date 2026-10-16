@@ -13,13 +13,13 @@
  *   for a crew, "Lv 10 · era standard" (with its tooltip) for an era upgrade that arrived at its offset;
  * - a gold dot on a tab while any of its upgrades is below the gate's level (the green "can buy" dot wins).
  */
-import { PRIORITIES, QUARTERS, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
+import { PRIORITIES, QUARTERS, UPGRADES, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
-import { authoredMax, base, introEra } from '../core/ladder';
+import { authoredMax, base, introEra, valueAt } from '../core/ladder';
 import type { GameContext } from '../core/types';
 import { ERAS, ERA_NAMES } from '../eras/data';
-import { climbOpen, gateNeed } from '../eras/gate';
-import { BAND_PIPS, bandView, eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
+import { climbOpen, gateNeed, inGate as inGateOf } from '../eras/gate';
+import { BAND_PIPS, bandView, eraCrewDelta, eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
 import { hexCss, ICON_CLOSE, ICON_LOCK, upgradeIcon } from './icons';
@@ -104,6 +104,8 @@ export class ShopPanel {
   private readonly townRow: PrioRow;
   private readonly slide = new Slide();
   private tab: Tab = 'lumberjack';
+  /** 0.9.5: where the panel was opened: 1 = the cabin's doormat, n = era n's shop mat (only that era's cards show). */
+  private place = 1;
   private wanted = false;
   private dismissed = false;
   private dirty = true;
@@ -173,7 +175,10 @@ export class ShopPanel {
 
     const ev = ctx.events;
     ev.on('shop:open', (e) => {
+      this.place = e.era !== undefined && e.era >= 2 ? e.era : 1;
+      this.layoutKey = '';
       if (e.tab && (SHOP_TABS as readonly string[]).includes(e.tab)) this.setTab(e.tab as Tab);
+      else if (!this.placeTabs().includes(this.tab)) this.setTab(this.placeTabs()[0] ?? 'lumberjack');
       this.wanted = true;
       this.dismissed = false;
       this.dirty = true;
@@ -241,21 +246,34 @@ export class ShopPanel {
    * Which tabs, era headers and cards are on show (0.9.0): Industry appears once the climb opens (the Great Lodge), lists the eras
    * up to the one after the current age (the next one locked), Finance is always there.
    */
+  /** Tabs on show where the panel was opened: the cabin's (0.9.0 rules), or the era mat's own (any tab with a card of that era). */
+  private placeTabs(): Tab[] {
+    const { state } = this.ctx;
+    if (this.place < 2) return shopTabs(state.eras.age, climbOpen(state));
+    return SHOP_TABS.filter((t) => this.cards.some((c) => c.group === t && c.era === this.place));
+  }
+
+  /** The card is listed where the panel was opened (and its era is reached or next). */
+  private cardHere(c: Card, age: number): boolean {
+    if (this.place >= 2) return c.era === this.place;
+    // the cabin: Survival's cards, finance, and every era's Industry cards (0.9.0); era crews sit at their region's mat
+    if (c.group === 'industry') return c.era === undefined || industryEraShown(c.era, age);
+    return c.era === undefined;
+  }
+
   private applyLayout(): void {
     const { state } = this.ctx;
     const age = state.eras.age;
-    const tabs = shopTabs(age, climbOpen(state));
-    const key = `${this.tab}|${age}|${tabs.join(',')}`;
+    const tabs = this.placeTabs();
+    const key = `${this.tab}|${age}|${this.place}|${tabs.join(',')}`;
     if (key === this.layoutKey) return;
     this.layoutKey = key;
     for (const [g, el] of this.tabEls) el.style.display = tabs.includes(g as Tab) || g === this.tab ? '' : 'none';
-    this.tabsEl.classList.toggle('is-many', tabs.length > 4 || this.tab === 'industry');
-    for (const c of this.cards) {
-      const eraOk = c.era === undefined || industryEraShown(c.era, age);
-      c.root.style.display = c.group === this.tab && eraOk ? '' : 'none';
-    }
+    this.tabsEl.classList.toggle('is-many', tabs.length > 4 || (this.place < 2 && this.tab === 'industry'));
+    for (const c of this.cards) c.root.style.display = c.group === this.tab && this.cardHere(c, age) ? '' : 'none';
     for (const hd of this.eraHeaders) {
-      hd.root.style.display = this.tab === 'industry' && industryEraShown(hd.era, age) ? '' : 'none';
+      const here = this.place >= 2 ? hd.era === this.place : industryEraShown(hd.era, age);
+      hd.root.style.display = this.tab === 'industry' && here ? '' : 'none';
       const note = industryEraNote(hd.era, age) ?? '';
       hd.note.textContent = note;
       hd.root.classList.toggle('is-locked', note !== '');
@@ -373,7 +391,7 @@ export class ShopPanel {
 
   private refreshPriorities(): void {
     const { state, upgrades } = this.ctx;
-    const show = this.tab === 'crew' && this.cards.some((c) => c.group === 'crew' && upgrades.level(c.id) > 0);
+    const show = this.place < 2 && this.tab === 'crew' && this.cards.some((c) => c.group === 'crew' && c.era === undefined && upgrades.level(c.id) > 0);
     this.prio.style.display = show ? '' : 'none';
     if (!show) return;
     this.townRow.root.style.display = state.town.revealed ? '' : 'none';
@@ -409,7 +427,8 @@ export class ShopPanel {
     const up = this.ctx.upgrades;
     const def = up.def(c.id);
     const stored = up.level(c.id);
-    const v = bandView(up.shownLevel(c.id), stored, base(def), !(def.display === 'crew' && stored <= 0), need);
+    const idle = (def.display === 'crew' || def.display === 'belt') && stored <= 0;
+    const v = bandView(up.shownLevel(c.id), stored, base(def), !idle, need, def.display === 'belt' ? 'Not built' : 'Not hired');
     const band = `${v.fill}|${v.bands}`;
     if (band !== c.shown.band) {
       c.shown.band = band;
@@ -453,7 +472,8 @@ export class ShopPanel {
       const req = isMax ? null : up.requirement(id);
       const can = up.canBuy(id);
       const cost = up.nextCost(id);
-      if (can && (c.era === undefined || industryEraShown(c.era, age))) tabHint[c.group] = true;
+      const here = this.cardHere(c, age);
+      if (can && here) tabHint[c.group] = true;
 
       if (c.shown.pips !== lvl) {
         c.shown.pips = lvl;
@@ -464,11 +484,15 @@ export class ShopPanel {
         if (c.lv.textContent !== lv) c.lv.textContent = lv;
       }
       if (climb) {
-        const inGate = gateOn && introEra(up.def(id)) <= age;
+        const inGate = gateOn && inGateOf(id, next);
         const below = this.refreshBand(c, inGate ? gateNeed(next) : null);
-        if (below && (c.era === undefined || industryEraShown(c.era, age))) tabNeed[c.group] = true;
+        if (below && here) tabNeed[c.group] = true;
       }
-      const delta = shopDelta(up.describe(id), isMax ? null : up.describe(id, lvl + 1), climb);
+      const def = UPGRADES[id];
+      const eraCrew = def.group === 'crew' && (def.era ?? 1) >= 2;
+      const delta = eraCrew
+        ? eraCrewDelta(lvl, up.value(id), isMax ? null : valueAt(def, lvl + 1))
+        : shopDelta(up.describe(id), isMax ? null : up.describe(id, lvl + 1), climb);
       if (delta !== c.shown.delta) {
         c.shown.delta = delta;
         c.delta.textContent = delta;
@@ -489,7 +513,11 @@ export class ShopPanel {
 
       let btnHtml: string;
       let cls: string;
-      if (isMax) {
+      if (req && lvl === 0) {
+        // an era not reached yet (or a machine not built) reads locked, never MAX (0.9.5, Dino's Iron Age screenshot)
+        btnHtml = `<span class="wl-lock">${ICON_LOCK}</span><span class="wl-req">${req}</span>`;
+        cls = 'is-lock';
+      } else if (isMax) {
         // the era cap reads differently from the final level: the next era's expansion lifts it
         btnHtml = up.atEraCap(id) ? '<small>Era</small>MAX' : 'MAX';
         cls = 'is-max';
