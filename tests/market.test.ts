@@ -134,10 +134,10 @@ describe('trading', () => {
   });
 
   it('buys at the buy quote, tracks the average basis, refuses what it cannot afford or is not tradable', () => {
-    const { market, economy, state, log } = setup({ money: 10_000 });
+    const { market, economy, state, log } = setup({ money: 100_000 });
     expect(market.buy('stone', 10)).toBe(true);
-    const cost1 = Math.round(180 * 1.05 * 10);
-    expect(economy.money).toBe(10_000 - cost1);
+    const cost1 = Math.round(1800 * 1.05 * 10); // stone: 180 × the era economy ×10
+    expect(economy.money).toBe(100_000 - cost1);
     expect(market.holding('stone')).toBe(10);
     expect(state.market.basis.stone).toBeCloseTo(cost1 / 10, 9);
     // the price moves: the basis averages
@@ -146,15 +146,15 @@ describe('trading', () => {
     const cost2 = Math.round(market.quote('stone', 'buy') * 10);
     expect(market.basis('stone')).toBeCloseTo((cost1 + cost2) / 20, 6);
     expect(log.filter((l) => l.type === 'market:trade').length).toBe(2);
-    expect(market.buy('stone', 100_000)).toBe(false);
+    expect(market.buy('stone', 1_000_000)).toBe(false);
     expect(market.holding('stone')).toBe(20);
     expect(market.buy('robot', 1)).toBe(false); // era 10, not reached
     expect(market.buy('stone', 0)).toBe(false);
   });
 
   it('sells for the sell quote, counts only gains as tradeProfit, announces income for gains', () => {
-    const { market, economy, state, log } = setup({ money: 100_000 });
-    market.buy('brick', 10); // 700 base
+    const { market, economy, state, log } = setup({ money: 1_000_000 });
+    market.buy('brick', 10); // 7,000 base
     state.market.index.brick = 1.4;
     const money0 = economy.money;
     const q = market.quote('brick', 'sell');
@@ -183,7 +183,7 @@ describe('trading', () => {
   });
 
   it('a buy then an immediate sell always loses the spread', () => {
-    const { market, economy } = setup({ money: 100_000 });
+    const { market, economy } = setup({ money: 1_000_000 });
     const m0 = economy.money;
     market.buy('stone', 100);
     market.sell('stone', 100);
@@ -205,7 +205,7 @@ describe('physical orders', () => {
     expect(market.order('stone', 100, 2)).toBe(true);
     expect(m0 - economy.money).toBe(market.orderCost('stone', ORDER_MAX_UNITS));
     expect(m0 - economy.money).toBe(Math.round(market.quote('stone', 'buy') * 24 * (1 + MARKET.delivery)));
-    expect(log.find((l) => l.type === 'market:order')!.payload).toEqual({ kind: 'stone', count: 24, era: 2 });
+    expect(log.find((l) => l.type === 'market:order')!.payload).toEqual({ kind: 'stone', count: 24, era: 2, amount: m0 - economy.money });
   });
 
   it('refuses locked regions, untradable kinds and an empty wallet', () => {
@@ -221,6 +221,14 @@ describe('physical orders', () => {
 
   it('an order carried straight to an export depot never earns more than it cost', () => {
     const { market } = setup({ upgrades: { frontierTrade: 2.4 } });
+    expect(market.exportPrice('brick', 24)).toBeLessThan(market.orderCost('brick', 24));
+  });
+
+  it('Renown (settlement 50) and a maxed broker still leave the order → depot loop at a loss', () => {
+    const { market, state } = setup({ age: 10, upgrades: { frontierTrade: 2.4, broker: 10 } });
+    state.village.greatLodge.tier = 0;
+    state.village.level = 5;
+    state.eras.settlement = 50;
     expect(market.exportPrice('brick', 24)).toBeLessThan(market.orderCost('brick', 24));
   });
 });
@@ -247,7 +255,7 @@ describe('investments', () => {
   });
 
   it('bond: principal until the lock ends, then principal × (1 + rate × √broker)', () => {
-    const { market, economy, log } = setup({ money: 100_000, upgrades: { broker: 4 } });
+    const { market, economy, log } = setup({ money: 100_000, upgrades: { broker: 2.25 } });
     expect(market.invest('bond', 10_000)).toBe(true);
     const pos = market.positions()[0]!;
     expect(pos.value).toBe(10_000);
@@ -257,13 +265,13 @@ describe('investments', () => {
     const changed = log.filter((l) => l.type === 'invest:changed').length;
     run(market, 10, 5);
     expect(market.matured(pos)).toBe(true);
-    expect(pos.value).toBeCloseTo(10_000 * (1 + INVEST.bond.rate * 2), 6);
+    expect(pos.value).toBeCloseTo(10_000 * (1 + INVEST.bond.rate * 1.5), 6);
     expect(log.filter((l) => l.type === 'invest:changed').length).toBe(changed + 1); // matured, announced once
     run(market, 600, 5);
-    expect(pos.value).toBeCloseTo(10_000 * (1 + INVEST.bond.rate * 2), 6); // stays there
+    expect(pos.value).toBeCloseTo(10_000 * (1 + INVEST.bond.rate * 1.5), 6); // stays there
     const m0 = economy.money;
     const pay = market.withdraw(pos.id);
-    expect(pay).toBe(Math.round(10_000 * 1.24));
+    expect(pay).toBe(Math.round(10_000 * (1 + INVEST.bond.rate * 1.5)));
     expect(economy.money).toBe(m0 + pay);
     expect(market.positions().length).toBe(0);
     expect(log.some((l) => l.type === 'income' && (l.payload as { source: string }).source === 'interest')).toBe(true);
@@ -332,8 +340,8 @@ describe('investments', () => {
 
 describe('net worth', () => {
   it('adds holdings at the sell quote and the positions values to the cash', () => {
-    const { market, economy, state } = setup({ money: 200_000 });
-    expect(market.netWorth()).toBe(200_000);
+    const { market, economy, state } = setup({ money: 2_000_000 });
+    expect(market.netWorth()).toBe(2_000_000);
     market.buy('stone', 100);
     market.invest('bond', 10_000);
     market.invest('index', 20_000);
@@ -352,5 +360,57 @@ describe('jack', () => {
     expect(economy.money).toBe(market.jackOffer('plank'));
     expect(state.stats.jackEarned).toBe(economy.money);
     expect(market.sellToJack('cash', new THREE.Vector3())).toBe(0);
+  });
+});
+
+describe('money loops', () => {
+  it('cannot print money by crashing a price with a sale and buying back cheap', () => {
+    const { market, economy, state } = setup({ age: 2, money: 1e7, rng: () => 0.5 });
+    const m0 = economy.money;
+    expect(market.buy('brick', 400)).toBe(true);
+    for (let i = 0; i < 5; i++) {
+      expect(market.sell('brick', 400)).toBe(true);
+      expect(state.market.pressure.brick).toBeGreaterThan(0);
+      expect(market.buy('brick', 400)).toBe(true); // pressure lowers what sellers get, not what buyers pay
+      run(market, 60);
+    }
+    market.sell('brick', 400);
+    expect(economy.money).toBeLessThan(m0);
+  });
+
+  it('prices an order without the supply-pressure discount, so a crash-time order never exports at a profit', () => {
+    const { market, state } = setup({ age: 2, rng: () => 0.5 });
+    const calm = market.orderCost('brick', ORDER_MAX_UNITS);
+    state.market.pressure.brick = MARKET.pressureMax;
+    expect(market.orderCost('brick', ORDER_MAX_UNITS)).toBe(calm);
+    expect(calm).toBeGreaterThan(market.exportPrice('brick', ORDER_MAX_UNITS) / (1 - MARKET.pressureMax));
+  });
+
+  it('does not count withdrawn principal or a sale\'s cost basis as money earned', () => {
+    const { market, economy, state } = setup({ age: 2, money: 100_000, rng: () => 0.5 });
+    const m0 = economy.money;
+    expect(market.invest('bond', 20_000)).toBe(true);
+    market.withdraw(state.market.investments[0]!.id); // early: principal back
+    expect(economy.money).toBe(m0);
+    expect(state.stats.moneyEarned).toBe(0);
+    market.buy('brick', 10);
+    market.sell('brick', 10); // a loss: nothing earned
+    expect(state.stats.moneyEarned).toBe(0);
+    // only the gain counts
+    expect(market.invest('bond', 20_000)).toBe(true);
+    const pos = state.market.investments[0]!;
+    pos.age = INVEST.bond.lock ?? 0;
+    pos.value = 21_000;
+    market.withdraw(pos.id);
+    expect(state.stats.moneyEarned).toBe(1_000);
+  });
+
+  it('Economy.add still counts plain income in full', () => {
+    const { economy, state } = setup({ money: 0 });
+    economy.add(500);
+    expect(state.stats.moneyEarned).toBe(500);
+    economy.add(300, 100);
+    expect(economy.money).toBe(800);
+    expect(state.stats.moneyEarned).toBe(600);
   });
 });

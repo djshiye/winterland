@@ -2,7 +2,7 @@
  * 0.9.0 "Ages": the new land south of the old map. Built once by the Environment, driven by state.
  *
  * - ROADS (eras/data.ts ROADS): packed-gravel paths with edge stones (city streets: dark cobble, centre dashes). A road
- *   is OPEN when `roadOpen` says so (era 2's roads once the expansion pad is offered at Winter City or era 2 is reached;
+ *   is OPEN when `roadOpen` says so (era 2's roads once the Great Lodge is built, the climb, or era 2 is reached;
  *   later roads once the previous era's pad is offered); open roads become walkable (ColliderWorld.addBounds), the rest
  *   show an untrodden, staked-out strip. The two roads that leave the Market Town (southAvenue, cityLink) also carve a
  *   gap into the town's picket fence + its colliders.
@@ -10,14 +10,16 @@
  *   with a 4 m gate (barrier + chain + FOR SALE sign until unlocked; the leaves swing open on 'era:unlocked'), survey
  *   stakes on every slot while locked, and a few instanced props per era around the machine slots (assets/frontierProps).
  *   An unlocked region is walkable (rect inset 0.6 + the gate opening that joins it to its road).
- * - The whole new land only shows from Winter City on (village level 4) or once era 2 is reached, so the old map plays
- *   and looks exactly as before. Far scenery (sparse pines / rocks) fills the big ground plane around it.
+ * - The whole new land only shows once the Great Lodge is built (eras/gate.ts climbOpen) or era 2 is reached, so
+ *   era 1 plays and looks exactly like 0.8.0 up to its finale (docs/EXPANSION.md R2). Far scenery (sparse pines /
+ *   rocks) fills the big ground plane around it.
  * - `pruneNewLand` removes old-scatter instances that landed on the new land (the old scatter itself is untouched).
  */
 import * as THREE from 'three';
 import { PALETTE, type Rect } from '../../config';
 import { eraPropGeometry, PROP_RADIUS, PROP_ROLES, strungWires, type PropRole } from '../../assets/frontierProps';
-import { ERAS, FIRST_EXPANSION_VILLAGE_LEVEL, REGIONS, ROADS, unlockCash } from '../../eras/data';
+import { ERAS, REGIONS, ROADS, unlockCash } from '../../eras/data';
+import { climbOpen } from '../../eras/gate';
 import { regionLayout, type RegionLayout } from '../../eras/layout';
 import type { GameContext } from '../../core/types';
 import { Batch, vcMat } from '../../render/batch';
@@ -28,22 +30,22 @@ import { moundGeo, pineGeo, pineTallGeo, rockGeo } from './props';
 
 /** The slice of the game state the new land follows (the tests pass a plain object). */
 export interface LandState {
-  village: { level: number };
+  village: { greatLodge: { tier: number } };
   eras: { age: number };
 }
 
 /**
- * True once a road is open for walking. `opensAt` 2: era 2's expansion pad is offered (village level 4) or era 2 is
- * reached; `opensAt` n > 2: the previous era is reached (age ≥ n − 1). Pure.
+ * True once a road is open for walking. `opensAt` 2: era 2's pad is previewed or offered (the Great Lodge is built) or
+ * era 2 is reached; `opensAt` n > 2: the previous era is reached (age ≥ n − 1). Pure.
  */
 export function roadOpen(s: LandState, opensAt: number): boolean {
-  if (opensAt <= 2) return s.village.level >= FIRST_EXPANSION_VILLAGE_LEVEL || s.eras.age >= 2;
+  if (opensAt <= 2) return landVisible(s);
   return s.eras.age >= opensAt - 1;
 }
 
-/** True when the new land is drawn at all (Winter City or era 2 reached): keeps the early game identical. Pure. */
+/** True when the new land is drawn at all (the Great Lodge built or era 2 reached): era 1 stays 0.8.0. Pure. */
 export function landVisible(s: LandState): boolean {
-  return s.village.level >= FIRST_EXPANSION_VILLAGE_LEVEL || s.eras.age >= 2;
+  return climbOpen(s) || s.eras.age >= 2;
 }
 
 /** Walk rect of an unlocked region: its rect inset 0.6. Pure. */
@@ -332,7 +334,7 @@ function fenceRun(b: Batch, glow: Batch, kind: FenceKind, c: Palette, axis: 'x' 
       case 'hazard': {
         put(b, l, 0.7, 0.4, 0x8d8f8a, mid, 0);
         const k = Math.max(2, Math.floor(l / 0.5));
-        for (let j = 0; j < k; j++) put(b, l / k, 0.12, 0.42, j % 2 ? 0x2d3b2a : 0xf2d34a, s0 + 0.05 + ((j + 0.5) * l) / k, 0.7);
+        for (let j = 0; j < k; j++) put(b, l / k, 0.12, 0.42, j % 2 ? 0x3d5259 : 0xe8c45a, s0 + 0.05 + ((j + 0.5) * l) / k, 0.7);
         for (const y of [1.0, 1.3, 1.6]) put(b, l, 0.015, 0.015, c.fence, mid, y);
         break;
       }

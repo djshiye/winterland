@@ -55,6 +55,10 @@ import { WorldEvents } from '../core/WorldEvents';
 import { Contracts } from '../core/Contracts';
 import { Market } from '../core/Market';
 import { travelPoints } from '../eras/layout';
+import { GateTracker } from '../eras/GateTracker';
+import { climbOpen, eraGate, type EraGate } from '../eras/gate';
+import { base, introEra } from '../core/ladder';
+import { cityPopulation, settlementLevel } from '../core/demand';
 import { Level } from '../level/Level';
 
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
@@ -133,6 +137,14 @@ export interface DebugApi {
   buildMachine(n: number, slot: number, id: string): boolean;
   /** 0.9.0: a fully built city building on district n's lot (false if not possible). */
   buildCity(n: number, lot: number, id: string): boolean;
+  /** 0.9.0 climb (docs/EXPANSION.md §E): build the village out and the Great Lodge (no finale card), opening the climb. */
+  climb(): void;
+  /** Era n's gate checklist (default: the next era). */
+  gate(n?: number): EraGate;
+  /** Every upgrade of the eras reached to shown level `shown` (crews hired), for free. */
+  setAllUpgrades(shown: number): void;
+  /** Best settlement level `L` (clamped to 5 · age; needs Winterland to show). */
+  setSettlement(L: number): void;
   /** 0.9.0: fast travel to a travelPoints() id ('yard', 'town', 'region:3', 'district:5'). */
   travel(id: string): boolean;
   /** Write the save now; returns what was written (null when saving is off: `?fresh`, reset, no storage). */
@@ -229,6 +241,7 @@ export class Game {
     new Fireworks(ctx); // wave 9: era-up fireworks (self-registers as an updatable)
     this.level = new Level(ctx);
     if (save) this.level.restoreWorld(save.world);
+    new GateTracker(ctx); // 0.9.0 climb: computed 'gate:progress' (seeded from the loaded world, so a load is silent)
     this.sales = new SalesMeter(ctx, save?.salesRate ?? 0);
 
     input.onFirstGesture(() => ctx.audio.unlock());
@@ -479,6 +492,27 @@ export class Game {
         if (!p) return false;
         ctx.events.emit('travel:request', { x: p.x, z: p.z, label: p.label });
         return true;
+      },
+      climb: () => {
+        const v = this.level.village;
+        v.reveal();
+        ctx.state.flags.finale = true; // the Lodge without its finale card (screenshots, tests)
+        for (let i = 0; i < ctx.state.village.plots.length; i++) v.debugBuild(i, VILLAGE.tiers.length - 1);
+        if (!climbOpen(ctx.state)) v.debugBuild(-1, 0);
+      },
+      gate: (n?: number) => eraGate(ctx.state, n ?? ctx.state.eras.age + 1),
+      setAllUpgrades: (shown: number) => {
+        const age = Math.max(1, ctx.state.eras.age);
+        for (const id of ctx.upgrades.ids) {
+          const def = UPGRADES[id];
+          if (introEra(def) <= age) ctx.upgrades.setLevel(id, Math.max(0, shown - base(def)));
+        }
+        ctx.events.emit('village:changed', { population: ctx.state.village.population, level: ctx.state.village.level });
+      },
+      setSettlement: (L: number) => {
+        const e = ctx.state.eras;
+        e.settlement = Math.max(0, Math.min(5 * Math.max(1, e.age), Math.round(L)));
+        ctx.events.emit('settlement:changed', { level: settlementLevel(ctx.state), cityPopulation: cityPopulation(ctx.state) });
       },
       addMoney: (n: number) => ctx.economy.add(n),
       skipIntro: () => this.level.skipIntro(),

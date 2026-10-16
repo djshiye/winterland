@@ -1,0 +1,48 @@
+{
+  "settlementBanner": {
+    "shape": "Curved heraldic wooden shield banner with notched swallowtail ribbon tails, thick timber border framing, and a rounded snow cap on top",
+    "colors": "per era from the palettes: body base from era body, border trim from era trim, ribbon accent from era accent, and warm lantern glow highlight",
+    "charterVariant": "gold version for every 5th level: polished gilded filigree trim in #e8b341, embossed imperial star crest, and twin celebratory gold laurels"
+  },
+  "gateCard": {
+    "rowTick": "Chunky rounded pill checkbox with emerald green fill #4cd964, crisp white checkmark, and subtle drop shadow",
+    "progressRing": "Radial progress gauge ring with 8 px thick track in era accent color over dark translucent glass backplate with percentage readout",
+    "nextGoalChip": "Compact rounded rectangle chip with golden badge icon #e8b341, bold countdown label, and subtle pulsating outer stroke",
+    "forSalePad": "Greyed land pad look: dashed white perimeter outline on semi-transparent charcoal floor pad with floating lock icon and pulsing golden price label"
+  },
+  "completionTrophy": {
+    "parts": [
+      { "name": "marblePedestal", "primitive": "box", "size": [1.4, 0.45, 1.4], "pos": [0, 0.22, 0], "color": "#3d3a3a" },
+      { "name": "flutedColumn", "primitive": "cylinder", "size": [0.7, 1.2, 0.7], "pos": [0, 1.05, 0], "color": "#e8b341" },
+      { "name": "trophyChalice", "primitive": "cylinder", "size": [1.2, 1.1, 1.2], "pos": [0, 1.9, 0], "color": "#ffd026" },
+      { "name": "twinHandles", "primitive": "torus", "size": [1.5, 0.12, 1.5], "pos": [0, 1.95, 0], "color": "#e8b341" },
+      { "name": "crowningStar", "primitive": "sphere", "size": [0.55, 0.55, 0.55], "pos": [0, 2.7, 0], "color": "#ffffff" },
+      { "name": "snowDrapedRim", "primitive": "torus", "size": [1.25, 0.14, 1.25], "pos": [0, 2.45, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#3d3a3a", "#e8b341", "#ffd026", "#ffffff", "#f4f7fb"],
+    "celebration": "Burst of multi-colored snowy confetti ribbons (#e8b341, #3ad1ff, #f4f7fb), triumphant brass horn fanfare chord, celebratory screen rumble, and a dramatic low-angle camera sweep orbiting the completed trophy"
+  },
+  "icons": {
+    "eras": {
+      "1": "Crossed pine logs with a sharp steel axe head embedded in snow",
+      "2": "Chunky dressed granite masonry block beside a wet clay brick",
+      "3": "Heavy forged iron pickaxe crossing a glowing molten iron ingot",
+      "4": "Polished brass steam engine flywheel with a smoking chimney pipe",
+      "5": "Orange-painted steel I-beam girder flanked by heavy rivet dots",
+      "6": "Spool of bright coiled copper wire beside an illuminated filament light bulb",
+      "7": "Black oil barrel drum marked with a bold yellow safety hazard diamond",
+      "8": "Square emerald microchip with golden contact pins and glowing cyan circuit traces",
+      "9": "Glowing green radiation trefoil symbol set inside a lead-shielded hexagon",
+      "10": "Floating neon violet quantum processor core inside a sleek robotic companion silhouette"
+    },
+    "roles": {
+      "hauler": "Sturdy leather work backpack and hod stacked with raw materials",
+      "feeder": "Wide steel scoop shovel angled into a glowing furnace arch",
+      "shipper": "Two-wheeled hand truck and cargo cart loaded with bound crates",
+      "porter": "Curved iron freight cargo hook slung over a heavy shoulder pad",
+      "clerk": "Brass-cornered open ledger book with wooden tally slate and pencil",
+      "foreman": "White surveyor helmet with rolled blueprint scroll and megaphone",
+      "gatherer": "Pointed rock prospector pick striking a sparkling mineral vein"
+    }
+  }
+}

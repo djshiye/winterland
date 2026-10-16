@@ -13,10 +13,14 @@
  * bundles merge their value into the top item (so passive income never stalls).
  * Items are parented to `root` (which lives under opts.parent or ctx.scene), so piles on moving
  * parents (tricycle beds) carry their items along.
+ * Hidden interior (0.9.0, draw calls): on a single-kind pile that does not move (no parent, or `occlude`), an item whose top and
+ * camera-facing sides are covered by landed neighbours cannot be seen from the fixed isometric camera, so it is
+ * not drawn (a full drop zone draws 48 logs instead of 84). Taken items are visible again.
  */
 import * as THREE from 'three';
-import { ECONOMY, ITEM_SIZE, type PileGrid } from '../config';
+import { CAMERA, ECONOMY, ITEM_SIZE, type PileGrid } from '../config';
 import { UP } from '../core/math';
+import { instanceChildren, stopInstancing } from '../render/instancer';
 import { MATERIAL_KINDS, type GameContext, type Item, type ItemHolder, type ItemKind, type Slot } from '../core/types';
 
 export interface PileOptions {
@@ -28,6 +32,8 @@ export interface PileOptions {
   parent?: THREE.Object3D;
   grid: PileGrid;
   overflowMerge?: boolean;
+  /** Hide covered interior items (default: only piles placed straight in the world). Pass true for a static parent. */
+  occlude?: boolean;
 }
 
 const KIND_INDEX = { log: 0, crate: 1, cash: 2, plank: 3, furniture: 4, wheat: 5, bread: 6, meat: 7, sausage: 8, toy: 9, ...Object.fromEntries(MATERIAL_KINDS.map((k, i) => [k, 10 + i])) } as Record<ItemKind, number>;
@@ -64,6 +70,10 @@ export class Pile implements ItemHolder {
   private hi = -1;
   /** Value of merged cash that arrived while no landed item existed. */
   private pendingValue = 0;
+  /** Hide fully covered interior items (single kind, no moving parent); toward-camera grid steps in local col / row. */
+  private readonly occlude: boolean;
+  private readonly towardCol: number;
+  private readonly towardRow: number;
 
   constructor(
     readonly ctx: GameContext,
@@ -79,6 +89,12 @@ export class Pile implements ItemHolder {
     this.root.rotation.y = opts.rotationY ?? 0;
     this.root.name = opts.id;
     (opts.parent ?? ctx.scene).add(this.root);
+    // the camera looks from yaw CAMERA.yawDeg; express that direction in the pile's local grid axes
+    const yaw = (CAMERA.yawDeg * Math.PI) / 180 - (opts.rotationY ?? 0) - (opts.parent?.rotation.y ?? 0);
+    this.towardCol = Math.sign(Math.round(Math.sin(yaw) * 1000));
+    this.towardRow = Math.sign(Math.round(Math.cos(yaw) * 1000));
+    this.occlude = (opts.occlude ?? !opts.parent) && opts.accepts.length === 1 && opts.grid.layers > 1;
+    instanceChildren(this.root); // landed items of one kind draw as ONE instanced mesh
   }
 
   // --- ItemHolder -----------------------------------------------------------
@@ -170,7 +186,9 @@ export class Pile implements ItemHolder {
       this.kindCounts[KIND_INDEX[item.kind]]!--;
       while (this.hi >= 0 && !this.landed[this.hi]) this.hi--;
       this.ctx.tweens.killTweensOf(item.object);
+      item.object.visible = true;
       this.ctx.scene.attach(item.object);
+      this.refreshHidden();
       return item;
     }
     return null;
@@ -275,6 +293,7 @@ export class Pile implements ItemHolder {
   /** Clear and detach the pile from the scene. */
   dispose(): void {
     this.clear();
+    stopInstancing(this.root);
     this.root.removeFromParent();
   }
 
@@ -314,6 +333,33 @@ export class Pile implements ItemHolder {
     if (this.pendingValue > 0 && item.kind === 'cash') {
       item.value += this.pendingValue;
       this.pendingValue = 0;
+    }
+    this.refreshHidden();
+  }
+
+  /** Landed item at grid (col, row, layer), or null outside the grid. */
+  private at(col: number, row: number, layer: number): Item | null {
+    const g = this.opts.grid;
+    if (col < 0 || col >= g.cols || row < 0 || row >= g.rows || layer < 0 || layer >= g.layers) return null;
+    return this.landed[layer * g.cols * g.rows + row * g.cols + col] ?? null;
+  }
+
+  /** Show every landed item except those whose top and camera-facing sides are covered (see the header). */
+  private refreshHidden(): void {
+    if (!this.occlude) return;
+    const g = this.opts.grid;
+    const perLayer = g.cols * g.rows;
+    for (let i = 0; i <= this.hi; i++) {
+      const item = this.landed[i];
+      if (!item) continue;
+      const layer = Math.floor(i / perLayer);
+      const col = i % g.cols;
+      const row = Math.floor(i / g.cols) % g.rows;
+      const covered =
+        !!this.at(col, row, layer + 1) &&
+        (this.towardCol === 0 || !!this.at(col + this.towardCol, row, layer)) &&
+        (this.towardRow === 0 || !!this.at(col, row + this.towardRow, layer));
+      item.object.visible = !covered;
     }
   }
 

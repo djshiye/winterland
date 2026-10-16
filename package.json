@@ -1,7 +1,7 @@
 {
   "name": "winterland",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Winterland — a 3D isometric arcade-idle lumber mill game (Three.js + TypeScript + Vite)",
   "type": "module",
   "scripts": {
@@ -14,7 +14,8 @@
     "package:desktop": "node scripts/package-desktop.mjs",
     "package:linux": "node scripts/package-desktop.mjs linux-x64 linux-arm64",
     "package:win": "node scripts/package-desktop.mjs win32-x64",
-    "test": "vitest run"
+    "test": "vitest run",
+    "soak": "node scripts/soak.mjs"
   },
   "dependencies": {
     "@fontsource/fredoka": "5.3.0",

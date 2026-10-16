@@ -1,9 +1,11 @@
 /**
- * [B4] Haptics: very short navigator.vibrate pulses on pad payments completing, upgrades and cash pickups.
+ * [B4] Haptics: very short navigator.vibrate pulses on pad payments completing, upgrades and cash pickups; a light tap
+ * per bundle into a pad (at most ~8 per second) and a slightly longer pulse when a pad completes ('pad:complete').
  * Feature-detected (phones only: desktop browsers and iOS Safari have no vibrate), every call wrapped in try/catch,
  * behind the Settings "Vibration" switch (localStorage 'winterland:haptics', default on). Module-level state
  * so the Settings panel and the JuiceDirector share it without a context slot.
  */
+import type * as THREE from 'three';
 import type { GameContext } from '../core/types';
 
 const KEY = 'winterland:haptics';
@@ -50,12 +52,25 @@ export function buzz(ms: number): void {
 /** Wires game events to pulses (constructed by the JuiceDirector). */
 export class Haptics {
   private lastCash = -10;
+  private lastPad = -10;
 
   constructor(ctx: GameContext) {
     if (!hapticsAvailable()) return;
     const ev = ctx.events;
     ev.on('pad:unlocked', () => buzz(30));
     ev.on('upgrade:bought', () => buzz(22));
+    // pads: a feather-light tap per bundle while paying, a longer one when the pad completes (emitted last, so it wins)
+    const padTap = (e: { position: THREE.Vector3 }): void => {
+      // only under the player's feet (the foreman pays construction pads from afar)
+      if (ctx.player.position.distanceToSquared(e.position) > 16) return;
+      const now = ctx.time.elapsed;
+      if (now - this.lastPad < 0.12) return;
+      this.lastPad = now;
+      buzz(6);
+    };
+    ev.on('pad:paid', padTap);
+    ev.on('construction:paid', padTap);
+    ev.on('pad:complete', () => buzz(40));
     // cash bundles landing on the player's back: a tiny tick, at most ~7 per second
     ev.on('item:landed', (e) => {
       if (e.holder !== ctx.player.back) return;

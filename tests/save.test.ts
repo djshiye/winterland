@@ -7,13 +7,15 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DAYNIGHT, OFFLINE, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE } from '../src/config';
 import { salePrice } from '../src/core/demand';
-import { mergeState, newSeasonSave, offlineEarnings, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
-import { createGameState } from '../src/core/types';
+import { authoredMax, LEVEL_CAP } from '../src/core/ladder';
+import { EventBus } from '../src/core/EventBus';
+import { mergeState, newSeasonSave, offlineEarnings, SalesMeter, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
+import { createGameState, type GameContext, type GameEvents } from '../src/core/types';
 
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
 /** Every real save captured from a released build: each must keep loading as the state grows. */
-const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json', 'save-v7-eras.json'];
+const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json', 'save-v7-eras.json', 'save-v8-climb.json'];
 
 describe.each(FIXTURES)('%s', (name) => {
   it('loads every saved field and the world', () => {
@@ -92,6 +94,35 @@ describe('offline earnings', () => {
   });
 });
 
+describe('SalesMeter', () => {
+  const meter = () => {
+    const events = new EventBus<GameEvents>();
+    const time = { elapsed: 0, frame: 0 };
+    const sales = new SalesMeter({ events, time } as unknown as GameContext, 0);
+    time.elapsed = OFFLINE.window;
+    return { events, time, sales };
+  };
+
+  it('nets market orders out of the rate, so order-then-export churn adds nothing', () => {
+    const { events, time, sales } = meter();
+    events.emit('sale', { buyer: 'export', kind: 'brick', count: 24, amount: 6000, position: null as never });
+    expect(sales.rate).toBeCloseTo(6000 / OFFLINE.window, 9);
+    events.emit('market:order', { kind: 'brick', count: 24, era: 2, amount: 7000 });
+    events.emit('sale', { buyer: 'export', kind: 'brick', count: 24, amount: 6000, position: null as never });
+    expect(sales.rate).toBeCloseTo(5000 / OFFLINE.window, 9);
+    // an order that leaves the window stops counting against the rate
+    time.elapsed += OFFLINE.window + 1;
+    events.emit('sale', { buyer: 'export', kind: 'brick', count: 1, amount: 300, position: null as never });
+    expect(sales.rate).toBeCloseTo(300 / OFFLINE.window, 9);
+  });
+
+  it('never goes negative', () => {
+    const { events, sales } = meter();
+    events.emit('market:order', { kind: 'brick', count: 24, era: 2, amount: 7000 });
+    expect(sales.rate).toBe(0);
+  });
+});
+
 describe('older world snapshots', () => {
   it('load with empty Timber Ridge piles', () => {
     const world = fixture().world;
@@ -156,7 +187,7 @@ describe('sanitizeState', () => {
     const state = merged({
       village: { level: 99, plots: [{ tier: 99, logs: 5, cash: 5 }, { tier: -7 }, { tier: 1.9 }], greatLodge: { tier: 99 } },
       quarters: { tier: 42 },
-      upgrades: { carry: 99, speed: -3, axe: 2.7 },
+      upgrades: { carry: 999, speed: -3, axe: 2.7 },
     });
     expect(state.village.plots[0]!.tier).toBe(VILLAGE.tiers.length - 1);
     expect(state.village.plots[1]!.tier).toBe(-1);
@@ -164,7 +195,7 @@ describe('sanitizeState', () => {
     expect(state.village.greatLodge.tier).toBe(0);
     expect(state.village.level).toBe(VILLAGE.levels.length - 1);
     expect(state.quarters.tier).toBe(QUARTERS.tiers.length - 1);
-    expect(state.upgrades.carry).toBe(UPGRADES.carry.values.length - 1);
+    expect(state.upgrades.carry).toBe(LEVEL_CAP); // shown level 100, climb open or not (docs/EXPANSION.md §F)
     expect(state.upgrades.speed).toBe(0);
     expect(state.upgrades.axe).toBe(2);
     // a maxed plot has nothing left to pay
@@ -201,6 +232,15 @@ describe('sanitizeState', () => {
     expect(state.playTime).toBe(0);
     expect(state.stats.moneyEarned).toBe(0);
     expect(state.padPaid['pad:harvester']).toBe(0);
+  });
+
+  it('gives repeated investment ids fresh ones, so withdraw closes the position it is asked to', () => {
+    const bond = { product: 'bond', era: 0, principal: 1000, value: 1000, age: 0 };
+    const state = merged({ eras: { age: 3 }, market: { nextId: 1, investments: [bond, { ...bond, product: 'index' }, { ...bond, id: 5 }, { ...bond, id: 5 }] } });
+    const ids = state.market.investments.map((p) => p.id);
+    expect(new Set(ids).size).toBe(4);
+    expect(ids.slice(0, 3)).toEqual([0, 6, 5]);
+    expect(state.market.nextId).toBeGreaterThan(Math.max(...ids));
   });
 });
 
@@ -273,5 +313,43 @@ describe('v7 eras save fixture', () => {
     expect(state.eras.regions.every((r) => !r.unlocked)).toBe(true);
     expect(state.market.investments).toEqual([]);
     expect(sanitizeWorld(load('save-v6-events.json').world).eras[2]!.slots).toHaveLength(4);
+  });
+});
+
+/**
+ * 0.9.0 climb: the Great Lodge built, levels past the authored tables, settlement 8, a half-paid era-3 pad. Saved while
+ * the Steward auto-buyer existed (eras.steward true): the field is dropped on load (upgrades are hands-on).
+ */
+describe('v8 climb save fixture', () => {
+  it('restores the climb untouched by sanitizeState', () => {
+    const save = load('save-v8-climb.json');
+    const state = createGameState();
+    mergeState(state, save.state);
+    const before = JSON.stringify(state);
+    sanitizeState(state);
+    expect(JSON.stringify(state)).toBe(before);
+    expect(state.village.greatLodge.tier).toBeGreaterThanOrEqual(0);
+    expect(state.eras.age).toBe(2);
+    expect(state.eras.settlement).toBe(8);
+    expect((save.state.eras as unknown as Record<string, unknown>).steward).toBe(true);
+    expect('steward' in state.eras).toBe(false);
+    expect(state.eras.regions[3]).toMatchObject({ unlocked: false, cash: 2_250_000, extra: 17 });
+    expect(state.upgrades.carry).toBe(15);
+    expect(state.upgrades.frontierRigs).toBe(5);
+    expect(state.upgrades.carry).toBeGreaterThan(authoredMax(UPGRADES.carry));
+  });
+
+  it('round-trips: a save written from the restored state restores the same state and world', () => {
+    const save = load('save-v8-climb.json');
+    const a = createGameState();
+    mergeState(a, save.state);
+    sanitizeState(a);
+    const b = createGameState();
+    mergeState(b, JSON.parse(JSON.stringify(a)));
+    sanitizeState(b);
+    expect(b).toEqual(a);
+    const world = sanitizeWorld(save.world);
+    expect(sanitizeWorld(JSON.parse(JSON.stringify(world)))).toEqual(world);
+    expect(world.eras[2]!.slots.length).toBe(4);
   });
 });

@@ -453,6 +453,7 @@ export class Level {
         truck: this.truckCash?.value ?? 0,
         platform: this.platformCash?.value ?? 0,
         sled: this.sledCash?.value ?? 0,
+        gift: this.city.giftValue,
       },
       // Items flying onto the player's arms have left their pile already.
       arms: Object.fromEntries(CARRY_KINDS.map((k) => [k, arms.count(k) + flights.inFlightTo(arms, k)])) as Record<CarryKind, number>,
@@ -499,6 +500,7 @@ export class Level {
     }
     if (this.sledCounter) fill(this.sledCounter.pile, 'furniture', w.piles.sled);
     if (w.cash.sled > 0) this.sledCash?.restoreValue(w.cash.sled);
+    this.city.restoreGift(w.cash.gift);
     const arms = this.ctx.player.arms;
     const add = (kind: ItemKind, n: number) => {
       for (let i = 0; i < n; i++) {

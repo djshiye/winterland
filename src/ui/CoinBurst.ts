@@ -3,6 +3,7 @@
  * rewards). Pooled elements, positions driven from update(dt) on simulation time; `onArrive` fires per coin that lands
  * (the HUD bumps the pill, plays a tick).
  */
+import { scaledCount } from '../fx/comfort';
 import { h } from './dom';
 import { ICON_COIN } from './icons';
 
@@ -40,6 +41,7 @@ export class CoinBurst {
 
   /** `count` coins from (x0, y0) to (x1, y1), both in HUD pixels. */
   spawn(count: number, x0: number, y0: number, x1: number, y1: number): void {
+    count = scaledCount(count); // comfort: fewer coins on Calm / Minimal effects
     let made = 0;
     for (const c of this.coins) {
       if (made >= count) break;

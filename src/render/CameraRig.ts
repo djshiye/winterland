@@ -23,6 +23,7 @@ import * as THREE from 'three';
 import { CAMERA } from '../config';
 import { Ease } from '../core/Tween';
 import { clamp } from '../core/math';
+import { shakeScale } from '../fx/comfort';
 
 type FocusPhase = 'none' | 'in' | 'hold' | 'out';
 
@@ -151,6 +152,9 @@ export class CameraRig {
 
   /** Additive screen shake: `intensity` in world units (0.05 subtle … 0.5 heavy), decays over `duration`. */
   shake(intensity = 0.3, duration = 0.3): void {
+    // comfort: weaker on Calm effects, none on Minimal or with Reduce motion
+    intensity *= shakeScale();
+    if (!(intensity > 0)) return;
     const remaining = this.shakeDur > 0 ? this.shakeAmp * Math.pow(1 - clamp(this.shakeT / this.shakeDur, 0, 1), 2) : 0;
     if (intensity < remaining) return;
     this.shakeAmp = intensity;

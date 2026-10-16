@@ -9,6 +9,7 @@
  */
 import type { GameContext } from '../core/types';
 import { contractClock, contractItem } from '../core/Contracts';
+import { steadyHighlights } from '../fx/comfort';
 import { h, shield } from './dom';
 import { formatMoney } from './format';
 
@@ -89,7 +90,9 @@ export class ContractCard {
     }
     if (this.warn) {
       this.pulse += dt;
-      this.root.style.setProperty('--c-pulse', (0.5 + 0.5 * Math.sin(this.pulse * 7)).toFixed(2));
+      // comfort: a steady warning colour instead of a flashing one on calmer settings
+      const p = steadyHighlights() ? 0.6 : 0.5 + 0.5 * Math.sin(this.pulse * 7);
+      this.root.style.setProperty('--c-pulse', p.toFixed(2));
     }
   }
 
