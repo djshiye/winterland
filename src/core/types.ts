@@ -463,6 +463,7 @@ export function createGameState(): GameState {
       broker: 0,
       ...eraUpgradeLevels(),
       ...eraPlayerLevels(),
+      ...qualityLevels(),
     },
     village: {
       revealed: false,
@@ -527,11 +528,20 @@ function eraUpgradeLevels(): Record<EraUpgradeId | MachineId, number> {
     out[`${k}Trade`] = 0;
     out[`${k}Belts`] = 0;
     for (const r of ERA_ROLE_SUFFIX) out[`${k}${r}`] = 0;
+    out[`${k}Dock`] = 0;
+    out[`${k}Stall`] = 0;
+    out[`${k}Cash`] = 0;
   }
   for (const m of MACHINE_IDS) out[m] = 0;
   return out;
 }
-export type EraUpgradeId = `${(typeof ERA_KEYS)[number]}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | (typeof ERA_ROLE_SUFFIX)[number]}`;
+/** 0.9.5: level 0 for every material's Quality upgrade (`${kind}Quality`). */
+function qualityLevels(): Record<`${MaterialKind}Quality`, number> {
+  const out = {} as Record<`${MaterialKind}Quality`, number>;
+  for (const k of MATERIAL_KINDS) out[`${k}Quality`] = 0;
+  return out;
+}
+export type EraUpgradeId = `${(typeof ERA_KEYS)[number]}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | 'Dock' | 'Stall' | 'Cash' | (typeof ERA_ROLE_SUFFIX)[number]}`;
 /** An era crew upgrade: the hauler (`${key}Crew`) or one of the six roles. */
 export type EraCrewId = `${(typeof ERA_KEYS)[number]}${'Crew' | (typeof ERA_ROLE_SUFFIX)[number]}`;
 
@@ -539,7 +549,7 @@ export type EraCrewId = `${(typeof ERA_KEYS)[number]}${'Crew' | (typeof ERA_ROLE
 // Events
 // ---------------------------------------------------------------------------
 
-export type Buyer = 'customer' | 'tricycle' | 'truck' | 'train' | 'sled' | 'townsfolk' | 'export' | 'jack';
+export type Buyer = 'customer' | 'tricycle' | 'truck' | 'train' | 'sled' | 'townsfolk' | 'export' | 'jack' | 'trader';
 export type LogSource = 'player' | 'harvester' | 'megaSaw';
 
 /** Event name → payload. Emitted via ctx.events. Vectors in payloads are transient: copy if kept. */
@@ -563,7 +573,7 @@ export interface GameEvents {
   sale: { buyer: Buyer; kind: ItemKind; count: number; amount: number; position: THREE.Vector3; vip?: boolean; tip?: number };
   'pad:shown': { id: PadId; position: THREE.Vector3 };
   /** id: a Survival pad, or (0.9.5) the era machine whose level pad was paid. */
-  'pad:paid': { id: PadId | MachineId; remaining: number; cost: number; position: THREE.Vector3 };
+  'pad:paid': { id: PadId | UpgradeId; remaining: number; cost: number; position: THREE.Vector3 };
   'pad:unlocked': { id: PadId; position: THREE.Vector3 };
   /**
    * A pad the player stood on finished its target (juice only: fx/JuiceDirector.ts, fx/Haptics.ts). id is the holder id

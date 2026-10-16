@@ -72,6 +72,9 @@
   }
 
   function kindOf(path) {
+    // 0.9.5 region markets: buyer vehicles on the road and walk-in shoppers at the stall
+    if (/^(eras|regions)\b.*\.market\.buyers\./.test(path)) return 'vehicle';
+    if (/^(eras|regions)\b.*\.market\.shoppers\./.test(path)) return 'customer';
     if (/^(eras|regions)/.test(path)) return 'eraWorker';
     if (path.startsWith('crew')) return 'crew';
     if (path.startsWith('townsfolk')) return 'townsfolk';
