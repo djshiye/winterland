@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { CAMERA } from '../../config';
 import { makeCanvasTexture } from '../../render/materials';
+import { steadyHighlights } from '../../fx/comfort';
 
 interface Entry {
   mat: THREE.MeshToonMaterial;
@@ -71,7 +72,8 @@ export function bulbMaterial(): THREE.MeshBasicMaterial {
 
 /** Gentle shimmer of every bulb at once (cheap: one number). Call each frame with the elapsed time. */
 export function twinkleBulbs(time: number): void {
-  twinkle = Math.sin(time * 2.3) * 0.5 + Math.sin(time * 5.1 + 1.3) * 0.5;
+  // 0.9.7: the bulbs glow steady with calmer effects / Reduce motion
+  twinkle = steadyHighlights() ? 0 : Math.sin(time * 2.3) * 0.5 + Math.sin(time * 5.1 + 1.3) * 0.5;
   setBulbScale();
 }
 

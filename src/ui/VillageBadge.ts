@@ -11,6 +11,7 @@ import { eraLabel, romanNumeral } from '../world/env/eras';
 import { backOut, h } from './dom';
 import { ICON_HOUSE, ICON_PERSON } from './icons';
 import './era.css';
+import { reducedMotion } from '../fx/comfort';
 
 export class VillageBadge {
   private readonly root: HTMLDivElement;
@@ -184,7 +185,7 @@ export class VillageBadge {
     }
     if (this.bump > 0) {
       this.bump = Math.max(0, this.bump - dt / 0.6);
-      sc *= 1 + 0.18 * Math.sin(Math.PI * (1 - this.bump));
+      sc *= 1 + (reducedMotion() ? 0.03 : 0.18) * Math.sin(Math.PI * (1 - this.bump));
     }
     const tf = sc === 1 ? '' : `scale(${sc.toFixed(3)})`;
     if (tf !== this.lastTransform) {

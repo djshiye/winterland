@@ -27,11 +27,13 @@ import { buildRiver } from './env/river';
 import { buildRoads, highwayY } from './env/roads';
 import { buildTown, type TownPart } from './env/town';
 import { buildSnowfall, type SnowfallPart } from './env/snowfall';
+import { reducedMotion } from '../fx/comfort';
 
 const EXPAND_TIME = 1.6;
 
 const easeOut = (t: number): number => 1 - (1 - t) * (1 - t);
 const backOut = (t: number): number => {
+  if (reducedMotion()) return easeOut(t); // 0.9.7: no overshoot with Reduce motion
   const c1 = 1.70158;
   const c3 = c1 + 1;
   return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);

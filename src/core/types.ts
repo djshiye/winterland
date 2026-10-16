@@ -606,6 +606,11 @@ export interface GameEvents {
   'ui:escape': Record<string, never>;
   'ui:mute': Record<string, never>;
   'ui:fullscreen': Record<string, never>;
+  /** 0.9.7: the gamepad's map / market buttons (the keyboard's T / B). */
+  'ui:map': Record<string, never>;
+  'ui:market': Record<string, never>;
+  /** 0.9.7: the gamepad's Start with nothing open: Settings. */
+  'ui:menu': Record<string, never>;
   /** Mouse wheel / pinch / +- keys: `delta` > 0 zooms in (about 0.1 per notch). */
   'camera:zoom': { delta: number };
   /** Settings → Display picked a frame cap (0 = uncapped); Game applies and persists it (core/fps.ts). */

@@ -5,6 +5,11 @@
  * setTimeout/setInterval, so the debug `simulate(seconds)` fast-forward works.
  */
 import * as THREE from 'three';
+import { reducedMotion } from '../fx/comfort';
+
+/** 0.9.7: bounces, punches and squashes shrink to this share with Reduce motion (same as fx/padJuice). */
+const REDUCED_AMOUNT = 0.25;
+const motionAmount = (amount: number): number => (reducedMotion() ? amount * REDUCED_AMOUNT : amount);
 
 export type Easing = (t: number) => number;
 
@@ -17,13 +22,16 @@ export const Ease = {
   cubicInOut: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
   sineInOut: (t: number) => -(Math.cos(Math.PI * t) - 1) / 2,
   expoOut: (t: number) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
+  // 0.9.7: the overshooting eases settle without overshoot under Reduce motion (fx/comfort)
   backOut: (t: number) => {
+    if (reducedMotion()) return 1 - Math.pow(1 - t, 3);
     const c1 = 1.70158;
     const c3 = c1 + 1;
     return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
   },
   elasticOut: (t: number) => {
     if (t === 0 || t === 1) return t;
+    if (reducedMotion()) return 1 - Math.pow(1 - t, 3);
     return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1;
   },
 } satisfies Record<string, Easing>;
@@ -160,10 +168,12 @@ export class TweenManager {
   }
 
   /**
-   * Quick uniform scale pulse (amount 0.2 → peaks at 120% of base scale, then settles back).
+   * Quick uniform scale pulse (amount 0.2 → peaks at 120% of base scale, then settles back). A quarter as much
+   * with Reduce motion (0.9.7), like squash().
    * Relative to obj.userData.baseScale (captured on first use) so overlapping punches never drift.
    */
   punchScale(obj: THREE.Object3D, amount = 0.2, duration = 0.25): Tween {
+    amount = motionAmount(amount);
     const base = baseScaleOf(obj);
     this.killScaleTweens(obj);
     const tw = this.make({
@@ -184,6 +194,7 @@ export class TweenManager {
    * Use for machines processing an item, things landing, buildings spawning.
    */
   squash(obj: THREE.Object3D, amount = 0.25, duration = 0.35): Tween {
+    amount = motionAmount(amount);
     const base = baseScaleOf(obj);
     this.killScaleTweens(obj);
     const tw = this.make({

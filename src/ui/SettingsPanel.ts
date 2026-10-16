@@ -4,9 +4,9 @@
  * - Sound: Sound switch (same state as the mute button), Master / Effects volume sliders, Music switch + slider.
  * - Display: window mode (desktop app) or a Fullscreen switch (browser), Graphics High / Low (Low = no shadows, pixel
  *   ratio 1), Resolution slider, Frame rate Auto / 60 / 30, Show FPS (PerfOverlay), Day / night (ctx.dayNight).
- * - Comfort (fx/comfort, localStorage 'winterland:comfort'): Reduce motion, Effects Full / Calm / Minimal, Colour-blind
- *   friendly, and two quick buttons: "Make it calm" (all three at their gentlest) and "Defaults".
- * - Game: Hold to interact (pickups and payments need E / Space / a press held), Vibration (where navigator.vibrate exists), a controls hint, Back up / Restore save (ui/saveTransfer),
+ * - Comfort (fx/comfort, localStorage 'winterland:comfort'): Reduce motion, Effects Full / Calm / Minimal, Interface
+ *   size 80-150 % (applied when the slider is let go), Colour-blind friendly, and two quick buttons: "Make it calm" (all three at their gentlest) and "Defaults".
+ * - Game: Hold to interact (pickups and payments need E / Space / a press held), Vibration (phone buzz and gamepad rumble, where either exists), a controls hint, Back up / Restore save (ui/saveTransfer),
  *   "Start a new season" (after the finale) and "Reset progress"; both, and Restore, sit behind in-page confirmations
  *   (no window.confirm) that replace the tabs. Confirming a reset emits 'game:reset'; the main session wipes the save
  *   and reloads. Picking a graphics quality by hand writes localStorage 'winterland:autoQuality' = 'manual' so the
@@ -14,8 +14,8 @@
  * Sliders run on 'input' (live) and are not shielded: the row stops pointerdown / touchstart instead.
  * On short screens (<= 520 px tall) the switches sit in two columns so the card fits 800x450.
  */
-import { comfort, defaultComfort, setComfort, type EffectsLevel } from '../fx/comfort';
-import { hapticsAvailable, hapticsEnabled, buzz, setHapticsEnabled } from '../fx/Haptics';
+import { comfort, defaultComfort, setComfort, UI_SCALE, type EffectsLevel } from '../fx/comfort';
+import { feedbackAvailable, hapticsEnabled, buzz, setHapticsEnabled } from '../fx/Haptics';
 import { readFpsCap, FPS_CAPS, type FpsCap } from '../core/fps';
 import type { VolumeChannel } from '../fx/volume';
 import type { GameContext } from '../core/types';
@@ -66,8 +66,11 @@ const CONTROLS: readonly (readonly [string, string])[] = [
   ['E / Space', 'pick up & pay (hold)'],
   ['Wheel / + \u2212', 'zoom'],
   ['Esc', 'menu'],
+  ['T / B', 'map / market'],
+  ['Tab / arrows', 'move through menus'],
   ['M', 'mute'],
   ['F', 'fullscreen (desktop: F11 / Alt+Enter)'],
+  ['Gamepad', 'stick walks, A picks up & pays, B back, Start menu, Y map, X market'],
 ];
 
 export class SettingsPanel {
@@ -188,27 +191,30 @@ export class SettingsPanel {
       label: string,
       get: () => number,
       set: (v: number) => void,
-      opts: { min?: number; step?: number; release?: boolean } = {},
+      opts: { min?: number; max?: number; step?: number; release?: boolean; onRelease?: boolean } = {},
     ): void => {
       const row = rowFor(to, label, null, 'wl-row-slider');
       const input = h('input', 'wl-slider');
       input.type = 'range';
       input.min = String(opts.min ?? 0);
-      input.max = '100';
+      input.max = String(opts.max ?? 100);
       input.step = String(opts.step ?? 1);
       input.setAttribute('aria-label', label);
       const val = h('span', 'wl-slider-val');
       const paint = (): void => {
         const n = Number(input.value);
         const lo = Number(input.min);
+        const hi = Number(input.max);
         val.textContent = `${n}%`;
-        input.style.setProperty('--p', `${(((n - lo) / (100 - lo)) * 100).toFixed(1)}%`);
+        input.style.setProperty('--p', `${(((n - lo) / (hi - lo)) * 100).toFixed(1)}%`);
       };
       input.addEventListener('input', () => {
         ctx.audio.unlock();
-        set(Number(input.value) / 100);
+        // onRelease: only the label follows the drag (the interface size would resize the slider under the pointer)
+        if (!opts.onRelease) set(Number(input.value) / 100);
         paint();
       });
+      if (opts.onRelease) input.addEventListener('change', () => set(Number(input.value) / 100));
       if (opts.release) {
         input.addEventListener('change', () => ctx.audio.play('pop'));
       }
@@ -361,6 +367,14 @@ export class SettingsPanel {
       (effects) => setComfort({ effects }),
     );
     pc.appendChild(h('div', 'wl-controls-note wl-comfort-note', 'Calm: fewer sparkles, softer shake, no flashing. Minimal: only the essentials.'));
+    // 0.9.7: interface size (fx/comfort uiScale, ui/comfort.css zooms the HUD panels)
+    slider(pc, 'Interface size', () => comfort().uiScale, (v) => setComfort({ uiScale: v }), {
+      min: UI_SCALE.min * 100,
+      max: UI_SCALE.max * 100,
+      step: UI_SCALE.step * 100,
+      release: true,
+      onRelease: true,
+    });
     this.cbSwitch = sw(pc, 'Colour-blind friendly', 'Blue and orange instead of green and red', () => {
       ctx.audio.play('click');
       setComfort({ colorBlind: !comfort().colorBlind });
@@ -391,8 +405,8 @@ export class SettingsPanel {
       ctx.input.setHoldToInteract(on);
       ctx.events.emit('settings:hold', { on });
     });
-    if (hapticsAvailable()) {
-      this.vibSwitch = sw(pg, 'Vibration', null, () => {
+    if (feedbackAvailable()) {
+      this.vibSwitch = sw(pg, 'Vibration', 'Phone buzz and controller rumble', () => {
         ctx.audio.play('click');
         setHapticsEnabled(!hapticsEnabled());
         if (hapticsEnabled()) buzz(15);

@@ -4,6 +4,25 @@
    Okabe-Ito safe pair: a cosy sky blue for go / good / on, a deep orange for danger / warning. Static looks only
    (all motion is driven from TypeScript). */
 
+/* ---- interface size (0.9.7) ---------------------------------------------------------------------------
+   fx/comfort.ts writes the player's Interface size to <html> as --wl-ui (0.8..1.5). Every HUD panel, card and menu
+   zooms by it; the world-anchored bits (floating "+$12" texts, the off-screen guide arrow, coin flights) are placed
+   in screen pixels every frame, so they keep their size and spot. Screen positions written onto a zoomed panel
+   (bannerStack, ContractCard) are divided by the scale. */
+.wl-hud > :not(.wl-float):not(.wl-edge):not(.wl-coin) {
+  zoom: var(--wl-ui, 1);
+}
+
+/* ---- keyboard / gamepad focus (0.9.7) ------------------------------------------------------------------
+   input/menuNav.ts moves focus through the menus with the arrow keys, Tab and the gamepad. Only shown for keyboard
+   and pad use (:focus-visible), never after a tap or a click: a soft gold ring, readable on every card colour. */
+.wl-hud button:focus-visible,
+.wl-hud input:focus-visible,
+.wl-hud [tabindex]:focus-visible {
+  outline: 3px solid #ffd84a;
+  outline-offset: 3px;
+}
+
 .wl-comfort-intro {
   font-size: 15px;
   line-height: 1.3;
@@ -33,6 +52,16 @@
   .wl-comfort-note {
     margin-top: -4px;
   }
+}
+
+/* ---- era colour contrast (0.9.7) ----------------------------------------------------------------------
+   White numerals and place names sit on each era's accent colour; the lighter accents (Steam, Industrial, Electric,
+   Nuclear, AI) are below 3:1 against white, so these get the game's dark outline, which reads on every accent. */
+.wl-hud .wl-map-badge,
+.wl-hud .wl-agecard-place {
+  text-shadow:
+    -1.5px -1.5px 0 #1f2b46, 1.5px -1.5px 0 #1f2b46, -1.5px 1.5px 0 #1f2b46, 1.5px 1.5px 0 #1f2b46,
+    0 -1.5px 0 #1f2b46, 0 1.5px 0 #1f2b46, -1.5px 0 0 #1f2b46, 1.5px 0 0 #1f2b46;
 }
 
 /* ---- colour-blind friendly palette ------------------------------------------------------------------ */

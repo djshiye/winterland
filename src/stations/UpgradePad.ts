@@ -208,7 +208,7 @@ export class UpgradePad implements ItemHolder {
     this.ring.update(dt, t, eager);
     // billboard the sign (plane faces +Z locally) and bob it a little
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
-    this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.def.x) * 0.06;
+    this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.def.x) * 0.06 * motionScale();
   }
 
   // --- ItemHolder -----------------------------------------------------------
@@ -238,7 +238,7 @@ export class UpgradePad implements ItemHolder {
     this.remaining = Math.max(0, this.remaining - s.value);
     this.writePaid();
     this.redraw();
-    if (this.remaining > 0) this.ctx.tweens.squash(this.model, 0.07 * motionScale(), 0.24);
+    if (this.remaining > 0) this.ctx.tweens.squash(this.model, 0.07, 0.24);
     this.ring.flash();
     this.tmpPos.copy(this.object.position);
     this.ctx.events.emit('pad:paid', {
