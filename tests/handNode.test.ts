@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { UPGRADES } from '../src/config';
 import { EventBus } from '../src/core/EventBus';
 import { createGameState, type GameContext, type GameEvents, type Item, type ItemKind } from '../src/core/types';
 import { ERA_NODES } from '../src/assets/eraNodes';
@@ -26,7 +27,7 @@ function makeNode(era: number) {
     events,
     state,
     time: { elapsed: 0, frame: 0 },
-    upgrades: { value: () => 1, level: () => 0 },
+    upgrades: { value: (id: keyof typeof UPGRADES) => UPGRADES[id].values[0], level: () => 0 },
     tweens: { killTweensOf: () => undefined, popIn: () => undefined, run: () => ({}), punchScale: () => undefined, squash: () => undefined, delay: () => undefined },
     player: {
       arms: { id: 'arms' },

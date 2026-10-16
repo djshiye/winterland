@@ -15,6 +15,7 @@
 
 import type { ItemKind } from './core/types';
 import { ERA_KEYS, ERA_NAMES, MATERIALS, MATERIAL_KINDS, ERA_SCALE, type EraKey, type MaterialKind } from './eras/data';
+import { eraPlayerUpgrades, type EraPlayerUpgradeId } from './eras/playerUpgrades';
 
 export interface Rect {
   minX: number;
@@ -830,7 +831,9 @@ export type UpgradeIdConst =
   | 'jack'
   | 'taxOffice'
   | 'broker'
-  | `${EraKey}${'Rigs' | 'Crew' | 'Trade'}`;
+  | `${EraKey}${'Rigs' | 'Crew' | 'Trade'}`
+  // 0.9.5: the player's era upgrades (eras/playerUpgrades.ts)
+  | EraPlayerUpgradeId;
 
 /**
  * lumberjack + crew + sales: bought in the cabin shop panel (one tab each) · machine: the machine's own pad re-arms
@@ -890,6 +893,7 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
   // 0.9.0: Jack, finance and the era upgrades (shop tabs Finance / Industry)
   ...financeUpgrades(),
   ...eraUpgrades(),
+  ...eraPlayerUpgrades(),
   carry: {
     id: 'carry',
     group: 'lumberjack',
