@@ -87,10 +87,11 @@ New Season after the finale, and a reset).
 
 A whole game takes the autoplay bot about 60–70 minutes (targets in [docs/DESIGN.md](docs/DESIGN.md)).
 
-## Desktop app (Linux and Windows)
+## Desktop app (Linux, Windows and macOS)
 
 The game also ships as a standalone desktop app (Electron). It runs fully offline, and the save lives in your
-user folder (`~/.config/Winterland` on Linux, `%APPDATA%\Winterland` on Windows).
+user folder (`~/.config/Winterland` on Linux, `%APPDATA%\Winterland` on Windows,
+`~/Library/Application Support/Winterland` on macOS).
 
 ```bash
 npm install
@@ -98,6 +99,7 @@ npm run desktop            # build and open it in a desktop window right away
 npm run package:desktop    # portable builds for linux-x64, linux-arm64 and win32-x64 → release/*.zip
 npm run package:linux      # only the Linux builds
 npm run package:win        # only the Windows build
+npm run package:mac        # macOS builds (arm64 + x64); signing and zipping need a Mac
 ```
 
 You can package from Linux or Windows, and the build machine doesn't need Wine or an installer toolchain. The
@@ -109,6 +111,9 @@ first run downloads the Electron runtime for each target (~100 MB each) and cach
   run `./winterland`. On distributions that block Chromium's sandbox (some Ubuntu 24.04+ setups report
   *"The SUID sandbox helper binary was found, but is not configured correctly"*), start it with
   `./winterland --no-sandbox`.
+- **macOS:** unzip `Winterland-<version>-darwin-arm64.zip` (Apple silicon, M1 and later) or `darwin-x64.zip` (Intel)
+  and drag `Winterland.app` to Applications. The app isn't notarised by Apple, so the first time *right-click → Open*
+  it (or *System Settings → Privacy & Security → Open Anyway*).
 
 Settings → Display has a **Window mode** (Windowed / Fullscreen — borderless, so alt-tab stays friendly).
 **F11** or **Alt+Enter** toggles it from anywhere. The window size, position and mode are remembered in
@@ -131,8 +136,8 @@ node scripts/check-reveals.mjs                  # headless check of the pad reve
 ```
 
 GitHub Actions: every push runs the typecheck, the tests, a build and a bot run to the processor
-(`.github/workflows/ci.yml`). Pushing a `v*` tag builds the Linux and Windows zips and attaches them to a GitHub
-release (`release.yml`).
+(`.github/workflows/ci.yml`). Pushing a `v*` tag builds the Linux, Windows and macOS zips and attaches them to a
+GitHub release (`release.yml`), opening the notes with `docs/releases/<tag>.md` when it exists.
 
 Open `http://localhost:5173/?gallery` to see every AssetFactory model and canvas texture, one row per domain.
 Use `?gallery=items` or `?gallery=crate` to focus on a domain or a single asset, and add `&spin` for a turntable.

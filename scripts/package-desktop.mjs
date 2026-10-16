@@ -4,10 +4,12 @@
  * portable folder per target into release/. Unzip and run — no installer, no admin rights.
  *
  *   node scripts/package-desktop.mjs                 # linux-x64, linux-arm64, win32-x64
+ *   node scripts/package-desktop.mjs darwin-arm64 darwin-x64   # macOS (Apple silicon, Intel)
  *   node scripts/package-desktop.mjs win32-x64       # just one (any of the above, or e.g. linux-armv7l)
  *
  * Works from any host OS: Electron binaries for the other platforms are downloaded (and cached) on first use, and
- * the Windows .exe metadata is written without Wine.
+ * the Windows .exe metadata is written without Wine. macOS apps are ad-hoc signed and zipped with `ditto`, which needs
+ * a Mac (the release workflow uses a macOS runner); packaging darwin elsewhere still works but skips the signing.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
@@ -54,7 +56,13 @@ for (const target of targets) {
     win32metadata: { CompanyName: 'Winterland', ProductName: 'Winterland', FileDescription: 'Winterland' },
   });
   const zip = join(out, `Winterland-${pkg.version}-${platform}-${arch}.zip`);
-  if (process.platform === 'win32') {
+  if (platform === 'darwin' && process.platform === 'darwin') {
+    // No paid Apple certificate: an ad-hoc signature keeps Apple silicon happy ("unidentified developer" instead of
+    // "damaged"). ditto keeps the bundle's symlinks and metadata intact.
+    const appPath = join(dir, 'Winterland.app');
+    run('codesign', ['--force', '--deep', '--sign', '-', appPath]);
+    run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', appPath, zip]);
+  } else if (process.platform === 'win32') {
     run('powershell', ['-NoProfile', '-Command', `Compress-Archive -Path '${dir}' -DestinationPath '${zip}' -Force`]);
   } else {
     // zip keeps the executable bit for Linux; Windows reads the same archive fine.
