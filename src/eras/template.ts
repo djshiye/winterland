@@ -4,7 +4,8 @@
  *
  * Every era 2..10 is the same size as Survival: 6 machines (2 extractors, 2 processors, a premium machine, a cash
  * machine), 7 worker roles, 4 player upgrades (carry, boots, tool, pal) with a hand node, and 4 sales products
- * (plus the era's Trade upgrade).
+ * (each with its "Fine" `${material}Quality` upgrade). 0.9.6: every era's chain runs on its own land (eras 4, 8 and 10
+ * no longer need older eras' goods), and eras 5 and 10 mine their own raw material (pig iron, data shards).
  *
  * Ownership: each content thread edits only its own eras' rows (2-4, 5-7, 8-10). Ids are plain strings here so a
  * row can name a machine or material before it is added to eras/data.ts; readers skip ids that do not exist yet
@@ -43,7 +44,7 @@ export interface EraContent {
   player: { carry: string; boots: string; tool: string; pal: string };
   /** The hand node (giant-log analog, assets/eraNodes.ts ERA_NODES[n]) and the raw material a strike yields. */
   node: { label: string; yields: string; verb: string };
-  /** The four products with their own `${material}Quality` sales upgrade (plus `${key}Trade`). */
+  /** The four products with their own `${material}Quality` ("Fine") sales upgrade. */
   sales: readonly [string, string, string, string];
 }
 
@@ -89,11 +90,11 @@ export const ERA_CONTENT: readonly (EraContent | null)[] = [
   {
     n: 5,
     machines: { ext: ['deepMine', 'cokeOven'], proc: ['steelMill', 'rollingMill'], premium: 'plowWorks', cash: 'bankVault' },
-    materials: ['ore', 'coal', 'steel', 'girder', 'snowplow'],
+    materials: ['pigIron', 'coal', 'steel', 'girder', 'snowplow'],
     roles: roles([['Steelworker', 'Steelworkers'], ['Crane Hand', 'Crane Hands'], ['Teamster', 'Teamsters'], ['Stevedore', 'Stevedores'], ['Payroll Clerk', 'Payroll Clerks'], ['Plant Manager', 'Plant Managers'], ['Slag Raker', 'Slag Rakers']]),
     player: { carry: 'Steel Barrow', boots: 'Work Boots', tool: 'Rivet Hammer', pal: 'Draft Horse' },
-    node: { label: 'Slag Heap', yields: 'ore', verb: 'Break' },
-    sales: ['coal', 'steel', 'girder', 'snowplow'],
+    node: { label: 'Slag Heap', yields: 'pigIron', verb: 'Break' },
+    sales: ['pigIron', 'steel', 'girder', 'snowplow'],
   },
   {
     n: 6,
@@ -135,11 +136,11 @@ export const ERA_CONTENT: readonly (EraContent | null)[] = [
   {
     n: 10,
     machines: { ext: ['fusionPlant', 'nanoFab'], proc: ['dataCenter', 'robotWorks'], premium: 'quantumLab', cash: 'quantumBank' },
-    materials: ['power', 'chip', 'aiCore', 'robot', 'quantumCore'],
+    materials: ['power', 'dataShard', 'aiCore', 'robot', 'quantumCore'],
     roles: roles([['Robot', 'Robots'], ['Feeder Bot', 'Feeder Bots'], ['Courier Drone', 'Courier Drones'], ['Dock Bot', 'Dock Bots'], ['Ledger AI', 'Ledger AIs'], ['Builder Bot', 'Builder Bots'], ['Prospector Drone', 'Prospector Drones']]),
     player: { carry: 'Exo Suit', boots: 'Jet Boots', tool: 'Nano Wand', pal: 'Robo Pup' },
-    node: { label: 'Data Crystal', yields: 'power', verb: 'Tune' },
-    sales: ['aiCore', 'robot', 'power', 'quantumCore'],
+    node: { label: 'Data Crystal', yields: 'dataShard', verb: 'Tune' },
+    sales: ['dataShard', 'aiCore', 'robot', 'quantumCore'],
   },
 ];
 

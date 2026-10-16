@@ -287,7 +287,7 @@ export interface MarketState {
 }
 
 /** Where money that is not a sale came from ('income' event). */
-export type IncomeSource = 'rent' | 'business' | 'interest' | 'trade' | 'jack';
+export type IncomeSource = 'rent' | 'business' | 'interest' | 'trade' | 'jack' | 'harvest';
 
 /** 'manage:open': the info / demolish card for something already built (ui/ManagePanel.ts renders it). */
 export interface ManageRequest {
@@ -380,6 +380,13 @@ export interface GameState {
   city: CityState;
   /** 0.9.0: market prices, trading holdings and investments. */
   market: MarketState;
+  /**
+   * 0.9.6: save migrations already applied to this game (core/Save.ts MIGRATIONS ids → true). A fresh game marks them
+   * all at its first load, so each one runs at most once per save.
+   */
+  migrations: Partial<Record<string, boolean>>;
+  /** 0.9.6: what a migrated older save keeps. masteryMult: the Mastery bonus frozen when levels past 10 were refunded (1 = none). */
+  legacy: { masteryMult: number };
 }
 
 /** Must match LAYOUT.village.plots.length (kept literal so this file only imports types from config). */
@@ -477,6 +484,8 @@ export function createGameState(): GameState {
     playTime: 0,
     quarters: { tier: -1, logs: 0, cash: 0 },
     prestige: { season: 0 },
+    migrations: {},
+    legacy: { masteryMult: 1 },
     clock: 24, // DAYNIGHT.startAt × cycleSeconds (literal: this file imports only types from config)
     quests: {},
     town: {
@@ -604,6 +613,8 @@ export interface GameEvents {
   'settings:fps': { cap: 0 | 30 | 60 };
   /** Settings → Restore save: validated save text. Game stops autosaving, writes it and reloads. */
   'save:restore': { text: string };
+  /** 0.9.6 Settings → Game → Earlier saves: restore the backup stored under `key` (core/saveVault.ts). */
+  'save:restoreBackup': { key: string };
   /** The player stands in a gated zone (hold to interact is on) with something to take or pay; `on` false when they leave or hold. */
   'interact:prompt': { on: boolean; kind: 'take' | 'pay' };
   /** Settings → Game toggled hold-to-interact (Input re-reads it). */
@@ -632,6 +643,8 @@ export interface GameEvents {
   'offline:collected': { amount: number };
   /** Settings → Reset progress → confirmed. Game wipes the save and reloads the page. */
   'game:reset': Record<string, never>;
+  /** 0.9.6 Settings → Game → Save & quit (desktop app): Game writes the save, then closes the app. */
+  'game:quit': Record<string, never>;
   // --- wave 7 ---
   /** The tree feller toppled pine `index` (its logs follow onto the deck). */
   'tree:felled': { index: number; position: THREE.Vector3 };

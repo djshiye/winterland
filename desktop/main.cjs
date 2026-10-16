@@ -11,23 +11,47 @@
  * Fullscreen is Electron's borderless fullscreen (alt-tab friendly). While fullscreen, `bounds` keeps the last
  * windowed size so leaving fullscreen restores it. Saved bounds that are no longer on any display are ignored.
  *
- * Keys: F11 or Alt+Enter (plus Ctrl+Cmd+F on macOS) toggles fullscreen, Ctrl+R reloads, F12 / Ctrl+Shift+I open the dev tools (Cmd works for
- * Ctrl on macOS). On macOS the app keeps the standard app menu so Cmd+Q, Cmd+H and Cmd+M behave as expected.
+ * Keys: F11 or Alt+Enter (plus Ctrl+Cmd+F on macOS) toggles fullscreen, Ctrl+R reloads; F12 / Ctrl+Shift+I open the dev
+ * tools in a development run only (`npm run desktop`), never in a packaged release (Cmd works for Ctrl on macOS). On
+ * macOS the app keeps the standard app menu so Cmd+Q, Cmd+H and Cmd+M behave as expected.
  *
  * Renderer bridge: desktop/preload.cjs exposes `window.winterlandDesktop` (see src/platform/desktop.ts); the IPC
  * channels it uses are handled at the bottom of this file.
+ *
+ * 0.9.6 hardening (the window only ever shows the game, from inside the app):
+ * - one copy at a time (a second launch focuses the open window: two copies would overwrite each other's save);
+ * - a Content-Security-Policy on everything app:// serves (scripts only from the app itself, no plugins, no forms);
+ * - the window can't be navigated or redirected away from app://game/, and opens no other windows (https links go to
+ *   the real browser); every permission request (camera, microphone, notifications...) is denied;
+ * - a crashed page reloads once, then explains itself instead of showing a blank window;
+ * - packaging (scripts/package-desktop.mjs) turns off Electron's Node-as-a-program switches with fuses.
  */
 const fs = require('node:fs');
-const { app, BrowserWindow, ipcMain, Menu, net, protocol, screen, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, screen, session, shell } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { fullscreenOptions, isFullscreenKey } = require('./window-options.cjs');
+const { CSP, distFile, fullscreenOptions, isAppUrl, isFullscreenKey } = require('./window-options.cjs');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const DEFAULT_SIZE = { width: 1280, height: 800 };
 const MIN_SIZE = { width: 480, height: 360 };
 
+// The name and the app://game origin decide where the save lives (localStorage under userData): never change either,
+// or every player's save is orphaned (tests/desktopSecurity.test.ts pins both).
 app.setName('Winterland');
+
+// 0.9.6: a single copy. The second launch quits at once and the first one comes to the front.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  process.exit(0);
+}
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+});
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ]);
@@ -93,6 +117,11 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
+      nodeIntegration: false,
+      webviewTag: false,
+      spellcheck: false,
+      safeDialogs: true,
+      devTools: !app.isPackaged,
       backgroundThrottling: false,
       preload: path.join(__dirname, 'preload.cjs'),
     },
@@ -152,10 +181,40 @@ function createWindow() {
 
   win.loadURL('app://game/index.html');
 
-  // Links to the web open in the real browser, never inside the game window.
+  // Links to the web open in the real browser, never inside the game window; nothing else opens at all.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/.test(url)) shell.openExternal(url);
+    if (/^https:\/\//.test(url)) shell.openExternal(url);
     return { action: 'deny' };
+  });
+  // The window only ever shows the game: no navigation or redirect away from app://game/ (reloads stay allowed).
+  const stayHome = (event, url) => {
+    if (!isAppUrl(url)) event.preventDefault();
+  };
+  win.webContents.on('will-navigate', stayHome);
+  win.webContents.on('will-redirect', stayHome);
+  win.webContents.on('will-attach-webview', (event) => event.preventDefault());
+
+  // A crashed page reloads once (the save is in localStorage, so nothing is lost); a second crash explains itself.
+  let crashes = 0;
+  win.webContents.on('render-process-gone', (_event, details) => {
+    if (details.reason === 'clean-exit' || win.isDestroyed()) return;
+    crashes++;
+    if (crashes === 1) {
+      win.webContents.reload();
+      return;
+    }
+    dialog.showMessageBox(win, {
+      type: 'error',
+      title: 'Winterland',
+      message: 'Winterland stopped unexpectedly.',
+      detail: 'Your game is saved every few seconds. Close this window and open Winterland again to carry on.',
+      buttons: ['Reload', 'Close'],
+      defaultId: 0,
+    }).then(({ response }) => {
+      if (win.isDestroyed()) return;
+      if (response === 0) win.webContents.reload();
+      else win.close();
+    });
   });
 
   win.webContents.on('before-input-event', (event, input) => {
@@ -165,7 +224,7 @@ function createWindow() {
       if (!input.isAutoRepeat) win.setFullScreen(!win.isFullScreen());
       event.preventDefault();
     } else if (input.key === 'F12' || (ctrl && input.shift && input.key.toLowerCase() === 'i')) {
-      win.webContents.toggleDevTools();
+      if (!app.isPackaged) win.webContents.toggleDevTools(); // development runs only
       event.preventDefault();
     } else if (ctrl && input.key.toLowerCase() === 'r') {
       win.webContents.reload();
@@ -184,6 +243,11 @@ ipcMain.on('desktop:setWindowMode', (event, mode) => {
   if (!isMode(mode)) return;
   windowOf(event)?.setFullScreen(mode === 'fullscreen');
 });
+// 0.9.6 Settings → Save & quit: the game has already written its save when it sends this. Only the game page may ask.
+ipcMain.on('desktop:quit', (event) => {
+  if (!isAppUrl(event.senderFrame?.url ?? '')) return;
+  app.quit();
+});
 
 app.whenReady().then(() => {
   // No menu bar in the game window; macOS keeps just the app menu (Hide, Quit), View > Enter Full Screen and the
@@ -197,11 +261,18 @@ app.whenReady().then(() => {
         ])
       : null,
   );
-  protocol.handle('app', (request) => {
-    const { pathname } = new URL(request.url);
-    const file = path.normalize(path.join(DIST, decodeURIComponent(pathname)));
-    if (!file.startsWith(DIST)) return new Response('Not found', { status: 404 });
-    return net.fetch(pathToFileURL(file).toString());
+  // Nothing the game does needs a permission (fullscreen goes through the bridge): deny every request and check.
+  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  session.defaultSession.setPermissionCheckHandler(() => false);
+
+  protocol.handle('app', async (request) => {
+    const file = distFile(DIST, request.url);
+    if (!file) return new Response('Not found', { status: 404 });
+    const res = await net.fetch(pathToFileURL(file).toString());
+    const headers = new Headers(res.headers);
+    headers.set('Content-Security-Policy', CSP);
+    headers.set('X-Content-Type-Options', 'nosniff');
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
   });
   createWindow();
   app.on('activate', () => {
