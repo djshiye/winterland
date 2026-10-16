@@ -253,7 +253,7 @@ nextGoal(s) → { text, action: { kind: 'buy' | 'go' | 'build', target } }
 - **ShopPanel** (opens only on a shop mat, one level per Buy, as in 0.8.0): band pips plus a band star, a gold tick at the gate level, a dot on a tab while any row in it is below need, and "Lv 23 · need 30" badges.
 - **`nextGoal` priority:** unmet prereq → cheapest affordable row → settlement action → saving for the cheapest row ("$12k to go") → the pad.
 - **Rewards:**
-  - a soft tick and chip pulse for each finished row;
+  - a tiny "ding-ding" and chip pulse for each finished row;
   - a toast every 5 rows;
   - mini-confetti at each 10 % of the checklist;
   - when `ready`: fanfare, camera moment, the pad glows and the toast reads "Iron Ridge is for sale!".
