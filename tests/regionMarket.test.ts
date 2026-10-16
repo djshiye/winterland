@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { TIMING, TRADE_POST, UPGRADES } from '../src/config';
+import { TIMING, TRADE_POST, UPGRADES, eraCashMachine } from '../src/config';
 import { valueAt } from '../src/core/ladder';
 import { createGameState, type GameContext, type Item, type ItemKind } from '../src/core/types';
 import { ERAS, MATERIALS, MATERIAL_KINDS, MAX_ERA, REGIONS, ROADS } from '../src/eras/data';
@@ -37,6 +37,11 @@ vi.mock('../src/render/characters', () => ({
     const root = new THREE.Group();
     return { root, armsAnchor: new THREE.Group(), height: 1.6, setCarrying: () => undefined, setSeated: () => undefined, cheer: () => undefined, animate: () => undefined, update: () => undefined };
   },
+}));
+vi.mock('../src/eras/LevelPad', () => ({ EraLevelPad: class { update(): void {} } }));
+vi.mock('../src/assets/cashMachine', () => ({
+  CASH_MACHINE_SIZE: { w: 1.5, d: 1.3, h: 1.9 },
+  createCashMachineModel: () => ({ root: new THREE.Group(), wheel: new THREE.Object3D(), mouth: new THREE.Vector3() }),
 }));
 vi.mock('../src/assets/marketCounter', () => ({ createMarketCounterModel: () => new THREE.Group(), COUNTER_SIZE: { length: 3.0, depth: 0.8, height: 0.95 } }));
 
@@ -371,4 +376,92 @@ describe('era clerks and the market cash', () => {
       }
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Era cash machines (eras/CashMachine.ts): era 1's Cash Tubes for the market cash pile
+// ---------------------------------------------------------------------------
+
+const { CashMachine } = await import('../src/eras/CashMachine');
+
+describe('era cash machines', () => {
+  it('every era has its own cash machine, levelled 1-10 on its pad (never in a shop), Lv 0 = not built', () => {
+    const names = new Set<string>();
+    for (let n = 2; n <= MAX_ERA; n++) {
+      const def = UPGRADES[`${ERAS[n]!.key}Cash`];
+      expect(def).toMatchObject({ group: 'machine', era: n, label: eraCashMachine(n)!.label, requires: { era: n } });
+      expect(def.values).toHaveLength(11);
+      expect(def.values[0]).toBe(0);
+      for (let i = 2; i < def.values.length; i++) expect(def.values[i]!).toBeGreaterThan(def.values[i - 1]!);
+      names.add(def.label);
+    }
+    expect(names.size).toBe(MAX_ERA - 1);
+    expect(eraCashMachine(2)!.label).toBe('Strongbox');
+    expect(eraCashMachine(10)!.label).toBe('Quantum Bank');
+  });
+
+  for (let n = 2; n <= MAX_ERA; n++) {
+    it(`era ${n}: the machine and its pad stand in the market, clear of the counters, the cash pile and the walkways`, () => {
+      const L = regionLayout(n);
+      const P = marketPlaces(L);
+      const vault = { minX: P.vault.x - 0.75, maxX: P.vault.x + 0.75, minZ: P.vault.z - 0.65, maxZ: P.vault.z + 0.65 };
+      const pad = around(P.vaultPad, 0.8 * 1.15);
+      for (const r of [vault, pad]) {
+        expect(within(r, L.zones.market), JSON.stringify(r)).toBe(true);
+        for (const o of [worldRect(P.dock, P.yaw, DOCK_BODY), worldRect(P.stall, P.yaw, STALL_BODY), worldRect(P.stall, P.yaw, STALL_GIVE), around(P.cash, 1.0), around(P.clerk, 0.6)])
+          expect(overlap(r, o), `${JSON.stringify(r)} vs ${JSON.stringify(o)}`).toBe(false);
+      }
+      expect(overlap(vault, pad)).toBe(false);
+    });
+  }
+
+  function makeVault(level: number) {
+    const { ctx, released } = fakeCtx();
+    let money = 0;
+    const levels: Record<string, number> = { frontierCash: level };
+    Object.assign(ctx, {
+      economy: { add: (v: number) => void (money += v) },
+      upgrades: { level: (id: string) => levels[id] ?? 0, value: (id: string) => valueAt(UPGRADES[id as 'frontierCash'], levels[id] ?? 0) },
+      colliders: { addBox: () => undefined },
+    });
+    const pile = new Pile(ctx, { id: 'pile:era2Cash', accepts: ['cash'], position: new THREE.Vector3(), grid: { cols: 3, rows: 3, layers: 10, spacing: { x: 0.3, y: 0.1, z: 0.2 } } });
+    for (let i = 0; i < 20; i++) {
+      const item = ctx.items.create('cash');
+      item.value = 100;
+      pile.addImmediate(item);
+    }
+    const cash = { pile, get value() { return pile.totalValue(); } };
+    const P = marketPlaces(regionLayout(2));
+    const vault = new CashMachine(ctx, 2, P.vault, P.vaultPad, cash as never, new THREE.Group());
+    const run = (s: number): void => {
+      for (let t = 0; t < s; t += 1 / 30) vault.update(1 / 30);
+    };
+    return { vault, pile, run, released, levels, money: () => money };
+  }
+
+  it('not built at Lv 0: the pile stays put; Lv 1 builds it and it banks about rate bundles a second', () => {
+    const v = makeVault(0);
+    v.run(5);
+    expect(v.vault.built).toBe(false);
+    expect(v.pile.count('cash')).toBe(20);
+    v.levels.frontierCash = 1;
+    v.run(5);
+    expect(v.vault.built).toBe(true);
+    const banked = 20 - v.pile.count('cash');
+    expect(banked).toBeGreaterThanOrEqual(5);
+    expect(banked).toBeLessThanOrEqual(7);
+    // banked as it left the pile, and the bundles that landed in the hopper were recycled worth nothing more
+    expect(v.money()).toBe(banked * 100);
+  });
+
+  it('a higher level banks faster and the pile empties without losing a dollar', () => {
+    const slow = makeVault(1);
+    const fast = makeVault(10);
+    slow.run(3);
+    fast.run(3);
+    expect(20 - fast.pile.count('cash')).toBeGreaterThan(20 - slow.pile.count('cash'));
+    fast.run(10);
+    expect(fast.pile.count('cash')).toBe(0);
+    expect(fast.money()).toBe(2000);
+  });
 });

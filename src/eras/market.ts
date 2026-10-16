@@ -6,7 +6,8 @@
  *   fence ─────── [ DOCK ] ── market gate ─────────      the loading dock against the fence, west of the market gate
  *                            entry  shoppers ◄ queue      walk-ins come in through the gate and line up west of the stall
  *                                  [ STALL ]
- *                                  ( cash )            one cash pile for both, south of the stall
+ *                           clerk  ( cash ) [pad]       one cash pile for both, south of the stall; its cash
+ *                                  [vault]             machine's level pad east of it, the machine south of it
  *
  * Counters lie along X (local −Z = toward the road); a region's facilityYaw turns them like the yard's facilities.
  */
@@ -26,6 +27,9 @@ export interface MarketPlaces {
    * (npc/EraWorker.ts planPath) passes west of the stall instead of brushing its back.
    */
   clerk: XZ;
+  /** The era cash machine (eras/CashMachine.ts), south of the cash pile, and its level pad east of the pile. */
+  vault: XZ;
+  vaultPad: XZ;
   /** Vehicle lane on the road: drive −X from fromX, the bed lines up with dock.x, gone at toX. */
   lane: { z: number; fromX: number; toX: number };
   /** Shoppers: appear at `door` (in the market gate), walk to `entry`, queue from `front` along −X; leave the same way. */
@@ -58,6 +62,8 @@ export function marketPlaces(L: RegionLayout): MarketPlaces {
     yaw: L.facilityYaw,
     cash: { x: stall.x, z: stall.z + into * 2.4 },
     clerk: { x: stall.x - 2.6, z: stall.z + into * 2.4 },
+    vault: { x: stall.x - 0.4, z: stall.z + into * 5.0 },
+    vaultPad: { x: stall.x + 2.6, z: stall.z + into * 2.4 },
     lane: { z: L.vehicleStop.z, fromX: L.zones.market.maxX + 1, toX: dock.x - BED_X - 8 },
     door: { x: mg, z: edge },
     entry: { x: L.customerEntry.x, z: L.customerEntry.z },
