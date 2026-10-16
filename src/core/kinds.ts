@@ -23,6 +23,15 @@ export const MATERIAL_KINDS = [
   'power',
   'aiCore',
   'robot',
+  // 0.9.5 era 5-7 content
+  'girder',
+  'snowplow',
+  'quartz',
+  'bulb',
+  'radio',
+  'gas',
+  'fuel',
+  'snowmobile',
 ] as const;
 export type MaterialKind = (typeof MATERIAL_KINDS)[number];
 
