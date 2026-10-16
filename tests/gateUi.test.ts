@@ -1,19 +1,21 @@
 /**
  * The climb's UI logic (docs/EXPANSION.md order, step 7): the checklist order and helpers (eras/gate.ts openRows,
- * rowBuyable, raiseReserve, gateCount, nextGoal's banner hint), the presses behind it (Upgrades.buyMany / raiseTo /
- * raiseAll with the batch flag), the computed 'gate:progress' (eras/GateTracker.ts) and the shop's band view
- * (ui/agesLogic.ts bandView, gateRowLine). The panels only render what these say (checked by screenshots).
+ * rowBuyable, gateCount, nextGoal's banner hint), the checklist's Go targets (ui/GateCard.ts rowTarget / goTarget:
+ * upgrades are hands-on, every row sends the player to the pad or shop mat where it is bought), the computed
+ * 'gate:progress' (eras/GateTracker.ts) and the shop's band view (ui/agesLogic.ts bandView, gateRowLine). The panels
+ * only render what these say (checked by screenshots).
  */
 import { describe, expect, it } from 'vitest';
-import { PRIORITIES, QUARTERS, UPGRADES, VILLAGE } from '../src/config';
+import { LAYOUT, QUARTERS, UPGRADES, VILLAGE } from '../src/config';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
-import { base, stepCost } from '../src/core/ladder';
 import { createGameState, type GameContext, type GameEvents, type GameState, type PadId, type UpgradeId } from '../src/core/types';
 import { Upgrades } from '../src/core/Upgrades';
-import { eraGate, gateCount, gateSize, nextGoal, openRows, raiseReserve, rowBuyable, settlementGoal } from '../src/eras/gate';
+import { eraGate, gateCount, gateSize, nextGoal, openRows, prereqTarget, rowBuyable, settlementGoal } from '../src/eras/gate';
 import { GateTracker } from '../src/eras/GateTracker';
-import { bandView, BAND_PIPS, gateRowLine } from '../src/ui/agesLogic';
+import { CITY_BUILDINGS, DISTRICTS } from '../src/eras/data';
+import { bandView, BAND_PIPS, gateRowLine, shopDelta } from '../src/ui/agesLogic';
+import { goTarget, rowTarget } from '../src/ui/GateCard';
 import { meetGate } from './gateHelpers';
 
 /** Winterland with the Great Lodge built: the climb is open, nothing upgraded. */
@@ -62,12 +64,6 @@ describe('the checklist helpers', () => {
     expect(g.rows.some((r) => r.where === 'shop' && rowBuyable(r))).toBe(true);
   });
 
-  it("raiseReserve keeps the foreman's max($500, 20 %)", () => {
-    expect(raiseReserve(0)).toBe(PRIORITIES.reserveMin);
-    expect(raiseReserve(1000)).toBe(PRIORITIES.reserveMin);
-    expect(raiseReserve(1_000_000)).toBe(1_000_000 * PRIORITIES.reserveShare);
-  });
-
   it('gateCount agrees with eraGate (rows, settlement, ready) and gateSize with its row count', () => {
     const s = allBuilt(lodge());
     for (const tweak of [() => {}, () => (s.upgrades.speed = 10), () => meetGate(s, 2)]) {
@@ -100,67 +96,60 @@ describe('the checklist helpers', () => {
     expect(settlementGoal(t, g).text).toMatch(/^Build a home in .+ \(\+\d+\) → Settlement 6$/);
     expect(settlementGoal(t, g).action).toEqual({ kind: 'build', target: 'district:2' });
   });
+
+  it('settlementGoal: a district with no free lot asks for a swap (a chosen, unpaid lot is taken)', () => {
+    const t = lodge();
+    t.eras.age = 2;
+    const park = Object.values(CITY_BUILDINGS).find((d) => d.era === 2 && d.kind === 'park')!.id;
+    const lots = t.city.districts[2]!.lots;
+    lots.forEach((l, i) => Object.assign(l, { building: park, tier: i === 0 ? -1 : 0 }));
+    const goal = settlementGoal(t, eraGate(t, 3));
+    expect(goal.text).toBe(`Swap a park or shop for a home in ${DISTRICTS[2]!.name} → Settlement 6`);
+    expect(goal.action).toEqual({ kind: 'build', target: 'district:2' });
+    lots[0]!.building = '';
+    expect(settlementGoal(t, eraGate(t, 3)).text).toMatch(/^Build a home in /);
+  });
 });
 
-describe('Buy ×10, Buy to target, Raise all', () => {
-  it('buyMany stops at k or when the money runs out; batch only when several levels can come from one press', () => {
+describe('upgrades are hands-on', () => {
+  it('one level per buy, no multi-level or remote presses on Upgrades', () => {
     const s = lodge();
-    const { up, economy, bought } = make(s, 1e12);
-    expect(up.buyMany('carry', 10)).toBe(10);
-    expect(bought.every((e) => e.batch === true)).toBe(true);
-    bought.length = 0;
-    expect(up.buyMany('carry', 1)).toBe(1);
-    expect(bought[0]!.batch).toBeUndefined();
-    economy.spend(economy.money);
-    expect(up.buyMany('carry', 10)).toBe(0);
-    // a plain buy after a batch is not a batch
-    economy.add(1e12);
-    bought.length = 0;
-    up.buy('speed');
-    expect(bought[0]!.batch).toBeUndefined();
+    const { up, bought } = make(s, 1e12);
+    expect(up.buy('carry')).toBe(true);
+    expect(bought).toHaveLength(1);
+    expect(bought[0]).toEqual({ id: 'carry', level: s.upgrades.carry, position: null });
+    for (const gone of ['buyMany', 'raiseTo', 'raiseAll']) expect(gone in up, gone).toBe(false);
   });
 
-  it('raiseTo buys up to the shown target (offset ids included) and never past it', () => {
+  it("every checklist row goes where it is bought: the cabin mat, its era's mat, the level pad, what unlocks it", () => {
     const s = lodge();
-    s.eras.age = 2;
-    const { up } = make(s, 1e15);
-    const from = s.upgrades.speed;
-    expect(up.raiseTo('speed', 10)).toBe(10 - from);
-    expect(up.shownLevel('speed')).toBe(10);
-    expect(up.raiseTo('speed', 10)).toBe(0);
-    up.raiseTo('taxOffice', 20);
-    expect(up.shownLevel('taxOffice')).toBe(20);
-    expect(s.upgrades.taxOffice).toBe(20 - base(UPGRADES.taxOffice));
-  });
-
-  it('raiseAll: cheapest next level first, every row up to its need, skipping prereqs, above the reserve', () => {
-    const s = lodge();
-    s.unlocked.harvester = true;
-    const { up, economy } = make(s, 1e15);
-    const g = eraGate(s, 2);
-    const rows = g.rows.map((r) => ({ id: r.id, need: r.need }));
-    const n = up.raiseAll(rows, 0);
-    expect(n).toBeGreaterThan(0);
-    for (const r of eraGate(s, 2).rows) {
-      if (r.state === 'prereq') expect(r.shown ?? 0, r.id).toBeLessThan(10);
-      else expect(r.state, r.id).toBe('ok');
+    s.eras.age = 3;
+    for (let n = 2; n <= 3; n++) s.eras.regions[n]!.unlocked = true;
+    const g = eraGate(s, 4);
+    const ctx = { state: s };
+    const seen = new Set<string>();
+    for (const r of g.rows) {
+      const t = rowTarget(r, s);
+      const def = UPGRADES[r.id];
+      if (r.state === 'prereq') expect(t, r.id).toBe(prereqTarget(r.id, s));
+      else if (r.where === 'pad') expect(t, r.id).toBe(`pad:${r.id}`);
+      else if (def.group === 'industry') expect(t, r.id).toBe(`shop:${def.era}`);
+      else expect(t, r.id).toBe('shop');
+      seen.add(t.startsWith('shop:') ? 'era shop' : t.replace(/:.*/, ''));
+      if (r.state !== 'prereq') expect(goTarget(ctx, t), r.id).not.toBeNull();
     }
-    expect(up.shownLevel('carry')).toBe(10);
-    expect(up.shownLevel('workshop')).toBe(0); // the workshop is not built: its row is a prereq
-    expect(economy.money).toBeGreaterThan(0);
-  });
-
-  it('raiseAll keeps the reserve and buys the cheapest step first', () => {
-    const s = allBuilt(lodge());
-    const ids: UpgradeId[] = ['carry', 'speed', 'axe'];
-    const costs = ids.map((id) => stepCost(UPGRADES[id], s.upgrades[id]));
-    const cheapest = ids[costs.indexOf(Math.min(...costs))]!;
-    const { up, economy, bought } = make(s, Math.min(...costs) + 1000);
-    expect(up.raiseAll(ids.map((id) => ({ id, need: 10 })), 1000)).toBe(1);
-    expect(bought[0]!.id).toBe(cheapest);
-    expect(bought[0]!.batch).toBe(true);
-    expect(economy.money).toBeGreaterThanOrEqual(1000);
-    expect(up.raiseAll(ids.map((id) => ({ id, need: 10 })), 1000)).toBe(0);
+    for (const kind of ['shop', 'era shop', 'pad']) expect(seen.has(kind), kind).toBe(true);
+    // the cabin's shop mat: the player lands on it, so the shop opens
+    const m = LAYOUT.shop.mat;
+    const at = goTarget(ctx, 'shop')!;
+    expect(at.x).toBeGreaterThan(m.minX);
+    expect(at.x).toBeLessThan(m.maxX);
+    expect(at.z).toBeGreaterThan(m.minZ);
+    expect(at.z).toBeLessThan(m.maxZ);
+    // an era shop mat only once its region is reached
+    expect(goTarget(ctx, 'shop:3')).not.toBeNull();
+    expect(goTarget(ctx, 'shop:4')).toBeNull();
+    expect(goTarget(ctx, 'shop:11')).toBeNull();
   });
 });
 
@@ -258,5 +247,14 @@ describe('the shop band view (R5)', () => {
     expect(gateRowLine(crew)).toMatch(/^Not hired → 10/);
     const pre = eraGate(lodge(), 2).rows.find((r) => r.state === 'prereq')!;
     expect(gateRowLine(pre)).toBe(pre.prereq);
+  });
+});
+
+describe("the shop card's effect line", () => {
+  it('says a level past the hard cap only adds Mastery during the climb', () => {
+    expect(shopDelta('40 items', '45 items', true)).toBe('40 items → 45 items');
+    expect(shopDelta('50 items', '50 items', true)).toBe('50 items (max) · +1 Mastery');
+    expect(shopDelta('50 items', null, false)).toBe('50 items (max)');
+    expect(shopDelta('50 items', '50 items', false)).toBe('50 items → 50 items');
   });
 });

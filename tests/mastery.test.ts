@@ -1,12 +1,12 @@
 /**
  * The climb's step 8 (docs/EXPANSION.md §A1, §A2): Mastery (points past the hard caps → a bounded multiplier on sales,
- * exports and city income), the Steward toggle (the Settlement 20 perk), the Jack / Broker / bond caps, and the money
+ * exports and city income), the Founder's Scarf (the Settlement 20 perk), the Jack / Broker / bond caps, and the money
  * loops that must stay closed however far the climb goes: order → Jack, order → export depot, buy → sell.
  */
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { CLIMB, ECONOMY, QUARTERS, UPGRADES, VILLAGE } from '../src/config';
-import { climbMult, masteryOf, masteryTotal, renownMult, salePrice } from '../src/core/demand';
+import { CLIMB, ECONOMY, QUARTERS, SETTLEMENT, UPGRADES, VILLAGE } from '../src/config';
+import { climbMult, founderScarf, masteryOf, masteryTotal, renownAt, renownMult, salePrice } from '../src/core/demand';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
 import { hardCapStored, masteryMult, masteryPoints, maxStored, valueAt } from '../src/core/ladder';
@@ -15,8 +15,6 @@ import { mergeState, sanitizeState } from '../src/core/Save';
 import { createGameState, type GameContext, type GameEvents, type GameState, type MaterialKind, type PadId, type UpgradeId } from '../src/core/types';
 import { Upgrades } from '../src/core/Upgrades';
 import { CITY_BUILDINGS, MARKET, MATERIALS, type CityBuildingId } from '../src/eras/data';
-import { eraGate, raiseReserve, raiseRows, stewardActive, stewardUnlocked } from '../src/eras/gate';
-import { Steward } from '../src/eras/Steward';
 import { masteryLine, masteryTag } from '../src/ui/agesLogic';
 import { settlementPerks } from '../src/ui/EraCard';
 import { meetGate } from './gateHelpers';
@@ -219,108 +217,39 @@ describe('no money loop', () => {
   });
 });
 
-describe('the Steward (Settlement 20 perk)', () => {
-  /** Era 4's gate open on a climbed state at Settlement `level`, every era-1 pad built. */
-  function climbed(level: number): GameState {
-    const s = allBuilt(lodge(3));
-    meetGate(s, 3);
-    s.eras.settlement = level;
-    return s;
-  }
-
-  it('unlocks at Settlement 20 with the climb open, and works only while switched on with a next era', () => {
-    expect(stewardUnlocked(climbed(19))).toBe(false);
-    expect(stewardUnlocked(climbed(CLIMB.steward.settlement))).toBe(true);
-    const s = climbed(20);
-    expect(stewardActive(s)).toBe(false);
-    s.eras.steward = true;
-    expect(stewardActive(s)).toBe(true);
-    s.eras.settlement = 15;
-    expect(stewardActive(s)).toBe(false);
-    const end = finale();
-    end.eras.steward = true;
-    expect(stewardUnlocked(end)).toBe(true);
-    expect(stewardActive(end)).toBe(false); // past the last era: no checklist to raise
-    const early = createGameState();
-    early.eras.steward = true;
-    early.eras.settlement = 25;
-    expect(stewardActive(early)).toBe(false); // no Great Lodge: no climb
-  });
-
-  it('buys exactly one level per tick: the cheapest buyable row, above the reserve, silently', () => {
-    const s = climbed(20);
-    s.eras.steward = true;
-    const { ctx, economy, events, upgrades } = make(s, 5e9);
-    const bought: GameEvents['upgrade:bought'][] = [];
-    events.on('upgrade:bought', (e) => bought.push(e));
-    const steward = new Steward(ctx);
-    const rows = raiseRows(eraGate(s, 4));
-    expect(rows.length).toBeGreaterThan(0);
-    const cheapest = rows.map((r) => ({ id: r.id, c: upgrades.nextCost(r.id)! })).sort((a, b) => a.c - b.c)[0]!;
-    const before = economy.money;
-    expect(steward.tick()).toBe(1);
-    expect(bought).toHaveLength(1);
-    expect(bought[0]).toMatchObject({ id: cheapest.id, batch: true });
-    expect(economy.money).toBe(before - cheapest.c);
-    // never a machine level pad (paid at the pad), never past the gate's need
-    for (let i = 0; i < 50; i++) steward.tick();
-    for (const e of bought) expect(UPGRADES[e.id].group).not.toBe('machine');
-    for (const r of rows) expect(upgrades.shownLevel(r.id)).toBeLessThanOrEqual(r.need);
-  });
-
-  it('keeps the reserve and does nothing while off, below 20, or on a slow clock', () => {
-    const s = climbed(20);
-    const { ctx, economy } = make(s, 5e9);
-    const steward = new Steward(ctx);
-    expect(steward.tick()).toBe(0); // off
-    s.eras.steward = true;
-    s.eras.settlement = 19;
-    expect(steward.tick()).toBe(0);
+describe("the Founder's Scarf (Settlement 20 perk)", () => {
+  it('comes at Settlement 20 with a small Renown bonus on top of the per-level Renown', () => {
+    expect(SETTLEMENT.founder.level).toBe(20);
+    expect(founderScarf(19)).toBe(false);
+    expect(founderScarf(20)).toBe(true);
+    expect(renownAt(19)).toBeCloseTo(SETTLEMENT.renown ** 14, 12);
+    expect(renownAt(20)).toBeCloseTo(SETTLEMENT.renown ** 15 * SETTLEMENT.founder.renown, 12);
+    expect(SETTLEMENT.founder.renown).toBeGreaterThan(1);
+    expect(SETTLEMENT.founder.renown).toBeLessThanOrEqual(1.1); // small: a thank-you, not a new economy
+    const s = lodge(4);
     s.eras.settlement = 20;
-    // a wallet whose cheapest step would dig into the reserve
-    const cheapest = Math.min(...raiseRows(eraGate(s, 4)).map((r) => ctx.upgrades.nextCost(r.id)!));
-    economy.spend(economy.money - Math.floor(cheapest * 1.1));
-    expect(economy.money - cheapest).toBeLessThan(raiseReserve(economy.money));
-    expect(steward.tick()).toBe(0);
-    // update() ticks once every CLIMB.steward.every seconds
-    economy.add(5e9);
-    let n = 0;
-    const orig = steward.tick.bind(steward);
-    steward.tick = () => {
-      n++;
-      return orig();
-    };
-    for (let t = 0; t < 10 * CLIMB.steward.every - 0.01; t += 0.1) steward.update(0.1);
-    expect(n).toBeGreaterThanOrEqual(9);
-    expect(n).toBeLessThanOrEqual(10);
-  });
-
-  it('is saved: a boolean, false in every older save, kept on a round trip', () => {
-    const s = createGameState();
-    expect(s.eras.steward).toBe(false);
-    const raw = JSON.parse(JSON.stringify(s));
-    raw.eras.steward = 'yes';
-    const t = createGameState();
-    mergeState(t, raw);
-    sanitizeState(t);
-    expect(t.eras.steward).toBe(false);
-    raw.eras.steward = true;
-    const u = createGameState();
-    mergeState(u, raw);
-    sanitizeState(u);
-    expect(u.eras.steward).toBe(true);
-    delete raw.eras.steward;
-    const v = createGameState();
-    mergeState(v, raw);
-    sanitizeState(v);
-    expect(v.eras.steward).toBe(false);
+    expect(renownMult(s)).toBe(renownAt(20));
+    // era 1 untouched: Renown is 1 up to Winterland
+    for (let L = 0; L <= 5; L++) expect(renownAt(L)).toBe(1);
   });
 
   it('the settlement card names the perk when Settlement 20 is crossed (once)', () => {
-    expect(settlementPerks(20, 19, 1000)).toContain('Steward unlocked');
-    expect(settlementPerks(22, 18, 1000)).toContain('Steward unlocked');
-    expect(settlementPerks(21, 20, 1000)).not.toContain('Steward unlocked');
-    expect(settlementPerks(19, 18, 1000)).not.toContain('Steward unlocked');
+    const chip = (l: number, f: number): boolean => settlementPerks(l, f, 1000).some((p) => p.startsWith("Founder's Scarf"));
+    expect(chip(20, 19)).toBe(true);
+    expect(chip(22, 18)).toBe(true);
+    expect(chip(21, 20)).toBe(false);
+    expect(chip(19, 18)).toBe(false);
+    expect(settlementPerks(20, 19, 1000)[0]).toBe(`Renown \u00d7${renownAt(20).toFixed(2)}`);
+  });
+
+  it("nothing buys on its own: an old save's eras.steward is dropped on load", () => {
+    const raw = JSON.parse(JSON.stringify(createGameState()));
+    raw.eras.steward = true;
+    const t = createGameState();
+    mergeState(t, raw);
+    sanitizeState(t);
+    expect('steward' in t.eras).toBe(false);
+    expect('steward' in CLIMB).toBe(false);
   });
 });
 

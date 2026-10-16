@@ -204,7 +204,7 @@ function makeWorld(age: number, villageLevel = 0, prep?: (s: GameState) => void)
       },
       remove: (h: object) => void boxes.delete(h),
     },
-    tweens: { killTweensOf: () => undefined, popIn: () => undefined, run: () => undefined, punchScale: () => undefined, squash: () => undefined, delay: () => undefined },
+    tweens: { killTweensOf: () => undefined, popIn: () => undefined, run: () => ({}), punchScale: () => undefined, squash: () => undefined, delay: () => undefined },
     particles: { ring: () => undefined, puff: () => undefined, sparkle: () => undefined },
     audio: { play: () => undefined },
     items: {

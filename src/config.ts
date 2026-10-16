@@ -1113,7 +1113,7 @@ export function price3(v: number): number {
 /**
  * The ten-era climb (docs/EXPANSION.md §A): upgrade ladders to shown level `levelCap` (core/ladder.ts). Past an
  * upgrade's authored max, the price of the step from shown level A to A + 1 is
- *   F(group, A) = weights[group] · unit · bandGrowth^(band − 2) · stepGrowth^(A mod 10), band = floor(A / 10) + 1
+ *   F(group, A) = weights[group] · unit · bandGrowth^(band − 2) · bandTilt[band] · stepGrowth^(A mod 10), band = floor(A / 10) + 1
  * and a Survival id also never drops below its last authored price × legacyStep per level (first lever if the
  * climb runs long: legacyStep → 1.0). Mastery: every level bought at an effect's hard cap is a point;
  * multiplier 1 + masteryScale · log2(1 + points / masteryPoints) on sales, exports and city income (core/demand.ts
@@ -1128,11 +1128,19 @@ export const CLIMB = {
   /**
    * Calibrated with the pacing model (core/pacing.ts, tests/pacing.test.ts): every era 60–200 model minutes. The
    * design's 250k / 2.6 left eras 3–10 at 40 → 1 min: an era's income grows about ×4.5 (×3 material prices, more slots,
-   * Rigs, Trade and Renown on every older region), so the band price has to grow almost as fast.
+   * Rigs, Trade and Renown on every older region), so the band price has to grow almost as fast. 0.9.0 retune: every
+   * era runs longer than the last (era 2 about 100 model minutes, then +5–12 per era, era 10 about 177), with the
+   * buyer walking to each pad or shop mat (PACING.walkPerBuy) and the Founder's Scarf's Renown from Settlement 20.
    */
-  unit: 300_000,
+  unit: 190_000,
   bandGrowth: 4.3,
   stepGrowth: 1.08,
+  /**
+   * Per-band price multiplier (index = band; 1 where missing), on top of bandGrowth^(band − 2). Era 2 starts from
+   * Survival income alone while era 3 inherits a running region, so band 3 steps up hard (×10 over band 2); later
+   * bands ease off as each older region's Rigs, Trade and Renown compound less. Solved with the pacing model.
+   */
+  bandTilt: [1, 1, 1, 2.35, 2.75, 2.72, 2.68, 2.67, 2.45, 2.11, 1.78] as readonly number[],
   legacyStep: 1.05,
   weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
   masteryScale: 0.12,
@@ -1144,12 +1152,6 @@ export const CLIMB = {
   crew: { walkMax: 3.5, capMaxSurvival: 2.8, capMaxEra: 4, cadenceMax: 8 },
   /** Broker factor bond payouts read at most (its authored top): past it the Broker only tightens the spread. */
   bondBrokerMax: 3.5,
-  /**
-   * The Steward (docs/EXPANSION.md §A2), a Settlement perk, not an upgrade (so no gate row): from settlement level
-   * `settlement` on, an opt-in toggle buys the cheapest level of the next era's checklist every `every` seconds while
-   * the wallet stays above Raise all's reserve (eras/Steward.ts).
-   */
-  steward: { settlement: 20, every: 2 },
 } as const;
 
 /**
@@ -1174,7 +1176,7 @@ export const SETTLEMENT = {
   staffBase: 10,
   staffGrowth: 2.2,
   anchorShare: 0.75,
-  /** Renown: every level past Winterland multiplies sales, exports and city income by this (×2.2 at 45). */
+  /** Renown: every level past Winterland multiplies sales, exports and city income by this (×2.2 at 45, ×2.3 with founder). */
   renown: 1.02,
   /** Every level's gift pile is worth this many seconds of city income (at least giftMin); a Charter (j = 5) adds charterSeconds. */
   giftSeconds: 60,
@@ -1185,6 +1187,12 @@ export const SETTLEMENT = {
   /** Perks by band position: j = 3 adds city happiness, j = 4 one more investment position (per band reached). */
   decorHappiness: 0.05,
   investPerBand: 1,
+  /**
+   * The Founder's Scarf (docs/EXPANSION.md §A2), the Settlement `level` perk: a knitted red-and-gold scarf on the
+   * player (entities/Player.ts) and Renown × `renown` on top of the per-level Renown. Not an upgrade (no gate row) and
+   * nothing automatic: upgrades stay hands-on.
+   */
+  founder: { level: 20, renown: 1.05 },
   /** Level names, index = L − 6 (levels 0..5 are VILLAGE.levels). */
   names: [
     'Frontier Post', 'Stone Village', 'Brick Town', 'Kiln Borough', 'Frontier Town',

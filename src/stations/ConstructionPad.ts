@@ -20,6 +20,12 @@
  * a log icon + logs left and a bill icon + cash left (a finished requirement shows a check mark), a floating sign
  * with the label, a pulse while the player can pay something, a punch per landing, pop-in / pop-out (instant =
  * silent). Each kind's zone turns off as soon as that requirement is met (landed + in flight).
+ *
+ * Juice (fx/PadRing.ts, fx/padJuice.ts): a soft fill ring around the tile eases toward the paid share (logs + cash +
+ * extra, by count of requirements) and flashes per landing, bundles arc in with a gentle squash, the tile squashes a
+ * little per landing, an affordable pad (everything still missing is in the wallet / arms) breathes a warm glow, and a
+ * completion played from a landing bounces (squash-and-stretch) before popping out and emits 'pad:complete' kind
+ * 'build' after onComplete(). Bounces shrink under reduced motion. Visual only: zones, intervals and amounts unchanged.
  */
 import * as THREE from 'three';
 import { PALETTE, TIMING, rect } from '../config';
@@ -27,6 +33,8 @@ import { Ease } from '../core/Tween';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 import type { Zone } from '../items/Zones';
 import { createConstructionTexture, createPadModel, createPadSign, setPadSignLabel, type ShelterIcon } from '../assets/pads';
+import { PadRing, playPadCelebrate } from '../fx/PadRing';
+import { PAD_CASH_FLIGHT, motionScale } from '../fx/padJuice';
 
 export type ConstructionIcon = ShelterIcon;
 
@@ -93,6 +101,7 @@ export class ConstructionPad implements ItemHolder {
   private readonly pulse = new THREE.Group();
   private readonly model: THREE.Group;
   private readonly sign: THREE.Mesh;
+  private readonly ring: PadRing;
   private readonly tmpPos = new THREE.Vector3();
 
   constructor(
@@ -104,6 +113,9 @@ export class ConstructionPad implements ItemHolder {
     this.target = fill(opts);
     this.texture = this.makeTexture();
     this.model = createPadModel(opts.size, this.texture);
+    this.ring = new PadRing(opts.size, opts.size);
+    this.ring.snap(this.paidRatio());
+    this.model.add(this.ring.mesh);
     this.pulse.add(this.model);
     this.object.add(this.pulse);
     this.sign = createPadSign(this.target.label);
@@ -138,6 +150,7 @@ export class ConstructionPad implements ItemHolder {
       delay: TIMING.padHoldDelay,
       enabled: false,
       cashAmount: () => this.cashChunk(),
+      flight: PAD_CASH_FLIGHT,
     });
   }
 
@@ -184,7 +197,7 @@ export class ConstructionPad implements ItemHolder {
     this.ctx.audio.play('whoosh', { volume: 0.4 });
   }
 
-  hide(): void {
+  hide(celebrate = false): void {
     const was = this.shown;
     this.shown = false;
     this.syncZones();
@@ -192,6 +205,21 @@ export class ConstructionPad implements ItemHolder {
     tw.killTweensOf(this.object);
     if (!was || !this.object.visible) {
       this.object.visible = false;
+      return;
+    }
+    if (celebrate) {
+      // squash-and-stretch hump, then pop out (a show() for the next tier kills it: the tween targets the object)
+      tw.killTweensOf(this.model);
+      this.model.scale.setScalar(1);
+      playPadCelebrate(tw, this.object, 1.32, {
+        bounce: 0.38,
+        popOut: 0.25,
+        onDone: () => {
+          if (this.shown) return;
+          this.object.visible = false;
+          this.object.scale.setScalar(1);
+        },
+      }).target = this.object;
       return;
     }
     tw.run({
@@ -232,11 +260,12 @@ export class ConstructionPad implements ItemHolder {
     this.completed = false;
     setPadSignLabel(this.sign, this.target.label);
     this.redraw();
+    this.ring.snap(this.paidRatio());
     this.syncZones();
     this.completeIfPaid();
   }
 
-  update(_dt: number): void {
+  update(dt: number): void {
     if (!this.shown) return;
     const t = this.ctx.time.elapsed;
     const arms = this.ctx.player.arms;
@@ -245,9 +274,10 @@ export class ConstructionPad implements ItemHolder {
       ((this.logsLeft - this.pendingLogs > 0 && arms.count('log') > 0) ||
         (this.cashLeft - this.pendingCash > 0 && this.ctx.economy.money >= 5) ||
         (this.target.extra !== null && this.extraLeft - this.pendingExtra > 0 && arms.count(this.target.extra.kind) > 0));
-    const amp = eager ? 0.05 : 0.02;
+    const amp = (eager ? 0.05 : 0.02) * motionScale();
     const s = 1 + amp * Math.sin(t * (eager ? 5.5 : 3));
     this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
+    this.ring.update(dt, t, eager && this.affordable());
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
     this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.opts.x) * 0.05;
   }
@@ -292,7 +322,10 @@ export class ConstructionPad implements ItemHolder {
     this.ctx.items.release(item);
     this.redraw();
     this.syncZones();
-    if (this.shown) this.ctx.tweens.punchScale(this.model, 0.08, 0.14);
+    if (this.shown) {
+      this.ctx.tweens.squash(this.model, 0.08 * motionScale(), 0.24);
+      this.ring.flash();
+    }
     this.ctx.events.emit('construction:paid', {
       key: this.key,
       // the event's kind is a closed union: a landed extra item (wooden toys) counts as a 'log' (thunk + sawdust)
@@ -302,11 +335,7 @@ export class ConstructionPad implements ItemHolder {
       position: this.tmpPos.copy(this.object.position),
     });
     this.reportProgress();
-    if (!this.completed && this.logsLeft <= 0 && this.cashLeft <= 0 && this.extraLeft <= 0) {
-      this.completed = true;
-      this.hide();
-      this.opts.onComplete();
-    }
+    if (!this.completed && this.logsLeft <= 0 && this.cashLeft <= 0 && this.extraLeft <= 0) this.finish();
   }
 
   /**
@@ -321,7 +350,10 @@ export class ConstructionPad implements ItemHolder {
     this.target.paidCash += credit;
     this.redraw();
     this.syncZones();
-    if (this.shown) this.ctx.tweens.punchScale(this.model, 0.08, 0.14);
+    if (this.shown) {
+      this.ctx.tweens.squash(this.model, 0.08 * motionScale(), 0.24);
+      this.ring.flash();
+    }
     this.ctx.events.emit('construction:paid', {
       key: this.key,
       kind: 'cash',
@@ -330,11 +362,7 @@ export class ConstructionPad implements ItemHolder {
       position: this.tmpPos.copy(this.object.position),
     });
     this.reportProgress();
-    if (!this.completed && this.logsLeft <= 0 && this.cashLeft <= 0 && this.extraLeft <= 0) {
-      this.completed = true;
-      this.hide();
-      this.opts.onComplete();
-    }
+    if (!this.completed && this.logsLeft <= 0 && this.cashLeft <= 0 && this.extraLeft <= 0) this.finish();
     return credit;
   }
 
@@ -356,6 +384,50 @@ export class ConstructionPad implements ItemHolder {
   }
 
   // --- internals ------------------------------------------------------------
+  /** The target is paid in full from a landing / direct payment: celebrate, hand over, then tell the juice. */
+  private finish(): void {
+    const was = this.shown;
+    const at = this.tmpPos.copy(this.object.position).clone();
+    this.completed = true;
+    this.hide(true);
+    this.opts.onComplete();
+    if (was) this.ctx.events.emit('pad:complete', { id: this.id, kind: 'build', position: at });
+  }
+
+  /** Share of the target paid (each requirement weighted by its share of the total count / dollars). */
+  private paidRatio(): number {
+    const t = this.target;
+    let parts = 0;
+    let sum = 0;
+    if (t.logs > 0) {
+      parts++;
+      sum += t.paidLogs / t.logs;
+    }
+    if (t.cash > 0) {
+      parts++;
+      sum += t.paidCash / t.cash;
+    }
+    if (t.extra && t.extra.count > 0) {
+      parts++;
+      sum += t.extra.paid / t.extra.count;
+    }
+    return parts > 0 ? Math.min(1, sum / parts) : 1;
+  }
+
+  /** Everything still missing (beyond what is in flight) is in the wallet and the player's arms right now. */
+  private affordable(): boolean {
+    const cash = this.cashLeft - this.pendingCash;
+    const logs = this.logsLeft - this.pendingLogs;
+    const extra = this.extraLeft - this.pendingExtra;
+    if (cash <= 0 && logs <= 0 && extra <= 0) return false;
+    const arms = this.ctx.player.arms;
+    return (
+      (cash <= 0 || this.ctx.economy.money >= cash) &&
+      (logs <= 0 || arms.count('log') >= logs) &&
+      (extra <= 0 || (this.target.extra !== null && arms.count(this.target.extra.kind) >= extra))
+    );
+  }
+
   /**
    * Mirror landed + in-flight amounts into onProgress (the owner writes them to the save state). Money leaves the
    * player's wallet the moment a bundle is taken, so a save made while it is still flying must already count it as
@@ -422,6 +494,7 @@ export class ConstructionPad implements ItemHolder {
 
   private redraw(): void {
     this.makeTexture(this.texture);
+    this.ring.setProgress(this.paidRatio());
   }
 }
 

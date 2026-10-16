@@ -1,8 +1,15 @@
 # Winterland roadmap
 
-**Where it stands (2026-10-15, v0.8.0 released; 0.9.0 "Ages" in progress — see `ROADMAP.md` at the repo root for
-the 0.9.0 handoff: ten eras, regions and machines, era workers, the market, Jack's swap cart, demolish and the city
-districts are all in the tree and tested, with the review / verification / release steps still open).**
+**Where it stands (2026-10-15): 0.9.0 "Ages" is done in the tree (version 0.9.0; the tag, the desktop packages and
+the artifact republish are the owner's release steps).**
+- **0.9.0 "Ages" is done** (Wave 14 in `docs/DESIGN.md`, design in `docs/EXPANSION.md`): ten eras with a fenced region
+  each (machine slots, export depot, import dock, era crew), 22 era machines and 18 materials, Jack's swap cart, the
+  market (prices, trading, orders, bonds, an index fund, ventures), pay-to-demolish, nine city districts with a
+  skyline, and the climb: ladders to Lv 100, the era gate (every owned upgrade at Lv 10·(N−1) and settlement
+  5·(N−1)), settlement levels 6–50 with Renown and gifts, Mastery, the Founder's Scarf and the GateCard checklist.
+- **Upgrades are hands-on: stand on pads.** (Owner decision.) Every level is bought in person, on a level pad or a shop
+  mat, one at a time. No auto-buyer (the Steward is gone), no Raise all, no Buy ×10 and no buying from the checklist
+  or from afar; the GateCard's Go takes the player to the pad or mat. Keep it that way in every later release.
 - The "make it a game" list is done, plus the village and the Great Lodge finale.
 - **Waves 6–7 are done:**
   - longer upgrade ladders and the Sales tab;
@@ -17,10 +24,75 @@ districts are all in the tree and tested, with the review / verification / relea
 - **Wave 11 is done** (automation, see `docs/DESIGN.md`): the Sled Loader (chairs to the sleds, firewood to the workshop), the Foreman (hauls logs to and pays for the next house, lot or bunkhouse), crew priorities for wood and the town, and a workshop route for the pine hauler.
 - **Wave 13 is done** (events and content, see `docs/DESIGN.md`): world events (snowstorm, festival day, northern lights), delivery contracts from the gate's notice board, the Sled Dog companion, and the Winterland era's Grand Market (logs, cash and toys) with a second finale.
 - **Wave 12 is done** (town life, see `docs/DESIGN.md`): the four square amenities (cocoa café, snowman park, bandstand, skating pond) with town happiness raising every price by up to 30 %, commuting staff, carolers at the tree, amenity visitors and skaters, a night market at Winter City, footprints in the snow and bells at dawn and dusk.
-- Late-game draw calls at High quality are about 810 at the village at night and about 440 at the full town square at night. The ceiling is ~950.
-- Saves from v0.1 and v0.2 load. Fixtures are in `tests/fixtures/`.
+- Late-game draw calls at High quality (0.9.0, every era open, night): village 780–817, town square 699–789, region 2
+  about 350, a full district 176–417. The yard peaks at about 1,040 (0.8.0 already reached 967 there). The ceiling is ~950.
+- Every save since v0.1 loads. Fixtures are in `tests/fixtures/` (the newest is `save-v8-climb.json`).
 
 Effort sizes: **S** is a small slice. **M** is about one builder for a wave. **L** is several waves.
+
+## Next: the plan after 0.9.0
+
+In this order. Each release keeps the standing constraints below.
+
+1. **100 % completionist award (Dino's add-on, S–M).** A trophy and a celebration for 100 % completion: every quest,
+   every upgrade at Lv 100, all ten eras and Settlement 50. A completion % is shown along the way (for example on the
+   stats card and the era chip's card), so the player always sees how far there is to go.
+2. **0.10: era content for eras 2–4** (`docs/EXPANSION.md` §D, steps 10–14): `src/eras/template.ts` with 23 upgrade
+   ids per era and the catch-up grant, the instanced `EraCrowd` with 70 m culling, the six new crew roles, 8 slots
+   per region, the hand node and the era Carry / Boots / Tool / Pal, then the new machines and materials of eras 2–4
+   from the ARGON specs in `docs/art/`. Re-run the pacing model.
+3. **0.11: eras 5–7** (step 15): the same template, 11 machines, 7 materials; a draw-call check at a skyline edge.
+4. **0.12: eras 8–10** (steps 16–18): slots 9 / 9 / 10, 9 machines, 7 materials, Settlement 46–50, the "Singularity"
+   finale (everything Lv 100 + Settlement 50) with New Season moved to it, and the final pacing model.
+5. **ADHD comfort pass:** one next goal everywhere, fewer simultaneous toasts, calmer banners, gamepad, key
+   rebinding, UI scale, a stats page and a photo mode (the "comfort" wave held back during 0.9.0). Also the open
+   0.9.0 UI nits below.
+6. **Cozy graphics overhaul** using `docs/art/` (ARGON's era palettes and model specs; `docs/art/guide.md` is the
+   authoritative guide): rebuild the era assets and repaint Survival to the shared palette, within the draw-call
+   budget.
+7. **1.0:** a full balance pass (bot runs only when Dino asks), a real-phone pass, desktop packages and release.
+
+## 0.9.0 notes kept from the handoff
+
+Decisions made without asking (in the 0.9.0 release notes):
+- 0.8.0 had shipped when the request came in, so the Ages are **0.9.0** (the request said "0.8").
+- Village levels are called **settlement** levels ("Settlement III · Town"); "Era" means the Ages.
+- An order's price at the market includes the era's Trade multiplier (no order → export money loop).
+- Era crews reserve only the materials still owed on expansion, machine and city pads.
+- The era gate replaced the first rule (era 2 at Winter City): nothing new shows before the Great Lodge.
+
+Debug API (`window.__WINTERLAND__`): `skipIntro, addMoney, teleport, simulate, setTimeOfDay(0.75 = night),
+revealTown, buildTown, setUpgrade, save, saveData, unlockEra(n), buildMachine(n, slot, id), buildCity(n, lot, id),
+travel('region:n' | 'district:n' | 'yard' | 'village' | 'town'), climb(), gate(n), setAllUpgrades(shown),
+setSettlement(L)`. Galleries: `?gallery=eraMachines`, `eraSheets` (or `era2`..`era10`), `eraItems`, `eraWorkers`,
+`cityBuildings`, `frontierProps`, `jack`, `padMachine`.
+
+Draw calls (`scripts/shot.mjs` + the renderer's `info.render.calls`, High, night, six frames each, a late save with
+every era open, 52 machines, 71 city buildings and all upgrades at shown Lv 40; 0.8.0 measured from the `v0.8.0` tag
+on the same Survival setup):
+
+| View | 0.9.0 | 0.8.0 |
+|---|---|---|
+| Village | 780–817 | 729–847 |
+| Town square | 699–789 | 627–709 |
+| Yard | 905–1,043 | 921–967 |
+| Region 2 | 343–354 | — |
+| District 10 (full) | 176–183 | — |
+| District 2 (full) | 346–417 | — |
+
+Still open from 0.9.0 (small):
+- **The yard view at night** goes past 950 in the late climb (crews at climb speed carry more and more items are in
+  flight; 0.8.0 already reached 967 there). Hidden pile interiors took about 36 calls off a full drop zone. The next
+  lever is pile instancing (below), or instanced carried items for the Survival crews.
+- The AgeCard can overlap the WASD hint on a fresh game; the phone income ticker can overlap the quests chip.
+- The Invest tab's venture picker offers era 2, but ventures unlock at era 3.
+- Each region slot makes its own LotPad canvas texture (up to 72); they could share.
+- The south avenue passes between the two south Market Town lots through a 1.2 m gap when both are built
+  (walkable; the lots are era-1 layout, so they stay).
+- The old tricycle road runs under region 2 to z 70; the region's ground covers it (era-1 layout, so it stays).
+- New Season while age ≥ 2 still follows the 0.8.0 rule; moving it to the era-10 finale is 0.12 work (R12).
+- A by-hand end-to-end pass through the debug API (fresh game → Great Lodge → gate → region 2 → machines → depot →
+  Jack → market → district → demolish → map) before the release tag.
 
 ## What the playtests show
 
@@ -106,5 +178,12 @@ Kept for reference. Deviations: the shop is one doormat that opens a panel (not 
 ## Constraints that carry forward
 
 - **No external asset files.** New models go through the AssetFactory and `bake()`, textures are drawn on canvas, and audio is synthesized.
-- **Draw-call budget.** About 800 or fewer in the late game (about 430–505 today). Bake every new model per animated pivot.
+- **Draw-call budget.** 950 or fewer per frame, measured on a late save every release (`scripts/perf-breakdown.js`). Bake every new model per animated pivot.
+- **Era 1 stays 0.8.0** until the Great Lodge is built: prices, levels, reveal order, layout and guide
+  (`tests/era1Frozen.test.ts`, `scripts/check-reveals.mjs`).
+- **Saves:** `SAVE.version` unchanged, state additive and sanitized, every fixture in `tests/fixtures/` loads.
+- **No bot runs** (`scripts/balance.mjs`, the full `playtest-bot.js`) unless Dino asks.
+- **Cozy and ADHD-friendly:** one clear next goal, short sessions pay off, nothing punishing.
+- **Upgrades are hands-on: stand on pads.** Every level is bought in person on a level pad or a shop mat, one at a time.
+  No auto-buyers, no Raise all / Buy ×10, no buying from a checklist or from afar (Dino's decision, 0.9.0).
 - **The plank flow is unconfirmed.** Logs turning into planks on the walk-in counter is an interpretation of the brief. Confirm it or change it.

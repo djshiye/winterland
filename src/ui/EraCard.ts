@@ -10,12 +10,12 @@
  *
  * 0.9.0 climb: settlement levels 6..50 (docs/EXPANSION.md §B) show the same card on 'settlement:levelUp': "SETTLEMENT 12"
  * (or "CHARTER · SETTLEMENT 15" when a band is complete), the level's name, its era district and the perks it brought.
- * Each level has its own name, so the card never repeats one (ROADMAP §4.5).
+ * Each level has its own name, so the card never repeats one (a 0.9.0 review note).
  *
  * Wiring (ui/HUD.ts): constructor `this.era = new EraCard(ctx, layer);`  update(): `this.era.update(dt);`
  */
-import { CLIMB, SETTLEMENT, VILLAGE } from '../config';
-import { bandsWith, settlementBand, settlementName } from '../core/demand';
+import { SETTLEMENT, VILLAGE } from '../config';
+import { bandsWith, founderScarf, renownAt, settlementBand, settlementName } from '../core/demand';
 import type { GameContext } from '../core/types';
 import { ERAS } from '../eras/data';
 import { formatMoney } from './format';
@@ -124,13 +124,13 @@ export class EraCard {
   }
 }
 
-/** The perk chips of a settlement level-up (from `from` to `level`): Renown, the gift and what the band positions crossed bring (and the Steward at 20). */
+/** The perk chips of a settlement level-up (from `from` to `level`): Renown, the gift and what the band positions crossed bring (and the Founder's Scarf at 20). */
 export function settlementPerks(level: number, from: number, gift: number): string[] {
-  const out = [`Renown \u00d7${(SETTLEMENT.renown ** (level - SETTLEMENT.band)).toFixed(2)}`, `${formatMoney(gift)} gift on the avenue`];
+  const out = [`Renown \u00d7${renownAt(level).toFixed(2)}`, `${formatMoney(gift)} gift on the avenue`];
   const crossed = (j: number): boolean => bandsWith(level, j) > bandsWith(Math.max(from, SETTLEMENT.band), j);
   if (crossed(1)) out.push('New quests');
   if (crossed(3)) out.push(`City happiness +${Math.round(SETTLEMENT.decorHappiness * 100)}%`);
   if (crossed(4)) out.push('+1 investment slot');
-  if (level >= CLIMB.steward.settlement && from < CLIMB.steward.settlement) out.push('Steward unlocked');
+  if (founderScarf(level) && !founderScarf(from)) out.push(`Founder's Scarf \u00b7 Renown +${Math.round((SETTLEMENT.founder.renown - 1) * 100)}%`);
   return out;
 }

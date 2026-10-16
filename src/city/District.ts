@@ -54,13 +54,13 @@ const SURFACE: readonly ({ street: number; walk: number; plot: number; tile: num
   null,
   { street: 0x8d8478, walk: 0xb9b2a6, plot: 0xa39a8c, tile: 0x9f978a, pole: 0x6b4a33, bulb: 0xffc860, tileSize: 0.9 },
   { street: 0x7b6e68, walk: 0xa99b92, plot: 0x8f827a, tile: 0x93857c, pole: 0x3b3f47, bulb: 0xffc860, tileSize: 1.1 },
-  { street: 0x6f6a66, walk: 0x9c9690, plot: 0x85807b, tile: 0x8c8782, pole: 0x2f2b2b, bulb: 0xffd070, tileSize: 1.3 },
+  { street: 0x6f6a66, walk: 0x9c9690, plot: 0x85807b, tile: 0x8c8782, pole: 0x383d40, bulb: 0xffd070, tileSize: 1.3 },
   { street: 0x55575c, walk: 0x9a9da3, plot: 0x7d8086, tile: 0x8a8d93, pole: 0x34383d, bulb: 0xffd890, tileSize: 1.5 },
-  { street: 0x5a5d62, walk: 0xa8aaa6, plot: 0x82868a, tile: 0x9a9c98, pole: 0x2e4a5a, bulb: 0xffe0a0, tileSize: 1.6 },
+  { street: 0x5a5d62, walk: 0xa8aaa6, plot: 0x82868a, tile: 0x9a9c98, pole: 0x2b3b39, bulb: 0xffe0a0, tileSize: 1.6 },
   { street: 0x4a4c52, walk: 0xa3a5a8, plot: 0x7a7d83, tile: 0x93959a, pole: 0x6b7480, bulb: 0xfff0c8, tileSize: 1.8 },
-  { street: 0x9a9ea5, walk: 0xc4c8cd, plot: 0xaeb3ba, tile: 0xb6bac1, pole: 0x8fa0b2, bulb: 0xd8f0ff, tileSize: 2.0 },
-  { street: 0x8c9488, walk: 0xb9c2b4, plot: 0xa0a99c, tile: 0xaeb7a9, pole: 0x8e9a88, bulb: 0xd8ffe0, tileSize: 2.0 },
-  { street: 0xc7cfe0, walk: 0xdfe5f2, plot: 0xb9c2d8, tile: 0xd0d8ea, pole: 0x9b6cff, bulb: 0xe0c8ff, tileSize: 2.2 },
+  { street: 0x9a9ea5, walk: 0xc4c8cd, plot: 0xaeb3ba, tile: 0xc2bfb4, pole: 0x7c858e, bulb: 0xe2f8ea, tileSize: 2.0 },
+  { street: 0x8f989c, walk: 0xc0c9cc, plot: 0xa6b0b4, tile: 0xb3bdc0, pole: 0x6f828a, bulb: 0xd8fbef, tileSize: 2.0 },
+  { street: 0xbfc8d2, walk: 0xe2dccd, plot: 0xc9d1da, tile: 0xd9d2c0, pole: 0x526475, bulb: 0xffe7a8, tileSize: 2.2 },
 ];
 
 const SNOW = 0xf4f8ff;
