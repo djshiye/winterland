@@ -15,8 +15,10 @@
  */
 import * as THREE from 'three';
 import { createDog, type DogModel } from '../assets/sled';
+import { ERA_PAL_MODELS } from '../assets/eraPals';
 import { dampAngle } from '../core/math';
 import type { GameContext } from '../core/types';
+import { eraPlayerId } from '../eras/playerUpgrades';
 
 /** How far behind the player (along his heading) the dog wants to be, metres. */
 export const FOLLOW_DISTANCE = 1.2;
@@ -77,7 +79,9 @@ export interface DogOwner {
 const rand = (a: number, b: number): number => a + Math.random() * (b - a);
 
 export class Dog {
-  readonly model: DogModel;
+  model: DogModel;
+  /** 0.9.5: the era whose pal is showing (0 = the husky). */
+  private era = 0;
   get root(): THREE.Group {
     return this.model.root;
   }
@@ -106,6 +110,32 @@ export class Dog {
     this.yaw = owner.facing;
     this.apply();
     this.model.setLevel(ctx.upgrades.level('dog'));
+  }
+
+  /**
+   * 0.9.5: show era n's pal (0 = the husky). The new model takes the old one's spot and pose; eras without a pal model
+   * of their own keep the husky.
+   */
+  setEra(n: number): void {
+    const want = ERA_PAL_MODELS[n] ? n : 0;
+    if (want === this.era) return;
+    this.era = want;
+    const old = this.model;
+    const next = want ? ERA_PAL_MODELS[want]!() : createDog();
+    next.sit = old.sit;
+    next.root.position.copy(old.root.position);
+    next.root.rotation.copy(old.root.rotation);
+    old.root.removeFromParent();
+    old.dispose();
+    this.model = next;
+    this.ctx.scene.add(next.root);
+    this.model.setLevel(this.level());
+    this.wag(1.2);
+  }
+
+  /** Level that colours the band: the era pal's level, or the Sled Dog's. */
+  private level(): number {
+    return this.era ? this.ctx.upgrades.level(eraPlayerId(this.era, 'Pal')) : this.ctx.upgrades.level('dog');
   }
 
   /** Put the dog on its follow spot right away. */
@@ -181,7 +211,7 @@ export class Dog {
       if (near) {
         this.nextWoof -= dt;
         if (this.nextWoof <= 0) {
-          ctx.audio.play('woof', { volume: 0.4 });
+          if (!this.era) ctx.audio.play('woof', { volume: 0.4 }); // era pals keep quiet (no woof for a horse or a cat)
           this.wag(1.2);
           this.nextWoof = rand(20, 40);
         }
@@ -196,7 +226,7 @@ export class Dog {
 
     // --- looks: saddlebag while the arms are over the base capacity, scarf by level -----------------
     m.setBag(o.arms.size > ctx.upgrades.value('carry'));
-    m.setLevel(ctx.upgrades.level('dog'));
+    m.setLevel(this.level());
 
     this.apply();
     m.animate(this.clock, this.sitting ? 0 : this.speed);

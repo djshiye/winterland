@@ -29,6 +29,7 @@ import { ConstructionPad } from '../stations/ConstructionPad';
 import { LotPad } from '../town/LotPad';
 import { ERAS, MACHINES, MATERIAL_KINDS, machinesOfEra, type MachineId } from './data';
 import { ExportDepot } from './ExportDepot';
+import { HandNode, handNodePlace } from './HandNode';
 import { regionLayout, type RegionLayout, type XZ } from './layout';
 import { EraBelts } from './EraBelts';
 import { EraLevelPad } from './LevelPad';
@@ -63,6 +64,8 @@ export class Region implements RegionRuntime {
   readonly root = new THREE.Group();
   readonly crew: EraCrew;
   readonly jack: JackCart;
+  /** 0.9.5: the era's hand node (eras/HandNode.ts); null while the layout has no harvest area for it. */
+  readonly node: HandNode | null;
   /** 0.9.5: conveyor belts between the machines (from Lv 1 of the era's Belts upgrade). */
   readonly belts: EraBelts;
 
@@ -132,6 +135,11 @@ export class Region implements RegionRuntime {
     // ---- Jack ---------------------------------------------------------------------------------------------------
     this.jack = new JackCart(ctx, L.jack, yaw, `jack:${era}`);
 
+    // ---- hand node (0.9.5) ----------------------------------------------------------------------------------------
+    const nodeAt = handNodePlace(L);
+    this.node = nodeAt ? new HandNode(ctx, era, nodeAt, nodeAt.yaw, this.root) : null;
+    if (this.node) this.pops.push(this.node.model.root);
+
     // ---- machine slots ------------------------------------------------------------------------------------------
     this.machines = L.slots.map(() => null);
     L.slots.forEach((place, i) => {
@@ -182,6 +190,7 @@ export class Region implements RegionRuntime {
       this.sign.quaternion.copy(ctx.camera.quaternion);
       this.sign.position.y = SIGN_HEIGHT + Math.sin(ctx.time.elapsed * 2) * 0.05;
     }
+    this.node?.update(dt);
     this.crew.update(dt);
     this.jack.update(dt);
   }

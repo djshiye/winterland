@@ -52,10 +52,14 @@ import type { GameContext, ItemHolder } from '../core/types';
 import { contractClock, contractItem } from '../core/Contracts';
 import { formatMoney } from '../ui/format';
 import { expansionCostText } from '../ui/agesLogic';
-import { ERAS } from '../eras/data';
+import { ERAS, MATERIALS } from '../eras/data';
+import { ERA_NODES } from '../assets/eraNodes';
 import { regionLayout } from '../eras/layout';
 import { Haptics } from './Haptics';
 import { TickLadder, burstCount, motionScale, pitchJitter } from './padJuice';
+
+/** 0.9.5: strike pitch per era hand node (heavier tools lower: slag hammer, oil auger; crystals higher). */
+const NODE_PITCH: Record<number, number> = { 2: 0.9, 3: 1.0, 4: 0.85, 5: 0.75, 6: 1.1, 7: 0.8, 8: 1.25, 9: 1.3, 10: 1.4 };
 
 const WOOD_CHIPS = [PALETTE.bark, PALETTE.barkDark, PALETTE.woodEnd, PALETTE.woodRing, PALETTE.plank];
 const SNOW = [0xffffff, 0xeaf4ff, 0xd4e6fa];
@@ -123,6 +127,15 @@ export class JuiceDirector {
     });
 
     ev.on('player:chopHit', (e) => {
+      if (e.node !== undefined) {
+        // 0.9.5 era hand node: the era's material flies off in chips, a soft tool strike (pitch per era)
+        const m = MATERIALS[ERA_NODES[e.node]?.yields ?? 'stone'];
+        ctx.audio.play('strike', { pitch: (NODE_PITCH[e.node] ?? 1) * (0.95 + Math.random() * 0.1) });
+        ctx.particles.burst(e.position, { colors: [m.color, m.accent, m.color], count: 8, speed: 3.8, size: 0.18, spread: 1.0, life: 0.65, shape: 'cube', gravity: 9 });
+        ctx.particles.burst(e.position, { colors: [0xffffff, 0xe8f0f8], count: 4, speed: 2, size: 0.12, spread: 1.4, life: 0.5 });
+        ctx.cameraRig.shake(0.03, 0.1);
+        return;
+      }
       ctx.audio.play('chop', { pitch: 0.95 + Math.random() * 0.12 });
       ctx.particles.burst(e.position, { colors: WOOD_CHIPS, count: 9, speed: 4.2, size: 0.2, spread: 1.0, life: 0.7 });
       ctx.particles.burst(e.position, { colors: SAWDUST, count: 4, speed: 2.2, size: 0.12, spread: 1.4, life: 0.5, shape: 'cube', gravity: 8 });

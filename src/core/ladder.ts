@@ -44,7 +44,7 @@ function curveOf(def: UpgradeDef): Curve {
   switch (def.display) {
     case 'count':
       // Strong Arms: +1 item per level up to 50 (render cap stays 40 meshes); dog and pals: +1 per 2 levels up to 12.
-      return def.id === 'carry' ? linear(1, 50) : { dir: 'up', cap: 12, at: (vm, t) => vm + Math.floor(t / 2) };
+      return def.id === 'carry' || def.id.endsWith('Carry') ? linear(1, 50) : { dir: 'up', cap: 12, at: (vm, t) => vm + Math.floor(t / 2) };
     case 'speed':
       return { dir: 'up', cap: 13.5, at: (vm, t) => 14 - (14 - vm) * 0.93 ** t };
     case 'rate':
