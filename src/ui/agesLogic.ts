@@ -176,6 +176,7 @@ const INCOME_LABEL: Record<IncomeSource, string> = {
   interest: 'interest',
   trade: 'trade',
   jack: 'Jack',
+  harvest: 'harvest',
 };
 
 /** A flushed batch of income. */
