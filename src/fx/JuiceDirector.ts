@@ -226,9 +226,12 @@ export class JuiceDirector {
       ctx.particles.sparkle(this.tmp.copy(at).setY(at.y + 2.4), 0xffe066);
       ctx.particles.ring(at, { color: 0xffe066, radius: 2.4, life: 0.55 });
       if (crewHire) return; // 'helper:hired' says HIRED! when the new worker walks out
-      // numbering matches the machine pads ("HARVESTER LV 2"): machines and the lumberjack start at LV 1
-      const lv = UPGRADES[e.id].group === 'crew' ? e.level : e.level + 1;
-      ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 2.6), `LV ${lv}!`, { color: '#ffd84a', size: 32, duration: 1.2, rise: 1.6 });
+      // one numbering everywhere (the pads, the shop, the era checklist): the shown level
+      ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 2.6), `LV ${ctx.upgrades.shownLevel(e.id)}!`, { color: '#ffd84a', size: 32, duration: 1.2, rise: 1.6 });
+      // the era cap: nothing goes higher until the next era's expansion is bought
+      if (ctx.upgrades.atEraCap(e.id)) {
+        ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 3.5), 'Max for this era', { color: '#bfe6ff', size: 22, duration: 2.2, rise: 1.2 });
+      }
     });
 
     ev.on('helper:hired', (e) => {

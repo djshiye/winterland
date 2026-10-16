@@ -132,7 +132,7 @@ export function bandView(shown: number, stored: number, base: number, hired: boo
   return { fill, bands: Math.floor(shown / BAND_PIPS), text, tone: below ? 'low' : need !== null && hired ? 'ok' : '' };
 }
 
-/** The checklist row's second line: the prereq, "pad LV 8 → LV 11 · $X" (R6) or "Lv 7 → 10 · $X in all". */
+/** The checklist row's second line: the prereq, "pad LV 8 → LV 10 · $X" (R6) or "Lv 7 → 10 · $X in all". */
 export function gateRowLine(row: { shown: number | null; need: number; state: string; prereq?: string; costToNeed: number; where: string; padLabel?: string }): string {
   if (row.state === 'prereq') return row.prereq ?? '';
   if (row.where === 'pad') return `${row.padLabel ?? ''} \u00b7 ${formatMoney(row.costToNeed)}`;
