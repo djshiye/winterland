@@ -217,7 +217,7 @@ describe('era 1 and saves', () => {
     expect(salePrice(s, 'plank', 5, 20)).toBe(salePrice(plain, 'plank', 5, 20));
   });
 
-  it('a saved level loads, is clamped to the age band and never negative', () => {
+  it('a saved level loads, is clamped (era 1 band, then 50) and never negative', () => {
     const merged = (saved: unknown) => {
       const s = createGameState();
       mergeState(s, saved);
@@ -225,7 +225,10 @@ describe('era 1 and saves', () => {
       return s.eras.settlement;
     };
     expect(merged({ eras: { age: 3, settlement: 12 } })).toBe(12);
-    expect(merged({ eras: { age: 3, settlement: 40 } })).toBe(15);
+    // 0.9.6: from era 2 the settlement rises freely to SETTLEMENT.max; era 1 stays within its band
+    expect(merged({ eras: { age: 3, settlement: 40 } })).toBe(40);
+    expect(merged({ eras: { age: 3, settlement: 99 } })).toBe(50);
+    expect(merged({ eras: { age: 1, settlement: 40 } })).toBe(5);
     expect(merged({ eras: { age: 3, settlement: -4 } })).toBe(0);
     expect(merged({ eras: { age: 3, settlement: 'x' } })).toBe(0);
     expect(merged({ eras: { age: 3 } })).toBe(0);

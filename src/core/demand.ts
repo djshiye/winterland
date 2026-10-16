@@ -220,16 +220,19 @@ export function masteryTotal(state: Pick<GameState, 'upgrades'>): number {
   return points;
 }
 
-/** Mastery: the bounded, logarithmic multiplier of masteryTotal (exactly 1 with no points). */
-export function masteryOf(state: Pick<GameState, 'upgrades'>): number {
-  return masteryMult(masteryTotal(state));
+/**
+ * Mastery: the bounded, logarithmic multiplier of masteryTotal (exactly 1 with no points), or the bonus an older save
+ * keeps for good (state.legacy, frozen by the 0.9.6 Lv 10 refund in core/Save.ts), whichever is higher.
+ */
+export function masteryOf(state: Pick<GameState, 'upgrades'> & { legacy?: GameState['legacy'] }): number {
+  return Math.max(masteryMult(masteryTotal(state)), state.legacy?.masteryMult ?? 1);
 }
 
 /**
  * What the climb adds to every sale, export and city income: Renown × Mastery. Exactly 1 in era 1 (settlement ≤ 5, no
  * level past a cap), so 0.8.0 prices are untouched.
  */
-export function climbMult(state: Pick<GameState, 'village' | 'eras' | 'upgrades'>): number {
+export function climbMult(state: Pick<GameState, 'village' | 'eras' | 'upgrades'> & { legacy?: GameState['legacy'] }): number {
   return renownMult(state) * masteryOf(state);
 }
 
