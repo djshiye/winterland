@@ -21,7 +21,7 @@
  * - 0.9.0 climb: wears the Founder's Scarf (assets/characters.ts createFounderScarf) from Settlement 20 on (polled).
  */
 import * as THREE from 'three';
-import { PLAYER } from '../config';
+import { LAYOUT, PLAYER } from '../config';
 import { CARRY_KINDS, type GameContext } from '../core/types';
 import { approach, clamp, dampAngle } from '../core/math';
 import { createAxe, createFounderScarf } from '../assets/characters';
@@ -47,6 +47,17 @@ const CHOP_MAX_SPEED01 = 0.35;
 const PUFF_INTERVAL = 0.13;
 const ARRIVE_RADIUS = 0.2;
 const BLOCKED_TIME = 0.3;
+/**
+ * 0.9.2 steering assist: walking into the Market Town's decor (the big fir, the amenities, stalls, benches, lamps, the
+ * snowman, the Grand Market hall) bends the walk around it instead of stopping dead. Shop buildings and their counters
+ * (tags 'town:<lot>…'), the boundary fence and everything outside the town keep plain sliding, so pushing into a
+ * counter or a pile zone never drifts the player off it.
+ */
+const STEER_ANGLES = [0.4, 0.8, 1.2, 1.5, 1.75];
+/** How far ahead (m) the assist looks, and how long it keeps going round the same side (no left-right dithering). */
+const STEER_LOOK = 0.55;
+const STEER_HOLD = 0.45;
+const steerable = (tag: string): boolean => tag.startsWith('town:') && tag !== 'town:fence' && !/^town:\d/.test(tag);
 
 export class Player {
   readonly object = new THREE.Group();
@@ -73,6 +84,9 @@ export class Player {
   /** 0..1 blend between normal arm animation and the scripted swing. */
   private chopBlend = 0;
   private blockedFor = 0;
+  /** Steering assist: the side (+1 / -1) it is going round, and for how much longer it sticks to it. */
+  private steerSide = 1;
+  private steerHold = 0;
   private puffClock = 0;
   /** Fading footprints in the snow (fx/Footprints.ts). */
   private readonly footprints: Footprints;
@@ -143,6 +157,49 @@ export class Player {
     this.autopilot = null;
   }
 
+  /**
+   * Steering assist (see STEER_ANGLES): when the way ahead is blocked by town decor, turn the desired velocity `d` (in
+   * place, same speed) to the nearest free heading, preferring the side it already chose. No-op when the way is clear,
+   * when the blocker is anything else, or when no heading up to ~90° is free (plain sliding then applies).
+   */
+  private steer(pos: THREE.Vector3, d: THREE.Vector3, dt: number): void {
+    this.steerHold = Math.max(0, this.steerHold - dt);
+    const sp = Math.hypot(d.x, d.z);
+    if (sp < 0.1) return;
+    const col = this.ctx.colliders;
+    const r = PLAYER.radius;
+    const ux = d.x / sp;
+    const uz = d.z / sp;
+    const ax = pos.x + ux * STEER_LOOK;
+    const az = pos.z + uz * STEER_LOOK;
+    // in the Market Town, its edges count too (walking into the fence line or a lot's side bends round instead)
+    const T = LAYOUT.town.area;
+    const inTown = pos.x >= T.minX && pos.x <= T.maxX && pos.z >= T.minZ && pos.z <= T.maxZ;
+    if (!col.overlapsWhere(ax, az, r, steerable) && !(inTown && !col.inBounds(ax, az, r))) return;
+    // a shop, counter or fence right ahead too: the player means to walk up to it (a pad, a hopper), so no bending
+    if (col.overlapsWhere(ax, az, r, (t) => !steerable(t))) return;
+    // per side, the smallest turn whose heading is free a step ahead AND further on (so it doesn't dive into a pocket)
+    const free = (vx: number, vz: number): boolean =>
+      col.isFree(pos.x + vx * STEER_LOOK, pos.z + vz * STEER_LOOK, r) && col.isFree(pos.x + vx * STEER_LOOK * 2.2, pos.z + vz * STEER_LOOK * 2.2, r);
+    let best = -1;
+    let bestSide = 0;
+    for (const side of [this.steerSide, -this.steerSide]) {
+      for (let i = 0; i < STEER_ANGLES.length && (best < 0 || i < best); i++) {
+        const a = STEER_ANGLES[i]! * side;
+        if (!free(ux * Math.cos(a) - uz * Math.sin(a), ux * Math.sin(a) + uz * Math.cos(a))) continue;
+        best = i;
+        bestSide = side;
+        break;
+      }
+      if (best >= 0 && this.steerHold > 0) break; // keep going round the same side while it still works
+    }
+    if (best < 0) return;
+    const a = STEER_ANGLES[best]! * bestSide;
+    d.set((ux * Math.cos(a) - uz * Math.sin(a)) * sp, 0, (ux * Math.sin(a) + uz * Math.cos(a)) * sp);
+    this.steerSide = bestSide;
+    this.steerHold = STEER_HOLD;
+  }
+
   /** Called every frame by the giant log's chop zone with the strike point; null leaves chopping. */
   setChopTarget(p: THREE.Vector3 | null): void {
     if (p) {
@@ -179,6 +236,8 @@ export class Player {
     } else {
       this.autopilot = null;
     }
+
+    this.steer(pos, d, dt);
 
     // --- accelerate toward it ------------------------------------------------
     const v = this.velocity;

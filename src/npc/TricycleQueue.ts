@@ -47,6 +47,7 @@ export class TricycleQueue extends VehicleQueue {
       exitU: T.exitZ,
       slotU: (i) => T.frontZ + TRAY_OFFSET - i * T.spacing,
       takeInterval: TIMING.npcTakeInterval * 1.3,
+      boost: () => ctx.upgrades.value('trikeDock'),
       accel: 7,
       decel: 9,
       variants: 1,
