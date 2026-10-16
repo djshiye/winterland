@@ -10,7 +10,7 @@ import { salePrice } from '../src/core/demand';
 import { authoredMax, LEVEL_CAP } from '../src/core/ladder';
 import { EventBus } from '../src/core/EventBus';
 import { mergeState, newSeasonSave, offlineEarnings, SalesMeter, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
-import { createGameState, type GameContext, type GameEvents } from '../src/core/types';
+import { createGameState, REGION_SLOTS, type GameContext, type GameEvents } from '../src/core/types';
 
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
@@ -302,7 +302,7 @@ describe('v7 eras save fixture', () => {
     const world = sanitizeWorld(save.world);
     expect(world.eras[2]!.slots[1]).toEqual({ in: { stone: 4 }, out: 3 });
     expect(world.eras[2]!.dock).toEqual({ ore: 5 });
-    expect(world.eras.map((r) => r.slots.length)).toEqual([0, 0, 4, 4, 5, 5, 6, 6, 7, 7, 8]);
+    expect(world.eras.map((r) => r.slots.length)).toEqual([...REGION_SLOTS]);
   });
 
   it('older saves start in the Survival era with an empty city and market', () => {
@@ -312,7 +312,7 @@ describe('v7 eras save fixture', () => {
     expect(state.eras.age).toBe(1);
     expect(state.eras.regions.every((r) => !r.unlocked)).toBe(true);
     expect(state.market.investments).toEqual([]);
-    expect(sanitizeWorld(load('save-v6-events.json').world).eras[2]!.slots).toHaveLength(4);
+    expect(sanitizeWorld(load('save-v6-events.json').world).eras[2]!.slots).toHaveLength(REGION_SLOTS[2]!);
   });
 });
 
@@ -350,6 +350,6 @@ describe('v8 climb save fixture', () => {
     expect(b).toEqual(a);
     const world = sanitizeWorld(save.world);
     expect(sanitizeWorld(JSON.parse(JSON.stringify(world)))).toEqual(world);
-    expect(world.eras[2]!.slots.length).toBe(4);
+    expect(world.eras[2]!.slots.length).toBe(REGION_SLOTS[2]!);
   });
 });

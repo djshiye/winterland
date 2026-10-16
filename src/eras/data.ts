@@ -306,9 +306,9 @@ export interface RegionLayoutDef {
 export const REGIONS: readonly (RegionLayoutDef | null)[] = [
   null,
   null,
-  { n: 2, rect: R(-24, 40, 66, 114), gate: 'north', slots: 4, room: 8 }, // 64 × 48
-  { n: 3, rect: R(-98, -30, 66, 118), gate: 'north', slots: 4, room: 8 }, // 68 × 52
-  { n: 4, rect: R(-176, -104, 66, 122), gate: 'north', slots: 5, room: 8 }, // 72 × 56
+  { n: 2, rect: R(-24, 40, 66, 114), gate: 'north', slots: 6, room: 8 }, // 64 × 48
+  { n: 3, rect: R(-98, -30, 66, 118), gate: 'north', slots: 6, room: 8 }, // 68 × 52
+  { n: 4, rect: R(-176, -104, 66, 122), gate: 'north', slots: 6, room: 8 }, // 72 × 56
   { n: 5, rect: R(-178, -100, 132, 192), gate: 'north', slots: 5, room: 8 }, // 78 × 60
   { n: 6, rect: R(-94, -10, 132, 196), gate: 'north', slots: 6, room: 8 }, // 84 × 64
   { n: 7, rect: R(-4, 86, 132, 200), gate: 'north', slots: 6, room: 8 }, // 90 × 68
