@@ -14,7 +14,7 @@
  * Sliders run on 'input' (live) and are not shielded: the row stops pointerdown / touchstart instead.
  * On short screens (<= 520 px tall) the switches sit in two columns so the card fits 800x450.
  */
-import { comfort, defaultComfort, setComfort, UI_SCALE, type EffectsLevel } from '../fx/comfort';
+import { comfort, defaultComfort, onComfortChange, setComfort, uiScale, uiScaleFitted, UI_SCALE, type EffectsLevel } from '../fx/comfort';
 import { feedbackAvailable, hapticsEnabled, buzz, setHapticsEnabled } from '../fx/Haptics';
 import { readFpsCap, FPS_CAPS, type FpsCap } from '../core/fps';
 import type { VolumeChannel } from '../fx/volume';
@@ -375,6 +375,17 @@ export class SettingsPanel {
       release: true,
       onRelease: true,
     });
+    // a size bigger than the window has room for is drawn smaller (fx/comfort fitUiScale): say so under the slider
+    const fitted = h('div', 'wl-controls-note wl-comfort-note');
+    const paintFitted = (): void => {
+      fitted.textContent = uiScaleFitted() ? `Fitted to this window: ${Math.round(uiScale() * 100)}%` : '';
+      fitted.style.display = uiScaleFitted() ? '' : 'none';
+    };
+    pc.appendChild(fitted);
+    paintFitted();
+    this.refreshers.push(paintFitted);
+    onComfortChange(paintFitted);
+    window.addEventListener('resize', paintFitted);
     this.cbSwitch = sw(pc, 'Colour-blind friendly', 'Blue and orange instead of green and red', () => {
       ctx.audio.play('click');
       setComfort({ colorBlind: !comfort().colorBlind });

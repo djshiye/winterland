@@ -1,9 +1,13 @@
 /** 0.9.7: the five-step starter guide of each new era region, and the era colour contrast check. */
 import { describe, expect, it } from 'vitest';
-import { EraStarter, NODE_LINGER, READ_SECONDS, RESOURCE_LINES, STARTER_STEPS, starterFlag, starterSteps, type StarterInput } from '../src/progression/eraStarter';
+import { EraStarter, NODE_LINGER, READ_SECONDS, WALK_SECONDS, RESOURCE_LINES, STARTER_STEPS, starterFlag, starterSteps, type StarterInput } from '../src/progression/eraStarter';
 import { ERAS } from '../src/eras/data';
 import { ERA_NODES } from '../src/assets/eraNodes';
 import { contrast, readableOn } from '../src/ui/contrast';
+import { regionLayout } from '../src/eras/layout';
+import { DEPOT_FRAME, DOCK_FRAME, worldRect } from '../src/eras/rules';
+import { DOCK_BODY, STALL_BODY, marketPlaces } from '../src/eras/market';
+import { PLAYER } from '../src/config';
 import type { ItemKind } from '../src/core/types';
 
 const input = (over: Partial<StarterInput> = {}): StarterInput => ({
@@ -82,6 +86,60 @@ describe('era starter guide', () => {
     g.update(0.25, input(), () => undefined);
     expect(g.update(0.25, input({ here: 0 }), () => undefined)).toBeNull();
     expect(g.update(0.25, input(), () => undefined)!.text).toBe(starterSteps(5)[1]!.text);
+  });
+});
+
+describe('era starter targets are walkable', () => {
+  type R = { minX: number; maxX: number; minZ: number; maxZ: number };
+  /** The solid boxes a fresh region adds (nothing built yet), grown by the player's radius. */
+  const solids = (n: number): R[] => {
+    const L = regionLayout(n);
+    const P = marketPlaces(L);
+    const r = PLAYER.radius;
+    return [
+      worldRect(L.dock, L.facilityYaw, DOCK_FRAME.body),
+      worldRect(L.depot, L.facilityYaw, DEPOT_FRAME.body),
+      worldRect(P.dock, P.yaw, DOCK_BODY),
+      worldRect(P.stall, P.yaw, STALL_BODY),
+    ].map((b) => ({ minX: b.minX - r, maxX: b.maxX + r, minZ: b.minZ - r, maxZ: b.maxZ + r }));
+  };
+  const blocked = (x: number, z: number, boxes: R[]): boolean => boxes.some((b) => x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ);
+
+  it('every walking step can be reached: its centre is clear of every solid box (era 2..10)', () => {
+    for (let n = 2; n <= 10; n++) {
+      const boxes = solids(n);
+      for (const s of starterSteps(n).filter((s) => s.kind === 'walk')) {
+        expect(s.spot, `era ${n}: ${s.text}`).not.toBeNull();
+        expect(blocked(s.spot!.x, s.spot!.z, boxes), `era ${n}: ${s.text}`).toBe(false);
+      }
+    }
+  });
+
+  it("the dock step points at the strip in front of the dock, never inside its body", () => {
+    for (let n = 2; n <= 10; n++) {
+      const L = regionLayout(n);
+      const body = worldRect(L.dock, L.facilityYaw, DOCK_FRAME.body);
+      const s = starterSteps(n)[3]!;
+      const zone = { minX: s.spot!.x - s.w / 2, maxX: s.spot!.x + s.w / 2, minZ: s.spot!.z - s.d / 2, maxZ: s.spot!.z + s.d / 2 };
+      const overlaps = zone.minX < body.maxX && zone.maxX > body.minX && zone.minZ < body.maxZ && zone.maxZ > body.minZ;
+      expect(overlaps, `era ${n}`).toBe(false);
+      // the same place the dock's give / take zones sit, so stepping there is what using the dock is
+      const give = worldRect(L.dock, L.facilityYaw, DOCK_FRAME.give);
+      expect(give.minX >= zone.minX - 1e-9 && give.maxX <= zone.maxX + 1e-9 && give.minZ >= zone.minZ - 1e-9 && give.maxZ <= zone.maxZ + 1e-9).toBe(true);
+    }
+  });
+
+  it('a walking step moves on by itself after WALK_SECONDS, so the banner never sticks', () => {
+    const g = new EraStarter();
+    const steps = starterSteps(6);
+    const at = input({ here: 6, age: 6 });
+    g.update(READ_SECONDS, at, () => undefined);
+    g.update(0.25, at, () => undefined);
+    g.update(READ_SECONDS, at, () => undefined); // node: no spot reached, no raw
+    expect(g.update(NODE_LINGER, input({ here: 6, age: 6, player: steps[1]!.spot! }), () => undefined)!.text).toBe(steps[2]!.text);
+    expect(g.update(WALK_SECONDS - 1, at, () => undefined)!.text).toBe(steps[2]!.text);
+    expect(g.update(1, at, () => undefined)!.text).toBe(steps[3]!.text);
+    expect(g.update(WALK_SECONDS, at, () => undefined)!.text).toBe(steps[4]!.text);
   });
 });
 

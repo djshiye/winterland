@@ -12,6 +12,10 @@
 .wl-hud > :not(.wl-float):not(.wl-edge):not(.wl-coin) {
   zoom: var(--wl-ui, 1);
 }
+/* the big centre toast stops at 125 % (fx/comfort.ts TOAST_UI_MAX), so it never covers the middle of the screen */
+.wl-hud > .wl-toast:not(.wl-float):not(.wl-edge):not(.wl-coin) {
+  zoom: var(--wl-ui-toast, 1);
+}
 
 /* ---- keyboard / gamepad focus (0.9.7) ------------------------------------------------------------------
    input/menuNav.ts moves focus through the menus with the arrow keys, Tab and the gamepad. Only shown for keyboard
