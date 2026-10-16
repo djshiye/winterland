@@ -1,6 +1,6 @@
 /** [B4] Inline SVG icons (no image files). All use a 48x48 viewBox unless noted. */
-import type { BusinessId, UpgradeIdConst } from '../config';
-import { ERAS } from '../eras/data';
+import { ERA_ROLES, type BusinessId, type UpgradeIdConst } from '../config';
+import { ERAS, MACHINES, MACHINE_IDS } from '../eras/data';
 
 const svg = (inner: string, vb = '0 0 48 48'): string =>
   `<svg viewBox="${vb}" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
@@ -321,13 +321,41 @@ function tradeIcon(accent: number): string {
     </g>`);
 }
 
+/** 0.9.5 Belts: a short roller belt with a crate riding it, the frame in the era's accent colour. */
+function beltsIcon(accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="9" y="12" width="16" height="13" rx="2" fill="#d9aa66"/>
+      <path d="M9 18.5h16" stroke="#a8693a" stroke-width="2" fill="none"/>
+      <rect x="3" y="26" width="42" height="9" rx="4.5" fill="${hexCss(accent)}"/>
+      <circle cx="10" cy="30.5" r="2.6" fill="#2a3652"/><circle cx="19" cy="30.5" r="2.6" fill="#2a3652"/>
+      <circle cx="28" cy="30.5" r="2.6" fill="#2a3652"/><circle cx="37" cy="30.5" r="2.6" fill="#2a3652"/>
+      <path d="M8 35v8M40 35v8" stroke-width="3.2"/>
+    </g>`);
+}
+
+/** 0.9.5 machine level: a little factory with a "+" in the era's accent colour. */
+function machineIcon(accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M5 42V22l10 6v-6l10 6v-6l10 6V8h7v34z" fill="${hexCss(accent)}"/>
+      <rect x="11" y="33" width="6" height="5" fill="#ffe9a8"/><rect x="23" y="33" width="6" height="5" fill="#ffe9a8"/>
+      <circle cx="38" cy="12" r="8" fill="#5ee07a"/>
+      <path d="M38 7.5v9M33.5 12h9" stroke="#fff" stroke-width="3"/>
+    </g>`);
+}
+
 for (const era of ERAS) {
   if (!era) continue;
   const icons: Record<string, string> = {
     [`${era.key}Rigs`]: rigsIcon(era.colors.accent),
     [`${era.key}Crew`]: crewIcon(era.colors.accent),
     [`${era.key}Trade`]: tradeIcon(era.colors.accent),
+    [`${era.key}Belts`]: beltsIcon(era.colors.accent),
   };
+  // each crew role wears its scarf colour on the hat (config ERA_ROLES)
+  for (const r of ERA_ROLES) icons[`${era.key}${r.key}`] = crewIcon(r.scarf);
+  for (const m of MACHINE_IDS) if (MACHINES[m].era === era.n) icons[m] = machineIcon(era.colors.accent);
   Object.assign(UPGRADE_ICONS, icons);
 }
 

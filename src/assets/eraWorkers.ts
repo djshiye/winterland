@@ -9,7 +9,7 @@
  * Coats, accents and trims read eras/data.ts colors (the palette table of docs/art/guide.md, ARGON).
  */
 import * as THREE from 'three';
-import { COLORS } from '../config';
+import { COLORS, ERA_ROLES } from '../config';
 import { ERAS } from '../eras/data';
 import { geo, mesh, toon } from '../render/materials';
 import {
@@ -71,7 +71,17 @@ function npc(
   top: number,
   arm?: number,
 ): CharacterModel {
-  const m = npcBody(body, skin, hand, torso, head, arm);
+  const band = scarf;
+  // a role scarf: a soft ring round the neck and a short tail down the chest (baked with the torso: no extra draw calls)
+  const withScarf: TorsoFn | undefined =
+    band === null
+      ? torso
+      : (g, topY) => {
+          torso?.(g, topY);
+          g.add(torusRing(0.27, 0.06, band, topY - 0.06 - HIP));
+          g.add(box(0.1, 0.24, 0.05, band, 0.1, topY - 0.2 - HIP, 0.29).rotateZ(-0.12));
+        };
+  const m = npcBody(body, skin, hand, withScarf, head, arm);
   m.height = m.headY + top;
   return m;
 }
@@ -368,10 +378,21 @@ const BUILDERS: Record<number, (skin: number) => CharacterModel> = {
   10: robot,
 };
 
-/** The outfit of era `era` (2..10; anything else gets the Frontier quarryman). `variant` shifts the skin tone. */
-export function createEraWorkerModel(era: number, variant = 0): CharacterModel {
+/** 0.9.5: scarf colour per crew role (config ERA_ROLES; the hauler wears none). */
+export const ROLE_SCARF: Record<string, number | null> = { hauler: null, ...Object.fromEntries(ERA_ROLES.map((r) => [r.role, r.scarf])) };
+
+/** Scarf colour the next npc() build adds (set only while createEraWorkerModel runs). */
+let scarf: number | null = null;
+
+/** The outfit of era `era` (2..10; anything else gets the Frontier quarryman). `variant` shifts the skin tone; `role` adds its scarf. */
+export function createEraWorkerModel(era: number, variant = 0, role = 'hauler'): CharacterModel {
   const build = BUILDERS[era] ?? quarryman;
-  return build(SKINS[((variant % SKINS.length) + SKINS.length) % SKINS.length]!);
+  scarf = ROLE_SCARF[role] ?? null;
+  try {
+    return build(SKINS[((variant % SKINS.length) + SKINS.length) % SKINS.length]!);
+  } finally {
+    scarf = null;
+  }
 }
 
 const NAMES: Record<number, string> = {
@@ -390,6 +411,16 @@ export const eraWorkerCatalog: Record<string, () => THREE.Object3D> = {};
 for (let n = 2; n <= 10; n++) eraWorkerCatalog[`era ${n}: ${NAMES[n]}`] = () => createEraWorkerModel(n, 0).root;
 eraWorkerCatalog['era 2: quarryman (tan variant)'] = () => createEraWorkerModel(2, 1).root;
 eraWorkerCatalog['era 5: steelworker (brown variant)'] = () => createEraWorkerModel(5, 2).root;
+/** 0.9.5: one era's seven roles side by side (hauler, then the six scarves). */
+eraWorkerCatalog['era 2: seven crew roles'] = () => {
+  const row = new THREE.Group();
+  Object.keys(ROLE_SCARF).forEach((role, i) => {
+    const m = createEraWorkerModel(2, i, role).root;
+    m.position.x = (i - 3) * 1.1;
+    row.add(m);
+  });
+  return row;
+};
 
 /** All nine outfits in a row (also the one-click review: --query "gallery=era workers lineup"). */
 eraWorkerCatalog['era workers lineup'] = () => {

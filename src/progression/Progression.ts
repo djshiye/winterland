@@ -38,10 +38,9 @@ import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, PADS, QUARTERS, TOWN, UPGRA
 import type { FlagId, GameContext, ItemKind, PadId, Phase } from '../core/types';
 import type { Level } from '../level/Level';
 import { DISTRICTS, ERAS, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
-import { climbOpen, nextGoal } from '../eras/gate';
+import { climbOpen, eraMatOf, nextGoal } from '../eras/gate';
 import { expansionOffered, regionLayout } from '../eras/layout';
-import { MAT_SIZE } from '../eras/rules';
-import { introEra } from '../core/ladder';
+import { MAT_SIZE, machinePadTarget } from '../eras/rules';
 import { MATERIAL_KINDS } from '../core/kinds';
 import { formatMoney } from '../ui/format';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
@@ -903,13 +902,19 @@ export class Progression {
         this.setGoal(text, d.rect);
         return true;
       }
+    } else if (target.startsWith('machine:')) {
+      const at = machinePadTarget(s, target.slice(8) as UpgradeIdConst);
+      if (at) {
+        this.setGoal(text, rect(at.pad.x, at.pad.z, at.size, at.size));
+        return true;
+      }
     } else if (kind === 'buy' && UPGRADES[target as UpgradeIdConst]) {
       const def = UPGRADES[target as UpgradeIdConst];
-      if (def.group !== 'industry') {
+      const e = eraMatOf(def);
+      if (e === null) {
         this.setGoal(text, LAYOUT.shop.mat);
         return true;
       }
-      const e = introEra(def);
       if (e <= s.eras.age) {
         const at = regionLayout(e).shopMat;
         this.setGoal(text, rect(at.x, at.z, MAT_SIZE.w, MAT_SIZE.d));

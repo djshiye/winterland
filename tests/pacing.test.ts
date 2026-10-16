@@ -1,6 +1,6 @@
 /**
- * Pacing of the ten-era climb (docs/EXPANSION.md §E) through the pure model core/pacing.ts: every era takes 60–200
- * model minutes, each longer than the last, and the era-1 climb 80–130, prices never go down, the settlement anchors fit the city, Jack never
+ * Pacing of the ten-era climb (docs/EXPANSION.md §E) through the pure model core/pacing.ts: every era takes 60–180
+ * model minutes (0.9.5 'literal' gate: each era's own upgrades to Lv 10), each longer than the last, and the era-1 climb 80–130, prices never go down, the settlement anchors fit the city, Jack never
  * pays a full price and no effect passes its hard cap. The buyer walks: one purchase at a time, each at least
  * PACING.walkPerBuy seconds (upgrades are hands-on, bought standing on pads and shop mats). The era economy ×10 and the
  * retuned CITY_RANKS ride along.
@@ -55,20 +55,20 @@ describe('pacing model', () => {
     expect(run.eras[0]!.gateSteps).toBe(102);
   });
 
-  it('every era takes 60–200 model minutes', () => {
+  it('every era takes 60–180 model minutes', () => {
     for (const e of run.eras.slice(1)) {
       expect(e.minutes, `era ${e.n}`).toBeGreaterThanOrEqual(60);
-      expect(e.minutes, `era ${e.n}`).toBeLessThanOrEqual(200);
+      expect(e.minutes, `era ${e.n}`).toBeLessThanOrEqual(180);
     }
   });
 
-  it('every era runs longer than the one before it (era 2 about 95–115 min, era 10 about 170–200)', () => {
+  it('every era runs longer than the one before it (era 2 about 80–100 min, era 10 about 150–175)', () => {
     const eras = run.eras.slice(1);
     for (let i = 1; i < eras.length; i++) expect(eras[i]!.minutes, `era ${eras[i]!.n}`).toBeGreaterThan(eras[i - 1]!.minutes);
-    expect(eras[0]!.minutes).toBeGreaterThanOrEqual(95);
-    expect(eras[0]!.minutes).toBeLessThanOrEqual(115);
-    expect(eras.at(-1)!.minutes).toBeGreaterThanOrEqual(170);
-    expect(eras.at(-1)!.minutes).toBeLessThanOrEqual(200);
+    expect(eras[0]!.minutes).toBeGreaterThanOrEqual(80);
+    expect(eras[0]!.minutes).toBeLessThanOrEqual(100);
+    expect(eras.at(-1)!.minutes).toBeGreaterThanOrEqual(150);
+    expect(eras.at(-1)!.minutes).toBeLessThanOrEqual(175);
   });
 
   it('buys by walking: one purchase at a time, never faster than one per walkPerBuy seconds', () => {
@@ -77,8 +77,10 @@ describe('pacing model', () => {
     for (const e of run.eras) expect((e.minutes * 60) / e.buys, `era ${e.n}`).toBeGreaterThanOrEqual(PACING.walkPerBuy);
   });
 
-  it('a purchase every 45 s or less on average in every era (reward cadence)', () => {
-    for (const e of run.eras.slice(1)) expect((e.minutes * 60) / e.buys, `era ${e.n}`).toBeLessThanOrEqual(45);
+  // 0.9.5: an era's gate is its own ~14 upgrades × 10 levels (not every older id), so fewer, bigger buys; still a
+  // quicker cadence than the era-1 climb (about 75 s)
+  it('a purchase every 65 s or less on average in every era (reward cadence)', () => {
+    for (const e of run.eras.slice(1)) expect((e.minutes * 60) / e.buys, `era ${e.n}`).toBeLessThanOrEqual(65);
   });
 
   it('stays in range for a Survival rate anywhere in 1.2–2k/s from era 2 on', () => {
