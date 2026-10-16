@@ -224,7 +224,7 @@ export class Game {
       mergeState(state, save.state);
       sanitizeState(state);
     }
-    const migration = migrateState(state, !save, { salesRate: save?.salesRate ?? 0, upgrades: (save?.state as { upgrades?: unknown } | undefined)?.upgrades });
+    const migration = migrateState(state, !save, { salesRate: save?.salesRate ?? 0, upgrades: (save?.state as { upgrades?: unknown } | undefined)?.upgrades, saved: save?.state, world: save?.world });
     const startMoney = save ? Math.min(Number.MAX_SAFE_INTEGER, save.money + migration.refund + migration.masteryPayout) : ECONOMY.startMoney;
     const economy = new Economy(events, state, startMoney);
     const upgrades = new Upgrades(state, economy, events);
@@ -327,6 +327,8 @@ export class Game {
     if (migration.applied.length > 0) this.save();
     const welcome = refundNotice(migration);
     if (welcome) notices.push(welcome);
+    const resources = resourcesNotice(migration);
+    if (resources) notices.push(resources);
     for (const n of notices) ctx.hud.showNotice(n);
   }
 
@@ -694,6 +696,19 @@ export class Game {
         offlineEarnings({ ...this.saveData(), savedAt: Date.now() - seconds * 1000 }, Date.now()),
     };
   }
+}
+
+/** 0.9.7: the one-off card for a save past era 5 whose eras got their own resources (core/resourcesV2.ts). */
+function resourcesNotice(m: MigrationReport): Notice | null {
+  if (m.resourcesAge < 5) return null;
+  const lines = ['Forge Flats now runs on iron pellets and coke: your pig iron is iron pellets now, and the Steel Mill takes 2 pellets + 1 coke.'];
+  if (m.resourcesAge >= 10) {
+    lines.push('Neural Plateau now runs on rare earth and helium-3: your data shards are rare earth, your Fusion Plants are Helium Skimmers (same level), and the new Fusion Reactor turns helium-3 into fusion cells.');
+    if (m.reactor === 'build') lines.push('Build a Fusion Reactor in Neural Plateau to keep AI cores coming. If the plot is full, open a machine\'s MANAGE card and demolish one to free a slot.');
+    else if (m.reactor === 'kept') lines.push('One Fusion Plant stayed as your Fusion Reactor, so your line keeps running.');
+  }
+  lines.push('Everything you owned and every level you bought came along. The new goods\' Fine upgrades start fresh.');
+  return { icon: 'star', title: 'New resources in the late eras', lines, buttons: [{ label: 'Lovely!' }] };
 }
 
 /** The one-off "welcome to the new rule" card for a save whose levels past 10 were refunded (null when none were). */

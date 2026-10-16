@@ -63,12 +63,18 @@ export const ERA5_7_ICONS: Record<string, string> = {
        <path d="M36 32v8" fill="none"/>
        <rect x="8" y="27" width="34" height="3" rx="1" fill="#c44536" stroke-width="1.6"/>`),
   ),
-  // 0.9.6: era 5's own raw material (ARGON docs/art/05-pig-iron.md): a notched sand-cast bar, three sooty knuckles
-  // split by two ember-orange V-notches, a rusty sand-crust lip and the snapped pour spout
-  pigIron: svg(
-    g(`<path d="M5 30l4 8h30l4-8z" fill="#7a4b3a"/>
-       <path d="M5 30v-10l4-4h7l1 3 2-3h8l2 3 1-3h7l4 4v10z" fill="#4a444b"/>
-       <path d="M16 16l2 14M28 16l2 14" stroke="#e87a3e" stroke-width="3.6"/>
-       <circle cx="24" cy="33" r="3.4" fill="#e87a3e" stroke-width="2"/><circle cx="24" cy="33" r="1.3" fill="#f3a833" stroke-width="0"/>`, 3),
+  // 0.9.7 era resources v2: era 5's iron pellets (a steel tray heaped with rust-red taconite balls) and coke (a porous
+  // silver-grey chunk with warm ember pores, clearly not coal's black lump).
+  pellets: svg(
+    g(`<path d="M5 28h38l-3 12H8z" fill="#5a6973"/>
+       <circle cx="12" cy="25" r="4.5" fill="#a8503a"/><circle cx="21" cy="24" r="4.5" fill="#c46a48"/><circle cx="30" cy="24" r="4.5" fill="#a8503a"/><circle cx="38" cy="25" r="4.5" fill="#8a4232"/>
+       <circle cx="16.5" cy="17" r="4.5" fill="#a8503a"/><circle cx="25.5" cy="16.5" r="4.5" fill="#8a4232"/><circle cx="34" cy="17.5" r="4.5" fill="#c46a48"/>
+       <circle cx="15" cy="34" r="1.3" fill="#d9e0e6" stroke-width="0"/><circle cx="24" cy="34" r="1.3" fill="#d9e0e6" stroke-width="0"/><circle cx="33" cy="34" r="1.3" fill="#d9e0e6" stroke-width="0"/>`),
+  ),
+  coke: svg(
+    g(`<path d="M6 34l3-12 9-8 10 2 9-3 6 10-2 13H9z" fill="#8e8a86"/>
+       <path d="M18 14l10 2-4 9-9-1z" fill="#b2aea8"/><path d="M37 13l6 10-7 2-3-8z" fill="#73706c"/>
+       <circle cx="14" cy="30" r="2.4" fill="#ffa040" stroke-width="1.6"/><circle cx="27" cy="32" r="2" fill="#4a4846" stroke-width="1.4"/>
+       <circle cx="34" cy="28" r="2.4" fill="#ffa040" stroke-width="1.6"/><circle cx="22" cy="24" r="1.8" fill="#4a4846" stroke-width="1.4"/>`),
   ),
 };

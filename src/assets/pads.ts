@@ -1247,6 +1247,8 @@ function drawMaterialIcon(g: CanvasRenderingContext2D, x: number, y: number, kin
       break;
     }
     case 'barrel':
+    case 'flask':
+    case 'fusion':
     case 'cell': {
       roundedRectPath(g, -17, -27, 34, 54, 8);
       g.fill();
@@ -1256,7 +1258,7 @@ function drawMaterialIcon(g: CanvasRenderingContext2D, x: number, y: number, kin
       break;
     }
     case 'crystal':
-    case 'shards':
+    case 'geode':
     case 'core': {
       g.beginPath();
       poly(g, [[0, -29], [22, -8], [14, 26], [-14, 26], [-22, -8]]);
@@ -1283,8 +1285,7 @@ function drawMaterialIcon(g: CanvasRenderingContext2D, x: number, y: number, kin
       }
       break;
     }
-    case 'ingot':
-    case 'pigbar': {
+    case 'ingot': {
       g.beginPath();
       poly(g, [[-30, 14], [-20, -12], [20, -12], [30, 14]]);
       g.fill();

@@ -77,12 +77,12 @@ export const ERAS: readonly (EraDef | null)[] = [
   eraDef(2, 'frontier', 'Stone and brick: the settlement digs in', 'Granite Hollow', ['Quarryman', 'Quarrymen'], 'Brickside', { ground: 0xccd4de, accent: 0xb85239, trim: 0x5c4028, fence: 0x6e5a4f, body: 0x8c857b, glow: 0xffb347, coat: 0x8c4a32 }, { kind: 'crate', count: 40 }, ['Quarries and brick kilns', 'Quarrymen for hire', 'The Brickside district']),
   eraDef(3, 'iron', 'Ore in the hills, fire in the smelters', 'Iron Ridge', ['Miner', 'Miners'], 'Foundry Row', { ground: 0xd0d8e2, accent: 0x4a5559, trim: 0x2f3538, fence: 0x4f4c49, body: 0xa65e46, glow: 0xff9233, coat: 0x5c4d42 }, { kind: 'brick', count: 35 }, ['Iron mines and smelters', 'Miners for hire', 'The Foundry Row district']),
   eraDef(4, 'steam', 'Coal, gears and the hiss of steam', 'Coalbank Basin', ['Stoker', 'Stokers'], 'Steamworks Quarter', { ground: 0xc5ced9, accent: 0xd49a35, trim: 0x383d40, fence: 0x464b4f, body: 0x9e4737, glow: 0xffbe55, coat: 0x783a2d }, { kind: 'iron', count: 40 }, ['Coal pits and steam works', 'Stokers for hire', 'The Steamworks Quarter']),
-  eraDef(5, 'industrial', 'Steel mills light up the night', 'Forge Flats', ['Steelworker', 'Steelworkers'], 'Mill Town', { ground: 0xbac4d0, accent: 0xe08a2b, trim: 0x333c42, fence: 0x525c63, body: 0x5a6973, glow: 0xffd166, coat: 0x485866 }, { kind: 'gear', count: 45 }, ['Deep mines, coke ovens, steel mills', 'Steelworkers for hire', 'The Mill Town district']),
+  eraDef(5, 'industrial', 'Steel mills light up the night', 'Forge Flats', ['Steelworker', 'Steelworkers'], 'Mill Town', { ground: 0xbac4d0, accent: 0xe08a2b, trim: 0x333c42, fence: 0x525c63, body: 0x5a6973, glow: 0xffd166, coat: 0x485866 }, { kind: 'gear', count: 45 }, ['Pellet mines, coke ovens, steel mills', 'Steelworkers for hire', 'The Mill Town district']),
   eraDef(6, 'electric', 'Copper wire hums across the snow', 'Copper Gorge', ['Lineman', 'Linemen'], 'Lamplight Avenue', { ground: 0xb4c0cc, accent: 0xd97f38, trim: 0x2b3b39, fence: 0x5c6b73, body: 0x4c6b68, glow: 0x7ce8c8, coat: 0x3d606e }, { kind: 'steel', count: 50 }, ['Copper mines and wire mills', 'Linemen for hire', 'Lamplight Avenue']),
   eraDef(7, 'oil', 'Black gold under the permafrost', 'Tundra Fields', ['Roughneck', 'Roughnecks'], 'Midtown', { ground: 0xaebac6, accent: 0xc44536, trim: 0x36383a, fence: 0x575552, body: 0xd99b26, glow: 0xffaa5a, coat: 0xb87b28 }, { kind: 'wire', count: 55 }, ['Oil pumps and refineries', 'Roughnecks for hire', 'The Midtown towers']),
   eraDef(8, 'computer', 'Silicon from sand, chips from silicon', 'Silicon Shore', ['Technician', 'Technicians'], 'Glass Heights', { ground: 0xc2ccd6, accent: 0x45858c, trim: 0x4a5259, fence: 0x7c858e, body: 0xe6dec8, glow: 0x66e0a3, coat: 0x4a7585 }, { kind: 'plastic', count: 60 }, ['Sand pits and chip fabs', 'Technicians for hire', 'The Glass Heights district']),
   eraDef(9, 'nuclear', 'Splitting atoms to light a city', 'Atom Valley', ['Atom Tech', 'Atom Techs'], 'Reactor Row', { ground: 0xcbd6e0, accent: 0x4ea885, trim: 0x3d5259, fence: 0x6f828a, body: 0xdce3e6, glow: 0x70f5d9, coat: 0x468275 }, { kind: 'chip', count: 65 }, ['Uranium mines, enrichers, reactors', 'Atom Techs for hire', 'The Reactor Row skyscrapers']),
-  eraDef(10, 'ai', 'Thinking machines build the metropolis', 'Neural Plateau', ['Robot', 'Robots'], 'Metropolis Core', { ground: 0xcad4e0, accent: 0xe8a848, trim: 0x526475, fence: 0x8fa1b3, body: 0xf5f0e6, glow: 0xffe082, coat: 0x637a91 }, { kind: 'power', count: 70 }, ['Fusion plants, nano fabs, data centers, robot works', 'Robots for hire', 'The Metropolis Core']),
+  eraDef(10, 'ai', 'Thinking machines build the metropolis', 'Neural Plateau', ['Robot', 'Robots'], 'Metropolis Core', { ground: 0xcad4e0, accent: 0xe8a848, trim: 0x526475, fence: 0x8fa1b3, body: 0xf5f0e6, glow: 0xffe082, coat: 0x637a91 }, { kind: 'power', count: 70 }, ['Geode mines, helium skimmers, fusion reactors, robot works', 'Robots for hire', 'The Metropolis Core']),
 ];
 
 /** Era n (2..10) definition; throws on other numbers. */
@@ -103,12 +103,12 @@ export type MaterialShape =
   | 'tile' | 'hearth' | 'tools' | 'rail' | 'boiler' | 'engine'
   // 0.9.5 era 5-7 (assets/eraItems5to7.ts)
   | 'girder' | 'plow' | 'bulb' | 'radio' | 'canister' | 'jerrycan' | 'snowmobile'
-  // 0.9.6 pig iron (ARGON docs/art/05-pig-iron.md)
-  | 'pigbar'
+  // 0.9.7 era 5 iron pellets (a tray of taconite balls) and coke (assets/eraItems5to7.ts)
+  | 'taconite' | 'coke'
   // 0.9.5 era 8-10 (assets/eraItems8to10.ts)
   | 'computer'
-  // 0.9.6 data shards (ARGON docs/art/10-data-shards.md)
-  | 'shards';
+  // 0.9.7 era 10 rare earth (a cracked geode), helium-3 (a cryo flask) and fusion cells (assets/eraItems8to10.ts)
+  | 'geode' | 'flask' | 'fusion';
 
 export interface MaterialDef {
   kind: MaterialKind;
@@ -184,9 +184,14 @@ export const MATERIALS: Record<MaterialKind, MaterialDef> = {
   graphite: mat('graphite', 'Graphite', 9, 'raw', RAW(9) * 1.3, 'block', 0x4a494e, 0x6e6c73, 0.36, 0.24, 0.3),
   battery: mat('battery', 'Batteries', 9, 'refined', REF(9) * 1.6, 'cell', 0x4ea885, 0xe8b341, 0.32, 0.4, 0.32),
   quantumCore: mat('quantumCore', 'Quantum Cores', 10, 'refined', REF(10) * 3.2, 'core', 0xb9a6e0, 0xe8a848, 0.36, 0.36, 0.36),
-  // 0.9.6 (decision 15): era 5's and era 10's own raw material (era 5 used to mine era 3's ore, era 10 era 9's power)
-  pigIron: mat('pigIron', 'Pig Iron', 5, 'raw', RAW(5), 'pigbar', 0x4a444b, 0xe87a3e, 0.44, 0.16, 0.22),
-  dataShard: mat('dataShard', 'Data Shards', 10, 'raw', RAW(10), 'shards', 0x9b4dca, 0xf3a833, 0.36, 0.3, 0.3),
+  // 0.9.7 era resources v2 (audit-1.0/era-resources-v2.md, approved 2026-10-16): each era's whole look revolves around
+  // its own raw materials. Era 5: rust-red taconite pellets + coke from the ovens. Era 10: lavender rare earth +
+  // helium-3 skimmed from the frost vents, fused into fusion cells.
+  pellets: mat('pellets', 'Iron Pellets', 5, 'raw', RAW(5), 'taconite', 0xa8503a, 0x5a6973, 0.4, 0.2, 0.32),
+  coke: mat('coke', 'Coke', 5, 'raw', RAW(5), 'coke', 0x8e8a86, 0xffa040, 0.38, 0.26, 0.34),
+  rareEarth: mat('rareEarth', 'Rare Earth', 10, 'raw', RAW(10), 'geode', 0xb9a0e0, 0xe8c46a, 0.36, 0.3, 0.32),
+  helium3: mat('helium3', 'Helium-3', 10, 'raw', RAW(10), 'flask', 0xf5efe2, 0xffc69a, 0.3, 0.4, 0.3),
+  fusionCell: mat('fusionCell', 'Fusion Cells', 10, 'refined', REF(10) * 0.5, 'fusion', 0xf5f0e6, 0xf2b644, 0.34, 0.3, 0.34),
 };
 
 export function isMaterial(kind: ItemKind): kind is MaterialKind {
@@ -227,7 +232,7 @@ export type MachineId =
   | 'oilPump' | 'refinery' | 'gasWell' | 'cracker' | 'snowmobileWorks'
   | 'sandPit' | 'chipFab'
   | 'uraniumMine' | 'enricher' | 'reactor'
-  | 'fusionPlant' | 'nanoFab' | 'dataCenter' | 'robotWorks'
+  | 'fusionPlant' | 'nanoFab' | 'dataCenter' | 'robotWorks' | 'heliumSkimmer'
   // 0.9.5 eras 8-10 (models: assets/eraMachines4.ts)
   | 'goldPanner' | 'boardShop' | 'pcAssembly'
   | 'graphitePit' | 'batteryPlant'
@@ -267,9 +272,10 @@ export const MACHINE_PILES = {
 /**
  * 0.9.6: every era's machine cycles × this (index = era). The 0.9.6 recipes balance each chain (one extractor feeds its
  * processor, F3) and so make more per second; this pace keeps each era's pacing-model length (tests/pacing.test.ts)
- * where 0.9.5 had it. Solved with the pacing model; the economy re-tune may move it.
+ * where 0.9.5 had it. Solved with the pacing model; the economy re-tune may move it. 0.9.7: era 5 at 1.3, since its
+ * pellets and coke sell at era-5 prices (the old coke ovens made era-4 coal); config CLIMB.bandTilt re-solved with it.
  */
-export const ERA_PACE: readonly number[] = [1, 1, 1.16, 2.1, 1.66, 0.88, 2.38, 1, 1.7, 1.07, 0.86];
+export const ERA_PACE: readonly number[] = [1, 1, 1.16, 2.1, 1.66, 1.3, 2.38, 1, 1.7, 1.07, 0.86];
 
 function machine(id: MachineId, n: number, kind: 'extractor' | 'processor', label: string, blurb: string, inputs: { kind: ItemKind; per: number }[], output: ItemKind, batch: number, cycle: number, costShare: number, extra: { kind: ItemKind; count: number } | undefined, style: string): MachineDef {
   const cash = Math.round((unlockCash(n) * costShare) / 1000) * 1000;
@@ -293,9 +299,10 @@ export const MACHINES: Record<MachineId, MachineDef> = {
   scrapYard: machine('scrapYard', 4, 'extractor', 'Scrap Yard', 'A magnet crane sorts old iron, two loads at a time', [], 'scrap', 2, 2.4, 0.1, { kind: 'coal', count: 8 }, 'magnet crane over a scrap heap'),
   boilerShop: machine('boilerShop', 4, 'processor', 'Boiler Shop', 'Scrap + coal → a riveted boiler', [{ kind: 'scrap', per: 1 }, { kind: 'coal', per: 1 }], 'boiler', 1, 2.6, 0.18, { kind: 'scrap', count: 12 }, 'riveting shed with a boiler on blocks'),
   engineWorks: machine('engineWorks', 4, 'processor', 'Engine Works', 'Gears + a boiler → a steam engine', [{ kind: 'gear', per: 1 }, { kind: 'boiler', per: 1 }], 'steamEngine', 1, 3.0, 0.25, { kind: 'gear', count: 8 }, 'erecting hall with a test engine'),
-  deepMine: machine('deepMine', 5, 'extractor', 'Deep Mine', 'A steel headframe brings up pig iron, two at a time', [], 'pigIron', 2, 2.0, 0.08, undefined, 'steel lattice headframe'),
-  cokeOven: machine('cokeOven', 5, 'extractor', 'Coke Ovens', 'A battery of ovens baking coal', [], 'coal', 2, 2.0, 0.08, undefined, 'row of brick ovens + quench tower'),
-  steelMill: machine('steelMill', 5, 'processor', 'Steel Mill', 'Pig iron + 2 coal → two steel beams', [{ kind: 'pigIron', per: 1 }, { kind: 'coal', per: 2 }], 'steel', 2, 2.6, 0.18, { kind: 'coal', count: 16 }, 'converter vessel pouring sparks, tall stack'),
+  // 0.9.7: era 5 runs on taconite pellets + coke (era resources v2). Ids stay, so saved levels and slots carry over.
+  deepMine: machine('deepMine', 5, 'extractor', 'Pellet Mine', 'A steel headframe brings up rust-red taconite pellets', [], 'pellets', 1, 2.0, 0.08, undefined, 'steel lattice headframe over a pellet ridge'),
+  cokeOven: machine('cokeOven', 5, 'extractor', 'Coke Ovens', 'A battery of glowing ovens bakes coke', [], 'coke', 1, 2.0, 0.08, undefined, 'row of brick ovens + quench tower'),
+  steelMill: machine('steelMill', 5, 'processor', 'Steel Mill', '2 iron pellets + coke → two steel beams', [{ kind: 'pellets', per: 2 }, { kind: 'coke', per: 1 }], 'steel', 2, 2.6, 0.18, { kind: 'coke', count: 16 }, 'converter vessel pouring sparks, tall stack'),
   rollingMill: machine('rollingMill', 5, 'processor', 'Rolling Mill', 'Steel → a riveted girder', [{ kind: 'steel', per: 1 }], 'girder', 1, 2.8, 0.2, { kind: 'steel', count: 12 }, 'roller stands with a red-hot bar'),
   plowWorks: machine('plowWorks', 5, 'processor', 'Plow Works', 'Girder + steel → a snowplow', [{ kind: 'girder', per: 1 }, { kind: 'steel', per: 1 }], 'snowplow', 1, 3.4, 0.28, { kind: 'girder', count: 6 }, 'assembly shed, plow blade on a hoist'),
   copperMine: machine('copperMine', 6, 'extractor', 'Copper Mine', 'An electric hoist lifts copper ore', [], 'copper', 1, 1.8, 0.1, undefined, 'electric hoist tower with pylons'),
@@ -313,17 +320,21 @@ export const MACHINES: Record<MachineId, MachineDef> = {
   uraniumMine: machine('uraniumMine', 9, 'extractor', 'Uranium Mine', 'Robotic diggers in lead-lined suits', [], 'uranium', 1, 1.8, 0.1, undefined, 'shielded headframe, hazard stripes'),
   enricher: machine('enricher', 9, 'processor', 'Enrichment Plant', '2 uranium → a fuel rod', [{ kind: 'uranium', per: 2 }], 'fuelRod', 1, 2.6, 0.18, { kind: 'uranium', count: 12 }, 'centrifuge cascade hall'),
   reactor: machine('reactor', 9, 'processor', 'Reactor', 'A fuel rod → 3 power cells', [{ kind: 'fuelRod', per: 1 }], 'power', 3, 3.2, 0.25, { kind: 'fuelRod', count: 6 }, 'cooling tower + containment dome'),
-  fusionPlant: machine('fusionPlant', 10, 'extractor', 'Fusion Plant', 'A tokamak spins out power cells', [], 'power', 1, 2.0, 0.08, undefined, 'torus ring reactor with glow'),
-  nanoFab: machine('nanoFab', 10, 'extractor', 'Nano Fab', 'Grows glowing data shards', [], 'dataShard', 1, 2.0, 0.08, undefined, 'sleek block with holo panels'),
-  dataCenter: machine('dataCenter', 10, 'processor', 'Data Center', 'Data shard + power cell → an AI core', [{ kind: 'dataShard', per: 1 }, { kind: 'power', per: 1 }], 'aiCore', 1, 3.0, 0.2, { kind: 'dataShard', count: 10 }, 'server halls with blinking racks'),
-  robotWorks: machine('robotWorks', 10, 'processor', 'Robot Works', 'AI core + data shard → a robot', [{ kind: 'aiCore', per: 1 }, { kind: 'dataShard', per: 1 }], 'robot', 1, 3.4, 0.25, { kind: 'aiCore', count: 4 }, 'assembly hall with robot arms'),
+  // 0.9.7: era 10 runs on rare earth + helium-3, fused into fusion cells (era resources v2). The fusion plant became
+  // the Fusion Reactor (a processor), fed by the new Helium Skimmer. The Neural Fab makes two AI cores a cycle, since
+  // both the Robot Works and the Quantum Lab use them. Extractors first, then chain order (core/pacing.ts relies on it).
+  nanoFab: machine('nanoFab', 10, 'extractor', 'Geode Mine', 'Nano drills cut lavender rare-earth crystals out of the geodes', [], 'rareEarth', 1, 2.0, 0.08, undefined, 'sleek block with holo panels'),
+  heliumSkimmer: machine('heliumSkimmer', 10, 'extractor', 'Helium Skimmer', 'A gold ring skims helium-3 from the shimmering frost vents', [], 'helium3', 1, 2.0, 0.08, undefined, 'cream dome hood over a vent, gold collector ring'),
+  fusionPlant: machine('fusionPlant', 10, 'processor', 'Fusion Reactor', 'Helium-3 → two fusion cells', [{ kind: 'helium3', per: 1 }], 'fusionCell', 2, 2.6, 0.18, { kind: 'helium3', count: 10 }, 'torus ring reactor with glow'),
+  dataCenter: machine('dataCenter', 10, 'processor', 'Neural Fab', 'Rare earth + a fusion cell → two AI cores', [{ kind: 'rareEarth', per: 1 }, { kind: 'fusionCell', per: 1 }], 'aiCore', 2, 3.4, 0.2, { kind: 'rareEarth', count: 10 }, 'server halls with blinking racks'),
+  robotWorks: machine('robotWorks', 10, 'processor', 'Robot Works', 'AI core + rare-earth magnets → a robot', [{ kind: 'aiCore', per: 1 }, { kind: 'rareEarth', per: 1 }], 'robot', 1, 3.4, 0.25, { kind: 'aiCore', count: 4 }, 'assembly hall with robot arms'),
   // 0.9.5 eras 8-10: second extractor, second processor and premium line of each era (docs/EXPANSION.md §D)
   goldPanner: machine('goldPanner', 8, 'extractor', 'Gold Panner', 'A rocker sluice washes gold out of the shore', [], 'gold', 1, 2.2, 0.12, undefined, 'rocker sluice with a spinning pan'),
   boardShop: machine('boardShop', 8, 'processor', 'Board Shop', 'Chip + gold → a circuit board', [{ kind: 'chip', per: 1 }, { kind: 'gold', per: 1 }], 'board', 1, 2.8, 0.2, { kind: 'gold', count: 10 }, 'solder line with a pick-and-place head'),
   pcAssembly: machine('pcAssembly', 8, 'processor', 'PC Assembly', 'Board + chip → a cosy home computer', [{ kind: 'board', per: 1 }, { kind: 'chip', per: 1 }], 'computer', 1, 3.4, 0.28, { kind: 'board', count: 8 }, 'assembly bench with a test screen'),
   graphitePit: machine('graphitePit', 9, 'extractor', 'Graphite Pit', 'A dragline scoops soft graphite', [], 'graphite', 1, 2.2, 0.12, undefined, 'dragline over a dark pit'),
   batteryPlant: machine('batteryPlant', 9, 'processor', 'Battery Plant', 'Power cell + graphite → a big battery', [{ kind: 'power', per: 1 }, { kind: 'graphite', per: 1 }], 'battery', 1, 3.2, 0.28, { kind: 'graphite', count: 10 }, 'stacking press with a charge rack'),
-  quantumLab: machine('quantumLab', 10, 'processor', 'Quantum Lab', 'AI core + power cell → a quantum core', [{ kind: 'aiCore', per: 1 }, { kind: 'power', per: 1 }], 'quantumCore', 1, 3.8, 0.3, { kind: 'aiCore', count: 6 }, 'gold chandelier cryostat'),
+  quantumLab: machine('quantumLab', 10, 'processor', 'Quantum Lab', 'AI core + helium-3 to keep it cold → a quantum core', [{ kind: 'aiCore', per: 1 }, { kind: 'helium3', per: 1 }], 'quantumCore', 1, 3.8, 0.3, { kind: 'aiCore', count: 6 }, 'gold chandelier cryostat'),
 };
 export const MACHINE_IDS = Object.keys(MACHINES) as MachineId[];
 export const machinesOfEra = (n: number): MachineId[] => MACHINE_IDS.filter((id) => MACHINES[id].era === n);
