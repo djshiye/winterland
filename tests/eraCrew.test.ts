@@ -201,13 +201,23 @@ describe('planPath', () => {
     expect(planPath(L, L.dock, L.dock)).toEqual([L.dock]);
   });
 
-  it('idle posts of a full seven-role crew are distinct, a loose grid around the band at the depot', () => {
-    const L = regionLayout(2);
-    const spots = Array.from({ length: 25 }, (_, i) => idleSpot(L, i));
-    expect(new Set(spots.map((p) => `${p.x.toFixed(2)},${p.z.toFixed(2)}`)).size).toBe(25);
-    for (const p of spots) {
-      expect(Math.abs(p.z - L.depot.z)).toBeLessThanOrEqual(1.7 + 1e-9);
-      expect(Math.abs(p.x - L.gate.x)).toBeLessThanOrEqual(2.6 + 1e-9);
+  it('idle posts of a full seven-role crew are distinct, in a line along the yard edge, off the gate path', () => {
+    for (let n = 2; n <= 10; n++) {
+      const L = regionLayout(n);
+      const y = L.zones.yard;
+      const spots = Array.from({ length: 25 }, (_, i) => idleSpot(L, i));
+      expect(new Set(spots.map((p) => `${p.x.toFixed(2)},${p.z.toFixed(2)}`)).size, `era ${n}`).toBe(25);
+      for (const p of spots) {
+        expect(p.x).toBeGreaterThan(y.minX);
+        expect(p.x).toBeLessThan(y.maxX);
+        expect(p.z).toBeGreaterThan(y.minZ);
+        expect(p.z).toBeLessThan(y.maxZ);
+        expect(Math.abs(p.x - L.gate.x)).toBeGreaterThanOrEqual(2);
+        // clear of the yard's facilities (depot, dock, Jack, the shop mat sit at the band's middle)
+        expect(Math.abs(p.z - L.depot.z)).toBeGreaterThan(2);
+      }
+      // a small crew waits near the gate, not at the far end of the yard
+      expect(Math.abs(spots[0]!.x - L.gate.x)).toBeLessThan(4.5);
     }
   });
 });

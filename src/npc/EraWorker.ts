@@ -376,14 +376,27 @@ export function planPath(L: RegionLayout, a: XZ, b: XZ): XZ[] {
   return out;
 }
 
+/** Spacing of the idle posts along the yard's inner edge (metres), and the gap kept clear around the gate's way in. */
+const IDLE_STEP = 1.9;
+const IDLE_GATE_GAP = 2.2;
+
 /**
- * The idle post of worker `index` in the front-yard band (between the dock and Jack's cart): a loose 5-wide grid
- * around the band's middle, so a full seven-role crew (up to 21) gathers without overlapping.
+ * The idle post of worker `index`: a line along the yard's inner edge (between the yard's facilities and the first
+ * machine row's belt lane), nearest the gate first but never on the way in, a second line just behind it when the
+ * first is full. A full seven-role crew (up to 21) waits spread out like workers by their stations, not in a crowd.
  */
 export function idleSpot(L: RegionLayout, index: number): XZ {
-  const col = (index % 5) - 2;
-  const row = Math.floor(index / 5) % 5;
-  return { x: L.gate.x + col * 1.05 + (row % 2) * 0.5, z: L.depot.z + (row - 2) * 0.85 };
+  const y = L.zones.yard;
+  const innerZ = L.inward > 0 ? y.maxZ : y.minZ;
+  const xs: number[] = [];
+  for (let x = y.minX + 2; x <= y.maxX - 2 + 1e-9; x += IDLE_STEP) if (Math.abs(x - L.gate.x) >= IDLE_GATE_GAP) xs.push(x);
+  xs.sort((a, b) => Math.abs(a - L.gate.x) - Math.abs(b - L.gate.x) || a - b);
+  const per = Math.max(1, xs.length);
+  const line = Math.floor(index / per) % 2;
+  const x = xs[index % per]!;
+  // the second line sits staggered, half a step further from the gate (and still inside the yard)
+  const shift = line * (IDLE_STEP / 2) * (x >= L.gate.x ? 1 : -1);
+  return { x: Math.min(y.maxX - 1, Math.max(y.minX + 1, x + shift)), z: innerZ - L.inward * (0.6 + line * 0.9) };
 }
 
 // --- the worker -----------------------------------------------------------------------------------------------------
