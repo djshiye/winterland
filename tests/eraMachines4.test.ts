@@ -24,14 +24,14 @@ function bounds(o: THREE.Object3D): THREE.Box3 {
 }
 
 describe('era 8–10 machine models', () => {
-  it('covers the nine new machines and is in the gallery', () => {
-    expect(ERA4_MACHINE_IDS).toHaveLength(9);
+  it('covers the ten new machines and is in the gallery', () => {
+    expect(ERA4_MACHINE_IDS).toHaveLength(10);
     expect(ERA4_MACHINE_IDS.filter((id) => ERA4_MACHINES[id].era === 8)).toHaveLength(4);
     expect(ERA4_MACHINE_IDS.filter((id) => ERA4_MACHINES[id].era === 9)).toHaveLength(3);
-    expect(ERA4_MACHINE_IDS.filter((id) => ERA4_MACHINES[id].era === 10)).toHaveLength(2);
+    expect(ERA4_MACHINE_IDS.filter((id) => ERA4_MACHINES[id].era === 10)).toHaveLength(3);
     for (const id of ERA4_MACHINE_IDS) expect(eraMachine4Catalog[id]).toBeTypeOf('function');
     expect(ASSET_CATALOG.eraMachines4).toBe(eraMachine4Catalog);
-    expect(meshes(eraMachine4Catalog.eras8to10!()).length).toBe(27);
+    expect(meshes(eraMachine4Catalog.eras8to10!()).length).toBe(30);
   });
 
   for (const id of ERA4_MACHINE_IDS) {
