@@ -70,6 +70,7 @@ export class Counter {
       accepts: [this.displayKind],
       position: new THREE.Vector3(0, opts.height, 0),
       parent: this.object,
+      occlude: true,
       grid: opts.grid,
     });
     this.input =

@@ -1,0 +1,274 @@
+{
+  "era": 4,
+  "name": "Steam Age",
+  "materials": [
+    {
+      "id": "coal",
+      "new": false,
+      "shape": "lump",
+      "colors": ["#2c2b2e", "#4a484d"]
+    },
+    {
+      "id": "scrap",
+      "new": true,
+      "shape": "scrap",
+      "size": [0.38, 0.24, 0.32],
+      "colors": ["#8e4030", "#b08a3e", "#5d6268"],
+      "detail": "Twisted brass tubing, stamped boiler rivets, and cut sheet iron offcuts bundled with wire",
+      "icon": "Bundle of curled brass tubing and cut metal scrap tied with wire"
+    },
+    {
+      "id": "gear",
+      "new": false,
+      "shape": "gear",
+      "colors": ["#b08a3e", "#6f5a2c"]
+    },
+    {
+      "id": "boiler",
+      "new": true,
+      "shape": "boiler",
+      "size": [0.38, 0.34, 0.34],
+      "colors": ["#8e4030", "#b08a3e", "#2f2b2b"],
+      "detail": "Cylindrical riveted steel boiler drum with polished brass fittings and pressure dial",
+      "icon": "Chunky steam boiler with twin brass pressure gauge needles and safety valve"
+    },
+    {
+      "id": "steamEngine",
+      "new": true,
+      "shape": "steamEngine",
+      "size": [0.44, 0.32, 0.32],
+      "colors": ["#3a3532", "#b08a3e", "#b5543c", "#f4f7fb"],
+      "detail": "Compact horizontal steam cylinder driving a brass counterbalanced flywheel",
+      "icon": "Toy steam engine with gleaming brass flywheel and rocker arm"
+    }
+  ],
+  "machines": [
+    {
+      "id": "coalPit",
+      "new": false,
+      "parts": [
+        { "name": "crane", "primitive": "box", "size": [4.6, 3.8, 4.4], "pos": [0, 1.9, 0], "color": "#2c2b2e" }
+      ],
+      "colors": ["#2c2b2e", "#b08a3e"]
+    },
+    {
+      "id": "scrapYard",
+      "new": true,
+      "role": "extractor",
+      "footprint": [4.8, 4.6],
+      "height": 3.6,
+      "parts": [
+        { "name": "timberYardEnclosure", "primitive": "box", "size": [4.4, 0.8, 4.2], "pos": [0, 0.4, 0], "color": "#3a3532" },
+        { "name": "scrapMetalMound", "primitive": "sphere", "size": [2.6, 1.4, 2.4], "pos": [-0.6, 1.0, -0.4], "color": "#5d6268" },
+        { "name": "sortingTable", "primitive": "box", "size": [1.4, 0.8, 1.0], "pos": [1.2, 0.6, 0.8], "color": "#6d5a48" },
+        { "name": "derrickPost", "primitive": "cylinder", "size": [0.3, 3.2, 0.3], "pos": [-1.2, 1.6, 1.0], "color": "#2f2b2b" },
+        { "name": "sheetIronShelter", "primitive": "box", "size": [2.2, 0.2, 1.8], "pos": [1.0, 2.6, 0.6], "color": "#8e4030" },
+        { "name": "snowDrapedRim", "primitive": "box", "size": [4.5, 0.18, 4.3], "pos": [0, 0.85, 0], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "keroseneLamp", "primitive": "sphere", "size": [0.26, 0.26, 0.26], "pos": [1.2, 1.6, 0.8], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "craneJibArm",
+        "pivot": [-1.2, 3.0, 1.0],
+        "motion": "swing",
+        "period": 2.4
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "steamWorks",
+      "new": false,
+      "parts": [
+        { "name": "hall", "primitive": "box", "size": [4.6, 3.8, 4.2], "pos": [0, 1.9, 0], "color": "#8e4030" }
+      ],
+      "colors": ["#8e4030", "#b08a3e", "#3a3532"]
+    },
+    {
+      "id": "boilerShop",
+      "new": true,
+      "role": "processor",
+      "footprint": [4.8, 4.6],
+      "height": 4.2,
+      "parts": [
+        { "name": "brickShopHall", "primitive": "box", "size": [4.2, 2.2, 3.8], "pos": [0, 1.1, -0.2], "color": "#8e4030" },
+        { "name": "boilerCradleStand", "primitive": "cylinder", "size": [1.8, 1.2, 2.4], "pos": [0.6, 1.2, 0.4], "color": "#2f2b2b" },
+        { "name": "twinSteamStax", "primitive": "cylinder", "size": [0.4, 2.0, 0.4], "pos": [-1.2, 3.2, -1.2], "color": "#3a3532" },
+        { "name": "twinSteamStaxR", "primitive": "cylinder", "size": [0.4, 2.0, 0.4], "pos": [-0.5, 3.2, -1.2], "color": "#3a3532" },
+        { "name": "overheadCraneRail", "primitive": "box", "size": [3.8, 0.3, 0.4], "pos": [0, 2.9, 0.2], "color": "#b08a3e" },
+        { "name": "snowPitchedRoof", "primitive": "box", "size": [4.4, 0.25, 4.0], "pos": [0, 2.3, -0.2], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "rivetingFurnaceGlow", "primitive": "box", "size": [0.8, 0.5, 0.4], "pos": [-1.2, 0.8, 1.2], "color": "#ff8a30" },
+        { "name": "boilerPressureDial", "primitive": "sphere", "size": [0.24, 0.24, 0.24], "pos": [0.6, 2.0, 1.4], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "rivetingHammerPivot",
+        "pivot": [0.6, 2.6, 0.4],
+        "motion": "bob",
+        "period": 1.2
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "engineWorks",
+      "new": true,
+      "role": "premium",
+      "footprint": [5.0, 4.8],
+      "height": 4.4,
+      "parts": [
+        { "name": "factoryFoundryHall", "primitive": "box", "size": [4.4, 2.6, 4.0], "pos": [0, 1.3, -0.2], "color": "#8e4030" },
+        { "name": "engineAssemblyPlinth", "primitive": "box", "size": [2.4, 0.8, 1.8], "pos": [0.4, 0.6, 0.6], "color": "#3a3532" },
+        { "name": "steamDomeChimney", "primitive": "cylinder", "size": [0.6, 2.2, 0.6], "pos": [-1.4, 3.4, -0.8], "color": "#b08a3e" },
+        { "name": "brassWhistleValves", "primitive": "cylinder", "size": [0.15, 0.6, 0.15], "pos": [-1.4, 4.4, -0.6], "color": "#b08a3e" },
+        { "name": "archedWindowFrame", "primitive": "box", "size": [1.6, 1.2, 0.2], "pos": [0, 2.0, 1.82], "color": "#2f2b2b" },
+        { "name": "steepSnowRoof", "primitive": "box", "size": [4.6, 0.28, 4.2], "pos": [0, 2.75, -0.2], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "factoryHallWindows", "primitive": "box", "size": [1.4, 1.0, 0.1], "pos": [0, 2.0, 1.8], "color": "#ffd070" },
+        { "name": "furnaceBreech", "primitive": "sphere", "size": [0.35, 0.35, 0.35], "pos": [0.4, 0.6, 1.4], "color": "#ff8a30" }
+      ],
+      "anim": {
+        "part": "largeFlywheel",
+        "pivot": [-1.3, 1.4, 0.6],
+        "motion": "spin",
+        "period": 1.5
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "pneumaticTubes",
+      "new": true,
+      "role": "cash",
+      "footprint": [4.4, 4.2],
+      "height": 3.6,
+      "parts": [
+        { "name": "mahoganyPlinth", "primitive": "box", "size": [3.8, 0.5, 3.6], "pos": [0, 0.25, 0], "color": "#8e4030" },
+        { "name": "brassTerminalConsole", "primitive": "box", "size": [2.6, 1.6, 2.0], "pos": [0, 1.3, -0.2], "color": "#3a3532" },
+        { "name": "pneumaticTubeArches", "primitive": "torus", "size": [1.4, 0.16, 1.4], "pos": [0, 2.8, -0.2], "color": "#b08a3e" },
+        { "name": "vacuumReservoirTank", "primitive": "cylinder", "size": [0.8, 1.8, 0.8], "pos": [1.2, 1.5, -0.8], "color": "#2f2b2b" },
+        { "name": "canisterDropCage", "primitive": "box", "size": [0.8, 0.8, 0.6], "pos": [0, 1.2, 0.9], "color": "#b08a3e" },
+        { "name": "snowCornice", "primitive": "box", "size": [2.8, 0.16, 2.2], "pos": [0, 2.2, -0.2], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "vacuumPressureGauges", "primitive": "sphere", "size": [0.24, 0.24, 0.24], "pos": [-0.6, 1.8, 0.85], "color": "#ffd070" },
+        { "name": "dispatchLight", "primitive": "sphere", "size": [0.18, 0.18, 0.18], "pos": [0, 2.2, 0.85], "color": "#ff8a30" }
+      ],
+      "anim": {
+        "part": "vacuumPumpRocker",
+        "pivot": [1.2, 2.5, -0.8],
+        "motion": "swing",
+        "period": 1.6
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    }
+  ],
+  "workers": [
+    {
+      "role": "hauler",
+      "title": "Stoker",
+      "hat": "sooty engineer cap + #2f2b2b",
+      "coat": "#3a3532",
+      "prop": "heavy coal scoop shovel + [0.22, 0.85, 0.12] + #4a484d",
+      "anim": "strenuous bending scoop and forward shoveling swing"
+    },
+    {
+      "role": "feeder",
+      "title": "Coal Heaver",
+      "hat": "leather sou'wester + #3d342d",
+      "coat": "#4a423d",
+      "prop": "wide-mouth scuttle bucket + [0.35, 0.45, 0.35] + #2c2b2e",
+      "anim": "heaving loaded coal bucket up and tilting to dump"
+    },
+    {
+      "role": "shipper",
+      "title": "Engine Driver",
+      "hat": "brass-badged locomotive cap + #1e2530",
+      "coat": "#2e3b4e",
+      "prop": "brass oiling can with long spout + [0.12, 0.35, 0.12] + #b08a3e",
+      "anim": "confident trainman walk holding oiler at the ready"
+    },
+    {
+      "role": "porter",
+      "title": "Navvy",
+      "hat": "heavy wool cap + #423832",
+      "coat": "#5c4d40",
+      "prop": "forged steel claw bar + [0.1, 0.9, 0.1] + #5d6268",
+      "anim": "levering railway ballast with shoulder rhythm"
+    },
+    {
+      "role": "clerk",
+      "title": "Bookkeeper",
+      "hat": "stiff green eyeshade + #2f5c38",
+      "coat": "#403833",
+      "prop": "brass-bound ledger volume + [0.24, 0.34, 0.08] + #8a5a3b",
+      "anim": "dipping steel nib pen and checking column totals"
+    },
+    {
+      "role": "foreman",
+      "title": "Chief Engineer",
+      "hat": "high peaked officer cap with brass band + #262422",
+      "coat": "#54463c",
+      "prop": "brass slide rule and calipers + [0.1, 0.35, 0.05] + #b08a3e",
+      "anim": "measuring blueprints with calibrated brass calipers"
+    },
+    {
+      "role": "gatherer",
+      "title": "Coal Picker",
+      "hat": "protective slouch cap + #38332e",
+      "coat": "#4c433c",
+      "prop": "spiked coal pick + [0.2, 0.55, 0.08] + #6d5a48",
+      "anim": "precise chipped strikes teasing apart layered coal lumps"
+    }
+  ],
+  "gear": [
+    {
+      "slot": "carry",
+      "name": "Coal Scuttle",
+      "look": "Flared blackened sheet-iron bucket with arched brass swing handle",
+      "colors": ["#2c2b2e", "#b08a3e", "#4a484d"]
+    },
+    {
+      "slot": "boots",
+      "name": "Steam Skates",
+      "look": "Leather boots mounted on brass rail skates with miniature trailing steam exhausts",
+      "colors": ["#5c3b22", "#b08a3e", "#f4f7fb"]
+    },
+    {
+      "slot": "tool",
+      "name": "Coal Shovel",
+      "look": "Wide tempered steel pan shovel with polished oak D-grip handle",
+      "colors": ["#3d3a3a", "#8a5a3b", "#5d6268"]
+    }
+  ],
+  "pet": {
+    "name": "Brass Terrier",
+    "parts": [
+      { "name": "clockworkBody", "primitive": "capsule", "size": [0.45, 0.65, 0.42], "pos": [0, 0.5, 0], "color": "#b08a3e" },
+      { "name": "rivetedHead", "primitive": "box", "size": [0.24, 0.3, 0.32], "pos": [0, 0.75, 0.3], "color": "#d9b25a" },
+      { "name": "snoutExhaust", "primitive": "cylinder", "size": [0.1, 0.15, 0.1], "pos": [0, 0.65, 0.48], "color": "#3a3532" },
+      { "name": "copperEars", "primitive": "cone", "size": [0.08, 0.2, 0.08], "pos": [-0.1, 0.95, 0.25], "color": "#b08a3e" },
+      { "name": "copperEarsR", "primitive": "cone", "size": [0.08, 0.2, 0.08], "pos": [0.1, 0.95, 0.25], "color": "#b08a3e" },
+      { "name": "gearLegs", "primitive": "cylinder", "size": [0.08, 0.35, 0.08], "pos": [-0.15, 0.18, 0.18], "color": "#3a3532" },
+      { "name": "springTail", "primitive": "cylinder", "size": [0.04, 0.3, 0.04], "pos": [0, 0.65, -0.3], "color": "#d9b25a" },
+      { "name": "snowSaddle", "primitive": "box", "size": [0.38, 0.06, 0.45], "pos": [0, 0.72, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#b08a3e", "#d9b25a", "#3a3532", "#f4f7fb"],
+    "anim": "Peppy mechanical trot with clicking paw joints, wagging copper tail and tiny steam puff from snout"
+  },
+  "node": {
+    "name": "Coal Seam",
+    "parts": [
+      { "name": "sandstoneBase", "primitive": "sphere", "size": [2.2, 1.6, 2.0], "pos": [0, 0.8, 0], "color": "#8a8580" },
+      { "name": "anthraciteLedge", "primitive": "box", "size": [1.4, 0.8, 1.2], "pos": [0.5, 0.6, 0.4], "color": "#2c2b2e" },
+      { "name": "shaleFissure", "primitive": "box", "size": [1.1, 0.6, 0.8], "pos": [-0.6, 0.8, -0.3], "color": "#4a484d" },
+      { "name": "frostCap", "primitive": "sphere", "size": [1.6, 0.35, 1.4], "pos": [0, 1.65, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#2c2b2e", "#4a484d", "#8a8580", "#f4f7fb"],
+    "anim": "Sharp crystalline fracturing with soot puffs and glistening pitch fragments dislodging"
+  }
+}

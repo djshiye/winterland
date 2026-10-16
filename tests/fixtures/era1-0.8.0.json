@@ -1,0 +1,353 @@
+{
+  "_note": "Era-1 tables frozen at v0.8.0 (the 22 Survival ids, DEMAND, VILLAGE, QUARTERS) plus jack as of 0.9.0. Infinity is stored as \"Infinity\". Never regenerate: a diff here means era 1 changed.",
+  "upgrades": {
+    "carry": {
+      "values": [10, 13, 16, 19, 22, 25, 28, 31, 35, 40],
+      "costs": [100, 300, 800, 2000, 5000, 9000, 15000, 24000, 38000],
+      "maxLevel": 9,
+      "describe": ["10 items", "13 items", "16 items", "19 items", "22 items", "25 items", "28 items", "31 items", "35 items", "40 items"]
+    },
+    "dog": {
+      "values": [0, 2, 3, 4, 6],
+      "costs": [2500, 9000, 25000, 60000],
+      "maxLevel": 4,
+      "describe": ["0 extra items", "2 extra items", "3 extra items", "4 extra items", "6 extra items"]
+    },
+    "speed": {
+      "values": [6.4, 6.9, 7.4, 7.9, 8.4, 9, 9.5, 10, 10.5, 11],
+      "costs": [80, 250, 700, 1800, 4500, 8000, 13000, 21000, 34000],
+      "maxLevel": 9,
+      "describe": ["6.4 m/s", "6.9 m/s", "7.4 m/s", "7.9 m/s", "8.4 m/s", "9.0 m/s", "9.5 m/s", "10.0 m/s", "10.5 m/s", "11.0 m/s"]
+    },
+    "axe": {
+      "values": [0.4, 0.35, 0.31, 0.27, 0.24, 0.21, 0.19, 0.17, 0.15, 0.13],
+      "costs": [120, 350, 900, 2200, 5500, 9500, 16000, 26000, 40000],
+      "maxLevel": 9,
+      "describe": ["2.5 chops/s", "2.9 chops/s", "3.2 chops/s", "3.7 chops/s", "4.2 chops/s", "4.8 chops/s", "5.3 chops/s", "5.9 chops/s", "6.7 chops/s", "7.7 chops/s"]
+    },
+    "harvester": {
+      "values": [0.75, 0.62, 0.52, 0.44, 0.37, 0.32, 0.28, 0.25],
+      "costs": [400, 1200, 3000, 7500, 13000, 22000, 36000],
+      "maxLevel": 7,
+      "describe": ["1.3 logs/s", "1.6 logs/s", "1.9 logs/s", "2.3 logs/s", "2.7 logs/s", "3.1 logs/s", "3.6 logs/s", "4.0 logs/s"]
+    },
+    "processor": {
+      "values": [1, 0.84, 0.71, 0.6, 0.5, 0.43, 0.37, 0.32],
+      "costs": [1000, 2800, 7000, 16000, 26000, 40000, 60000],
+      "maxLevel": 7,
+      "describe": ["1.0 crates/s", "1.2 crates/s", "1.4 crates/s", "1.7 crates/s", "2.0 crates/s", "2.3 crates/s", "2.7 crates/s", "3.1 crates/s"]
+    },
+    "megaSaw": {
+      "values": [1.4, 1.2, 1.03, 0.89, 0.77, 0.67, 0.59, 0.52],
+      "costs": [7000, 15000, 30000, 55000, 80000, 110000, 150000],
+      "maxLevel": 7,
+      "describe": ["2.1 logs/s", "2.5 logs/s", "2.9 logs/s", "3.4 logs/s", "3.9 logs/s", "4.5 logs/s", "5.1 logs/s", "5.8 logs/s"]
+    },
+    "crateRunner": {
+      "values": [0, 1, 1.3, 1.65, 2, 2.4, 2.8],
+      "costs": [800, 2000, 5000, 11000, 20000, 34000],
+      "maxLevel": 6,
+      "describe": ["Not hired", "×1 speed", "×1.3 speed", "×1.65 speed", "×2 speed", "×2.4 speed", "×2.8 speed"]
+    },
+    "cashier": {
+      "values": [0, 1, 1.3, 1.65, 2, 2.4, 2.8],
+      "costs": [1200, 4000, 10000, 22000, 36000, 52000],
+      "maxLevel": 6,
+      "describe": ["Not hired", "×1 speed", "×1.3 speed", "×1.65 speed", "×2 speed", "×2.4 speed", "×2.8 speed"]
+    },
+    "logHauler": {
+      "values": [0, 1, 1.3, 1.65, 2, 2.4, 2.8],
+      "costs": [3500, 9000, 20000, 40000, 60000, 85000],
+      "maxLevel": 6,
+      "describe": ["Not hired", "×1 speed", "×1.3 speed", "×1.65 speed", "×2 speed", "×2.4 speed", "×2.8 speed"]
+    },
+    "porter": {
+      "values": [0, 1, 1.3, 1.65, 2, 2.4, 2.8],
+      "costs": [3000, 8000, 18000, 36000, 55000, 80000],
+      "maxLevel": 6,
+      "describe": ["Not hired", "×1 speed", "×1.3 speed", "×1.65 speed", "×2 speed", "×2.4 speed", "×2.8 speed"]
+    },
+    "sledLoader": {
+      "values": [0, 1, 1.3, 1.65, 2, 2.4, 2.8],
+      "costs": [6000, 14000, 28000, 45000, 65000, 90000],
+      "maxLevel": 6,
+      "describe": ["Not hired", "×1 speed", "×1.3 speed", "×1.65 speed", "×2 speed", "×2.4 speed", "×2.8 speed"]
+    },
+    "foreman": {
+      "values": [0, 1, 1.3, 1.65, 2, 2.4, 2.8],
+      "costs": [20000, 40000, 70000, 110000, 160000, 220000],
+      "maxLevel": 6,
+      "describe": ["Not hired", "×1 speed", "×1.3 speed", "×1.65 speed", "×2 speed", "×2.4 speed", "×2.8 speed"]
+    },
+    "plankQuality": {
+      "values": [1, 1.15, 1.3, 1.5, 1.75, 2],
+      "costs": [300, 1500, 6000, 18000, 45000],
+      "maxLevel": 5,
+      "describe": ["×1 price", "×1.15 price", "×1.3 price", "×1.5 price", "×1.75 price", "×2 price"],
+      "productMult": [1, 1.15, 1.3, 1.5, 1.75, 2]
+    },
+    "crateQuality": {
+      "values": [1, 1.15, 1.3, 1.5, 1.75, 2],
+      "costs": [800, 4000, 14000, 35000, 80000],
+      "maxLevel": 5,
+      "describe": ["×1 price", "×1.15 price", "×1.3 price", "×1.5 price", "×1.75 price", "×2 price"],
+      "productMult": [1, 1.15, 1.3, 1.5, 1.75, 2]
+    },
+    "bulkDeals": {
+      "values": [1, 1.15, 1.3, 1.5, 1.75, 2],
+      "costs": [3000, 12000, 30000, 60000, 120000],
+      "maxLevel": 5,
+      "describe": ["×1 price", "×1.15 price", "×1.3 price", "×1.5 price", "×1.75 price", "×2 price"],
+      "productMult": [1, 1.15, 1.3, 1.5, 1.75, 2]
+    },
+    "treeFeller": {
+      "values": [6, 5.1, 4.3, 3.6, 3, 2.5],
+      "costs": [12000, 24000, 42000, 70000, 110000],
+      "maxLevel": 5,
+      "describe": ["0.7 logs/s", "0.8 logs/s", "0.9 logs/s", "1.1 logs/s", "1.3 logs/s", "1.6 logs/s"]
+    },
+    "cashTubes": {
+      "values": [0.9, 0.7, 0.55, 0.42, 0.32, 0.24],
+      "costs": [16000, 30000, 50000, 80000, 120000],
+      "maxLevel": 5,
+      "describe": ["1.1 bundles/s", "1.4 bundles/s", "1.8 bundles/s", "2.4 bundles/s", "3.1 bundles/s", "4.2 bundles/s"]
+    },
+    "pineHauler": {
+      "values": [0, 1, 1.3, 1.65, 2, 2.4, 2.8],
+      "costs": [4000, 10000, 22000, 40000, 65000, 95000],
+      "maxLevel": 6,
+      "describe": ["Not hired", "×1 speed", "×1.3 speed", "×1.65 speed", "×2 speed", "×2.4 speed", "×2.8 speed"]
+    },
+    "pineContracts": {
+      "values": [1, 1.15, 1.3, 1.5, 1.75, 2],
+      "costs": [8000, 25000, 55000, 100000, 180000],
+      "maxLevel": 5,
+      "describe": ["×1 price", "×1.15 price", "×1.3 price", "×1.5 price", "×1.75 price", "×2 price"],
+      "productMult": [1, 1.15, 1.3, 1.5, 1.75, 2]
+    },
+    "workshop": {
+      "values": [3, 2.5, 2.1, 1.8, 1.5, 1.3],
+      "costs": [14000, 26000, 45000, 70000, 100000],
+      "maxLevel": 5,
+      "describe": ["0.3 pieces/s", "0.4 pieces/s", "0.5 pieces/s", "0.6 pieces/s", "0.7 pieces/s", "0.8 pieces/s"]
+    },
+    "furnitureQuality": {
+      "values": [1, 1.15, 1.3, 1.5, 1.75, 2],
+      "costs": [9000, 24000, 50000, 90000, 160000],
+      "maxLevel": 5,
+      "describe": ["×1 price", "×1.15 price", "×1.3 price", "×1.5 price", "×1.75 price", "×2 price"],
+      "productMult": [1, 1.15, 1.3, 1.5, 1.75, 2]
+    },
+    "jack": {
+      "values": [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75],
+      "costs": [400, 1200, 3000, 8000, 20000, 50000, 120000, 300000, 750000],
+      "maxLevel": 9,
+      "describe": ["30% of value", "35% of value", "40% of value", "45% of value", "50% of value", "55% of value", "60% of value", "65% of value", "70% of value", "75% of value"]
+    }
+  },
+  "DEMAND": [
+    {
+      "customerGap": [1, 1.5],
+      "customerQueue": 5,
+      "customerWant": [2, 4],
+      "trikeGap": [2.5, 4],
+      "trikeWant": [3, 6],
+      "truckGap": [3, 5],
+      "truckWant": [8, 12],
+      "trainGap": [9, 13],
+      "trainWant": [16, 24],
+      "priceMult": 1,
+      "vipChance": 0,
+      "sledGap": [12, 16],
+      "sledWant": [3, 5]
+    },
+    {
+      "customerGap": [0.9, 1.35],
+      "customerQueue": 6,
+      "customerWant": [2, 5],
+      "trikeGap": [2.3, 3.6],
+      "trikeWant": [3, 6],
+      "truckGap": [3, 5],
+      "truckWant": [8, 12],
+      "trainGap": [9, 13],
+      "trainWant": [16, 24],
+      "priceMult": 1.2,
+      "vipChance": 0.06,
+      "sledGap": [12, 16],
+      "sledWant": [3, 5]
+    },
+    {
+      "customerGap": [0.8, 1.2],
+      "customerQueue": 6,
+      "customerWant": [3, 6],
+      "trikeGap": [2.1, 3.3],
+      "trikeWant": [4, 7],
+      "truckGap": [2.8, 4.5],
+      "truckWant": [9, 13],
+      "trainGap": [8, 12],
+      "trainWant": [18, 26],
+      "priceMult": 1.45,
+      "vipChance": 0.08,
+      "sledGap": [11, 15],
+      "sledWant": [4, 6]
+    },
+    {
+      "customerGap": [0.7, 1.05],
+      "customerQueue": 7,
+      "customerWant": [3, 7],
+      "trikeGap": [1.9, 3],
+      "trikeWant": [4, 8],
+      "truckGap": [2.6, 4.2],
+      "truckWant": [10, 15],
+      "trainGap": [7.5, 11],
+      "trainWant": [20, 28],
+      "priceMult": 1.75,
+      "vipChance": 0.1,
+      "sledGap": [10, 14],
+      "sledWant": [4, 7]
+    },
+    {
+      "customerGap": [0.6, 0.9],
+      "customerQueue": 7,
+      "customerWant": [4, 8],
+      "trikeGap": [1.7, 2.7],
+      "trikeWant": [5, 8],
+      "truckGap": [2.4, 3.8],
+      "truckWant": [11, 17],
+      "trainGap": [7, 10],
+      "trainWant": [22, 30],
+      "priceMult": 2.1,
+      "vipChance": 0.12,
+      "sledGap": [9, 13],
+      "sledWant": [5, 8]
+    },
+    {
+      "customerGap": [0.55, 0.8],
+      "customerQueue": 7,
+      "customerWant": [4, 9],
+      "trikeGap": [1.6, 2.5],
+      "trikeWant": [5, 8],
+      "truckGap": [2.2, 3.5],
+      "truckWant": [12, 18],
+      "trainGap": [6.5, 9],
+      "trainWant": [24, 32],
+      "priceMult": 2.5,
+      "vipChance": 0.14,
+      "sledGap": [8, 12],
+      "sledWant": [6, 9]
+    }
+  ],
+  "VILLAGE": {
+    "tiers": [
+      {
+        "id": "tent",
+        "label": "Tent",
+        "logs": 6,
+        "cash": 60,
+        "residents": 2,
+        "requiresLevel": 0
+      },
+      {
+        "id": "hut",
+        "label": "Hut",
+        "logs": 12,
+        "cash": 350,
+        "residents": 4,
+        "requiresLevel": 1
+      },
+      {
+        "id": "cabin",
+        "label": "Cabin",
+        "logs": 24,
+        "cash": 1500,
+        "residents": 7,
+        "requiresLevel": 2
+      },
+      {
+        "id": "lodge",
+        "label": "Lodge",
+        "logs": 36,
+        "cash": 4500,
+        "residents": 12,
+        "requiresLevel": 3
+      }
+    ],
+    "plotLevels": [0, 0, 1, 1, 2, 2, 3, 3],
+    "levels": [
+      {
+        "name": "Camp",
+        "minPopulation": 0,
+        "perks": []
+      },
+      {
+        "name": "Hamlet",
+        "minPopulation": 4,
+        "perks": ["Customers buy more", "Huts", "Crate Runner for hire"]
+      },
+      {
+        "name": "Village",
+        "minPopulation": 14,
+        "perks": ["Bigger orders, better prices", "Cabins", "Cashier for hire"]
+      },
+      {
+        "name": "Town",
+        "minPopulation": 36,
+        "perks": ["The Market Town opens", "Lodges", "Log Hauler for hire"]
+      },
+      {
+        "name": "Winter City",
+        "minPopulation": 110,
+        "perks": ["Top prices", "Build the Great Lodge!"]
+      },
+      {
+        "name": "Winterland",
+        "minPopulation": "Infinity",
+        "perks": ["Everyone loves your mill"]
+      }
+    ],
+    "greatLodge": {
+      "label": "GREAT LODGE",
+      "logs": 100,
+      "cash": 25000,
+      "requiresLevel": 4
+    },
+    "grandMarket": {
+      "label": "GRAND MARKET",
+      "logs": 120,
+      "cash": 60000,
+      "toys": 20,
+      "requiresLevel": 5
+    }
+  },
+  "QUARTERS": {
+    "tiers": [
+      {
+        "id": "bunkhouse",
+        "label": "Bunkhouse",
+        "logs": 30,
+        "cash": 8000
+      },
+      {
+        "id": "lodge",
+        "label": "Crew Lodge",
+        "logs": 50,
+        "cash": 25000
+      },
+      {
+        "id": "hall",
+        "label": "Crew Hall",
+        "logs": 80,
+        "cash": 60000
+      }
+    ],
+    "crew": {
+      "crateRunner": [1, 2, 2, 3],
+      "cashier": [1, 1, 2, 3],
+      "logHauler": [1, 1, 2, 3],
+      "porter": [1, 1, 2, 3],
+      "pineHauler": [1, 1, 2, 3],
+      "sledLoader": [1, 1, 2, 2],
+      "foreman": [1, 1, 1, 2]
+    }
+  }
+}

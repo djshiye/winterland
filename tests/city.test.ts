@@ -89,7 +89,7 @@ describe('choosing', () => {
     const s = fresh();
     const opts = chooseOptions(s.city, 2, 0);
     expect(opts.map((o) => o.id).sort()).toEqual(cityBuildingsOfEra(2).sort());
-    expect(costText(CITY_BUILDINGS.frontierHome)).toBe('$40,000 + 15 Bricks');
+    expect(costText(CITY_BUILDINGS.frontierHome)).toBe('$400,000 + 15 Bricks');
     expect(opts.every((o) => !o.locked)).toBe(true);
   });
 
@@ -140,7 +140,7 @@ describe('construction and demolition', () => {
   });
 
   it('demolish cost is DEMOLISH_SHARE of the price, at least DEMOLISH_MIN', () => {
-    expect(demolishCost(CITY_BUILDINGS.frontierHome)).toBe(Math.max(DEMOLISH_MIN, Math.round(40_000 * DEMOLISH_SHARE)));
+    expect(demolishCost(CITY_BUILDINGS.frontierHome)).toBe(Math.max(DEMOLISH_MIN, Math.round(400_000 * DEMOLISH_SHARE)));
     expect(demolishCost({ ...CITY_BUILDINGS.frontierHome, cash: 100 })).toBe(DEMOLISH_MIN);
   });
 
@@ -192,22 +192,22 @@ describe('economy', () => {
 
   it('income/s = (rent + business x employment) x (1 + bonus x happiness) x City Hall', () => {
     const s = fresh();
-    build(s, 2, 0, 'frontierHome'); // 40 people, $4/s
-    build(s, 2, 1, 'frontierWork'); // 30 jobs, $45/s
+    build(s, 2, 0, 'frontierHome'); // 40 people, $40/s
+    build(s, 2, 1, 'frontierWork'); // 30 jobs, $450/s
     build(s, 2, 2, 'frontierPark'); // 0.12 happiness
     const t = cityTotals(s.city);
     const k = 1 + CITY_HAPPINESS_BONUS * 0.12;
-    expect(incomePerSecond(t, 1)).toBeCloseTo((4 + 45 * 1) * k);
-    expect(incomePerSecond(t, 2)).toBeCloseTo((4 + 45) * k * 2);
+    expect(incomePerSecond(t, 1)).toBeCloseTo((40 + 450 * 1) * k);
+    expect(incomePerSecond(t, 2)).toBeCloseTo((40 + 450) * k * 2);
     const split = incomeSplit(t, 1);
-    expect(split.rent).toBeCloseTo(4 * k);
-    expect(split.business).toBeCloseTo(45 * k);
+    expect(split.rent).toBeCloseTo(40 * k);
+    expect(split.business).toBeCloseTo(450 * k);
     // understaffed: more jobs than residents
     build(s, 2, 3, 'frontierWork');
     build(s, 2, 4, 'frontierWork');
     const t2 = cityTotals(s.city);
     expect(t2.jobs).toBe(90);
-    expect(incomePerSecond(t2, 1)).toBeCloseTo((4 + 135 * (40 / 90)) * k);
+    expect(incomePerSecond(t2, 1)).toBeCloseTo((40 + 1350 * (40 / 90)) * k);
   });
 
   it('an empty city earns nothing', () => {
@@ -221,8 +221,11 @@ describe('rank', () => {
     expect(rankFor(600, 1)).toBe(0);
     expect(rankFor(600, 2)).toBe(1);
     expect(rankFor(6000, 3)).toBe(1);
-    expect(rankFor(6000, 4)).toBe(2);
-    expect(rankFor(50_000, 7)).toBe(3);
+    // R13: Big City from era 5, Megacity from era 8 (the first eras whose districts can hold that many people)
+    expect(rankFor(6000, 4)).toBe(1);
+    expect(rankFor(6000, 5)).toBe(2);
+    expect(rankFor(50_000, 7)).toBe(2);
+    expect(rankFor(50_000, 8)).toBe(3);
     expect(rankFor(200_000, 9)).toBe(3);
     expect(rankFor(200_000, 10)).toBe(CITY_RANKS.length - 1);
   });

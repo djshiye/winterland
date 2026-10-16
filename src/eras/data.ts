@@ -43,17 +43,27 @@ export interface EraDef {
   worker: { label: string; plural: string };
   /** City district name. */
   district: string;
-  /** Visual palette (hex): region ground, accent (machines / signs), trim, fence. Builders may derive shades. */
-  colors: { ground: number; accent: number; trim: number; fence: number };
+  /**
+   * Visual palette (hex), one row of the era table in docs/art/guide.md (ARGON): region ground, accent (machines /
+   * signs), trim, fence, machine body, glow tint and worker coat. Builders may derive shades.
+   */
+  colors: { ground: number; accent: number; trim: number; fence: number; body: number; glow: number; coat: number };
   /** Expansion pad: cash + the previous era's refined material. */
   unlock: { cash: number; extra: { kind: ItemKind; count: number } };
   /** Shown on the era card. */
   perks: readonly string[];
 }
 
-/** Expansion price of era n (2..10): 150k × 3^(n − 2). */
+/**
+ * Era economy ×10 (docs/EXPANSION.md R11; config CLIMB.eraScale reads it): every era price and income (expansion pads,
+ * machines, material values, city buildings and their income) is × this, so an era sits above Survival's last prices
+ * (jack's last level is $750k). Survival numbers are untouched.
+ */
+export const ERA_SCALE = 10;
+
+/** Expansion price of era n (2..10): 1.5M × 3^(n − 2) (150k × ERA_SCALE). */
 export function unlockCash(n: number): number {
-  return 150_000 * 3 ** (n - 2);
+  return 150_000 * ERA_SCALE * 3 ** (n - 2);
 }
 
 function eraDef(n: number, key: EraKey, tagline: string, region: string, worker: [string, string], district: string, colors: EraDef['colors'], extra: { kind: ItemKind; count: number }, perks: string[]): EraDef {
@@ -64,15 +74,15 @@ function eraDef(n: number, key: EraKey, tagline: string, region: string, worker:
 export const ERAS: readonly (EraDef | null)[] = [
   null,
   null,
-  eraDef(2, 'frontier', 'Stone and brick: the settlement digs in', 'Granite Hollow', ['Quarryman', 'Quarrymen'], 'Brickside', { ground: 0xb9b2a6, accent: 0xb5543c, trim: 0x6d5a48, fence: 0x7a6650 }, { kind: 'crate', count: 40 }, ['Quarries and brick kilns', 'Quarrymen for hire', 'The Brickside district']),
-  eraDef(3, 'iron', 'Ore in the hills, fire in the smelters', 'Iron Ridge', ['Miner', 'Miners'], 'Foundry Row', { ground: 0x9a8f88, accent: 0x7c4a33, trim: 0x3d3a3a, fence: 0x4f4a48 }, { kind: 'brick', count: 35 }, ['Iron mines and smelters', 'Miners for hire', 'The Foundry Row district']),
-  eraDef(4, 'steam', 'Coal, gears and the hiss of steam', 'Coalbank Basin', ['Stoker', 'Stokers'], 'Steamworks Quarter', { ground: 0x8a8580, accent: 0xb08a3e, trim: 0x2f2b2b, fence: 0x3a3532 }, { kind: 'iron', count: 40 }, ['Coal pits and steam works', 'Stokers for hire', 'The Steamworks Quarter']),
-  eraDef(5, 'industrial', 'Steel mills light up the night', 'Forge Flats', ['Steelworker', 'Steelworkers'], 'Mill Town', { ground: 0x8f9296, accent: 0xd0702a, trim: 0x34383d, fence: 0x50555b }, { kind: 'gear', count: 45 }, ['Deep mines, coke ovens, steel mills', 'Steelworkers for hire', 'The Mill Town district']),
-  eraDef(6, 'electric', 'Copper wire hums across the snow', 'Copper Gorge', ['Lineman', 'Linemen'], 'Lamplight Avenue', { ground: 0xa3a7a0, accent: 0xc9773a, trim: 0x2e4a5a, fence: 0x5a6b74 }, { kind: 'steel', count: 50 }, ['Copper mines and wire mills', 'Linemen for hire', 'Lamplight Avenue']),
-  eraDef(7, 'oil', 'Black gold under the permafrost', 'Tundra Fields', ['Roughneck', 'Roughnecks'], 'Midtown', { ground: 0x9d9a93, accent: 0xe0b03a, trim: 0x272a30, fence: 0x44474e }, { kind: 'wire', count: 55 }, ['Oil pumps and refineries', 'Roughnecks for hire', 'The Midtown towers']),
-  eraDef(8, 'computer', 'Silicon from sand, chips from silicon', 'Silicon Shore', ['Technician', 'Technicians'], 'Glass Heights', { ground: 0xc9cdd2, accent: 0x3aa0d8, trim: 0x2a3a4a, fence: 0x8a98a6 }, { kind: 'plastic', count: 60 }, ['Sand pits and chip fabs', 'Technicians for hire', 'The Glass Heights district']),
-  eraDef(9, 'nuclear', 'Splitting atoms to light a city', 'Atom Valley', ['Atom Tech', 'Atom Techs'], 'Reactor Row', { ground: 0xb7c2b0, accent: 0x7bd04a, trim: 0x2d3b2a, fence: 0x6e7d6a }, { kind: 'chip', count: 65 }, ['Uranium mines, enrichers, reactors', 'Atom Techs for hire', 'The Reactor Row skyscrapers']),
-  eraDef(10, 'ai', 'Thinking machines build the metropolis', 'Neural Plateau', ['Robot', 'Robots'], 'Metropolis Core', { ground: 0xd6dbe6, accent: 0x9b6cff, trim: 0x1f2240, fence: 0x8c90b8 }, { kind: 'power', count: 70 }, ['Fusion plants, nano fabs, data centers, robot works', 'Robots for hire', 'The Metropolis Core']),
+  eraDef(2, 'frontier', 'Stone and brick: the settlement digs in', 'Granite Hollow', ['Quarryman', 'Quarrymen'], 'Brickside', { ground: 0xccd4de, accent: 0xb85239, trim: 0x5c4028, fence: 0x6e5a4f, body: 0x8c857b, glow: 0xffb347, coat: 0x8c4a32 }, { kind: 'crate', count: 40 }, ['Quarries and brick kilns', 'Quarrymen for hire', 'The Brickside district']),
+  eraDef(3, 'iron', 'Ore in the hills, fire in the smelters', 'Iron Ridge', ['Miner', 'Miners'], 'Foundry Row', { ground: 0xd0d8e2, accent: 0x4a5559, trim: 0x2f3538, fence: 0x4f4c49, body: 0xa65e46, glow: 0xff9233, coat: 0x5c4d42 }, { kind: 'brick', count: 35 }, ['Iron mines and smelters', 'Miners for hire', 'The Foundry Row district']),
+  eraDef(4, 'steam', 'Coal, gears and the hiss of steam', 'Coalbank Basin', ['Stoker', 'Stokers'], 'Steamworks Quarter', { ground: 0xc5ced9, accent: 0xd49a35, trim: 0x383d40, fence: 0x464b4f, body: 0x9e4737, glow: 0xffbe55, coat: 0x783a2d }, { kind: 'iron', count: 40 }, ['Coal pits and steam works', 'Stokers for hire', 'The Steamworks Quarter']),
+  eraDef(5, 'industrial', 'Steel mills light up the night', 'Forge Flats', ['Steelworker', 'Steelworkers'], 'Mill Town', { ground: 0xbac4d0, accent: 0xe08a2b, trim: 0x333c42, fence: 0x525c63, body: 0x5a6973, glow: 0xffd166, coat: 0x485866 }, { kind: 'gear', count: 45 }, ['Deep mines, coke ovens, steel mills', 'Steelworkers for hire', 'The Mill Town district']),
+  eraDef(6, 'electric', 'Copper wire hums across the snow', 'Copper Gorge', ['Lineman', 'Linemen'], 'Lamplight Avenue', { ground: 0xb4c0cc, accent: 0xd97f38, trim: 0x2b3b39, fence: 0x5c6b73, body: 0x4c6b68, glow: 0x7ce8c8, coat: 0x3d606e }, { kind: 'steel', count: 50 }, ['Copper mines and wire mills', 'Linemen for hire', 'Lamplight Avenue']),
+  eraDef(7, 'oil', 'Black gold under the permafrost', 'Tundra Fields', ['Roughneck', 'Roughnecks'], 'Midtown', { ground: 0xaebac6, accent: 0xc44536, trim: 0x36383a, fence: 0x575552, body: 0xd99b26, glow: 0xffaa5a, coat: 0xb87b28 }, { kind: 'wire', count: 55 }, ['Oil pumps and refineries', 'Roughnecks for hire', 'The Midtown towers']),
+  eraDef(8, 'computer', 'Silicon from sand, chips from silicon', 'Silicon Shore', ['Technician', 'Technicians'], 'Glass Heights', { ground: 0xc2ccd6, accent: 0x45858c, trim: 0x4a5259, fence: 0x7c858e, body: 0xe6dec8, glow: 0x66e0a3, coat: 0x4a7585 }, { kind: 'plastic', count: 60 }, ['Sand pits and chip fabs', 'Technicians for hire', 'The Glass Heights district']),
+  eraDef(9, 'nuclear', 'Splitting atoms to light a city', 'Atom Valley', ['Atom Tech', 'Atom Techs'], 'Reactor Row', { ground: 0xcbd6e0, accent: 0x4ea885, trim: 0x3d5259, fence: 0x6f828a, body: 0xdce3e6, glow: 0x70f5d9, coat: 0x468275 }, { kind: 'chip', count: 65 }, ['Uranium mines, enrichers, reactors', 'Atom Techs for hire', 'The Reactor Row skyscrapers']),
+  eraDef(10, 'ai', 'Thinking machines build the metropolis', 'Neural Plateau', ['Robot', 'Robots'], 'Metropolis Core', { ground: 0xcad4e0, accent: 0xe8a848, trim: 0x526475, fence: 0x8fa1b3, body: 0xf5f0e6, glow: 0xffe082, coat: 0x637a91 }, { kind: 'power', count: 70 }, ['Fusion plants, nano fabs, data centers, robot works', 'Robots for hire', 'The Metropolis Core']),
 ];
 
 /** Era n (2..10) definition; throws on other numbers. */
@@ -82,9 +92,6 @@ export function era(n: number): EraDef {
   return d;
 }
 export const eraOfKey = (key: EraKey): number => ERA_KEYS.indexOf(key) + 2;
-
-/** Era 2's expansion pad is offered once the settlement reaches Winter City (village level 4). */
-export const FIRST_EXPANSION_VILLAGE_LEVEL = 4;
 
 // ---------------------------------------------------------------------------
 // Materials (new item kinds). Every one is carriable.
@@ -108,8 +115,9 @@ export interface MaterialDef {
   size: { w: number; h: number; d: number; stackHeight: number };
 }
 
-const RAW = (n: number): number => 180 * 3 ** (n - 2);
-const REF = (n: number): number => 700 * 3 ** (n - 2);
+/** Base export prices of era n's raw and refined materials (× ERA_SCALE, like every era price). */
+const RAW = (n: number): number => 180 * ERA_SCALE * 3 ** (n - 2);
+const REF = (n: number): number => 700 * ERA_SCALE * 3 ** (n - 2);
 function mat(kind: MaterialKind, label: string, n: number, grade: 'raw' | 'refined', value: number, shape: MaterialShape, color: number, accent: number, w: number, h: number, d: number): MaterialDef {
   return { kind, label, era: n, grade, value: Math.round(value / 5) * 5, shape, color, accent, size: { w, h, d, stackHeight: h + 0.01 } };
 }
@@ -128,11 +136,11 @@ export const MATERIALS: Record<MaterialKind, MaterialDef> = {
   plastic: mat('plastic', 'Plastic', 7, 'refined', REF(7), 'pellet', 0x48c0e8, 0xf2f2f2, 0.4, 0.24, 0.32),
   silicon: mat('silicon', 'Silicon', 8, 'raw', RAW(8), 'crystal', 0x8ea2b8, 0xdfe8f2, 0.36, 0.3, 0.3),
   chip: mat('chip', 'Microchips', 8, 'refined', REF(8), 'chip', 0x2f6f4e, 0xe8c650, 0.4, 0.1, 0.4),
-  uranium: mat('uranium', 'Uranium', 9, 'raw', RAW(9), 'pellet', 0x7bd04a, 0x2d3b2a, 0.38, 0.26, 0.34),
-  fuelRod: mat('fuelRod', 'Fuel Rods', 9, 'refined', REF(9), 'rod', 0x9fe070, 0x5a6470, 0.46, 0.16, 0.16),
-  power: mat('power', 'Power Cells', 9, 'refined', REF(9) * 0.5, 'cell', 0x3ad1ff, 0x1d2a38, 0.3, 0.36, 0.3),
-  aiCore: mat('aiCore', 'AI Cores', 10, 'refined', REF(10), 'core', 0x9b6cff, 0x1f2240, 0.34, 0.34, 0.34),
-  robot: mat('robot', 'Robots', 10, 'refined', REF(10) * 2.6, 'robot', 0xdfe3ec, 0x9b6cff, 0.36, 0.46, 0.3),
+  uranium: mat('uranium', 'Uranium', 9, 'raw', RAW(9), 'pellet', 0x4ea885, 0x3d5259, 0.38, 0.26, 0.34),
+  fuelRod: mat('fuelRod', 'Fuel Rods', 9, 'refined', REF(9), 'rod', 0x8fdcb4, 0x5a6470, 0.46, 0.16, 0.16),
+  power: mat('power', 'Power Cells', 9, 'refined', REF(9) * 0.5, 'cell', 0x70f5d9, 0x3d5259, 0.3, 0.36, 0.3),
+  aiCore: mat('aiCore', 'AI Cores', 10, 'refined', REF(10), 'core', 0xe8a848, 0x526475, 0.34, 0.34, 0.34),
+  robot: mat('robot', 'Robots', 10, 'refined', REF(10) * 2.6, 'robot', 0xf5f0e6, 0xe8a848, 0.36, 0.46, 0.3),
 };
 
 export function isMaterial(kind: ItemKind): kind is MaterialKind {
@@ -274,8 +282,8 @@ export function regionDef(n: number): RegionLayoutDef {
 }
 
 /**
- * Roads (player-walkable once offered). `opensAt`: the era whose expansion pad must be OFFERED (era 2 = village level
- * FIRST_EXPANSION_VILLAGE_LEVEL; era n > 2 = age ≥ n − 1).
+ * Roads (player-walkable once offered). `opensAt`: the era whose expansion pad must be OFFERED or previewed (era 2 =
+ * the Great Lodge built, eras/gate.ts climbOpen; era n > 2 = age ≥ n − 1).
  */
 export const ROADS: readonly { id: string; rect: ERect; opensAt: number }[] = [
   { id: 'southAvenue', rect: R(26, 30, 38, 80), opensAt: 2 }, // town square's south edge → R1
@@ -374,7 +382,8 @@ function cityBuildings(): Record<CityBuildingId, CityBuildingDef> {
   const out = {} as Record<CityBuildingId, CityBuildingDef>;
   for (const key of ERA_KEYS) {
     const n = eraOfKey(key);
-    const k = 3 ** (n - 2);
+    // prices and income × 3 per era (× ERA_SCALE); people × 2.2 per era
+    const k = ERA_SCALE * 3 ** (n - 2);
     const p = 2.2 ** (n - 2);
     const material = DISTRICT_MATERIAL[n]!;
     const h = [5, 7, 9, 12, 16, 26, 34, 46, 62][n - 2]!;
@@ -397,12 +406,16 @@ export const cityBuildingsOfEra = (n: number): CityBuildingId[] => CITY_BUILDING
 /** City happiness multiplies all city income by up to 1 + this. */
 export const CITY_HAPPINESS_BONUS = 0.5;
 
-/** City rank by total population (village + Market Town + districts); Metropolis also needs era 10. */
+/**
+ * City rank by total population (village + Market Town + districts); Metropolis also needs era 10. Cosmetic (skyline,
+ * badge): minEra is the first era whose cumulative city capacity reaches the population (docs/EXPANSION.md R13: era 4's
+ * districts hold about 2.1k people, era 7's about 37k), so a rank never promises the impossible.
+ */
 export const CITY_RANKS: readonly { name: string; minPopulation: number; minEra: number }[] = [
   { name: 'Town', minPopulation: 0, minEra: 1 },
   { name: 'City', minPopulation: 500, minEra: 2 },
-  { name: 'Big City', minPopulation: 5_000, minEra: 4 },
-  { name: 'Megacity', minPopulation: 40_000, minEra: 7 },
+  { name: 'Big City', minPopulation: 5_000, minEra: 5 },
+  { name: 'Megacity', minPopulation: 40_000, minEra: 8 },
   { name: 'Metropolis', minPopulation: 100_000, minEra: 10 },
 ];
 
