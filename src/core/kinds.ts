@@ -33,6 +33,15 @@ export const MATERIAL_KINDS = [
   'scrap',
   'boiler',
   'steamEngine',
+  // 0.9.5 era 5-7 content
+  'girder',
+  'snowplow',
+  'quartz',
+  'bulb',
+  'radio',
+  'gas',
+  'fuel',
+  'snowmobile',
 ] as const;
 export type MaterialKind = (typeof MATERIAL_KINDS)[number];
 
