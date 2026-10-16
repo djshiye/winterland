@@ -37,7 +37,7 @@ const ACCEL = 5;
 const DECEL = 7;
 /** Seconds the first train takes to show up after the ridge opens. */
 const FIRST_TRAIN_DELAY = 3;
-const PAID_HOLD = 0.9;
+const PAID_HOLD = 0.5; // 0.9.3: was 0.9
 /**
  * A leaving train sweeps the sled rows until its tail (3.8 m behind the origin) has cleared the return line
  * (SLED_RETURN_Z) plus the sled's half width.
@@ -256,7 +256,7 @@ export class TrainQueue {
     this.takeTimer -= dt;
     const pile = this.opts.counter.pile;
     if (this.takeTimer <= 0 && cargo.total < this.want && pile.count('log') > 0) {
-      this.takeTimer = TIMING.npcTakeInterval / Math.min(3, this.dock());
+      this.takeTimer = TIMING.dockTakeInterval / Math.min(TIMING.dockLoadMax, this.dock());
       transferOne(this.ctx, pile, cargo, ['log'], { duration: 0.28, arcHeight: 1.7 });
     }
     if (have >= this.want) this.pay();

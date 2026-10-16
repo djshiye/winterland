@@ -11,7 +11,7 @@
  * detached.
  */
 import * as THREE from 'three';
-import type { DemandLevel, ProductId } from '../config';
+import { TIMING, type DemandLevel, type ProductId } from '../config';
 import { approach, randRange } from '../core/math';
 import { demandOf, salePrice } from '../core/demand';
 import type { Buyer, GameContext, ItemKind } from '../core/types';
@@ -227,8 +227,9 @@ export abstract class VehicleQueue {
       v.accelNow = -prev / dt;
       return true;
     }
-    const vmax = Math.min(cfg.driveSpeed, Math.sqrt(2 * cfg.decel * Math.max(0, dist)) + 0.35);
-    v.speed = approach(v.speed, vmax, (v.speed > vmax ? cfg.decel : cfg.accel) * dt);
+    // 0.9.3: queued vehicles pull up to the counter faster with the dock (speed and pick-up up to ×1.5)
+    const vmax = Math.min(cfg.driveSpeed * Math.min(1.5, this.boost()), Math.sqrt(2 * cfg.decel * Math.max(0, dist)) + 0.35);
+    v.speed = approach(v.speed, vmax, (v.speed > vmax ? cfg.decel : cfg.accel * Math.min(1.5, this.boost())) * dt);
     const step = v.speed * dt;
     if (step >= dist) {
       v.u = target;
@@ -267,7 +268,7 @@ export abstract class VehicleQueue {
     }
     v.takeTimer -= dt;
     if (v.takeTimer <= 0 && v.cargo.total < v.want && this.counter.pile.count(cfg.kind) > 0) {
-      v.takeTimer = cfg.takeInterval / Math.min(3, this.boost());
+      v.takeTimer = cfg.takeInterval / Math.min(TIMING.dockLoadMax, this.boost());
       transferOne(this.ctx, this.counter.pile, v.cargo, [cfg.kind], { duration: 0.28, arcHeight: 1.7 });
     }
     if (have >= v.want) this.pay(v);
@@ -287,7 +288,7 @@ export abstract class VehicleQueue {
       position: tmpV,
     });
     v.mode = 'paid';
-    v.timer = 0.75;
+    v.timer = 0.4; // 0.9.3: a short cheer, then off (was 0.75)
     v.parts.rig.cheer();
     v.bubble.show('check');
     this.ctx.tweens.popIn(v.bubble.sprite, { duration: 0.35 });
