@@ -169,15 +169,13 @@ describe('pond skaters', () => {
 });
 
 describe('cafe stools', () => {
-  it('are approached from a spot clear of every solid (one stool backs onto the big tree)', () => {
+  // 0.9.4: the stretched square no longer puts a stool against the big tree; the approach must still be clear
+  it('are approached from a spot clear of every solid', () => {
     const out = { x: 0, z: 0 };
-    let behindBlocked = 0;
     for (const s of AMENITY_SPOTS.cafe) {
-      if (insideObstacle(s.x - Math.sin(s.yaw) * 0.9, s.z - Math.cos(s.yaw) * 0.9, ownerAmenity('cafe'))) behindBlocked++;
       cafeApproach(s, out);
       expect(insideObstacle(out.x, out.z, ownerAmenity('cafe')), `stool at ${s.x},${s.z}`).toBe(false);
     }
-    expect(behindBlocked).toBeGreaterThan(0); // the case this guards
   });
 });
 
