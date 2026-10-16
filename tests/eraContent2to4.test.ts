@@ -4,46 +4,50 @@
  * and every processing step adds value, so a grind through each era pays off like Survival.
  */
 import { describe, expect, it } from 'vitest';
-import { ERA_CONTENT, ERA_ROLES, eraContent, eraProducers } from '../src/eras/content';
-import { MACHINES, MATERIALS, isMaterial, machinesOfEra } from '../src/eras/data';
+import { ERA_ROLES, eraContent } from '../src/eras/template';
+import { ERAS, type MachineId, MACHINES, MATERIALS, isMaterial, machinesOfEra } from '../src/eras/data';
 import { ERA_NODES } from '../src/assets/eraNodes';
 import { ERA_MACHINES_2 } from '../src/assets/eraMachines2';
 import { MATERIAL_KINDS } from '../src/core/kinds';
 
+const eraProducers = (n: number): MachineId[] => {
+  const m = eraContent(n).machines;
+  return [...m.ext, ...m.proc, m.premium] as MachineId[];
+};
 const value = (k: string): number => (isMaterial(k as never) ? MATERIALS[k as keyof typeof MATERIALS].value : 0);
 
 for (const n of [2, 3, 4]) {
   describe(`era ${n} content`, () => {
-    const c = eraContent(n)!;
+    const c = eraContent(n);
 
     it('has a row', () => {
-      expect(c).not.toBeNull();
-      expect(ERA_CONTENT[n]!.n).toBe(n);
+      expect(c.n).toBe(n);
     });
 
     it("has exactly this era's five producing machines, in their roles", () => {
       expect(new Set(eraProducers(n))).toEqual(new Set(machinesOfEra(n)));
-      for (const id of c.machines.extractors) expect(MACHINES[id].kind).toBe('extractor');
-      for (const id of [...c.machines.processors, c.machines.premium]) expect(MACHINES[id].kind).toBe('processor');
+      for (const id of c.machines.ext as readonly string[] as readonly MachineId[]) expect(MACHINES[id].kind).toBe('extractor');
+      for (const id of [...c.machines.proc, c.machines.premium] as MachineId[]) expect(MACHINES[id].kind).toBe('processor');
       for (const id of eraProducers(n)) expect(MACHINES[id].era).toBe(n);
     });
 
     it('has a modelled cash machine of this era', () => {
       const info = ERA_MACHINES_2[c.machines.cash as keyof typeof ERA_MACHINES_2];
       expect(info).toEqual({ era: n, role: 'cash' });
-      expect(c.cashLabel.length).toBeGreaterThan(0);
     });
 
     it('names all seven roles and four player upgrades', () => {
-      for (const r of ERA_ROLES) expect(c.roles[r].length).toBeGreaterThan(2);
-      expect(new Set(Object.values(c.roles)).size).toBe(7);
+      for (const r of ERA_ROLES) expect(c.roles[r].label.length).toBeGreaterThan(2);
+      expect(new Set(Object.values(c.roles).map((r) => r.label)).size).toBe(7);
+      expect(c.roles.hauler.label).toBe(ERAS[n]!.worker.label);
       expect(c.player.tool).toBe(ERA_NODES[n]!.tool);
+      expect(c.node.yields).toBe(ERA_NODES[n]!.yields);
     });
 
     it('sells four distinct goods of this era, each made by one of its machines or its hand node', () => {
       expect(new Set(c.sales).size).toBe(4);
       const made = new Set<string>([...eraProducers(n).map((id) => MACHINES[id].output), ERA_NODES[n]!.yields]);
-      for (const k of c.sales) {
+      for (const k of c.sales as readonly string[] as readonly (keyof typeof MATERIALS)[]) {
         expect(MATERIAL_KINDS).toContain(k);
         expect(MATERIALS[k].era).toBe(n);
         expect(made.has(k)).toBe(true);
@@ -60,21 +64,20 @@ for (const n of [2, 3, 4]) {
     });
 
     it('adds value at every processing step, and the premium good is the most valuable', () => {
-      for (const id of [...c.machines.processors, c.machines.premium]) {
+      for (const id of [...c.machines.proc, c.machines.premium] as MachineId[]) {
         const d = MACHINES[id];
         const cost = d.inputs.reduce((s, i) => s + value(i.kind) * i.per, 0);
         expect(value(d.output) * d.batch).toBeGreaterThan(cost);
       }
-      const premium = value(MACHINES[c.machines.premium].output);
+      const premium = value(MACHINES[c.machines.premium as MachineId].output);
       for (const k of c.sales) expect(premium).toBeGreaterThanOrEqual(value(k));
     });
 
     it('prices the premium works above the other machines and every machine above the last era', () => {
-      const p = MACHINES[c.machines.premium].cash;
-      for (const id of [...c.machines.extractors, ...c.machines.processors]) expect(p).toBeGreaterThan(MACHINES[id].cash);
+      const p = MACHINES[c.machines.premium as MachineId].cash;
+      for (const id of [...c.machines.ext, ...c.machines.proc] as MachineId[]) expect(p).toBeGreaterThan(MACHINES[id].cash);
       if (n > 2) {
-        const prev = eraContent(n - 1)!;
-        expect(Math.min(...eraProducers(n).map((id) => MACHINES[id].cash))).toBeGreaterThan(Math.min(...eraProducers(prev.n).map((id) => MACHINES[id].cash)));
+        expect(Math.min(...eraProducers(n).map((id) => MACHINES[id].cash))).toBeGreaterThan(Math.min(...eraProducers(n - 1).map((id) => MACHINES[id].cash)));
       }
     });
   });
