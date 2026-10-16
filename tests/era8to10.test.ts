@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ERA_PAL_NAMES, createEraPal, type PalEra } from '../src/assets/eraPals4';
+import { ERA_PAL_MODELS } from '../src/assets/eraPals';
 import { MACHINES, MATERIALS, machinesOfEra, type MachineId } from '../src/eras/data';
 import { createMachineModel } from '../src/assets/eraMachines';
 import { createEraItemModel } from '../src/assets/eraItems';
@@ -88,4 +89,10 @@ describe('eras 8-10 pals', () => {
       pal.dispose();
     });
   }
+});
+
+describe('pal registry', () => {
+  it('every era 2-10 has its own pal instead of the husky', () => {
+    for (let n = 2; n <= 10; n++) expect(ERA_PAL_MODELS[n], `era ${n}`).toBeTypeOf('function');
+  });
 });
