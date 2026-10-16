@@ -6,6 +6,7 @@
  *   → registered updatables → flights (arcs land) → tweens → particles → environment → juice
  *   → camera → shadow focus → HUD (projects world anchors) → render
  */
+import { OcclusionFade } from '../render/OcclusionFade';
 import * as THREE from 'three';
 import { AMENITIES, BUSINESSES, CREW, DAYNIGHT, DEMAND, ECONOMY, HAPPINESS, LAYOUT, PADS, PLAYER, PRESTIGE, PRIORITIES, QUARTERS, RIDGE, SAVE, TIMING, TOWN, UPGRADES, VILLAGE, type AmenityId, type BusinessId, type EventKind } from '../config';
 import { EventBus } from '../core/EventBus';
@@ -237,6 +238,7 @@ export class Game {
     ctx.zones = new ZoneSystem(ctx);
     ctx.environment = new Environment(ctx);
     ctx.player = new Player(ctx);
+    ctx.occlusion = new OcclusionFade(ctx); // 0.9.3: before the Level, whose buildings and pads register with it
     this.juice = new JuiceDirector(ctx);
     new Fireworks(ctx); // wave 9: era-up fireworks (self-registers as an updatable)
     this.level = new Level(ctx);

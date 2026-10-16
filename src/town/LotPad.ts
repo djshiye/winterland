@@ -114,6 +114,7 @@ export class LotPad {
     this.object.add(this.sign);
     this.object.position.set(x, 0, z);
     this.object.visible = false;
+    ctx.occlusion?.addTarget(this.object, size, () => this.shown);
   }
 
   get visible(): boolean {

@@ -1,6 +1,7 @@
 /**
  * Shared contracts. Every module codes against these; do not change them without the main session.
  */
+import type { OcclusionFade } from '../render/OcclusionFade';
 import type * as THREE from 'three';
 import type { AmenityId as AmenityIdConst, BusinessId as BusinessIdConst, EventKind, PadIdConst, TownPriority, UpgradeIdConst, WoodPriority } from '../config';
 import type { EventBus } from './EventBus';
@@ -744,6 +745,8 @@ export interface GameContext {
   readonly contracts: Contracts;
   /** 0.9.0: material prices, trading, investments (core/Market.ts). */
   readonly market: Market;
+  /** 0.9.3: buildings between the camera and the player / a pad fade see-through (absent in stub test contexts). */
+  readonly occlusion?: OcclusionFade;
   /** Simulation clock (seconds since start, advanced by fixed/variable steps). */
   readonly time: { elapsed: number; frame: number };
   /** Register something to be updated every step (after zones, before flights). */

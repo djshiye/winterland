@@ -123,6 +123,7 @@ export class ConstructionPad implements ItemHolder {
     this.sign.position.set(0, SIGN_HEIGHT, 0);
     this.object.add(this.sign);
     this.object.position.set(opts.x, 0, opts.z);
+    ctx.occlusion?.addTarget(this.object, opts.size, () => this.shown);
     this.object.visible = false;
     ctx.scene.add(this.object);
     // The Village may not tick its pads: register ourselves (billboard sign, pulse). Calling update twice is harmless.
