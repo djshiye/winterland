@@ -104,8 +104,8 @@ export class GiantLog {
       },
       onExit: () => ctx.player.setChopTarget(null),
     });
-    ctx.events.on('player:chopHit', ({ position }) => {
-      if (this.choppable) this.chopPiece(position, 'player');
+    ctx.events.on('player:chopHit', ({ position, node }) => {
+      if (this.choppable && node === undefined) this.chopPiece(position, 'player');
     });
   }
 

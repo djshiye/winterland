@@ -536,7 +536,8 @@ export interface GameEvents {
   /** A carried stack refused an item because it is full (fire at most ~2×/s per holder). */
   'stack:full': { holder: ItemHolder; position: THREE.Vector3 };
   /** Player's axe connected (emitted by Player at the impact frame of each swing). */
-  'player:chopHit': { position: THREE.Vector3 };
+  /** `node`: the era whose hand node was struck (0.9.5, eras/HandNode.ts); absent = the giant log. */
+  'player:chopHit': { position: THREE.Vector3; node?: number };
   /** A raw log piece was produced from the giant log. */
   'log:chopped': { position: THREE.Vector3; source: LogSource };
   /** A crate came out of the processor. */

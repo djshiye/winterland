@@ -25,6 +25,7 @@ import { LAYOUT, PLAYER } from '../config';
 import { CARRY_KINDS, type GameContext } from '../core/types';
 import { approach, clamp, dampAngle } from '../core/math';
 import { createAxe, createFounderScarf } from '../assets/characters';
+import { createNodeTool } from '../assets/eraNodes';
 import { founderScarf, settlementLevel } from '../core/demand';
 import { createCharacterRig, type CharacterRig } from '../render/characters';
 import { CarryStack } from '../items/CarryStack';
@@ -77,6 +78,11 @@ export class Player {
   private readonly chopTarget = new THREE.Vector3();
   private readonly chopPos = new THREE.Vector3();
   private hasChopTarget = false;
+  /** 0.9.5: the era hand node being worked (null = the giant log, with the axe). */
+  private chopNode: { era: number; interval: number; tier: number } | null = null;
+  /** The era hand tool in the right hand (assets/eraNodes.ts createNodeTool), built for `toolKey`. */
+  private nodeTool: THREE.Group | null = null;
+  private toolKey = '';
   private swinging = false;
   /** Swing progress 0..1 (advances at 1 / current axe interval). */
   private chopClock = 0;
@@ -200,11 +206,16 @@ export class Player {
     this.steerHold = STEER_HOLD;
   }
 
-  /** Called every frame by the giant log's chop zone with the strike point; null leaves chopping. */
-  setChopTarget(p: THREE.Vector3 | null): void {
+  /**
+   * Called every frame by the giant log's chop zone with the strike point; null leaves chopping. 0.9.5: an era hand
+   * node (eras/HandNode.ts) passes `node`: the era's own tool replaces the axe, swings every `interval` seconds and
+   * 'player:chopHit' carries the node's era so only that node reacts.
+   */
+  setChopTarget(p: THREE.Vector3 | null, node?: { era: number; interval: number; tier: number }): void {
     if (p) {
       this.chopTarget.copy(p);
       this.hasChopTarget = true;
+      this.chopNode = node ?? null;
     } else {
       this.hasChopTarget = false;
     }
@@ -370,7 +381,8 @@ export class Player {
     this.chopBlend = approach(this.chopBlend, this.swinging ? 1 : 0, dt * 10);
 
     if (this.swinging) {
-      this.chopClock += dt / Math.max(0.05, this.ctx.upgrades.value('axe'));
+      const interval = this.chopNode ? this.chopNode.interval : this.ctx.upgrades.value('axe');
+      this.chopClock += dt / Math.max(0.05, interval);
       if (this.chopClock >= 1) {
         this.chopClock -= Math.floor(this.chopClock);
         this.struck = false;
@@ -379,7 +391,7 @@ export class Player {
       if (!this.struck && k >= STRIKE_AT) {
         this.struck = true;
         this.chopPos.copy(this.chopTarget);
-        this.ctx.events.emit('player:chopHit', { position: this.chopPos });
+        this.ctx.events.emit('player:chopHit', this.chopNode ? { position: this.chopPos, node: this.chopNode.era } : { position: this.chopPos });
       }
       const angle = swingAngle(k);
       const u = clamp((angle - SWING_WINDUP) / (SWING_STRIKE - SWING_WINDUP), 0, 1);
@@ -399,7 +411,26 @@ export class Player {
       rig.armLAngle = null;
       rig.torsoLean = 0;
     }
-    this.axe.visible = this.swinging || this.chopBlend > 0.05;
+    const out = this.swinging || this.chopBlend > 0.05;
+    this.syncNodeTool();
+    this.axe.visible = out && !this.nodeTool?.visible;
+    if (this.nodeTool) this.nodeTool.visible = out && !!this.chopNode;
+  }
+
+  /** 0.9.5: swap in the era hand tool while a node is the target (built once per era and tool band). */
+  private syncNodeTool(): void {
+    const node = this.chopNode;
+    if (!node) {
+      if (this.nodeTool) this.nodeTool.visible = false;
+      return;
+    }
+    const key = `${node.era}|${node.tier}`;
+    if (key === this.toolKey && this.nodeTool) return;
+    if (this.nodeTool) this.rig.handR.remove(this.nodeTool);
+    this.toolKey = key;
+    this.nodeTool = createNodeTool(node.era, node.tier);
+    this.nodeTool.visible = false;
+    this.rig.handR.add(this.nodeTool);
   }
 }
 
