@@ -134,8 +134,9 @@ export function createTreeFeller(): TreeFellerModel {
   box(fb, PALETTE.accent, 0.2, 0.22, FL_FORE, 0, 0, FL_FORE / 2);
   fore.add(fb.mesh());
 
-  // saw head: housing + hanging flat blade
+  // saw head at the forearm TIP (setBoom keeps it level): housing + hanging flat blade
   const head = new THREE.Group();
+  head.position.set(0, 0, FL_FORE);
   const hb = new Batch();
   box(hb, PALETTE.metalDark, 0.36, 0.36, 0.34, 0, 0, 0);
   box(hb, PALETTE.accent, 0.5, 0.14, 0.5, 0, -0.16, 0.05);
@@ -168,6 +169,8 @@ export function createTreeFeller(): TreeFellerModel {
     // rotation.x = -phi pitches +Z up
     upper.rotation.x = -phi1;
     fore.rotation.x = -(phi2 - phi1);
+    // the forearm's total pitch is -phi2: undo it so the head hangs level and the blade stays flat
+    head.rotation.x = phi2;
   };
   setBoom(1.1, 0.9);
 
