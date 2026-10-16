@@ -662,7 +662,7 @@ export interface GameEvents {
   'settlement:levelUp': { level: number; from: number; gift: number; charter: boolean; position: THREE.Vector3 };
   /**
    * The next era's gate moved (eras/GateTracker.ts, computed, nothing saved; never while loading): `ok` of `total` rows
-   * at need, `gained` rows finished since the last one (a Raise all can finish several), `readyNow` = it just became ready.
+   * at need, `gained` rows finished since the last one (a city build that also meets the settlement can finish several), `readyNow` = it just became ready.
    */
   'gate:progress': { era: number; ok: number; total: number; gained: number; settlement: number; settlementNeed: number; ready: boolean; readyNow: boolean };
   /** Open the era checklist (ui/GateCard.ts; the era chip). */
