@@ -12,6 +12,7 @@ import { ERAS, MACHINES, MAX_ERA, machinesOfEra } from '../src/eras/data';
 import { regionLayout } from '../src/eras/layout';
 import { LEVEL_PAD_SIZE, MACHINE_NOMINAL, levelPadLocal, machineFrame, toWorld } from '../src/eras/rules';
 import { NO_CLAIMS, pickJob, type JobMachine, type JobView } from '../src/npc/EraWorker';
+import { eraCrewDelta } from '../src/ui/agesLogic';
 
 const AT = { x: 0, z: 66 };
 const quarry = (outCount: number, over: Partial<JobMachine> = {}): JobMachine => ({
@@ -77,6 +78,14 @@ describe('era crew roles', () => {
       ['foreman', 4],
       ['clerk', 4],
     ]);
+  });
+
+  it("the shop card's effect line says who a level hires, short enough for the card", () => {
+    expect(eraCrewDelta(0, 0, 1)).toBe('Hires 1 worker');
+    expect(eraCrewDelta(2, 1.1, 1.2)).toBe('×1.1 → ×1.2 speed');
+    expect(eraCrewDelta(3, 1.2, 1.32)).toBe('1 → 2 workers · ×1.32');
+    expect(eraCrewDelta(10, 2.4, null)).toBe('3 workers · ×2.4 (max)');
+    for (let l = 0; l < 10; l++) expect(eraCrewDelta(l, 1 + l / 10, 1.1 + l / 10).length).toBeLessThanOrEqual(24);
   });
 
   it('every role wears its own scarf colour', () => {

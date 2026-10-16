@@ -13,13 +13,13 @@
  *   for a crew, "Lv 10 · era standard" (with its tooltip) for an era upgrade that arrived at its offset;
  * - a gold dot on a tab while any of its upgrades is below the gate's level (the green "can buy" dot wins).
  */
-import { PRIORITIES, QUARTERS, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
+import { PRIORITIES, QUARTERS, UPGRADES, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
-import { authoredMax, base, introEra } from '../core/ladder';
+import { authoredMax, base, introEra, valueAt } from '../core/ladder';
 import type { GameContext } from '../core/types';
 import { ERAS, ERA_NAMES } from '../eras/data';
 import { climbOpen, gateNeed, inGate as inGateOf } from '../eras/gate';
-import { BAND_PIPS, bandView, eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
+import { BAND_PIPS, bandView, eraCrewDelta, eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
 import { hexCss, ICON_CLOSE, ICON_LOCK, upgradeIcon } from './icons';
@@ -488,7 +488,11 @@ export class ShopPanel {
         const below = this.refreshBand(c, inGate ? gateNeed(next) : null);
         if (below && here) tabNeed[c.group] = true;
       }
-      const delta = shopDelta(up.describe(id), isMax ? null : up.describe(id, lvl + 1), climb);
+      const def = UPGRADES[id];
+      const eraCrew = def.group === 'crew' && (def.era ?? 1) >= 2;
+      const delta = eraCrew
+        ? eraCrewDelta(lvl, up.value(id), isMax ? null : valueAt(def, lvl + 1))
+        : shopDelta(up.describe(id), isMax ? null : up.describe(id, lvl + 1), climb);
       if (delta !== c.shown.delta) {
         c.shown.delta = delta;
         c.delta.textContent = delta;
