@@ -11,7 +11,7 @@ import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
 import { createGameState, type GameContext, type GameEvents, type GameState, type PadId, type UpgradeId } from '../src/core/types';
 import { Upgrades } from '../src/core/Upgrades';
-import { eraGate, gateCount, gateSize, nextGoal, openRows, prereqTarget, rowBuyable, settlementGoal } from '../src/eras/gate';
+import { eraGate, eraMatOf, gateCount, gateSize, nextGoal, openRows, padTarget, prereqTarget, rowBuyable, settlementGoal } from '../src/eras/gate';
 import { GateTracker } from '../src/eras/GateTracker';
 import { CITY_BUILDINGS, DISTRICTS } from '../src/eras/data';
 import { bandView, BAND_PIPS, gateRowLine, shopDelta } from '../src/ui/agesLogic';
@@ -125,20 +125,22 @@ describe('upgrades are hands-on', () => {
     const s = lodge();
     s.eras.age = 3;
     for (let n = 2; n <= 3; n++) s.eras.regions[n]!.unlocked = true;
-    const g = eraGate(s, 4);
     const ctx = { state: s };
     const seen = new Set<string>();
-    for (const r of g.rows) {
-      const t = rowTarget(r, s);
-      const def = UPGRADES[r.id];
-      if (r.state === 'prereq') expect(t, r.id).toBe(prereqTarget(r.id, s));
-      else if (r.where === 'pad') expect(t, r.id).toBe(`pad:${r.id}`);
-      else if (def.group === 'industry') expect(t, r.id).toBe(`shop:${def.era}`);
-      else expect(t, r.id).toBe('shop');
-      seen.add(t.startsWith('shop:') ? 'era shop' : t.replace(/:.*/, ''));
-      if (r.state !== 'prereq') expect(goTarget(ctx, t), r.id).not.toBeNull();
+    // era 2's gate is Survival's (cabin mat, machine pads); era 4's is era 3's own (its mat, its machines' level pads)
+    for (const g of [eraGate(s, 2), eraGate(s, 4)]) {
+      for (const r of g.rows) {
+        const t = rowTarget(r, s);
+        const e = eraMatOf(UPGRADES[r.id]);
+        if (r.state === 'prereq') expect(t, r.id).toBe(prereqTarget(r.id, s));
+        else if (r.where === 'pad') expect(t, r.id).toBe(padTarget(r.id));
+        else if (e !== null) expect(t, r.id).toBe(`shop:${e}`);
+        else expect(t, r.id).toBe('shop');
+        seen.add(t.startsWith('shop:') ? 'era shop' : t.replace(/:.*/, ''));
+        if (r.state !== 'prereq') expect(goTarget(ctx, t), r.id).not.toBeNull();
+      }
     }
-    for (const kind of ['shop', 'era shop', 'pad']) expect(seen.has(kind), kind).toBe(true);
+    for (const kind of ['shop', 'era shop', 'pad', 'region']) expect(seen.has(kind), kind).toBe(true);
     // the cabin's shop mat: the player lands on it, so the shop opens
     const m = LAYOUT.shop.mat;
     const at = goTarget(ctx, 'shop')!;
@@ -210,8 +212,8 @@ describe("GateTracker ('gate:progress')", () => {
     events.emit('era:unlocked', { era: 2, position: null as never });
     tick();
     expect(seen).toEqual([]);
-    s.upgrades.carry = 20;
-    bump(events, 'carry');
+    s.upgrades.frontierRigs = 10; // literal mode: era 3's gate is era 2's own upgrades
+    bump(events, 'frontierRigs');
     tick();
     expect(seen[0]).toMatchObject({ era: 3, ok: 1, gained: 1 });
   });

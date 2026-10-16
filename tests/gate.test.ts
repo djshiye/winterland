@@ -8,7 +8,7 @@ import { GATE, QUARTERS, UPGRADES, VILLAGE } from '../src/config';
 import { base, introEra, stepCost } from '../src/core/ladder';
 import { mergeState, sanitizeState, type SaveData } from '../src/core/Save';
 import { createGameState, type GameState, type PadId, type UpgradeId } from '../src/core/types';
-import { ERAS, MAX_ERA } from '../src/eras/data';
+import { ERAS, MAX_ERA, machinesOfEra } from '../src/eras/data';
 import { eraGate, gateMet, gateNote, nextGoal, padPaid, settlementLevel } from '../src/eras/gate';
 import { expansionOffered, expansionPreview } from '../src/eras/layout';
 import { meetGate } from './gateHelpers';
@@ -32,20 +32,36 @@ function allBuilt(s: GameState): GameState {
 }
 
 afterEach(() => {
-  GATE.mode = 'offset';
+  GATE.mode = 'literal';
 });
 
 describe('eraGate rows', () => {
-  it('lists every id introduced before era n: 28 for era 2 (0.9.2: + the five docks), then 28 + 2 + 3·(n − 2)', () => {
+  it("literal mode (0.9.5): era n's gate lists the previous era's own ids, 28 for era 2 (Survival + the five docks)", () => {
     const s = lodge();
     expect(eraGate(s, 2).total).toBe(28);
     for (let n = 3; n <= MAX_ERA; n++) {
       s.eras.age = n - 1;
       const g = eraGate(s, n);
-      expect(g.total, `era ${n}`).toBe(28 + 2 + 3 * (n - 2));
-      expect(g.rows.every((r) => introEra(UPGRADES[r.id]) <= n - 1)).toBe(true);
+      const own = IDS.filter((id) => introEra(UPGRADES[id]) === n - 1);
+      expect(g.total, `era ${n}`).toBe(own.length);
+      // Rigs, Trade, Belts, the hauler crew, six roles and one level per era machine type (+ era 2's tax office / broker)
+      const key = ERAS[n - 1]!.key;
+      for (const suffix of ['Rigs', 'Trade', 'Belts', 'Crew', 'Feeder', 'Shipper', 'Porter', 'Gatherer', 'Foreman', 'Clerk']) expect(own).toContain(`${key}${suffix}`);
+      for (const m of machinesOfEra(n - 1)) expect(own).toContain(m);
+      expect(g.rows.every((r) => introEra(UPGRADES[r.id]) === n - 1 && r.need === 10)).toBe(true);
     }
     expect(eraGate(s, MAX_ERA + 1).total).toBe(0);
+  });
+
+  it('offset mode: lists every id introduced before era n: 28 for era 2, then everything before era n', () => {
+    GATE.mode = 'offset';
+    const s = lodge();
+    expect(eraGate(s, 2).total).toBe(28);
+    for (let n = 3; n <= MAX_ERA; n++) {
+      s.eras.age = n - 1;
+      const g = eraGate(s, n);
+      expect(g.total, `era ${n}`).toBe(IDS.filter((id) => introEra(UPGRADES[id]) <= n - 1).length);
+    }
   });
 
   it('era 2 asks shown Lv 10 of the 22 Survival ids and Jack, and settlement 5', () => {
@@ -92,6 +108,7 @@ describe('eraGate rows', () => {
   });
 
   it('era-2 ids read their offset: Lv 10 at stored 0, the era-3 gate needs stored 10 (Lv 20)', () => {
+    GATE.mode = 'offset';
     const s = allBuilt(lodge());
     s.eras.age = 2;
     s.upgrades.frontierRigs = 9;
@@ -102,19 +119,17 @@ describe('eraGate rows', () => {
     expect(g.rows.find((r) => r.id === 'taxOffice')!.shown).toBe(10);
   });
 
-  it("literal mode: every id's shown level is its stored level, so era-2 ids need stored 20 for era 3", () => {
-    GATE.mode = 'literal';
+  it("literal mode: every id's shown level is its stored level, so era-2 ids need Lv 10 for era 3", () => {
     const s = allBuilt(lodge());
     s.eras.age = 2;
-    s.upgrades.frontierRigs = 10;
+    s.upgrades.frontierRigs = 7;
     const g = eraGate(s, 3);
-    expect(g.rows.find((r) => r.id === 'frontierRigs')).toMatchObject({ shown: 10, need: 20, state: 'low' });
+    expect(g.rows.find((r) => r.id === 'frontierRigs')).toMatchObject({ shown: 7, need: 10, state: 'low' });
+    expect(g.rows.some((r) => r.id === 'harvester')).toBe(false); // era 1 stays at 10, it no longer gates era 3
     expect(base(UPGRADES.frontierRigs)).toBe(0);
     meetGate(s, 3);
-    expect(s.upgrades.frontierRigs).toBe(20);
+    expect(s.upgrades.frontierRigs).toBe(10);
     expect(eraGate(s, 3).ready).toBe(true);
-    GATE.mode = 'offset';
-    expect(eraGate(s, 3).rows.find((r) => r.id === 'frontierRigs')!.shown).toBe(30);
   });
 });
 

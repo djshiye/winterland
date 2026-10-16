@@ -25,6 +25,21 @@ export interface MachineRuntime {
   readonly working: boolean;
 }
 
+/**
+ * 0.9.5: a machine slot the player has started paying for (its construction pad shows, some cash is in) that still
+ * wants its extra material: era foremen carry that material in (never cash).
+ */
+export interface SiteRuntime {
+  readonly slot: number;
+  readonly kind: ItemKind;
+  /** Units still to send (left minus those in flight). */
+  readonly room: number;
+  /** The construction pad (accepts `kind`). */
+  readonly holder: ItemHolder;
+  /** Where a worker stands to unload (beside the tile, clear of it). */
+  readonly spot: XZ;
+}
+
 /** An UNLOCKED era region. */
 export interface RegionRuntime {
   readonly era: number;
@@ -37,4 +52,6 @@ export interface RegionRuntime {
   /** Import dock: market orders arrive here; workers take inputs from it; the player may drop materials into it. */
   readonly dock: Pile;
   readonly dockSpot: XZ;
+  /** 0.9.5: construction sites wanting material right now (read live). */
+  sites(): readonly SiteRuntime[];
 }

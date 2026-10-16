@@ -3,7 +3,7 @@
  *
  * - Front yard (eras/layout.ts): the export depot (ExportDepot + model + a 'give' zone: materials in the player's
  *   arms are sold), the import dock (a Pile of up to 24 materials + model; a 'give' zone on its left half and a hold-to-
- *   interact 'take' zone on its right half), Jack's swap cart and the era shop mat ('shop:open' {tab:'industry'}).
+ *   interact 'take' zone on its right half), Jack's swap cart and the era shop mat ('shop:open' {tab:'crew', era}: the era's own Crew and Industry tabs).
  * - Machine slots (layout.slots): an empty slot shows a BUILD tile (town/LotPad) whose zone emits 'choose:open';
  *   choosing a machine arms a ConstructionPad (cash + the machine's extra material, never logs) that persists its
  *   progress in SlotState and, once paid, becomes a Machine (eras/Machine.ts). While the first payment has not landed
@@ -30,9 +30,11 @@ import { LotPad } from '../town/LotPad';
 import { ERAS, MACHINES, MATERIAL_KINDS, machinesOfEra, type MachineId } from './data';
 import { ExportDepot } from './ExportDepot';
 import { regionLayout, type RegionLayout, type XZ } from './layout';
+import { EraBelts } from './EraBelts';
+import { EraLevelPad } from './LevelPad';
 import { Machine } from './Machine';
-import type { RegionRuntime } from './runtime';
-import { DEPOT_FRAME, DOCK_FRAME, MAT_SIZE, chooseOptions, demolishCost, machineStatRows, slotKey, slotTarget, slotTitle, slotUntouched, toWorld, worldRect } from './rules';
+import type { RegionRuntime, SiteRuntime } from './runtime';
+import { DEPOT_FRAME, DOCK_FRAME, LEVEL_PAD_SIZE, MAT_SIZE, chooseOptions, demolishCost, machineStatRows, slotKey, slotTarget, slotTitle, slotUntouched, toWorld, worldRect } from './rules';
 
 const SIGN_HEIGHT = 2.0;
 /** Market orders drop in from this height above the dock. */
@@ -61,8 +63,12 @@ export class Region implements RegionRuntime {
   readonly root = new THREE.Group();
   readonly crew: EraCrew;
   readonly jack: JackCart;
+  /** 0.9.5: conveyor belts between the machines (from Lv 1 of the era's Belts upgrade). */
+  readonly belts: EraBelts;
 
   private readonly slots: SlotSite[] = [];
+  /** 0.9.5: one level pad per machine type, beside the first built machine of that type (slot index). */
+  private readonly levelPads = new Map<MachineId, { pad: EraLevelPad; slot: number }>();
   private readonly sign: THREE.Mesh;
   /** Facility objects that pop in on a live unlock. */
   private readonly pops: THREE.Object3D[] = [];
@@ -115,7 +121,7 @@ export class Region implements RegionRuntime {
       area: rect(L.shopMat.x, L.shopMat.z, MAT_SIZE.w, MAT_SIZE.d),
       onEnter: () => {
         this.sign.visible = false;
-        ctx.events.emit('shop:open', { tab: 'industry' });
+        ctx.events.emit('shop:open', { tab: 'crew', era });
       },
       onExit: () => {
         this.sign.visible = true;
@@ -140,14 +146,17 @@ export class Region implements RegionRuntime {
       });
       this.slots.push({ index: i, lotPad, zone, pad: null, pads: [], machine: null });
     });
+    this.belts = new EraBelts(ctx, this);
     for (const S of this.slots) this.refreshSlot(S, true);
+    this.syncLevelPads(true);
+    this.belts.sync(true);
 
     // ---- workers --------------------------------------------------------------------------------------------------
     this.crew = new EraCrew(ctx, this);
     this.crew.reconcile();
-    const key = `${ERAS[era]!.key}Crew`;
+    const crewIds = new Set<string>(this.crew.ids);
     ctx.events.on('upgrade:bought', (e) => {
-      if (e.id === key) this.crew.reconcile();
+      if (crewIds.has(e.id)) this.crew.reconcile();
     });
   }
 
@@ -167,6 +176,8 @@ export class Region implements RegionRuntime {
       S.lotPad.update(dt);
       S.machine?.update(dt);
     }
+    for (const L of this.levelPads.values()) L.pad.update(dt);
+    this.belts.update(dt);
     if (this.sign.visible) {
       this.sign.quaternion.copy(ctx.camera.quaternion);
       this.sign.position.y = SIGN_HEIGHT + Math.sin(ctx.time.elapsed * 2) * 0.05;
@@ -282,6 +293,8 @@ export class Region implements RegionRuntime {
     st.extra = 0;
     this.refreshSlot(S, instant);
     const m = S.machine!;
+    this.syncLevelPads(instant);
+    this.belts.sync(instant);
     this.ctx.state.stats.machinesBuilt++;
     const position = this.slotPos(S.index);
     if (!instant) this.ctx.events.emit('built', { what: `machine:${m.def.id}`, position, object: m.group });
@@ -308,6 +321,48 @@ export class Region implements RegionRuntime {
     return true;
   }
 
+  /**
+   * 0.9.5: every machine type of the era that stands somewhere has exactly one level pad, beside its first built machine
+   * (lowest slot). A demolished carrier hands the pad (and what was paid into it, state.padPaid) to the next one.
+   */
+  private syncLevelPads(instant: boolean): void {
+    for (const id of machinesOfEra(this.era)) {
+      const slot = this.machines.findIndex((m) => m?.def.id === id);
+      const cur = this.levelPads.get(id);
+      if (cur && cur.slot === slot) continue;
+      if (cur) {
+        cur.pad.dispose();
+        this.levelPads.delete(id);
+      }
+      const m = slot >= 0 ? this.machines[slot] : null;
+      if (!m) continue;
+      const pad = new EraLevelPad(this.ctx, id, m.levelPadSpot(), LEVEL_PAD_SIZE, MACHINES[id].label.toUpperCase(), this.root, instant || !!cur);
+      this.levelPads.set(id, { pad, slot });
+    }
+  }
+
+  /** 0.9.5: slots the player started paying for that still want their extra material (era foremen). */
+  sites(): SiteRuntime[] {
+    const out: SiteRuntime[] = [];
+    const L = this.layout;
+    for (const S of this.slots) {
+      const st = this.state(S.index);
+      const pad = S.pad;
+      if (st.machine === '' || st.tier >= 0 || st.cash <= 0 || !pad || !pad.visible) continue;
+      const kind = pad.extraKind;
+      const room = pad.extraRoom;
+      if (!kind || room <= 0) continue;
+      const p = L.slots[S.index]!;
+      out.push({ slot: S.index, kind, room, holder: pad, spot: { x: p.x, z: p.z - L.inward * (L.padSize / 2 + 0.7) } });
+    }
+    return out;
+  }
+
+  /** Debug / tests: the level pad of machine type `id`, if one stands. */
+  levelPad(id: MachineId): EraLevelPad | null {
+    return this.levelPads.get(id)?.pad ?? null;
+  }
+
   // ---- manage / demolish ----------------------------------------------------------------------------------------
   private openManage(S: SlotSite): void {
     const m = S.machine;
@@ -317,7 +372,7 @@ export class Region implements RegionRuntime {
       key: slotKey(this.era, S.index),
       title: m.def.label,
       subtitle: `${ERAS[this.era]!.name} · ${m.def.blurb}`,
-      stats: machineStatRows(m.def, m.rigs(), { input: snap.in, output: snap.out }),
+      stats: machineStatRows(m.def, m.rigs(), { input: snap.in, output: snap.out }, { shown: this.ctx.upgrades.shownLevel(m.def.id), boost: m.levelBoost() }),
       demolishCost: demolishCost(m.def),
       onDemolish: () => this.demolish(S),
     });
@@ -348,6 +403,8 @@ export class Region implements RegionRuntime {
     st.cash = 0;
     st.extra = 0;
     ctx.events.emit('manage:close', { key: slotKey(this.era, S.index) });
+    this.syncLevelPads(silent);
+    this.belts.sync(silent);
     if (!silent) {
       ctx.state.stats.demolished++;
       ctx.particles.puff(this.tmp.set(position.x, 0.6, position.z), { color: 0xcfc6b8, count: 14, size: 1.8, life: 1.0 });
@@ -386,6 +443,7 @@ export class Region implements RegionRuntime {
     const fl = this.ctx.flights;
     const dock: Partial<Record<ItemKind, number>> = {};
     const carried = this.crew.carried();
+    this.belts.carried(carried);
     for (const k of MATERIAL_KINDS) {
       const n = this.dock.count(k) + fl.inFlightTo(this.dock, k) + fl.inFlightTo(this.depot, k) + fl.inFlightTo(this.jack.sink, k) + (carried[k] ?? 0);
       if (n > 0) dock[k] = n;

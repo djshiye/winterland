@@ -26,7 +26,7 @@ import type { AudioFX } from '../fx/Audio';
 import type { HUD } from '../ui/HUD';
 import type { Upgrades } from './Upgrades';
 import type { Market } from './Market';
-import type { CityBuildingId, InvestProductId, MachineId } from '../eras/data';
+import { MACHINE_IDS, type CityBuildingId, type InvestProductId, type MachineId } from '../eras/data';
 import { ERA_KEYS, MATERIAL_KINDS, type MaterialKind } from './kinds';
 
 export { MATERIAL_KINDS, type MaterialKind };
@@ -507,17 +507,25 @@ export const REGION_SLOTS: readonly number[] = [0, 0, 4, 4, 5, 5, 6, 6, 7, 7, 8]
 /** Lots per city district, index = era (must match eras/data.ts DISTRICTS[n].lots). */
 export const DISTRICT_LOTS: readonly number[] = [0, 0, 6, 6, 6, 8, 8, 8, 9, 9, 12];
 
-/** Level 0 for every era upgrade (`${key}Rigs` / `${key}Crew` / `${key}Trade`). */
-function eraUpgradeLevels(): Record<EraUpgradeId, number> {
-  const out = {} as Record<EraUpgradeId, number>;
+/** Era crew role suffixes (config ERA_ROLES; kept here as data so this file needs no runtime config import). */
+const ERA_ROLE_SUFFIX = ['Feeder', 'Shipper', 'Porter', 'Gatherer', 'Foreman', 'Clerk'] as const;
+
+/** Level 0 for every era upgrade (`${key}Rigs` / `Crew` / `Trade` / `Belts` / the six roles, and each era machine). */
+function eraUpgradeLevels(): Record<EraUpgradeId | MachineId, number> {
+  const out = {} as Record<EraUpgradeId | MachineId, number>;
   for (const k of ERA_KEYS) {
     out[`${k}Rigs`] = 0;
     out[`${k}Crew`] = 0;
     out[`${k}Trade`] = 0;
+    out[`${k}Belts`] = 0;
+    for (const r of ERA_ROLE_SUFFIX) out[`${k}${r}`] = 0;
   }
+  for (const m of MACHINE_IDS) out[m] = 0;
   return out;
 }
-export type EraUpgradeId = `${(typeof ERA_KEYS)[number]}${'Rigs' | 'Crew' | 'Trade'}`;
+export type EraUpgradeId = `${(typeof ERA_KEYS)[number]}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | (typeof ERA_ROLE_SUFFIX)[number]}`;
+/** An era crew upgrade: the hauler (`${key}Crew`) or one of the six roles. */
+export type EraCrewId = `${(typeof ERA_KEYS)[number]}${'Crew' | (typeof ERA_ROLE_SUFFIX)[number]}`;
 
 // ---------------------------------------------------------------------------
 // Events
@@ -545,7 +553,8 @@ export interface GameEvents {
   /** `tip` (wave 8): extra dollars a VIP paid on top of `amount` (already in the cash pile). */
   sale: { buyer: Buyer; kind: ItemKind; count: number; amount: number; position: THREE.Vector3; vip?: boolean; tip?: number };
   'pad:shown': { id: PadId; position: THREE.Vector3 };
-  'pad:paid': { id: PadId; remaining: number; cost: number; position: THREE.Vector3 };
+  /** id: a Survival pad, or (0.9.5) the era machine whose level pad was paid. */
+  'pad:paid': { id: PadId | MachineId; remaining: number; cost: number; position: THREE.Vector3 };
   'pad:unlocked': { id: PadId; position: THREE.Vector3 };
   /**
    * A pad the player stood on finished its target (juice only: fx/JuiceDirector.ts, fx/Haptics.ts). id is the holder id
@@ -581,7 +590,8 @@ export interface GameEvents {
   /** Settings → Game toggled hold-to-interact (Input re-reads it). */
   'settings:hold': { on: boolean };
   /** `tab` (0.9.0): open on that shop tab (an UpgradeGroup, e.g. 'industry' from a region's shop mat). */
-  'shop:open': { tab?: string };
+  /** era: the era region whose shop mat opened it (2..10; absent = the cabin's doormat). */
+  'shop:open': { tab?: string; era?: number };
   'shop:close': Record<string, never>;
   /** A construction pad received a log or a cash bundle. key: 'plot:<i>' | 'greatLodge'. */
   'construction:paid': { key: string; kind: 'log' | 'cash'; logsLeft: number; cashLeft: number; position: THREE.Vector3 };
