@@ -14,7 +14,9 @@
  *   │ HARVEST: the era's raw resource (hand nodes)    │ homes                 │
  *   far edge ─────────────────────────────────────────────────────────────────
  *
- * The west column (yard, processing, harvest) is at least 30 m wide; the east column (market, huts) takes the rest.
+ * The west column (yard, processing, harvest) is at least 42 m wide (four 10 m machine cells); the east column
+ * (market, huts) takes the rest. Machine cells are ≥ 10 m wide with rows ≥ 10.5 m apart, so a machine (≤ 5.2 m), its
+ * level pad, its MANAGE zone, a belt lane and a walking aisle all fit (the era workers' belts and pads use them).
  * The GATE is the middle of the yard's road edge; the MARKET has its own 3 m gate onto the same road. The EXPANSION
  * PAD sits on the road just outside the gate. Machines face the yard (their feed / take side toward the gate).
  */
@@ -67,9 +69,14 @@ export interface RegionLayout {
   /** Sign by the gate (region name / FOR SALE). */
   sign: XZ;
   facilityYaw: number;
-  /** Machine slots (length = REGIONS[n].slots) and the square cell each one owns (metres). */
+  /** Machine slots (length = REGIONS[n].slots); each owns a `cell` (across, X) × `rowPitch` (deep, Z) metre cell. */
   slots: SlotPlace[];
   cell: number;
+  rowPitch: number;
+  /** The era's hand node in the harvest zone (yaw turns the model's +Z toward where the player stands, the gate side). */
+  node: { x: number; z: number; yaw: number };
+  /** A fixed spot in the yard (west of the depot) for an era's cash machine, should it be a facility. */
+  cashSpot: { x: number; z: number; yaw: number };
   /** 0.9.5 zones (see RegionZones). */
   zones: RegionZones;
   /** 0.9.5: the market's own gate in the road edge (centre on the edge line, `width` metres wide). */
@@ -85,9 +92,12 @@ export interface RegionLayout {
 /** Depth of the front yard band along the gate edge (metres). */
 export const YARD_DEPTH = 8;
 /** The west column (yard, processing, harvest) is never narrower than this. */
-export const MIN_WEST = 30;
-/** The harvest zone keeps at least this depth. */
-const MIN_HARVEST = 10;
+export const MIN_WEST = 42;
+/** The harvest zone keeps at least this depth (room for the hand node's 8 × 6 m patch and its paths). */
+export const MIN_HARVEST = 14;
+/** Machine cell minimums (metres): across (X) and row pitch (Z). */
+export const MIN_CELL = 10;
+export const ROW_PITCH = 10.5;
 
 /** World rect between depths d0..d1 into the region (from the gate edge) and x0..x1. */
 function band(r: ERect, north: boolean, x0: number, x1: number, d0: number, d1: number): ERect {
@@ -112,19 +122,21 @@ export function regionLayout(n: number): RegionLayout {
   const gx = r.minX + westW / 2;
   const inner = D - YARD_DEPTH; // depth below the yard
 
-  // machine grid: biggest cell (9 → 7 m) that fits every slot and still leaves the harvest zone its depth
-  let cell = 7;
+  const room = Math.max(def.slots, def.room);
+  // machine grid, laid out for the plot's room (the live slots take its first places): the widest cell (12 → 10 m) that fits every slot and still leaves the harvest zone its depth
+  let cell = MIN_CELL;
   let cols = Math.max(1, Math.floor((westW - 2) / cell));
-  for (const c of [9, 8.5, 8, 7.5, 7]) {
+  for (const c of [12, 11, 10.5, MIN_CELL]) {
     const k = Math.max(1, Math.floor((westW - 2) / c));
-    if (Math.ceil(def.slots / k) * c + 2 <= inner - MIN_HARVEST) {
+    if (Math.ceil(room / k) * ROW_PITCH + 2 <= inner - MIN_HARVEST) {
       cell = c;
       cols = k;
       break;
     }
   }
-  const rows = Math.ceil(def.slots / cols);
-  const procDepth = Math.min(inner - MIN_HARVEST, Math.max(rows * cell + 2, Math.round(inner * 0.5)));
+  const rowPitch = ROW_PITCH;
+  const rows = Math.ceil(room / cols);
+  const procDepth = Math.min(inner - MIN_HARVEST, Math.max(rows * rowPitch + 2, Math.round(inner * 0.5)));
   const marketDepth = Math.round(D * 0.55);
   const zones: RegionZones = {
     yard: band(r, north, r.minX, splitX, 0, YARD_DEPTH),
@@ -138,10 +150,10 @@ export function regionLayout(n: number): RegionLayout {
   const gridStart = edgeZ + inward * (YARD_DEPTH + 1); // first row's near edge
   for (let i = 0; i < def.slots; i++) {
     const row = Math.floor(i / cols);
-    const inRow = row === rows - 1 ? def.slots - row * cols : cols;
+    const inRow = row === rows - 1 ? room - row * cols : cols;
     const col = i - row * cols;
     const x = gx + (col - (inRow - 1) / 2) * cell;
-    const z = gridStart + inward * (row + 0.5) * cell;
+    const z = gridStart + inward * (row + 0.5) * rowPitch;
     // machines face the gate: local +Z toward the front yard
     slots.push({ x, z, yaw: north ? Math.PI : 0 });
   }
@@ -149,6 +161,9 @@ export function regionLayout(n: number): RegionLayout {
   const bandZ = edgeZ + inward * (YARD_DEPTH / 2);
   const roadZ = edgeZ - inward * 2; // roads are 4 m wide and touch the gate edge
   const mx = (splitX + r.maxX) / 2;
+  // the hand node: a third of the way across the harvest zone, halfway down it (clear of the paths along its edges)
+  const H = zones.harvest;
+  const node = { x: H.minX + (H.maxX - H.minX) * 0.35, z: (H.minZ + H.maxZ) / 2, yaw: north ? Math.PI : 0 };
   const road = ROADS.find((q) => q.rect.minX <= gx - 2 && q.rect.maxX >= gx + 2 && Math.abs((q.rect.minZ + q.rect.maxZ) / 2 - roadZ) < 0.01);
   return {
     n,
@@ -167,6 +182,9 @@ export function regionLayout(n: number): RegionLayout {
     facilityYaw,
     slots,
     cell,
+    rowPitch,
+    node,
+    cashSpot: { x: gx - 16.5, z: bandZ, yaw: facilityYaw },
     zones,
     marketGate: { x: mx, z: edgeZ, width: 3 },
     vehicleStop: { x: mx, z: roadZ },

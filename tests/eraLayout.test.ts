@@ -6,16 +6,17 @@
 import { describe, expect, it } from 'vitest';
 import type { Rect } from '../src/config';
 import { REGIONS, ROADS } from '../src/eras/data';
-import { MIN_WEST, regionLayout, YARD_DEPTH, type RegionZones } from '../src/eras/layout';
+import { MIN_CELL, MIN_HARVEST, MIN_WEST, regionLayout, ROW_PITCH, YARD_DEPTH, type RegionZones } from '../src/eras/layout';
 import { DEPOT_FRAME, DOCK_FRAME, worldRect } from '../src/eras/rules';
-import { gateWalk, marketGateWalk, regionPaths, regionWalk } from '../src/world/env/frontier';
+import { REGION_SLOTS } from '../src/core/types';
+import { gateWalk, marketGateWalk, nodePatch, regionPaths, regionWalk } from '../src/world/env/frontier';
 
 const EPS = 1e-6;
 const area = (r: Rect): number => (r.maxX - r.minX) * (r.maxZ - r.minZ);
 const overlap = (a: Rect, b: Rect): boolean => a.minX < b.maxX - EPS && b.minX < a.maxX - EPS && a.minZ < b.maxZ - EPS && b.minZ < a.maxZ - EPS;
 const inside = (a: Rect, outer: Rect): boolean => a.minX >= outer.minX - EPS && a.maxX <= outer.maxX + EPS && a.minZ >= outer.minZ - EPS && a.maxZ <= outer.maxZ + EPS;
 const contains = (r: Rect, x: number, z: number): boolean => x >= r.minX - EPS && x <= r.maxX + EPS && z >= r.minZ - EPS && z <= r.maxZ + EPS;
-const box = (x: number, z: number, half: number): Rect => ({ minX: x - half, maxX: x + half, minZ: z - half, maxZ: z + half });
+const box = (x: number, z: number, half: number, halfZ = half): Rect => ({ minX: x - half, maxX: x + half, minZ: z - halfZ, maxZ: z + halfZ });
 const ERA_NS = REGIONS.filter((r) => r !== null).map((r) => r!.n);
 const ZONE_KEYS: (keyof RegionZones)[] = ['yard', 'processing', 'harvest', 'market', 'huts'];
 
@@ -27,6 +28,26 @@ describe('0.9.5 era plot sizes', () => {
       expect(a, `era ${n}`).toBeGreaterThanOrEqual(3 * 720);
       expect(a, `era ${n}`).toBeGreaterThan(last);
       last = a;
+    }
+  });
+
+  it('keeps the live slot counts (the save shape) and reserves room for the 0.10 counts (8, 8, 8, 8, 8, 8, 9, 9, 10)', () => {
+    for (const n of ERA_NS) expect(REGION_SLOTS[n]).toBe(REGIONS[n]!.slots);
+    expect(ERA_NS.map((n) => REGIONS[n]!.room)).toEqual([8, 8, 8, 8, 8, 8, 9, 9, 10]);
+  });
+
+  it('never moves a live machine when the slots grow into the room', () => {
+    for (const n of ERA_NS) {
+      const def = REGIONS[n]! as { slots: number };
+      const now = regionLayout(n).slots;
+      const was = def.slots;
+      def.slots = REGIONS[n]!.room;
+      try {
+        const grown = regionLayout(n).slots;
+        expect(grown.slice(0, was)).toEqual(now);
+      } finally {
+        def.slots = was;
+      }
     }
   });
 
@@ -62,20 +83,31 @@ describe('0.9.5 region zones', () => {
       expect(Z.market.maxZ - Z.market.minZ).toBeGreaterThanOrEqual(12);
     });
 
-    it(`era ${n}: machine slots sit whole cells inside the processing zone, apart from each other`, () => {
+    it(`era ${n}: machine slots sit whole cells (≥ ${MIN_CELL} m across, rows ${ROW_PITCH} m apart) inside the processing zone`, () => {
       expect(L.slots).toHaveLength(REGIONS[n]!.slots);
+      expect(L.cell).toBeGreaterThanOrEqual(MIN_CELL);
+      expect(L.rowPitch).toBeGreaterThanOrEqual(ROW_PITCH);
+      const cellOf = (s: { x: number; z: number }): Rect => box(s.x, s.z, L.cell / 2, L.rowPitch / 2);
       L.slots.forEach((s, i) => {
-        expect(inside(box(s.x, s.z, L.cell / 2), Z.processing), `slot ${i}`).toBe(true);
+        expect(inside(cellOf(s), Z.processing), `slot ${i}`).toBe(true);
         L.slots.forEach((o, j) => {
-          if (j > i) expect(overlap(box(s.x, s.z, L.cell / 2), box(o.x, o.z, L.cell / 2)), `slot ${i} vs ${j}`).toBe(false);
+          if (j > i) expect(overlap(cellOf(s), cellOf(o)), `slot ${i} vs ${j}`).toBe(false);
         });
       });
+    });
+
+    it(`era ${n}: the hand node's patch sits in the harvest zone (≥ ${MIN_HARVEST} m deep), clear of the paths`, () => {
+      expect(Z.harvest.maxZ - Z.harvest.minZ).toBeGreaterThanOrEqual(MIN_HARVEST);
+      expect(inside(nodePatch(L), Z.harvest)).toBe(true);
+      for (const q of regionPaths(L)) expect(overlap(q, nodePatch(L))).toBe(false);
+      // the model faces the gate side, where the player comes from
+      expect(Math.cos(L.node.yaw)).toBeCloseTo(-L.inward);
     });
 
     it(`era ${n}: the paths between the zones stay inside the plot and off the machine slots`, () => {
       for (const q of regionPaths(L)) {
         expect(inside(q, L.rect)).toBe(true);
-        for (const sl of L.slots) expect(overlap(q, box(sl.x, sl.z, L.cell / 2 - 0.5))).toBe(false);
+        for (const sl of L.slots) expect(overlap(q, box(sl.x, sl.z, L.cell / 2 - 0.5, L.rowPitch / 2 - 0.5))).toBe(false);
       }
     });
 
@@ -86,6 +118,7 @@ describe('0.9.5 region zones', () => {
         ['dock', worldRect(L.dock, yaw, DOCK_FRAME.body)],
         ['jack', box(L.jack.x, L.jack.z, 1.5)],
         ['shop', box(L.shopMat.x, L.shopMat.z, 1.2)],
+        ['cash machine spot', box(L.cashSpot.x, L.cashSpot.z, 2.6, 2.6)],
         ['gate', { minX: L.gate.x - 2, maxX: L.gate.x + 2, minZ: Z.yard.minZ, maxZ: Z.yard.maxZ }],
       ];
       for (const [k, r] of parts) expect(inside(r, Z.yard), k).toBe(true);
