@@ -62,6 +62,7 @@ const TABS: Array<{ group: Tab; label: string; short?: string }> = [
 /** The header row above an era's industry upgrades. */
 interface EraHeader {
   era: number;
+  group: Tab;
   root: HTMLDivElement;
   note: HTMLSpanElement;
 }
@@ -162,11 +163,13 @@ export class ShopPanel {
 
     for (const { group } of TABS) {
       let lastEra = 0;
-      for (const id of ctx.upgrades.group(group)) {
+      // era-1 cards first, then each era's under its header (0.9.5: the Sales tab has era markets too)
+      const ids = [...ctx.upgrades.group(group)].sort((a, b) => (ctx.upgrades.def(a).era ?? 0) - (ctx.upgrades.def(b).era ?? 0));
+      for (const id of ids) {
         const era = ctx.upgrades.def(id).era;
-        if (group === 'industry' && era !== undefined && era !== lastEra) {
+        if ((group === 'industry' || group === 'sales') && era !== undefined && era !== lastEra) {
           lastEra = era;
-          this.list.appendChild(this.makeEraHeader(era));
+          this.list.appendChild(this.makeEraHeader(era, group));
         }
         this.cards.push(this.makeCard(id, group));
       }
@@ -273,21 +276,21 @@ export class ShopPanel {
     for (const c of this.cards) c.root.style.display = c.group === this.tab && this.cardHere(c, age) ? '' : 'none';
     for (const hd of this.eraHeaders) {
       const here = this.place >= 2 ? hd.era === this.place : industryEraShown(hd.era, age);
-      hd.root.style.display = this.tab === 'industry' && here ? '' : 'none';
+      hd.root.style.display = this.tab === hd.group && here ? '' : 'none';
       const note = industryEraNote(hd.era, age) ?? '';
       hd.note.textContent = note;
       hd.root.classList.toggle('is-locked', note !== '');
     }
   }
 
-  private makeEraHeader(n: number): HTMLDivElement {
+  private makeEraHeader(n: number, group: Tab): HTMLDivElement {
     const e = ERAS[n]!;
     const root = h('div', 'wl-shop-era');
     root.style.setProperty('--era-accent', hexCss(e.colors.accent));
     root.appendChild(h('span', 'wl-shop-era-name', `ERA ${eraRoman(n)} \u00b7 ${e.name.toUpperCase()}`));
     const note = h('span', 'wl-shop-era-note');
     root.appendChild(note);
-    this.eraHeaders.push({ era: n, root, note });
+    this.eraHeaders.push({ era: n, group, root, note });
     return root;
   }
 

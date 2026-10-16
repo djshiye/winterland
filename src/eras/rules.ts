@@ -11,6 +11,7 @@ import { formatMoney } from '../ui/format';
 import type { ChooseOption, GameState } from '../core/types';
 import { DEMOLISH_MIN, DEMOLISH_SHARE, ERAS, MACHINES, MACHINE_PILES, MATERIALS, isMaterial, machinesOfEra, type ERect, type MachineDef } from './data';
 import { regionLayout, type XZ } from './layout';
+import { marketPlaces } from './market';
 import type { ItemKind } from '../core/types';
 
 /** Local rectangle (u along the thing's X, v along its Z). */
@@ -99,6 +100,14 @@ export const MACHINE_NOMINAL = { w: 5.2, d: 5.0 } as const;
  * just in front of it to stand on without paying; null while none is built.
  */
 export function machinePadTarget(state: Pick<GameState, 'eras'>, id: string): { pad: XZ; size: number; x: number; z: number } | null {
+  // 0.9.5: the era cash machine's pad stands by the market cash pile from the start (eras/CashMachine.ts)
+  const cashEra = ERAS.findIndex((e) => !!e && `${e.key}Cash` === id);
+  if (cashEra >= 2) {
+    if (!state.eras.regions[cashEra]?.unlocked) return null;
+    const L = regionLayout(cashEra);
+    const pad = marketPlaces(L).vaultPad;
+    return { pad, size: LEVEL_PAD_SIZE, x: pad.x, z: pad.z - L.inward * (LEVEL_PAD_SIZE + 0.4) };
+  }
   const def = (MACHINES as Record<string, MachineDef | undefined>)[id];
   if (!def) return null;
   const slots = state.eras.regions[def.era]?.slots ?? [];
