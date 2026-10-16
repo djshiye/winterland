@@ -244,7 +244,7 @@ export class SledQueue {
     this.takeTimer -= dt;
     const pile = this.opts.counter.pile;
     if (this.takeTimer <= 0 && cargo.total < this.want && pile.count('furniture') > 0) {
-      this.takeTimer = TIMING.npcTakeInterval / Math.min(3, this.dock());
+      this.takeTimer = TIMING.dockTakeInterval / Math.min(TIMING.dockLoadMax, this.dock());
       transferOne(this.ctx, pile, cargo, ['furniture'], { duration: 0.3, arcHeight: 1.6 });
     }
     if (have >= this.want) this.pay();

@@ -10,7 +10,7 @@
  * - Up to demand.customerQueue customers (core/demand.ts, read live); spawned every demand.customerGap seconds at `spawn`, they walk to the first
  *   free queue slot (slot i = front + i·spacing along +Z) and shuffle forward as slots free up.
  * - The customer at slot 0 pulls PLANK BUNDLES from the counter pile into its own CarryStack (anchor =
- *   rig.armsAnchor) one every TIMING.npcTakeInterval; when it holds `want` planks it pays
+ *   rig.armsAnchor) one every TIMING.dockTakeInterval (÷ the Shop Counter upgrade); when it holds `want` planks it pays
  *   want · plankPrice into the cash pile, emits 'sale', cheers, shows the check and walks the exit path
  *   carrying the planks; at the end of the path everything is released and the entity returns to a pool.
  * - Entities (rig + carry stack + bubble canvas) are pooled: nothing is created per customer after warm-up.
@@ -240,7 +240,7 @@ export class CustomerQueue {
 
     c.takeTimer -= dt;
     if (c.takeTimer <= 0 && c.stack.size < c.want && counter.pile.count(counter.displayKind) > 0) {
-      c.takeTimer = TIMING.npcTakeInterval / Math.min(3, this.dock());
+      c.takeTimer = TIMING.dockTakeInterval / Math.min(TIMING.dockLoadMax, this.dock());
       if (transferOne(this.ctx, counter.pile, c.stack, [counter.displayKind])) c.rig.setCarrying(true);
     }
 
