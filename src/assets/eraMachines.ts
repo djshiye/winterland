@@ -22,6 +22,7 @@ import { ERAS, MACHINES, MACHINE_IDS } from '../eras/data';
 import { vcMat } from '../render/batch';
 import { ERA2_4_MACHINE_IDS, createEra2to4MachineModel } from './eraMachines2';
 import { ERA5_7_MACHINE_IDS, createEra5to7MachineModel } from './eraMachines3';
+import { ERA4_MACHINE_IDS, createEraMachine4 } from './eraMachines4';
 import { SNOW, SNOW_SH, Kit, eraGlowMaterial, hcyl, lattice, pixelText, pixelTextWidth, rotor, seeded, wheel, type V3 } from './eraKit';
 
 export interface MachineModel {
@@ -967,6 +968,8 @@ const OWN_MODELS: Partial<Record<MachineId, () => MachineModel>> = {
   ...Object.fromEntries(ERA2_4_MACHINE_IDS.map((id) => [id, () => createEra2to4MachineModel(id)])),
   // eras 5-7 (assets/eraMachines3.ts)
   ...Object.fromEntries(ERA5_7_MACHINE_IDS.map((id) => [id, () => createEra5to7MachineModel(id)])),
+  // eras 8-10 (assets/eraMachines4.ts; the cash machines are not MachineIds)
+  ...Object.fromEntries(ERA4_MACHINE_IDS.filter((id) => (MACHINE_IDS as string[]).includes(id)).map((id) => [id, () => createEraMachine4(id)])),
 };
 
 export function createMachineModel(id: MachineId): MachineModel {

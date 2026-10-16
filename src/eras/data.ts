@@ -102,7 +102,9 @@ export type MaterialShape =
   // 0.9.5 era 2-4 (assets/eraItems2to4.ts)
   | 'tile' | 'hearth' | 'tools' | 'rail' | 'boiler' | 'engine'
   // 0.9.5 era 5-7 (assets/eraItems5to7.ts)
-  | 'girder' | 'plow' | 'bulb' | 'radio' | 'canister' | 'jerrycan' | 'snowmobile';
+  | 'girder' | 'plow' | 'bulb' | 'radio' | 'canister' | 'jerrycan' | 'snowmobile'
+  // 0.9.5 era 8-10 (assets/eraItems8to10.ts)
+  | 'computer';
 
 export interface MaterialDef {
   kind: MaterialKind;
@@ -171,6 +173,13 @@ export const MATERIALS: Record<MaterialKind, MaterialDef> = {
   gas: mat('gas', 'Gas', 7, 'raw', RAW(7), 'canister', 0x4f7fa8, 0xf2f2f2, 0.3, 0.44, 0.3),
   fuel: mat('fuel', 'Fuel', 7, 'refined', Math.max(REF(7) * 0.8, VALUE_ADD * 2 * RAW(7)), 'jerrycan', 0xc44536, 0xe2ad3c, 0.4, 0.38, 0.2),
   snowmobile: mat('snowmobile', 'Snowmobiles', 7, 'refined', Math.max(REF(7) * 2.6, VALUE_ADD * (REF(7) + REF(7) * 0.8)), 'snowmobile', 0xd99b26, 0xc44536, 0.4, 0.34, 0.48),
+  // 0.9.5 eras 8-10: every processing step adds value (tests/era8to10.test.ts), premium goods top each era
+  gold: mat('gold', 'Gold', 8, 'raw', RAW(8) * 1.5, 'nugget', 0xe8b341, 0xb8862e, 0.32, 0.2, 0.28),
+  board: mat('board', 'Circuit Boards', 8, 'refined', REF(8) * 1.9, 'chip', 0x3a7d5a, 0xe8c650, 0.48, 0.08, 0.38),
+  computer: mat('computer', 'Home Computers', 8, 'refined', REF(8) * 4.2, 'computer', 0xe6dec8, 0x45858c, 0.42, 0.36, 0.36),
+  graphite: mat('graphite', 'Graphite', 9, 'raw', RAW(9) * 1.3, 'block', 0x4a494e, 0x6e6c73, 0.36, 0.24, 0.3),
+  battery: mat('battery', 'Batteries', 9, 'refined', REF(9) * 1.6, 'cell', 0x4ea885, 0xe8b341, 0.32, 0.4, 0.32),
+  quantumCore: mat('quantumCore', 'Quantum Cores', 10, 'refined', REF(10) * 3.2, 'core', 0xb9a6e0, 0xe8a848, 0.36, 0.36, 0.36),
 };
 
 export function isMaterial(kind: ItemKind): kind is MaterialKind {
@@ -211,7 +220,11 @@ export type MachineId =
   | 'oilPump' | 'refinery' | 'gasWell' | 'cracker' | 'snowmobileWorks'
   | 'sandPit' | 'chipFab'
   | 'uraniumMine' | 'enricher' | 'reactor'
-  | 'fusionPlant' | 'nanoFab' | 'dataCenter' | 'robotWorks';
+  | 'fusionPlant' | 'nanoFab' | 'dataCenter' | 'robotWorks'
+  // 0.9.5 eras 8-10 (models: assets/eraMachines4.ts)
+  | 'goldPanner' | 'boardShop' | 'pcAssembly'
+  | 'graphitePit' | 'batteryPlant'
+  | 'quantumLab';
 
 export interface MachineDef {
   id: MachineId;
@@ -285,6 +298,13 @@ export const MACHINES: Record<MachineId, MachineDef> = {
   nanoFab: machine('nanoFab', 10, 'extractor', 'Nano Fab', 'Self-assembling microchips', [], 'chip', 1, 2.0, 0.08, undefined, 'sleek block with holo panels'),
   dataCenter: machine('dataCenter', 10, 'processor', 'Data Center', 'Chip + power cell → an AI core', [{ kind: 'chip', per: 1 }, { kind: 'power', per: 1 }], 'aiCore', 1, 3.0, 0.2, { kind: 'chip', count: 10 }, 'server halls with blinking racks'),
   robotWorks: machine('robotWorks', 10, 'processor', 'Robot Works', 'Steel + AI core → a robot', [{ kind: 'steel', per: 1 }, { kind: 'aiCore', per: 1 }], 'robot', 1, 3.4, 0.25, { kind: 'aiCore', count: 4 }, 'assembly hall with robot arms'),
+  // 0.9.5 eras 8-10: second extractor, second processor and premium line of each era (docs/EXPANSION.md §D)
+  goldPanner: machine('goldPanner', 8, 'extractor', 'Gold Panner', 'A rocker sluice washes gold out of the shore', [], 'gold', 1, 2.2, 0.12, undefined, 'rocker sluice with a spinning pan'),
+  boardShop: machine('boardShop', 8, 'processor', 'Board Shop', 'Chip + gold → a circuit board', [{ kind: 'chip', per: 1 }, { kind: 'gold', per: 1 }], 'board', 1, 2.8, 0.2, { kind: 'gold', count: 10 }, 'solder line with a pick-and-place head'),
+  pcAssembly: machine('pcAssembly', 8, 'processor', 'PC Assembly', 'Board + chip → a cosy home computer', [{ kind: 'board', per: 1 }, { kind: 'chip', per: 1 }], 'computer', 1, 3.4, 0.28, { kind: 'board', count: 8 }, 'assembly bench with a test screen'),
+  graphitePit: machine('graphitePit', 9, 'extractor', 'Graphite Pit', 'A dragline scoops soft graphite', [], 'graphite', 1, 2.2, 0.12, undefined, 'dragline over a dark pit'),
+  batteryPlant: machine('batteryPlant', 9, 'processor', 'Battery Plant', 'Power cell + graphite → a big battery', [{ kind: 'power', per: 1 }, { kind: 'graphite', per: 1 }], 'battery', 1, 3.2, 0.28, { kind: 'graphite', count: 10 }, 'stacking press with a charge rack'),
+  quantumLab: machine('quantumLab', 10, 'processor', 'Quantum Lab', 'AI core + power cell → a quantum core', [{ kind: 'aiCore', per: 1 }, { kind: 'power', per: 1 }], 'quantumCore', 1, 3.8, 0.3, { kind: 'aiCore', count: 6 }, 'gold chandelier cryostat'),
 };
 export const MACHINE_IDS = Object.keys(MACHINES) as MachineId[];
 export const machinesOfEra = (n: number): MachineId[] => MACHINE_IDS.filter((id) => MACHINES[id].era === n);
