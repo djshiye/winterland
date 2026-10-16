@@ -5,6 +5,7 @@
  */
 import { MATERIALS, isMaterial } from '../eras/data';
 import type { ItemKind } from '../core/types';
+import { ERA2_4_ICONS } from './materialIcons2to4';
 
 const OUT = '#1f2b46';
 
@@ -141,6 +142,7 @@ const MATERIAL_ICONS: Record<string, string> = {
        <rect x="6" y="26" width="6" height="11" rx="2" fill="#d8cfbd"/><rect x="36" y="26" width="6" height="11" rx="2" fill="#d8cfbd"/>
        <rect x="15" y="39" width="7" height="6" rx="2" fill="#e8a848"/><rect x="26" y="39" width="7" height="6" rx="2" fill="#e8a848"/>`),
   ),
+  ...ERA2_4_ICONS,
 };
 
 /** Survival goods (Era 1) and cash, in the same style. */

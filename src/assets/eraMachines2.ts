@@ -54,6 +54,9 @@ export const ERA_MACHINES_2: Readonly<Record<EraMachine2Id, EraMachine2Info>> = 
 
 export const ERA_MACHINE_2_IDS = Object.keys(ERA_MACHINES_2) as readonly EraMachine2Id[];
 
+/** The nine producing machines among them (eras/data.ts MACHINES ids); the three cash machines are facilities. */
+export const ERA2_4_MACHINE_IDS = ['clayPit', 'tileKiln', 'masonYard', 'charcoalClamp', 'forge', 'railMill', 'scrapYard', 'boilerShop', 'engineWorks'] as const;
+
 // ---------------------------------------------------------------------------
 // palette (ARGON chat guide rows for eras 2–4, plus warm material tones)
 // ---------------------------------------------------------------------------
@@ -997,3 +1000,8 @@ for (const era of [2, 3, 4] as const) {
   };
 }
 export const eraMachine2Catalog: Record<string, () => THREE.Object3D> = catalog;
+
+/** eras/data.ts wiring: the model of a producing era 2-4 machine (assets/eraMachines.ts OWN_MODELS). */
+export function createEra2to4MachineModel(id: (typeof ERA2_4_MACHINE_IDS)[number]): MachineModel {
+  return createEraMachine2Model(id);
+}
