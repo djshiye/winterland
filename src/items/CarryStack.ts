@@ -19,6 +19,8 @@
  *   column sways like a normal stack; column positions glide when the column count changes. Defaults: unlimited
  *   (one column), so NPC stacks are unchanged.
  * - capacity counts landed + reserved items.
+ * - With `renderCap` set, only the bottom renderCap items are drawn; the rest sit hidden on top of the last drawn one
+ *   and the badge shows "+N" (the climb's carry 50 + dog 12 stay at 0.8.0's draw calls). take() always shows the item.
  *
  * Placement is correct even if update() is never called (items are positioned in receive());
  * update() only adds the sway and the settle animation.
@@ -41,6 +43,8 @@ export interface CarryStackOptions {
   columnSize?: number;
   /** Held items cast shadows (the player's arms; default false: NPC stacks stay cheap). */
   castShadows?: boolean;
+  /** Most items drawn; the rest are held hidden and counted on the badge as "+N" (default: unlimited). */
+  renderCap?: number;
 }
 
 /** One stack position: a landed item, or a placeholder (item === null) for one still in flight. */
@@ -82,6 +86,9 @@ export class CarryStack implements ItemHolder {
   private readonly sway = new SwaySpring();
   private lastUpdateFrame = -100;
   private badge: THREE.Sprite | null = null;
+  /** The badge's canvas and the text painted on it ('MAX', '+3', 'MAX +3'). */
+  private badgeArt: { canvas: HTMLCanvasElement; g: CanvasRenderingContext2D; texture: THREE.Texture } | null = null;
+  private badgeText = '';
   private time = 0;
   private columnHeight: number;
   private columnSize: number;
@@ -143,6 +150,7 @@ export class CarryStack implements ItemHolder {
     setShadow(item, !!this.opts.castShadows);
     item.object.scale.set(1, 1, 1);
     this.apply(e);
+    this.syncHidden();
     this.ctx.tweens.punchScale(item.object, 0.12, 0.18);
     this.updateBadge();
   }
@@ -173,6 +181,7 @@ export class CarryStack implements ItemHolder {
       e.item = null;
       this.ctx.tweens.killTweensOf(item.object);
       this.ctx.scene.attach(item.object);
+      item.object.visible = true; // it may have been held hidden past the render cap
       setShadow(item, false);
       this.entries.splice(i, 1);
       this.layout(); // entries above keep their current y and glide down in update()
@@ -268,6 +277,7 @@ export class CarryStack implements ItemHolder {
     setShadow(item, !!this.opts.castShadows);
     item.object.scale.set(1, 1, 1);
     this.apply(e);
+    this.syncHidden();
     this.updateBadge();
     return true;
   }
@@ -294,15 +304,24 @@ export class CarryStack implements ItemHolder {
     return e;
   }
 
-  /** Recompute every entry's column, resting height and target X from the stack order. */
+  /**
+   * Recompute every entry's column, resting height and target X from the stack order. Entries past the render cap
+   * take no room: they rest on top of the last drawn item (where in-flight items aim) and are hidden on landing.
+   */
   private layout(): void {
     const entries = this.entries;
+    const cap = this.opts.renderCap ?? Infinity;
     let col = 0;
     let y = 0;
     let inCol = 0;
     this.colTop[0] = 0;
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i]!;
+      if (i >= cap) {
+        e.col = col;
+        e.targetY = y;
+        continue;
+      }
       if (inCol > 0 && (y + e.h > this.columnHeight + 1e-6 || inCol >= this.columnSize)) {
         col++;
         y = 0;
@@ -321,6 +340,22 @@ export class CarryStack implements ItemHolder {
       e.tx = this.columnX(e.col);
       e.tz = this.columnZ(e.col);
     }
+    this.syncHidden();
+  }
+
+  /** Show the landed items below the render cap, hide the ones above it (no-op without a cap). */
+  private syncHidden(): void {
+    const cap = this.opts.renderCap;
+    if (cap === undefined) return;
+    for (let i = 0; i < this.entries.length; i++) {
+      const item = this.entries[i]!.item;
+      if (item) item.object.visible = i < cap;
+    }
+  }
+
+  /** Items held past the render cap (landed + reserved). */
+  private get hiddenCount(): number {
+    return Math.max(0, this.entries.length - (this.opts.renderCap ?? Infinity));
   }
 
   /** Anchor-local X of column `c`: a single column sits on the anchor, otherwise two per row (left / right). */
@@ -372,12 +407,17 @@ export class CarryStack implements ItemHolder {
     this.localQuat(e.y, e.yaw, o.quaternion);
   }
 
-  // --- MAX badge --------------------------------------------------------------
+  // --- MAX / +N badge ---------------------------------------------------------
   private updateBadge(): void {
     const full = this.capacity > 0 && this.entries.length >= this.capacity;
-    if (full && !this.badge) this.badge = this.createBadge();
-    if (this.badge) this.badge.visible = full;
-    if (full) this.animateBadge();
+    const hidden = this.hiddenCount;
+    const text = hidden > 0 ? (full ? `MAX +${hidden}` : `+${hidden}`) : full ? 'MAX' : '';
+    if (text && !this.badge) this.badge = this.createBadge();
+    if (this.badge) {
+      this.badge.visible = text !== '';
+      if (text && text !== this.badgeText) this.drawBadge(text);
+    }
+    if (text) this.animateBadge();
   }
 
   private animateBadge(): void {
@@ -391,6 +431,20 @@ export class CarryStack implements ItemHolder {
 
   private createBadge(): THREE.Sprite {
     const { canvas, ctx: g, texture } = makeCanvasTexture(256, 128);
+    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, fog: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(1.1, 0.55, 1);
+    sprite.renderOrder = 1000;
+    sprite.name = `${this.id}.maxBadge`;
+    this.badgeArt = { canvas, g, texture };
+    this.opts.anchor.add(sprite);
+    return sprite;
+  }
+
+  /** Repaint the badge texture with `text` (only when it changes: a level-up or an item past the render cap). */
+  private drawBadge(text: string): void {
+    this.badgeText = text;
+    const { canvas, g, texture } = this.badgeArt!;
     const w = canvas.width;
     const h = canvas.height;
     g.clearRect(0, 0, w, h);
@@ -401,23 +455,17 @@ export class CarryStack implements ItemHolder {
     g.lineWidth = 10;
     g.strokeStyle = '#ffffff';
     g.stroke();
-    g.font = `800 70px ${GAME_FONT}`;
+    // 'MAX' keeps its 0.8.0 size; longer texts ('MAX +16') shrink to fit the plate
+    g.font = `800 ${text.length <= 3 ? 70 : Math.max(40, Math.floor(200 / text.length) + 14)}px ${GAME_FONT}`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.lineJoin = 'round';
     g.lineWidth = 8;
     g.strokeStyle = '#8a2208';
-    g.strokeText('MAX', w / 2, h / 2 + 4);
+    g.strokeText(text, w / 2, h / 2 + 4);
     g.fillStyle = '#ffffff';
-    g.fillText('MAX', w / 2, h / 2 + 4);
+    g.fillText(text, w / 2, h / 2 + 4);
     texture.needsUpdate = true;
-    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, fog: false });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(1.1, 0.55, 1);
-    sprite.renderOrder = 1000;
-    sprite.name = `${this.id}.maxBadge`;
-    this.opts.anchor.add(sprite);
-    return sprite;
   }
 }
 

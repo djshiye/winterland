@@ -8,8 +8,9 @@
  * mat right of it); MACHINE SLOTS fill the rest in a centred grid. The EXPANSION PAD sits on the road just outside
  * the gate. Machines face the front yard (their feed / take side toward the gate).
  */
-import { FIRST_EXPANSION_VILLAGE_LEVEL, DISTRICTS, ERAS, REGIONS, regionDef, type ERect, type GateSide } from './data';
+import { DISTRICTS, ERAS, REGIONS, regionDef, type ERect, type GateSide } from './data';
 import type { GameState } from '../core/types';
+import { climbOpen, gateMet, padPaid } from './gate';
 
 export interface XZ {
   x: number;
@@ -109,11 +110,22 @@ export function regionLayout(n: number): RegionLayout {
   };
 }
 
-/** True once era n's expansion pad is offered (era 2: Winter City; later eras: the previous era reached). */
+/**
+ * True while era n's expansion pad takes payment (docs/EXPANSION.md §C): era n is next, the climb is open (Great
+ * Lodge), and its gate is met: every upgrade introduced before era n at shown level 10·(n − 1) and the settlement at
+ * 5·(n − 1) (eras/gate.ts). A pad with anything already paid into it stays offered (grandfathered).
+ */
 export function expansionOffered(state: GameState, n: number): boolean {
-  if (!ERAS[n]) return false;
-  if (state.eras.age >= n) return false;
-  return n === 2 ? state.village.level >= FIRST_EXPANSION_VILLAGE_LEVEL || state.eras.age >= 2 : state.eras.age >= n - 1;
+  if (!ERAS[n] || state.eras.age !== n - 1 || !climbOpen(state)) return false;
+  return padPaid(state, n) > 0 || gateMet(state, n);
+}
+
+/**
+ * True while era n's land, roads and FOR SALE pad show but the pad does not take payment yet (docs/EXPANSION.md §C):
+ * the climb is open, era n is next, and its pad is not offered. The pad tile is greyed and refuses payment.
+ */
+export function expansionPreview(state: GameState, n: number): boolean {
+  return !!ERAS[n] && climbOpen(state) && state.eras.age === n - 1 && !expansionOffered(state, n);
 }
 
 export interface TravelPoint {
@@ -133,7 +145,8 @@ export function travelPoints(state: GameState): TravelPoint[] {
   const out: TravelPoint[] = [
     { id: 'yard', label: 'Lumber Yard', kind: 'home', era: 1, x: 0, z: 2, open: true },
     { id: 'village', label: 'Village', kind: 'home', era: 1, x: 4.6, z: 20, open: state.village.revealed },
-    { id: 'town', label: 'Market Town', kind: 'home', era: 1, x: 24, z: 27, open: state.town.revealed },
+    // the corridor mouth on the square's west side (the square's centre is the solid fir)
+    { id: 'town', label: 'Market Town', kind: 'home', era: 1, x: 17, z: 26.7, open: state.town.revealed },
   ];
   for (let n = 2; n < REGIONS.length; n++) {
     if (!REGIONS[n]) continue;

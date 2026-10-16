@@ -9,7 +9,7 @@
  *   'helper:hired' is emitted once per new helper.
  * - porter (wave 9): town producer pallets / drop-zone firewood / bench crates → the shops' hoppers; the cashiers
  *   also empty the town tills. Home: the market square by the corridor mouth.
- * - Work speed / capacity = CREW[id] base × ctx.upgrades.value(id), read live (levels apply at once).
+ * - Work speed / capacity = CREW[id] base × ctx.upgrades.crewStats(id), read live (levels apply at once).
  * - crateRunner: processor output (bench) → SE counter. cashier: cash piles → the cabin door, where the bundles
  *   fly in and their value is added to the money. logHauler: drop zone → truck counter (or the walk-in counter
  *   when the trucks are full). pineHauler: Timber Ridge log deck → platform counter. Scripted waypoint routes, no

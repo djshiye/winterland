@@ -13,12 +13,15 @@
  * - ring: flat expanding ground ring/shockwave that fades (building spawn, pad unlock).
  * - rocket / firework: a rising spark trail that bursts into a coloured star shell (finale fireworks).
  * All timing runs on the simulation dt passed to update().
+ * Comfort (fx/comfort): every emitter's count goes through scaledCount() (fewer particles on Calm / Minimal effects),
+ * and below Full the sparkles shrink away instead of twinkling.
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PALETTE } from '../config';
 import { geo, toon, basic } from '../render/materials';
 import type { GameContext } from '../core/types';
+import { particleScale, scaledCount } from './comfort';
 
 export interface BurstOptions {
   colors?: number[];
@@ -324,7 +327,7 @@ export class Particles {
   /** Generic particle spray (wood chips, sawdust, debris). */
   burst(pos: THREE.Vector3, opts?: BurstOptions): void {
     const colors = opts?.colors ?? WOOD_COLORS;
-    const count = opts?.count ?? 8;
+    const count = scaledCount(opts?.count ?? 8);
     const speed = opts?.speed ?? 4;
     const size = opts?.size ?? 0.2;
     const gravity = opts?.gravity ?? GRAVITY_DEFAULT;
@@ -358,7 +361,7 @@ export class Particles {
 
   /** Soft expanding cloud (snow poof, smoke). */
   puff(pos: THREE.Vector3, opts?: { color?: number; count?: number; size?: number; life?: number }): void {
-    const count = opts?.count ?? 5;
+    const count = scaledCount(opts?.count ?? 5);
     const size = opts?.size ?? 0.5;
     const life = opts?.life ?? 0.7;
     this.tmpColor.setHex(opts?.color ?? 0xffffff);
@@ -378,7 +381,8 @@ export class Particles {
 
   /** Colourful flat chips raining down around `pos`. */
   confetti(pos: THREE.Vector3, count = 50): void {
-    for (let i = 0; i < count; i++) {
+    const n = scaledCount(count);
+    for (let i = 0; i < n; i++) {
       this.tmpColor.setHex(CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0]!);
       const a = Math.random() * Math.PI * 2;
       const out = 1.5 + Math.random() * 4.5;
@@ -394,7 +398,7 @@ export class Particles {
 
   /** Water droplets, foam puffs and a ring (intro crash into the river). */
   splash(pos: THREE.Vector3, scale = 1): void {
-    const n = Math.round(26 * scale);
+    const n = scaledCount(Math.round(26 * scale));
     for (let i = 0; i < n; i++) {
       this.tmpColor.setHex(WATER_COLORS[(Math.random() * WATER_COLORS.length) | 0]!);
       const a = Math.random() * Math.PI * 2;
@@ -415,7 +419,9 @@ export class Particles {
   /** A few twinkling stars drifting up from `pos`. */
   sparkle(pos: THREE.Vector3, color = 0xffe066): void {
     this.tmpColor.setHex(color);
-    for (let i = 0; i < 3; i++) {
+    const n = scaledCount(3);
+    const mode = particleScale() < 1 ? Scale.Shrink : Scale.Twinkle;
+    for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = 0.1 + Math.random() * 0.35;
       this.stars.spawn(
@@ -423,7 +429,7 @@ export class Particles {
         Math.cos(a) * 0.4, 1.0 + Math.random() * 0.9, Math.sin(a) * 0.4,
         this.tmpColor,
         0.55 + Math.random() * 0.3, 0.45 + Math.random() * 0.25, 0,
-        2, Scale.Twinkle, 1.5, -10,
+        2, mode, 1.5, -10,
       );
     }
   }
@@ -461,7 +467,8 @@ export class Particles {
   firework(pos: THREE.Vector3, color = 0xffd84a, color2 = 0xffffff): void {
     const shell = (n: number, speed: number, hex: number, size: number, life: number): void => {
       this.tmpColor.setHex(hex);
-      for (let i = 0; i < n; i++) {
+      const count = scaledCount(n);
+      for (let i = 0; i < count; i++) {
         const z = Math.random() * 2 - 1;
         const a = Math.random() * Math.PI * 2;
         const rr = Math.sqrt(1 - z * z);
@@ -479,7 +486,8 @@ export class Particles {
     shell(14, 4.2, color2, 0.55, 1.3);
     // drifting glitter
     this.tmpColor.setHex(0xffffff);
-    for (let i = 0; i < 8; i++) {
+    const glitter = scaledCount(8);
+    for (let i = 0; i < glitter; i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 1 + Math.random() * 4;
       this.sphere.spawn(
@@ -501,7 +509,7 @@ export class Particles {
       const z = r.fz + r.dz * k;
       r.trail -= dt;
       while (r.trail <= 0) {
-        r.trail += 0.022;
+        r.trail += 0.022 / particleScale();
         this.tmpColor.setHex(Math.random() < 0.5 ? 0xffe9a8 : r.color);
         this.sphere.spawn(
           x + (Math.random() - 0.5) * 0.15, y, z + (Math.random() - 0.5) * 0.15,

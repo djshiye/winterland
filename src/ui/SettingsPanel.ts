@@ -4,6 +4,8 @@
  * - Sound: Sound switch (same state as the mute button), Master / Effects volume sliders, Music switch + slider.
  * - Display: window mode (desktop app) or a Fullscreen switch (browser), Graphics High / Low (Low = no shadows, pixel
  *   ratio 1), Resolution slider, Frame rate Auto / 60 / 30, Show FPS (PerfOverlay), Day / night (ctx.dayNight).
+ * - Comfort (fx/comfort, localStorage 'winterland:comfort'): Reduce motion, Effects Full / Calm / Minimal, Colour-blind
+ *   friendly, and two quick buttons: "Make it calm" (all three at their gentlest) and "Defaults".
  * - Game: Hold to interact (pickups and payments need E / Space / a press held), Vibration (where navigator.vibrate exists), a controls hint, Back up / Restore save (ui/saveTransfer),
  *   "Start a new season" (after the finale) and "Reset progress"; both, and Restore, sit behind in-page confirmations
  *   (no window.confirm) that replace the tabs. Confirming a reset emits 'game:reset'; the main session wipes the save
@@ -12,6 +14,7 @@
  * Sliders run on 'input' (live) and are not shielded: the row stops pointerdown / touchstart instead.
  * On short screens (<= 520 px tall) the switches sit in two columns so the card fits 800x450.
  */
+import { comfort, defaultComfort, setComfort, type EffectsLevel } from '../fx/comfort';
 import { hapticsAvailable, hapticsEnabled, buzz, setHapticsEnabled } from '../fx/Haptics';
 import { readFpsCap, FPS_CAPS, type FpsCap } from '../core/fps';
 import type { VolumeChannel } from '../fx/volume';
@@ -22,11 +25,13 @@ import { ICON_CLOSE, ICON_GEAR } from './icons';
 import type { PerfOverlay } from './PerfOverlay';
 import { SeasonConfirm } from './SeasonConfirm';
 import { exportSave, importSave, validateSaveText } from './saveTransfer';
+import './comfort.css';
 
-export type SettingsTab = 'sound' | 'display' | 'game';
+export type SettingsTab = 'sound' | 'display' | 'comfort' | 'game';
 export const SETTINGS_TABS: readonly { id: SettingsTab; label: string }[] = [
   { id: 'sound', label: 'Sound' },
   { id: 'display', label: 'Display' },
+  { id: 'comfort', label: 'Comfort' },
   { id: 'game', label: 'Game' },
 ];
 const TAB_KEY = 'winterland:settingsTab';
@@ -83,6 +88,8 @@ export class SettingsPanel {
   private readonly fpsSwitch: HTMLButtonElement;
   private readonly daySwitch: HTMLButtonElement;
   private readonly holdSwitch: HTMLButtonElement;
+  private readonly motionSwitch: HTMLButtonElement;
+  private readonly cbSwitch: HTMLButtonElement;
   private readonly vibSwitch: HTMLButtonElement | null = null;
   private readonly fsSwitch: HTMLButtonElement | null = null;
   /** Sliders and segmented controls re-read their value in sync(). */
@@ -331,6 +338,47 @@ export class SettingsPanel {
       ctx.dayNight.setEnabled(!ctx.dayNight.enabled);
     });
 
+    // Comfort: gentler visuals for players who find busy screens tiring
+    const pc = page('comfort');
+    pc.appendChild(h('div', 'wl-comfort-intro', 'Make the game gentler on the eyes and easier to focus on.'));
+    this.motionSwitch = sw(pc, 'Reduce motion', 'No screen shake, bounces or wobbles', () => {
+      ctx.audio.play('click');
+      setComfort({ motion: !comfort().motion });
+    });
+    seg<EffectsLevel>(
+      pc,
+      'Effects',
+      [
+        { value: 'full', text: 'Full' },
+        { value: 'calm', text: 'Calm' },
+        { value: 'minimal', text: 'Minimal' },
+      ],
+      () => comfort().effects,
+      (effects) => setComfort({ effects }),
+    );
+    pc.appendChild(h('div', 'wl-controls-note wl-comfort-note', 'Calm: fewer sparkles, softer shake, no flashing. Minimal: only the essentials.'));
+    this.cbSwitch = sw(pc, 'Colour-blind friendly', 'Blue and orange instead of green and red', () => {
+      ctx.audio.play('click');
+      setComfort({ colorBlind: !comfort().colorBlind });
+    });
+    const presets = h('div', 'wl-btn-row wl-comfort-presets');
+    const calmest = h('button', 'wl-btn wl-btn-green', 'Make it calm');
+    calmest.type = 'button';
+    onTap(calmest, () => {
+      ctx.audio.play('click');
+      setComfort({ motion: true, effects: 'minimal' });
+      this.sync();
+    });
+    const defaults = h('button', 'wl-btn wl-btn-grey', 'Defaults');
+    defaults.type = 'button';
+    onTap(defaults, () => {
+      ctx.audio.play('click');
+      setComfort(defaultComfort());
+      this.sync();
+    });
+    presets.append(calmest, defaults);
+    pc.appendChild(presets);
+
     // Game
     const pg = page('game');
     this.holdSwitch = sw(pg, 'Hold to interact', 'Hold E, Space or press to pick up and pay', () => {
@@ -481,6 +529,8 @@ export class SettingsPanel {
     set(this.fpsSwitch, this.perf.enabled);
     set(this.daySwitch, this.ctx.dayNight.enabled);
     set(this.holdSwitch, this.ctx.input.holdToInteract);
+    set(this.motionSwitch, comfort().motion);
+    set(this.cbSwitch, comfort().colorBlind);
     if (this.vibSwitch) set(this.vibSwitch, hapticsEnabled());
     if (this.fsSwitch) set(this.fsSwitch, !!document.fullscreenElement);
     const name = this.gfxSwitch.parentElement?.querySelector('.wl-row-name');
