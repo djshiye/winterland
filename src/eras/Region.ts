@@ -44,6 +44,8 @@ interface SlotSite {
   readonly lotPad: LotPad;
   readonly zone: Zone;
   pad: ConstructionPad | null;
+  /** Every pad built for the slot, one per extra kind (a pad's item zone keeps the kinds it was built with). */
+  readonly pads: ConstructionPad[];
   machine: Machine | null;
 }
 
@@ -136,7 +138,7 @@ export class Region implements RegionRuntime {
         onEnter: () => this.openChoose(i),
         onExit: () => ctx.events.emit('choose:close', { key: slotKey(era, i) }),
       });
-      this.slots.push({ index: i, lotPad, zone, pad: null, machine: null });
+      this.slots.push({ index: i, lotPad, zone, pad: null, pads: [], machine: null });
     });
     for (const S of this.slots) this.refreshSlot(S, true);
 
@@ -204,13 +206,20 @@ export class Region implements RegionRuntime {
     }
   }
 
-  /** The slot's construction pad, created on first use and re-armed for machine `id`. */
+  /**
+   * The slot's construction pad for machine `id`: the slot's pad for the same extra material, re-armed, or a new one
+   * (a pad cannot change the kinds its item zone pulls, so a different extra kind needs its own pad).
+   */
   private armPad(S: SlotSite, id: MachineId): ConstructionPad {
     const st = this.state(S.index);
     const target = slotTarget(MACHINES[id], st.cash, st.extra);
-    if (S.pad) {
-      S.pad.rearm({ ...target, icon: 'machine' });
-      return S.pad;
+    const kind = target.extra?.kind ?? null;
+    if (S.pad && S.pad.extraKind !== kind) S.pad.hide();
+    const reuse = S.pads.find((p) => p.extraKind === kind);
+    if (reuse) {
+      S.pad = reuse;
+      reuse.rearm({ ...target, icon: 'machine' });
+      return reuse;
     }
     const place = this.layout.slots[S.index]!;
     S.pad = new ConstructionPad(this.ctx, {
@@ -228,6 +237,7 @@ export class Region implements RegionRuntime {
       },
       onComplete: () => this.finishSlot(S, false),
     });
+    S.pads.push(S.pad);
     return S.pad;
   }
 
@@ -349,10 +359,10 @@ export class Region implements RegionRuntime {
   // ---- market orders ----------------------------------------------------------------------------------------------
   /**
    * The market bought `count` units of `kind` for this region: they drop onto the import dock (staggered flights; the
-   * dock reserves every landing spot at once, so nothing races). What does not fit is refunded at the market's buy
-   * quote. Returns how many were delivered.
+   * dock reserves every landing spot at once, so nothing races). What does not fit is refunded at its share of
+   * `amount` (what the order cost, delivery and multipliers included). Returns how many were delivered.
    */
-  deliver(kind: MaterialKind, count: number): number {
+  deliver(kind: MaterialKind, count: number, amount: number): number {
     const ctx = this.ctx;
     const d = this.layout.dock;
     let ok = 0;
@@ -363,18 +373,21 @@ export class Region implements RegionRuntime {
       ok++;
     }
     const over = count - ok;
-    if (over > 0) ctx.economy.add(Math.round(ctx.market.quote(kind, 'buy') * over));
+    if (over > 0) ctx.economy.add(Math.round((amount * over) / count), 0); // money back, not money earned
     return ok;
   }
 
   // ---- save -------------------------------------------------------------------------------------------------------
-  /** Machine piles by slot + the import dock (landed, in flight, and what the workers carry). */
+  /**
+   * Machine piles by slot + the import dock (landed, in flight, what the workers carry, and materials still flying to
+   * the depot or Jack: not sold yet, so they come back unsold).
+   */
   snapshot(): WorldSnapshot['eras'][number] {
     const fl = this.ctx.flights;
     const dock: Partial<Record<ItemKind, number>> = {};
     const carried = this.crew.carried();
     for (const k of MATERIAL_KINDS) {
-      const n = this.dock.count(k) + fl.inFlightTo(this.dock, k) + (carried[k] ?? 0);
+      const n = this.dock.count(k) + fl.inFlightTo(this.dock, k) + fl.inFlightTo(this.depot, k) + fl.inFlightTo(this.jack.sink, k) + (carried[k] ?? 0);
       if (n > 0) dock[k] = n;
     }
     return { slots: this.slots.map((S) => (S.machine ? S.machine.snapshot() : { in: {}, out: 0 })), dock };
@@ -388,7 +401,12 @@ export class Region implements RegionRuntime {
     this.dock.clear();
     for (const k of MATERIAL_KINDS) {
       const n = Math.max(0, Math.floor(e.dock[k] ?? 0));
-      if (n > 0) this.dock.fill(k, n);
+      if (n <= 0) continue;
+      const before = this.dock.count(k);
+      this.dock.fill(k, n);
+      // workers' loads on top of a full dock: sold at the depot quote instead of lost
+      const over = n - (this.dock.count(k) - before);
+      if (over > 0) this.ctx.economy.add(Math.round(this.ctx.market.quote(k, 'sell') * over));
     }
   }
 

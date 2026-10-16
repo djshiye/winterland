@@ -1,6 +1,6 @@
 /** Wave 13 "more life": pure helpers (wanderer target, carol motif, commute hysteresis) + the commuters and carolers. */
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LAYOUT, TOWN } from '../src/config';
 import { EventBus } from '../src/core/EventBus';
 import { createGameState, type GameContext, type GameEvents } from '../src/core/types';
@@ -18,6 +18,24 @@ import {
 } from '../src/npc/Townsfolk';
 import type { Town } from '../src/town/Town';
 import { TREE_RING } from '../src/town/spots';
+
+// The crowd rolls Math.random for walk-ins, picks and timings; seed it per test so these runs are repeatable.
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+beforeEach(() => {
+  vi.spyOn(Math, 'random').mockImplementation(mulberry32(0x5eed));
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 // Stand-in for the amenities builder's AMENITY_SPOTS (town/spots.ts) until it lands there.
 

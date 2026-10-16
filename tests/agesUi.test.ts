@@ -35,8 +35,9 @@ describe('era labels', () => {
   });
 
   it('calls village levels settlements, not eras', () => {
-    expect(settlementTitle('Winter City')).toBe('SETTLEMENT · WINTER CITY');
-    expect(settlementTitle('Camp')).not.toMatch(/ERA/);
+    expect(settlementTitle(4)).toBe('SETTLEMENT IV');
+    expect(settlementTitle(0)).toBe('SETTLEMENT');
+    expect(settlementTitle(5)).not.toMatch(/ERA/);
   });
 });
 
@@ -54,18 +55,18 @@ describe('cost text', () => {
   });
 
   it('prices every era expansion from the data', () => {
-    expect(expansionCostText(2)).toBe('Expansion: $150,000 + 40 Crates');
+    expect(expansionCostText(2)).toBe('Expansion: $1.5M + 40 Crates');
     for (let n = 2; n <= 10; n++) {
       const t = expansionCostText(n);
       expect(t.startsWith('Expansion: $')).toBe(true);
       expect(t).toContain(`${ERAS[n]!.unlock.extra.count} `);
     }
-    expect(unlockCash(3)).toBe(450_000);
+    expect(unlockCash(3)).toBe(4_500_000); // era economy ×10 (ERA_SCALE)
     expect(expansionCostText(1)).toBe('');
   });
 
   it('says what a locked region needs first', () => {
-    expect(reachNote(2)).toBe('Reach Winter City first');
+    expect(reachNote(2)).toBe('Build the Great Lodge first');
     expect(reachNote(4)).toBe('Reach the Iron Age first');
   });
 });

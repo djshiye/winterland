@@ -95,7 +95,7 @@ try {
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const port = server.address().port;
 
-  browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  browser = await chromium.launch({ executablePath: process.env.WL_CHROMIUM || undefined, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const [w, h] = (opts.mobile ? '390x844' : opts.size).split('x').map(Number);
   const page = await browser.newPage({ viewport: { width: w, height: h }, isMobile: opts.mobile, hasTouch: opts.mobile });
   const errors = [];

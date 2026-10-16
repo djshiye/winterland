@@ -6,9 +6,11 @@
  * skin tone. Every model is also listed in `eraWorkerCatalog` (gallery: --query gallery=eraWorkers).
  *
  * Baked meshes cannot be emissive, so "glow" (the miner's lamp, the robot's eyes) is a very bright flat colour.
+ * Coats, accents and trims read eras/data.ts colors (the palette table of docs/art/guide.md, ARGON).
  */
 import * as THREE from 'three';
 import { COLORS } from '../config';
+import { ERAS } from '../eras/data';
 import { geo, mesh, toon } from '../render/materials';
 import {
   BASE_Y,
@@ -22,6 +24,9 @@ import {
 } from './characters';
 
 const SKINS = [COLORS.PLAYER_SKIN, 0xdfae86, 0xa8744f] as const;
+
+/** Era n's palette (coat, accent, trim, body, glow). */
+const pal = (n: number) => ERAS[n]!.colors;
 
 /** Uniform scale a rig of this era / variant should use (crowd variety, same ±6 % as the other workers). */
 export function eraWorkerScale(era: number, variant: number): number {
@@ -75,7 +80,7 @@ function npc(
 function quarryman(skin: number): CharacterModel {
   const LEATHER = 0x7a5230;
   return npc(
-    0xb5543c,
+    pal(2).coat,
     skin,
     0x8a8077,
     (g) => {
@@ -99,7 +104,7 @@ function quarryman(skin: number): CharacterModel {
 // --- 3 Iron Age: miner -- dusty jacket, round helmet with a lamp ----------------------------------------------------
 function miner(skin: number): CharacterModel {
   return npc(
-    0x6e5b4e,
+    pal(3).coat,
     skin,
     0x3d3a3a,
     (g, topY) => {
@@ -124,15 +129,15 @@ function miner(skin: number): CharacterModel {
   );
 }
 
-// --- 4 Steam Age: stoker -- sooty grey shirt, red neckerchief, goggles, flat cap --------------------------------
+// --- 4 Steam Age: stoker -- sooty rust shirt, brass-yellow neckerchief, goggles, flat cap ------------------------
 function stoker(skin: number): CharacterModel {
   return npc(
-    0x44403f,
+    pal(4).coat,
     skin,
     0x2b2f36,
     (g, topY) => {
-      g.add(torusRing(0.282, 0.06, 0xb23a2e, topY - 0.02 - HIP)); // red neckerchief
-      g.add(box(0.07, 0.12, 0.05, 0xb23a2e, 0, topY - 0.12 - HIP, 0.27)); // its knot
+      g.add(torusRing(0.282, 0.06, pal(4).accent, topY - 0.02 - HIP)); // neckerchief
+      g.add(box(0.07, 0.12, 0.05, pal(4).accent, 0, topY - 0.12 - HIP, 0.27)); // its knot
       for (const x of [-0.16, 0.16]) g.add(box(0.05, 0.6, 0.04, 0x2b2f36, x, ty(BASE_Y + 0.4), 0.285)); // braces
       g.add(sphere(0.09, 0x1f1d1d, -0.1, ty(BASE_Y + 0.22), 0.27, 1.2, 0.8, 0.4)); // soot
       g.add(sphere(0.07, 0x1f1d1d, 0.14, ty(BASE_Y + 0.46), 0.27, 1, 0.8, 0.4));
@@ -157,41 +162,41 @@ function stoker(skin: number): CharacterModel {
   );
 }
 
-// --- 5 Industrial: steelworker -- denim overalls over grey sleeves, orange hard hat ---------------------------------
+// --- 5 Industrial: steelworker -- blue-steel overalls over grey sleeves, orange hard hat ---------------------------
 function steelworker(skin: number): CharacterModel {
   return npc(
-    0x35558a,
+    pal(5).coat,
     skin,
     0x3a3a3a,
     (g, topY) => {
-      g.add(box(0.3, 0.26, 0.05, 0x2b4670, 0, ty(BASE_Y + 0.55), 0.285)); // bib
-      g.add(box(0.12, 0.09, 0.03, 0x4c6ea6, 0.05, ty(BASE_Y + 0.58), 0.315)); // bib pocket
-      for (const x of [-0.14, 0.14]) g.add(box(0.06, 0.3, 0.05, 0x2b4670, x, topY - 0.1 - HIP, 0.26)); // straps
+      g.add(box(0.3, 0.26, 0.05, 0x3a4855, 0, ty(BASE_Y + 0.55), 0.285)); // bib
+      g.add(box(0.12, 0.09, 0.03, 0x5d7080, 0.05, ty(BASE_Y + 0.58), 0.315)); // bib pocket
+      for (const x of [-0.14, 0.14]) g.add(box(0.06, 0.3, 0.05, 0x3a4855, x, topY - 0.1 - HIP, 0.26)); // straps
       g.add(torusRing(0.288, 0.05, 0xc9ced2, topY - 0.02 - HIP)); // grey collar
-      g.add(torusRing(0.304, 0.03, 0xd0702a, ty(BASE_Y + 0.12))); // orange hem stripe
+      g.add(torusRing(0.304, 0.03, pal(5).accent, ty(BASE_Y + 0.12))); // orange hem stripe
     },
     (g) => {
-      hardHat(g, 0xd0702a);
+      hardHat(g, pal(5).accent);
     },
     0.1 + 0.255 * 0.74 + 0.05,
     0xb9bec2,
   );
 }
 
-// --- 6 Electric: lineman -- grey-green work shirt, tool belt with pouches, yellow hard hat -------------------------
+// --- 6 Electric: lineman -- teal work shirt, tool belt with pouches, yellow hard hat ------------------------------
 function lineman(skin: number): CharacterModel {
   const BELT = 0x6b4a2b;
   return npc(
-    0x5a6b74,
+    pal(6).coat,
     skin,
-    0xe0761e,
+    pal(6).accent,
     (g, topY) => {
       g.add(torusRing(0.31, 0.045, BELT, ty(BASE_Y + 0.22))); // wide tool belt
       g.add(box(0.12, 0.17, 0.09, 0x4a3320, -0.2, ty(BASE_Y + 0.2), 0.22)); // pouches
       g.add(box(0.12, 0.17, 0.09, 0x4a3320, 0.2, ty(BASE_Y + 0.2), 0.22));
       g.add(box(0.04, 0.22, 0.04, 0xc9d3d6, 0.27, ty(BASE_Y + 0.15), 0.15)); // pliers handle
       g.add(torusRing(0.305, 0.03, 0xf2c230, ty(BASE_Y + 0.52))); // hi-vis stripe
-      g.add(torusRing(0.285, 0.05, 0x2e4a5a, topY - 0.03 - HIP));
+      g.add(torusRing(0.285, 0.05, pal(6).trim, topY - 0.03 - HIP));
     },
     (g) => {
       hardHat(g, 0xf2c230);
@@ -200,94 +205,99 @@ function lineman(skin: number): CharacterModel {
   );
 }
 
-// --- 7 Oil: roughneck -- red coveralls with reflective bands, white hard hat, dark gloves --------------------------
+// --- 7 Oil: roughneck -- honey coveralls with reflective bands, crimson hard hat, dark gloves -----------------------
 function roughneck(skin: number): CharacterModel {
+  const C = pal(7);
   return npc(
-    0xc8362c,
+    C.coat,
     skin,
-    0x272a30,
+    C.trim,
     (g, topY) => {
-      for (const y of [0.3, 0.5]) g.add(torusRing(0.304, 0.032, 0xe0b03a, ty(BASE_Y + y))); // reflective bands
-      g.add(torusRing(0.285, 0.05, 0x272a30, topY - 0.03 - HIP)); // collar
-      g.add(box(0.14, 0.12, 0.05, 0x9a2820, -0.13, ty(BASE_Y + 0.62), 0.285)); // chest pocket
+      for (const y of [0.3, 0.5]) g.add(torusRing(0.304, 0.032, 0xf4e8c8, ty(BASE_Y + y))); // reflective bands
+      g.add(torusRing(0.285, 0.05, C.trim, topY - 0.03 - HIP)); // collar
+      g.add(box(0.14, 0.12, 0.05, 0x8f5e1c, -0.13, ty(BASE_Y + 0.62), 0.285)); // chest pocket
       g.add(sphere(0.07, 0x2b2420, 0.12, ty(BASE_Y + 0.12), 0.27, 1.3, 0.8, 0.4)); // oil stain
     },
     (g) => {
-      hardHat(g, 0xeeeae0);
-      g.add(box(0.2, 0.06, 0.04, 0x272a30, 0, 0.19, 0.245)); // dark badge on the front
+      hardHat(g, C.accent);
+      g.add(box(0.2, 0.06, 0.04, C.trim, 0, 0.19, 0.245)); // dark badge on the front
     },
     0.1 + 0.255 * 0.74 + 0.05,
-    0xc8362c,
+    C.coat,
   );
 }
 
-// --- 8 Computer: technician -- white bunny suit: hood, face mask, blue gloves, white boots ------------------------
+// --- 8 Computer: technician -- clean-room smock in the era coat, cream hood, face mask, sea-teal gloves ------------
 function technician(skin: number): CharacterModel {
-  const WHITE = 0xf2f4f6;
+  const C = pal(8);
+  const HOOD = 0xe8e2d5;
+  const TRIM = 0xd6cdb8;
   const m = buildPawn({
-    bodyColor: WHITE,
+    bodyColor: C.coat,
     bodyR: 0.3,
     bodyH: 0.75,
     capsule: true,
     headR: 0.22,
     skin,
-    hand: 0x3aa0d8,
-    boot: 0xdfe6ec,
+    hand: C.accent,
+    boot: TRIM,
     carryZ: 0.4,
     torsoExtras: (g, topY) => {
-      g.add(box(0.045, 0.62, 0.04, 0xcfd6dc, 0, ty(BASE_Y + 0.4), 0.3)); // zipper strip
-      g.add(torusRing(0.288, 0.05, 0x3aa0d8, topY - 0.03 - HIP)); // blue collar
-      g.add(box(0.1, 0.07, 0.03, 0x3aa0d8, -0.12, ty(BASE_Y + 0.58), 0.3)); // badge
+      g.add(box(0.045, 0.62, 0.04, TRIM, 0, ty(BASE_Y + 0.4), 0.3)); // zipper strip
+      g.add(torusRing(0.288, 0.05, HOOD, topY - 0.03 - HIP)); // cream collar
+      g.add(box(0.1, 0.07, 0.03, C.glow, -0.12, ty(BASE_Y + 0.58), 0.3)); // badge
     },
     headExtras: (g) => {
-      // hood over hair and ears, face opening, blue mask below the eyes
-      g.add(sphere(0.255, WHITE, 0, 0.04, -0.04, 1, 0.98, 1.0));
-      g.add(box(0.36, 0.1, 0.05, 0x9fd6ee, 0, -0.085, 0.205)); // mask
-      g.add(box(0.4, 0.045, 0.06, 0xcfd6dc, 0, 0.12, 0.2)); // hood trim over the brow
-      g.add(box(0.3, 0.075, 0.04, 0x1d3550, 0, 0.0, 0.222)); // glasses
-      for (const x of [-0.075, 0.075]) g.add(box(0.1, 0.055, 0.02, 0x9fd6ee, x, 0.0, 0.242));
+      // hood over hair and ears, face opening, mint mask below the eyes
+      g.add(sphere(0.255, HOOD, 0, 0.04, -0.04, 1, 0.98, 1.0));
+      g.add(box(0.36, 0.1, 0.05, 0xa8dcc4, 0, -0.085, 0.205)); // mask
+      g.add(box(0.4, 0.045, 0.06, TRIM, 0, 0.12, 0.2)); // hood trim over the brow
+      g.add(box(0.3, 0.075, 0.04, C.trim, 0, 0.0, 0.222)); // glasses
+      for (const x of [-0.075, 0.075]) g.add(box(0.1, 0.055, 0.02, 0xa8dcc4, x, 0.0, 0.242));
     },
-    armColor: WHITE,
+    armColor: C.coat,
   });
   m.height = m.headY + 0.04 + 0.255;
   return m;
 }
 
-// --- 9 Nuclear: atom tech -- yellow hazmat suit, dark visor, respirator, trefoil badge ----------------------------
+// --- 9 Nuclear: atom tech -- jade hazmat suit with gold seams, dark visor, respirator, trefoil badge ----------------
 function atomTech(skin: number): CharacterModel {
-  const YELLOW = 0xf2d21a;
+  const C = pal(9);
+  const SUIT = C.coat;
+  const SEAM = 0xe8c45a;
   const m = buildPawn({
-    bodyColor: YELLOW,
+    bodyColor: SUIT,
     bodyR: 0.3,
     bodyH: 0.75,
     capsule: true,
     headR: 0.22,
     skin,
-    hand: 0x2b2f36,
-    boot: 0x2b2f36,
+    hand: C.trim,
+    boot: C.trim,
     carryZ: 0.4,
     torsoExtras: (g, topY) => {
-      g.add(torusRing(0.305, 0.04, 0x2b2f36, ty(BASE_Y + 0.2))); // belt
-      g.add(torusRing(0.288, 0.05, 0xd9b80a, topY - 0.03 - HIP));
-      // radiation trefoil badge: black disc + yellow wedge ring is too small to read, a black disc with a yellow core is enough
-      const disc = mesh(geo.cylinder(0.095, 0.095, 0.03, 14), toon(0x2b2f36));
+      g.add(torusRing(0.305, 0.04, C.trim, ty(BASE_Y + 0.2))); // belt
+      g.add(torusRing(0.288, 0.05, SEAM, topY - 0.03 - HIP));
+      // radiation trefoil badge: a wedge ring is too small to read, a dark disc with a gold core is enough
+      const disc = mesh(geo.cylinder(0.095, 0.095, 0.03, 14), toon(C.trim));
       disc.rotation.x = Math.PI / 2;
       disc.position.set(0, ty(BASE_Y + 0.5), 0.3);
-      const core = mesh(geo.cylinder(0.04, 0.04, 0.04, 10), toon(YELLOW));
+      const core = mesh(geo.cylinder(0.04, 0.04, 0.04, 10), toon(SEAM));
       core.rotation.x = Math.PI / 2;
       core.position.set(0, ty(BASE_Y + 0.5), 0.305);
       g.add(disc, core);
-      g.add(box(0.045, 0.62, 0.04, 0xd9b80a, 0.17, ty(BASE_Y + 0.38), 0.298)); // seam
+      g.add(box(0.045, 0.62, 0.04, SEAM, 0.17, ty(BASE_Y + 0.38), 0.298)); // seam
     },
     headExtras: (g) => {
-      // hood, dark visor with a faint green rim, grey respirator canister
-      g.add(sphere(0.26, YELLOW, 0, 0.03, -0.03, 1, 1.0, 1.02));
+      // hood, dark visor with a faint jade rim, grey respirator canister
+      g.add(sphere(0.26, SUIT, 0, 0.03, -0.03, 1, 1.0, 1.02));
       g.add(box(0.34, 0.15, 0.06, 0x2b3a3c, 0, 0.02, 0.2));
-      g.add(box(0.31, 0.12, 0.03, 0x4a6a60, 0, 0.02, 0.232));
+      g.add(box(0.31, 0.12, 0.03, 0x4a8a78, 0, 0.02, 0.232));
       g.add(box(0.1, 0.1, 0.1, 0x8a9697, 0, -0.1, 0.235));
-      g.add(box(0.2, 0.025, 0.04, 0xd9b80a, 0, 0.115, 0.215));
+      g.add(box(0.2, 0.025, 0.04, SEAM, 0, 0.115, 0.215));
     },
-    armColor: YELLOW,
+    armColor: SUIT,
   });
   m.height = m.headY + 0.03 + 0.26;
   return m;
@@ -296,13 +306,15 @@ function atomTech(skin: number): CharacterModel {
 // --- 10 AI era: a friendly boxy robot ------------------------------------------------------------------------------
 /**
  * Boxy robot: the pawn's capsule torso and sphere head hide inside a box torso / box head (so every rig hook works),
- * with an antenna, ear dials, glowing cyan eyes and chest panel. Skin is ignored.
+ * with an antenna, ear dials, glowing sun-gold eyes and chest panel. Skin is ignored.
  */
 function robot(_skin: number): CharacterModel {
-  const SHELL = 0xdfe6ec;
-  const SHADE = 0x8c90b8;
-  const GLOW = 0x74f2ff;
-  const ACCENT = 0x9b6cff;
+  const C = pal(10);
+  const SHELL = C.body;
+  const SHADE = C.coat;
+  const GLOW = C.glow;
+  const ACCENT = C.accent;
+  const SCREEN = 0x3f4d5c;
   const m = buildPawn({
     bodyColor: SHELL,
     bodyR: 0.3,
@@ -311,7 +323,7 @@ function robot(_skin: number): CharacterModel {
     headR: 0.22,
     skin: SHELL,
     hand: ACCENT,
-    boot: 0x4a4f66,
+    boot: C.trim,
     carryZ: 0.4,
     armColor: SHADE,
     torsoExtras: (g, topY) => {
@@ -319,14 +331,14 @@ function robot(_skin: number): CharacterModel {
       g.add(box(0.63, 0.8, 0.63, SHELL, 0, mid, 0)); // swallows the capsule
       g.add(box(0.66, 0.08, 0.66, SHADE, 0, ty(BASE_Y + 0.04), 0)); // base plate
       g.add(box(0.66, 0.06, 0.66, SHADE, 0, topY - 0.01 - HIP, 0)); // shoulder plate
-      g.add(box(0.34, 0.26, 0.04, 0x1f2240, 0, ty(BASE_Y + 0.46), 0.325)); // chest screen
+      g.add(box(0.34, 0.26, 0.04, SCREEN, 0, ty(BASE_Y + 0.46), 0.325)); // chest screen
       g.add(box(0.28, 0.2, 0.03, GLOW, 0, ty(BASE_Y + 0.46), 0.345));
       for (const x of [-0.09, 0, 0.09]) g.add(box(0.05, 0.05, 0.03, ACCENT, x, ty(BASE_Y + 0.22), 0.325)); // buttons
       for (const x of [-0.27, 0.27]) g.add(box(0.05, 0.05, 0.05, ACCENT, x, ty(BASE_Y + 0.7), 0.31)); // rivets
     },
     headExtras: (g) => {
       g.add(box(0.46, 0.4, 0.46, SHELL, 0, 0.0, 0)); // swallows the sphere
-      g.add(box(0.38, 0.17, 0.04, 0x1f2240, 0, 0.03, 0.235)); // visor
+      g.add(box(0.38, 0.17, 0.04, SCREEN, 0, 0.03, 0.235)); // visor
       for (const x of [-0.085, 0.085]) g.add(box(0.1, 0.1, 0.03, GLOW, x, 0.03, 0.26)); // eyes
       g.add(box(0.14, 0.03, 0.03, GLOW, 0, -0.1, 0.24)); // smile
       for (const x of [-0.26, 0.26]) {

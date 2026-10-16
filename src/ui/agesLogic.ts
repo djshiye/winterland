@@ -5,8 +5,10 @@
  */
 import { CITY_RANKS, ERA_NAMES, ERAS, MATERIALS, MAX_ERA, isMaterial, unlockCash } from '../eras/data';
 import type { TravelPoint } from '../eras/layout';
-import type { IncomeSource, ItemKind } from '../core/types';
+import type { GameState, IncomeSource, ItemKind } from '../core/types';
+import { cityTotals, rankFor } from '../city/rules';
 import { formatMoney } from './format';
+import { romanNumeral } from '../world/env/eras';
 
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
@@ -21,8 +23,8 @@ export function eraTitle(n: number): string {
 }
 
 /** The unlock banner's name for a village level: "SETTLEMENT · WINTER CITY" (the old village levels are not eras). */
-export function settlementTitle(levelName: string): string {
-  return `SETTLEMENT · ${levelName.toUpperCase()}`;
+export function settlementTitle(level: number): string {
+  return level > 0 ? `SETTLEMENT ${romanNumeral(level)}` : 'SETTLEMENT';
 }
 
 const SURVIVAL_LABELS: Record<string, string> = {
@@ -57,9 +59,9 @@ export function expansionCostText(n: number): string {
   return `Expansion: ${costText(unlockCash(n), e.unlock.extra)}`;
 }
 
-/** What a locked era region needs first: "Reach the Iron Age first" (era 2: the settlement must reach Winter City). */
+/** What a locked era region needs first: "Reach the Iron Age first" (era 2: the Great Lodge opens the climb). */
 export function reachNote(n: number): string {
-  return n <= 2 ? 'Reach Winter City first' : `Reach the ${ERA_NAMES[n - 1] ?? 'previous'} first`;
+  return n <= 2 ? 'Build the Great Lodge first' : `Reach the ${ERA_NAMES[n - 1] ?? 'previous'} first`;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,11 +74,11 @@ export type ShopTab = 'lumberjack' | 'crew' | 'sales' | 'industry' | 'finance';
 export const SHOP_TABS: readonly ShopTab[] = ['lumberjack', 'crew', 'sales', 'industry', 'finance'];
 
 /**
- * The tabs on show: Industry appears with the first expansion offer (or once era 2 is reached); Finance is there from
+ * The tabs on show: Industry appears once the climb opens (the Great Lodge, eras/gate.ts) or era 2 is reached; Finance is there from
  * the start (Jack's Swap Cart is available at once).
  */
-export function shopTabs(age: number, firstExpansionOffered: boolean): ShopTab[] {
-  return SHOP_TABS.filter((t) => t !== 'industry' || age >= 2 || firstExpansionOffered);
+export function shopTabs(age: number, climbOpen: boolean): ShopTab[] {
+  return SHOP_TABS.filter((t) => t !== 'industry' || age >= 2 || climbOpen);
 }
 
 /** Industry eras listed in the shop: every era up to the one after the current age (the next one is shown locked). */
@@ -97,12 +99,60 @@ export function industryEraNote(n: number, age: number): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// 0.9.0 climb: the shop's band view and the checklist rows (docs/EXPANSION.md R5, R6, §C)
+// ---------------------------------------------------------------------------
+
+/** Pips per band: the bar always reads 0..10 of this era. */
+export const BAND_PIPS = 10;
+
+export interface BandView {
+  /** Pips lit (0..10) of the band that ends at the gate's level. */
+  fill: number;
+  /** Whole bands done (the band star's number; 0 hides it). */
+  bands: number;
+  /** "Lv 23 · need 30", "Lv 30 ✓", "Not hired", "Lv 10 · era standard", "Lv 47". */
+  text: string;
+  /** 'low' below the gate's level, 'ok' at it, '' with no gate ahead. */
+  tone: 'low' | 'ok' | '';
+}
+
+/**
+ * One shop card's band view. `shown` is the shown level, `stored` the stored one and `base` the era offset (R4);
+ * `hired` is false for a crew at stored 0; `need` is the next era's gate level for an id in that gate, else null.
+ */
+export function bandView(shown: number, stored: number, base: number, hired: boolean, need: number | null): BandView {
+  const top = need ?? Math.max(BAND_PIPS, Math.ceil(shown / BAND_PIPS) * BAND_PIPS);
+  const fill = Math.max(0, Math.min(BAND_PIPS, shown - (top - BAND_PIPS)));
+  const below = need !== null && shown < need;
+  let text = hired ? `Lv ${shown}` : 'Not hired';
+  // R5: an era upgrade that just arrived at its offset says so (the tooltip explains; the tab dot still says "below")
+  if (hired && stored === 0 && base > 0) text += ' \u00b7 era standard';
+  else if (below) text += ` \u00b7 need ${need}`;
+  else if (need !== null && hired) text += ' \u2713';
+  return { fill, bands: Math.floor(shown / BAND_PIPS), text, tone: below ? 'low' : need !== null && hired ? 'ok' : '' };
+}
+
+/** The checklist row's second line: the prereq, "pad LV 8 → LV 11 · $X" (R6) or "Lv 7 → 10 · $X in all". */
+export function gateRowLine(row: { shown: number | null; need: number; state: string; prereq?: string; costToNeed: number; where: string; padLabel?: string }): string {
+  if (row.state === 'prereq') return row.prereq ?? '';
+  if (row.where === 'pad') return `${row.padLabel ?? ''} \u00b7 ${formatMoney(row.costToNeed)}`;
+  const lv = row.shown === null ? 'Not hired' : `Lv ${row.shown}`;
+  return `${lv} \u2192 ${row.need} \u00b7 ${formatMoney(row.costToNeed)} in all`;
+}
+
+// ---------------------------------------------------------------------------
 // City chip / income ticker
 // ---------------------------------------------------------------------------
 
-/** The era chip shows once the first expansion is on offer or era 2 was reached. */
-export function eraChipVisible(age: number, firstExpansionOffered: boolean): boolean {
-  return age >= 2 || firstExpansionOffered;
+/** The era chip shows once the climb opens (the Great Lodge) or era 2 was reached. */
+export function eraChipVisible(age: number, climbOpen: boolean): boolean {
+  return age >= 2 || climbOpen;
+}
+
+/** The era chip's seed on load (village + district residents, rank), the same numbers 'city:changed' carries. */
+export function cityStanding(state: Pick<GameState, 'village' | 'city' | 'eras'>): { population: number; rank: number } {
+  const population = state.village.population + cityTotals(state.city).residents;
+  return { population, rank: rankFor(population, state.eras.age) };
 }
 
 /** "1,234" below 10,000; "12.3K" / "1.2M" above. */
@@ -212,4 +262,24 @@ export function travelNote(p: TravelPoint, age: number): TravelNote {
   if (p.kind === 'district') return { cost: null, need: age >= p.era ? null : `Needs the ${ERA_NAMES[p.era] ?? 'next'} era` };
   if (age >= p.era) return { cost: null, need: null };
   return { cost: expansionCostText(p.era), need: p.open ? 'Pad is open: buy it to enter' : reachNote(p.era) };
+}
+
+/** "✦ Mastery 340 · +41% on every sale": the GateCard's Mastery line (points > 0 only; mult = core/ladder.ts masteryMult). */
+export function masteryLine(points: number, mult: number): string {
+  return `\u2726 Mastery ${points} · +${Math.round((mult - 1) * 100)}% on every sale`;
+}
+
+/** The era chip's short Mastery tag: "✦ 340 · +41%". */
+export function masteryTag(points: number, mult: number): string {
+  return `\u2726 ${points} · +${Math.round((mult - 1) * 100)}%`;
+}
+
+/**
+ * A card's effect line: "50 items → 60 items", "50 items (max)" at the top, and past an effect's hard cap during the
+ * climb (a level that only adds Mastery, docs/EXPANSION.md) "50 items (max) · +1 Mastery" instead of "50 → 50".
+ */
+export function shopDelta(now: string, next: string | null, climb: boolean): string {
+  if (next === null) return `${now} (max)`;
+  if (next === now && climb) return `${now} (max) · +1 Mastery`;
+  return `${now} → ${next}`;
 }
