@@ -1,6 +1,6 @@
 /** Wave 9 townsfolk: the instanced crowd (capacity / pooling / draw calls), crowd navigation, and the buyer state machine. */
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AMENITY_IDS, BUSINESSES, LAYOUT, TOWN, rect, type XZ } from '../src/config';
 import { salePrice } from '../src/core/demand';
 import { EventBus } from '../src/core/EventBus';
@@ -12,6 +12,24 @@ import type { ShopSpot } from '../src/town/types';
 import { AMENITY_SPOTS, BENCHES, STALLS, TREE_RING } from '../src/town/spots';
 import { amenityFrame, amenityToWorld } from '../src/town/rules';
 import type { Town } from '../src/town/Town';
+
+// The crowd rolls Math.random for walk-ins, picks and timings; seed it per test so these runs are repeatable.
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+beforeEach(() => {
+  vi.spyOn(Math, 'random').mockImplementation(mulberry32(0x5eed));
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 // ---------------------------------------------------------------------------------------------------------------------
 describe('Crowd (instanced people)', () => {

@@ -8,7 +8,7 @@ Every era harmonises with snow `#f4f7fb`, pine `#2d4c3b` and warm gold `#f2b644`
 | Era | Ground | Fence | Machine body | Accent | Trim | Glow | Worker coat |
 |---|---|---|---|---|---|---|---|
 | 1 Survival | #e8eef5 | #7a4e32 | #8a5a3b | #c84b31 | #523522 | #ffaa44 | #9e623a |
-| 2 Frontier | #dce3ec | #6e5a4f | #8c857b | #b85239 | #5c4028 | #ffb347 | #8c4a32 |
+| 2 Frontier | #ccd4de | #6e5a4f | #8c857b | #b85239 | #5c4028 | #ffb347 | #8c4a32 |
 | 3 Iron Age | #d0d8e2 | #4f4c49 | #a65e46 | #4a5559 | #2f3538 | #ff9233 | #5c4d42 |
 | 4 Steam Age | #c5ced9 | #464b4f | #9e4737 | #d49a35 | #383d40 | #ffbe55 | #783a2d |
 | 5 Industrial | #bac4d0 | #525c63 | #5a6973 | #e08a2b | #333c42 | #ffd166 | #485866 |
@@ -16,9 +16,9 @@ Every era harmonises with snow `#f4f7fb`, pine `#2d4c3b` and warm gold `#f2b644`
 | 7 Oil Age | #aebac6 | #575552 | #d99b26 | #c44536 | #36383a | #ffaa5a | #b87b28 |
 | 8 Computer Age | #c2ccd6 | #7c858e | #e6dec8 | #45858c | #4a5259 | #66e0a3 | #4a7585 |
 | 9 Nuclear Power | #cbd6e0 | #6f828a | #dce3e6 | #4ea885 | #3d5259 | #70f5d9 | #468275 |
-| 10 AI Era | #dae3ed | #8fa1b3 | #f5f0e6 | #e8a848 | #526475 | #ffe082 | #637a91 |
+| 10 AI Era | #cad4e0 | #8fa1b3 | #f5f0e6 | #e8a848 | #526475 | #ffe082 | #637a91 |
 
-Era 9 and 10 rows were confirmed by ARGON on 2026-10-15.
+Era 9 and 10 rows were confirmed by ARGON on 2026-10-15. The era 2 and 10 grounds were darkened slightly on 2026-10-16 (Dino) so region edges read against snow.
 
 Material themes:
 - **Era 1–2:** rough timber, fieldstone, warm hearth firelight.
