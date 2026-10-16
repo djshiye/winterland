@@ -3,10 +3,20 @@
  * world (eras/EraWorld.ts), the era workers, Jack's carts, the world dressing and the map panel. Deterministic: same
  * input, same numbers. No THREE, no GameContext.
  *
- * Region anatomy (eras/data.ts REGIONS[n]): the GATE is the middle of the gate edge (north = minZ, south = maxZ); a
- * 7 m FRONT YARD band runs along that edge (export depot + import dock left of the gate, Jack's cart + the era shop
- * mat right of it); MACHINE SLOTS fill the rest in a centred grid. The EXPANSION PAD sits on the road just outside
- * the gate. Machines face the front yard (their feed / take side toward the gate).
+ * Region anatomy (eras/data.ts REGIONS[n]; 0.9.5 plots are era-1 sized and split into era-1-style zones):
+ *
+ *   gate edge (road) ─────────────── gate ──────────────────── market gate ──
+ *   │ YARD: depot · dock · [gate] · Jack · shop mat   │ MARKET: customers,    │
+ *   ├─────────────────────────────────────────────────┤ counters, the vehicle │
+ *   │ PROCESSING: the machine slots (centred grid)    │ stop on the road      │
+ *   │                                                 ├───────────────────────┤
+ *   ├─────────────────────────────────────────────────┤ HUTS: the era crew's  │
+ *   │ HARVEST: the era's raw resource (hand nodes)    │ homes                 │
+ *   far edge ─────────────────────────────────────────────────────────────────
+ *
+ * The west column (yard, processing, harvest) is at least 30 m wide; the east column (market, huts) takes the rest.
+ * The GATE is the middle of the yard's road edge; the MARKET has its own 3 m gate onto the same road. The EXPANSION
+ * PAD sits on the road just outside the gate. Machines face the yard (their feed / take side toward the gate).
  */
 import { DISTRICTS, ERAS, REGIONS, ROADS, regionDef, type ERect, type GateSide } from './data';
 import type { GameState } from '../core/types';
@@ -23,6 +33,19 @@ export interface SlotPlace {
   z: number;
   /** Yaw (radians about +Y) that turns a model's local +Z (its front) toward the front yard. */
   yaw: number;
+}
+
+/**
+ * 0.9.5: the region's zones (world rects; together they tile the region rect exactly, no overlaps). Other systems
+ * place their content inside these, never at hard-coded numbers: facilities in `yard`, machine slots in `processing`,
+ * the era's raw resource in `harvest`, customers and counters in `market`, the crew's homes in `huts`.
+ */
+export interface RegionZones {
+  yard: ERect;
+  processing: ERect;
+  harvest: ERect;
+  market: ERect;
+  huts: ERect;
 }
 
 export interface RegionLayout {
@@ -47,9 +70,29 @@ export interface RegionLayout {
   /** Machine slots (length = REGIONS[n].slots) and the square cell each one owns (metres). */
   slots: SlotPlace[];
   cell: number;
+  /** 0.9.5 zones (see RegionZones). */
+  zones: RegionZones;
+  /** 0.9.5: the market's own gate in the road edge (centre on the edge line, `width` metres wide). */
+  marketGate: { x: number; z: number; width: number };
+  /** Where vehicles stop for the market: on the road (lane centre) in front of the market gate. */
+  vehicleStop: XZ;
+  /** Where walking customers enter the market: 2 m inside the market gate. */
+  customerEntry: XZ;
+  /** The road the region's gates open onto (eras/data.ts ROADS id). */
+  road: string;
 }
 
-const BAND = 7;
+/** Depth of the front yard band along the gate edge (metres). */
+export const YARD_DEPTH = 8;
+/** The west column (yard, processing, harvest) is never narrower than this. */
+export const MIN_WEST = 30;
+/** The harvest zone keeps at least this depth. */
+const MIN_HARVEST = 10;
+
+/** World rect between depths d0..d1 into the region (from the gate edge) and x0..x1. */
+function band(r: ERect, north: boolean, x0: number, x1: number, d0: number, d1: number): ERect {
+  return north ? { minX: x0, maxX: x1, minZ: r.minZ + d0, maxZ: r.minZ + d1 } : { minX: x0, maxX: x1, minZ: r.maxZ - d1, maxZ: r.maxZ - d0 };
+}
 
 /** Layout of era n's region (2..10). */
 export function regionLayout(n: number): RegionLayout {
@@ -59,27 +102,40 @@ export function regionLayout(n: number): RegionLayout {
   const D = r.maxZ - r.minZ;
   const north = def.gate === 'north';
   const inward = north ? 1 : -1;
-  const gx = (r.minX + r.maxX) / 2;
   const edgeZ = north ? r.minZ : r.maxZ;
-  const bandZ = edgeZ + inward * (BAND / 2 + 0.5);
   // facilities face into the region: local +Z → world +Z (north gate) or −Z (south gate)
   const facilityYaw = north ? 0 : Math.PI;
 
-  // machine grid: biggest cell (9 → 7 m) that fits every slot
-  const free = D - BAND - 2;
+  // ---- columns and zones
+  const westW = Math.min(W, Math.max(MIN_WEST, Math.round(W * 0.6)));
+  const splitX = r.minX + westW;
+  const gx = r.minX + westW / 2;
+  const inner = D - YARD_DEPTH; // depth below the yard
+
+  // machine grid: biggest cell (9 → 7 m) that fits every slot and still leaves the harvest zone its depth
   let cell = 7;
-  let cols = Math.max(1, Math.floor((W - 2) / cell));
+  let cols = Math.max(1, Math.floor((westW - 2) / cell));
   for (const c of [9, 8.5, 8, 7.5, 7]) {
-    const k = Math.max(1, Math.floor((W - 2) / c));
-    if (Math.ceil(def.slots / k) * c <= free) {
+    const k = Math.max(1, Math.floor((westW - 2) / c));
+    if (Math.ceil(def.slots / k) * c + 2 <= inner - MIN_HARVEST) {
       cell = c;
       cols = k;
       break;
     }
   }
   const rows = Math.ceil(def.slots / cols);
-  const gridStart = edgeZ + inward * (BAND + 1); // first row's near edge
+  const procDepth = Math.min(inner - MIN_HARVEST, Math.max(rows * cell + 2, Math.round(inner * 0.5)));
+  const marketDepth = Math.round(D * 0.55);
+  const zones: RegionZones = {
+    yard: band(r, north, r.minX, splitX, 0, YARD_DEPTH),
+    processing: band(r, north, r.minX, splitX, YARD_DEPTH, YARD_DEPTH + procDepth),
+    harvest: band(r, north, r.minX, splitX, YARD_DEPTH + procDepth, D),
+    market: band(r, north, splitX, r.maxX, 0, marketDepth),
+    huts: band(r, north, splitX, r.maxX, marketDepth, D),
+  };
+
   const slots: SlotPlace[] = [];
+  const gridStart = edgeZ + inward * (YARD_DEPTH + 1); // first row's near edge
   for (let i = 0; i < def.slots; i++) {
     const row = Math.floor(i / cols);
     const inRow = row === rows - 1 ? def.slots - row * cols : cols;
@@ -90,7 +146,10 @@ export function regionLayout(n: number): RegionLayout {
     slots.push({ x, z, yaw: north ? Math.PI : 0 });
   }
 
+  const bandZ = edgeZ + inward * (YARD_DEPTH / 2);
   const roadZ = edgeZ - inward * 2; // roads are 4 m wide and touch the gate edge
+  const mx = (splitX + r.maxX) / 2;
+  const road = ROADS.find((q) => q.rect.minX <= gx - 2 && q.rect.maxX >= gx + 2 && Math.abs((q.rect.minZ + q.rect.maxZ) / 2 - roadZ) < 0.01);
   return {
     n,
     rect: r,
@@ -99,14 +158,20 @@ export function regionLayout(n: number): RegionLayout {
     inside: { x: gx, z: edgeZ + inward * 3 },
     expansionPad: { x: gx + 4.5, z: roadZ },
     padSize: 2.2,
-    depot: { x: r.minX + 4.5, z: bandZ },
-    dock: { x: r.minX + 10.5, z: bandZ },
-    jack: { x: r.maxX - 10.5, z: bandZ },
-    shopMat: { x: r.maxX - 4.5, z: bandZ },
+    // the yard's facilities hug the gate: depot + dock west of it, Jack + the shop mat east of it
+    depot: { x: gx - 10.5, z: bandZ },
+    dock: { x: gx - 4.5, z: bandZ },
+    jack: { x: gx + 4.5, z: bandZ },
+    shopMat: { x: gx + 10.5, z: bandZ },
     sign: { x: gx - 4, z: edgeZ - inward * 0.6 },
     facilityYaw,
     slots,
     cell,
+    zones,
+    marketGate: { x: mx, z: edgeZ, width: 3 },
+    vehicleStop: { x: mx, z: roadZ },
+    customerEntry: { x: mx, z: edgeZ + inward * 2 },
+    road: road?.id ?? '',
   };
 }
 
@@ -165,29 +230,34 @@ export function travelPoints(state: GameState): TravelPoint[] {
 }
 
 /**
- * 0.9.3: the era trail, the way to walk from the Market Town to era `upTo`'s gate (2..10) along the roads, as a
- * polyline of world points (x, z) through every earlier region's gate in era order. The map panel draws it so the
- * next era is always one line away. Points sit 1 m out on the road from each gate; a change of road goes down the
- * east link (ROADS r1r2east). Pure.
+ * The era trail, the way to walk from the Market Town to era `upTo`'s gate (2..10) along the roads, as a polyline of
+ * world points (x, z) through every earlier region's gate in era order. The map panel draws it so the next era is
+ * always one line away. Points sit 1 m out on the road from each gate; a change of road goes down the link road that
+ * touches both (0.9.5: the west link from R1 to R2, the east link from R2 to R3). Pure.
  */
 export function eraTrail(upTo: number): XZ[] {
-  const avenue = ROADS.find((r) => r.id === 'southAvenue')!.rect;
-  const link = ROADS.find((r) => r.id === 'r1r2east')!.rect;
-  const linkX = (link.minX + link.maxX) / 2;
+  const roadOf = (id: string): ERect => ROADS.find((r) => r.id === id)!.rect;
+  const avenue = roadOf('southAvenue');
+  const touches = (a: ERect, b: ERect): boolean => a.minX <= b.maxX && b.minX <= a.maxX && a.minZ <= b.maxZ && b.minZ <= a.maxZ;
   const out: XZ[] = [{ x: (avenue.minX + avenue.maxX) / 2, z: avenue.minZ + 2 }];
+  let prevRoad = '';
   for (let n = 2; n <= Math.min(upTo, REGIONS.length - 1); n++) {
     if (!REGIONS[n]) continue;
     const L = regionLayout(n);
     const next = { x: L.gate.x, z: L.gate.z - L.inward };
     const prev = out[out.length - 1]!;
-    if (Math.abs(prev.z - next.z) > 6) {
-      // another road: along this one to the link, down (or up) the link, then along the new road
-      if (n > 2) out.push({ x: linkX, z: prev.z }, { x: linkX, z: next.z });
-      else out.push({ x: prev.x, z: next.z });
+    if (prevRoad && prevRoad !== L.road) {
+      // another road: along this one to the link, down the link, then along the new road
+      const a = roadOf(prevRoad);
+      const b = roadOf(L.road);
+      const link = ROADS.find((q) => q.id !== prevRoad && q.id !== L.road && q.rect.maxX - q.rect.minX < q.rect.maxZ - q.rect.minZ && touches(q.rect, a) && touches(q.rect, b))!.rect;
+      const linkX = (link.minX + link.maxX) / 2;
+      out.push({ x: linkX, z: prev.z }, { x: linkX, z: next.z });
     } else if (prev.z !== next.z) {
-      out.push({ x: next.x, z: prev.z });
+      out.push({ x: prev.x, z: next.z });
     }
     out.push(next);
+    prevRoad = L.road;
   }
   return out;
 }
