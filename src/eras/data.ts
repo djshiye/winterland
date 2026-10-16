@@ -158,7 +158,7 @@ export const MATERIALS: Record<MaterialKind, MaterialDef> = {
   roofTile: mat('roofTile', 'Roof Tiles', 2, 'refined', REF2(2), 'tile', 0xc0583a, 0xe8c9a8, 0.42, 0.18, 0.32),
   hearth: mat('hearth', 'Hearths', 2, 'refined', PREMIUM(2), 'hearth', 0xa7a39b, 0xffa040, 0.4, 0.42, 0.32),
   charcoal: mat('charcoal', 'Charcoal', 3, 'raw', RAW(3), 'lump', 0x3a3330, 0xd8703a, 0.38, 0.24, 0.34),
-  tools: mat('tools', 'Tools', 3, 'refined', REF2(3), 'tools', 0x8d949c, 0x9a6a42, 0.44, 0.14, 0.34),
+  tools: mat('tools', 'Tools', 3, 'refined', Math.max(REF2(3), (VALUE_ADD * (REF(3) + RAW(3))) / 2), 'tools', 0x8d949c, 0x9a6a42, 0.44, 0.14, 0.34),
   rail: mat('rail', 'Rails', 3, 'refined', PREMIUM(3), 'rail', 0x7a8088, 0x5c4028, 0.46, 0.16, 0.3),
   scrap: mat('scrap', 'Scrap', 4, 'raw', RAW(4), 'nugget', 0x8a7a6a, 0xc0763a, 0.38, 0.26, 0.34),
   boiler: mat('boiler', 'Boilers', 4, 'refined', REF2(4), 'boiler', 0x9e4737, 0xd49a35, 0.36, 0.4, 0.36),
@@ -180,6 +180,9 @@ export const MATERIALS: Record<MaterialKind, MaterialDef> = {
   graphite: mat('graphite', 'Graphite', 9, 'raw', RAW(9) * 1.3, 'block', 0x4a494e, 0x6e6c73, 0.36, 0.24, 0.3),
   battery: mat('battery', 'Batteries', 9, 'refined', REF(9) * 1.6, 'cell', 0x4ea885, 0xe8b341, 0.32, 0.4, 0.32),
   quantumCore: mat('quantumCore', 'Quantum Cores', 10, 'refined', REF(10) * 3.2, 'core', 0xb9a6e0, 0xe8a848, 0.36, 0.36, 0.36),
+  // 0.9.6 (decision 15): era 5's and era 10's own raw material (era 5 used to mine era 3's ore, era 10 era 9's power)
+  pigIron: mat('pigIron', 'Pig Iron', 5, 'raw', RAW(5), 'ingot', 0x5b524d, 0xe08a2b, 0.44, 0.16, 0.22),
+  dataShard: mat('dataShard', 'Data Shards', 10, 'raw', RAW(10), 'crystal', 0x8fd3ff, 0xc9a8ff, 0.36, 0.3, 0.3),
 };
 
 export function isMaterial(kind: ItemKind): kind is MaterialKind {
@@ -246,41 +249,53 @@ export interface MachineDef {
   style: string;
 }
 
-/** Input / output pile grids for every machine (small: every pile item is a mesh + a shadow draw call). */
+/**
+ * Input / output pile grids for every machine (small: every pile item is a mesh + a shadow draw call). 0.9.6 (F3): the
+ * input hopper grows with the machine type's level, from `hopper.base` units at Lv 0-1 to `hopper.max` (the whole grid)
+ * at Lv 10 (eras/rules.ts hopperSize), so a levelled processor keeps a buffer and never starves between two deliveries.
+ */
 export const MACHINE_PILES = {
-  in: { cols: 2, rows: 2, layers: 2, spacing: { x: 0.5, y: 0.3, z: 0.5 } },
+  in: { cols: 3, rows: 2, layers: 4, spacing: { x: 0.5, y: 0.3, z: 0.5 } },
   out: { cols: 3, rows: 2, layers: 2, spacing: { x: 0.5, y: 0.3, z: 0.5 } },
+  hopper: { base: 8, max: 24 },
 } as const;
+
+/**
+ * 0.9.6: every era's machine cycles × this (index = era). The 0.9.6 recipes balance each chain (one extractor feeds its
+ * processor, F3) and so make more per second; this pace keeps each era's pacing-model length (tests/pacing.test.ts)
+ * where 0.9.5 had it. Solved with the pacing model; the economy re-tune may move it.
+ */
+export const ERA_PACE: readonly number[] = [1, 1, 1.16, 2.1, 1.66, 0.88, 2.38, 1, 1.7, 1.07, 0.86];
 
 function machine(id: MachineId, n: number, kind: 'extractor' | 'processor', label: string, blurb: string, inputs: { kind: ItemKind; per: number }[], output: ItemKind, batch: number, cycle: number, costShare: number, extra: { kind: ItemKind; count: number } | undefined, style: string): MachineDef {
   const cash = Math.round((unlockCash(n) * costShare) / 1000) * 1000;
-  return { id, era: n, kind, label, blurb, inputs, output, batch, cycle, cash, ...(extra ? { extra } : {}), style };
+  return { id, era: n, kind, label, blurb, inputs, output, batch, cycle: Math.round(cycle * (ERA_PACE[n] ?? 1) * 100) / 100, cash, ...(extra ? { extra } : {}), style };
 }
 
 export const MACHINES: Record<MachineId, MachineDef> = {
   quarry: machine('quarry', 2, 'extractor', 'Quarry', 'Cuts stone blocks out of the hillside', [], 'stone', 1, 1.8, 0.1, undefined, 'crane over a stepped pit'),
   kiln: machine('kiln', 2, 'processor', 'Brick Kiln', '2 stone → bricks, fired in a beehive kiln', [{ kind: 'stone', per: 2 }], 'brick', 1, 2.4, 0.18, { kind: 'stone', count: 12 }, 'domed beehive kiln with chimney'),
   ironMine: machine('ironMine', 3, 'extractor', 'Iron Mine', 'A headframe winds ore out of the mountain', [], 'ore', 1, 1.8, 0.1, undefined, 'wooden headframe + mine cart'),
-  smelter: machine('smelter', 3, 'processor', 'Smelter', '2 ore → an iron ingot', [{ kind: 'ore', per: 2 }], 'iron', 1, 2.4, 0.18, { kind: 'ore', count: 12 }, 'blast furnace tower, glowing mouth'),
+  smelter: machine('smelter', 3, 'processor', 'Smelter', '2 ore → two iron ingots', [{ kind: 'ore', per: 2 }], 'iron', 2, 2.4, 0.18, { kind: 'ore', count: 12 }, 'blast furnace tower, glowing mouth'),
   coalPit: machine('coalPit', 4, 'extractor', 'Coal Pit', 'Steam diggers bring up coal', [], 'coal', 1, 1.8, 0.1, undefined, 'steam shovel over a black pit'),
-  steamWorks: machine('steamWorks', 4, 'processor', 'Steam Works', 'Iron + coal → gears', [{ kind: 'iron', per: 1 }, { kind: 'coal', per: 1 }], 'gear', 1, 2.6, 0.18, { kind: 'coal', count: 12 }, 'brick hall, big flywheel, steam stacks'),
+  steamWorks: machine('steamWorks', 4, 'processor', 'Steam Works', 'Scrap + coal → gears', [{ kind: 'scrap', per: 1 }, { kind: 'coal', per: 1 }], 'gear', 1, 2.6, 0.18, { kind: 'coal', count: 12 }, 'brick hall, big flywheel, steam stacks'),
   // 0.9.5 era 2-4: second extractor, second processor and premium works per era (docs/ERA_RESOURCES.md)
-  clayPit: machine('clayPit', 2, 'extractor', 'Clay Pit', 'A bucket wheel scoops wet red clay', [], 'clay', 1, 2.0, 0.1, { kind: 'stone', count: 8 }, 'timber bucket wheel over a clay pond'),
+  clayPit: machine('clayPit', 2, 'extractor', 'Clay Pit', 'A bucket wheel scoops wet red clay', [], 'clay', 1, 1.2, 0.1, { kind: 'stone', count: 8 }, 'timber bucket wheel over a clay pond'),
   tileKiln: machine('tileKiln', 2, 'processor', 'Tile Kiln', '2 clay → roof tiles, fired in a long kiln', [{ kind: 'clay', per: 2 }], 'roofTile', 1, 2.4, 0.18, { kind: 'clay', count: 12 }, 'long low kiln with a tile rack'),
   masonYard: machine('masonYard', 2, 'processor', "Mason's Yard", 'Bricks + roof tiles → a cosy hearth', [{ kind: 'brick', per: 1 }, { kind: 'roofTile', per: 1 }], 'hearth', 1, 3.0, 0.25, { kind: 'brick', count: 10 }, 'open yard with a hoist and a half-built hearth'),
-  charcoalClamp: machine('charcoalClamp', 3, 'extractor', 'Charcoal Clamp', 'A smouldering earth mound bakes charcoal', [], 'charcoal', 1, 2.0, 0.1, { kind: 'brick', count: 8 }, 'turf-covered smoking mound'),
+  charcoalClamp: machine('charcoalClamp', 3, 'extractor', 'Charcoal Clamp', 'A smouldering earth mound bakes charcoal', [], 'charcoal', 1, 1.4, 0.1, { kind: 'ore', count: 8 }, 'turf-covered smoking mound'),
   forge: machine('forge', 3, 'processor', 'Forge', 'Iron + charcoal → two bundles of tools', [{ kind: 'iron', per: 1 }, { kind: 'charcoal', per: 1 }], 'tools', 2, 2.8, 0.18, { kind: 'charcoal', count: 12 }, 'open forge with bellows and anvil'),
-  railMill: machine('railMill', 3, 'processor', 'Rail Mill', '2 iron + charcoal → a length of rail', [{ kind: 'iron', per: 2 }, { kind: 'charcoal', per: 1 }], 'rail', 1, 3.0, 0.25, { kind: 'iron', count: 10 }, 'rolling stand with a trip hammer'),
-  scrapYard: machine('scrapYard', 4, 'extractor', 'Scrap Yard', 'A magnet crane sorts old iron', [], 'scrap', 1, 2.0, 0.1, { kind: 'iron', count: 8 }, 'magnet crane over a scrap heap'),
+  railMill: machine('railMill', 3, 'processor', 'Rail Mill', 'Iron + charcoal → a length of rail', [{ kind: 'iron', per: 1 }, { kind: 'charcoal', per: 1 }], 'rail', 1, 3.0, 0.25, { kind: 'iron', count: 10 }, 'rolling stand with a trip hammer'),
+  scrapYard: machine('scrapYard', 4, 'extractor', 'Scrap Yard', 'A magnet crane sorts old iron, two loads at a time', [], 'scrap', 2, 2.4, 0.1, { kind: 'coal', count: 8 }, 'magnet crane over a scrap heap'),
   boilerShop: machine('boilerShop', 4, 'processor', 'Boiler Shop', 'Scrap + coal → a riveted boiler', [{ kind: 'scrap', per: 1 }, { kind: 'coal', per: 1 }], 'boiler', 1, 2.6, 0.18, { kind: 'scrap', count: 12 }, 'riveting shed with a boiler on blocks'),
   engineWorks: machine('engineWorks', 4, 'processor', 'Engine Works', 'Gears + a boiler → a steam engine', [{ kind: 'gear', per: 1 }, { kind: 'boiler', per: 1 }], 'steamEngine', 1, 3.0, 0.25, { kind: 'gear', count: 8 }, 'erecting hall with a test engine'),
-  deepMine: machine('deepMine', 5, 'extractor', 'Deep Ore Mine', 'A steel headframe, twice as deep', [], 'ore', 2, 2.0, 0.08, undefined, 'steel lattice headframe'),
+  deepMine: machine('deepMine', 5, 'extractor', 'Deep Mine', 'A steel headframe brings up pig iron, two at a time', [], 'pigIron', 2, 2.0, 0.08, undefined, 'steel lattice headframe'),
   cokeOven: machine('cokeOven', 5, 'extractor', 'Coke Ovens', 'A battery of ovens baking coal', [], 'coal', 2, 2.0, 0.08, undefined, 'row of brick ovens + quench tower'),
-  steelMill: machine('steelMill', 5, 'processor', 'Steel Mill', 'Ore + 2 coal → steel beams', [{ kind: 'ore', per: 1 }, { kind: 'coal', per: 2 }], 'steel', 1, 2.6, 0.18, { kind: 'coal', count: 16 }, 'converter vessel pouring sparks, tall stack'),
-  rollingMill: machine('rollingMill', 5, 'processor', 'Rolling Mill', '2 steel → a riveted girder', [{ kind: 'steel', per: 2 }], 'girder', 1, 2.8, 0.2, { kind: 'steel', count: 12 }, 'roller stands with a red-hot bar'),
+  steelMill: machine('steelMill', 5, 'processor', 'Steel Mill', 'Pig iron + 2 coal → two steel beams', [{ kind: 'pigIron', per: 1 }, { kind: 'coal', per: 2 }], 'steel', 2, 2.6, 0.18, { kind: 'coal', count: 16 }, 'converter vessel pouring sparks, tall stack'),
+  rollingMill: machine('rollingMill', 5, 'processor', 'Rolling Mill', 'Steel → a riveted girder', [{ kind: 'steel', per: 1 }], 'girder', 1, 2.8, 0.2, { kind: 'steel', count: 12 }, 'roller stands with a red-hot bar'),
   plowWorks: machine('plowWorks', 5, 'processor', 'Plow Works', 'Girder + steel → a snowplow', [{ kind: 'girder', per: 1 }, { kind: 'steel', per: 1 }], 'snowplow', 1, 3.4, 0.28, { kind: 'girder', count: 6 }, 'assembly shed, plow blade on a hoist'),
   copperMine: machine('copperMine', 6, 'extractor', 'Copper Mine', 'An electric hoist lifts copper ore', [], 'copper', 1, 1.8, 0.1, undefined, 'electric hoist tower with pylons'),
-  wireMill: machine('wireMill', 6, 'processor', 'Wire Mill', '2 copper → a coil of wire', [{ kind: 'copper', per: 2 }], 'wire', 1, 2.4, 0.18, { kind: 'copper', count: 12 }, 'long shed with spinning spools'),
+  wireMill: machine('wireMill', 6, 'processor', 'Wire Mill', '2 copper → two coils of wire', [{ kind: 'copper', per: 2 }], 'wire', 2, 2.4, 0.18, { kind: 'copper', count: 12 }, 'long shed with spinning spools'),
   quartzPit: machine('quartzPit', 6, 'extractor', 'Quartz Pit', 'An electric shovel digs pink quartz', [], 'quartz', 1, 1.8, 0.1, undefined, 'electric shovel over a quartz pit'),
   bulbWorks: machine('bulbWorks', 6, 'processor', 'Bulb Works', 'Wire + quartz → a light bulb', [{ kind: 'wire', per: 1 }, { kind: 'quartz', per: 1 }], 'bulb', 1, 2.6, 0.2, { kind: 'wire', count: 10 }, 'glass-blowing hall with a glowing furnace'),
   radioWorks: machine('radioWorks', 6, 'processor', 'Radio Works', 'Wire + bulb → a radio set', [{ kind: 'wire', per: 1 }, { kind: 'bulb', per: 1 }], 'radio', 1, 3.2, 0.28, { kind: 'bulb', count: 6 }, 'art-deco factory with a spinning antenna'),
@@ -290,14 +305,14 @@ export const MACHINES: Record<MachineId, MachineDef> = {
   cracker: machine('cracker', 7, 'processor', 'Cracker', 'Crude + gas → fuel', [{ kind: 'crude', per: 1 }, { kind: 'gas', per: 1 }], 'fuel', 1, 2.6, 0.2, { kind: 'crude', count: 12 }, 'catalytic cracking tower'),
   snowmobileWorks: machine('snowmobileWorks', 7, 'processor', 'Snowmobile Works', 'Plastic + fuel → a snowmobile', [{ kind: 'plastic', per: 1 }, { kind: 'fuel', per: 1 }], 'snowmobile', 1, 3.4, 0.28, { kind: 'plastic', count: 6 }, 'assembly line with a test track'),
   sandPit: machine('sandPit', 8, 'extractor', 'Sand Pit', 'Dredges pure quartz sand into silicon', [], 'silicon', 1, 1.8, 0.1, undefined, 'conveyor dredge + crystal grower'),
-  chipFab: machine('chipFab', 8, 'processor', 'Chip Fab', 'Silicon + wire → microchips', [{ kind: 'silicon', per: 1 }, { kind: 'wire', per: 1 }], 'chip', 1, 2.8, 0.18, { kind: 'silicon', count: 12 }, 'white clean-room block with air vents'),
+  chipFab: machine('chipFab', 8, 'processor', 'Chip Fab', '2 silicon → two microchips', [{ kind: 'silicon', per: 2 }], 'chip', 2, 2.8, 0.18, { kind: 'silicon', count: 12 }, 'white clean-room block with air vents'),
   uraniumMine: machine('uraniumMine', 9, 'extractor', 'Uranium Mine', 'Robotic diggers in lead-lined suits', [], 'uranium', 1, 1.8, 0.1, undefined, 'shielded headframe, hazard stripes'),
   enricher: machine('enricher', 9, 'processor', 'Enrichment Plant', '2 uranium → a fuel rod', [{ kind: 'uranium', per: 2 }], 'fuelRod', 1, 2.6, 0.18, { kind: 'uranium', count: 12 }, 'centrifuge cascade hall'),
   reactor: machine('reactor', 9, 'processor', 'Reactor', 'A fuel rod → 3 power cells', [{ kind: 'fuelRod', per: 1 }], 'power', 3, 3.2, 0.25, { kind: 'fuelRod', count: 6 }, 'cooling tower + containment dome'),
   fusionPlant: machine('fusionPlant', 10, 'extractor', 'Fusion Plant', 'A tokamak spins out power cells', [], 'power', 1, 2.0, 0.08, undefined, 'torus ring reactor with glow'),
-  nanoFab: machine('nanoFab', 10, 'extractor', 'Nano Fab', 'Self-assembling microchips', [], 'chip', 1, 2.0, 0.08, undefined, 'sleek block with holo panels'),
-  dataCenter: machine('dataCenter', 10, 'processor', 'Data Center', 'Chip + power cell → an AI core', [{ kind: 'chip', per: 1 }, { kind: 'power', per: 1 }], 'aiCore', 1, 3.0, 0.2, { kind: 'chip', count: 10 }, 'server halls with blinking racks'),
-  robotWorks: machine('robotWorks', 10, 'processor', 'Robot Works', 'Steel + AI core → a robot', [{ kind: 'steel', per: 1 }, { kind: 'aiCore', per: 1 }], 'robot', 1, 3.4, 0.25, { kind: 'aiCore', count: 4 }, 'assembly hall with robot arms'),
+  nanoFab: machine('nanoFab', 10, 'extractor', 'Nano Fab', 'Grows glowing data shards', [], 'dataShard', 1, 2.0, 0.08, undefined, 'sleek block with holo panels'),
+  dataCenter: machine('dataCenter', 10, 'processor', 'Data Center', 'Data shard + power cell → an AI core', [{ kind: 'dataShard', per: 1 }, { kind: 'power', per: 1 }], 'aiCore', 1, 3.0, 0.2, { kind: 'dataShard', count: 10 }, 'server halls with blinking racks'),
+  robotWorks: machine('robotWorks', 10, 'processor', 'Robot Works', 'AI core + data shard → a robot', [{ kind: 'aiCore', per: 1 }, { kind: 'dataShard', per: 1 }], 'robot', 1, 3.4, 0.25, { kind: 'aiCore', count: 4 }, 'assembly hall with robot arms'),
   // 0.9.5 eras 8-10: second extractor, second processor and premium line of each era (docs/EXPANSION.md §D)
   goldPanner: machine('goldPanner', 8, 'extractor', 'Gold Panner', 'A rocker sluice washes gold out of the shore', [], 'gold', 1, 2.2, 0.12, undefined, 'rocker sluice with a spinning pan'),
   boardShop: machine('boardShop', 8, 'processor', 'Board Shop', 'Chip + gold → a circuit board', [{ kind: 'chip', per: 1 }, { kind: 'gold', per: 1 }], 'board', 1, 2.8, 0.2, { kind: 'gold', count: 10 }, 'solder line with a pick-and-place head'),

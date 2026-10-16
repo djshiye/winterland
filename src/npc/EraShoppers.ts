@@ -20,6 +20,7 @@ import { createCharacterRig, type CharacterRig } from '../render/characters';
 import { createSpeechBubble, type SpeechBubble } from '../assets/shop';
 import { MATERIAL_KINDS, type MaterialKind } from '../eras/data';
 import type { XZ } from '../eras/layout';
+import { buyerScale } from './EraBuyers';
 
 /** What the line needs from its market stall. */
 export interface ShopperStall {
@@ -43,6 +44,8 @@ export interface ShopperStall {
 type Mode = 'in' | 'queue' | 'paid' | 'out';
 
 const VARIANTS = 4;
+/** 0.9.6 (F6): the most one shopper buys (later eras and a bigger stall: EraBuyers buyerScale). */
+const SHOP_MAX = 10;
 const ACCEL = 12;
 const TURN = 14;
 const tmp = new THREE.Vector3();
@@ -75,7 +78,7 @@ class Shopper {
     this.group.add(this.bubble.sprite);
     this.bubbleY = this.rig.height + 0.4;
     this.bubble.sprite.position.y = this.bubbleY;
-    this.stack = new CarryStack(ctx, { id, accepts: MATERIAL_KINDS, capacity: TRADE_POST.shopWant[1] + 1, anchor: this.rig.armsAnchor });
+    this.stack = new CarryStack(ctx, { id, accepts: MATERIAL_KINDS, capacity: SHOP_MAX + 1, anchor: this.rig.armsAnchor });
   }
 }
 
@@ -148,13 +151,14 @@ export class EraShoppers {
       this.spawnTimer = 0.5;
       return;
     }
-    this.spawnTimer = randRange(TRADE_POST.shopGap[0], TRADE_POST.shopGap[1]) / Math.max(1, this.stall.boost());
+    const scale = buyerScale(this.stall.era, this.stall.boost());
+    this.spawnTimer = randRange(TRADE_POST.shopGap[0], TRADE_POST.shopGap[1]) / scale.rate;
     const c = this.pool.pop() ?? new Shopper(this.ctx, `npc:shopper${this.stall.era}:${this.created}`, this.created % VARIANTS);
     this.created++;
     const s = this.stall;
     c.mode = 'in';
     c.kind = null;
-    c.want = Math.round(randRange(TRADE_POST.shopWant[0] - 0.49, TRADE_POST.shopWant[1] + 0.49));
+    c.want = Math.min(SHOP_MAX, Math.round(randRange(TRADE_POST.shopWant[0] - 0.49, TRADE_POST.shopWant[1] + 0.49) * scale.size));
     c.speed = 0;
     c.takeTimer = 0;
     c.idle = 0;

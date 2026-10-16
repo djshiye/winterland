@@ -63,4 +63,11 @@ export const ERA5_7_ICONS: Record<string, string> = {
        <path d="M36 32v8" fill="none"/>
        <rect x="8" y="27" width="34" height="3" rx="1" fill="#c44536" stroke-width="1.6"/>`),
   ),
+  // 0.9.6: era 5's own raw material: a rough, lumpy pig-iron bar with an orange glow along its top
+  pigIron: svg(
+    g(`<path d="M6 33l4-12 7-3 8 2 7-3 8 4 3 12z" fill="#5b524d"/>
+       <path d="M10 21l7-3 8 2 7-3 8 4-6 3-9-1-8 2z" fill="#7a706a"/>
+       <path d="M14 26c4-2 8 0 12-1s7-2 10 0" stroke="#e08a2b" stroke-width="2.4" fill="none"/>
+       <rect x="6" y="33" width="38" height="5" rx="1.5" fill="#3e3734"/>`),
+  ),
 };

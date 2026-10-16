@@ -54,6 +54,8 @@ export interface RegionRuntime {
   readonly dockSpot: XZ;
   /** 0.9.5: construction sites wanting material right now (read live). */
   sites(): readonly SiteRuntime[];
+  /** 0.9.6: the era's hand node pile (the player's harvest) and where a worker stands to take from it; null = none. */
+  readonly node?: { readonly pile: Pile; readonly pileSpot: XZ; readonly yields: ItemKind } | null;
   /**
    * 0.9.5 market: the depot hands what it receives to the loading dock (raw) or market stall (refined) while they have
    * room; buyer trucks take from the dock, walk-in shoppers from the stall, both pay into `cash`.

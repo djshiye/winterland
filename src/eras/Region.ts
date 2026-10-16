@@ -18,7 +18,7 @@
  */
 import * as THREE from 'three';
 import { PALETTE, TIMING, rect } from '../config';
-import { createMatModel, createShopSign } from '../assets/pads';
+import { createMatModel, createPadSign, createShopSign } from '../assets/pads';
 import { createDepotModel, createDockModel } from '../assets/eraMachines';
 import type { MaterialKind, GameContext, ItemKind } from '../core/types';
 import type { WorldSnapshot } from '../core/Save';
@@ -41,6 +41,11 @@ import type { RegionRuntime, SiteRuntime } from './runtime';
 import { DEPOT_FRAME, DOCK_FRAME, LEVEL_PAD_SIZE, MAT_SIZE, chooseOptions, demolishCost, machineStatRows, slotKey, slotTarget, slotTitle, slotUntouched, toWorld, worldRect } from './rules';
 
 const SIGN_HEIGHT = 2.0;
+/** 0.9.6 (F6): the "counters full" hint floats this high over the export depot … */
+const FULL_SIGN_HEIGHT = 2.9;
+/** … once both counters have been full this long (s), and hides once they have had room this long. */
+const FULL_SHOW_AFTER = 1.0;
+const FULL_HIDE_AFTER = 1.5;
 /** Market orders drop in from this height above the dock. */
 const DROP_HEIGHT = 7;
 
@@ -78,6 +83,10 @@ export class Region implements RegionRuntime {
   /** 0.9.5: one level pad per machine type, beside the first built machine of that type (slot index). */
   private readonly levelPads = new Map<MachineId, { pad: EraLevelPad; slot: number }>();
   private readonly sign: THREE.Mesh;
+  /** 0.9.6 (F6): "COUNTERS FULL" over the export depot while it sells straight away at the plain depot price. */
+  readonly fullSign: THREE.Mesh;
+  private fullFor = 0;
+  private roomFor = 0;
   /** Facility objects that pop in on a live unlock. */
   private readonly pops: THREE.Object3D[] = [];
   private readonly tmp = new THREE.Vector3();
@@ -112,6 +121,10 @@ export class Region implements RegionRuntime {
     this.market = new RegionMarket(ctx, era, L, this.root);
     this.pops.push(...this.market.models);
     this.depot.forward = (item) => this.market.forward(item);
+    this.fullSign = createPadSign('COUNTERS FULL');
+    this.fullSign.position.set(L.depot.x, FULL_SIGN_HEIGHT, L.depot.z);
+    this.fullSign.visible = false;
+    this.root.add(this.fullSign);
 
     // ---- import dock ------------------------------------------------------------------------------------------
     this.addModel(createDockModel(era), L.dock, yaw);
@@ -204,6 +217,32 @@ export class Region implements RegionRuntime {
     this.crew.update(dt);
     this.jack.update(dt);
     this.market.update(dt);
+    this.updateFullSign(dt);
+  }
+
+  /**
+   * 0.9.6 (F6): while both market counters stay full the depot sells at once for the plain depot price (no Fine bonus);
+   * a small sign over the depot says so (a bigger Loading Dock / Market Stall, or fewer raw goods, clears it).
+   */
+  private updateFullSign(dt: number): void {
+    const s = this.fullSign;
+    if (this.market.countersFull()) {
+      this.fullFor += dt;
+      this.roomFor = 0;
+    } else {
+      this.roomFor += dt;
+      this.fullFor = 0;
+    }
+    if (!s.visible && this.fullFor >= FULL_SHOW_AFTER) {
+      s.visible = true;
+      this.ctx.tweens.popIn(s, { duration: 0.3 });
+    } else if (s.visible && this.roomFor >= FULL_HIDE_AFTER) {
+      s.visible = false;
+    }
+    if (s.visible) {
+      s.quaternion.copy(this.ctx.camera.quaternion);
+      s.position.y = FULL_SIGN_HEIGHT + Math.sin(this.ctx.time.elapsed * 2) * 0.05;
+    }
   }
 
   // ---- slots ----------------------------------------------------------------------------------------------------
@@ -472,13 +511,20 @@ export class Region implements RegionRuntime {
   }
 
   restore(e: WorldSnapshot['eras'][number]): void {
+    // 0.9.6: a hopper saved before its machine's recipe changed (steel mill ore, chip fab wire, robot works steel …)
+    // hands the inputs it no longer uses to the import dock, so an old save loses nothing
+    const dockIn: Partial<Record<ItemKind, number>> = { ...e.dock };
     this.slots.forEach((S, i) => {
       const w = e.slots[i];
-      if (S.machine && w) S.machine.restore(w);
+      if (!S.machine || !w) return;
+      S.machine.restore(w);
+      for (const [k, v] of Object.entries(w.in) as [ItemKind, number][]) {
+        if (!S.machine.def.inputs.some((x) => x.kind === k) && (MATERIAL_KINDS as readonly string[]).includes(k)) dockIn[k] = (dockIn[k] ?? 0) + Math.max(0, Math.floor(v || 0));
+      }
     });
     this.dock.clear();
     for (const k of MATERIAL_KINDS) {
-      const n = Math.max(0, Math.floor(e.dock[k] ?? 0));
+      const n = Math.max(0, Math.floor(dockIn[k] ?? 0));
       if (n <= 0) continue;
       const before = this.dock.count(k);
       this.dock.fill(k, n);
