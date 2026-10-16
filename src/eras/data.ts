@@ -258,22 +258,26 @@ export interface RegionLayoutDef {
 }
 
 /**
- * Era regions south of the old map, joined by roads. Rows: era 2 / 3 hang below road R1 (z 76..80) with their gates on
- * their SOUTH edge; eras 4–6 sit under R1 with gates NORTH; eras 7–10 under road R2 (z 112..116), gates NORTH.
- * The world builder may nudge numbers to dodge scenery but keeps the topology.
+ * Era regions south of the old map, joined by roads, numbered along one snaking trail so the next era is always the
+ * next plot along the road (0.9.3; before, the numbers jumped back and forth across the map):
+ * - row 1, above road R1 (z 76..80), gates SOUTH, read west from the town's south avenue: II, III;
+ * - row 2, below R1, gates NORTH, read back east: IV (far west), V, VI;
+ * - row 3, below road R2 (z 112..116, reached down the east link beside VI), gates NORTH, read west again: VII … X.
+ * Only the era → plot assignment changed in 0.9.3 (same plots, same slot counts per era), so a save just finds each
+ * era's machines on its new plot. The world builder may nudge numbers to dodge scenery but keeps the topology.
  */
 export const REGIONS: readonly (RegionLayoutDef | null)[] = [
   null,
   null,
   { n: 2, rect: R(-6, 24, 52, 76), gate: 'south', slots: 4 },
   { n: 3, rect: R(-50, -18, 50, 76), gate: 'south', slots: 4 },
-  { n: 4, rect: R(-40, -6, 80, 108), gate: 'north', slots: 5 },
-  { n: 5, rect: R(-2, 34, 80, 110), gate: 'north', slots: 5 },
-  { n: 6, rect: R(-80, -42, 80, 112), gate: 'north', slots: 6 },
-  { n: 7, rect: R(-44, -4, 116, 150), gate: 'north', slots: 6 },
+  { n: 4, rect: R(-80, -42, 80, 112), gate: 'north', slots: 5 },
+  { n: 5, rect: R(-40, -6, 80, 108), gate: 'north', slots: 5 },
+  { n: 6, rect: R(-2, 34, 80, 110), gate: 'north', slots: 6 },
+  { n: 7, rect: R(46, 94, 116, 156), gate: 'north', slots: 6 },
   { n: 8, rect: R(0, 42, 116, 152), gate: 'north', slots: 7 },
-  { n: 9, rect: R(-92, -48, 116, 154), gate: 'north', slots: 7 },
-  { n: 10, rect: R(46, 94, 116, 156), gate: 'north', slots: 8 },
+  { n: 9, rect: R(-44, -4, 116, 150), gate: 'north', slots: 7 },
+  { n: 10, rect: R(-92, -48, 116, 154), gate: 'north', slots: 8 },
 ];
 export function regionDef(n: number): RegionLayoutDef {
   const r = REGIONS[n];
@@ -288,8 +292,8 @@ export function regionDef(n: number): RegionLayoutDef {
 export const ROADS: readonly { id: string; rect: ERect; opensAt: number }[] = [
   { id: 'southAvenue', rect: R(26, 30, 38, 80), opensAt: 2 }, // town square's south edge → R1
   { id: 'r1', rect: R(-84, 40, 76, 80), opensAt: 2 },
-  { id: 'r1r2east', rect: R(34, 38, 80, 116), opensAt: 4 },
-  { id: 'r1r2west', rect: R(-6, -2, 80, 116), opensAt: 4 },
+  { id: 'r1r2east', rect: R(34, 38, 80, 116), opensAt: 7 }, // the trail's turn from VI down to VII
+  { id: 'r1r2west', rect: R(-6, -2, 80, 116), opensAt: 7 }, // a shortcut between V and VI
   { id: 'r2', rect: R(-96, 98, 112, 116), opensAt: 7 },
   // city (east): the avenue from the town to the districts, then the grid streets
   { id: 'cityLink', rect: R(32, 44, 19, 23), opensAt: 2 },
@@ -312,18 +316,22 @@ export interface DistrictDef {
   lots: number;
 }
 const D = (n: number, minX: number, minZ: number, lots: number): DistrictDef => ({ n, name: era(n).district, rect: R(minX, minX + 30, minZ, minZ + 28), lots });
-/** DISTRICTS[n] for eras 2..10: a 3×3 grid, columns x 44/78/112, rows z 14/46/78 (30 × 28 m each). */
+/**
+ * DISTRICTS[n] for eras 2..10: a 3×3 grid, columns x 44/78/112, rows z 14/46/78 (30 × 28 m each), in reading order
+ * from the corner nearest the town (0.9.3; before, the numbers were scattered over the grid): II III IV / V VI VII /
+ * VIII IX X. Same plots and lot counts per era as before, so a save finds its buildings on the new plot.
+ */
 export const DISTRICTS: readonly (DistrictDef | null)[] = [
   null,
   null,
   D(2, 44, 14, 6),
-  D(3, 44, 46, 6),
-  D(4, 78, 14, 6),
-  D(5, 78, 46, 8),
-  D(6, 44, 78, 8),
-  D(7, 112, 14, 8),
-  D(8, 78, 78, 9),
-  D(9, 112, 46, 9),
+  D(3, 78, 14, 6),
+  D(4, 112, 14, 6),
+  D(5, 44, 46, 8),
+  D(6, 78, 46, 8),
+  D(7, 112, 46, 8),
+  D(8, 44, 78, 9),
+  D(9, 78, 78, 9),
   D(10, 112, 78, 12),
 ];
 export function districtDef(n: number): DistrictDef {

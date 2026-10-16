@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { LAYOUT, type Rect } from '../src/config';
 import { DISTRICTS, REGIONS, ROADS } from '../src/eras/data';
-import { regionLayout } from '../src/eras/layout';
+import { eraTrail, regionLayout } from '../src/eras/layout';
+import { peakOnNewLand } from '../src/world/env/mountains';
 import { blockedNewLand, NEW_LAND } from '../src/world/env/common';
 import { gateWalk, landVisible, regionWalk, roadOpen } from '../src/world/env/frontier';
 
@@ -167,5 +168,56 @@ describe('ColliderWorld.carve (town fence gaps)', () => {
     const p = new THREE.Vector3(10, 0, 0);
     w.resolveCircle(p, 0.3);
     expect(p.x).toBeCloseTo(10);
+  });
+});
+
+describe('0.9.3: eras read in order on the ground and on the map', () => {
+  const onRoad = (x: number, z: number): boolean => ROADS.some((r) => x >= r.rect.minX - EPS && x <= r.rect.maxX + EPS && z >= r.rect.minZ - EPS && z <= r.rect.maxZ + EPS);
+
+  it('walks the era trail along roads only, through every gate in order', () => {
+    const trail = eraTrail(10);
+    // every leg is axis-aligned and every sample on it is on a road
+    for (let i = 1; i < trail.length; i++) {
+      const a = trail[i - 1]!;
+      const b = trail[i]!;
+      expect(a.x === b.x || a.z === b.z, `leg ${i}`).toBe(true);
+      for (let t = 0; t <= 1; t += 0.05) expect(onRoad(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t), `leg ${i} at ${t}`).toBe(true);
+    }
+    // the gates come in era order
+    let at = 0;
+    for (let n = 2; n <= 10; n++) {
+      const L = regionLayout(n);
+      const i = trail.findIndex((q, k) => k > at && Math.abs(q.x - L.gate.x) < EPS && Math.abs(q.z - (L.gate.z - L.inward)) < EPS);
+      expect(i, `gate ${n}`).toBeGreaterThan(at);
+      at = i;
+    }
+  });
+
+  it('snakes: the regions of a row are side by side in era order (II III west, IV V VI east, VII … X west)', () => {
+    const cx = (n: number): number => (REGIONS[n]!.rect.minX + REGIONS[n]!.rect.maxX) / 2;
+    expect(cx(3)).toBeLessThan(cx(2));
+    expect(cx(4)).toBeLessThan(cx(5));
+    expect(cx(5)).toBeLessThan(cx(6));
+    for (let n = 8; n <= 10; n++) expect(cx(n)).toBeLessThan(cx(n - 1));
+  });
+
+  it('numbers the city districts in reading order from the corner nearest the town', () => {
+    for (let n = 3; n <= 10; n++) {
+      const a = DISTRICTS[n - 1]!.rect;
+      const b = DISTRICTS[n]!.rect;
+      expect(b.minZ > a.minZ || (b.minZ === a.minZ && b.minX > a.minX), `district ${n}`).toBe(true);
+    }
+  });
+
+  it('opens each district road no later than its district', () => {
+    for (const d of districts) {
+      const roads = ROADS.filter((r) => touch(r.rect, d.rect));
+      expect(roads.some((r) => roadOpen(state(true, d.n), r.opensAt)), `district ${d.n}`).toBe(true);
+    }
+  });
+
+  it('keeps no mountain peak on the new land once it shows (the 0.9.2 Copper Gorge peak)', () => {
+    expect(peakOnNewLand(-61, 84, 12, 18)).toBe(true);
+    expect(peakOnNewLand(-75, -20, 14, 20)).toBe(false);
   });
 });

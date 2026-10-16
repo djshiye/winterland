@@ -60,6 +60,8 @@ export class Environment {
   private readonly ridgeGate: RidgeGatePart;
   private readonly town: TownPart;
   private readonly frontier: FrontierPart;
+  /** 0.9.3: hides the peaks that stood on the new land once it shows (env/mountains.ts). */
+  private readonly mountains: EnvPart;
   private readonly eras: EraController;
   private readonly strip: StripState[] = [];
   private readonly chimney: THREE.Vector3;
@@ -80,7 +82,8 @@ export class Environment {
     this.river = buildRiver(rng);
     this.fences = buildFences();
     const roads = buildRoads();
-    const mountains = buildMountains(rng);
+    const mountains = buildMountains(rng, () => this.frontier?.group.visible ?? false);
+    this.mountains = mountains;
     const decor = buildDecor(rng);
     const buildings = buildBuildings(ctx);
     this.snowfall = buildSnowfall(ctx, rng);
@@ -152,6 +155,7 @@ export class Environment {
     this.ridgeGate.update?.(dt);
     this.town.update?.(dt);
     this.frontier.update?.(dt);
+    this.mountains.update?.(dt);
     this.eras.update(dt);
     // Wave 13: world events (snowstorm: heavier snowfall; aurora: stronger curtains)
     this.snowfall.setIntensity(this.ctx.worldEvents.snowfall);
