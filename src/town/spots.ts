@@ -3,7 +3,7 @@
  * the props here (and their colliders); npc/Townsfolk.ts sends wanderers to them. Yaw: the way a seated / standing
  * person faces (radians, 0 = +Z).
  */
-import { AMENITY_IDS, type AmenityId, type XZ } from '../config';
+import { AMENITY_IDS, LAYOUT, townZ, type AmenityId, type XZ } from '../config';
 import { CAFE_STOOLS } from '../assets/townAmenities';
 import { amenityFrame, amenityToWorld, type AmenityFrame } from './rules';
 import type { Rect } from '../config';
@@ -13,24 +13,27 @@ export interface Spot extends XZ {
 }
 
 const toward = (from: XZ, to: XZ): number => Math.atan2(to.x - from.x, to.z - from.z);
-const TREE = { x: 24.0, z: 27.1 };
+const TREE = { x: LAYOUT.town.tree.x, z: LAYOUT.town.tree.z };
 
 /** Benches (2 seats each, seats ±0.45 m along the bench), facing the big tree. */
 export const BENCHES: readonly Spot[] = [
-  { x: 20.4, z: 24.7 },
-  { x: 27.6, z: 24.7 },
-  { x: 20.4, z: 29.5 },
-  { x: 27.6, z: 29.5 },
+  { x: 20.4, z: townZ(24.7) },
+  { x: 27.6, z: townZ(24.7) },
+  { x: 19.4, z: 35.2 }, // 0.9.4: west of the pond's rim
+  { x: 27.6, z: townZ(29.5) },
 ].map((p) => ({ ...p, yaw: toward(p, TREE) }));
 
-/** Market stalls (≈1.8 × 1.0 m, solid) by the corridor mouth; the stallholder stands behind, facing the yaw. */
+/**
+ * Market stalls (≈1.8 × 1.0 m, solid) by the corridor mouth (z 25.9..27.5, not stretched; the south one leaves the
+ * porters' corner at z 28.4..29.2 clear); the stallholder stands behind, facing the yaw.
+ */
 export const STALLS: readonly Spot[] = [
   { x: 17.6, z: 23.4, yaw: Math.PI / 2 },
   { x: 17.6, z: 30.8, yaw: Math.PI / 2 },
 ];
 
 /** A snowman (solid, r 0.5) kids gather around. */
-export const SNOWMAN: Spot = { x: 30.0, z: 27.1, yaw: -Math.PI / 2 };
+export const SNOWMAN: Spot = { x: 30.0, z: townZ(27.1), yaw: -Math.PI / 2 };
 
 /** True when (x, z) lies inside `r` grown by `margin` on every side. */
 const insideGrown = (r: Rect, x: number, z: number, margin: number): boolean =>

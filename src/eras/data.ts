@@ -278,29 +278,36 @@ export interface RegionLayoutDef {
   gate: GateSide;
   /** Machine slots in this region (bigger eras get more). */
   slots: number;
+  /**
+   * 0.9.5: machine slots the plot has room for (the 0.10 counts). The processing zone is laid out for `room` slots
+   * and the live `slots` take the first places in that grid, so raising `slots` up to `room` never moves a machine.
+   */
+  room: number;
 }
 
 /**
  * Era regions south of the old map, joined by roads, numbered along one snaking trail so the next era is always the
- * next plot along the road (0.9.3; before, the numbers jumped back and forth across the map):
- * - row 1, above road R1 (z 76..80), gates SOUTH, read west from the town's south avenue: II, III;
- * - row 2, below R1, gates NORTH, read back east: IV (far west), V, VI;
- * - row 3, below road R2 (z 112..116, reached down the east link beside VI), gates NORTH, read west again: VII … X.
- * Only the era → plot assignment changed in 0.9.3 (same plots, same slot counts per era), so a save just finds each
- * era's machines on its new plot. The world builder may nudge numbers to dodge scenery but keeps the topology.
+ * next plot along the road. 0.9.5: every plot is bigger than the whole of era 1's yard + village and each era's plot
+ * is bigger than the last, with room for era-1-style zones (eras/layout.ts RegionZones) and the 0.10 slot counts.
+ * Every gate is on the north edge, onto an east-west road:
+ * - row A, below road R1 (z 62..66), read west from the town's south avenue: II, III, IV;
+ * - row B, below road R2 (z 128..132, reached down the west link), read back east: V, VI, VII, VIII;
+ * - row C, below road R3 (z 214..218, reached down the east link), read west again: IX, X.
+ * Once the new land shows, the old era-1 river ends in a frozen pond north of R1 and the tricycle road ends on R1.
+ * Same live slot counts as 0.9.3 (saves keep each slot's machine by index); `room` reserves the 0.10 counts.
  */
 export const REGIONS: readonly (RegionLayoutDef | null)[] = [
   null,
   null,
-  { n: 2, rect: R(-6, 24, 52, 76), gate: 'south', slots: 4 },
-  { n: 3, rect: R(-50, -18, 50, 76), gate: 'south', slots: 4 },
-  { n: 4, rect: R(-80, -42, 80, 112), gate: 'north', slots: 5 },
-  { n: 5, rect: R(-40, -6, 80, 108), gate: 'north', slots: 5 },
-  { n: 6, rect: R(-2, 34, 80, 110), gate: 'north', slots: 6 },
-  { n: 7, rect: R(46, 94, 116, 156), gate: 'north', slots: 6 },
-  { n: 8, rect: R(0, 42, 116, 152), gate: 'north', slots: 7 },
-  { n: 9, rect: R(-44, -4, 116, 150), gate: 'north', slots: 7 },
-  { n: 10, rect: R(-92, -48, 116, 154), gate: 'north', slots: 8 },
+  { n: 2, rect: R(-24, 40, 66, 114), gate: 'north', slots: 4, room: 8 }, // 64 × 48
+  { n: 3, rect: R(-98, -30, 66, 118), gate: 'north', slots: 4, room: 8 }, // 68 × 52
+  { n: 4, rect: R(-176, -104, 66, 122), gate: 'north', slots: 5, room: 8 }, // 72 × 56
+  { n: 5, rect: R(-178, -100, 132, 192), gate: 'north', slots: 5, room: 8 }, // 78 × 60
+  { n: 6, rect: R(-94, -10, 132, 196), gate: 'north', slots: 6, room: 8 }, // 84 × 64
+  { n: 7, rect: R(-4, 86, 132, 200), gate: 'north', slots: 6, room: 8 }, // 90 × 68
+  { n: 8, rect: R(92, 188, 132, 204), gate: 'north', slots: 7, room: 9 }, // 96 × 72
+  { n: 9, rect: R(90, 192, 218, 294), gate: 'north', slots: 7, room: 9 }, // 102 × 76
+  { n: 10, rect: R(-24, 84, 218, 298), gate: 'north', slots: 8, room: 10 }, // 108 × 80
 ];
 export function regionDef(n: number): RegionLayoutDef {
   const r = REGIONS[n];
@@ -313,19 +320,32 @@ export function regionDef(n: number): RegionLayoutDef {
  * the Great Lodge built, eras/gate.ts climbOpen; era n > 2 = age ≥ n − 1).
  */
 export const ROADS: readonly { id: string; rect: ERect; opensAt: number }[] = [
-  { id: 'southAvenue', rect: R(26, 30, 38, 80), opensAt: 2 }, // town square's south edge → R1
-  { id: 'r1', rect: R(-84, 40, 76, 80), opensAt: 2 },
-  { id: 'r1r2east', rect: R(34, 38, 80, 116), opensAt: 7 }, // the trail's turn from VI down to VII
-  { id: 'r1r2west', rect: R(-6, -2, 80, 116), opensAt: 7 }, // a shortcut between V and VI
-  { id: 'r2', rect: R(-96, 98, 112, 116), opensAt: 7 },
-  // city (east): the avenue from the town to the districts, then the grid streets
+  { id: 'southAvenue', rect: R(26, 30, 46.8, 66), opensAt: 2 }, // town's south fence (0.9.4: 0.6 m inside it) → R1
+  { id: 'r1', rect: R(-184, 44, 62, 66), opensAt: 2 }, // ends on the city's west street
+  { id: 'westLink', rect: R(-184, -180, 62, 132), opensAt: 5 }, // the trail's turn from IV down to V
+  { id: 'r2', rect: R(-184, 198, 128, 132), opensAt: 5 },
+  { id: 'eastLink', rect: R(194, 198, 128, 218), opensAt: 9 }, // the trail's turn from VIII down to IX
+  { id: 'r3', rect: R(-28, 198, 214, 218), opensAt: 9 },
+  // city (east): the avenue from the town to the districts, then the grid streets (the north-south ones run on to R2)
   { id: 'cityLink', rect: R(32, 44, 19, 23), opensAt: 2 },
-  { id: 'cityWest', rect: R(40, 44, 14, 106), opensAt: 2 },
-  { id: 'cityV1', rect: R(74, 78, 14, 106), opensAt: 4 },
-  { id: 'cityV2', rect: R(108, 112, 14, 106), opensAt: 7 },
+  { id: 'cityWest', rect: R(40, 44, 14, 132), opensAt: 2 },
+  { id: 'cityV1', rect: R(74, 78, 14, 132), opensAt: 4 },
+  { id: 'cityV2', rect: R(108, 112, 14, 132), opensAt: 7 },
   { id: 'cityH1', rect: R(40, 142, 42, 46), opensAt: 3 },
   { id: 'cityH2', rect: R(40, 142, 74, 78), opensAt: 6 },
 ];
+
+/**
+ * 0.9.5: the old era-1 river runs on past the village; once the new land shows it ends in this frozen pond north of
+ * R1 (world/env/frontier.ts), so it no longer stops dead in the snow or runs under the roads and plots. The channel
+ * past the pond (to LAYOUT.river.maxZ) is capped with snow from RIVER_END_Z on.
+ */
+export const RIVER_POND: ERect = R(-22, -6, 47, 60.5);
+/** Where the drawn river ends once the new land shows (inside the pond; the channel past it is snowed over). */
+export const RIVER_END_Z = 56;
+/** 0.9.5: once the new land shows, the era-1 tricycle road ends here, on R1 (its tail used to run into region II). */
+export const TRIKE_ROAD_END_Z = 62;
+
 
 // ---------------------------------------------------------------------------
 // City (districts of lots east of the Market Town)
