@@ -442,6 +442,8 @@ export function createGameState(): GameState {
       plankQuality: 0,
       crateQuality: 0,
       bulkDeals: 0,
+      trikeDock: 0,
+      truckDock: 0,
       treeFeller: 0,
       cashTubes: 0,
       pineHauler: 0,

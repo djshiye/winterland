@@ -342,6 +342,7 @@ export class Level {
       accepts: 'crate',
       grid: se.grid,
       playerZone: se.playerZone,
+      limit: () => dockRoom(se.baseRoom, ctx.upgrades.value('trikeDock')),
     });
     this.seCounter.appear(instant);
     const sc = LAYOUT.seCash;
@@ -372,6 +373,7 @@ export class Level {
       accepts: 'log',
       grid: tc.grid,
       playerZone: tc.playerZone,
+      limit: () => dockRoom(tc.baseRoom, ctx.upgrades.value('truckDock')),
     });
     this.truckCounter.appear(instant);
     const tcash = ex.truckCash;
@@ -552,6 +554,11 @@ export class Level {
       padsRemaining: remaining,
     };
   }
+}
+
+/** 0.9.2: a delivery counter's room with its dock upgrade (value ×1 … ×2.5+): grows with the dock, at most double. */
+export function dockRoom(base: number, dock: number): number {
+  return Math.round(base * Math.min(2, Math.max(1, dock)));
 }
 
 /** Put up to `n` items into the pile (clamped to its free room). Returns how many did NOT fit. */

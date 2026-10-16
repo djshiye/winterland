@@ -483,8 +483,9 @@ export const LAYOUT = {
     /** Long axis along Z. */
     ...COUNTER_SIZE,
     rotationY: Math.PI / 2,
-    /** Crates on the table top. Capacity 12. */
-    grid: { cols: 3, rows: 1, layers: 4, spacing: CRATE_GRID_SPACING } as PileGrid,
+    /** Crates on the table top: 12, up to 24 with the Tricycle Dock (0.9.2: the grid holds the most it can reach). */
+    grid: { cols: 3, rows: 1, layers: 8, spacing: CRATE_GRID_SPACING } as PileGrid,
+    baseRoom: 12,
     playerZone: rect(9.0, 3.6, 1.4, 2.4),
   },
 
@@ -567,7 +568,9 @@ export const LAYOUT = {
       z: -19.9,
       ...COUNTER_SIZE,
       rotationY: 0,
-      grid: { cols: 2, rows: 2, layers: 6, spacing: LOG_GRID_SPACING } as PileGrid,
+      /** Logs on the table: 24, up to 48 with the Truck Dock (0.9.2: the grid holds the most it can reach). */
+      grid: { cols: 2, rows: 2, layers: 12, spacing: LOG_GRID_SPACING } as PileGrid,
+      baseRoom: 24,
       playerZone: rect(1.0, -19.0, 2.2, 1.4),
     },
     trucks: {
@@ -720,6 +723,12 @@ export const LAYOUT = {
       { minX: 5.4, maxX: 16.4, minZ: 25.9, maxZ: 27.5 },
       { minX: 15.6, maxX: 32.2, minZ: 21.0, maxZ: 33.2 },
     ] as Rect[],
+    /**
+     * 0.9.2: extra room for the PLAYER only (the townsfolk's routes keep `walk`). The square's edges stopped the player
+     * half-way onto the lot pads; this reaches the lot fronts (north z 20.0, south z 33.6) and the strip up to the rail
+     * (x 33.6). Buildings, stalls and the fence keep their own colliders.
+     */
+    playerWalk: { minX: 15.5, maxX: 32.7, minZ: 20.1, maxZ: 33.5 } as Rect,
     /** Packed-snow / cobbled square (visual) and its centrepiece (a big lit fir; solid circle). */
     square: { minX: 15.6, maxX: 32.2, minZ: 21.0, maxZ: 33.2 } as Rect,
     tree: { x: 24.0, z: 27.1, r: 1.3 },
@@ -799,6 +808,9 @@ export type UpgradeIdConst =
   | 'sledLoader'
   | 'foreman'
   | 'dog'
+  // 0.9.2: the delivery docks (bigger counters, more customers)
+  | 'trikeDock'
+  | 'truckDock'
   // 0.9.0 Ages: Jack's swap cart + finance, and three upgrades per era (generated: eraUpgrades below)
   | 'jack'
   | 'taxOffice'
@@ -1020,6 +1032,26 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     display: 'mult',
     product: 'crate',
     requires: { unlocked: 'processor' },
+  },
+  trikeDock: {
+    id: 'trikeDock',
+    group: 'sales',
+    label: 'Tricycle Dock',
+    blurb: 'A bigger crate table, and tricycles come more often and load faster',
+    values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5],
+    costs: [500, 1500, 4000, 9000, 18000, 32000, 55000],
+    display: 'boost',
+    requires: { unlocked: 'processor' },
+  },
+  truckDock: {
+    id: 'truckDock',
+    group: 'sales',
+    label: 'Truck Dock',
+    blurb: 'A bigger log table, and trucks come more often and load faster',
+    values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5],
+    costs: [2500, 7000, 15000, 30000, 55000, 90000, 140000],
+    display: 'boost',
+    requires: { unlocked: 'megaSaw' },
   },
   bulkDeals: {
     id: 'bulkDeals',
@@ -1567,7 +1599,7 @@ export const BUSINESSES: Record<BusinessId, BusinessDef> = {
     inputs: [{ kind: 'meat', per: 1 }, { kind: 'log', per: 1 }], output: 'sausage', batch: 3, cycle: 3.2, price: 55, want: [2, 5], capacity: 18,
   },
   toyFactory: {
-    id: 'toyFactory', kind: 'shop', label: 'Toy Factory', blurb: 'Crates → wooden toy trains',
+    id: 'toyFactory', kind: 'shop', label: 'Toy Factory', blurb: 'Crates → toy trains (the Grand Market needs 20)',
     era: 4, logs: 50, cash: 14000, people: 10,
     inputs: [{ kind: 'crate', per: 1 }], output: 'toy', batch: 2, cycle: 2.4, price: 45, want: [3, 6], capacity: 24,
   },
