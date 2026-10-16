@@ -8,7 +8,7 @@ import type { Rect } from '../src/config';
 import { REGIONS, ROADS } from '../src/eras/data';
 import { MIN_WEST, regionLayout, YARD_DEPTH, type RegionZones } from '../src/eras/layout';
 import { DEPOT_FRAME, DOCK_FRAME, worldRect } from '../src/eras/rules';
-import { gateWalk, marketGateWalk, regionWalk } from '../src/world/env/frontier';
+import { gateWalk, marketGateWalk, regionPaths, regionWalk } from '../src/world/env/frontier';
 
 const EPS = 1e-6;
 const area = (r: Rect): number => (r.maxX - r.minX) * (r.maxZ - r.minZ);
@@ -70,6 +70,13 @@ describe('0.9.5 region zones', () => {
           if (j > i) expect(overlap(box(s.x, s.z, L.cell / 2), box(o.x, o.z, L.cell / 2)), `slot ${i} vs ${j}`).toBe(false);
         });
       });
+    });
+
+    it(`era ${n}: the paths between the zones stay inside the plot and off the machine slots`, () => {
+      for (const q of regionPaths(L)) {
+        expect(inside(q, L.rect)).toBe(true);
+        for (const sl of L.slots) expect(overlap(q, box(sl.x, sl.z, L.cell / 2 - 0.5))).toBe(false);
+      }
     });
 
     it(`era ${n}: the yard holds the depot, dock, Jack and shop mat clear of each other and of the gate`, () => {
