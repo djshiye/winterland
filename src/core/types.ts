@@ -462,6 +462,7 @@ export function createGameState(): GameState {
       taxOffice: 0,
       broker: 0,
       ...eraUpgradeLevels(),
+      ...eraPlayerLevels(),
     },
     village: {
       revealed: false,
@@ -506,6 +507,13 @@ export function createGameState(): GameState {
 export const REGION_SLOTS: readonly number[] = [0, 0, 4, 4, 5, 5, 6, 6, 7, 7, 8];
 /** Lots per city district, index = era (must match eras/data.ts DISTRICTS[n].lots). */
 export const DISTRICT_LOTS: readonly number[] = [0, 0, 6, 6, 6, 8, 8, 8, 9, 9, 12];
+
+/** 0.9.5: level 0 for every era player upgrade (`${key}Carry` / `Boots` / `Tool` / `Pal`, eras/playerUpgrades.ts). */
+function eraPlayerLevels(): Record<`${(typeof ERA_KEYS)[number]}${'Carry' | 'Boots' | 'Tool' | 'Pal'}`, number> {
+  const out = {} as Record<`${(typeof ERA_KEYS)[number]}${'Carry' | 'Boots' | 'Tool' | 'Pal'}`, number>;
+  for (const k of ERA_KEYS) for (const p of ['Carry', 'Boots', 'Tool', 'Pal'] as const) out[`${k}${p}`] = 0;
+  return out;
+}
 
 /** Level 0 for every era upgrade (`${key}Rigs` / `${key}Crew` / `${key}Trade`). */
 function eraUpgradeLevels(): Record<EraUpgradeId, number> {

@@ -26,6 +26,7 @@ import { CARRY_KINDS, type GameContext } from '../core/types';
 import { approach, clamp, dampAngle } from '../core/math';
 import { createAxe, createFounderScarf } from '../assets/characters';
 import { createNodeTool } from '../assets/eraNodes';
+import { eraPlayerId, regionAt } from '../eras/playerUpgrades';
 import { founderScarf, settlementLevel } from '../core/demand';
 import { createCharacterRig, type CharacterRig } from '../render/characters';
 import { CarryStack } from '../items/CarryStack';
@@ -78,6 +79,8 @@ export class Player {
   private readonly chopTarget = new THREE.Vector3();
   private readonly chopPos = new THREE.Vector3();
   private hasChopTarget = false;
+  /** 0.9.5: the era region the player stands in (0 = none), refreshed every frame in syncUpgrades. */
+  private eraHere = 0;
   /** 0.9.5: the era hand node being worked (null = the giant log, with the axe). */
   private chopNode: { era: number; interval: number; tier: number } | null = null;
   /** The era hand tool in the right hand (assets/eraNodes.ts createNodeTool), built for `toolKey`. */
@@ -149,7 +152,9 @@ export class Player {
 
   /** Current top walk speed (Snow Boots upgrade, × the snowstorm slowdown), m/s. */
   get maxSpeed(): number {
-    return this.ctx.upgrades.value('speed') * this.ctx.worldEvents.walkSpeedMult;
+    const n = this.eraHere;
+    const boots = n ? this.ctx.upgrades.value(eraPlayerId(n, 'Boots')) : 1;
+    return this.ctx.upgrades.value('speed') * boots * this.ctx.worldEvents.walkSpeedMult;
   }
 
   /** True while the axe is out and swinging. */
@@ -346,10 +351,14 @@ export class Player {
   /** Apply live upgrade levels: carry capacity and axe model (polled, so restores and debug setUpgrade work too). */
   private syncUpgrades(): void {
     const up = this.ctx.upgrades;
-    const cap = up.value('carry') + up.value('dog');
+    // 0.9.5: inside an era region its own Carry and Pal upgrades add to the arms (eras/playerUpgrades.ts)
+    const n = (this.eraHere = regionAt(this.object.position.x, this.object.position.z));
+    const pal = n ? up.value(eraPlayerId(n, 'Pal')) : 0;
+    const cap = up.value('carry') + up.value('dog') + (n ? up.value(eraPlayerId(n, 'Carry')) + pal : 0);
     if (this.arms.capacity !== cap) this.arms.setCapacity(cap);
-    // the Sled Dog appears (restored saves, debug setUpgrade) and disappears with its upgrade level
-    if (up.value('dog') > 0) {
+    // the Sled Dog appears (restored saves, debug setUpgrade) and disappears with its upgrade level; in an era region
+    // with that era's pal adopted, the companion trots along too
+    if (up.value('dog') > 0 || pal > 0) {
       if (!this.dog) this.dog = new Dog(this.ctx, this);
     } else if (this.dog) {
       this.dog.dispose();

@@ -36,13 +36,13 @@ afterEach(() => {
 });
 
 describe('eraGate rows', () => {
-  it('lists every id introduced before era n: 28 for era 2 (0.9.2: + the five docks), then 28 + 2 + 3·(n − 2)', () => {
+  it('lists every id introduced before era n: 28 for era 2 (0.9.2: + the five docks), then 28 + 2 + 7·(n − 2) (0.9.5: + Carry, Boots, Tool, Pal per era)', () => {
     const s = lodge();
     expect(eraGate(s, 2).total).toBe(28);
     for (let n = 3; n <= MAX_ERA; n++) {
       s.eras.age = n - 1;
       const g = eraGate(s, n);
-      expect(g.total, `era ${n}`).toBe(28 + 2 + 3 * (n - 2));
+      expect(g.total, `era ${n}`).toBe(28 + 2 + 7 * (n - 2));
       expect(g.rows.every((r) => introEra(UPGRADES[r.id]) <= n - 1)).toBe(true);
     }
     expect(eraGate(s, MAX_ERA + 1).total).toBe(0);
