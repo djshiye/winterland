@@ -20,7 +20,7 @@ import * as THREE from 'three';
 import type { MachineId } from '../eras/data';
 import { ERAS, MACHINES, MACHINE_IDS } from '../eras/data';
 import { vcMat } from '../render/batch';
-import { ERA_MACHINES_2, createEraMachine2Model, type EraMachine2Id } from './eraMachines2';
+import { ERA2_4_MACHINE_IDS, createEra2to4MachineModel } from './eraMachines2';
 import { SNOW, SNOW_SH, Kit, eraGlowMaterial, hcyl, lattice, pixelText, pixelTextWidth, rotor, seeded, wheel, type V3 } from './eraKit';
 
 export interface MachineModel {
@@ -928,10 +928,8 @@ const robotWorks: Recipe = ({ body: b, glow: g, pivot: p }) => {
   return { at: [1.6, 0.4, 1.1], axis: 'y', mode: 'swing', speed: 0.28, amp: 0.85 };
 };
 
-/** The 0.9.0 machines drawn here; later machines have their own builder files (routed in createMachineModel). */
-type BaseMachineId = Exclude<MachineId, EraMachine2Id>;
-
-const RECIPES: Record<BaseMachineId, Recipe> = {
+/** 0.9.0 recipes (the 0.9.5 machines come from their own era files: OWN_MODELS below). */
+const RECIPES: Partial<Record<MachineId, Recipe>> = {
   quarry, kiln, ironMine, smelter, coalPit, steamWorks, deepMine, cokeOven, steelMill, copperMine, wireMill, oilPump,
   refinery, sandPit, chipFab, uraniumMine, enricher, reactor, fusionPlant, nanoFab, dataCenter, robotWorks,
 };
@@ -940,13 +938,13 @@ const RECIPES: Record<BaseMachineId, Recipe> = {
 // building models from recipes
 // ---------------------------------------------------------------------------
 
-const builtCache = new Map<BaseMachineId, Built>();
+const builtCache = new Map<MachineId, Built>();
 
-function build(id: BaseMachineId): Built {
+function build(id: MachineId): Built {
   let built = builtCache.get(id);
   if (built) return built;
   const parts: Parts = { body: new Kit(), glow: new Kit(), pivot: new Kit() };
-  const spec = RECIPES[id](parts);
+  const spec = RECIPES[id]!(parts);
   const body = parts.body.geometry();
   const glow = parts.glow.batch.empty ? null : parts.glow.geometry();
   const pivot = spec && !parts.pivot.batch.empty ? parts.pivot.geometry() : null;
@@ -962,10 +960,15 @@ function build(id: BaseMachineId): Built {
 /** Idle crawl as a share of the working speed. */
 const IDLE = 0.12;
 
-const isEra2to4Machine = (id: MachineId): id is Extract<MachineId, EraMachine2Id> => id in ERA_MACHINES_2;
+/** 0.9.5: machines whose models live in their era's own builder file. */
+const OWN_MODELS: Partial<Record<MachineId, () => MachineModel>> = {
+  // eras 2-4 (assets/eraMachines2.ts)
+  ...Object.fromEntries(ERA2_4_MACHINE_IDS.map((id) => [id, () => createEra2to4MachineModel(id)])),
+};
 
 export function createMachineModel(id: MachineId): MachineModel {
-  if (isEra2to4Machine(id)) return createEraMachine2Model(id);
+  const own = OWN_MODELS[id];
+  if (own) return own();
   const built = build(id);
   const root = new THREE.Group();
   root.name = `machine:${id}:${MACHINES[id].era}`;
