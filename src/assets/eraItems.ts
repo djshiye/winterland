@@ -14,6 +14,7 @@ import { MATERIALS, type MaterialDef, type MaterialShape } from '../eras/data';
 import { Batch, vcMat } from '../render/batch';
 import { ERA2_4_ITEM_BUILDERS } from './eraItems2to4';
 import { ERA5_7_ITEM_BUILDERS } from './eraItems5to7';
+import { ERA8_10_ITEM_BUILDERS } from './eraItems8to10';
 
 const HALF_PI = Math.PI / 2;
 
@@ -399,6 +400,7 @@ const BUILDERS: Record<MaterialShape, Builder> = {
   robot: buildRobot,
   ...ERA2_4_ITEM_BUILDERS,
   ...ERA5_7_ITEM_BUILDERS,
+  ...ERA8_10_ITEM_BUILDERS,
 };
 
 /** Shapes drawn from rough rocks / crystals / pellets: flat (per-face) normals keep their facets crisp. */
