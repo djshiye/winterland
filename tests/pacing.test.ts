@@ -1,7 +1,9 @@
 /**
  * Pacing of the ten-era climb (docs/EXPANSION.md §E) through the pure model core/pacing.ts: every era takes 60–200
  * model minutes, each longer than the last, and the era-1 climb 80–120, prices never go down, the settlement anchors fit the city, Jack never
- * pays a full price and no effect passes its hard cap. The era economy ×10 and the retuned CITY_RANKS ride along.
+ * pays a full price and no effect passes its hard cap. The buyer walks: one purchase at a time, each at least
+ * PACING.walkPerBuy seconds (upgrades are hands-on, bought standing on pads and shop mats). The era economy ×10 and the
+ * retuned CITY_RANKS ride along.
  *
  * `PACING_REPORT=1 npx vitest run tests/pacing.test.ts` prints minutes per era and per settlement level.
  */
@@ -59,13 +61,19 @@ describe('pacing model', () => {
     }
   });
 
-  it('every era runs longer than the one before it (era 2 about 95–110 min, era 10 about 170–190)', () => {
+  it('every era runs longer than the one before it (era 2 about 95–115 min, era 10 about 170–200)', () => {
     const eras = run.eras.slice(1);
     for (let i = 1; i < eras.length; i++) expect(eras[i]!.minutes, `era ${eras[i]!.n}`).toBeGreaterThan(eras[i - 1]!.minutes);
     expect(eras[0]!.minutes).toBeGreaterThanOrEqual(95);
-    expect(eras[0]!.minutes).toBeLessThanOrEqual(110);
+    expect(eras[0]!.minutes).toBeLessThanOrEqual(115);
     expect(eras.at(-1)!.minutes).toBeGreaterThanOrEqual(170);
-    expect(eras.at(-1)!.minutes).toBeLessThanOrEqual(190);
+    expect(eras.at(-1)!.minutes).toBeLessThanOrEqual(200);
+  });
+
+  it('buys by walking: one purchase at a time, never faster than one per walkPerBuy seconds', () => {
+    expect(PACING.walkPerBuy).toBeGreaterThanOrEqual(6);
+    expect(PACING.walkPerBuy).toBeLessThanOrEqual(10);
+    for (const e of run.eras) expect((e.minutes * 60) / e.buys, `era ${e.n}`).toBeGreaterThanOrEqual(PACING.walkPerBuy);
   });
 
   it('a purchase every 45 s or less on average in every era (reward cadence)', () => {

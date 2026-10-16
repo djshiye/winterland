@@ -63,7 +63,8 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
 11. **The Ages:** the Great Lodge opens the climb through nine more eras: Frontier, Iron Age, Steam Age, Industrial,
    Electric Age, Oil Age, Computer Age, Nuclear Power and the AI Era. Upgrades now go to **Lv 100**. To open era N,
    raise every upgrade you own to Lv 10 × (N − 1) and the settlement to level 5 × (N − 1); the **era chip** (top right)
-   always shows the next step, and its card lists what is left, with **Raise all**. Then pay the expansion pad (cash
+   always shows the next step, and its card lists what is left, with **Go** to the pad or shop mat where you buy it
+   (upgrades are hands-on: stand on the pads and mats). Then pay the expansion pad (cash
    plus the last era's material) south of the old map. Each era opens a fenced **region** with machine slots
    (quarries and kilns up to fusion plants and robot works), an export depot, an import dock and an era crew, and a
    **city district** east of the Market Town where homes, workplaces, parks and landmarks pay rent. City people raise
@@ -72,7 +73,7 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
    to a dock, bonds, an index fund and ventures. **Jack's** swap cart buys any item you carry for part of its value. A
    built lot, slot or city building can be **demolished** for a fee. The **Map** (T) fast-travels between the yard, the
    village, the town, the regions and the districts. Levels bought past an upgrade's cap earn **Mastery**, and from
-   Settlement 20 the **Steward** can raise levels for you.
+   Settlement 20 you earn the **Founder's Scarf** (and a little more Renown).
 
 Along the way: **quests** (three short goals at a time with cash rewards), **VIP customers** who tip, **rush
 hours** when customers flood in, and a **day/night cycle** with glowing windows and northern lights.

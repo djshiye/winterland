@@ -242,11 +242,6 @@ export interface ErasState {
    * (core/demand.ts refreshSettlement; settlementLevel reads it once the village is Winterland).
    */
   settlement: number;
-  /**
-   * The Steward toggle (docs/EXPANSION.md §A2, the Settlement 20 perk): while on, eras/Steward.ts buys the cheapest
-   * level of the next era's checklist every few seconds above Raise all's reserve. Off by default; ignored below 20.
-   */
-  steward: boolean;
 }
 
 /** One city lot (a district of eras/data.ts DISTRICTS[n]); same payment shape as a machine slot. */
@@ -492,7 +487,6 @@ export function createGameState(): GameState {
     eras: {
       age: 1,
       settlement: 0,
-      steward: false,
       regions: REGION_SLOTS.map((n) => ({ unlocked: false, cash: 0, extra: 0, slots: Array.from({ length: n }, () => ({ machine: '' as const, tier: -1, cash: 0, extra: 0 })) })),
     },
     city: {
@@ -558,10 +552,8 @@ export interface GameEvents {
   /**
    * An upgrade level was gained (shop purchase, level pad fully paid, crew hire = level 0 → 1).
    * position: the pad / machine, or null for a shop purchase (effects go to the player).
-   * batch: one of several levels bought by one press (Buy ×10, Raise all); the juice skips the per-level fanfare and the
-   * press itself plays one sound (the gate's row ticks come from 'gate:progress').
    */
-  'upgrade:bought': { id: UpgradeId; level: number; position: THREE.Vector3 | null; batch?: boolean };
+  'upgrade:bought': { id: UpgradeId; level: number; position: THREE.Vector3 | null };
   /** The player stepped onto / off the cabin doormat (the HUD opens / closes the shop panel). */
   /** Wave 10 (desktop comfort): keyboard shortcuts from Input, dispatched by Game. */
   'ui:escape': Record<string, never>;

@@ -135,10 +135,13 @@ Sample prices:
 - First era-2 ids (A 10): carry $125k, crew $200k, Rigs $225k.
 - Last band-9 steps (A 89): $201M (lumberjack) to $401M (finance).
 
-**Fix for the judges' "about 2,000 purchases".** Band 9 has 2,090 steps, but nobody presses 2,090 buttons:
-- every card has **Buy ×10 / Buy to target**;
-- the gate card has **Raise all** (cheapest first, keeps `max($500, 20 %)` like `PRIORITIES.reserveShare`; one press = many levels plus one tick sound per finished row);
-- from Settlement 20, an opt-in **Steward** toggle auto-raises the cheapest gate row every 2 s above the reserve. It is a perk, not an upgrade, so it adds no gate item.
+**The rule: upgrades are hands-on, stand on pads.** (Owner decision, 0.9.0.) Every level is bought by the player in
+person: a machine level by standing on its level pad, a shop or Industry level by stepping on a shop mat (the cabin's,
+or the era region's) and pressing Buy, one level per press. There is no Buy ×10, no Buy to target, no Raise all, no
+auto-buyer and no remote buying from the checklist: the GateCard only lists what is left and its **Go** brings the
+player to the pad or mat where it is bought. The judges' "about 2,000 purchases" is answered by the walk itself
+(cheapest-first rows sit on a few mats and pads) and by the pacing model, which charges every purchase a walk
+(`PACING.walkPerBuy`, §E).
 
 ---
 
@@ -201,7 +204,14 @@ settlementLevel(s)= s.village.level < 5 ? s.village.level : max(5, s.eras.settle
 | 4 | Era roles 6–7 can be hired; `INVEST_MAX_POSITIONS` +1 |
 | 5 | **Charter**: fireworks, title, a 5-min income gift; the gate's settlement box turns green |
 
-One-off perk: S20 unlocks the Steward toggle.
+One-off perk: S20 brings the **Founder's Scarf**: a red-and-gold knitted scarf the player wears from then on, and
+Renown ×1.05 on top of the per-level Renown (`SETTLEMENT.founder`). Cosmetic and small; nothing automatic.
+
+| Perk | Level | Effect |
+|---|---|---|
+| Renown | every level ≥ 6 | ×1.02 per level on sales, exports and city income |
+| Gift pile | every level ≥ 6 | 60 s of city income on the avenue (a Charter + 300 s) |
+| Founder's Scarf | 20 (once) | a scarf on the player, Renown ×1.05 |
 
 ---
 
@@ -231,17 +241,16 @@ nextGoal(s) → { text, action: { kind: 'buy' | 'go' | 'build', target } }
   - `Progression.ts:751` uses `climbOpen`.
 - The paid expansion pad (cash + the previous era's material) stays the final step.
 
-**Upgrades API:** `shownLevel(id)`, `maxLevel` → `maxStored`, `buyMany(id, k)`, `raiseTo(id, shown)`, `raiseAll(budget, reserve)`, `crewStats(id)`. The `setLevel` clamp uses `LEVEL_CAP − base`.
+**Upgrades API:** `shownLevel(id)`, `maxLevel` → `maxStored`, `buy(id)` (one level, from the shop panel on a mat), `levelUp(id, position)` (a level pad), `crewStats(id)`. No multi-level or remote buy. The `setLevel` clamp uses `LEVEL_CAP − base`.
 
 **UI (ADHD-friendly, a single next goal):**
 - **EraChip** (from `climbOpen` on), one line plus a progress ring: "Next: Sharp Axe → Lv 10 ($42k) · 37/48 · S8/10". Tap opens the GateCard.
 - **`ui/GateCard.ts`**:
   - Header: "Iron Age: 37/48 upgrades at Lv 20 · Settlement 8/10 · then the expansion $4.5M + 35 Bricks".
   - Only the **top 5 open rows** show (prereq first, then cheapest-to-finish), plus "+8 more"; done rows collapse to "✓ 37 done".
-  - Each row has Buy (×1 / to target) and **Go** (opens the shop tab or fast-travels to the pad or era shop mat).
-  - Raise all, and the Steward toggle (S20+).
+  - Read-only: each row has **Go** (fast-travels to where it is bought: the cabin's shop mat, the era's shop mat for an Industry row, the level pad, or what unlocks a prereq). Nothing is bought from the card.
   - The settlement row: "Build a home in Foundry Row (+88) → Settlement 9".
-- **ShopPanel**: band pips plus a band star, a gold tick at the gate level, a dot on a tab while any row in it is below need, Raise all in the header, and "Lv 23 · need 30" badges.
+- **ShopPanel** (opens only on a shop mat, one level per Buy, as in 0.8.0): band pips plus a band star, a gold tick at the gate level, a dot on a tab while any row in it is below need, and "Lv 23 · need 30" badges.
 - **`nextGoal` priority:** unmet prereq → cheapest affordable row → settlement action → saving for the cheapest row ("$12k to go") → the pad.
 - **Rewards:**
   - a soft tick and chip pulse for each finished row;
@@ -347,20 +356,24 @@ Existing cross-era imports through the dock (iron → steamWorks, wire → chipF
 
 **Baseline.** The latest documented bot finale is **66.8 min** (DESIGN.md, wave 11). Today's eras 2–10 are fast because a $150k pad is minutes of late era-1 income. The whole current run is estimated at about 2.5 h; measure it once before tuning.
 
-| Stretch | Bot minutes | Notes |
-|---|---|---|
-| Era 1 to Great Lodge | 67 | frozen 0.8.0 |
-| Era-1 climb + era-2 pad | 100 | $10.4M of levels + $1.5M pad at about 1.7k/s; 87 buys → one per ~70 s |
-| Era 2 | 100 | |
-| Era 3 | 110 | |
-| Era 4 | 120 | |
-| Era 5 | 130 | |
-| Era 6 | 140 | |
-| Era 7 | 150 | |
-| Era 8 | 160 | |
-| Era 9 | 170 | |
-| Era 10 to the finale ("Singularity": all Lv 100 + Settlement 50) | 180 | |
-| **Total** | **≈ 1,427 (≈ 24 h)** | about 9–10× |
+| Stretch | Target minutes | Model minutes (0.9.0) | Notes |
+|---|---|---|---|
+| Era 1 to Great Lodge | 67 | — | frozen 0.8.0 |
+| Era-1 climb + era-2 pad | 100 | 116 | $10.4M of levels + $1.5M pad at about 1.7k/s; 87 buys → one per ~70 s |
+| Era 2 | 100 | 99 |  |
+| Era 3 | 110 | 110 |  |
+| Era 4 | 120 | 115 |  |
+| Era 5 | 130 | 124 |  |
+| Era 6 | 140 | 134 |  |
+| Era 7 | 150 | 145 |  |
+| Era 8 | 160 | 155 |  |
+| Era 9 | 170 | 166 |  |
+| Era 10 to the finale ("Singularity": all Lv 100 + Settlement 50) | 180 | 177 |  |
+| **Total** | **≈ 1,427 (≈ 24 h)** | **1,340 after the Lodge (≈ 22.3 h)** | about 9–10× |
+
+Model minutes: `PACING_REPORT=1 npx vitest run tests/pacing.test.ts` with the hands-on buyer (one purchase at a time,
+at least 8 s each for the walk to the pad or mat) and the Founder's Scarf. Walking barely moves the totals: a step
+usually waits ~20 s for its money, and the walk happens while it comes in; it binds only after a gift or a pad.
 
 - **Era-1 climb risk.** The judges flagged that the late-Survival income of 1.2–2k/s is unverified. At 1.2k/s the climb runs about 145 min.
 - If the pacing model or a requested bot log shows the climb is over 120 min, use these levers in order:
@@ -380,7 +393,8 @@ This corrects design 0's "6–15 min", which 5 levels per 100+ min era cannot me
 **Checking it without running the bot:**
 1. **`src/core/pacing.ts`** (pure). A greedy integrator over the real tables:
    - income = machines (cycle, batch, value) × Rigs × machine level × Trade × product × Renown × Mastery, + city rent and business × taxOffice × happiness, + `SURVIVAL_LATE_RATE` (one calibration constant);
-   - each step it buys the best of: the cheapest gate row, a machine or a home by payback.
+   - each step it buys ONE thing, the best of: the cheapest gate row, a machine or a home by payback;
+   - the buyer walks: every purchase takes at least `PACING.walkPerBuy` = 8 s (walk to the next pad or mat and stand on it), income flowing meanwhile, so a step costs max(walk, wait for the money).
 2. **`tests/pacing.test.ts`** asserts:
    - each era takes 60–200 min;
    - costs never go down;
@@ -392,7 +406,7 @@ This corrects design 0's "6–15 min", which 5 levels per 100+ min era cannot me
 3. **Debug API:** `__WINTERLAND__.gate(n)`, `setAllUpgrades(shown)`, `setSettlement(L)`, `climb()` (builds the Great Lodge).
 4. **Bot (only when Dino asks):**
    - `playtest-bot.js` gains goals `gate:<n>`, `era:<n>` and `st:<L>`;
-   - once `climbOpen` it uses `raiseAll` as its upgrade queue and drops its industry/finance skip;
+   - once `climbOpen` it walks the `nextGoal` queue (pad, cabin mat or era mat, one level at a time) and drops its industry/finance skip;
    - `balance.mjs --goal era3` prints per-milestone minutes.
 
 ---
@@ -404,8 +418,9 @@ This corrects design 0's "6–15 min", which 5 levels per 100+ min era cannot me
 - **Upgrade clamp.** `Save.ts:184` clamps to `LEVEL_CAP − base(def)` always, regardless of `climbOpen`, so bought levels are never lost. New ids default to 0 through the existing `UPGRADES` loop.
 - **Catch-up grant (R14).** On load, if `raw.upgrades[id]` is absent, `introEra(id) < age` and the id belongs to the 0.10+ template, set stored to `10·(age − introEra)` (crews +1, which hires them). Flag `granted:<era>` and toast once. Done in `Save.ts` before `sanitizeState`, where the raw object is still visible.
 - **`ErasState`** gains:
-  - `settlement: number`, sanitized as int 0..50 and recomputed on load as `max(saved, levelFor(cityPop, age))`;
-  - `steward: boolean`.
+  - `settlement: number`, sanitized as int 0..50 and recomputed on load as `max(saved, levelFor(cityPop, age))`.
+
+  (A 0.9.0 dev save's `steward` flag, from the removed auto-buyer, is dropped on load: `mergeState` keeps only known fields.)
 
   `village.level` stays 0..5.
 - **Region slots** (R10). `REGION_SLOTS` grows; `Save.ts:410` already resizes the slot arrays and appends empty slots. Existing machines keep their slot index; only the grid spacing moves.
@@ -430,14 +445,14 @@ This corrects design 0's "6–15 min", which 5 levels per 100+ min era cannot me
 | `src/eras/gate.ts` (new) | `eraGate`, `nextGoal`, `climbOpen` |
 | `src/eras/template.ts` (new, 0.10) | `ERA_CONTENT` |
 | `src/ui/GateCard.ts` (new) | checklist |
-| `src/core/Upgrades.ts` | ladder reads, `shownLevel`, `buyMany`, `raiseTo`, `raiseAll`, `crewStats` |
+| `src/core/Upgrades.ts` | ladder reads, `shownLevel`, `crewStats` (one level per `buy`, no batch buying) |
 | `src/config.ts` | `CLIMB`, `GATE`, `SETTLEMENT`, template generators; drop authored costs of era-2+ ids |
 | `src/eras/data.ts` | `eraScale` ×10, slots, `CITY_RANKS.minEra`; (0.10) materials and machines; delete `FIRST_EXPANSION_VILLAGE_LEVEL` |
 | `src/eras/layout.ts` | `expansionOffered`, `expansionPreview` |
 | `src/world/env/frontier.ts`, `src/progression/Progression.ts` | `climbOpen` / preview |
 | `src/core/demand.ts` | `productMult` via ladder, `cityPopulation`, `settlementLevelFor`, Renown, Mastery |
 | `src/core/Market.ts` | Renown/Mastery in `exportPrice`, product mult in `tradeMult`, bond `min(broker, 3.5)` |
-| `src/core/types.ts`, `src/core/Save.ts` | `eras.settlement` / `steward`, clamp, catch-up grant |
+| `src/core/types.ts`, `src/core/Save.ts` | `eras.settlement`, clamp, catch-up grant |
 | `src/village/Village.ts`, `src/city/City.ts`, `src/eras/EraWorld.ts` | settlement updates on build / demolish |
 | `src/ui/EraChip.ts`, `ShopPanel.ts`, `EraCard.ts`, `src/core/quests.ts`, `assets/machines.ts`, `ridgeMachines.ts` | next goal, band pips, cards for L ≥ 6, gate quests, band star |
 | (0.10+) `src/npc/EraCrowd.ts` (new), `EraWorker.ts`, `EraCrew.ts`, `assets/eraMachines.ts`, `eraItems.ts`, `eraWorkers.ts`, `ui/materialIcons.ts`, `core/kinds.ts`, `assets/handNodes.ts`, `assets/pals.ts` | role mask, instancing, content |
@@ -455,8 +470,8 @@ Each step is small and lands on its own with tests. There are no bot runs.
 4. **`gate.ts` + `expansionOffered` rewrite** with partial-pad grandfathering. `gate.test.ts`: row counts 23 / 48 / …, prereq rows, ready, the literal-mode switch.
 5. **Settlement:** state field, `cityPopulation`, thresholds and names table, update hooks, `EraCard` for L ≥ 6, Renown, perks j1–j5. `settlement.test.ts`: capacity assert, monotonic, ≤ 5 at age 1.
 6. **Era economy:** `eraScale = 10`; era-2+ ids on `F`; `CITY_RANKS.minEra`; `pacing.ts` + `pacing.test.ts`. Calibrate U, the 2.6 growth and the 1.05 step until every era is 60–200 min.
-7. **UI:** EraChip next goal, GateCard (top 5, Go, Raise all), ShopPanel bands, Progression `nextGoal`, gate quests, toasts and confetti.
-8. **Mastery + Steward** (the S20 perk); jack, broker and bond caps. Tests: Mastery = 1 before the climb; no money loop (order → Jack, order → depot).
+7. **UI:** EraChip next goal, GateCard (top 5, Go; read-only), ShopPanel bands, Progression `nextGoal`, gate quests, toasts and confetti.
+8. **Mastery + the Founder's Scarf** (the S20 perk); jack, broker and bond caps. Tests: Mastery = 1 before the climb; no money loop (order → Jack, order → depot).
 9. **Release prep:** fixture `save-v8-climb.json`; draw-call comparison on the late save (`perf-breakdown.js`); New Season handling (R12); docs (DESIGN Wave 14, README); then the remaining ROADMAP §4 items. Bump to 0.9.0.
 
 **0.10 (D for eras 2–4):**

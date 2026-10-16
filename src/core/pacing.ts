@@ -21,6 +21,10 @@
  * PACING.paybackMax → the cheaper of the cheapest open gate step and (while the settlement is short) the build with
  * the most city population per dollar → the expansion pad. Material extras are bought at the order price
  * (value × (1 + MARKET.delivery)).
+ *
+ * The buyer walks (upgrades are hands-on: every level is bought standing on a level pad or a shop mat, one at a time;
+ * nothing buys remotely or on its own): each purchase takes at least PACING.walkPerBuy seconds (the walk to the next
+ * pad or mat and the stand on it), with income still flowing, so a step costs max(walk, wait for the money).
  */
 import { SETTLEMENT, UPGRADES, type UpgradeDef } from '../config';
 import { CITY_BUILDINGS, ERAS, MACHINES, MARKET, MATERIALS, MAX_ERA, SURVIVAL_VALUE, cityBuildingsOfEra, isMaterial, machinesOfEra, type CityBuildingId, type MachineId } from '../eras/data';
@@ -33,6 +37,7 @@ export interface PacingKnobs {
   survivalLateRate: number;
   paybackMax: number;
   minCycle: number;
+  walkPerBuy: number;
 }
 
 export const PACING: PacingKnobs = {
@@ -46,6 +51,8 @@ export const PACING: PacingKnobs = {
   paybackMax: 900,
   /** Shortest machine cycle (eras/Machine.ts cycleTime). */
   minCycle: 0.3,
+  /** Seconds per purchase spent walking to the next level pad / shop mat and standing on it (hands-on buying). */
+  walkPerBuy: 8,
 };
 
 /** One stretch of the climb: era 1's climb (n = 1) or era n (2..10), from its start to the next pad (era 10: finale). */
@@ -272,7 +279,7 @@ export function runPacing(knobs: Partial<PacingKnobs> = {}): PacingResult {
       const invest = bestByPayback(s, income, k);
       if (invest && invest.payback <= k.paybackMax) buy = invest.buy;
       if (!buy) {
-        // what the gate still needs, cheapest first (like Raise all): a gate step or a build for a short settlement
+        // what the gate still needs, cheapest first: a gate step or a build for a short settlement
         const step = cheapestGateStep(s, n);
         const grow = settlementLevel(s) < settlementGoal(n) ? bestByPopulation(s) : null;
         if (!step && !grow && settlementLevel(s) < settlementGoal(n)) throw new Error(`pacing: settlement ${settlementGoal(n)} out of reach in era ${n - 1}`);
@@ -283,9 +290,9 @@ export function runPacing(knobs: Partial<PacingKnobs> = {}): PacingResult {
         const u = ERAS[n]!.unlock;
         buy = { kind: 'pad', era: n, cost: u.cash + u.extra.count * orderPrice(u.extra.kind) };
       }
-      // wait for the money, then pay
+      // walk there (earning on the way), wait for the money if it is still short, then pay
       if (income <= 0) throw new Error(`pacing: no income in era ${n - 1}`);
-      const wait = Math.max(0, (buy.cost - money) / income);
+      const wait = Math.max(k.walkPerBuy, (buy.cost - money) / income);
       t += wait;
       money += income * wait - buy.cost;
       stretch.buys++;

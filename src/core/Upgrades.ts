@@ -4,8 +4,8 @@
  * purchase (or a restored save) takes effect immediately without any event plumbing.
  *
  * Two ways to gain a level, both ending in levelUp() → 'upgrade:bought':
- * - buy(id): the shop panel (lumberjack + crew). Spends nextCost(id) at once. The climb's presses build on it:
- *   buyMany (Buy ×10), raiseTo (Buy to the gate's level) and raiseAll (the GateCard: cheapest first above a reserve).
+ * - buy(id): the shop panel (lumberjack + crew), open only while the player stands on a shop mat. Spends nextCost(id)
+ *   at once, one level per press: upgrades are hands-on, nothing buys levels from afar or on its own.
  * - levelUp(id, position): a machine's level pad, after the pad collected nextCost(id) itself.
  *
  * Effects and prices come from core/ladder.ts: the authored tables up to their max, then the climb's curves. The
@@ -24,9 +24,6 @@ import type { GameEvents, GameState, UpgradeId } from './types';
 const IDS = Object.keys(UPGRADES) as UpgradeId[];
 
 export class Upgrades {
-  /** Inside a multi-level press (buyMany k > 1, raiseAll): 'upgrade:bought' carries batch: true. */
-  private batch = false;
-
   constructor(
     private readonly state: GameState,
     private readonly economy: Economy,
@@ -116,61 +113,12 @@ export class Upgrades {
     return true;
   }
 
-  /** Buy up to `k` levels in a row (Buy ×10), stopping at the first one that cannot be bought. Returns the levels bought. */
-  buyMany(id: UpgradeId, k: number): number {
-    const was = this.batch;
-    this.batch = was || k > 1;
-    let n = 0;
-    while (n < k && this.buy(id)) n++;
-    this.batch = was;
-    return n;
-  }
-
-  /** Buy levels until the shown level reaches `target` (Buy to target) or the money runs out. Returns the levels bought. */
-  raiseTo(id: UpgradeId, target: number): number {
-    return this.buyMany(id, Math.max(0, target - this.shownLevel(id)));
-  }
-
-  /**
-   * Raise all (docs/EXPANSION.md §A2): buy the cheapest next level among `rows` (each up to its shown `need`) again and
-   * again while the wallet stays above `reserve`, at most `limit` levels (the Steward buys one per tick). Rows with an
-   * unmet requirement are skipped. Returns the levels bought.
-   */
-  raiseAll(rows: ReadonlyArray<{ id: UpgradeId; need: number }>, reserve: number, limit = Infinity): number {
-    const was = this.batch;
-    this.batch = true;
-    try {
-      return this.raiseLoop(rows, reserve, limit);
-    } finally {
-      this.batch = was;
-    }
-  }
-
-  private raiseLoop(rows: ReadonlyArray<{ id: UpgradeId; need: number }>, reserve: number, limit: number): number {
-    let bought = 0;
-    while (bought < limit) {
-      let best: UpgradeId | null = null;
-      let bestCost = Infinity;
-      for (const r of rows) {
-        if (this.shownLevel(r.id) >= r.need || this.requirement(r.id) !== null) continue;
-        const c = this.nextCost(r.id);
-        if (c !== null && c < bestCost) {
-          best = r.id;
-          bestCost = c;
-        }
-      }
-      if (best === null || this.economy.money - bestCost < reserve || !this.buy(best)) return bought;
-      bought++;
-    }
-    return bought;
-  }
-
   /** Gain one level that has already been paid for (level pads). Ignored at max level. */
   levelUp(id: UpgradeId, position: THREE.Vector3 | null): void {
     if (this.isMax(id)) return;
     this.state.upgrades[id]++;
     this.state.stats.upgradesBought++;
-    this.events.emit('upgrade:bought', this.batch ? { id, level: this.state.upgrades[id], position, batch: true } : { id, level: this.state.upgrades[id], position });
+    this.events.emit('upgrade:bought', { id, level: this.state.upgrades[id], position });
   }
 
   /** Debug / tests: jump to a level silently (clamped to shown level 100, climb open or not). Systems pick it up on their next read. */

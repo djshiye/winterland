@@ -190,10 +190,24 @@ export function settlementName(level: number): string {
   return SETTLEMENT.names[Math.min(SETTLEMENT.max, level) - SETTLEMENT.band - 1] ?? '';
 }
 
-/** Renown: × SETTLEMENT.renown per level past Winterland (sales, exports, city income); exactly 1 below level 6. */
+/**
+ * Renown: × SETTLEMENT.renown per level past Winterland (sales, exports, city income), and × founder.renown from the
+ * Founder's Scarf level on; exactly 1 below level 6.
+ */
 export function renownMult(state: Pick<GameState, 'village' | 'eras'>): number {
-  const over = settlementLevel(state) - SETTLEMENT.band;
-  return over > 0 ? SETTLEMENT.renown ** over : 1;
+  return renownAt(settlementLevel(state));
+}
+
+/** Renown at a settlement level (renownMult; the settlement card's "Renown ×1.32"). */
+export function renownAt(level: number): number {
+  const over = level - SETTLEMENT.band;
+  if (over <= 0) return 1;
+  return SETTLEMENT.renown ** over * (founderScarf(level) ? SETTLEMENT.founder.renown : 1);
+}
+
+/** The Settlement 20 perk (SETTLEMENT.founder): the Founder's Scarf and its Renown bonus. */
+export function founderScarf(level: number): boolean {
+  return level >= SETTLEMENT.founder.level;
 }
 
 /**

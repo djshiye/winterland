@@ -11,7 +11,7 @@
  * - settlement: level ≥ 5·(n − 1).
  * eraGate() is the full checklist for the UI; gateMet() is the cheap yes/no layout.expansionOffered asks every frame.
  */
-import { CLIMB, PRIORITIES, UPGRADES, type UpgradeDef } from '../config';
+import { UPGRADES, type UpgradeDef } from '../config';
 import { base, introEra, shown, stepCost } from '../core/ladder';
 import { upgradeRequirement } from '../core/Upgrades';
 import type { GameState, UpgradeId } from '../core/types';
@@ -194,29 +194,13 @@ export function openRows(g: EraGate): GateRow[] {
   return g.rows.filter((r) => r.state !== 'ok').sort((a, b) => rank(a) - rank(b) || a.costToNeed - b.costToNeed);
 }
 
-/** A row the shop sells from anywhere (shop and Industry rows). Pad rows are paid at the machine's level pad (R6). */
+/**
+ * A row bought in the shop panel (shop and Industry rows), which opens only while the player stands on a shop mat (the
+ * cabin's, or an era region's for Industry). Pad rows are paid at the machine's level pad (R6). Upgrades are hands-on:
+ * nothing is bought from the checklist or from afar.
+ */
 export function rowBuyable(r: GateRow): boolean {
   return r.state === 'low' && r.where !== 'pad';
-}
-
-/** What Raise all leaves in the wallet: max($500, 20 %), the foreman's reserve (PRIORITIES), so it never empties it. */
-export function raiseReserve(money: number): number {
-  return Math.max(PRIORITIES.reserveMin, PRIORITIES.reserveShare * money);
-}
-
-/** What Raise all and the Steward may buy: every shop / Industry row still below its need, as Upgrades.raiseAll rows. */
-export function raiseRows(g: Pick<EraGate, 'rows'>): { id: UpgradeId; need: number }[] {
-  return g.rows.filter(rowBuyable).map((r) => ({ id: r.id, need: r.need }));
-}
-
-/** The Steward toggle is offered (the Settlement 20 perk; the climb is open by then, checked anyway). */
-export function stewardUnlocked(s: GameState): boolean {
-  return climbOpen(s) && settlementLevel(s) >= CLIMB.steward.settlement;
-}
-
-/** The Steward is working: unlocked, switched on, and a next era's checklist to raise. */
-export function stewardActive(s: GameState): boolean {
-  return s.eras.steward && !!ERAS[s.eras.age + 1] && stewardUnlocked(s);
 }
 
 /** The locked pad's note and the chip's count: "37/48 · S8/10". */

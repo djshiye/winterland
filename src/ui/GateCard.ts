@@ -6,27 +6,25 @@
  * - Header: "ERA II · FRONTIER" and "12/23 upgrades at Lv 10 · Settlement 5/5", a progress bar, then what comes after:
  *   "then the expansion: $1.5M + 20 Crates". Once the gate is met a gold "Frontier is for sale!" with Go replaces it.
  * - "✓ 12 done", then only the TOP 5 open rows (eras/gate.ts openRows: prereqs first, then cheapest to finish) and
- *   "+8 more". A shop or Industry row has Buy (one level) and "→ Lv 10" (raiseTo, every level it can afford up to the
- *   gate's); a pad row ("pad LV 8 → LV 11") and a prereq row have Go (fast travel to the pad / what unlocks it).
+ *   "+8 more". Every row has Go (fast travel to where it is bought): a shop row to the cabin's shop mat, an Industry
+ *   row to its era's shop mat, a pad row ("pad LV 8 → LV 11") to the level pad, a prereq row to what unlocks it.
  * - The settlement row while it is short: "Build a home in Brickside (+40) → Settlement 6" with Go to the district.
- * - Raise all (footer): the cheapest next level of any buyable row, again and again, keeping max($500, 20 %) in the
- *   wallet (Upgrades.raiseAll). One press, one sound; the rows it finishes tick through 'gate:progress' (JuiceDirector).
- * - The Steward toggle (footer, from Settlement 20 on; state.eras.steward, eras/Steward.ts) and, once a level has
- *   passed a hard cap, the Mastery line under the bar: "Mastery 340 · +41 % on every sale".
+ * - Once a level has passed a hard cap, the Mastery line under the bar: "Mastery 340 · +41 % on every sale".
  *
- * The five row slots are built once; refresh() rewrites only what changed, at most 4× a second while open (money
- * changes every frame while cash flows; the checklist prices every open step).
+ * Read-only by design: upgrades are hands-on (stand on a pad, step on a shop mat). The card never buys anything.
+ *
+ * The five row slots are built once; refresh() rewrites only what changed, at most 4× a second while open (the
+ * checklist prices every open step).
  */
-import { CLIMB, LAYOUT, PADS, UPGRADES, type PadIdConst } from '../config';
-import type { GameContext, UpgradeId } from '../core/types';
+import { LAYOUT, PADS, UPGRADES, type PadIdConst } from '../config';
+import type { GameContext } from '../core/types';
 import { ERAS } from '../eras/data';
 import { masteryTotal } from '../core/demand';
-import { masteryMult } from '../core/ladder';
-import { climbOpen, eraGate, openRows, padPaid, prereqTarget, raiseReserve, raiseRows, rowBuyable, settlementGoal, stewardUnlocked, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
-import { travelPoints } from '../eras/layout';
+import { introEra, masteryMult } from '../core/ladder';
+import { climbOpen, eraGate, openRows, padPaid, prereqTarget, settlementGoal, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
+import { regionLayout, travelPoints } from '../eras/layout';
 import { eraRoman, expansionCostText, gateRowLine, masteryLine } from './agesLogic';
 import { h, onTap } from './dom';
-import { formatMoney } from './format';
 import { hexCss, ICON_CLOSE, ICON_HOUSE, ICON_LOCK, upgradeIcon } from './icons';
 import { Sheet } from './sheet';
 import './build.css';
@@ -41,16 +39,36 @@ interface RowSlot {
   icon: HTMLDivElement;
   name: HTMLDivElement;
   sub: HTMLDivElement;
-  buy: HTMLButtonElement;
-  to: HTMLButtonElement;
   go: HTMLButtonElement;
   row: GateRow | null;
   /** Last written html / class per element (skip redundant DOM writes). */
   key: string;
 }
 
+/**
+ * Where a row is bought: 'pad:<id>' (a machine's level pad), what unlocks a prereq, 'shop' (the cabin's shop mat) or
+ * 'shop:<n>' (era n's shop mat in its region, for an Industry upgrade of that era).
+ */
+export function rowTarget(row: GateRow, s: GameContext['state']): string {
+  if (row.state === 'prereq') return prereqTarget(row.id, s);
+  if (row.where === 'pad') return `pad:${row.id}`;
+  const def = UPGRADES[row.id];
+  return def.group === 'industry' ? `shop:${introEra(def)}` : 'shop';
+}
+
 /** Where a Go button takes the player (null: nowhere to go). */
 export function goTarget(ctx: Pick<GameContext, 'state'>, target: string): { x: number; z: number; label: string } | null {
+  if (target === 'shop') {
+    // onto the cabin doormat: the shop panel opens as the player lands
+    const m = LAYOUT.shop.mat;
+    return { x: (m.minX + m.maxX) / 2, z: (m.minZ + m.maxZ) / 2, label: 'Shop' };
+  }
+  if (target.startsWith('shop:')) {
+    const n = Number(target.slice(5));
+    if (!ERAS[n] || ctx.state.eras.age < n) return null;
+    const at = regionLayout(n).shopMat;
+    return { x: at.x, z: at.z, label: `${ERAS[n]!.region} shop` };
+  }
   if (target.startsWith('pad:')) {
     const pad = PADS[target.slice(4) as PadIdConst];
     // stand just beside the tile, so arriving never pays by accident
@@ -77,10 +95,6 @@ export class GateCard {
   private readonly slots: RowSlot[] = [];
   private readonly moreEl: HTMLDivElement;
   private readonly settle: RowSlot;
-  private readonly raiseBtn: HTMLButtonElement;
-  private readonly raiseNote: HTMLSpanElement;
-  private readonly stewardBtn: HTMLButtonElement;
-  private readonly stewardNote: HTMLSpanElement;
   private readonly masteryEl: HTMLDivElement;
   private dirty = true;
   private acc = REFRESH_EVERY;
@@ -136,26 +150,13 @@ export class GateCard {
     list.appendChild(this.settle.root);
     root.appendChild(list);
 
-    const foot = h('div', 'wl-gate-foot');
-    this.raiseBtn = this.button('wl-gate-raise', '<b>Raise all</b>');
-    this.raiseNote = h('span', 'wl-gate-raise-note');
-    this.raiseBtn.appendChild(this.raiseNote);
-    onTap(this.raiseBtn, () => this.raiseAll());
-    this.stewardBtn = this.button('wl-gate-steward', '<b>Steward</b>');
-    this.stewardNote = h('span', 'wl-gate-raise-note');
-    this.stewardBtn.appendChild(this.stewardNote);
-    this.stewardBtn.title = `Buys the cheapest checklist level every ${CLIMB.steward.every} s, keeping the same reserve as Raise all`;
-    onTap(this.stewardBtn, () => this.toggleSteward());
-    foot.append(this.raiseBtn, this.stewardBtn);
-    root.appendChild(foot);
-
     const mark = (): void => {
       this.dirty = true;
     };
     const ev = ctx.events;
     ev.on('gate:open', () => this.open());
-    ev.on('money:changed', mark);
-    ev.on('upgrade:bought', mark);
+    // what moves a row or the settlement line (eras/GateTracker.ts's list); money no longer matters: nothing is bought here
+    for (const e of ['upgrade:bought', 'settlement:changed', 'machine:built', 'pad:unlocked', 'quarters:built', 'village:changed'] as const) ev.on(e, mark);
     ev.on('gate:progress', () => {
       this.dirty = true;
       this.acc = REFRESH_EVERY; // a finished row leaves the list at once
@@ -204,20 +205,15 @@ export class GateCard {
     const sub = h('div', 'wl-gate-sub');
     mid.append(name, sub);
     const btns = h('div', 'wl-gate-btns');
-    const buy = this.button('wl-shop-buy wl-gate-buy', '');
-    const to = this.button('wl-gate-to', '');
     const go = this.button('wl-gate-go', 'Go');
-    btns.append(buy, to, go);
+    btns.append(go);
     root.append(icon, mid, btns);
-    const slot: RowSlot = { root, icon, name, sub, buy, to, go, row: null, key: '' };
+    const slot: RowSlot = { root, icon, name, sub, go, row: null, key: '' };
     if (settlement) {
-      buy.style.display = to.style.display = 'none';
       onTap(go, () => this.settleGoal && this.go(this.settleGoal.action.target));
       return slot;
     }
-    onTap(buy, () => slot.row && this.buyOne(slot.row.id));
-    onTap(to, () => slot.row && this.buyTo(slot.row));
-    onTap(go, () => slot.row && this.goRow(slot.row));
+    onTap(go, () => slot.row && this.go(rowTarget(slot.row, this.ctx.state)));
     this.slots.push(slot);
     return slot;
   }
@@ -226,55 +222,9 @@ export class GateCard {
   // Actions
   // ---------------------------------------------------------------------------------------------
 
-  private buyOne(id: UpgradeId): void {
-    const { ctx } = this;
-    ctx.audio.unlock();
-    if (!ctx.upgrades.buy(id)) this.refuse();
-    this.dirty = true;
-    this.acc = REFRESH_EVERY;
-  }
-
-  private buyTo(row: GateRow): void {
-    const { ctx } = this;
-    ctx.audio.unlock();
-    const asked = row.need - ctx.upgrades.shownLevel(row.id);
-    const n = ctx.upgrades.raiseTo(row.id, row.need);
-    if (n === 0) this.refuse();
-    else if (asked > 1) ctx.audio.play('upgrade'); // a batch press is silent per level; a one-level press played its own
-    this.dirty = true;
-    this.acc = REFRESH_EVERY;
-  }
-
-  private raiseAll(): void {
-    const { ctx } = this;
-    ctx.audio.unlock();
-    const g = this.gate;
-    if (!g) return;
-    const n = ctx.upgrades.raiseAll(raiseRows(g), raiseReserve(ctx.economy.money));
-    if (n === 0) this.refuse();
-    else ctx.audio.play('upgrade');
-    this.dirty = true;
-    this.acc = REFRESH_EVERY;
-  }
-
-  private toggleSteward(): void {
-    const { ctx } = this;
-    ctx.audio.unlock();
-    if (!stewardUnlocked(ctx.state)) return;
-    ctx.state.eras.steward = !ctx.state.eras.steward;
-    ctx.audio.play('click');
-    this.dirty = true;
-    this.acc = REFRESH_EVERY;
-  }
-
   private refuse(): void {
     this.ctx.audio.play('full', { volume: 0.5 });
     this.sheet.shake();
-  }
-
-  /** A pad row goes to its level pad; a prereq row to what unlocks it (the pad, the village, the bunkhouse). */
-  private goRow(row: GateRow): void {
-    this.go(row.state === 'prereq' ? prereqTarget(row.id, this.ctx.state) : `pad:${row.id}`);
   }
 
   private go(target: string): void {
@@ -316,7 +266,6 @@ export class GateCard {
     }
     const g = eraGate(s, n);
     this.gate = g;
-    const money = ctx.economy.money;
     this.sheet.root.style.setProperty('--era-accent', hexCss(era.colors.accent));
     this.text(this.titleEl, `ERA ${eraRoman(n)} · ${era.name.toUpperCase()}`);
     const st = Math.min(g.settlement.level, g.settlementNeed);
@@ -334,64 +283,30 @@ export class GateCard {
     const open = openRows(g);
     this.show(this.doneEl, g.ok > 0);
     this.text(this.doneEl, `✓ ${g.ok} done`);
-    for (let i = 0; i < this.slots.length; i++) this.renderRow(this.slots[i]!, open[i] ?? null, money);
+    for (let i = 0; i < this.slots.length; i++) this.renderRow(this.slots[i]!, open[i] ?? null);
     const more = open.length - this.slots.length;
     this.show(this.moreEl, more > 0);
     this.text(this.moreEl, `+${more} more`);
     this.renderSettlement(g);
 
-    const buyable = g.rows.filter(rowBuyable);
-    const reserve = raiseReserve(money);
-    const anyCheap = buyable.some((r) => {
-      const c = ctx.upgrades.nextCost(r.id);
-      return c !== null && money - c >= reserve;
-    });
-    const steward = stewardUnlocked(s);
-    this.show(this.raiseBtn.parentElement!, buyable.length > 0 || steward);
-    this.show(this.raiseBtn, buyable.length > 0);
-    this.raiseBtn.classList.toggle('is-poor', !anyCheap);
-    this.text(this.raiseNote, `cheapest first · keeps ${formatMoney(reserve)}`);
-    this.show(this.stewardBtn, steward);
-    if (steward) {
-      const on = s.eras.steward;
-      this.stewardBtn.classList.toggle('is-on', on);
-      this.stewardBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-      this.text(this.stewardNote, on ? `On · every ${CLIMB.steward.every} s` : 'Off · tap to start');
-    }
     const points = masteryTotal(s);
     this.show(this.masteryEl, points > 0);
     if (points > 0) this.text(this.masteryEl, masteryLine(points, masteryMult(points)));
   }
 
-  private renderRow(slot: RowSlot, row: GateRow | null, money: number): void {
+  private renderRow(slot: RowSlot, row: GateRow | null): void {
     slot.row = row;
     this.show(slot.root, row !== null);
     if (!row) return;
-    const { upgrades } = this.ctx;
     const def = UPGRADES[row.id];
     if (slot.key !== row.id) {
       slot.key = row.id;
       slot.icon.innerHTML = upgradeIcon(row.id);
       slot.name.textContent = def.label;
     }
-    const buyable = rowBuyable(row);
     this.text(slot.sub, row.state === 'prereq' ? `<span class="wl-lock">${ICON_LOCK}</span>${gateRowLine(row)}` : gateRowLine(row));
     slot.root.classList.toggle('is-locked', row.state === 'prereq');
-    this.show(slot.buy, buyable);
-    this.show(slot.to, buyable && (row.shown ?? 0) + 1 < row.need);
-    this.show(slot.go, !buyable);
-    if (buyable) {
-      const cost = upgrades.nextCost(row.id) ?? 0;
-      const hire = row.shown === null;
-      this.text(slot.buy, `<small>${hire ? 'Hire' : 'Buy'}</small>${formatMoney(cost)}`);
-      const cls = `wl-shop-buy wl-gate-buy ${money >= cost ? 'is-buy' : 'is-poor'}`;
-      if (slot.buy.className !== cls) slot.buy.className = cls;
-      this.text(slot.to, `→ Lv ${row.need}`);
-      slot.to.classList.toggle('is-poor', money < cost);
-    } else {
-      const reachable = goTarget(this.ctx, row.state === 'prereq' ? prereqTarget(row.id, this.ctx.state) : `pad:${row.id}`) !== null;
-      this.show(slot.go, reachable);
-    }
+    this.show(slot.go, goTarget(this.ctx, rowTarget(row, this.ctx.state)) !== null);
   }
 
   private renderSettlement(g: EraGate): void {

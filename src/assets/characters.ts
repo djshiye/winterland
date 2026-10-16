@@ -250,6 +250,35 @@ export function createPlayerModel(): CharacterModel {
   return m;
 }
 
+const FOUNDER_RED = 0xc8322f;
+const FOUNDER_GOLD = 0xffc933;
+
+/**
+ * 0.9.0 climb: the Founder's Scarf (the Settlement 20 perk, SETTLEMENT.founder), worn by the player over the neck
+ * collar: a chunky red knit ring and two short tails with gold stripes hanging at the front left. One baked mesh in the
+ * squash pivot's space (entities/Player.ts adds it to the rig, so it bobs and squashes with the coat).
+ */
+export function createFounderScarf(): THREE.Mesh {
+  const topY = BASE_Y + 0.8; // the player's torso top (createPlayerModel: bodyH 0.8)
+  const g = new THREE.Group();
+  g.add(torusRing(0.315, 0.085, FOUNDER_RED, topY + 0.03 - HIP));
+  for (const [x, len, tilt] of [[-0.12, 0.34, 0.12], [-0.22, 0.27, 0.3]] as const) {
+    const tail = new THREE.Group();
+    tail.position.set(x, topY - 0.02 - HIP, 0.31);
+    tail.rotation.set(0.18, 0, tilt);
+    const knit = mesh(geo.box(0.11, len, 0.05), toon(FOUNDER_RED));
+    knit.position.y = -len / 2;
+    tail.add(knit);
+    for (const k of [0.62, 0.84]) {
+      const stripe = mesh(geo.box(0.115, 0.03, 0.055), toon(FOUNDER_GOLD));
+      stripe.position.y = -len * k;
+      tail.add(stripe);
+    }
+    g.add(tail);
+  }
+  return bake(g, { name: 'founderScarf' });
+}
+
 // ---------------------------------------------------------------------------
 // NPCs
 // ---------------------------------------------------------------------------

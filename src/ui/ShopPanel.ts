@@ -1,6 +1,7 @@
 /**
- * [B4] Upgrade shop panel. Opens on 'shop:open', closes on 'shop:close' (player on / off the cabin doormat); the X
- * button hides it until the next 'shop:open'. Three tabs (Lumberjack | Crew | Sales). Bottom sheet on phones (≤ 44 % of the
+ * [B4] Upgrade shop panel. Opens on 'shop:open', closes on 'shop:close' (player on / off the cabin doormat, or an era
+ * region's shop mat); the X button hides it until the next 'shop:open'. A Buy press only counts while the panel is open,
+ * so levels are bought standing on a mat, one per press (upgrades are hands-on). Three tabs (Lumberjack | Crew | Sales). Bottom sheet on phones (≤ 44 % of the
  * viewport height, the rest stays bare canvas for the floating joystick), side card on wide screens.
  *
  * The cards are built once; refresh() only rewrites what changed and runs at most once per frame (from update())
@@ -10,16 +11,14 @@
  * - band pips: 10 pips for the band the next era's gate asks (Lv need − 10 .. need) plus a band star with the bands
  *   done, instead of the authored pips; a badge "Lv 23 · need 30", a gold "Lv 30 ✓" at the gate's level, "Not hired"
  *   for a crew, "Lv 10 · era standard" (with its tooltip) for an era upgrade that arrived at its offset;
- * - a "×10" button under the price (Upgrades.buyMany: up to 10 levels, stopping when the money runs out);
- * - a gold dot on a tab while any of its upgrades is below the gate's level (the green "can buy" dot wins);
- * - "Raise all" in the header: the gate's cheapest levels, keeping a reserve (the GateCard's button).
+ * - a gold dot on a tab while any of its upgrades is below the gate's level (the green "can buy" dot wins).
  */
 import { PRIORITIES, QUARTERS, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
 import { authoredMax, base, introEra } from '../core/ladder';
 import type { GameContext } from '../core/types';
 import { ERAS, ERA_NAMES } from '../eras/data';
-import { climbOpen, gateNeed, raiseReserve } from '../eras/gate';
+import { climbOpen, gateNeed } from '../eras/gate';
 import { BAND_PIPS, bandView, eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
@@ -39,14 +38,13 @@ interface Card {
   /** "N helpers" tag on crew cards (the bunkhouse allows several of one role). */
   slots: HTMLSpanElement | null;
   btn: HTMLButtonElement;
-  /** 0.9.0 climb: the band pips (10 + the star), the level / need badge and the Buy ×10 button. */
+  /** 0.9.0 climb: the band pips (10 + the star) and the level / need badge. */
   band: HTMLSpanElement;
   bandPips: HTMLSpanElement[];
   star: HTMLSpanElement;
   need: HTMLSpanElement;
-  x10: HTMLButtonElement;
   /** Last written values, to skip redundant DOM writes. */
-  shown: { pips: number; delta: string; btn: string; cls: string; slots: string; band: string; need: string; x10: string };
+  shown: { pips: number; delta: string; btn: string; cls: string; slots: string; band: string; need: string };
   bump: number;
 }
 
@@ -100,8 +98,6 @@ export class ShopPanel {
   /** Last applied tab / era / tab-strip layout (skips redundant DOM writes). */
   private layoutKey = '';
   private readonly prio: HTMLDivElement;
-  /** 0.9.0 climb: "Raise all" in the header. */
-  private readonly raiseBtn: HTMLButtonElement;
   /** Climb open (band pips on), as last laid out. */
   private climb = false;
   private readonly woodRow: PrioRow;
@@ -123,12 +119,6 @@ export class ShopPanel {
     const head = h('div', 'wl-shop-head');
     head.appendChild(h('div', 'wl-shop-title wl-outline', 'Shop'));
     head.classList.add('is-stacked');
-    this.raiseBtn = h('button', 'wl-shop-raise', 'Raise all');
-    this.raiseBtn.type = 'button';
-    this.raiseBtn.title = 'Buy the cheapest levels the next era needs, keeping some cash';
-    this.raiseBtn.style.display = 'none';
-    onTap(this.raiseBtn, () => this.raiseAll());
-    head.appendChild(this.raiseBtn);
     const tabs = h('div', 'wl-shop-tabs');
     this.tabsEl = tabs;
     for (const t of TABS) {
@@ -326,15 +316,9 @@ export class ShopPanel {
     const delta = h('div', 'wl-shop-delta');
     mid.appendChild(delta);
     root.appendChild(mid);
-    const btns = h('div', 'wl-shop-btns');
     const btn = h('button', 'wl-shop-buy');
     btn.type = 'button';
-    const x10 = h('button', 'wl-shop-x10', '\u00d710');
-    x10.type = 'button';
-    x10.setAttribute('aria-label', `Buy up to 10 levels of ${def.label}`);
-    x10.style.display = 'none';
-    btns.append(btn, x10);
-    root.appendChild(btns);
+    root.appendChild(btn);
     this.list.appendChild(root);
     const card: Card = {
       id,
@@ -350,12 +334,10 @@ export class ShopPanel {
       bandPips,
       star,
       need,
-      x10,
-      shown: { pips: -1, delta: '', btn: '', cls: '', slots: '', band: '', need: '', x10: '' },
+      shown: { pips: -1, delta: '', btn: '', cls: '', slots: '', band: '', need: '' },
       bump: 0,
     };
     onTap(btn, () => this.buy(card));
-    onTap(x10, () => this.buyTen(card));
     return card;
   }
 
@@ -406,42 +388,16 @@ export class ShopPanel {
     }
   }
 
+  /** One level, and only while the panel is open: the player stands on a shop mat (a closing panel buys nothing). */
   private buy(card: Card): void {
     const { ctx } = this;
     ctx.audio.unlock();
+    if (!this.slide.open) return;
     if (!ctx.upgrades.buy(card.id)) {
       ctx.audio.play('full', { volume: 0.5 });
       return;
     }
     // 'upgrade:bought' already marked the panel dirty and started the bump
-    this.dirty = true;
-  }
-
-  /** Buy ×10: up to ten levels in one press (one sound; the per-level juice is skipped for a batch). */
-  private buyTen(card: Card): void {
-    const { ctx } = this;
-    ctx.audio.unlock();
-    const n = ctx.upgrades.buyMany(card.id, 10);
-    if (n === 0) ctx.audio.play('full', { volume: 0.5 });
-    else ctx.audio.play('upgrade'); // a batch press (even one that could afford a single level) has no per-level sound
-    this.dirty = true;
-  }
-
-  /** The next era's gate rows the shop sells (every id introduced before it, minus the machine pads). */
-  private gateRows(): Array<{ id: UpgradeIdConst; need: number }> {
-    const { state } = this.ctx;
-    const n = state.eras.age + 1;
-    if (!climbOpen(state) || !ERAS[n]) return [];
-    const up = this.ctx.upgrades;
-    return this.cards.filter((c) => introEra(up.def(c.id)) <= n - 1).map((c) => ({ id: c.id, need: gateNeed(n) }));
-  }
-
-  private raiseAll(): void {
-    const { ctx } = this;
-    ctx.audio.unlock();
-    const n = ctx.upgrades.raiseAll(this.gateRows(), raiseReserve(ctx.economy.money));
-    if (n === 0) ctx.audio.play('full', { volume: 0.5 });
-    else ctx.audio.play('upgrade');
     this.dirty = true;
   }
 
@@ -489,7 +445,6 @@ export class ShopPanel {
     const next = age + 1;
     const gateOn = climb && !!ERAS[next];
     const tabNeed: Record<string, boolean> = { lumberjack: false, crew: false, sales: false, industry: false, finance: false };
-    let raiseable = false;
     const tabHint: Record<string, boolean> = { lumberjack: false, crew: false, sales: false, industry: false, finance: false };
     for (const c of this.cards) {
       const id = c.id;
@@ -511,17 +466,7 @@ export class ShopPanel {
       if (climb) {
         const inGate = gateOn && introEra(up.def(id)) <= age;
         const below = this.refreshBand(c, inGate ? gateNeed(next) : null);
-        if (below && (c.era === undefined || industryEraShown(c.era, age))) {
-          tabNeed[c.group] = true;
-          if (!req && !isMax) raiseable = true;
-        }
-      }
-      const x10 = climb && !isMax && !req ? (can ? 'is-buy' : 'is-poor') : '';
-      if (x10 !== c.shown.x10) {
-        c.shown.x10 = x10;
-        c.x10.style.display = x10 ? '' : 'none';
-        c.x10.className = `wl-shop-x10 ${x10}`;
-        c.x10.disabled = x10 !== 'is-buy';
+        if (below && (c.era === undefined || industryEraShown(c.era, age))) tabNeed[c.group] = true;
       }
       const delta = shopDelta(up.describe(id), isMax ? null : up.describe(id, lvl + 1), climb);
       if (delta !== c.shown.delta) {
@@ -573,8 +518,6 @@ export class ShopPanel {
       el.classList.toggle('has-hint', !!tabHint[g] && g !== this.tab);
       el.classList.toggle('has-need', !!tabNeed[g] && g !== this.tab);
     }
-    const raise = raiseable ? '' : 'none';
-    if (this.raiseBtn.style.display !== raise) this.raiseBtn.style.display = raise;
   }
 
   update(dt: number): void {
