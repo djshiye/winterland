@@ -25,6 +25,7 @@ import { Pile } from '../items/Pile';
 import { CashPile } from '../stations/CashPile';
 import { EraBuyers } from '../npc/EraBuyers';
 import { EraShoppers } from '../npc/EraShoppers';
+import { CashMachine } from './CashMachine';
 import { ERAS, MACHINES, MATERIALS, MATERIAL_KINDS, isMaterial, machinesOfEra, type MaterialKind } from './data';
 import type { RegionLayout } from './layout';
 import { DOCK_BODY, DOCK_GIVE, STALL_BODY, STALL_GIVE, marketPlaces, type MarketPlaces } from './market';
@@ -105,6 +106,8 @@ export class RegionMarket {
   readonly cash: CashPile;
   readonly buyers: EraBuyers;
   readonly shoppers: EraShoppers;
+  /** The era's cash machine: banks `cash` once built on its level pad. */
+  readonly vault: CashMachine;
   /** Where era clerks hand the cash in (at the export depot) and stand to collect it. */
   readonly bank: ItemHolder;
   readonly clerkSpot: { x: number; z: number };
@@ -136,6 +139,7 @@ export class RegionMarket {
 
     this.cash = new CashPile(ctx, { id: `pile:era${era}Cash`, x: P.cash.x, z: P.cash.z, grid: CASH_GRID, zone: rect(P.cash.x, P.cash.z, 2.0, 1.8) });
     this.bank = new BankSink(ctx, era, layout.depot);
+    this.vault = new CashMachine(ctx, era, P.vault, P.vaultPad, this.cash, parent);
     this.clerkSpot = P.clerk;
     this.cashSpot = P.cash;
 
@@ -211,6 +215,7 @@ export class RegionMarket {
   update(dt: number): void {
     this.buyers.update(dt);
     this.shoppers.update(dt);
+    this.vault.update(dt);
   }
 
   snapshot(): MarketSnapshot {

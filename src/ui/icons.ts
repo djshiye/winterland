@@ -371,6 +371,18 @@ function stallIcon(accent: number): string {
     </g>`);
 }
 
+/** 0.9.5 era cash machine: a little safe in the era's accent with a gold wheel door and a cash bundle going in. */
+function vaultIcon(accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="18" y="4" width="16" height="9" rx="2" fill="#5ee07a"/>
+      <rect x="7" y="13" width="34" height="27" rx="5" fill="${hexCss(accent)}"/>
+      <circle cx="24" cy="27" r="8.5" fill="#ffd84a"/>
+      <path d="M24 21v12M18 27h12" stroke-width="2.4" fill="none"/>
+      <path d="M11 40v4M37 40v4" stroke-width="3.2"/>
+    </g>`);
+}
+
 /** 0.9.5 Fine <material>: a gold rosette with a swatch of the material's colours. */
 function qualityIcon(color: number, accent: number): string {
   return svg(`
@@ -391,6 +403,7 @@ for (const era of ERAS) {
     [`${era.key}Belts`]: beltsIcon(era.colors.accent),
     [`${era.key}Dock`]: dockIcon(era.colors.accent),
     [`${era.key}Stall`]: stallIcon(era.colors.accent),
+    [`${era.key}Cash`]: vaultIcon(era.colors.accent),
   };
   // each crew role wears its scarf colour on the hat (config ERA_ROLES)
   for (const r of ERA_ROLES) icons[`${era.key}${r.key}`] = crewIcon(r.scarf);

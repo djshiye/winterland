@@ -840,7 +840,7 @@ export type UpgradeIdConst =
   | 'jack'
   | 'taxOffice'
   | 'broker'
-  | `${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Dock' | 'Stall'}`
+  | `${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Dock' | 'Stall' | 'Cash'}`
   // 0.9.5: the player's era upgrades (eras/playerUpgrades.ts)
   | EraPlayerUpgradeId
   // 0.9.5: the rest of each era's crew (six roles beside the Crew hauler), its conveyor belts and one level per machine
@@ -1393,8 +1393,8 @@ function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> 
  * - 0.9.5 `${key}Stall`: the region market's stall grows and its walk-in shoppers come more often.
  * No cost tables: every step is priced on the climb's band curve (core/ladder.ts costAt, CLIMB), like taxOffice / broker.
  */
-function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | 'Dock' | 'Stall' | EraRoleKey}` | MachineId, UpgradeDef> {
-  const out = {} as Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | 'Dock' | 'Stall' | EraRoleKey}` | MachineId, UpgradeDef>;
+function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | 'Dock' | 'Stall' | 'Cash' | EraRoleKey}` | MachineId, UpgradeDef> {
+  const out = {} as Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | 'Dock' | 'Stall' | 'Cash' | EraRoleKey}` | MachineId, UpgradeDef>;
   ERA_KEYS.forEach((key, i) => {
     const n = i + 2;
     const name = ERA_NAMES[n]!;
@@ -1447,6 +1447,15 @@ function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' |
       values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5, 2.75, 3.0], costs: [],
       display: 'boost', requires: { era: n },
     };
+    // 0.9.5: the era's cash machine (eras/CashMachine.ts), era 1's Cash Tubes: Lv 1 builds it on its level pad by the
+    // market cash pile, every level banks faster. Pad-only (group 'machine'), like the machine levels.
+    const cash = eraCashMachine(n)!;
+    out[`${key}Cash`] = {
+      id: `${key}Cash`, group: 'machine', era: n, label: cash.label, blurb: 'Banks the market cash pile for you',
+      // bundles a second (0 = not built; Lv 10 ≈ era 1's best Cash Tubes ×1.4)
+      values: [0, 1.2, 1.5, 1.8, 2.2, 2.6, 3.1, 3.6, 4.2, 4.9, 5.6], costs: [],
+      display: 'count', unit: 'bundles/s', requires: { era: n },
+    };
   });
   return out;
 }
@@ -1454,6 +1463,27 @@ function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' |
 /** 0.9.5: workers of one era role per stored level: 1 from level 1, 2 from 4, 3 from 7 (like the haulers). */
 export function eraRoleCount(level: number): number {
   return level <= 0 ? 0 : level < 4 ? 1 : level < 7 ? 2 : 3;
+}
+
+/**
+ * 0.9.5: each era's cash machine (docs/EXPANSION.md §D; ids as in the era content template), index = era 2..10. It banks
+ * the region market's cash pile like era 1's Cash Tubes (eras/CashMachine.ts). A function, not a const: eraUpgrades()
+ * reads it while UPGRADES is built, before the rest of this file has run.
+ */
+export function eraCashMachine(n: number): { id: string; label: string } | undefined {
+  return [
+    undefined,
+    undefined,
+    { id: 'strongbox', label: 'Strongbox' },
+    { id: 'mintChute', label: 'Mint Chute' },
+    { id: 'pneumaticTubes', label: 'Pneumatic Tubes' },
+    { id: 'bankVault', label: 'Bank Vault' },
+    { id: 'tillLine', label: 'Till Line' },
+    { id: 'driveThruVault', label: 'Drive-Thru Vault' },
+    { id: 'atmNetwork', label: 'ATM Network' },
+    { id: 'atomicVault', label: 'Atomic Vault' },
+    { id: 'quantumBank', label: 'Quantum Bank' },
+  ][n];
 }
 
 /** 0.9.0: era workers per `${key}Crew` level (index = level; 0 = not hired). */
