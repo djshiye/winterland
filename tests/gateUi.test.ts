@@ -240,7 +240,7 @@ describe('the shop band view (R5)', () => {
   it('gateRowLine uses the unit of the place the row is bought (R6)', () => {
     const g = eraGate(allBuilt(lodge()), 2);
     const pad = g.rows.find((r) => r.where === 'pad')!;
-    expect(gateRowLine(pad)).toMatch(/^pad LV \d+ → LV 11 · \$/);
+    expect(gateRowLine(pad)).toMatch(/^pad LV \d+ → LV 10 · \$/);
     const shop = g.rows.find((r) => r.id === 'carry')!;
     expect(gateRowLine(shop)).toMatch(/^Lv 0 → 10 · \$.+ in all$/);
     const crew = g.rows.find((r) => r.shown === null)!;

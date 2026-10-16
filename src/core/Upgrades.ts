@@ -9,13 +9,14 @@
  * - levelUp(id, position): a machine's level pad, after the pad collected nextCost(id) itself.
  *
  * Effects and prices come from core/ladder.ts: the authored tables up to their max, then the climb's curves. The
- * levels past the authored max can only be bought once the climb is open (the Great Lodge, eras/gate.ts).
+ * levels past the authored max can only be bought once the climb is open (the Great Lodge, eras/gate.ts), and only up
+ * to the era cap: shown level 10 · age, so era 1 stops at 10 until the era-2 expansion is bought.
  */
 import type * as THREE from 'three';
 import { CLIMB, QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
 import { ERA_NAMES } from '../eras/data';
 import { climbOpen } from '../eras/gate';
-import { introEra, maxStored, shown, stepCost, valueAt } from './ladder';
+import { atEraCap, capStored, introEra, maxStored, shown, stepCost, valueAt } from './ladder';
 import { settlementLevel } from './demand';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
@@ -48,9 +49,17 @@ export class Upgrades {
     return this.state.upgrades[id];
   }
 
-  /** Highest stored level for sale now: the authored max, or shown level 100 once the climb is open. */
+  /**
+   * Highest stored level for sale now: the authored max before the climb, then the era cap (shown 10 · age, ladder.ts
+   * capStored). Nothing passes the cap until the next era's expansion is bought.
+   */
   maxLevel(id: UpgradeId): number {
-    return maxStored(UPGRADES[id], climbOpen(this.state));
+    return capStored(UPGRADES[id], climbOpen(this.state), this.state.eras.age);
+  }
+
+  /** Stopped by the era cap (buying the next era's expansion lifts it), not by the final level. */
+  atEraCap(id: UpgradeId): boolean {
+    return climbOpen(this.state) && atEraCap(UPGRADES[id], this.level(id), this.state.eras.age);
   }
 
   /** The level the player sees (stored + the id's era offset, docs/EXPANSION.md R4). */
