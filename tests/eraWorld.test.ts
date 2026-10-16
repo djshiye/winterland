@@ -370,6 +370,27 @@ describe('unlock', () => {
 });
 
 describe('machines', () => {
+  it('0.9.6: building on the slot the player stands on steps them to the feed spot, clear of every machine (no shove over the fence)', () => {
+    const r = 0.6; // about PLAYER.radius
+    const hit = (x: number, z: number, b: { minX: number; maxX: number; minZ: number; maxZ: number }): boolean => x > b.minX - r && x < b.maxX + r && z > b.minZ - r && z < b.maxZ + r;
+    for (let n = 2; n <= MAX_ERA; n++) {
+      const w = makeWorld(n);
+      const region = w.world.region(n)!;
+      const ids = machinesOfEra(n);
+      for (let s = 0; s < REGION_SLOTS[n]!; s++) {
+        const slot = region.layout.slots[s]!;
+        w.ctx.player.position.set(slot.x, 0, slot.z); // standing on the slot's pad while it completes
+        expect(w.world.build(n, s, ids[s % ids.length]!)).toBe(true);
+        const m = region.machines[s]!;
+        const p = w.ctx.player.position;
+        expect(hit(p.x, p.z, m.body), `era ${n} slot ${s}`).toBe(false);
+        expect(Math.hypot(p.x - slot.x, p.z - slot.z), `era ${n} slot ${s}`).toBeLessThan(8);
+      }
+      // every feed spot stays clear of all the built machines
+      for (const m of region.machines) if (m) for (const o of region.machines) if (o) expect(hit(m.feedSpot.x, m.feedSpot.z, o.body), `era ${n} ${m.def.id}`).toBe(false);
+    }
+  });
+
   it('build(): false while locked, for a bad slot or another era; true builds with events and a collider', () => {
     const w = makeWorld(2);
     expect(w.world.build(3, 0, 'ironMine')).toBe(false);

@@ -17,7 +17,7 @@
  * (EraWorld.unlock) calls appear() for the pop-in. Slot state is the truth: every transition writes state first.
  */
 import * as THREE from 'three';
-import { PALETTE, TIMING, rect } from '../config';
+import { PALETTE, PLAYER, TIMING, rect } from '../config';
 import { createMatModel, createPadSign, createShopSign } from '../assets/pads';
 import { createDepotModel, createDockModel } from '../assets/eraMachines';
 import type { MaterialKind, GameContext, ItemKind } from '../core/types';
@@ -352,12 +352,28 @@ export class Region implements RegionRuntime {
     st.extra = 0;
     this.refreshSlot(S, instant);
     const m = S.machine!;
+    this.stepAside(m);
     this.syncLevelPads(instant);
     this.belts.sync(instant);
     this.ctx.state.stats.machinesBuilt++;
     const position = this.slotPos(S.index);
     if (!instant) this.ctx.events.emit('built', { what: `machine:${m.def.id}`, position, object: m.group });
     this.ctx.events.emit('machine:built', { era: this.era, slot: S.index, machine: m.def.id, position, object: m.group });
+  }
+
+  /**
+   * 0.9.6 (eras 1-4 finding 3): the player who just paid for the machine stands on its slot, inside the new collider.
+   * Pushed out face by face, they slid through the neighbouring machines and over the fence (about 25 m); instead they
+   * step to the new machine's feed spot, in front of it on the yard side.
+   */
+  private stepAside(m: Machine): void {
+    const p = this.ctx.player?.position;
+    if (!p) return;
+    const r = PLAYER.radius;
+    const b = m.body;
+    if (p.x <= b.minX - r || p.x >= b.maxX + r || p.z <= b.minZ - r || p.z >= b.maxZ + r) return;
+    p.x = m.feedSpot.x;
+    p.z = m.feedSpot.z;
   }
 
   /**

@@ -2,6 +2,7 @@
  * [MAIN] Runtime contracts between the era region world (eras/EraWorld.ts), its machines (eras/Machine.ts), the era
  * workers (npc/EraCrew.ts) and Jack's carts. Types only.
  */
+import type { Rect } from '../config';
 import type { Item, ItemHolder, ItemKind } from '../core/types';
 import type { Pile } from '../items/Pile';
 import type { MachineDef } from './data';
@@ -19,6 +20,8 @@ export interface MachineRuntime {
   /** Where a worker / the player stands to feed the input, and to take from the output (world XZ, clear of colliders). */
   readonly feedSpot: XZ;
   readonly takeSpot: XZ;
+  /** 0.9.6: world rect of the machine's solid body (its collider). */
+  readonly body: Rect;
   /** How many more units of `kind` the input would take right now (0 if not an input, extractor, or full). */
   wants(kind: ItemKind): number;
   /** True while a cycle is running. */
