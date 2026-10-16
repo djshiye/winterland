@@ -4,6 +4,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { GATE, SAVE, UPGRADES } from '../src/config';
 import { masteryOf } from '../src/core/demand';
@@ -279,7 +280,7 @@ describe('desktop shell locks (READINESS F)', () => {
   });
 
   it('serves only files inside dist', () => {
-    expect(w.distFile('/srv/dist', 'app://game/index.html')).toBe('/srv/dist/index.html');
+    expect(w.distFile('/srv/dist', 'app://game/index.html')).toBe(resolve('/srv/dist', 'index.html'));
     for (const url of ['app://game/%2e%2e%2fsecret', 'app://game/..%2f..%2fetc%2fpasswd', 'app://game/%E0%A4%A', 'app://other/index.html', 'file:///etc/passwd', 'app://game/a%00b'])
       expect(w.distFile('/srv/dist', url)).toBeNull();
   });
@@ -318,11 +319,11 @@ describe('desktop shell locks (READINESS F)', () => {
 
 describe('release workflow token', () => {
   it('is read-only except for the publish job', () => {
-    const yml = readFileSync(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8');
+    const yml = readFileSync(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     expect(yml).toMatch(/^permissions:\n  contents: read$/m);
     expect(yml.match(/contents: write/g)).toHaveLength(1);
     expect(yml.indexOf('contents: write')).toBeGreaterThan(yml.indexOf('  publish:'));
-    const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+    const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     expect(ci).toMatch(/^permissions:\n  contents: read$/m);
   });
 });
