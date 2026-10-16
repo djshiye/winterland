@@ -378,7 +378,25 @@ const buildRobot: Builder = (b, m) => {
   b.add(ball(0.022, 6, 5), m.accent, 0, hy + 0.025 + hh + h * 0.09, 0);
 };
 
+/** 0.9.5 home computer: a beige retro box with a teal-glass screen, a keyboard tray, a floppy slot and a power light. */
+const buildComputer: Builder = (b, m) => {
+  const { w, h, d } = m.size;
+  const y0 = -h / 2;
+  // keyboard tray at the front
+  b.add(box(w, h * 0.12, d * 0.34), shade(m.color, 0.9), 0, y0 + h * 0.06, d * 0.33);
+  for (let i = 0; i < 4; i++) b.add(box(w * 0.8, h * 0.02, d * 0.04), shade(m.color, 0.7), 0, y0 + h * 0.13, d * (0.22 + i * 0.065));
+  // monitor case, bezel and screen
+  b.add(box(w * 0.86, h * 0.8, d * 0.62), m.color, 0, y0 + h * 0.52, -d * 0.18);
+  b.add(box(w * 0.7, h * 0.52, 0.012), shade(m.color, 0.75), 0, y0 + h * 0.6, d * 0.13 + 0.004);
+  b.add(box(w * 0.6, h * 0.42, 0.012), m.accent, 0, y0 + h * 0.6, d * 0.13 + 0.012);
+  b.add(box(w * 0.42, h * 0.05, 0.006), shade(m.accent, 1.6), -w * 0.06, y0 + h * 0.68, d * 0.13 + 0.02);
+  // floppy slot + power light
+  b.add(box(w * 0.26, h * 0.025, 0.01), 0x3b3a3e, w * 0.18, y0 + h * 0.23, d * 0.13 + 0.004);
+  b.add(box(0.03, 0.03, 0.01), 0x7ce8a3, -w * 0.32, y0 + h * 0.23, d * 0.13 + 0.006);
+};
+
 const BUILDERS: Record<MaterialShape, Builder> = {
+  computer: buildComputer,
   block: buildBlock,
   brick: buildBrick,
   nugget: buildNugget,

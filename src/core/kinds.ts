@@ -23,6 +23,13 @@ export const MATERIAL_KINDS = [
   'power',
   'aiCore',
   'robot',
+  // 0.9.5 eras 8-10 (Era 8 to 10 content): second extractors, second processors and premium goods
+  'gold',
+  'board',
+  'computer',
+  'graphite',
+  'battery',
+  'quantumCore',
 ] as const;
 export type MaterialKind = (typeof MATERIAL_KINDS)[number];
 
