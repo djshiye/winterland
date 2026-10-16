@@ -13,6 +13,8 @@ import { DEMOLISH_MIN, ERAS, MACHINES, MACHINE_IDS, MAX_ERA, machinesOfEra, type
 import { DOCK_FRAME, DEPOT_FRAME, INPUT_CAPACITY, OUTPUT_CAPACITY, chooseOptions, costText, demolishCost, inputCap, machineFrame, machineStatRows, settlePaidSlots, slotPaid, slotTarget, toWorld, worldRect, type LRect } from '../src/eras/rules';
 
 vi.mock('../src/assets/pads', () => ({
+  createPadTexture: () => ({ image: null, dispose: () => undefined }),
+  formatCost: (n: number) => `$${n}`,
   createConstructionTexture: () => ({ image: null }),
   createPadModel: () => new THREE.Group(),
   createPadSign: () => new THREE.Mesh(),
@@ -38,7 +40,7 @@ vi.mock('../src/assets/eraMachines', () => ({
   createDepotModel: () => new THREE.Group(),
   createDockModel: () => new THREE.Group(),
 }));
-vi.mock('../src/npc/EraCrew', () => ({ EraCrew: class { reconcile(): void {} update(): void {} carried(): Record<string, never> { return {}; } dispose(): void {} } }));
+vi.mock('../src/npc/EraCrew', () => ({ EraCrew: class { ids: string[] = []; reconcile(): void {} update(): void {} carried(): Record<string, never> { return {}; } dispose(): void {} } }));
 vi.mock('../src/npc/Jack', () => ({ JackCart: class { sink = { id: 'jack:sink' }; update(): void {} dispose(): void {} } }));
 
 const { EraWorld } = await import('../src/eras/EraWorld');
@@ -189,7 +191,8 @@ function makeWorld(age: number, villageLevel = 0, prep?: (s: GameState) => void)
     time: { elapsed: 0, frame: 0 },
     addUpdatable: () => undefined,
     economy: eco,
-    upgrades: { value: () => 1 },
+    // 0.9.5: level pads read isMax / requirement (maxed here: no pad), belts read level (0: none)
+    upgrades: { value: () => 1, level: () => 0, isMax: () => true, requirement: () => null, nextCost: () => 0, shownLevel: () => 0 },
     player: { arms: { id: 'arms', count: () => 0 }, back: {}, position: new THREE.Vector3(0, 0, 0) },
     zones: {
       add: (opts: FakeZone['opts'] & { enabled?: boolean }) => makeZone(opts, opts.enabled ?? true),
@@ -384,7 +387,7 @@ describe('machines', () => {
 
   it('Rigs divide the cycle', () => {
     const w = makeWorld(2);
-    (w.ctx.upgrades as unknown as { value: () => number }).value = () => 2;
+    (w.ctx.upgrades as unknown as { value: (id: string) => number }).value = (id) => (id.endsWith('Rigs') ? 2 : 1);
     w.world.build(2, 0, 'quarry');
     const m = w.world.region(2)!.machines[0]!;
     run(w, 0.95); // 0.9 s per cycle at ×2
@@ -574,11 +577,11 @@ describe('depot, dock, orders', () => {
     expect(w.eco.money).toBe(6 * 132 + 396);
   });
 
-  it('the shop mat opens the industry tab', () => {
+  it("the shop mat opens the era's own shop on its Crew tab (0.9.5)", () => {
     const w = makeWorld(2);
     const mat = w.zones.find((z) => z.opts.id === 'shop:mat:era2')!;
     (mat.opts as unknown as { onEnter(): void }).onEnter();
-    expect(w.of<{ tab?: string }>('shop:open')[0]!.tab).toBe('industry');
+    expect(w.of<{ tab?: string; era?: number }>('shop:open')[0]).toEqual({ tab: 'crew', era: 2 });
   });
 });
 

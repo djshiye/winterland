@@ -15,6 +15,8 @@ import { grandMarketFrame, grandMarketOffered, settlePaidGrandMarket } from '../
 const textureCalls: { icon: string; logs: unknown; cash: unknown; extra: unknown }[] = [];
 
 vi.mock('../src/assets/pads', () => ({
+  createPadTexture: () => ({ image: null, dispose: () => undefined }),
+  formatCost: (n: number) => `$${n}`,
   createConstructionTexture: (icon: string, logs: unknown, cash: unknown, _target?: unknown, extra?: unknown) => {
     textureCalls.push({ icon, logs: { ...(logs as object) }, cash: { ...(cash as object) }, extra: extra ? { ...(extra as object) } : undefined });
     return { image: null };
