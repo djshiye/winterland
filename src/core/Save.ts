@@ -14,6 +14,7 @@ import { CARRY_KINDS, createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, 
 import { maxStored } from './ladder';
 import { INVEST_POSITIONS_CAP } from './demand';
 import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
+import { carryTradeIntoSales } from './salesMerge';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
 export interface WorldSnapshot {
@@ -133,6 +134,8 @@ export function clearSave(): void {
  */
 export function mergeState(target: GameState, saved: unknown): void {
   mergeInto(target as unknown as Record<string, unknown>, saved);
+  // 0.9.6: the era Trade upgrades merged into each material's sales upgrade (core/salesMerge.ts)
+  if (isObj(saved)) carryTradeIntoSales(target.upgrades as unknown as Record<string, number>, saved.upgrades);
   // 0.9.0: open-ended arrays (the fresh one is empty, so mergeInto keeps nothing): copied here, sanitized later.
   const inv = isObj(saved) && isObj(saved.market) ? saved.market.investments : undefined;
   if (Array.isArray(inv)) {
@@ -339,6 +342,13 @@ export class SalesMeter {
     ctx.events.on('sale', ({ buyer, amount: sale, tip }) => {
       if (buyer === 'jack') return; // a discard at Jack's cart is not a steady income
       const amount = sale + (tip ?? 0); // VIP tips are income too
+      this.times.push(ctx.time.elapsed);
+      this.amounts.push(amount);
+      this.sum += amount;
+    });
+    // 0.9.6 (CODE_AUDIT P2-15): city rent and business income are steady income too (trading and interest are not)
+    ctx.events.on('income', ({ source, amount }) => {
+      if (source !== 'rent' && source !== 'business') return;
       this.times.push(ctx.time.elapsed);
       this.amounts.push(amount);
       this.sum += amount;

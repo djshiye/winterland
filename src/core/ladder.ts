@@ -43,8 +43,9 @@ const RATE_FLOOR: Partial<Record<string, number>> = {
 function curveOf(def: UpgradeDef): Curve {
   switch (def.display) {
     case 'count':
-      // Strong Arms: +1 item per level up to 50 (render cap stays 40 meshes); dog and pals: +1 per 2 levels up to 12.
-      return def.id === 'carry' || def.id.endsWith('Carry') ? linear(1, 50) : { dir: 'up', cap: 12, at: (vm, t) => vm + Math.floor(t / 2) };
+      // Strong Arms: +1 item per level up to 50 (render cap stays 40 meshes); the Sled Dog: +1 per level up to 12, so
+      // every climb level adds an item (0.9.6: +1 per 2 levels left Lv 5, 7 and 9 dead).
+      return def.id === 'carry' || def.id.endsWith('Carry') ? linear(1, 50) : linear(1, 12);
     case 'speed':
       return { dir: 'up', cap: 13.5, at: (vm, t) => 14 - (14 - vm) * 0.93 ** t };
     case 'rate':
@@ -54,7 +55,10 @@ function curveOf(def: UpgradeDef): Curve {
     case 'belt':
       return linear(0.1, 4);
     case 'mult':
-      return linear(0.1, null);
+      // the five Survival price upgrades past the Great Lodge (every era id is authored to Lv 10): +0.5 a level, so Lv 10
+      // pays ×4.5 (0.9.6: +0.1 made the post-Lodge climb the slowest stretch, 129 model minutes; now about 80,
+      // CODE_AUDIT P1-9)
+      return linear(0.5, null);
     case 'boost':
       return linear(0.1, 6);
     case 'income':

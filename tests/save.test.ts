@@ -10,12 +10,33 @@ import { salePrice } from '../src/core/demand';
 import { authoredMax, LEVEL_CAP } from '../src/core/ladder';
 import { EventBus } from '../src/core/EventBus';
 import { mergeState, newSeasonSave, offlineEarnings, SalesMeter, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
-import { createGameState, REGION_SLOTS, type GameContext, type GameEvents } from '../src/core/types';
+import { createGameState, MATERIAL_KINDS, REGION_SLOTS, type GameContext, type GameEvents } from '../src/core/types';
+import { MATERIALS } from '../src/eras/data';
 
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
 /** Every real save captured from a released build: each must keep loading as the state grows. */
 const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json', 'save-v7-eras.json', 'save-v8-climb.json'];
+
+describe('0.9.6 Trade merged into the material sales upgrades', () => {
+  it('every material of an era takes max(its Fine level, the era\'s old Trade level), not capped here (the Lv 10 refund handles levels past 10)', () => {
+    const save = load('save-v8-climb.json');
+    expect((save.state.upgrades as Record<string, number>).frontierTrade).toBe(5);
+    const state = createGameState();
+    mergeState(state, save.state);
+    const era2 = MATERIAL_KINDS.filter((k) => MATERIALS[k].era === 2);
+    expect(era2.length).toBeGreaterThan(0);
+    for (const k of era2) expect(state.upgrades[`${k}Quality`]).toBe(5);
+    for (const k of MATERIAL_KINDS.filter((x) => MATERIALS[x].era === 3)) expect(state.upgrades[`${k}Quality`]).toBe(0);
+    expect('frontierTrade' in state.upgrades).toBe(false);
+    // a higher Fine level wins; a Trade level past 10 is kept for the refund migration
+    const s2 = createGameState();
+    mergeState(s2, { upgrades: { frontierTrade: 30, stoneQuality: 4, brickQuality: 40, ironTrade: 3, ironQuality: 7 } });
+    expect(s2.upgrades.stoneQuality).toBe(30);
+    expect(s2.upgrades.brickQuality).toBe(40); // sanitizeState clamps it later
+    expect(s2.upgrades.ironQuality).toBe(7);
+  });
+});
 
 describe.each(FIXTURES)('%s', (name) => {
   it('loads every saved field and the world', () => {
@@ -26,7 +47,10 @@ describe.each(FIXTURES)('%s', (name) => {
     expect(state.unlocked).toEqual({ ...state.unlocked, ...save.state.unlocked });
     expect(state.quarters).toEqual({ ...state.quarters, ...(save.state.quarters ?? {}) });
     expect(state.prestige.season).toBe(save.state.prestige?.season ?? 0);
-    for (const [id, level] of Object.entries(save.state.upgrades)) expect(state.upgrades[id as keyof typeof state.upgrades]).toBe(level);
+    for (const [id, level] of Object.entries(save.state.upgrades)) {
+      if (id.endsWith('Trade')) continue; // 0.9.6: merged into the material sales upgrades (below)
+      expect(state.upgrades[id as keyof typeof state.upgrades]).toBe(level);
+    }
     const world = sanitizeWorld(save.world);
     for (const [k, n] of Object.entries(save.world.piles)) expect(world.piles[k as keyof typeof world.piles]).toBe(n);
   });
@@ -47,7 +71,10 @@ describe('v1 save fixture', () => {
     expect(state.village.plots.map((p) => p.tier)).toEqual(save.state.village.plots.map((p) => p.tier));
     expect(state.stats.moneyEarned).toBe(save.state.stats.moneyEarned);
     expect(state.playTime).toBe(save.state.playTime);
-    for (const [id, level] of Object.entries(save.state.upgrades)) expect(state.upgrades[id as keyof typeof state.upgrades]).toBe(level);
+    for (const [id, level] of Object.entries(save.state.upgrades)) {
+      if (id.endsWith('Trade')) continue; // 0.9.6: merged into the material sales upgrades (below)
+      expect(state.upgrades[id as keyof typeof state.upgrades]).toBe(level);
+    }
     for (const [flag, on] of Object.entries(save.state.flags)) expect(state.flags[flag as keyof typeof state.flags]).toBe(on);
   });
 
@@ -114,6 +141,15 @@ describe('SalesMeter', () => {
     time.elapsed += OFFLINE.window + 1;
     events.emit('sale', { buyer: 'export', kind: 'brick', count: 1, amount: 300, position: null as never });
     expect(sales.rate).toBeCloseTo(300 / OFFLINE.window, 9);
+  });
+
+  it('counts city rent and business income, not trading profit or interest (0.9.6, CODE_AUDIT P2-15)', () => {
+    const { events, sales } = meter();
+    events.emit('income', { source: 'rent', amount: 400, position: null });
+    events.emit('income', { source: 'business', amount: 600, position: null });
+    events.emit('income', { source: 'trade', amount: 5000, position: null });
+    events.emit('income', { source: 'interest', amount: 5000, position: null });
+    expect(sales.rate).toBeCloseTo(1000 / OFFLINE.window, 9);
   });
 
   it('never goes negative', () => {
