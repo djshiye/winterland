@@ -7,8 +7,9 @@
 import { describe, expect, it } from 'vitest';
 import { ERA_ROLES, ERA_ROLE_NAMES, UPGRADES, eraRoleCount } from '../src/config';
 import { costAt, introEra, valueAt } from '../src/core/ladder';
-import { BELT_LANE, CORRIDOR_OFFSET, beltRoute, planBelts, rowOf, type SlotMachines } from '../src/eras/belts';
-import { ERAS, MACHINES, MAX_ERA, machinesOfEra } from '../src/eras/data';
+import { BELT_LANE, BELT_LEVELS, CORRIDOR_OFFSET, beltRoute, planBelts, rowOf, type SlotMachines } from '../src/eras/belts';
+import { ERAS, MACHINES, MAX_ERA, machinesOfEra, type MachineId } from '../src/eras/data';
+import { contentMachines } from '../src/eras/template';
 import { regionLayout } from '../src/eras/layout';
 import { LEVEL_PAD_SIZE, MACHINE_NOMINAL, levelPadLocal, machineFrame, toWorld } from '../src/eras/rules';
 import { NO_CLAIMS, pickJob, type JobMachine, type JobView } from '../src/npc/EraWorker';
@@ -120,14 +121,34 @@ describe('pickJob by role', () => {
     expect(pickJob(view([near, fuller]), 6, NO_CLAIMS, AT, false, undefined, 'clerk')).toMatchObject({ from: 2 });
   });
 
-  it('gatherer: a filling extractor into a dock reserve the porters feed on, then feeds when the reserve is full', () => {
-    expect(pickJob(view([quarry(8), kiln(8)]), 6, NO_CLAIMS, AT, false, undefined, 'gatherer')).toMatchObject({ type: 'stock', from: 0, to: 'dock' });
-    // the reserve is stocked: it feeds the kiln straight from the quarry instead
-    expect(pickJob(view([quarry(8), kiln(8)], { stone: 12 }), 6, NO_CLAIMS, AT, false, undefined, 'gatherer')).toMatchObject({ type: 'feed', from: 0, to: 1 });
+  it('gatherer: the hand-node pile first (processors, then the depot), then extractors to processors, then a dock reserve', () => {
+    const node = (count: number, full = false): JobView['node'] => ({ kind: 'stone', count, full, spot: { x: 20, z: 70 } });
+    // 0.9.6 (eras 1-4 #4): the player's harvest goes to a hungry kiln before anything else
+    expect(pickJob({ ...view([quarry(8), kiln(8)]), node: node(6) }, 6, NO_CLAIMS, AT, false, undefined, 'gatherer')).toMatchObject({ type: 'feed', from: 'node', to: 1 });
+    // nobody wants it: a filling node pile goes to the depot, so the player can keep harvesting
+    expect(pickJob({ ...view([quarry(8)]), node: node(18, true) }, 6, NO_CLAIMS, AT, false, undefined, 'gatherer')).toMatchObject({ type: 'surplus', from: 'node', to: 'depot' });
+    expect(pickJob({ ...view([quarry(8)]), node: node(2) }, 6, NO_CLAIMS, AT, false, undefined, 'gatherer')).toBeNull();
+    // 0.9.6 (F3): feeding comes before the dock reserve
+    expect(pickJob(view([quarry(8), kiln(8)]), 6, NO_CLAIMS, AT, false, undefined, 'gatherer')).toMatchObject({ type: 'feed', from: 0, to: 1 });
+    // the kiln is full: the filling quarry stocks the dock reserve the porters feed on
+    expect(pickJob(view([quarry(8), kiln(0)]), 6, NO_CLAIMS, AT, false, undefined, 'gatherer')).toMatchObject({ type: 'stock', from: 0, to: 'dock' });
+    expect(pickJob(view([quarry(8), kiln(0)], { stone: 12 }), 6, NO_CLAIMS, AT, false, undefined, 'gatherer')).toBeNull();
     // a raw material nobody here uses is the shipper's, not stocked
     expect(pickJob(view([quarry(8)]), 6, NO_CLAIMS, AT, false, undefined, 'gatherer')).toBeNull();
     // a pile still small waits
     expect(pickJob(view([quarry(3), kiln(0)]), 6, NO_CLAIMS, AT, false, undefined, 'gatherer')).toBeNull();
+  });
+
+  it('0.9.6 (F3): a full pile a processor still wants is fed, never sold; sold only when every hopper is full', () => {
+    // shipper: the full quarry pile goes to the kiln, not the depot
+    expect(pickJob(view([quarry(12), kiln(6)]), 6, NO_CLAIMS, AT, false, undefined, 'shipper')).toMatchObject({ type: 'feed', from: 0, to: 1 });
+    expect(pickJob(view([quarry(12), kiln(0)]), 6, NO_CLAIMS, AT, false, undefined, 'shipper')).toMatchObject({ type: 'surplus', from: 0, to: 'depot' });
+    // hauler: feeds first, and never sells a pile the kiln still has room for
+    expect(pickJob(view([quarry(12), kiln(6)]), 6, NO_CLAIMS, AT, false, undefined, 'hauler')).toMatchObject({ type: 'feed' });
+    const claims = { sources: new Map(), dests: new Map([['m1:stone', 6]]) };
+    expect(pickJob(view([quarry(12), kiln(6)]), 6, claims, AT, false, undefined, 'hauler')).toMatchObject({ type: 'surplus', from: 0 });
+    // clerk: never sells a wanted pile either
+    expect(pickJob(view([quarry(12), kiln(6)]), 6, NO_CLAIMS, AT, false, undefined, 'clerk')).toBeNull();
   });
 
   it('foreman: material to a machine you are building, from a pile or the dock, and nothing else', () => {
@@ -185,6 +206,26 @@ describe('conveyor belts (planBelts)', () => {
     expect(new Set(belts.map((b) => b.from)).size).toBe(2);
     expect(new Set(belts.map((b) => b.to)).size).toBe(2);
     for (const b of belts) expect(b.kind).toBe('stone');
+  });
+
+  it('0.9.6 (F3): a full era build belts every input in the natural order, and two thirds of them in any order', () => {
+    for (let n = 2; n <= MAX_ERA; n++) {
+      const L = regionLayout(n);
+      const ids = contentMachines(n).filter((id): id is MachineId => id in MACHINES);
+      const orders = [ids, [...ids].reverse(), [...ids.filter((id) => MACHINES[id].kind === 'processor'), ...ids.filter((id) => MACHINES[id].kind === 'extractor')]];
+      for (const order of orders) {
+        const machines: SlotMachines = L.slots.map((_, i) => MACHINES[order[i % order.length]!]);
+        const belts = planBelts(L, machines);
+        let inputs = 0;
+        machines.forEach((m) => {
+          if (m?.kind === 'processor') inputs += m.inputs.length;
+        });
+        expect(belts.length, `era ${n} ${order.join(',')}`).toBeGreaterThanOrEqual(order === ids && n <= 4 ? inputs : Math.ceil((inputs * 2) / 3));
+        expect(new Set(belts.map((b) => `${b.to}:${b.kind}`)).size).toBe(belts.length); // one belt into each input
+        // two belts on the same level never share a stretch of lane
+        for (const b of belts) expect(b.level).toBeLessThan(BELT_LEVELS);
+      }
+    }
   });
 
   it('nothing to link: no belts (an extractor alone, or a processor with no producer)', () => {

@@ -154,6 +154,11 @@ describe('fallbackDest', () => {
     expect(fallbackDest(view([quarry(0)]), 'stone', NO_CLAIMS, AT, 1, false)).toBe('depot');
   });
 
+  it('0.9.6 (F3): a load a full processor here still uses waits on the import dock, never sold raw', () => {
+    expect(fallbackDest(view([quarry(0), kiln(0)]), 'stone', NO_CLAIMS, AT, 1, false)).toBe('dock');
+    expect(fallbackDest({ ...view([quarry(0), kiln(0)]), dockAccepts: () => false }, 'stone', NO_CLAIMS, AT, 1, false)).toBe('depot');
+  });
+
   it('puts imports back on the dock', () => {
     expect(fallbackDest(view([]), 'stone', NO_CLAIMS, AT, null, true)).toBe('dock');
     expect(fallbackDest({ ...view([]), dockAccepts: () => false }, 'stone', NO_CLAIMS, AT, null, true)).toBe('depot');

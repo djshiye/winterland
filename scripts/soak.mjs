@@ -13,9 +13,14 @@
  * eras, every saved-game fixture in tests/fixtures, and a save -> reload -> keep playing round trip. The in-page
  * watchdog is scripts/soak/probe.js (what each finding means is described there).
  *
+ * 0.9.6 (F14): the `economy:eraN` scenarios also play each era 2..10 on its own (its machines built, its upgrades at
+ * Lv 10) and check that its premium good is made AND sold; they report each processor's uptime and the share of goods
+ * dumped at the export depot (targets: 60 % uptime, under 10 % dumped).
+ *
  * Prints a plain summary and writes the full JSON report (default: soak-report.json). Exit code 1 when any scenario
- * has a failure (escaped, jammed, loaded, jumped, error). Minor findings (solid: brushing a prop, stacked: two people
- * briefly standing inside each other) and `idle` agents are listed but do not fail.
+ * has a failure (escaped, jammed, loaded, jumped, error, economy: an era sold none of its premium good). Minor findings
+ * (solid: brushing a prop, stacked: two people briefly standing inside each other) and `idle` agents are listed but do
+ * not fail.
  * Never touches a real save: every page runs on its own throwaway browser profile.
  */
 import { createServer } from 'vite';
@@ -34,12 +39,53 @@ const capMinutes = Number(opt('--minutes', '0')) || 0;
 const only = (opt('--only', '') || '').split(',').filter(Boolean);
 const outFile = opt('--out', 'soak-report.json');
 /** Findings that fail the run. `solid` and `stacked` are listed as minor: brief brushes and overlaps, worth a look. */
-const FAIL = new Set(['escaped', 'jammed', 'loaded', 'jumped', 'error']);
+const FAIL = new Set(['escaped', 'jammed', 'loaded', 'jumped', 'error', 'economy']);
 const MINOR = new Set(['solid', 'stacked']);
 
 const probe = fs.readFileSync(path.join(root, 'scripts/soak/probe.js'), 'utf8');
 const SAVE_KEY = 'winterland.save.v1';
 const minutes = (m) => (capMinutes > 0 ? Math.min(m, capMinutes) : m) * 60;
+
+// ---- economy probe (0.9.6, F14) ---------------------------------------------------------------------------------------
+/**
+ * Runs in the page after the Survival setup: open era n on its own (only its region built, its own upgrades and every
+ * older one at Lv 10, settlement 5n), and count what it sells. Machines are sampled for uptime every simulated second
+ * through a wrapped Region.update; sales are counted through the market's buyer and depot hooks.
+ */
+const ECONOMY_SETUP = `async (n) => {
+  const W = __WINTERLAND__;
+  const { MACHINES } = await import('/src/eras/data.ts');
+  const { contentMachines, eraContent } = await import('/src/eras/template.ts');
+  const { REGION_SLOTS } = await import('/src/core/types.ts');
+  W.unlockEra(n);
+  W.setAllUpgrades(10);
+  W.setSettlement(5 * n);
+  const ids = contentMachines(n).filter((id) => MACHINES[id]);
+  for (let s = 0; s < REGION_SLOTS[n]; s++) W.buildMachine(n, s, ids[s % ids.length]);
+  const region = W.game.level.eras.region(n);
+  const mk = W.ctx.market;
+  const sold = {}, dumped = {};
+  const sale = mk.noteMarketSale.bind(mk);
+  mk.noteMarketSale = (k, c) => { sold[k] = (sold[k] || 0) + c; return sale(k, c); };
+  const exp = mk.sellExport.bind(mk);
+  mk.sellExport = (k, c, p) => { dumped[k] = (dumped[k] || 0) + c; return exp(k, c, p); };
+  const up = { on: 0, all: 0 }, by = {};
+  let acc = 0;
+  const update = region.update.bind(region);
+  region.update = (dt) => {
+    update(dt);
+    acc += dt;
+    if (acc < 1) return;
+    acc -= 1;
+    for (const m of region.machines) if (m && m.def.kind === 'processor') { const b = (by[m.def.id] ??= { on: 0, all: 0, why: {} }); up.all++; b.all++; if (m.working) { up.on++; b.on++; } else { const w = m.state === 'blocked' ? 'full' : (m.def.inputs.find((i) => !m.input || m.input.count(i.kind) < i.per)?.kind ?? 'full'); b.why[w] = (b.why[w] || 0) + 1; } }
+  };
+  const premium = MACHINES[eraContent(n).machines.premium].output;
+  const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+  window.__econ = {
+    sample: () => undefined,
+    result: () => ({ era: n, premium, premiumSold: (sold[premium] || 0) + (dumped[premium] || 0), uptime: Math.round((100 * up.on) / Math.max(1, up.all)), dumped: Math.round((100 * sum(dumped)) / Math.max(1, sum(sold) + sum(dumped))), sold, depot: dumped, by: Object.fromEntries(Object.entries(by).map(([k, b]) => [k, Math.round((100 * b.on) / Math.max(1, b.all)) + '%' + Object.entries(b.why).map(([w, c]) => ' ' + w + ':' + Math.round((100 * c) / Math.max(1, b.all)) + '%').join('')])) }),
+  };
+}`;
 
 // ---- world builders (run in the page; may import game modules from the dev server) ----------------------------------
 const SETUP = {
@@ -66,12 +112,13 @@ const SETUP = {
     W.unlockEra(10);
     for (let n = 2; n <= 10; n++) {
       // extractors first so every chain has raw material, then the processors
-      const ids = machinesOfEra(n).sort((a, b) => Number(!!MACHINES[b].extractor) - Number(!!MACHINES[a].extractor));
+      const ids = machinesOfEra(n).sort((a, b) => Number(MACHINES[b].kind === 'extractor') - Number(MACHINES[a].kind === 'extractor'));
       for (let s = 0; s < REGION_SLOTS[n]; s++) W.buildMachine(n, s, ids[s % ids.length]);
       const cb = cityBuildingsOfEra(n);
       for (let l = 0; l < DISTRICT_LOTS[n]; l++) W.buildCity(n, l, cb[l % cb.length]);
     }
-    W.setAllUpgrades(60);
+    // 0.9.5 literal gate: every upgrade caps at Lv 10
+    W.setAllUpgrades(10);
     W.setSettlement(50);
   }`,
 };
@@ -102,9 +149,9 @@ const SCENARIOS = [
         const { machinesOfEra, MACHINES } = await import('/src/eras/data.ts');
         const { REGION_SLOTS } = await import('/src/core/types.ts');
         W.unlockEra(${n});
-        const ids = machinesOfEra(${n}).sort((a, b) => Number(!!MACHINES[b].extractor) - Number(!!MACHINES[a].extractor));
+        const ids = machinesOfEra(${n}).sort((a, b) => Number(MACHINES[b].kind === 'extractor') - Number(MACHINES[a].kind === 'extractor'));
         for (let s = 0; s < REGION_SLOTS[${n}]; s++) W.buildMachine(${n}, s, ids[s % ids.length]);
-        W.setAllUpgrades(${n * 10});
+        W.setAllUpgrades(10);
         W.setSettlement(${5 * n});
       })()`,
     })),
@@ -114,6 +161,8 @@ const SCENARIOS = [
     setup: 'allEras',
     stretches: [{ sim: minutes(5) }, { sim: minutes(5), reload: true }, { sim: minutes(3), reload: true }],
   },
+  // 0.9.6 (F14): every era on its own sells its premium good (eras/template.ts machines.premium)
+  ...[2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => ({ name: `economy:era${n}`, setup: 'survival', economy: n, stretches: [{ sim: minutes(4) }] })),
   ...fs
     .readdirSync(path.join(root, 'tests/fixtures'))
     .filter((f) => /^(save-|era1-).*\.json$/.test(f))
@@ -182,12 +231,20 @@ for (const sc of SCENARIOS) {
       }
       await page.evaluate((n) => window.__soak.reset(n), `${sc.name}#${i + 1}`);
       if (st.before) await page.evaluate(`(async () => { const W = __WINTERLAND__; await ${st.before}; })()`);
+      if (sc.economy) await page.evaluate(`(${ECONOMY_SETUP})(${Number(sc.economy)})`);
       let done = 0;
       while (done < st.sim) {
         const chunk = Math.min(60, st.sim - done);
         const r = await page.evaluate((s) => window.__soak.run(s), chunk);
+        if (sc.economy) await page.evaluate(() => window.__econ.sample());
         done += chunk;
         if (done % 300 === 0 || done >= st.sim) log(`  #${i + 1} ${r.sim}s sim, ${r.agents} agents live, ${r.findings} findings`);
+      }
+      if (sc.economy) {
+        const e = await page.evaluate(() => window.__econ.result());
+        merged.economy = e;
+        log(`  economy era ${e.era}: ${e.premium} sold ${e.premiumSold}, processor uptime ${e.uptime}%, dumped at the depot ${e.dumped}% ${JSON.stringify(e.by)}`);
+        if (e.premiumSold <= 0) merged.findings.push({ type: 'economy', scenario: sc.name, message: `era ${e.era} sold no ${e.premium} (uptime ${e.uptime}%, sold ${JSON.stringify(e.sold)})` });
       }
       const rep = await page.evaluate(() => window.__soak.report());
       merged.simSeconds += rep.simSeconds;

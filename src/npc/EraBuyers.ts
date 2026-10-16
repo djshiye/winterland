@@ -9,6 +9,8 @@
  * TRADE_POST.patience seconds pays for what it has (or, still empty, re-picks its kind). Trucks only come while the
  * counter has something on it or the line is empty, so one truck always waits and a quiet region shows no traffic jam.
  * Pooled per variant: spawning is free after warm-up and the cargo goes back to the item pool on despawn.
+ * 0.9.6 (F6): later eras and bigger docks bring buyers more often and with bigger orders (buyerScale), so the counters
+ * keep up with a levelled region and little is left to sell cheaply at the depot.
  */
 import * as THREE from 'three';
 import { TIMING, TRADE_POST } from '../config';
@@ -68,13 +70,33 @@ class Truck {
     this.bubble.sprite.visible = false;
     this.bubble.sprite.position.set(0, model.bubbleY, 0);
     model.root.add(this.bubble.sprite);
-    this.cargo = new Pile(ctx, { id, accepts: MATERIAL_KINDS, position: new THREE.Vector3(0, 0, 0), parent: model.bedPivot, grid: TRADE_POST.bedGrid });
+    this.cargo = new Pile(ctx, { id, accepts: MATERIAL_KINDS, position: new THREE.Vector3(0, 0, 0), parent: model.bedPivot, grid: BED_GRID });
   }
 }
 
 const tmp = new THREE.Vector3();
 const ACCEL = 6;
 const DECEL = 8;
+
+/** 0.9.6 (F6): a later era's buyers come this much more often per era past the Frontier (on top of the Dock value). */
+const ERA_RATE = 0.1;
+/** 0.9.6 (F6): and buy this much more per era past the Frontier … */
+const ERA_SIZE = 0.12;
+/** … and this much more per Dock / Stall value past ×1 (a bigger dock draws bigger trucks). */
+const BOOST_SIZE = 0.4;
+/** 0.9.6: a truck bed holds up to 3 × 3 × 3 = 27 (TRADE_POST.bedGrid with a third layer). */
+export const BED_GRID = { ...TRADE_POST.bedGrid, layers: 3 };
+export const BED_MAX = BED_GRID.cols * BED_GRID.rows * BED_GRID.layers;
+
+/**
+ * 0.9.6 (F6): how era `era`'s buyers scale with the era and their counter's upgrade value (`boost`, the Dock or Stall
+ * value ≥ 1): `rate` multiplies how often they come, `size` how much each one buys. Era 2 at ×1 is 0.9.5 exactly.
+ */
+export function buyerScale(era: number, boost: number): { rate: number; size: number } {
+  const past = Math.max(0, era - 2);
+  const b = Math.max(1, boost);
+  return { rate: b * (1 + ERA_RATE * past), size: (1 + ERA_SIZE * past) * (1 + BOOST_SIZE * (b - 1)) };
+}
 
 export class EraBuyers {
   /** Trucks in line, front first (including ones still driving in). */
@@ -135,8 +157,8 @@ export class EraBuyers {
       this.spawnTimer = 0.5;
       return;
     }
-    const boost = Math.max(1, this.post.boost());
-    this.spawnTimer = randRange(TRADE_POST.gap[0], TRADE_POST.gap[1]) / boost;
+    const scale = buyerScale(this.post.era, this.post.boost());
+    this.spawnTimer = randRange(TRADE_POST.gap[0], TRADE_POST.gap[1]) / scale.rate;
     const variant = this.spawned++ % 2;
     let t = this.pools[variant]!.pop();
     if (!t) {
@@ -146,7 +168,7 @@ export class EraBuyers {
     t.mode = 'queue';
     t.u = -this.post.lane.fromX;
     t.speed = TRADE_POST.driveSpeed * 0.8;
-    t.want = Math.min(TRADE_POST.maxWant, Math.round(randRange(TRADE_POST.want[0] - 0.49, TRADE_POST.want[1] + 0.49)));
+    t.want = Math.min(BED_MAX, Math.round(Math.min(TRADE_POST.maxWant, randRange(TRADE_POST.want[0] - 0.49, TRADE_POST.want[1] + 0.49)) * scale.size));
     t.kind = null;
     t.atSlot = false;
     t.bubbleOn = false;

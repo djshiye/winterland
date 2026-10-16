@@ -63,4 +63,12 @@ export const ERA5_7_ICONS: Record<string, string> = {
        <path d="M36 32v8" fill="none"/>
        <rect x="8" y="27" width="34" height="3" rx="1" fill="#c44536" stroke-width="1.6"/>`),
   ),
+  // 0.9.6: era 5's own raw material (ARGON docs/art/05-pig-iron.md): a notched sand-cast bar, three sooty knuckles
+  // split by two ember-orange V-notches, a rusty sand-crust lip and the snapped pour spout
+  pigIron: svg(
+    g(`<path d="M5 30l4 8h30l4-8z" fill="#7a4b3a"/>
+       <path d="M5 30v-10l4-4h7l1 3 2-3h8l2 3 1-3h7l4 4v10z" fill="#4a444b"/>
+       <path d="M16 16l2 14M28 16l2 14" stroke="#e87a3e" stroke-width="3.6"/>
+       <circle cx="24" cy="33" r="3.4" fill="#e87a3e" stroke-width="2"/><circle cx="24" cy="33" r="1.3" fill="#f3a833" stroke-width="0"/>`, 3),
+  ),
 };

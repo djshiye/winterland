@@ -99,7 +99,8 @@ describe('market upgrades', () => {
     }
     expect(eraFallback(2, 'raw')).toBe('stone');
     expect(eraFallback(2, 'refined')).toBe('brick');
-    expect(eraFallback(5, 'raw')).toBe('ore'); // era 5 mines no raw of its own
+    expect(eraFallback(5, 'raw')).toBe('pigIron'); // 0.9.6: era 5 mines its own pig iron
+    expect(eraFallback(10, 'raw')).toBe('dataShard');
     expect(eraFallback(10, 'refined')).toBe('aiCore');
   });
 });

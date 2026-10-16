@@ -164,6 +164,37 @@ const buildSnowmobile: Builder = (b, m) => {
 };
 
 /** Builders for the new era 5–7 shapes (eras/data.ts MaterialShape). */
+/**
+ * 0.9.6 era 5 pig iron (ARGON spec docs/art/05-pig-iron.md): a sand-cast "sow and pigs" bar: a rusty sand-crust
+ * base, three sooty knuckles with flat tops (stacking plane) split by two ember-orange V-notches, and a snapped
+ * pour-spout runner front to back.
+ */
+const buildPigBar: Builder = (b, m) => {
+  const { w, h, d } = m.size;
+  const y0 = -h / 2;
+  const crust = 0x7a4b3a;
+  const slag = 0x2d2830;
+  const ember = m.accent;
+  // sand-cast base, a little narrower than the knuckles
+  b.add(box(w * 0.955, h * 0.5, d * 0.91), crust, 0, y0 + h * 0.25, 0);
+  // three knuckles, the outer two a touch wider, tops co-planar at h
+  const kw = [w * 0.295, w * 0.273, w * 0.295];
+  const kx = [-w * 0.33, 0, w * 0.33];
+  for (let i = 0; i < 3; i++) {
+    b.add(box(kw[i]!, h * 0.5, d), m.color, kx[i]!, y0 + h * 0.75, 0);
+    // darker chamfer band low on each knuckle
+    b.add(box(kw[i]! * 1.01, h * 0.1, d * 1.01), slag, kx[i]!, y0 + h * 0.52, 0);
+  }
+  // ember-orange V-notches between the knuckles (glow in the groove, gold fleck on top)
+  for (const s of [-1, 1]) {
+    b.add(box(w * 0.04, h * 0.44, d * 1.02), ember, s * w * 0.164, y0 + h * 0.72, 0);
+    b.add(box(w * 0.022, h * 0.06, d * 1.03), 0xf3a833, s * w * 0.164, y0 + h * 0.97, 0);
+  }
+  // pour-spout runner, hexagonal, poking out front and back with glowing snapped ends
+  b.add(cyl(h * 0.22, h * 0.22, d * 1.09, 6), slag, 0, y0 + h * 0.44, 0, { rx: Math.PI / 2 });
+  for (const s of [-1, 1]) b.add(cyl(h * 0.16, h * 0.16, 0.012, 6), ember, 0, y0 + h * 0.44, s * d * 0.55, { rx: Math.PI / 2 });
+};
+
 export const ERA5_7_ITEM_BUILDERS = {
   girder: buildGirder,
   plow: buildPlow,
@@ -172,5 +203,6 @@ export const ERA5_7_ITEM_BUILDERS = {
   canister: buildCanister,
   jerrycan: buildJerrycan,
   snowmobile: buildSnowmobile,
+  pigbar: buildPigBar,
 } as const satisfies Record<string, Builder>;
 export type Era5to7Shape = keyof typeof ERA5_7_ITEM_BUILDERS;

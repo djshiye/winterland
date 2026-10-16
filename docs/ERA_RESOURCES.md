@@ -58,29 +58,29 @@ Each era's hand action looks and moves differently from chopping. **Effect** is 
 - **Gatherer:** the Coal Picker.
 - **Extract:** `coalPit` → coal; `scrapYard` → scrap.
 - **Process:**
-  - `steamWorks`: iron + coal → gear
+  - `steamWorks`: scrap + coal → gear (0.9.6: was iron from era 3, which nothing delivered)
   - `boilerShop`: scrap + coal → boiler
 - **Premium:** `engineWorks`: gear + boiler → steamEngine.
 - **Cash:** `pneumaticTubes`.
 - **Sell:** coal, gear, boiler, steamEngine.
 
-### 5 Industrial: steel, reclaimed from slag
-- **Harvest:** break the **Slag Heap** with the **Rivet Hammer** to get `ore` (iron reclaimed from slag). The snowy crust lid lifts and thumps down over glowing molten seams.
+### 5 Industrial: pig iron and steel
+- **Harvest:** break the **Slag Heap** with the **Rivet Hammer** to get `pigIron` (0.9.6: era 5's own raw material; it used to reuse era 3's ore). The snowy crust lid lifts and thumps down over glowing molten seams.
 - **Gatherer:** the Slag Raker, whose rake leans on the heap.
-- **Extract:** `deepMine` → ore; `cokeOven` → coal.
+- **Extract:** `deepMine` → 2 pigIron; `cokeOven` → 2 coal.
 - **Process:**
-  - `steelMill`: ore + 2 coal → steel
-  - `rollingMill`: 2 steel → girder
+  - `steelMill`: pigIron + 2 coal → 2 steel
+  - `rollingMill`: steel → girder
 - **Premium:** `plowWorks`: girder + steel → snowplow.
 - **Cash:** `bankVault`.
-- **Sell:** coal, steel, girder, snowplow.
+- **Sell:** pigIron, steel, girder, snowplow.
 
 ### 6 Electric Age: copper
 - **Harvest:** drill the **Copper Vein** with the **Power Drill** to get `copper`. A teal electric arc crackles across the malachite and its copper ribbon.
 - **Gatherer:** the Copper Scrapper, with cable snips.
 - **Extract:** `copperMine` → copper; `quartzPit` → quartz.
 - **Process:**
-  - `wireMill`: 2 copper → wire
+  - `wireMill`: 2 copper → 2 wire
   - `bulbWorks`: wire + quartz → bulb
 - **Premium:** `radioWorks`: wire + bulb → radio.
 - **Cash:** `tillLine`.
@@ -102,7 +102,7 @@ Each era's hand action looks and moves differently from chopping. **Effect** is 
 - **Gatherer:** the Sand Sifter.
 - **Extract:** `sandPit` → silicon; `goldPanner` → gold.
 - **Process:**
-  - `chipFab`: silicon + wire → chip
+  - `chipFab`: 2 silicon → 2 chips (0.9.6: was silicon + wire from era 6, which nothing delivered)
   - `boardShop`: chip + gold → board
 - **Premium:** `pcAssembly`: board + chip → computer.
 - **Cash:** `atmNetwork`.
@@ -119,16 +119,16 @@ Each era's hand action looks and moves differently from chopping. **Effect** is 
 - **Cash:** `atomicVault`.
 - **Sell:** fuelRod, power, graphite, battery.
 
-### 10 AI Era: power, tuned out of crystal
-- **Harvest:** tune the **Data Crystal** with the **Nano Wand** to get `power`. A gold light ribbon spins up round the cream monolith and its lavender shard.
+### 10 AI Era: data shards, tuned out of crystal
+- **Harvest:** tune the **Data Crystal** with the **Nano Wand** to get `dataShard` (0.9.6: era 10's own raw material; it used to reuse era 9's power). A gold light ribbon spins up round the cream monolith and its lavender shard.
 - **Gatherer:** the Prospector Drone, with a resonator probe.
-- **Extract:** `fusionPlant` → power; `nanoFab` → chip.
+- **Extract:** `fusionPlant` → power; `nanoFab` → dataShard.
 - **Process:**
-  - `dataCenter`: chip + power → aiCore
-  - `robotWorks`: steel + aiCore → robot
+  - `dataCenter`: dataShard + power → aiCore
+  - `robotWorks`: aiCore + dataShard → robot (0.9.6: was steel from era 5, which nothing delivered)
 - **Premium:** `quantumLab`: aiCore + power → quantumCore.
 - **Cash:** `quantumBank`.
-- **Sell:** aiCore, robot, power, quantumCore.
+- **Sell:** dataShard, aiCore, robot, quantumCore.
 
 ## Wiring notes for the 0.9 thread
 
@@ -157,6 +157,8 @@ Each era's hand action looks and moves differently from chopping. **Effect** is 
 
 **Era 7 tool: Air Wrench → Ice Auger.** Dino asked for oil to be *drilled*. An auger drilling into the seep says that directly, and a wrench does not. The model and `ERA_NODES[7].tool` already use "Ice Auger". If you'd rather keep Air Wrench, it is a one-word rename. The model stays a drill.
 
-Two choices in section D are kept on purpose:
-- Era 5's node yields reused `ore` and era 10's yields reused `power`. The node, action and tool in both eras are still their own: breaking slag and tuning a crystal.
-- Each era's top product (snowplow, battery, quantumCore) is new. So the main resource still differs in every era, even where a raw material carries over.
+0.9.6 (1.0 decisions 8 and 15): every era's chain now runs on its own land (no input or build material from an older
+era), eras 5 and 10 mine their own raw material (`pigIron`, `dataShard`, each with its Fine upgrade), and the recipes
+are balanced so one extractor feeds its processor. Era 2-4 changes: the clay pit and charcoal clamp run faster, the
+smelter makes 2 iron, the rail mill takes 1 iron, the scrap yard digs 2 scrap. `ERA_PACE` in `src/eras/data.ts` keeps
+each era's model length. ARGON prompts for the two new item models: `/mnt/project-files/argon/ARGON_PROMPTS_0.9.6_items.md`.
