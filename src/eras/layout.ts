@@ -8,7 +8,7 @@
  * mat right of it); MACHINE SLOTS fill the rest in a centred grid. The EXPANSION PAD sits on the road just outside
  * the gate. Machines face the front yard (their feed / take side toward the gate).
  */
-import { DISTRICTS, ERAS, REGIONS, regionDef, type ERect, type GateSide } from './data';
+import { DISTRICTS, ERAS, REGIONS, ROADS, regionDef, type ERect, type GateSide } from './data';
 import type { GameState } from '../core/types';
 import { climbOpen, gateMet, padPaid } from './gate';
 
@@ -160,6 +160,34 @@ export function travelPoints(state: GameState): TravelPoint[] {
     const d = DISTRICTS[n];
     if (!d) continue;
     out.push({ id: `district:${n}`, label: d.name, kind: 'district', era: n, x: d.rect.minX - 2, z: (d.rect.minZ + d.rect.maxZ) / 2, open: state.eras.age >= n });
+  }
+  return out;
+}
+
+/**
+ * 0.9.3: the era trail, the way to walk from the Market Town to era `upTo`'s gate (2..10) along the roads, as a
+ * polyline of world points (x, z) through every earlier region's gate in era order. The map panel draws it so the
+ * next era is always one line away. Points sit 1 m out on the road from each gate; a change of road goes down the
+ * east link (ROADS r1r2east). Pure.
+ */
+export function eraTrail(upTo: number): XZ[] {
+  const avenue = ROADS.find((r) => r.id === 'southAvenue')!.rect;
+  const link = ROADS.find((r) => r.id === 'r1r2east')!.rect;
+  const linkX = (link.minX + link.maxX) / 2;
+  const out: XZ[] = [{ x: (avenue.minX + avenue.maxX) / 2, z: avenue.minZ + 2 }];
+  for (let n = 2; n <= Math.min(upTo, REGIONS.length - 1); n++) {
+    if (!REGIONS[n]) continue;
+    const L = regionLayout(n);
+    const next = { x: L.gate.x, z: L.gate.z - L.inward };
+    const prev = out[out.length - 1]!;
+    if (Math.abs(prev.z - next.z) > 6) {
+      // another road: along this one to the link, down (or up) the link, then along the new road
+      if (n > 2) out.push({ x: linkX, z: prev.z }, { x: linkX, z: next.z });
+      else out.push({ x: prev.x, z: next.z });
+    } else if (prev.z !== next.z) {
+      out.push({ x: next.x, z: prev.z });
+    }
+    out.push(next);
   }
   return out;
 }
