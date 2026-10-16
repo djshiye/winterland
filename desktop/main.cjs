@@ -1,16 +1,18 @@
 /**
- * Electron shell for the desktop builds (Linux, Windows). It serves the Vite build (dist/) through a private
+ * Electron shell for the desktop builds (Linux, Windows, macOS). It serves the Vite build (dist/) through a private
  * `app://` scheme rather than file://, so ES modules load normally and localStorage (the save) lives under one
  * stable origin that survives updates. Saves are kept in Electron's per-user data folder:
  *   Linux:   ~/.config/Winterland
  *   Windows: %APPDATA%\Winterland
+ *   macOS:   ~/Library/Application Support/Winterland
  *
  * Window state (mode, size, position, maximised) is remembered in `window.json` in that same folder:
  *   { "mode": "windowed" | "fullscreen", "bounds": { x, y, width, height }, "maximized": boolean }
  * Fullscreen is Electron's borderless fullscreen (alt-tab friendly). While fullscreen, `bounds` keeps the last
  * windowed size so leaving fullscreen restores it. Saved bounds that are no longer on any display are ignored.
  *
- * Keys: F11 or Alt+Enter toggles fullscreen, Ctrl+R reloads, F12 / Ctrl+Shift+I open the dev tools.
+ * Keys: F11 or Alt+Enter toggles fullscreen, Ctrl+R reloads, F12 / Ctrl+Shift+I open the dev tools (Cmd works for
+ * Ctrl on macOS). On macOS the app keeps the standard app menu so Cmd+Q, Cmd+H and Cmd+M behave as expected.
  *
  * Renderer bridge: desktop/preload.cjs exposes `window.winterlandDesktop` (see src/platform/desktop.ts); the IPC
  * channels it uses are handled at the bottom of this file.
@@ -183,7 +185,10 @@ ipcMain.on('desktop:setWindowMode', (event, mode) => {
 });
 
 app.whenReady().then(() => {
-  Menu.setApplicationMenu(null);
+  // No menu bar in the game window; macOS keeps just the app menu (Hide, Quit) and the Window menu (Minimize).
+  Menu.setApplicationMenu(
+    process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'windowMenu' }]) : null,
+  );
   protocol.handle('app', (request) => {
     const { pathname } = new URL(request.url);
     const file = path.normalize(path.join(DIST, decodeURIComponent(pathname)));
