@@ -16,6 +16,7 @@ import { MASTERY_KEEP, masteryPayout, refundPrice } from './refund';
 import { INVEST_POSITIONS_CAP, masteryOf } from './demand';
 import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
 import { mergeTradeIntoSales } from './salesMerge';
+import { convertEraResources, LEGACY_KINDS } from './resourcesV2';
 import { GAME_VERSION, isNewerVersion, parseVersion } from './version';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
@@ -372,6 +373,8 @@ export interface MigrationReport {
   masteryPayout: number;
   /** Era Trade levels refunded when Trade merged into the material sales upgrades (their dollars are in `refund`). */
   tradeLevels: number;
+  /** 0.9.7 era resources v2: the save had reached era 5 or later when its goods were converted (0 = not shown). */
+  resourcesAge: number;
 }
 
 /** What a migration may know besides the state: the save's recent sales rate ($/s). */
@@ -379,6 +382,10 @@ export interface MigrationContext {
   salesRate: number;
   /** The save's raw upgrades record, before unknown (removed) ids were dropped. */
   upgrades?: unknown;
+  /** The save's raw state, before mergeState / sanitizeState dropped what this build no longer knows. */
+  saved?: unknown;
+  /** What lies in the world (the snapshot Level.restoreWorld will read), changed in place. */
+  world?: WorldSnapshot;
 }
 
 export interface Migration {
@@ -433,11 +440,21 @@ export const MIGRATIONS: readonly Migration[] = [
       report.tradeLevels += r.levels;
     },
   },
+  {
+    // 0.9.7 era resources v2 (Dino, 2026-10-16): era 5 runs on iron pellets + coke, era 10 on rare earth + helium-3
+    // with fusion. Pig iron and data shards become the new raws one for one, era 5's coal and era 10's power cells
+    // become coke and fusion cells, built Fusion Plants become Helium Skimmers with their level (core/resourcesV2.ts).
+    id: '0.9.7-era-resources',
+    run(state, report, ctx) {
+      convertEraResources(state, ctx.saved, ctx.world);
+      if (state.eras.age >= 5) report.resourcesAge = state.eras.age;
+    },
+  },
 ];
 
 /** Apply every migration this save has not had yet (see MIGRATIONS). `fresh`: a new game, nothing to migrate. */
 export function migrateState(state: GameState, fresh: boolean, ctx: MigrationContext = { salesRate: 0 }, list: readonly Migration[] = MIGRATIONS): MigrationReport {
-  const report: MigrationReport = { applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0, tradeLevels: 0 };
+  const report: MigrationReport = { applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0, tradeLevels: 0, resourcesAge: 0 };
   for (const m of list) {
     if (state.migrations[m.id]) continue;
     if (!fresh) {
@@ -565,7 +582,8 @@ export function sanitizeWorld(w: unknown): WorldSnapshot {
       sled: n(piles.sled),
     },
     cash: { walkIn: n(cash.walkIn), se: n(cash.se), truck: n(cash.truck), platform: n(cash.platform), sled: n(cash.sled), gift: n(cash.gift) },
-    arms: Object.fromEntries(CARRY_KINDS.map((k) => [k, n(arms[k])])) as Record<CarryKind, number>,
+    // 0.9.7: what a player carried of a removed kind (pig iron, data shards) is carried as its new kind
+    arms: Object.fromEntries(CARRY_KINDS.map((k) => [k, n(arms[k]) + legacyCarried(arms, k)])) as Record<CarryKind, number>,
     town: Array.from({ length: LOT_COUNT }, (_, i) => {
       const lot = Array.isArray(o.town) && isObj(o.town[i]) ? (o.town[i] as Record<string, unknown>) : {};
       const inp = isObj(lot.in) ? lot.in : {};
@@ -592,6 +610,13 @@ export function sanitizeWorld(w: unknown): WorldSnapshot {
       };
     }),
   };
+}
+
+/** Units of removed kinds (core/resourcesV2.ts LEGACY_KINDS) that `k` replaces, from a raw saved arms record. */
+function legacyCarried(arms: Record<string, unknown>, k: CarryKind): number {
+  let total = 0;
+  for (const [from, to] of Object.entries(LEGACY_KINDS)) if (to === k && isNum(arms[from])) total += Math.max(0, Math.floor(arms[from]));
+  return total;
 }
 
 function isNum(v: unknown): v is number {

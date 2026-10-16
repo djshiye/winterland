@@ -165,34 +165,56 @@ const buildSnowmobile: Builder = (b, m) => {
 
 /** Builders for the new era 5–7 shapes (eras/data.ts MaterialShape). */
 /**
- * 0.9.6 era 5 pig iron (ARGON spec docs/art/05-pig-iron.md): a sand-cast "sow and pigs" bar: a rusty sand-crust
- * base, three sooty knuckles with flat tops (stacking plane) split by two ember-orange V-notches, and a snapped
- * pour-spout runner front to back.
+ * 0.9.7 era 5 iron pellets (era resources v2): a shallow
+ * riveted steel tray heaped with marble-sized rust-red taconite balls, flat-topped so trays stack.
  */
-const buildPigBar: Builder = (b, m) => {
+const buildTaconite: Builder = (b, m) => {
   const { w, h, d } = m.size;
   const y0 = -h / 2;
-  const crust = 0x7a4b3a;
-  const slag = 0x2d2830;
-  const ember = m.accent;
-  // sand-cast base, a little narrower than the knuckles
-  b.add(box(w * 0.955, h * 0.5, d * 0.91), crust, 0, y0 + h * 0.25, 0);
-  // three knuckles, the outer two a touch wider, tops co-planar at h
-  const kw = [w * 0.295, w * 0.273, w * 0.295];
-  const kx = [-w * 0.33, 0, w * 0.33];
-  for (let i = 0; i < 3; i++) {
-    b.add(box(kw[i]!, h * 0.5, d), m.color, kx[i]!, y0 + h * 0.75, 0);
-    // darker chamfer band low on each knuckle
-    b.add(box(kw[i]! * 1.01, h * 0.1, d * 1.01), slag, kx[i]!, y0 + h * 0.52, 0);
-  }
-  // ember-orange V-notches between the knuckles (glow in the groove, gold fleck on top)
+  const trayH = h * 0.42;
+  // tray: floor, four low walls (steel accent), rivets on the front lip
+  b.add(box(w, trayH * 0.3, d), shade(m.accent, 0.85), 0, y0 + trayH * 0.15, 0);
   for (const s of [-1, 1]) {
-    b.add(box(w * 0.04, h * 0.44, d * 1.02), ember, s * w * 0.164, y0 + h * 0.72, 0);
-    b.add(box(w * 0.022, h * 0.06, d * 1.03), 0xf3a833, s * w * 0.164, y0 + h * 0.97, 0);
+    b.add(box(w, trayH, d * 0.08), m.accent, 0, y0 + trayH / 2, s * d * 0.46);
+    b.add(box(w * 0.06, trayH, d), m.accent, s * w * 0.47, y0 + trayH / 2, 0);
   }
-  // pour-spout runner, hexagonal, poking out front and back with glowing snapped ends
-  b.add(cyl(h * 0.22, h * 0.22, d * 1.09, 6), slag, 0, y0 + h * 0.44, 0, { rx: Math.PI / 2 });
-  for (const s of [-1, 1]) b.add(cyl(h * 0.16, h * 0.16, 0.012, 6), ember, 0, y0 + h * 0.44, s * d * 0.55, { rx: Math.PI / 2 });
+  for (let i = 0; i < 4; i++) b.add(cyl(0.012, 0.012, 0.01, 6), shade(m.accent, 1.5), -w * 0.33 + i * w * 0.22, y0 + trayH * 0.6, d * 0.505, { rx: Math.PI / 2 });
+  // a mounded heap of pellets in three layers (low-poly balls: every pile item is drawn); the top layer sets the
+  // flat stacking plane, warm highlights and darker pellets mixed so the heap reads as loose balls at 25 m
+  const r = Math.min(w, d) * 0.095;
+  const layers: [number, number, number][] = [[4, 3, 0.22], [3, 2, 0.24], [2, 1, 0.26]];
+  layers.forEach(([cols, rows, pitch], layer) => {
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        const x = (i - (cols - 1) / 2) * w * pitch;
+        const z = (j - (rows - 1) / 2) * d * (pitch + 0.06);
+        const tone = (i * 2 + j + layer) % 3 === 0 ? 1.2 : (i + j + layer) % 2 ? 0.82 : 1;
+        b.add(ball(r, 7, 5), shade(m.color, tone), x, y0 + trayH * 0.5 + r + layer * r * 1.25, z);
+      }
+    }
+  });
+};
+
+/**
+ * 0.9.7 era 5 coke : a light, porous silver-grey chunk (clearly not
+ * coal's matte black) with still-warm ember pores, on a flat base so it stacks.
+ */
+const buildCoke: Builder = (b, m) => {
+  const { w, h, d } = m.size;
+  const y0 = -h / 2;
+  const lump = (r: number): THREE.BufferGeometry => new THREE.DodecahedronGeometry(r, 0);
+  b.add(box(w * 0.86, h * 0.2, d * 0.8), shade(m.color, 0.7), 0, y0 + h * 0.1, 0);
+  const parts: [number, number, number, number, number][] = [
+    [0, 0.55, 0, 0.42, 1],
+    [-0.3, 0.4, 0.15, 0.3, 1.15],
+    [0.3, 0.42, -0.1, 0.32, 0.9],
+    [0.08, 0.4, 0.3, 0.26, 1.05],
+  ];
+  parts.forEach(([x, y, z, r, tone], i) => b.add(lump(0.5), shade(m.color, tone), x * w, y0 + y * h, z * d, { sx: r * w * 2, sy: r * h * 1.7, sz: r * d * 2, ry: i * 0.8 }));
+  // ember pores (the accent) and dark holes on the front and top
+  for (const [x, y, z, k] of [[-0.18, 0.62, 0.36, 1], [0.16, 0.48, 0.4, 0], [0.3, 0.7, 0.18, 1], [-0.32, 0.38, 0.38, 0], [0.02, 0.86, 0.05, 1]] as const) {
+    b.add(ball(w * 0.045, 6, 4), k ? m.accent : shade(m.color, 0.45), x * w, y0 + y * h, z * d);
+  }
 };
 
 export const ERA5_7_ITEM_BUILDERS = {
@@ -203,6 +225,7 @@ export const ERA5_7_ITEM_BUILDERS = {
   canister: buildCanister,
   jerrycan: buildJerrycan,
   snowmobile: buildSnowmobile,
-  pigbar: buildPigBar,
+  taconite: buildTaconite,
+  coke: buildCoke,
 } as const satisfies Record<string, Builder>;
 export type Era5to7Shape = keyof typeof ERA5_7_ITEM_BUILDERS;

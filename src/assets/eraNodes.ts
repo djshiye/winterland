@@ -2,8 +2,8 @@
  * Era hand nodes: the "giant log" of eras 2..10. Each era's main resource is harvested by hand from its own node
  * (docs/EXPANSION.md section D, art spec docs/art/era-NN.json `node`, design notes in docs/ERA_RESOURCES.md):
  *
- *   2 Great Boulder · 3 Ore Vein · 4 Coal Seam · 5 Slag Heap · 6 Copper Vein · 7 Oil Seep · 8 Sand Dune ·
- *   9 Uranium Crystal · 10 Data Crystal
+ *   2 Great Boulder · 3 Ore Vein · 4 Coal Seam · 5 Taconite Ridge · 6 Copper Vein · 7 Oil Seep · 8 Sand Dune ·
+ *   9 Uranium Crystal · 10 Rare Earth Geode
  *
  * Plus the matching hand tool the player swings at it (`createNodeTool`), the era analog of `createAxe`.
  *
@@ -12,7 +12,7 @@
  * - ≤ 3 meshes: 'body' (merged, vertex colours, snow caps included), 'glow' (the shared `eraGlowMaterial()`, so night
  *   lighting needs no caller code) and ONE animated mesh 'anim'. Body and glow sit in a 'shake' group that squashes
  *   and wobbles on a hit; the anim mesh plays the era's own harvest effect (a stone flake pops off, rust sparks spray,
- *   soot puffs, the slag crust thumps, copper crackles, the auger drills, silica glints swirl, the uranium halo
+ *   soot puffs, taconite pellets spray, copper crackles, the auger drills, silica glints swirl, the uranium halo
  *   pulses, the light ribbon spins up). Pop / spark / puff / crackle meshes are hidden while idle (no draw call).
  * - `hit()` starts one harvest reaction (call it on every tool strike, like GiantLog's chopPiece);
  *   `animate(dt)` runs the idle motion and any reaction. No allocation per frame.
@@ -47,12 +47,12 @@ export const ERA_NODES: Readonly<Record<number, EraNodeDef>> = {
   2: { era: 2, name: 'Great Boulder', yields: 'stone', verb: 'Chip', tool: 'Stone Pick' },
   3: { era: 3, name: 'Ore Vein', yields: 'ore', verb: 'Pick', tool: 'Iron Pick' },
   4: { era: 4, name: 'Coal Seam', yields: 'coal', verb: 'Shovel', tool: 'Coal Shovel' },
-  5: { era: 5, name: 'Slag Heap', yields: 'pigIron', verb: 'Break', tool: 'Rivet Hammer' },
+  5: { era: 5, name: 'Taconite Ridge', yields: 'pellets', verb: 'Hammer', tool: 'Rivet Hammer' },
   6: { era: 6, name: 'Copper Vein', yields: 'copper', verb: 'Drill', tool: 'Power Drill' },
   7: { era: 7, name: 'Oil Seep', yields: 'crude', verb: 'Drill', tool: 'Ice Auger' },
   8: { era: 8, name: 'Sand Dune', yields: 'silicon', verb: 'Sift', tool: 'Laser Sieve' },
   9: { era: 9, name: 'Uranium Crystal', yields: 'uranium', verb: 'Cut', tool: 'Geiger Tongs' },
-  10: { era: 10, name: 'Data Crystal', yields: 'dataShard', verb: 'Tune', tool: 'Nano Wand' },
+  10: { era: 10, name: 'Rare Earth Geode', yields: 'rareEarth', verb: 'Tune', tool: 'Nano Wand' },
 };
 
 export const NODE_ERAS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -75,9 +75,11 @@ const SANDSTONE = 0x8a8580;
 const COAL = 0x34323a;
 const SHALE = 0x4a484d;
 const BRASS = 0xd49a35;
-const SLAG = 0x40444a;
-const SLAG_L = 0x8f9296;
-const CRUST = 0x5a5f66;
+// 0.9.7 era 5 taconite (rust-red pellets on black spoil)
+const TACONITE = 0xa8503a;
+const TACONITE_L = 0xc46a48;
+const TACONITE_D = 0x8a4232;
+const SPOIL = 0x3f3a3a;
 const STEEL = 0x7f8b99;
 const MALACHITE = 0x4f7a8c;
 const COPPER = 0xc9773a;
@@ -96,8 +98,11 @@ const URANIUM = 0x7bd04a;
 const URANIUM_L = 0x9de070;
 const PEWTER = 0x8fa1b3;
 const CREAM = 0xf5f0e6;
-const SLATE = 0x526475;
-const LAVENDER = 0xb48cff;
+const LAVENDER = 0xb9a0e0;
+const LAVENDER_D = 0x8f78bd;
+// 0.9.7 era 10 geode rind (pale, warm stone)
+const RIND = 0xd8cfc0;
+const RIND_D = 0xb4aa9a;
 const GOLD = 0xe8a848;
 
 // glow tints (vertex colour × the shared emissive material)
@@ -110,6 +115,7 @@ const G_OIL = 0xffaa5a;
 const G_MINT = 0x66e0a3;
 const G_NUCLEAR = 0x70f5d9;
 const G_SUN = 0xffe082;
+const G_LAVENDER = 0xd9c4ff;
 
 // ---------------------------------------------------------------------------
 // recipe framework
@@ -267,28 +273,38 @@ const coalSeam: NodeRecipe = {
 };
 
 // ---------------------------------------------------------------------------
-// era 5 — Slag Heap: cooled steel-mill slag with glowing seams; the crust lid thumps and drops
+// era 5 — Taconite Ridge (0.9.7): a rust-red ridge of iron pellets with dark spoil streaks and an ember seam, an
+// ore-cart rail at its foot; each hammer strike sprays a handful of pellets
 // ---------------------------------------------------------------------------
 
-const slagHeap: NodeRecipe = {
+const taconiteRidge: NodeRecipe = {
   strike: [0.0, 0.7, 1.05],
   build: ({ body: b, glow: g, anim: a }) => {
-    foot(b, 1.1, SLAG, 5);
-    b.cone(SLAG, 1.3, 1.25, 0, 0, -0.05, 9);
-    b.sph(SLAG, 1, 0, 0.55, -0.05, { sx: 1.2, sy: 0.55, sz: 1.1 });
-    b.box(SLAG_L, 1.2, 0.6, 0.9, 0.5, 0.25, -0.35, { ry: 0.6 });
-    // warm molten seams (glow) zigzagging down the front
-    for (const [x, y, r] of [[-0.35, 0.45, 0.5], [0.1, 0.62, -0.4], [0.45, 0.4, 0.35], [-0.1, 0.25, -0.2]] as const) g.box(G_MOLTEN, 0.42, 0.07, 0.07, x, y, 1.0 - Math.abs(x) * 0.25, { rz: r });
-    g.box(G_EMBER, 0.3, 0.07, 0.07, 0.3, 0.85, 0.75, { rz: 0.5 });
-    // steel rake left leaning on the heap (the Slag Raker's tool)
-    b.beam(STEEL, [-1.2, 0, 0.8], [-0.55, 1.1, 0.35], 0.07);
-    b.box(STEEL, 0.5, 0.08, 0.1, -1.24, 0.04, 0.82, { ry: 0.6 });
-    cap(b, 1.2, 1.0, 0, 1.24, -0.05);
-    // anim: the calcined crust lid (snow-dusted) that lifts and slams
-    a.box(CRUST, 1.1, 0.24, 0.8, 0, 0, 0, { rx: -0.3 });
-    a.sph(SNOW, 0.42, 0, 0.26, -0.05, { sx: 1.1, sy: 0.3, sz: 0.85, rx: -0.3 });
-    a.box(0x50555b, 0.4, 0.14, 0.3, 0.3, 0.18, 0.15, { rx: -0.3, ry: 0.3 });
-    return { mode: 'thump', at: [-0.05, 0.62, 0.62], amp: 0.4, dur: 0.55 };
+    foot(b, 1.1, SPOIL, 5);
+    // the ridge: a long rounded heap, a lower shoulder and a dark spoil streak down each flank
+    b.sph(TACONITE, 1, 0, 0.62, -0.1, { sx: 1.3, sy: 0.68, sz: 0.95 });
+    b.sph(TACONITE_D, 0.62, 0.75, 0.4, 0.15, { sx: 1.1, sy: 0.7, sz: 0.95 });
+    for (const [x, z, rz] of [[-0.7, 0.62, 0.45], [0.45, 0.68, -0.35]] as const) b.sph(TACONITE_D, 0.3, x, 0.42, z, { sx: 0.55, sy: 1.1, sz: 0.35, rz });
+    // loose pellets rolled out across the front (little balls)
+    const rnd = seeded(55);
+    for (let i = 0; i < 14; i++) b.sph(i % 3 ? TACONITE_L : TACONITE, 0.09, -0.9 + rnd() * 1.8, 0.1 + rnd() * 0.12, 0.75 + rnd() * 0.35);
+    // warm ember seam glowing along the ridge crest
+    for (const [x, y, z, r] of [[-0.55, 1.05, 0.35, 0.25], [-0.1, 1.15, 0.45, -0.1], [0.35, 1.05, 0.45, -0.3]] as const) g.box(G_EMBER, 0.42, 0.07, 0.07, x, y, z, { rz: r });
+    // a short ore-cart rail on sleepers at the foot, a steel cart at its end
+    for (const z of [1.2, 1.38]) b.box(STEEL, 2.0, 0.05, 0.05, 0, 0.05, z);
+    for (let i = 0; i < 5; i++) b.box(TIMBER_D, 0.12, 0.05, 0.36, -0.9 + i * 0.45, 0.02, 1.29);
+    // the cart sits on the rails: four small wheels, then the tub and its heaped load
+    for (const [x, z] of [[0.88, 1.2], [1.18, 1.2], [0.88, 1.38], [1.18, 1.38]] as const) hcyl(b, STEEL, 0.07, 0.04, x, 0.12, z, 'z', 8);
+    b.box(STEEL, 0.5, 0.26, 0.4, 1.03, 0.21, 1.29);
+    b.sph(TACONITE_L, 0.2, 1.03, 0.47, 1.29, { sx: 1.1, sy: 0.5, sz: 0.85 });
+    cap(b, 1.6, 1.1, -0.15, 1.18, -0.15);
+    cap(b, 0.8, 0.7, 0.8, 0.78, 0.1);
+    // anim: a spray of pellets bursting off the face
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2;
+      a.sph(i % 2 ? TACONITE_L : TACONITE, 0.08, Math.cos(ang) * 0.22, Math.sin(ang) * 0.12, 0.05 * (i % 3));
+    }
+    return { mode: 'burst', at: [0.0, 0.75, 0.95], amp: 0.5, dur: 0.5 };
   },
 };
 
@@ -417,36 +433,36 @@ const uraniumCrystal: NodeRecipe = {
 };
 
 // ---------------------------------------------------------------------------
-// era 10 — Data Crystal: a cream-and-slate monolith with a lavender quantum shard; a gold ribbon spins up
+// era 10 — Rare Earth Geode (0.9.7): a big cracked-open geode in frost, a pale stone rind round a cave of lavender
+// crystals with a gold magnetic shimmer; a ribbon of lavender sparkles spins up on each touch
 // ---------------------------------------------------------------------------
 
-const dataCrystal: NodeRecipe = {
-  strike: [0, 0.95, 0.95],
+const rareEarthGeode: NodeRecipe = {
+  strike: [0, 0.85, 1.0],
   build: ({ body: b, glow: g, anim: a }) => {
-    foot(b, 1.12, PEWTER, 10);
-    // stepped plinth and tapering monolith
-    b.box(SLATE, 1.9, 0.25, 1.9, 0, 0, 0);
-    b.box(PEWTER, 1.6, 0.2, 1.6, 0, 0.25, 0);
-    b.cyl(CREAM, 0.95, 1.75, 0, 0.45, 0, 4, 0.7, { ry: Math.PI / 4 });
-    b.cyl(SLATE, 0.98, 0.12, 0, 0.9, 0, 4, 0.94, { ry: Math.PI / 4 });
-    b.cyl(SLATE, 0.86, 0.12, 0, 1.6, 0, 4, 0.82, { ry: Math.PI / 4 });
-    cap(b, 1.1, 1.1, 0, 2.22, 0);
-    // quantum shard rising out of the front face, gold collar
-    b.cone(LAVENDER, 0.38, 1.3, 0.2, 1.25, 0.55, 6, { rx: 0.35 });
-    b.torus(GOLD, 0.34, 0.06, 0.2, 1.3, 0.55, { rx: Math.PI / 2 + 0.35 }, 14);
-    // gold filigree circuit lines (glow) on the faces
-    for (const s of [-1, 1]) {
-      g.box(G_SUN, 0.06, 0.6, 0.04, s * 0.45, 0.95, 0.6);
-      g.box(G_SUN, 0.32, 0.06, 0.04, s * 0.3, 1.25, 0.6);
+    foot(b, 1.12, RIND_D, 10);
+    // the rind: a squat dome with a darker band, open at the front
+    b.sph(RIND, 1, 0, 0.75, -0.25, { sx: 1.15, sy: 0.85, sz: 0.85 });
+    b.torus(RIND_D, 0.95, 0.12, 0, 0.75, 0.45, undefined, 18);
+    // the crystal cave: a lavender bed and a cluster of crystal points facing the player
+    b.sph(LAVENDER_D, 0.85, 0, 0.75, 0.42, { sx: 1, sy: 1, sz: 0.25 });
+    for (const [x, y, r, h, rz] of [[0, 0.75, 0.22, 0.6, 0], [-0.4, 0.95, 0.15, 0.42, 0.5], [0.42, 0.55, 0.16, 0.45, -0.6], [0.35, 1.05, 0.12, 0.34, -0.3], [-0.38, 0.5, 0.13, 0.36, 0.7]] as const) {
+      b.cone(LAVENDER, r, h, x, y, 0.5, 6, { rx: Math.PI / 2, rz });
     }
-    g.sph(G_SUN, 0.12, 0.2, 2.42, 0.86);
-    // anim: the harmonic light ribbon (glow), tilted, spinning round the monolith
-    a.torus(G_SUN, 1.2, 0.05, 0, 0, 0, { rx: Math.PI / 2 }, 28);
-    for (let i = 0; i < 3; i++) {
-      const ang = (i / 3) * Math.PI * 2;
-      a.sph(0xe4d4ff, 0.09, Math.cos(ang) * 1.2, 0, Math.sin(ang) * 1.2);
+    // gold magnetic shimmer on the crystal tips, a soft lavender glow inside
+    for (const [x, y] of [[0, 0.75], [-0.4, 0.95], [0.42, 0.55]] as const) g.sph(G_SUN, 0.06, x, y, 1.02);
+    g.sph(G_LAVENDER, 0.3, 0, 0.75, 0.55, { sz: 0.4 });
+    // a few loose crystals in the snow
+    b.cone(LAVENDER, 0.12, 0.3, 0.95, 0.12, 0.7, 6, { rz: -1.2 });
+    b.cone(LAVENDER, 0.1, 0.24, -0.9, 0.1, 0.8, 6, { rz: 1.1 });
+    cap(b, 1.3, 1.0, 0, 1.5, -0.35);
+    // anim: the ribbon of lavender sparkles (glow), tilted, spinning round the geode
+    a.torus(G_LAVENDER, 1.2, 0.05, 0, 0, 0, { rx: Math.PI / 2 }, 28);
+    for (let i = 0; i < 4; i++) {
+      const ang = (i / 4) * Math.PI * 2;
+      a.sph(i % 2 ? 0xffe9b0 : 0xe4d4ff, 0.09, Math.cos(ang) * 1.2, 0, Math.sin(ang) * 1.2);
     }
-    return { mode: 'orbit', at: [0, 1.45, 0], amp: 0.35, dur: 0.8, idle: 0.12, tilt: 0.3, glow: true };
+    return { mode: 'orbit', at: [0, 1.0, 0], amp: 0.35, dur: 0.8, idle: 0.12, tilt: 0.3, glow: true };
   },
 };
 
@@ -454,12 +470,12 @@ const RECIPES: Readonly<Record<number, NodeRecipe>> = {
   2: greatBoulder,
   3: oreVein,
   4: coalSeam,
-  5: slagHeap,
+  5: taconiteRidge,
   6: copperVein,
   7: oilSeep,
   8: sandDune,
   9: uraniumCrystal,
-  10: dataCrystal,
+  10: rareEarthGeode,
 };
 
 // ---------------------------------------------------------------------------
