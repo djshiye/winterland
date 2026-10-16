@@ -123,6 +123,6 @@ export class ShopMat {
 
   private refreshAffordable(): void {
     const up = this.ctx.upgrades;
-    this.affordable = up.group('lumberjack').some((id) => up.canBuy(id)) || up.group('crew').some((id) => up.canBuy(id));
+    this.affordable = up.group('lumberjack').some((id) => up.canBuy(id)) || up.group('crew').some((id) => up.def(id).era === undefined && up.canBuy(id));
   }
 }

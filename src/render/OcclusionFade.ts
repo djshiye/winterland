@@ -78,6 +78,12 @@ export class OcclusionFade {
     this.targets.push({ object, half: size / 2, heights: PAD_HEIGHTS, active });
   }
 
+  /** Forget a target (its pad was disposed). */
+  removeTarget(object: THREE.Object3D): void {
+    const i = this.targets.findIndex((t) => t.object === object);
+    if (i >= 0) this.targets.splice(i, 1);
+  }
+
   /** A building that may stand in the camera's way. Returns the unregister function (restores its materials). */
   addOccluder(root: THREE.Object3D): () => void {
     if (!this.occluders.has(root)) {

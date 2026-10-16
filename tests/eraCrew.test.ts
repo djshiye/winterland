@@ -201,11 +201,14 @@ describe('planPath', () => {
     expect(planPath(L, L.dock, L.dock)).toEqual([L.dock]);
   });
 
-  it('idle posts of a crew are spread along the band', () => {
+  it('idle posts of a full seven-role crew are distinct, a loose grid around the band at the depot', () => {
     const L = regionLayout(2);
-    const xs = [0, 1, 2].map((i) => idleSpot(L, i).x);
-    expect(new Set(xs).size).toBe(3);
-    for (const i of [0, 1, 2]) expect(idleSpot(L, i).z).toBe(L.depot.z);
+    const spots = Array.from({ length: 25 }, (_, i) => idleSpot(L, i));
+    expect(new Set(spots.map((p) => `${p.x.toFixed(2)},${p.z.toFixed(2)}`)).size).toBe(25);
+    for (const p of spots) {
+      expect(Math.abs(p.z - L.depot.z)).toBeLessThanOrEqual(1.7 + 1e-9);
+      expect(Math.abs(p.x - L.gate.x)).toBeLessThanOrEqual(2.6 + 1e-9);
+    }
   });
 });
 

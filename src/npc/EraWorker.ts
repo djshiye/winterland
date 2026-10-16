@@ -15,10 +15,10 @@
  * boundaries) and the front-yard band, so a worker never cuts through a machine.
  */
 import * as THREE from 'three';
-import { ERA_WORKER, PLAYER } from '../config';
+import { ERA_WORKER, PLAYER, type EraRole } from '../config';
 import { approach, dampAngle, yawFromDir } from '../core/math';
 import { MATERIAL_KINDS, type MaterialKind } from '../core/kinds';
-import type { EraUpgradeId, GameContext, GameState, ItemHolder, ItemKind } from '../core/types';
+import type { EraCrewId, GameContext, GameState, ItemHolder, ItemKind } from '../core/types';
 import { CITY_BUILDINGS, ERAS, MACHINES } from '../eras/data';
 import { expansionOffered } from '../eras/layout';
 import { eraWorkerScale, createEraWorkerModel } from '../assets/eraWorkers';
@@ -60,8 +60,18 @@ export interface JobMachine {
   take: XZ;
 }
 
+/** 0.9.5: a construction site wanting material (RegionRuntime.sites), as the job picker sees it. */
+export interface JobSite {
+  slot: number;
+  kind: ItemKind;
+  room: number;
+  spot: XZ;
+}
+
 export interface JobView {
   machines: readonly JobMachine[];
+  /** 0.9.5: construction sites wanting material (foremen). Absent = none. */
+  sites?: readonly JobSite[];
   /** Landed units on the import dock by kind. */
   dock: Partial<Record<ItemKind, number>>;
   dockSpot: XZ;
@@ -74,11 +84,29 @@ export interface JobView {
 
 /** Where a load comes from: the import dock or a machine slot. */
 export type JobSource = 'dock' | number;
-/** Where it goes: the export depot or a processor slot. */
-export type JobDest = 'depot' | 'dock' | number;
+/** Where it goes: the export depot, the import dock, a processor slot, or (0.9.5) a construction site on a slot. */
+export type JobDest = 'depot' | 'dock' | number | `site${number}`;
+
+/** 0.9.5: the construction-site destination of slot `slot`. */
+export const siteDest = (slot: number): `site${number}` => `site${slot}`;
+/** The slot of a construction-site destination, or null. */
+export const siteSlot = (to: JobDest): number | null => (typeof to === 'string' && to.startsWith('site') ? Number(to.slice(4)) : null);
+
+/**
+ * 0.9.5: what a worker does (config ERA_ROLES): the hauler does everything (feed > ship > surplus, as in 0.9.0), the
+ * others one job each: feeder feeds from machine piles, porter feeds from the dock, shipper ships, gatherer stocks raw
+ * material on the dock from filling extractors (and feeds from them when nothing needs stocking), foreman builds,
+ * clerk clears the fullest piles first.
+ */
+export type { EraRole };
+
+/** Units of a raw material the gatherers keep on the import dock. */
+export const DOCK_RESERVE = 12;
+/** An extractor's output pile this full (of OUTPUT_CAPACITY) is worth a gatherer's trip. */
+const GATHER_AT = 6;
 
 export interface Job {
-  type: 'feed' | 'ship' | 'surplus';
+  type: 'feed' | 'ship' | 'surplus' | 'stock' | 'build';
   item: ItemKind;
   take: number;
   from: JobSource;
@@ -96,7 +124,7 @@ export type Owed = ReadonlyMap<ItemKind, number>;
 const NO_OWED: Owed = new Map();
 export const NO_CLAIMS: Claims = { sources: new Map(), dests: new Map() };
 export const srcId = (from: JobSource, kind: ItemKind): string => `${from === 'dock' ? 'dock' : `m${from}`}:${kind}`;
-export const destId = (slot: number, kind: ItemKind): string => `m${slot}:${kind}`;
+export const destId = (slot: number, kind: ItemKind, site = false): string => `${site ? 's' : 'm'}${slot}:${kind}`;
 
 const dist = (a: XZ, b: XZ): number => Math.hypot(a.x - b.x, a.z - b.z);
 
@@ -157,13 +185,38 @@ interface Source {
  * `lenient`: accept loads of any size (a worker that has been idle for a while). `owed`: units the player still needs to pay
  * (materialNeeds): rules b / c ship a kind only from the region stock above its owed amount (feeding is unaffected).
  */
-export function pickJob(view: JobView, capacity: number, claims: Claims, at: XZ, lenient = false, owed: Owed = NO_OWED): Job | null {
+export function pickJob(view: JobView, capacity: number, claims: Claims, at: XZ, lenient = false, owed: Owed = NO_OWED, role: EraRole = 'hauler'): Job | null {
   const sources: Source[] = [];
   for (const m of view.machines) sources.push({ from: m.slot, kind: m.output, count: m.outCount, pos: m.take });
   for (const [kind, count] of Object.entries(view.dock) as [ItemKind, number][]) sources.push({ from: 'dock', kind, count, pos: view.dockSpot });
   const avail = (s: Source): number => s.count - (claims.sources.get(srcId(s.from, s.kind)) ?? 0);
 
-  // a) feed a processor
+  switch (role) {
+    case 'feeder':
+      return feedJob(view, sources, avail, capacity, claims, at, lenient, (s) => s.from !== 'dock');
+    case 'porter':
+      return feedJob(view, sources, avail, capacity, claims, at, lenient, (s) => s.from === 'dock');
+    case 'shipper':
+      return shipJob(view, avail, capacity, at, lenient, owed, 'ship') ?? shipJob(view, avail, capacity, at, lenient, owed, 'surplus');
+    case 'clerk':
+      return shipJob(view, avail, capacity, at, lenient, owed, 'surplus', true) ?? shipJob(view, avail, capacity, at, lenient, owed, 'ship', true);
+    case 'gatherer': {
+      const extractor = new Set(view.machines.filter((m) => m.extractor).map((m) => m.slot));
+      return stockJob(view, avail, capacity, claims, at, lenient) ?? feedJob(view, sources, avail, capacity, claims, at, lenient, (s) => typeof s.from === 'number' && extractor.has(s.from));
+    }
+    case 'foreman':
+      return buildJob(view, sources, avail, capacity, claims, at);
+    case 'hauler':
+      return (
+        feedJob(view, sources, avail, capacity, claims, at, lenient, () => true) ??
+        shipJob(view, avail, capacity, at, lenient, owed, 'ship') ??
+        shipJob(view, avail, capacity, at, lenient, owed, 'surplus')
+      );
+  }
+}
+
+/** a) feed a processor from the sources `ok` allows. */
+function feedJob(view: JobView, sources: readonly Source[], avail: (s: Source) => number, capacity: number, claims: Claims, at: XZ, lenient: boolean, ok: (s: Source) => boolean): Job | null {
   let best: Job | null = null;
   let bestScore = -Infinity;
   for (const p of view.machines) {
@@ -172,7 +225,7 @@ export function pickJob(view: JobView, capacity: number, claims: Claims, at: XZ,
       const need = inp.room - (claims.dests.get(destId(p.slot, inp.kind)) ?? 0);
       if (need <= 0) continue;
       for (const s of sources) {
-        if (s.kind !== inp.kind || s.from === p.slot) continue;
+        if (s.kind !== inp.kind || s.from === p.slot || !ok(s)) continue;
         const have = avail(s);
         const take = Math.min(capacity, need, have);
         if (take < (lenient ? 1 : Math.min(capacity, need, inp.per))) continue;
@@ -184,32 +237,81 @@ export function pickJob(view: JobView, capacity: number, claims: Claims, at: XZ,
       }
     }
   }
-  if (best) return best;
+  return best;
+}
 
-  // b) finished goods, c) surplus: machine outputs bound for the depot
-  const pass = (type: 'ship' | 'surplus'): Job | null => {
-    let pick: Job | null = null;
-    let top = -Infinity;
-    for (const m of view.machines) {
-      if (!view.depotAccepts(m.output)) continue;
-      const excess = Math.max(0, stockOf(view, m.output) - (owed.get(m.output) ?? 0));
-      if (excess <= 0) continue;
-      const used = usedInRegion(view.machines, m.output);
-      const finished = !m.extractor && !used;
-      // ship: finished goods; surplus: raw nobody uses, or any pile with no free slot left
-      if (type === 'ship' ? !finished : finished || (used && !m.outFull)) continue;
-      const s: Source = { from: m.slot, kind: m.output, count: m.outCount, pos: m.take };
-      const take = Math.min(capacity, avail(s), excess);
-      if (take < (lenient || m.outFull ? 1 : Math.min(capacity, MIN_SHIP))) continue;
-      const score = take + (m.outFull ? 4 : 0) - 0.1 * (dist(at, m.take) + dist(m.take, view.depotSpot));
-      if (score > top) {
-        top = score;
-        pick = { type, item: m.output, take, from: m.slot, to: 'depot' };
+/**
+ * b) finished goods ('ship'), c) surplus: machine outputs bound for the depot. `fullest`: the clerk's order (the
+ * fullest pile first, walking barely matters).
+ */
+function shipJob(view: JobView, avail: (s: Source) => number, capacity: number, at: XZ, lenient: boolean, owed: Owed, type: 'ship' | 'surplus', fullest = false): Job | null {
+  let pick: Job | null = null;
+  let top = -Infinity;
+  for (const m of view.machines) {
+    if (!view.depotAccepts(m.output)) continue;
+    const excess = Math.max(0, stockOf(view, m.output) - (owed.get(m.output) ?? 0));
+    if (excess <= 0) continue;
+    const used = usedInRegion(view.machines, m.output);
+    const finished = !m.extractor && !used;
+    // ship: finished goods; surplus: raw nobody uses, or any pile with no free slot left
+    if (type === 'ship' ? !finished : finished || (used && !m.outFull)) continue;
+    const s: Source = { from: m.slot, kind: m.output, count: m.outCount, pos: m.take };
+    const take = Math.min(capacity, avail(s), excess);
+    if (take < (lenient || m.outFull ? 1 : Math.min(capacity, MIN_SHIP))) continue;
+    const walk = dist(at, m.take) + dist(m.take, view.depotSpot);
+    const score = fullest ? m.outCount * 2 + (m.outFull ? 8 : 0) - 0.02 * walk : take + (m.outFull ? 4 : 0) - 0.1 * walk;
+    if (score > top) {
+      top = score;
+      pick = { type, item: m.output, take, from: m.slot, to: 'depot' };
+    }
+  }
+  return pick;
+}
+
+/**
+ * 0.9.5 gatherer: raw material from an extractor whose pile is filling up (GATHER_AT, or full) to the import dock,
+ * while the dock holds less than DOCK_RESERVE of it and some processor of the region uses it (the porters feed it on).
+ */
+function stockJob(view: JobView, avail: (s: Source) => number, capacity: number, claims: Claims, at: XZ, lenient: boolean): Job | null {
+  let pick: Job | null = null;
+  let top = -Infinity;
+  for (const m of view.machines) {
+    if (!m.extractor || !usedInRegion(view.machines, m.output) || !view.dockAccepts(m.output)) continue;
+    if (m.outCount < (lenient ? 1 : GATHER_AT) && !m.outFull) continue;
+    const onDock = (view.dock[m.output] ?? 0) + (claims.dests.get(`dock:${m.output}`) ?? 0);
+    const room = DOCK_RESERVE - onDock;
+    if (room <= 0) continue;
+    const s: Source = { from: m.slot, kind: m.output, count: m.outCount, pos: m.take };
+    const take = Math.min(capacity, avail(s), room);
+    if (take < 1) continue;
+    const score = take + (m.outFull ? 4 : 0) - 0.1 * (dist(at, m.take) + dist(m.take, view.dockSpot));
+    if (score > top) {
+      top = score;
+      pick = { type: 'stock', item: m.output, take, from: m.slot, to: 'dock' };
+    }
+  }
+  return pick;
+}
+
+/** 0.9.5 foreman: material for a construction site (any machine pile or the dock), nearest load first. */
+function buildJob(view: JobView, sources: readonly Source[], avail: (s: Source) => number, capacity: number, claims: Claims, at: XZ): Job | null {
+  let best: Job | null = null;
+  let bestScore = -Infinity;
+  for (const site of view.sites ?? []) {
+    const need = site.room - (claims.dests.get(destId(site.slot, site.kind, true)) ?? 0);
+    if (need <= 0) continue;
+    for (const s of sources) {
+      if (s.kind !== site.kind) continue;
+      const take = Math.min(capacity, need, avail(s));
+      if (take < 1) continue;
+      const score = take - 0.1 * (dist(at, s.pos) + dist(s.pos, site.spot));
+      if (score > bestScore) {
+        bestScore = score;
+        best = { type: 'build', item: site.kind, take, from: s.from, to: siteDest(site.slot) };
       }
     }
-    return pick;
-  };
-  return pass('ship') ?? pass('surplus');
+  }
+  return best;
 }
 
 /** Where a load of `kind` should go when its planned destination is gone: another hungry processor, else depot / dock. */
@@ -273,10 +375,14 @@ export function planPath(L: RegionLayout, a: XZ, b: XZ): XZ[] {
   return out;
 }
 
-/** The idle post of worker `index` in the front-yard band (between the dock and Jack's cart). */
+/**
+ * The idle post of worker `index` in the front-yard band (between the dock and Jack's cart): a loose 5-wide grid
+ * around the band's middle, so a full seven-role crew (up to 21) gathers without overlapping.
+ */
 export function idleSpot(L: RegionLayout, index: number): XZ {
-  const step = (index % 3) - 1;
-  return { x: L.gate.x + step * 1.6 + Math.floor(index / 3) * 0.8, z: L.depot.z };
+  const col = (index % 5) - 2;
+  const row = Math.floor(index / 5) % 5;
+  return { x: L.gate.x + col * 1.05 + (row % 2) * 0.5, z: L.depot.z + (row - 2) * 0.85 };
 }
 
 // --- the worker -----------------------------------------------------------------------------------------------------
@@ -329,10 +435,12 @@ export class EraWorker {
   constructor(
     readonly ctx: GameContext,
     readonly region: RegionRuntime,
-    private readonly upgradeId: EraUpgradeId,
+    private readonly upgradeId: EraCrewId,
     readonly index: number,
+    /** 0.9.5: which trips this worker takes (config ERA_ROLES; the hauler does everything). */
+    readonly role: EraRole = 'hauler',
   ) {
-    this.rig = new CharacterRig(createEraWorkerModel(region.era, index), { scale: eraWorkerScale(region.era, index) });
+    this.rig = new CharacterRig(createEraWorkerModel(region.era, index, role), { scale: eraWorkerScale(region.era, index) });
     this.group.add(this.rig.root);
     this.group.name = `era${region.era}:worker:${index}`;
     this.stack = new CarryStack(ctx, {
@@ -404,9 +512,10 @@ export class EraWorker {
     const amount = loading ? Math.max(job.take, this.stack.size) : this.stack.size;
     if (amount <= 0) return null;
     const dest = this.dest?.slot ?? null;
+    const site = siteSlot(job.to);
     return {
       src: loading ? srcId(job.from, job.item) : null,
-      dest: dest !== null ? destId(dest, job.item) : null,
+      dest: site !== null ? destId(site, job.item, true) : dest !== null ? destId(dest, job.item) : job.type === 'stock' ? `dock:${job.item}` : null,
       amount,
     };
   }
@@ -513,7 +622,8 @@ export class EraWorker {
       const n = r.dock.count(k);
       if (n > 0) dock[k] = n;
     }
-    return { machines, dock, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
+    const sites = this.role === 'foreman' ? r.sites().map((x) => ({ slot: x.slot, kind: x.kind, room: x.room, spot: x.spot })) : [];
+    return { machines, sites, dock, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
   }
 
   private lookAtSlot(slot: number): XZ | null {
@@ -530,10 +640,18 @@ export class EraWorker {
 
   private destRef(to: JobDest): Ref & { slot: number | null } {
     const r = this.region;
+    const site = siteSlot(to);
+    if (site !== null) {
+      // a construction pad: read live, gone (paid, demolished, choice changed) → the unload redirects
+      const live = r.sites().find((x) => x.slot === site);
+      const p = r.layout.slots[site];
+      return { slot: null, machine: null, holder: live?.holder ?? null, spot: live?.spot ?? this.at, look: p ? { x: p.x, z: p.z } : null };
+    }
     if (to === 'depot') return { slot: null, machine: null, holder: r.depot, spot: r.depotSpot, look: awayOrNull(r.depotSpot, r.layout.depot) };
     if (to === 'dock') return { slot: null, machine: null, holder: r.dock, spot: r.dockSpot, look: awayOrNull(r.dockSpot, r.layout.dock) };
-    const m = r.machines[to] ?? null;
-    return { slot: to, machine: m, holder: m?.input ?? null, spot: m?.feedSpot ?? this.at, look: this.lookAtSlot(to) };
+    const slot = to as number;
+    const m = r.machines[slot] ?? null;
+    return { slot, machine: m, holder: m?.input ?? null, spot: m?.feedSpot ?? this.at, look: this.lookAtSlot(slot) };
   }
 
   /** The machine the ref was made for is still on its slot. */
@@ -612,7 +730,7 @@ export class EraWorker {
           this.redirect(held, null);
           return;
         }
-        const job = pickJob(this.view(), this.capacity, this.claims(), this.at, this.idleFor > LENIENT_AFTER, this.owed);
+        const job = pickJob(this.view(), this.capacity, this.claims(), this.at, this.idleFor > LENIENT_AFTER, this.owed, this.role);
         if (job) {
           this.job = job;
           this.src = this.sourceRef(job.from);

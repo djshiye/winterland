@@ -152,6 +152,8 @@ export class Upgrades {
         return `×${Math.round(v * 100) / 100} price`;
       case 'boost':
         return `×${Math.round(v * 100) / 100} speed`;
+      case 'belt':
+        return v <= 0 ? 'Not built' : `×${Math.round(v * 100) / 100} belt speed`;
       case 'income':
         return `×${Math.round(v * 100) / 100} income`;
       case 'factor':
@@ -187,7 +189,19 @@ export function upgradeRequirement(state: Pick<GameState, 'unlocked' | 'village'
   if (r.settlement !== undefined && settlementLevel(state) < r.settlement) {
     return `Reach Settlement ${r.settlement}`;
   }
+  // 0.9.5: an era machine's level is bought on the level pad beside a built one
+  const def = UPGRADES[id];
+  if (def.group === 'machine' && def.era !== undefined && def.era >= 2 && !machineBuilt(state, id)) {
+    return `Build a ${def.label} first`;
+  }
   return null;
+}
+
+/** 0.9.5: true when era machine `id` stands fully built on some slot of its region. */
+export function machineBuilt(state: Pick<GameState, 'eras'>, id: UpgradeId): boolean {
+  const era = UPGRADES[id].era;
+  const slots = era !== undefined ? state.eras.regions[era]?.slots : undefined;
+  return !!slots && slots.some((sl) => sl.machine === id && sl.tier >= 0);
 }
 
 function unlockName(id: string): string {
