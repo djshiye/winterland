@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import { LAYOUT, PADS, inflate, rect, type Rect } from '../../config';
-import { DISTRICTS, REGIONS, ROADS } from '../../eras/data';
+import { DISTRICTS, REGIONS, RIVER_POND, ROADS } from '../../eras/data';
 
 /** Deterministic PRNG (mulberry32) so screenshots are reproducible. */
 export class Rng {
@@ -140,7 +140,7 @@ const PROTECT: Rect[] = [
 ];
 
 /**
- * 0.9.0 new land: every era region, road and city district (eras/data.ts), inflated 1.5 m. Decor must stay off them.
+ * 0.9.0 new land: every era region, road and city district (eras/data.ts) and the river's pond, inflated 1.5 m. Decor must stay off them.
  * Kept OUT of `blocked` / `occludes` on purpose: the old-map scatter (world/env/decor.ts) draws its random numbers
  * through them, so adding rects there would reshuffle every existing tree. Instead the old scatter is built exactly as
  * before and `pruneNewLand` (env/frontier.ts) deletes the instances that landed on the new land; new scatter in the far
@@ -150,6 +150,8 @@ export const NEW_LAND: Rect[] = [
   ...REGIONS.filter((r) => r !== null).map((r) => inflate(r!.rect, 1.5)),
   ...ROADS.map((r) => inflate(r.rect, 1.5)),
   ...DISTRICTS.filter((d) => d !== null).map((d) => inflate(d!.rect, 1.5)),
+  // 0.9.5: the frozen pond the river ends in
+  inflate(RIVER_POND, 1.5),
 ];
 
 function hit(list: readonly Rect[], x: number, z: number, margin: number): boolean {
