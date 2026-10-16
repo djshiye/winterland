@@ -349,10 +349,9 @@ describe('City announces new levels', () => {
     const loaded = settlementLevelFor(2 * homeOf(2).people, 2);
     expect(s.eras.settlement).toBe(loaded);
     expect(up).not.toHaveBeenCalled();
-    // two machines: + 20 staff
-    machine(s, 2, 0);
-    machine(s, 2, 1);
-    events.emit('machine:built', { era: 2, slot: 1, machine: machinesOfEra(2)[0]!, position: new THREE.Vector3(), object: new THREE.Group() });
+    // three machines: + 30 staff (0.9.5: six era-2 slots raise the level anchors, so two no longer reach the next one)
+    for (let i = 0; i < 3; i++) machine(s, 2, i);
+    events.emit('machine:built', { era: 2, slot: 2, machine: machinesOfEra(2)[0]!, position: new THREE.Vector3(), object: new THREE.Group() });
     const now = settlementLevelFor(cityPopulation(s), 2);
     expect(now).toBeGreaterThan(loaded);
     expect(up).toHaveBeenCalledTimes(1);

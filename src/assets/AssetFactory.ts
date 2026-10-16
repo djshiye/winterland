@@ -52,6 +52,7 @@ import { vehicleCatalog } from './vehicles';
 import { eraItemCatalog } from './eraItems';
 import { eraMachineCatalog, eraSheetCatalog } from './eraMachines';
 import { eraMachine2Catalog } from './eraMachines2';
+import { eraPal2to4Catalog } from './eraPals2to4';
 import { eraMachine3Catalog } from './eraMachines3';
 import { eraMachine4Catalog } from './eraMachines4';
 import { eraPal5to7Catalog } from './eraPals5to7';
@@ -95,6 +96,7 @@ export const ASSET_CATALOG: Record<string, Record<string, AssetBuilder>> = {
   eraItems: eraItemCatalog,
   eraMachines: eraMachineCatalog,
   eraMachines2: eraMachine2Catalog,
+  eraPals2to4: eraPal2to4Catalog, // 0.9.5: era 2-4 pals
   eraMachines3: eraMachine3Catalog, // 1.0 expansion: new era 5–7 machines
   eraMachines4: eraMachine4Catalog, // 1.0 expansion: new era 8–10 machines
   eraPals5to7: eraPal5to7Catalog, // 0.9.5: era 5–7 pals (Draft Horse, Lamp Cat, Snow Fox)
