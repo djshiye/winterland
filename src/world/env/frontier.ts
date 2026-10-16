@@ -334,7 +334,7 @@ function fenceRun(b: Batch, glow: Batch, kind: FenceKind, c: Palette, axis: 'x' 
       case 'hazard': {
         put(b, l, 0.7, 0.4, 0x8d8f8a, mid, 0);
         const k = Math.max(2, Math.floor(l / 0.5));
-        for (let j = 0; j < k; j++) put(b, l / k, 0.12, 0.42, j % 2 ? 0x2d3b2a : 0xf2d34a, s0 + 0.05 + ((j + 0.5) * l) / k, 0.7);
+        for (let j = 0; j < k; j++) put(b, l / k, 0.12, 0.42, j % 2 ? 0x3d5259 : 0xe8c45a, s0 + 0.05 + ((j + 0.5) * l) / k, 0.7);
         for (const y of [1.0, 1.3, 1.6]) put(b, l, 0.015, 0.015, c.fence, mid, y);
         break;
       }

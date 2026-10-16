@@ -54,8 +54,15 @@ const WATER = 0x7cc4e8;
 const IRON_D = 0x3b3f47;
 const PAVE = 0xb4b9c2;
 const WHITE = 0xf4f6fa;
+/** AI-era holograms (guide era 10 Glow) and the Nuclear sea-foam glow (era 9). */
+const HOLO = 0xffe082;
+const HOLO_D = 0xf2c46a;
+const FOAM = 0x70f5d9;
 
-/** Per-era look: walls, a second wall tone, roof, trim, accent, window tint (a warm candle to a cool violet). */
+/**
+ * Per-era look: walls, a second wall tone, roof, trim, accent, window tint (a warm candle to sun-gold). Trims, accents
+ * and the eras 6–10 materials follow the palette table of docs/art/guide.md (ARGON).
+ */
 interface Style {
   wall: number;
   wall2: number;
@@ -70,15 +77,15 @@ interface Style {
 const STYLES: readonly (Style | null)[] = [
   null,
   null,
-  { wall: 0xb5543c, wall2: 0x9a4430, roof: 0x6d5a48, trim: 0xe9dfcc, accent: 0xd9a441, tint: 0xffb347, floorH: 2.2, cellW: 1.5 },
-  { wall: 0x8a5442, wall2: 0x5e3a2c, roof: 0x3d3a3a, trim: 0x2f2f33, accent: 0x7a8087, tint: 0xffb347, floorH: 2.5, cellW: 1.6 },
-  { wall: 0xa5703f, wall2: 0x7d5330, roof: 0x4a3a2c, trim: 0x2f2b2b, accent: 0xb08a3e, tint: 0xffc05a, floorH: 2.6, cellW: 1.7 },
-  { wall: 0x93453a, wall2: 0x6f3a2f, roof: 0x34383d, trim: 0x50555b, accent: 0xd0702a, tint: 0xffcf70, floorH: 2.8, cellW: 1.8 },
-  { wall: 0xe3d8bc, wall2: 0xbfb08a, roof: 0x2e4a5a, trim: 0xc9773a, accent: 0x2e6a86, tint: 0xffe08a, floorH: 3.0, cellW: 1.9 },
-  { wall: 0x8f98a5, wall2: 0x6b7480, roof: 0x272a30, trim: 0xe0b03a, accent: 0x272a30, tint: 0xfff0c0, floorH: 3.2, cellW: 2.0 },
-  { wall: 0x9fc4dc, wall2: 0x6f94b0, roof: 0x2a3a4a, trim: 0xdfe8f2, accent: 0x3aa0d8, tint: 0xbfe6ff, floorH: 3.2, cellW: 2.0 },
-  { wall: 0xc4ccbc, wall2: 0x8e9a88, roof: 0x2d3b2a, trim: 0xf0f4ec, accent: 0x7bd04a, tint: 0xc8ffd8, floorH: 3.4, cellW: 2.1 },
-  { wall: 0xe8ecf6, wall2: 0xb6bcd8, roof: 0x1f2240, trim: 0x9b6cff, accent: 0x9b6cff, tint: 0x9a7ae0, floorH: 3.4, cellW: 2.2 },
+  { wall: 0xb85239, wall2: 0x9a4430, roof: 0x5c4028, trim: 0xe9dfcc, accent: 0xd9a441, tint: 0xffb347, floorH: 2.2, cellW: 1.5 },
+  { wall: 0x8a5442, wall2: 0x5e3a2c, roof: 0x3d3a3a, trim: 0x2f3538, accent: 0x7a8087, tint: 0xffb347, floorH: 2.5, cellW: 1.6 },
+  { wall: 0xa5703f, wall2: 0x7d5330, roof: 0x4a3a2c, trim: 0x383d40, accent: 0xd49a35, tint: 0xffc05a, floorH: 2.6, cellW: 1.7 },
+  { wall: 0x93453a, wall2: 0x6f3a2f, roof: 0x333c42, trim: 0x525c63, accent: 0xe08a2b, tint: 0xffcf70, floorH: 2.8, cellW: 1.8 },
+  { wall: 0xe3d8bc, wall2: 0xbfb08a, roof: 0x2b3b39, trim: 0xd97f38, accent: 0x4c6b68, tint: 0xffe08a, floorH: 3.0, cellW: 1.9 },
+  { wall: 0xb0a594, wall2: 0x8a8070, roof: 0x36383a, trim: 0xd99b26, accent: 0xc44536, tint: 0xffe6b0, floorH: 3.2, cellW: 2.0 },
+  { wall: 0xe6dec8, wall2: 0x8fb3b0, roof: 0x4a5259, trim: 0xf5f0e6, accent: 0x45858c, tint: 0xd8f5e4, floorH: 3.2, cellW: 2.0 },
+  { wall: 0xdce3e6, wall2: 0x9fb8b4, roof: 0x3d5259, trim: 0xf5f0e6, accent: 0x4ea885, tint: 0xd2fbef, floorH: 3.4, cellW: 2.1 },
+  { wall: 0xf5f0e6, wall2: 0xcdc3ae, roof: 0x526475, trim: 0xe8a848, accent: 0xe8a848, tint: 0xffe7a8, floorH: 3.4, cellW: 2.2 },
 ];
 const styleOf = (n: number): Style => STYLES[n]!;
 
@@ -274,9 +281,9 @@ class Kit {
 
   tree(x: number, z: number, s = 1, kind: 'pine' | 'round' | 'holo' = 'pine'): void {
     if (kind === 'holo') {
-      this.cyl(0x2a4a6a, 0.1 * s, 0.1 * s, 0.7 * s, x, 0, z, 6);
-      this.cone(0x7ae8ff, 0.7 * s, 1.5 * s, x, 0.7 * s, z, 6);
-      this.cone(0xb59bff, 0.5 * s, 1.1 * s, x, 1.7 * s, z, 6);
+      this.cyl(0x526475, 0.1 * s, 0.1 * s, 0.7 * s, x, 0, z, 6);
+      this.cone(HOLO, 0.7 * s, 1.5 * s, x, 0.7 * s, z, 6);
+      this.cone(HOLO_D, 0.5 * s, 1.1 * s, x, 1.7 * s, z, 6);
       return;
     }
     if (kind === 'round') {
@@ -693,9 +700,9 @@ function park(b: Build, n: number): void {
       // holo park: a glowing sphere over a pad, ring and holo trees
       k.cyl(st.roof, W * 0.28, W * 0.3, 0.2, 0, 0.1, 0, 16);
       k.cyl(st.accent, W * 0.22, W * 0.22, 0.06, 0, 0.3, 0, 16);
-      k.sph(0x7ae8ff, 0.8, 0, 1.6, 0, 1);
+      k.sph(HOLO, 0.8, 0, 1.6, 0, 1);
       k.torus(st.accent, 1.3, 0.05, 0, 1.6, 0, { rx: Math.PI / 2 });
-      k.torus(0x7ae8ff, 1.1, 0.04, 0, 1.6, 0, { rx: 0.5 });
+      k.torus(HOLO, 1.1, 0.04, 0, 1.6, 0, { rx: 0.5 });
     }
   }
   // trees on the corners, benches along the path, a fountain on the early plazas
@@ -882,7 +889,7 @@ function landmark(b: Build, n: number): void {
         for (let i = 0; i < 3; i++) {
           k.torus(st.trim, 2.2, 0.1, 0, 0, 0, { rx: Math.PI / 2 + (i * Math.PI) / 3, ry: (i * Math.PI) / 3 });
           const a = (i * Math.PI * 2) / 3;
-          k.sph(0x7ae8ff, 0.3, Math.cos(a) * 2.2, 0, Math.sin(a) * 2.2);
+          k.sph(FOAM, 0.3, Math.cos(a) * 2.2, 0, Math.sin(a) * 2.2);
         }
       });
       for (const s of [-1, 1]) k.tree(s * W * 0.38, D * 0.35, 0.8, 'round');
@@ -906,7 +913,7 @@ function landmark(b: Build, n: number): void {
       b.pivotAt.set(0, y + H * 0.1, 0);
       b.speed = 1.0;
       k.spin(() => {
-        for (let i = 0; i < 3; i++) k.torus(i === 1 ? 0x7ae8ff : st.accent, 1.0 + i * 0.45, 0.06, 0, i * 0.5 - 0.5, 0, { rx: Math.PI / 2 + i * 0.35 });
+        for (let i = 0; i < 3; i++) k.torus(i === 1 ? HOLO : st.accent, 1.0 + i * 0.45, 0.06, 0, i * 0.5 - 0.5, 0, { rx: Math.PI / 2 + i * 0.35 });
         k.sph(WHITE, 0.3, 0, 0, 0);
       });
     }
