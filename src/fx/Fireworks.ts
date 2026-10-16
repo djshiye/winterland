@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { LAYOUT } from '../config';
 import type { GameContext, Updatable } from '../core/types';
+import { scaledCount } from './comfort';
 
 /** Cosy shell colour pairs (outer, inner). */
 const SHELLS: ReadonlyArray<readonly [number, number]> = [
@@ -79,13 +80,14 @@ export class Fireworks implements Updatable {
     const spread = opts.spread ?? 5;
     const interval = opts.interval ?? 0.45;
     const [h0, h1] = opts.height ?? [7, 11];
+    const want = scaledCount(count); // comfort: fewer rockets on Calm / Minimal effects
     let at = opts.delay ?? 0;
     let made = 0;
     const px = position.x;
     const py = position.y;
     const pz = position.z;
     for (const s of this.slots) {
-      if (made >= count) break;
+      if (made >= want) break;
       if (s.active) continue;
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.random()) * spread;

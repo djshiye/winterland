@@ -3,6 +3,7 @@
  * BuildPanel's look (build.css `.wl-build`, a bottom sheet on phones and a side card on wide screens) with a
  * simulation-time slide and a short "no" shake. The owner appends `root` to the HUD layer and calls update(dt).
  */
+import { reducedMotion } from '../fx/comfort';
 import { backOut, cubicOut, h, shield, Slide } from './dom';
 
 const SHAKE_TIME = 0.32;
@@ -30,8 +31,9 @@ export class Sheet {
     this.slide.open = open;
   }
 
-  /** A short sideways shake (a refused tap). */
+  /** A short sideways shake (a refused tap; the sound alone with Reduce motion). */
   shake(): void {
+    if (reducedMotion()) return;
     this.shakeT = 0;
   }
 
