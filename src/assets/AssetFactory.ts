@@ -50,9 +50,10 @@ import { grandMarketCatalog } from './grandMarket';
 import { townAmenityCatalog } from './townAmenities';
 import { vehicleCatalog } from './vehicles';
 import { eraItemCatalog } from './eraItems';
-import { eraMachineCatalog } from './eraMachines';
+import { eraMachineCatalog, eraSheetCatalog } from './eraMachines';
 import { eraMachine2Catalog } from './eraMachines2';
 import { eraWorkerCatalog } from './eraWorkers';
+import { eraNodeCatalog } from './eraNodes';
 import { cityBuildingCatalog } from './cityBuildings';
 import { jackCatalog } from './jack';
 import { frontierCatalog } from './frontierProps';
@@ -91,7 +92,9 @@ export const ASSET_CATALOG: Record<string, Record<string, AssetBuilder>> = {
   eraItems: eraItemCatalog,
   eraMachines: eraMachineCatalog,
   eraMachines2: eraMachine2Catalog,
+  eraSheets: eraSheetCatalog,
   eraWorkers: eraWorkerCatalog,
+  eraNodes: eraNodeCatalog,
   cityBuildings: cityBuildingCatalog,
   jack: jackCatalog,
   frontierProps: frontierCatalog,

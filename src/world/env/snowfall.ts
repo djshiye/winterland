@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { makeCanvasTexture } from '../../render/materials';
 import type { GameContext } from '../../core/types';
+import { snowScale } from '../../fx/comfort';
 import { Rng, type EnvPart } from './common';
 
 const COUNT = 520;
@@ -69,7 +70,7 @@ export function buildSnowfall(ctx: GameContext, rng: Rng): SnowfallPart {
       t += dt;
       intensity += (target - intensity) * Math.min(1, dt * 1.5);
       if (Math.abs(target - intensity) < 0.005) intensity = target;
-      geometry.setDrawRange(0, Math.round(COUNT * intensity));
+      geometry.setDrawRange(0, Math.round(COUNT * intensity * snowScale())); // comfort: half the flakes with Reduce motion
       const fall = 1 + (intensity - 1) * 0.4; // a storm also falls harder,
       const wind = 0.12 + (intensity - 1) * 0.9; // blows sideways
       mat.size = 5 + (intensity - 1) * 1.8; // and its flakes read bigger

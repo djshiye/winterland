@@ -1,0 +1,251 @@
+{
+  "era": 9,
+  "name": "Nuclear Power",
+  "materials": [
+    {
+      "id": "uranium",
+      "new": false,
+      "shape": "pellet",
+      "colors": ["#7bd04a", "#2d3b2a"]
+    },
+    {
+      "id": "graphite",
+      "new": true,
+      "shape": "graphite",
+      "size": [0.38, 0.28, 0.32],
+      "colors": ["#2d3b2a", "#5a6470", "#7bd04a"],
+      "detail": "Dense dark grey machined graphite moderator block with central circular control-rod channel",
+      "icon": "Machined graphite block with central bore hole and subtle green radioactive sheen"
+    },
+    {
+      "id": "fuelRod",
+      "new": false,
+      "shape": "rod",
+      "colors": ["#9fe070", "#5a6470"]
+    },
+    {
+      "id": "power",
+      "new": false,
+      "shape": "cell",
+      "colors": ["#3ad1ff", "#1d2a38"]
+    },
+    {
+      "id": "battery",
+      "new": true,
+      "shape": "battery",
+      "size": [0.38, 0.28, 0.26],
+      "colors": ["#2d3b2a", "#7bd04a", "#3ad1ff", "#b5b8bb"],
+      "detail": "Heavy shielded energy storage accumulator with positive/negative brass bus terminals and active charge LED level",
+      "icon": "Industrial sage-green power battery pack with glowing cyan charge level bar"
+    }
+  ],
+  "machines": [
+    {
+      "id": "uraniumMine",
+      "new": false,
+      "parts": [
+        { "name": "shieldedHeadframe", "primitive": "box", "size": [4.6, 5.0, 4.4], "pos": [0, 2.5, 0], "color": "#b5b8bb" }
+      ],
+      "colors": ["#b5b8bb", "#7bd04a", "#2d3b2a"]
+    },
+    {
+      "id": "graphitePit",
+      "new": true,
+      "role": "extractor",
+      "footprint": [4.6, 4.6],
+      "height": 3.4,
+      "parts": [
+        { "name": "reinforcedBasinFloor", "primitive": "box", "size": [4.2, 0.5, 4.2], "pos": [0, 0.25, 0], "color": "#b5b8bb" },
+        { "name": "diamondSawGantry", "primitive": "box", "size": [2.6, 2.2, 1.8], "pos": [0, 1.4, -0.3], "color": "#2d3b2a" },
+        { "name": "dustCycloneFilter", "primitive": "cylinder", "size": [1.0, 2.4, 1.0], "pos": [-1.4, 1.5, -0.9], "color": "#7bd04a" },
+        { "name": "graphiteStackCradle", "primitive": "box", "size": [1.4, 0.6, 1.2], "pos": [1.1, 0.65, 0.7], "color": "#5a6470" },
+        { "name": "hazardRailing", "primitive": "box", "size": [4.0, 0.8, 0.1], "pos": [0, 0.9, 1.4], "color": "#7bd04a" },
+        { "name": "snowShieldMantel", "primitive": "box", "size": [4.4, 0.18, 4.4], "pos": [0, 0.65, 0], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "radiationSensorBeacon", "primitive": "sphere", "size": [0.26, 0.26, 0.26], "pos": [-1.4, 2.8, -0.9], "color": "#9dff6a" },
+        { "name": "cuttingLaserSight", "primitive": "box", "size": [1.6, 0.05, 0.05], "pos": [0, 0.8, 0.6], "color": "#7bd04a" }
+      ],
+      "anim": {
+        "part": "diamondWireSawArm",
+        "pivot": [0, 2.2, -0.3],
+        "motion": "bob",
+        "period": 1.4
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "enricher",
+      "new": false,
+      "parts": [
+        { "name": "centrifugeHall", "primitive": "cylinder", "size": [4.8, 4.2, 4.4], "pos": [0, 2.1, 0], "color": "#b5b8bb" }
+      ],
+      "colors": ["#b5b8bb", "#7bd04a", "#9fe070"]
+    },
+    {
+      "id": "reactor",
+      "new": false,
+      "parts": [
+        { "name": "coolingTower", "primitive": "cylinder", "size": [4.8, 5.4, 4.4], "pos": [0, 2.7, 0], "color": "#b5b8bb" }
+      ],
+      "colors": ["#b5b8bb", "#3ad1ff", "#9dff6a"]
+    },
+    {
+      "id": "batteryPlant",
+      "new": true,
+      "role": "premium",
+      "footprint": [5.0, 4.8],
+      "height": 4.2,
+      "parts": [
+        { "name": "monolithicFoundation", "primitive": "box", "size": [4.6, 0.6, 4.4], "pos": [0, 0.3, 0], "color": "#2d3b2a" },
+        { "name": "electrolyteBayHall", "primitive": "box", "size": [4.2, 2.4, 3.4], "pos": [0, 1.5, -0.3], "color": "#b5b8bb" },
+        { "name": "chargingManifoldRacks", "primitive": "box", "size": [2.4, 1.4, 1.4], "pos": [-0.6, 1.2, 0.7], "color": "#2d3b2a" },
+        { "name": "substationTransformer", "primitive": "cylinder", "size": [1.2, 1.8, 1.2], "pos": [1.3, 1.3, -0.8], "color": "#7bd04a" },
+        { "name": "highVoltageBusway", "primitive": "box", "size": [3.6, 0.3, 0.4], "pos": [0, 2.8, 0.2], "color": "#3ad1ff" },
+        { "name": "snowCappedShieldRoof", "primitive": "box", "size": [4.4, 0.24, 3.6], "pos": [0, 2.75, -0.3], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "plasmaCellGlow", "primitive": "box", "size": [1.8, 0.8, 0.2], "pos": [-0.6, 1.3, 1.42], "color": "#3ad1ff" },
+        { "name": "systemWarningLed", "primitive": "sphere", "size": [0.24, 0.24, 0.24], "pos": [1.3, 2.3, -0.8], "color": "#9dff6a" }
+      ],
+      "anim": {
+        "part": "cellLoadingArmature",
+        "pivot": [-0.6, 2.5, 0.7],
+        "motion": "swing",
+        "period": 2.2
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "atomicVault",
+      "new": true,
+      "role": "cash",
+      "footprint": [4.6, 4.4],
+      "height": 3.8,
+      "parts": [
+        { "name": "leadShieldedPedestal", "primitive": "box", "size": [4.2, 0.5, 4.0], "pos": [0, 0.25, 0], "color": "#2d3b2a" },
+        { "name": "monolithicBunkerCube", "primitive": "box", "size": [3.2, 2.4, 2.6], "pos": [0, 1.5, -0.2], "color": "#b5b8bb" },
+        { "name": "heavyBlastDoorCylinder", "primitive": "cylinder", "size": [1.8, 0.4, 1.8], "pos": [0, 1.5, 1.15], "color": "#2d3b2a" },
+        { "name": "radiationChuteHatch", "primitive": "cone", "size": [0.8, 0.9, 0.8], "pos": [0, 2.9, -0.2], "color": "#7bd04a" },
+        { "name": "hazardBorderStripes", "primitive": "box", "size": [2.6, 0.2, 0.1], "pos": [0, 2.5, 1.2], "color": "#7bd04a" },
+        { "name": "thickSnowCap", "primitive": "box", "size": [3.4, 0.22, 2.8], "pos": [0, 2.75, -0.2], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "cherenkovStatusHalo", "primitive": "sphere", "size": [0.35, 0.35, 0.35], "pos": [0, 1.5, 1.35], "color": "#9dff6a" },
+        { "name": "dialApertureLamp", "primitive": "sphere", "size": [0.2, 0.2, 0.2], "pos": [1.2, 2.2, 0.9], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "radiationBlastDoorWheel",
+        "pivot": [0, 1.5, 1.35],
+        "motion": "spin",
+        "period": 3.2
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    }
+  ],
+  "workers": [
+    {
+      "role": "hauler",
+      "title": "Atom Tech",
+      "hat": "radiation-shielded dome helmet + #7bd04a",
+      "coat": "#7bd04a",
+      "prop": "lead-shielded transport canister + [0.22, 0.38, 0.22] + #2d3b2a",
+      "anim": "measured cautious stride carrying shielded isotope flask"
+    },
+    {
+      "role": "feeder",
+      "title": "Rod Handler",
+      "hat": "full-face air-supplied respirator helmet + #b5b8bb",
+      "coat": "#5f7a55",
+      "prop": "long articulated remote fuel handling tongs + [0.15, 0.9, 0.15] + #7bd04a",
+      "anim": "careful vertical lowering motion seating rod into reactor core"
+    },
+    {
+      "role": "shipper",
+      "title": "Hazmat Driver",
+      "hat": "heavy lead-impregnated driver cap + #2d3b2a",
+      "coat": "#3f543c",
+      "prop": "remote containment seal key + [0.1, 0.4, 0.1] + #7bd04a",
+      "anim": "firm industrial gait guiding automated hazmat transporter"
+    },
+    {
+      "role": "porter",
+      "title": "Decon Porter",
+      "hat": "sealed hazmat decontamination hood + #7bd04a",
+      "coat": "#6b8a62",
+      "prop": "portable spray wash decontamination wand + [0.18, 0.75, 0.15] + #3ad1ff",
+      "anim": "sweeping spray arc decontaminating cargo pallets"
+    },
+    {
+      "role": "clerk",
+      "title": "Auditor",
+      "hat": "hard security garrison cap + #1e281b",
+      "coat": "#32442f",
+      "prop": "dosimeter badge reader and audit clip + [0.2, 0.28, 0.08] + #7bd04a",
+      "anim": "checking radiation dosimeter readings on digital ledger"
+    },
+    {
+      "role": "foreman",
+      "title": "Shift Supervisor",
+      "hat": "white radiation safety helmet with green cross + #f4f7fb",
+      "coat": "#2d3b2a",
+      "prop": "handheld multichannel radiation surveyor + [0.16, 0.32, 0.1] + #7bd04a",
+      "anim": "surveying perimeter with clicking radiation wand"
+    },
+    {
+      "role": "gatherer",
+      "title": "Crystal Cutter",
+      "hat": "tinted arc-shielding hood + #263323",
+      "coat": "#4c6346",
+      "prop": "diamond rotary ultrasonic stone cutter + [0.2, 0.85, 0.15] + #b5b8bb",
+      "anim": "slow steady slicing motion cleaving glowing uranium crystal"
+    }
+  ],
+  "gear": [
+    {
+      "slot": "carry",
+      "name": "Lead Tote",
+      "look": "Heavy lead-lined transport container with thick rubberized shoulder straps and hazard warning decal",
+      "colors": ["#2d3b2a", "#7bd04a", "#b5b8bb"]
+    },
+    {
+      "slot": "boots",
+      "name": "Hover Boots",
+      "look": "Pneumatic air-cushioned repulsor boots with glowing cyan anti-gravity emitters",
+      "colors": ["#b5b8bb", "#3ad1ff", "#2d3b2a"]
+    },
+    {
+      "slot": "tool",
+      "name": "Geiger Tongs",
+      "look": "Long reach titanium remote handling tongs with integrated audio clicker and green LED readout",
+      "colors": ["#7bd04a", "#2d3b2a", "#b5b8bb"]
+    }
+  ],
+  "pet": {
+    "name": "Rad Drone",
+    "parts": [
+      { "name": "sphericalCoreChassis", "primitive": "sphere", "size": [0.4, 0.4, 0.4], "pos": [0, 0.5, 0], "color": "#b5b8bb" },
+      { "name": "propellerGuards", "primitive": "torus", "size": [0.65, 0.06, 0.65], "pos": [0, 0.5, 0], "color": "#2d3b2a" },
+      { "name": "miniRotors", "primitive": "cylinder", "size": [0.18, 0.02, 0.18], "pos": [-0.25, 0.54, 0.25], "color": "#7bd04a" },
+      { "name": "miniRotorsR", "primitive": "cylinder", "size": [0.18, 0.02, 0.18], "pos": [0.25, 0.54, 0.25], "color": "#7bd04a" },
+      { "name": "sensorEyeHalo", "primitive": "torus", "size": [0.2, 0.04, 0.2], "pos": [0, 0.5, 0.18], "color": "#9dff6a" },
+      { "name": "snowSkids", "primitive": "box", "size": [0.35, 0.06, 0.4], "pos": [0, 0.25, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#b5b8bb", "#7bd04a", "#2d3b2a", "#9dff6a", "#f4f7fb"],
+    "anim": "Smooth floating quad-rotor hover above snow with pulsating green radiation sensor halo"
+  },
+  "node": {
+    "name": "Uranium Crystal",
+    "parts": [
+      { "name": "pitchblendeBase", "primitive": "sphere", "size": [2.3, 1.6, 2.1], "pos": [0, 0.8, 0], "color": "#2d3b2a" },
+      { "name": "autuniteSpire", "primitive": "cone", "size": [0.9, 1.4, 0.9], "pos": [0.4, 1.1, 0.3], "color": "#7bd04a" },
+      { "name": "crystallineShard", "primitive": "cone", "size": [0.6, 0.9, 0.6], "pos": [-0.6, 0.85, -0.3], "color": "#9dff6a" },
+      { "name": "snowShieldCap", "primitive": "sphere", "size": [1.6, 0.35, 1.4], "pos": [0, 1.65, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#2d3b2a", "#7bd04a", "#9dff6a", "#f4f7fb"],
+    "anim": "Deep bass hum with Cherenkov green radiation pulse and sparkling radioactive crystal shards shedding"
+  }
+}

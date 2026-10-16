@@ -6,6 +6,8 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../src/core/EventBus';
+import type { ConstructionPad } from '../src/stations/ConstructionPad';
+import { meetGate } from './gateHelpers';
 import { createGameState, REGION_SLOTS, type GameContext, type GameEvents, type GameState, type Item, type ItemKind, type ManageRequest, type ChooseRequest } from '../src/core/types';
 import { DEMOLISH_MIN, ERAS, MACHINES, MACHINE_IDS, MAX_ERA, machinesOfEra, type MachineId } from '../src/eras/data';
 import { DOCK_FRAME, DEPOT_FRAME, INPUT_CAPACITY, OUTPUT_CAPACITY, chooseOptions, costText, demolishCost, inputCap, machineFrame, machineStatRows, settlePaidSlots, slotPaid, slotTarget, toWorld, worldRect, type LRect } from '../src/eras/rules';
@@ -37,7 +39,7 @@ vi.mock('../src/assets/eraMachines', () => ({
   createDockModel: () => new THREE.Group(),
 }));
 vi.mock('../src/npc/EraCrew', () => ({ EraCrew: class { reconcile(): void {} update(): void {} carried(): Record<string, never> { return {}; } dispose(): void {} } }));
-vi.mock('../src/npc/Jack', () => ({ JackCart: class { update(): void {} dispose(): void {} } }));
+vi.mock('../src/npc/Jack', () => ({ JackCart: class { sink = { id: 'jack:sink' }; update(): void {} dispose(): void {} } }));
 
 const { EraWorld } = await import('../src/eras/EraWorld');
 
@@ -113,8 +115,8 @@ describe('rules', () => {
 
   it('the choose card lists every machine of the era with its price', () => {
     expect(chooseOptions(2).map((o) => o.id)).toEqual(machinesOfEra(2));
-    expect(costText(MACHINES.kiln)).toBe('$27,000 + 12 Stone');
-    expect(costText(MACHINES.quarry)).toBe('$15,000');
+    expect(costText(MACHINES.kiln)).toBe('$270,000 + 12 Stone');
+    expect(costText(MACHINES.quarry)).toBe('$150,000');
     for (let n = 2; n <= MAX_ERA; n++) expect(chooseOptions(n).length).toBeGreaterThan(0);
   });
 
@@ -129,13 +131,13 @@ describe('rules', () => {
     const t = slotTarget(MACHINES.kiln, 100, 3);
     expect(t.logs).toBe(0);
     expect(t.extra).toEqual({ kind: 'stone', count: 12, paid: 3 });
-    expect(slotPaid(MACHINES.kiln, { cash: 27000, extra: 12 })).toBe(true);
-    expect(slotPaid(MACHINES.kiln, { cash: 27000, extra: 11 })).toBe(false);
+    expect(slotPaid(MACHINES.kiln, { cash: 270000, extra: 12 })).toBe(true);
+    expect(slotPaid(MACHINES.kiln, { cash: 270000, extra: 11 })).toBe(false);
     const state = createGameState();
     state.eras.age = 2;
     state.eras.regions[2]!.unlocked = true;
-    state.eras.regions[2]!.slots[0] = { machine: 'kiln', tier: -1, cash: 27000, extra: 12 };
-    state.eras.regions[2]!.slots[1] = { machine: 'kiln', tier: -1, cash: 27000, extra: 3 };
+    state.eras.regions[2]!.slots[0] = { machine: 'kiln', tier: -1, cash: 270000, extra: 12 };
+    state.eras.regions[2]!.slots[1] = { machine: 'kiln', tier: -1, cash: 270000, extra: 3 };
     expect(settlePaidSlots(state)).toBe(1);
     expect(state.eras.regions[2]!.slots[0]).toEqual({ machine: 'kiln', tier: 0, cash: 0, extra: 0 });
     expect(state.eras.regions[2]!.slots[1]!.tier).toBe(-1);
@@ -152,6 +154,11 @@ interface FakeZone {
   removed: boolean;
   setEnabled(on: boolean): void;
 }
+
+/** Prep: the Great Lodge is built (the climb is open: era 2's pad shows, locked on preview until its gate is met). */
+const lodge = (s: GameState): void => void (s.village.greatLodge.tier = 0);
+/** Prep: the Lodge built and era 2's gate met (every era-1 upgrade at Lv 10), so its pad takes payment. */
+const gate2 = (s: GameState): void => meetGate(s, 2);
 
 function makeWorld(age: number, villageLevel = 0, prep?: (s: GameState) => void) {
   const events = new EventBus<GameEvents>();
@@ -197,7 +204,7 @@ function makeWorld(age: number, villageLevel = 0, prep?: (s: GameState) => void)
       },
       remove: (h: object) => void boxes.delete(h),
     },
-    tweens: { killTweensOf: () => undefined, popIn: () => undefined, run: () => undefined, punchScale: () => undefined, squash: () => undefined, delay: () => undefined },
+    tweens: { killTweensOf: () => undefined, popIn: () => undefined, run: () => ({}), punchScale: () => undefined, squash: () => undefined, delay: () => undefined },
     particles: { ring: () => undefined, puff: () => undefined, sparkle: () => undefined },
     audio: { play: () => undefined },
     items: {
@@ -223,17 +230,19 @@ const run = (w: ReturnType<typeof makeWorld>, seconds: number, step = 1 / 30): v
 };
 
 describe('EraWorld construction', () => {
-  it('a fresh game has no regions and no events; the pad of era 2 waits for Winter City', () => {
+  it('a fresh game has no regions and no events; the pad of era 2 waits for the Great Lodge, not Winter City', () => {
     const w = makeWorld(1, 0);
     expect(w.world.region(2)).toBeNull();
     expect(w.log).toHaveLength(0);
-    const w2 = makeWorld(1, 4);
+    const city = makeWorld(1, 4);
+    expect(city.zones.some((z) => z.opts.id.startsWith('pad:expansion:'))).toBe(false);
+    const w2 = makeWorld(1, 5, lodge);
     expect(w2.zones.some((z) => z.opts.id === 'pad:expansion:2:logs')).toBe(true);
     expect(w2.log.filter((l) => l.type === 'expansion:offered')).toHaveLength(0); // restored on offer: silent
   });
 
   it('a restored game builds every region up to its age silently, with a runtime per region', () => {
-    const w = makeWorld(3, 5);
+    const w = makeWorld(3, 5, (s) => meetGate(s, 4));
     expect(w.log).toHaveLength(0);
     for (const n of [2, 3]) {
       const r = w.world.region(n)!;
@@ -245,7 +254,7 @@ describe('EraWorld construction', () => {
     }
     expect(w.world.region(4)).toBeNull();
     expect(w.state.eras.regions[2]!.unlocked).toBe(true);
-    // era 4's pad is offered (age 3)
+    // era 4's pad is offered (age 3, its gate met)
     expect(w.zones.some((z) => z.opts.id === 'pad:expansion:4:logs')).toBe(true);
   });
 
@@ -253,8 +262,8 @@ describe('EraWorld construction', () => {
     const w = makeWorld(2, 0, (st) => {
       const slots = st.eras.regions[2]!.slots;
       slots[0] = { machine: 'quarry', tier: 0, cash: 0, extra: 0 };
-      slots[1] = { machine: 'kiln', tier: -1, cash: 5000, extra: 2 };
-      slots[2] = { machine: 'kiln', tier: -1, cash: 27000, extra: 12 };
+      slots[1] = { machine: 'kiln', tier: -1, cash: 50000, extra: 2 };
+      slots[2] = { machine: 'kiln', tier: -1, cash: 270000, extra: 12 };
     });
     expect(w.log).toHaveLength(0);
     const r = w.world.region(2)!;
@@ -273,7 +282,7 @@ describe('EraWorld construction', () => {
 
 describe('unlock', () => {
   it('emits era:unlocked for every newly opened era (also instant), raises the age, opens the next pad', () => {
-    const w = makeWorld(1, 4);
+    const w = makeWorld(1, 5, lodge);
     w.world.unlock(3, true);
     expect(w.of<{ era: number }>('era:unlocked').map((e) => e.era)).toEqual([2, 3]);
     expect(w.state.eras.age).toBe(3);
@@ -287,7 +296,7 @@ describe('unlock', () => {
   });
 
   it('pays the expansion pad: progress is kept in state, completing it opens the era', () => {
-    const w = makeWorld(1, 4);
+    const w = makeWorld(1, 5, gate2);
     const unlockCash = ERAS[2]!.unlock.cash;
     const extra = ERAS[2]!.unlock.extra;
     // the pad is a real ConstructionPad: reach it through its zones' holder via the world's private table
@@ -305,6 +314,34 @@ describe('unlock', () => {
     expect(w.state.eras.age).toBe(2);
     expect(w.state.eras.regions[2]!.cash).toBe(0);
     expect(w.of('era:unlocked')).toHaveLength(1);
+  });
+
+  it('at the Lodge the era-2 pad is on preview with the gate note, and turns payable once the gate is met', () => {
+    const w = makeWorld(1, 5, lodge);
+    const pad = (w.world as unknown as { pads: ConstructionPad[] }).pads[2]!;
+    expect(pad.visible && pad.locked).toBe(true);
+    expect(pad.payDirect(1000)).toBe(0);
+    meetGate(w.state, 2);
+    run(w, 1.1); // the one-second poll re-checks the offer
+    expect(pad.locked).toBe(false);
+    expect(w.of<{ era: number }>('expansion:offered').map((e) => e.era)).toEqual([2]);
+    expect(pad.payDirect(1000)).toBe(1000);
+  });
+
+  it('a locked (preview) expansion pad stays shown but refuses payment until unlocked', () => {
+    const w = makeWorld(1, 5, lodge);
+    const extra = ERAS[2]!.unlock.extra;
+    const pad = (w.world as unknown as { pads: ConstructionPad[] }).pads[2]!;
+    const zone = (id: string): FakeZone => w.zones.find((z) => z.opts.id === `pad:expansion:2:${id}`)!;
+    pad.setLocked('3/23 · S2/5');
+    expect(pad.visible && pad.locked).toBe(true);
+    expect(pad.payDirect(1000)).toBe(0);
+    expect(pad.canAccept('cash') || pad.canAccept(extra.kind)).toBe(false);
+    expect(zone('cash').enabled || zone('logs').enabled).toBe(false);
+    expect(w.state.eras.regions[2]!.cash).toBe(0);
+    pad.setLocked(null);
+    expect(zone('cash').enabled && zone('logs').enabled).toBe(true);
+    expect(pad.payDirect(1000)).toBe(1000);
   });
 });
 
@@ -493,6 +530,20 @@ describe('choose, pay, demolish', () => {
     // a new machine can be chosen and built there
     expect(w.world.build(2, 1, 'quarry')).toBe(true);
   });
+
+  it('switching the choice to a machine with another extra material gives the pad a zone for that material', () => {
+    const w = makeWorld(2);
+    const r = w.world.region(2) as unknown as { choose(i: number, id: string): boolean };
+    expect(r.choose(0, 'quarry')).toBe(true);
+    expect(r.choose(0, 'kiln')).toBe(true);
+    const live = w.zones.filter((z) => z.opts.id === 'pad:slot:2:0:logs' && z.enabled);
+    expect(live).toHaveLength(1);
+    expect(live[0]!.opts.kinds).toEqual(['stone']);
+    // back to the quarry: the first pad is reused, no zone pulls stone any more
+    expect(r.choose(0, 'quarry')).toBe(true);
+    expect(w.zones.filter((z) => z.opts.id === 'pad:slot:2:0:logs')).toHaveLength(2);
+    expect(w.zones.some((z) => z.opts.id === 'pad:slot:2:0:logs' && z.enabled)).toBe(false);
+  });
 });
 
 describe('depot, dock, orders', () => {
@@ -508,18 +559,19 @@ describe('depot, dock, orders', () => {
     expect(r.depot.take()).toBeNull();
   });
 
-  it('a market order lands on the dock; what does not fit is refunded at the buy quote', () => {
+  it('a market order lands on the dock; what does not fit is refunded at what it cost', () => {
     const w = makeWorld(2);
     const r = w.world.region(2)!;
-    w.events.emit('market:order', { kind: 'stone', count: 20, era: 2 });
+    w.events.emit('market:order', { kind: 'stone', count: 20, era: 2, amount: 2640 });
     expect(r.dock.count('stone')).toBe(20);
     expect(w.eco.money).toBe(0);
-    w.events.emit('market:order', { kind: 'stone', count: 10, era: 2 });
+    // 132 a unit (delivery, Trade and season included): the 6 that do not fit come back at that price
+    w.events.emit('market:order', { kind: 'stone', count: 10, era: 2, amount: 1320 });
     expect(r.dock.count('stone')).toBe(24);
-    expect(w.eco.money).toBe(6 * 100);
+    expect(w.eco.money).toBe(6 * 132);
     // an order for a closed region comes back in full
-    w.events.emit('market:order', { kind: 'ore', count: 3, era: 3 });
-    expect(w.eco.money).toBe(600 + 300);
+    w.events.emit('market:order', { kind: 'ore', count: 3, era: 3, amount: 396 });
+    expect(w.eco.money).toBe(6 * 132 + 396);
   });
 
   it('the shop mat opens the industry tab', () => {
@@ -571,6 +623,41 @@ describe('snapshot / restore', () => {
     expect(again[2]!.slots[0]!.out).toBe(OUTPUT_CAPACITY);
     expect(again[2]!.slots[1]!.in.stone).toBe(6);
     expect(again[2]!.dock.stone).toBe(24);
+  });
+
+  it('a mid-cycle save with a full hopper round-trips: the running cycle resumes and makes its batch', () => {
+    const w = makeWorld(2);
+    w.world.build(2, 1, 'kiln');
+    const m = w.world.region(2)!.machines[1]!;
+    m.input!.fill('stone', 4);
+    run(w, 0.5); // cycle started: 2 stone taken
+    m.input!.fill('stone', 4); // refilled to the cap (6) during the cycle
+    const snap = w.world.snapshot();
+    expect(snap[2]!.slots[1]!.in.stone).toBe(8);
+    const w2 = makeWorld(2);
+    w2.world.build(2, 1, 'kiln');
+    w2.world.restore(snap);
+    const m2 = w2.world.region(2)!.machines[1]!;
+    expect(m2.input!.count('stone')).toBe(6);
+    expect(w2.world.snapshot()).toEqual(snap); // nothing lost, idempotent
+    run(w2, MACHINES.kiln.cycle + 0.2); // Rigs 1
+    expect(m2.output.count('brick')).toBe(MACHINES.kiln.batch);
+  });
+
+  it('dock goods that no longer fit on restore are credited at the sell quote', () => {
+    const w = makeWorld(2);
+    const snap = w.world.snapshot();
+    snap[2]!.dock = { stone: 24, brick: 6 }; // a full dock + a worker's load
+    w.world.restore(snap);
+    expect(w.world.region(2)!.dock.count('stone')).toBe(24);
+    expect(w.eco.money).toBe(6 * 100);
+  });
+
+  it('materials still flying to the depot or Jack are saved on the dock (not sold yet)', () => {
+    const w = makeWorld(2);
+    const r = w.world.region(2)! as unknown as { depot: object; jack: { sink: object } };
+    (w.ctx.flights as unknown as { inFlightTo(h: object, k?: ItemKind): number }).inFlightTo = (h, k) => (h === r.depot && k === 'brick' ? 2 : h === r.jack.sink && k === 'stone' ? 1 : 0);
+    expect(w.world.snapshot()[2]!.dock).toEqual({ stone: 1, brick: 2 });
   });
 
   it('a save made mid-cycle keeps the inputs of the running cycle', () => {

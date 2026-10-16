@@ -1,0 +1,229 @@
+{
+  "era": 10,
+  "name": "AI Era",
+  "materials": [
+    {
+      "id": "power",
+      "new": false,
+      "shape": "cell",
+      "colors": ["#3ad1ff", "#1d2a38"]
+    },
+    {
+      "id": "chip",
+      "new": false,
+      "shape": "chip",
+      "colors": ["#2f6f4e", "#e8c650"]
+    },
+    {
+      "id": "aiCore",
+      "new": false,
+      "shape": "core",
+      "colors": ["#9b6cff", "#1f2240"]
+    },
+    {
+      "id": "robot",
+      "new": false,
+      "shape": "robot",
+      "colors": ["#dfe3ec", "#9b6cff"]
+    },
+    {
+      "id": "quantumCore",
+      "new": true,
+      "shape": "quantumCore",
+      "size": [0.36, 0.36, 0.36],
+      "colors": ["#1f2240", "#9b6cff", "#b48cff", "#dfe3ec"],
+      "detail": "Suspended icosahedral quantum computing node trapped inside a glowing violet magnetic cryo-cage",
+      "icon": "Floating violet icosahedral quantum core inside sleek magnetic suspension ring"
+    }
+  ],
+  "machines": [
+    {
+      "id": "fusionPlant",
+      "new": false,
+      "parts": [
+        { "name": "tokamak", "primitive": "torus", "size": [4.4, 1.2, 4.4], "pos": [0, 2.0, 0], "color": "#1f2240" }
+      ],
+      "colors": ["#1f2240", "#9b6cff", "#3ad1ff"]
+    },
+    {
+      "id": "nanoFab",
+      "new": false,
+      "parts": [
+        { "name": "fabBlock", "primitive": "box", "size": [4.6, 3.8, 4.4], "pos": [0, 1.9, 0], "color": "#dfe3ec" }
+      ],
+      "colors": ["#dfe3ec", "#9b6cff", "#1f2240"]
+    },
+    {
+      "id": "dataCenter",
+      "new": false,
+      "parts": [
+        { "name": "serverBlock", "primitive": "box", "size": [4.8, 4.2, 4.4], "pos": [0, 2.1, 0], "color": "#1f2240" }
+      ],
+      "colors": ["#1f2240", "#9b6cff", "#b48cff"]
+    },
+    {
+      "id": "robotWorks",
+      "new": false,
+      "parts": [
+        { "name": "assemblyBay", "primitive": "box", "size": [4.8, 4.0, 4.4], "pos": [0, 2.0, 0], "color": "#dfe3ec" }
+      ],
+      "colors": ["#dfe3ec", "#9b6cff", "#1f2240"]
+    },
+    {
+      "id": "quantumLab",
+      "new": true,
+      "role": "premium",
+      "footprint": [5.0, 4.8],
+      "height": 4.4,
+      "parts": [
+        { "name": "superconductingPodium", "primitive": "box", "size": [4.6, 0.6, 4.4], "pos": [0, 0.3, 0], "color": "#1f2240" },
+        { "name": "cryostatTowerChamber", "primitive": "cylinder", "size": [2.6, 3.0, 2.6], "pos": [0, 2.0, -0.3], "color": "#dfe3ec" },
+        { "name": "laserInterferometerBay", "primitive": "box", "size": [2.2, 0.8, 1.6], "pos": [1.1, 0.8, 0.7], "color": "#1f2240" },
+        { "name": "harmonicWaveguidePillars", "primitive": "cylinder", "size": [0.3, 2.6, 0.3], "pos": [-1.4, 1.6, 0.9], "color": "#9b6cff" },
+        { "name": "quantumShieldCanopy", "primitive": "torus", "size": [2.2, 0.15, 2.2], "pos": [0, 3.6, -0.3], "color": "#9b6cff" },
+        { "name": "snowDustedCeramicRoof", "primitive": "box", "size": [4.4, 0.22, 3.8], "pos": [0, 2.8, -0.3], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "entanglementCoreAura", "primitive": "sphere", "size": [0.8, 0.8, 0.8], "pos": [0, 2.0, 0.9], "color": "#b48cff" },
+        { "name": "cryoStatusBeacon", "primitive": "sphere", "size": [0.24, 0.24, 0.24], "pos": [-1.4, 3.0, 0.9], "color": "#9b6cff" }
+      ],
+      "anim": {
+        "part": "floatingHarmonicRing",
+        "pivot": [0, 2.2, -0.3],
+        "motion": "spin",
+        "period": 2.4
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "quantumBank",
+      "new": true,
+      "role": "cash",
+      "footprint": [4.6, 4.4],
+      "height": 3.8,
+      "parts": [
+        { "name": "crystallinePedestal", "primitive": "box", "size": [4.2, 0.5, 4.0], "pos": [0, 0.25, 0], "color": "#1f2240" },
+        { "name": "ledgerTerminalBlock", "primitive": "box", "size": [3.0, 2.2, 2.4], "pos": [0, 1.4, -0.2], "color": "#dfe3ec" },
+        { "name": "holoCoinFunnel", "primitive": "cone", "size": [0.9, 1.0, 0.9], "pos": [0, 2.8, -0.2], "color": "#9b6cff" },
+        { "name": "biometricScannerPlinth", "primitive": "box", "size": [1.2, 0.4, 0.4], "pos": [0, 1.0, 1.0], "color": "#1f2240" },
+        { "name": "quantumLedgerSpire", "primitive": "cylinder", "size": [0.2, 2.8, 0.2], "pos": [-1.3, 1.7, -1.0], "color": "#9b6cff" },
+        { "name": "snowCappedUpperArch", "primitive": "box", "size": [3.2, 0.2, 2.6], "pos": [0, 2.6, -0.2], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "holographicLedgerScreen", "primitive": "box", "size": [1.6, 0.9, 0.1], "pos": [0, 1.7, 0.92], "color": "#b48cff" },
+        { "name": "depositSlotGlint", "primitive": "sphere", "size": [0.22, 0.22, 0.22], "pos": [0, 1.1, 1.15], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "holographicVortexRings",
+        "pivot": [0, 2.8, -0.2],
+        "motion": "spin",
+        "period": 1.6
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    }
+  ],
+  "workers": [
+    {
+      "role": "hauler",
+      "title": "Robot",
+      "hat": "magnetic hard hat node + #9b6cff",
+      "coat": "#dfe3ec",
+      "prop": "graviton pallet clamp + [0.24, 0.4, 0.24] + #1f2240",
+      "anim": "cheerful boxy bipedal waddle carrying floating cargo pallet"
+    },
+    {
+      "role": "feeder",
+      "title": "Feeder Bot",
+      "hat": "dual sensor antenna array + #9b6cff",
+      "coat": "#c8d0e0",
+      "prop": "multitask magnetic manipulator arm + [0.15, 0.65, 0.15] + #9b6cff",
+      "anim": "nimble precision robotic arm extension feeding materials"
+    },
+    {
+      "role": "shipper",
+      "title": "Courier Drone",
+      "hat": "ducted fan ring cap + #1f2240",
+      "coat": "#dfe3ec",
+      "prop": "quantum encrypted data lockbox + [0.25, 0.3, 0.2] + #9b6cff",
+      "anim": "hovering low glide over snow with humming gyros"
+    },
+    {
+      "role": "porter",
+      "title": "Dock Bot",
+      "hat": "heavy forklift sensor visor + #9b6cff",
+      "coat": "#3a4268",
+      "prop": "hydraulic dual fork lifter + [0.35, 0.7, 0.3] + #dfe3ec",
+      "anim": "sturdy tracked turn elevating heavy freight container"
+    },
+    {
+      "role": "clerk",
+      "title": "Ledger AI",
+      "hat": "halo ring projector + #b48cff",
+      "coat": "#1f2240",
+      "prop": "floating holographic ledger orb + [0.2, 0.2, 0.2] + #9b6cff",
+      "anim": "bobbing mid-air spinning floating balance holograms"
+    },
+    {
+      "role": "foreman",
+      "title": "Builder Bot",
+      "hat": "orange warning beacon crown + #ffd026",
+      "coat": "#dfe3ec",
+      "prop": "nanotech acoustic construction projector + [0.16, 0.45, 0.16] + #9b6cff",
+      "anim": "projecting glowing grid guides onto construction lots"
+    },
+    {
+      "role": "gatherer",
+      "title": "Prospector Drone",
+      "hat": "swiveling lidar scanner dome + #9b6cff",
+      "coat": "#2e3458",
+      "prop": "plasma harmonic resonator probe + [0.18, 0.75, 0.14] + #b48cff",
+      "anim": "curious tilting hover scanning crystal nodes with gentle chime"
+    }
+  ],
+  "gear": [
+    {
+      "slot": "carry",
+      "name": "Exo Suit",
+      "look": "Sleek pearlescent ceramic power exoskeleton harness with violet fiber-optic hydraulic servos",
+      "colors": ["#dfe3ec", "#9b6cff", "#1f2240"]
+    },
+    {
+      "slot": "boots",
+      "name": "Jet Boots",
+      "look": "Streamlined micro-thruster boots with violet anti-grav ion exhaust trails",
+      "colors": ["#1f2240", "#9b6cff", "#dfe3ec"]
+    },
+    {
+      "slot": "tool",
+      "name": "Nano Wand",
+      "look": "Faceted ceramic styling tool emitting a focused ribbon of self-assembling matter",
+      "colors": ["#dfe3ec", "#9b6cff", "#b48cff"]
+    }
+  ],
+  "pet": {
+    "name": "Robo Pup",
+    "parts": [
+      { "name": "chunkyCeramicBody", "primitive": "box", "size": [0.42, 0.35, 0.52], "pos": [0, 0.4, 0], "color": "#dfe3ec" },
+      { "name": "expressiveHead", "primitive": "box", "size": [0.26, 0.26, 0.28], "pos": [0, 0.62, 0.22], "color": "#1f2240" },
+      { "name": "visorDisplayEyes", "primitive": "box", "size": [0.2, 0.08, 0.04], "pos": [0, 0.64, 0.37], "color": "#b48cff" },
+      { "name": "springLoadedPaws", "primitive": "cylinder", "size": [0.08, 0.28, 0.08], "pos": [-0.15, 0.14, 0.15], "color": "#9b6cff" },
+      { "name": "antennaWagTail", "primitive": "cylinder", "size": [0.03, 0.32, 0.03], "pos": [0, 0.65, -0.28], "color": "#9b6cff" },
+      { "name": "snowSkidPads", "primitive": "box", "size": [0.38, 0.05, 0.5], "pos": [0, 0.22, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#dfe3ec", "#1f2240", "#9b6cff", "#b48cff", "#f4f7fb"],
+    "anim": "Playful bounce and spin with wagging antenna tail, glowing visor eyes, and happy electronic yips"
+  },
+  "node": {
+    "name": "Data Crystal",
+    "parts": [
+      { "name": "monolithicChassis", "primitive": "box", "size": [1.8, 2.2, 1.8], "pos": [0, 1.1, 0], "color": "#1f2240" },
+      { "name": "quantumCrystalShard", "primitive": "cone", "size": [0.9, 1.6, 0.9], "pos": [0.4, 1.4, 0.3], "color": "#9b6cff" },
+      { "name": "harmonicLightRibbon", "primitive": "torus", "size": [1.4, 0.08, 1.4], "pos": [0, 1.5, 0], "color": "#b48cff" },
+      { "name": "snowDriftSlab", "primitive": "sphere", "size": [1.7, 0.35, 1.5], "pos": [0, 2.2, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#1f2240", "#9b6cff", "#b48cff", "#f4f7fb"],
+    "anim": "Crystalline synth harmony with rippling violet circuit waves and dislodging glowing quantum nodes"
+  }
+}

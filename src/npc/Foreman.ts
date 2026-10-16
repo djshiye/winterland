@@ -422,7 +422,7 @@ export class Foreman extends Helper {
       if (amount > 0 && this.ctx.economy.spend(amount)) {
         const credit = pad.payDirect(amount);
         if (credit < amount) this.ctx.economy.add(amount - credit); // the pad took less (cannot normally happen)
-        this.payTimer = PRIORITIES.payInterval / Math.max(0.5, this.mult);
+        this.payTimer = PRIORITIES.payInterval / this.stats.cadence;
         this.fx = 0.35;
         acted = true;
       } else {
