@@ -289,10 +289,16 @@ export function settlementGoal(s: GameState, g: EraGate): NextGoal {
   return { text, action: { kind: 'build', target: `district:${age}` } };
 }
 
+/** A prereq that only waits for the settlement ("Reach Settlement 37"): the settlement step answers it. */
+function settlementPrereq(r: GateRow): boolean {
+  return r.state === 'prereq' && UPGRADES[r.id].requires?.settlement !== undefined && /Settlement/.test(r.prereq ?? '');
+}
+
 /**
  * The single next goal of the climb (docs/EXPANSION.md §C, ADHD-friendly: one line, one action), or null before the
- * Great Lodge and after the last era. Priority: an unmet prereq → the cheapest affordable row → the settlement →
- * saving for the cheapest row ("$12K to go") → the expansion pad. `money` is the player's cash (Economy).
+ * Great Lodge and after the last era. Priority (0.9.6, F7): something to build first (an unbuilt machine) → the
+ * cheapest affordable row → the settlement step ("Build a home in Glass Heights", never a bare "Reach Settlement 37")
+ * → saving for the cheapest row ("$12K to go") → the expansion pad. `money` is the player's cash (Economy).
  */
 export function nextGoal(s: GameState, money: number): NextGoal | null {
   const n = s.eras.age + 1;
@@ -301,7 +307,7 @@ export function nextGoal(s: GameState, money: number): NextGoal | null {
   if (padPaid(s, n) > 0) return { text: `${ERAS[n]!.region} is for sale!`, action: { kind: 'go', target: `region:${n}` } };
   const g = eraGate(s, n);
   const open = g.rows.filter((r) => r.state !== 'ok');
-  const prereq = open.find((r) => r.state === 'prereq');
+  const prereq = open.find((r) => r.state === 'prereq' && !settlementPrereq(r));
   if (prereq) {
     // "Build the Harvester first", not "Harvester: Build the Harvester first" (the upgrade named after its machine)
     const label = UPGRADES[prereq.id].label;
@@ -309,14 +315,69 @@ export function nextGoal(s: GameState, money: number): NextGoal | null {
     return { text, action: { kind: 'build', target: prereqTarget(prereq.id, s) } };
   }
   const next = (r: GateRow): number => stepCost(UPGRADES[r.id], s.upgrades[r.id]);
-  const low = open.slice().sort((a, b) => next(a) - next(b) || a.costToNeed - b.costToNeed);
+  const low = open.filter((r) => r.state === 'low').sort((a, b) => next(a) - next(b) || a.costToNeed - b.costToNeed);
   const cheapest = low[0];
   if (cheapest && next(cheapest) <= money) {
     return { text: `${rowText(cheapest)} (${formatMoney(next(cheapest))})`, action: buyAction(cheapest) };
   }
-  if (g.settlement.level < g.settlementNeed) return settlementGoal(s, g);
+  if (g.settlement.level < g.settlementNeed || open.some(settlementPrereq)) return settlementGoal(s, g);
   if (cheapest) {
     return { text: `${rowText(cheapest)}: ${formatMoney(next(cheapest) - money)} to go`, hint: `Save up: ${rowText(cheapest)}`, action: buyAction(cheapest) };
   }
   return { text: `${ERAS[n]!.region} is for sale!`, action: { kind: 'go', target: `region:${n}` } };
+}
+
+/** Who owns era n − 1's things in the rule line: "Survival's" for era 2, then the region ("Granite Hollow's"). */
+function ownerOf(n: number): string {
+  const prev = ERAS[n - 1];
+  return prev ? `${prev.region}'s` : "Survival's";
+}
+
+/**
+ * The per-era Lv 10 rule in one sentence (0.9.6, READINESS C1), for the era card and the gate card: "Raise Granite
+ * Hollow's machines, crew and upgrades to Lv 10 and grow the city to Settlement 10, then buy Iron Ridge." Empty past
+ * the last era.
+ */
+export function gateRuleText(n: number): string {
+  const e = ERAS[n];
+  if (!e) return '';
+  return `Raise ${ownerOf(n)} machines, crew and upgrades to Lv ${gateNeed(n)} and grow to Settlement ${settlementNeed(n)}, then buy ${e.region}.`;
+}
+
+/** The short form for the era card after an expansion: "Next: Granite Hollow's things to Lv 10, then Iron Ridge." */
+export function gateRuleShort(n: number): string {
+  const e = ERAS[n];
+  return e ? `Next: ${ownerOf(n)} things to Lv ${gateNeed(n)}, then ${e.region}` : '';
+}
+
+/** The gate card's row groups, in this order (0.9.6, finding 11: "Machines 5 · Crew 7 · Sales 7 · You 4 · Finance 2"). */
+export const GATE_GROUPS: readonly { key: string; label: string; groups: readonly UpgradeDef['group'][] }[] = [
+  { key: 'machines', label: 'Machines', groups: ['machine'] },
+  { key: 'crew', label: 'Crew', groups: ['crew'] },
+  { key: 'industry', label: 'Industry', groups: ['industry'] },
+  { key: 'sales', label: 'Sales', groups: ['sales'] },
+  { key: 'you', label: 'You', groups: ['lumberjack'] },
+  { key: 'finance', label: 'Finance', groups: ['finance'] },
+];
+
+export interface GateGroupCount {
+  key: string;
+  label: string;
+  ok: number;
+  total: number;
+}
+
+/** Rows done per group (groups with no rows left out), so the card can show every row's group with a bar. */
+export function gateGroups(g: Pick<EraGate, 'rows'>): GateGroupCount[] {
+  const out: GateGroupCount[] = [];
+  for (const grp of GATE_GROUPS) {
+    const rows = g.rows.filter((r) => grp.groups.includes(UPGRADES[r.id].group));
+    if (rows.length) out.push({ key: grp.key, label: grp.label, ok: rows.filter((r) => r.state === 'ok').length, total: rows.length });
+  }
+  return out;
+}
+
+/** True when a row only waits for the settlement (the card shows "Locked" in place of Go). */
+export function waitsForSettlement(r: GateRow): boolean {
+  return settlementPrereq(r);
 }

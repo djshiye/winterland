@@ -18,9 +18,11 @@ import {
   reducedMotion,
   setReducedMotion,
 } from '../src/fx/padJuice';
+import { setComfort } from '../src/fx/comfort';
 
 afterEach(() => {
   setReducedMotion(null);
+  setComfort({ motion: false });
   vi.unstubAllGlobals();
 });
 
@@ -86,24 +88,19 @@ describe('voice cap', () => {
 });
 
 describe('reduced motion', () => {
-  it('reads prefers-reduced-motion when no preference is forced', () => {
-    const asked: string[] = [];
-    const media = (matches: boolean) => (q: string) => {
-      asked.push(q);
-      return { matches, addEventListener: () => undefined };
-    };
-    vi.stubGlobal('window', { matchMedia: media(true) });
+  it('follows the in-game Reduce motion switch (Settings, fx/comfort) unless forced', () => {
     setReducedMotion(null);
+    setComfort({ motion: true });
     expect(reducedMotion()).toBe(true);
-    expect(asked).toEqual(['(prefers-reduced-motion: reduce)']);
-    vi.stubGlobal('window', { matchMedia: media(false) });
+    expect(motionScale()).toBe(REDUCED_MOTION_SCALE);
+    expect(burstCount(10)).toBe(0);
+    setComfort({ motion: false });
+    expect(reducedMotion()).toBe(false);
+    expect(motionScale()).toBe(1);
+    setReducedMotion(true); // a forced preference (tests, debug) wins over the switch
+    expect(reducedMotion()).toBe(true);
     setReducedMotion(null);
     expect(reducedMotion()).toBe(false);
-    setReducedMotion(true); // a forced preference wins over the media query
-    expect(reducedMotion()).toBe(true);
-    vi.stubGlobal('window', undefined);
-    setReducedMotion(null);
-    expect(reducedMotion()).toBe(false); // no window (tests, workers): full motion
   });
 
   it('scales bounces and skips bursts', () => {

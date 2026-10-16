@@ -15,6 +15,7 @@
  * - Every batch: stats.materialsMade += batch, 'material:made'. snapshot() counts items in flight toward the piles and
  *   the inputs of the running cycle, so a save mid-cycle loses nothing.
  */
+import { fadeManageSign } from '../fx/manageSign';
 import * as THREE from 'three';
 import { TIMING } from '../config';
 import { createMachineModel, type MachineModel } from '../assets/eraMachines';
@@ -228,6 +229,7 @@ export class Machine implements MachineRuntime {
     else this.updateProcessor(dt, cyc);
     this.model.animate(dt, this.working);
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
+    fadeManageSign(this.sign, this.ctx.player?.position);
   }
 
   // ---- save -------------------------------------------------------------------------------------------------

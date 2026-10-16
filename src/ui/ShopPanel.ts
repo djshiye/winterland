@@ -1,7 +1,10 @@
 /**
  * [B4] Upgrade shop panel. Opens on 'shop:open', closes on 'shop:close' (player on / off the cabin doormat, or an era
  * region's shop mat); the X button hides it until the next 'shop:open'. A Buy press only counts while the panel is open,
- * so levels are bought standing on a mat, one per press (upgrades are hands-on). Three tabs (Lumberjack | Crew | Sales). Bottom sheet on phones (≤ 44 % of the
+ * so levels are bought standing on a mat, one per press (upgrades are hands-on). Tabs Lumberjack | Crew | Sales | Finance
+ * at the cabin; an era region's mat shows only that era's cards, its player tab reads "You" (0.9.6).
+ * 0.9.6: the cabin no longer lists era Industry cards (they are bought on each era's own mat) and shows no empty era
+ * headers; once era 2 is open a line at the top points at the current era's mat with Go. Bottom sheet on phones (≤ 44 % of the
  * viewport height, the rest stays bare canvas for the floating joystick), side card on wide screens.
  *
  * The cards are built once; refresh() only rewrites what changed and runs at most once per frame (from update())
@@ -18,8 +21,9 @@ import { crewSlots, type CrewRole } from '../core/crew';
 import { authoredMax, base, introEra, valueAt } from '../core/ladder';
 import type { GameContext } from '../core/types';
 import { ERAS, ERA_NAMES } from '../eras/data';
+import { regionLayout } from '../eras/layout';
 import { climbOpen, gateNeed, inGate as inGateOf } from '../eras/gate';
-import { BAND_PIPS, bandView, eraCrewDelta, eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
+import { BAND_PIPS, bandView, eraCrewDelta, eraRoman, industryEraNote, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
 import { hexCss, ICON_CLOSE, ICON_LOCK, upgradeIcon } from './icons';
@@ -99,6 +103,10 @@ export class ShopPanel {
   /** Last applied tab / era / tab-strip layout (skips redundant DOM writes). */
   private layoutKey = '';
   private readonly prio: HTMLDivElement;
+  /** 0.9.6: the cabin's pointer to the current era's own shop mat ("Granite Hollow's upgrades are on its own mat · Go"). */
+  private readonly eraMatNote: HTMLDivElement;
+  private readonly eraMatText: HTMLSpanElement;
+  private readonly lumberTab: { long: HTMLSpanElement; short: HTMLSpanElement } | null = null;
   /** Climb open (band pips on), as last laid out. */
   private climb = false;
   private readonly woodRow: PrioRow;
@@ -128,6 +136,9 @@ export class ShopPanel {
       const label = t.short ? `<span class="wl-tab-long">${t.label}</span><span class="wl-tab-short">${t.short}</span>` : `<span>${t.label}</span>`;
       const b = h('button', 'wl-shop-tab', `${label}<i class="wl-dot"></i>`);
       b.type = 'button';
+      if (t.group === 'lumberjack') {
+        this.lumberTab = { long: b.querySelector('.wl-tab-long') as HTMLSpanElement, short: b.querySelector('.wl-tab-short') as HTMLSpanElement };
+      }
       onTap(b, () => {
         ctx.audio.unlock();
         ctx.audio.play('click');
@@ -160,6 +171,15 @@ export class ShopPanel {
     this.prio.appendChild(h('div', 'wl-prio-hint', "Who gets the wood when it's short, and which shop the porter stocks first."));
     this.list.appendChild(this.prio);
     this.prio.style.display = 'none';
+
+    this.eraMatNote = h('div', 'wl-shop-eranote');
+    this.eraMatText = h('span', 'wl-shop-eranote-text');
+    const matGo = h('button', 'wl-gate-go', 'Go');
+    matGo.type = 'button';
+    onTap(matGo, () => this.goToEraMat());
+    this.eraMatNote.append(this.eraMatText, matGo);
+    this.eraMatNote.style.display = 'none';
+    this.list.appendChild(this.eraMatNote);
 
     for (const { group } of TABS) {
       let lastEra = 0;
@@ -252,15 +272,15 @@ export class ShopPanel {
   /** Tabs on show where the panel was opened: the cabin's (0.9.0 rules), or the era mat's own (any tab with a card of that era). */
   private placeTabs(): Tab[] {
     const { state } = this.ctx;
-    if (this.place < 2) return shopTabs(state.eras.age, climbOpen(state));
+    // 0.9.6 (P2-11): era Industry cards are bought on their own era's mat only, so the cabin has no Industry tab
+    if (this.place < 2) return shopTabs(state.eras.age, climbOpen(state)).filter((t) => t !== 'industry');
     return SHOP_TABS.filter((t) => this.cards.some((c) => c.group === t && c.era === this.place));
   }
 
-  /** The card is listed where the panel was opened (and its era is reached or next). */
-  private cardHere(c: Card, age: number): boolean {
+  /** The card is listed where the panel was opened. */
+  private cardHere(c: Card): boolean {
     if (this.place >= 2) return c.era === this.place;
-    // the cabin: Survival's cards, finance, and every era's Industry cards (0.9.0); era crews sit at their region's mat
-    if (c.group === 'industry') return c.era === undefined || industryEraShown(c.era, age);
+    // the cabin: Survival's cards and finance; every era card (crew, machines, Industry) sits at its region's mat
     return c.era === undefined;
   }
 
@@ -273,9 +293,21 @@ export class ShopPanel {
     this.layoutKey = key;
     for (const [g, el] of this.tabEls) el.style.display = tabs.includes(g as Tab) || g === this.tab ? '' : 'none';
     this.tabsEl.classList.toggle('is-many', tabs.length > 4 || (this.place < 2 && this.tab === 'industry'));
-    for (const c of this.cards) c.root.style.display = c.group === this.tab && this.cardHere(c, age) ? '' : 'none';
+    for (const c of this.cards) c.root.style.display = c.group === this.tab && this.cardHere(c) ? '' : 'none';
+    // the player tab is the era's own at a region mat (it used to say "Lumberjack" in the Frontier)
+    if (this.lumberTab) {
+      const long = this.place >= 2 ? 'You' : 'Lumberjack';
+      if (this.lumberTab.long.textContent !== long) {
+        this.lumberTab.long.textContent = long;
+        this.lumberTab.short.textContent = this.place >= 2 ? 'You' : 'Lumber';
+      }
+    }
+    const matEra = this.place < 2 && age >= 2 && ERAS[age] ? age : 0;
+    this.eraMatNote.style.display = matEra ? '' : 'none';
+    if (matEra) this.eraMatText.textContent = `${ERAS[matEra]!.region}'s crew, Industry and sales upgrades are on its own shop mat.`;
     for (const hd of this.eraHeaders) {
-      const here = this.place >= 2 ? hd.era === this.place : industryEraShown(hd.era, age);
+      // 0.9.6 (P1-7): era headers only at their own era's mat, so the cabin never shows an empty "ERA II" header
+      const here = this.place >= 2 && hd.era === this.place;
       hd.root.style.display = this.tab === hd.group && here ? '' : 'none';
       const note = industryEraNote(hd.era, age) ?? '';
       hd.note.textContent = note;
@@ -409,6 +441,18 @@ export class ShopPanel {
     }
   }
 
+  /** The cabin note's Go: fast travel onto the current era's shop mat (the panel there opens as the player lands). */
+  private goToEraMat(): void {
+    const { ctx } = this;
+    ctx.audio.unlock();
+    const n = ctx.state.eras.age;
+    if (n < 2 || !ERAS[n]) return;
+    const at = regionLayout(n).shopMat;
+    ctx.audio.play('click');
+    this.close();
+    ctx.events.emit('travel:request', { x: at.x, z: at.z, label: `${ERAS[n]!.region} shop` });
+  }
+
   /** One level, and only while the panel is open: the player stands on a shop mat (a closing panel buys nothing). */
   private buy(card: Card): void {
     const { ctx } = this;
@@ -475,7 +519,7 @@ export class ShopPanel {
       const req = isMax ? null : up.requirement(id);
       const can = up.canBuy(id);
       const cost = up.nextCost(id);
-      const here = this.cardHere(c, age);
+      const here = this.cardHere(c);
       if (can && here) tabHint[c.group] = true;
 
       if (c.shown.pips !== lvl) {

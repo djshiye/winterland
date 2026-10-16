@@ -198,7 +198,7 @@ export function upgradeRequirement(state: Pick<GameState, 'unlocked' | 'village'
   const def = UPGRADES[id];
   // (the era cash machine `${key}Cash` is the exception: its pad builds it at Lv 1, eras/CashMachine.ts)
   if (def.group === 'machine' && def.era !== undefined && def.era >= 2 && id !== `${ERAS[def.era]?.key}Cash` && !machineBuilt(state, id)) {
-    return `Build a ${def.label} first`;
+    return `Build ${/^[AEIOU]/i.test(def.label) ? 'an' : 'a'} ${def.label} first`;
   }
   return null;
 }
