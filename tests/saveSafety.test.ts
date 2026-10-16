@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { GATE, SAVE, UPGRADES } from '../src/config';
 import { masteryOf } from '../src/core/demand';
 import { costAt } from '../src/core/ladder';
+import { originalCost, refundPrice } from '../src/core/refund';
 import { mergeState, migrateState, MIGRATIONS, newSeasonSave, parseSave, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
 import { BEFORE_KEY, backupKey, isBackupKey, keepUnreadable, listBackups, pushBackup, readBackup, RESCUE_KEY, snapshotBefore, unreadableKeys } from '../src/core/saveVault';
 import { createGameState, type GameState } from '../src/core/types';
@@ -172,12 +173,12 @@ describe('0.9.6 migration: levels past Lv 10 refunded, Mastery kept (decisions 2
     expect(GATE.mode).toBe('literal');
   });
 
-  it.each(OLD_CLIMB)('%s: refunds every level past 10 at today\'s price and freezes the Mastery bonus', (name) => {
+  it.each(OLD_CLIMB)('%s: refunds every level past 10 at what it cost then and freezes the Mastery bonus', (name) => {
     const { state } = loaded(name);
     let refund = 0;
     let levels = 0;
     for (const def of Object.values(UPGRADES)) {
-      for (let k = 10; k < state.upgrades[def.id]; k++) refund += costAt(def, k);
+      for (let k = 10; k < state.upgrades[def.id]; k++) refund += refundPrice(def, k);
       levels += Math.max(0, state.upgrades[def.id] - 10);
     }
     expect(levels).toBeGreaterThan(0);
@@ -206,6 +207,14 @@ describe('0.9.6 migration: levels past Lv 10 refunded, Mastery kept (decisions 2
     const season = newSeasonSave(state, 1).state;
     expect(season.legacy.masteryMult).toBe(state.legacy.masteryMult);
     expect(season.migrations).toEqual(state.migrations);
+  });
+
+  it('prices a refunded level as 0.9.1-0.9.4 did, not at today\'s prices', () => {
+    expect(refundPrice).toBe(originalCost);
+    // spot values from v0.9.4's own core/ladder.ts costAt (every 0.9.4 id and stored level 10..99 matched when written)
+    const SPOT: [string, number, number][] = [["carry",10,95000],["carry",35,7100000],["carry",99,39500000000],["jack",10,827000],["jack",35,14200000],["jack",99,79000000000],["frontierCrew",10,1730000],["frontierCrew",35,54300000],["frontierCrew",99,172000000000],["aiCrew",10,85900000000],["aiCrew",35,2330000000000],["aiCrew",99,20100000000000000],["taxOffice",10,1920000],["taxOffice",35,60400000],["taxOffice",99,191000000000]];
+    for (const [id, s, cost] of SPOT) expect(originalCost(UPGRADES[id as keyof typeof UPGRADES], s)).toBe(cost);
+    expect(originalCost(UPGRADES.frontierCrew, 20)).toBeLessThan(costAt(UPGRADES.frontierCrew, 20));
   });
 
   it('a 0.9.5 save (already Lv 10 at most) gets no refund and no card', () => {
