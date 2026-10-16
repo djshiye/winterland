@@ -9,7 +9,7 @@ import { Crowd } from '../src/npc/Crowd';
 import { NAV, OBSTACLES, Path, PERSON_MARGIN, insideObstacle, ownerAmenity, planPath, planTownPath, seatPoint } from '../src/npc/CrowdNav';
 import { Townsfolk } from '../src/npc/Townsfolk';
 import type { ShopSpot } from '../src/town/types';
-import { AMENITY_SPOTS, BENCHES, STALLS, TREE_RING } from '../src/town/spots';
+import { AMENITY_SPOTS, BENCHES, POND_POSTS, STALLS, TREE_RING } from '../src/town/spots';
 import { amenityFrame, amenityToWorld } from '../src/town/rules';
 import type { Town } from '../src/town/Town';
 
@@ -188,7 +188,7 @@ describe('CrowdNav', () => {
     }
     for (const s of STALLS) expect(hitsSolid(s.x + Math.sin(s.yaw) * 1.2, s.z + Math.cos(s.yaw) * 1.2)).toBe(false);
     // tree + snowman + benches + stalls + the four amenities (bitmasks are `1 << k`: keep the count well under 31)
-    expect(OBSTACLES.length).toBe(2 + BENCHES.length + STALLS.length + AMENITY_IDS.length);
+    expect(OBSTACLES.length).toBe(2 + BENCHES.length + STALLS.length + AMENITY_IDS.length + POND_POSTS.length);
     expect(OBSTACLES.length).toBeLessThan(31);
   });
 

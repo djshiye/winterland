@@ -10,11 +10,19 @@
  */
 import { AMENITY_IDS, LAYOUT, type AmenityId } from '../config';
 import { amenityFrame, amenityToWorld } from '../town/rules';
-import { BENCHES, SNOWMAN, STALLS } from '../town/spots';
+import { BENCHES, POND_POSTS, SNOWMAN, STALLS } from '../town/spots';
 
 /** Radius of a person plus a little air (added to every obstacle). */
 export const PERSON_MARGIN = 0.36;
 const MAX_POINTS = 24;
+/**
+ * Clearance from the solid itself, without the person margin: what the props of a route's `ignore` owner still block
+ * (you may step up to the tree, not walk through it), and the hops into and out of the waypoint graph when the full
+ * margin finds no way (see `leg`).
+ */
+const TIGHT_MARGIN = 0.05;
+/** Margins `leg` tries in turn for the hops into and out of the waypoint graph. */
+const FALLBACK_MARGINS: readonly number[] = [PERSON_MARGIN, 0.2, TIGHT_MARGIN];
 
 export interface Obstacle {
   /** Capsule axis (a single point when equal): a circle is a capsule of zero length. */
@@ -91,6 +99,8 @@ function buildObstacles(): Obstacle[] {
       owner: ownerAmenity(id),
     });
   }
+  // the pond's corner lamp posts stand outside its stadium
+  for (const p of POND_POSTS) out.push({ x: p.x, z: p.z, x2: p.x, z2: p.z, r: 0.1, owner: ownerAmenity('pond') });
   return out;
 }
 
@@ -237,15 +247,38 @@ const NZ: number[] = [];
 })();
 const NN = NX.length;
 
-/** Bit mask of the obstacles that block the segment A→B (obstacles holding an end are skipped: their owner's business). */
-function blockers(ax: number, az: number, bx: number, bz: number): number {
+/** Metres before an end inside a solid's margin where the route may come closer than the margin (see `segBlocked`). */
+const HELD_TAIL = 0.8;
+
+/**
+ * Does the segment A→B pass too close to obstacle `o`? Clearance is the solid plus `margin`. An end on the solid itself
+ * (a seat on a bench) is the owner's business and never blocks. An end merely inside the margin (an approach spot close
+ * to the pond) may only be walked up to over its last HELD_TAIL metres: before that the full margin holds (no hugging
+ * the pond all along its side), and the bare solid always does.
+ */
+function segBlocked(ax: number, az: number, bx: number, bz: number, o: Obstacle, margin: number): boolean {
+  const R = o.r + margin;
+  const da = distPointAxis(ax, az, o);
+  const db = distPointAxis(bx, bz, o);
+  const heldA = da < R * 0.97;
+  const heldB = db < R * 0.97;
+  if (!heldA && !heldB) return distSegmentAxis(ax, az, bx, bz, o) < R * 0.999;
+  if (da < o.r || db < o.r) return false;
+  const T = Math.min(o.r + TIGHT_MARGIN, Math.min(da, db) - 0.01);
+  if (distSegmentAxis(ax, az, bx, bz, o) < T * 0.999) return true;
+  const L = Math.hypot(bx - ax, bz - az);
+  const cutA = heldA ? Math.min(HELD_TAIL, L / 2) : 0;
+  const cutB = heldB ? Math.min(HELD_TAIL, L / 2) : 0;
+  if (L - cutA - cutB < 0.05) return false;
+  const ux = (bx - ax) / L;
+  const uz = (bz - az) / L;
+  return distSegmentAxis(ax + ux * cutA, az + uz * cutA, bx - ux * cutB, bz - uz * cutB, o) < R * 0.999;
+}
+
+/** Bit mask of the obstacles that block the segment A→B (see `segBlocked`). */
+function blockers(ax: number, az: number, bx: number, bz: number, margin = PERSON_MARGIN): number {
   let m = 0;
-  for (let k = 0; k < OBSTACLES.length; k++) {
-    const o = OBSTACLES[k]!;
-    const R = o.r + PERSON_MARGIN;
-    if (distPointAxis(ax, az, o) < R * 0.97 || distPointAxis(bx, bz, o) < R * 0.97) continue;
-    if (distSegmentAxis(ax, az, bx, bz, o) < R * 0.999) m |= 1 << k;
-  }
+  for (let k = 0; k < OBSTACLES.length; k++) if (segBlocked(ax, az, bx, bz, OBSTACLES[k]!, margin)) m |= 1 << k;
   return m;
 }
 
@@ -255,6 +288,14 @@ for (let i = 0; i < NN; i++) {
   for (let j = i + 1; j < NN; j++) {
     const m = blockers(NX[i]!, NZ[i]!, NX[j]!, NZ[j]!);
     EDGE[i * NN + j] = EDGE[j * NN + i] = m;
+  }
+}
+/** The same with only the solids themselves (TIGHT_MARGIN): what the props of the `ignore` owner still block. */
+const EDGE_CORE = new Int32Array(NN * NN);
+for (let i = 0; i < NN; i++) {
+  for (let j = i + 1; j < NN; j++) {
+    const m = blockers(NX[i]!, NZ[i]!, NX[j]!, NZ[j]!, TIGHT_MARGIN);
+    EDGE_CORE[i * NN + j] = EDGE_CORE[j * NN + i] = m;
   }
 }
 const ownerBit = (owner: number): number => {
@@ -269,22 +310,21 @@ const gDist = new Float64Array(NN);
 const gPrev = new Int32Array(NN);
 const gDone = new Uint8Array(NN);
 
-/** Waypoints (excluding A, including B) for one leg, bent around the solids. */
-function leg(path: Path, ax: number, az: number, bx: number, bz: number, ignore: number): void {
-  const free = ownerBit(ignore);
-  const direct = blockers(ax, az, bx, bz) & ~free;
-  if (direct === 0 || NN === 0) {
-    path.push(bx, bz);
-    return;
-  }
+/** Blockers of A→B: every solid with `margin`, except the `free` ones, which only block with their bare footprint. */
+function blocked(ax: number, az: number, bx: number, bz: number, free: number, margin: number): number {
+  const m = blockers(ax, az, bx, bz, margin) & ~free;
+  return free === 0 ? m : m | (blockers(ax, az, bx, bz, TIGHT_MARGIN) & free);
+}
+
+/** Dijkstra over the waypoint graph from A to B (O(N²), N ≈ 70); returns the last node before B, or -1. */
+function search(ax: number, az: number, bx: number, bz: number, free: number, margin: number): number {
   for (let i = 0; i < NN; i++) {
-    gA[i] = blockers(ax, az, NX[i]!, NZ[i]!) & ~free;
-    gB[i] = blockers(NX[i]!, NZ[i]!, bx, bz) & ~free;
+    gA[i] = blocked(ax, az, NX[i]!, NZ[i]!, free, margin);
+    gB[i] = blocked(NX[i]!, NZ[i]!, bx, bz, free, margin);
     gDist[i] = gA[i] === 0 ? Math.hypot(NX[i]! - ax, NZ[i]! - az) : Infinity;
     gPrev[i] = -1;
     gDone[i] = 0;
   }
-  // Dijkstra over the nodes (O(N²), N ≈ 70)
   for (;;) {
     let u = -1;
     let ud = Infinity;
@@ -295,7 +335,7 @@ function leg(path: Path, ax: number, az: number, bx: number, bz: number, ignore:
     if (u < 0) break;
     gDone[u] = 1;
     for (let v = 0; v < NN; v++) {
-      if (gDone[v] || (EDGE[u * NN + v]! & ~free) !== 0) continue;
+      if (gDone[v] || ((EDGE[u * NN + v]! & ~free) | (EDGE_CORE[u * NN + v]! & free)) !== 0) continue;
       const d = ud + Math.hypot(NX[v]! - NX[u]!, NZ[v]! - NZ[u]!);
       if (d < gDist[v]!) {
         gDist[v] = d;
@@ -312,6 +352,25 @@ function leg(path: Path, ax: number, az: number, bx: number, bz: number, ignore:
       bestC = c;
       best = i;
     }
+  }
+  return best;
+}
+
+/** Waypoints (excluding A, including B) for one leg, bent around the solids. */
+function leg(path: Path, ax: number, az: number, bx: number, bz: number, ignore: number): void {
+  const free = ownerBit(ignore);
+  const direct = blocked(ax, az, bx, bz, free, PERSON_MARGIN);
+  if (direct === 0 || NN === 0) {
+    path.push(bx, bz);
+    return;
+  }
+  // First with the full person margin. A point squeezed into a pocket between solids (the tree, the cafe kiosk and
+  // the pond leave one) reaches no waypoint that way; then the first and last hops get a thinner margin, down to the
+  // bare solids. Going straight is the very last resort.
+  let best = -1;
+  for (const margin of FALLBACK_MARGINS) {
+    best = search(ax, az, bx, bz, free, margin);
+    if (best >= 0) break;
   }
   if (best < 0) {
     path.push(bx, bz); // boxed in: go straight
@@ -339,6 +398,13 @@ export function planPath(path: Path, ax: number, az: number, bx: number, bz: num
   path.clear();
   let cx = ax;
   let cz = az;
+  // A start inside a solid's margin (nudged there by a passer-by, or just stood up from a seat) would make `blockers`
+  // skip that solid for the whole first leg, and the route would cut straight through it: step out first.
+  if (stepOut(cx, cz, ignore, escaped)) {
+    path.push(escaped.x, escaped.z);
+    cx = escaped.x;
+    cz = escaped.z;
+  }
   const go = (x: number, z: number): void => {
     leg(path, cx, cz, x, z, ignore);
     cx = x;
@@ -352,6 +418,36 @@ export function planPath(path: Path, ax: number, az: number, bx: number, bz: num
     for (let k = za - 1; k >= zb; k--) joint(k, false, go);
   }
   go(bx, bz);
+}
+
+const escaped = { x: 0, z: 0 };
+
+/** True when (x, z) is inside the margin of any solid but the `ignore` owner's. */
+function inMargin(x: number, z: number, ignore: number): boolean {
+  for (const o of OBSTACLES) if (o.owner !== ignore && distPointAxis(x, z, o) < (o.r + PERSON_MARGIN) * 0.97) return true;
+  return false;
+}
+
+/**
+ * A nearby point just outside every solid's margin (the `ignore` owner's props excepted), reachable from (x, z) without
+ * walking through a solid, when (x, z) is inside a margin; false (and `out` untouched) when it is already clear.
+ * Rings of 16 directions at growing distances; the first clear one wins.
+ */
+function stepOut(x: number, z: number, ignore: number, out: { x: number; z: number }): boolean {
+  if (!inMargin(x, z, ignore)) return false;
+  const free = ownerBit(ignore);
+  for (let r = 0.15; r <= 2.4; r += 0.15) {
+    for (let k = 0; k < 16; k++) {
+      const a = (k * Math.PI) / 8;
+      const px = x + Math.cos(a) * r;
+      const pz = z + Math.sin(a) * r;
+      if (inMargin(px, pz, ignore) || (blockers(x, z, px, pz, TIGHT_MARGIN) & ~free) !== 0) continue;
+      out.x = px;
+      out.z = pz;
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Joint between ZONE_ORDER[k] and ZONE_ORDER[k + 1], walked toward higher (`up`) or lower indices. */
@@ -398,17 +494,47 @@ export function planTownPath(path: Path, ax: number, az: number, bx: number, bz:
     sx = clampX(ax);
     sz = clampZ(az);
     path.push(sx, sz);
+    // step well into the square before turning: walking along its very edge brushes the shop counters and signs out
+    // on the lots' doorsteps
+    if (stepIn(sx, sz, inner)) {
+      sx = inner.x;
+      sz = inner.z;
+      path.push(sx, sz);
+    }
   }
   let ex = bx;
   let ez = bz;
   const post = townInterior(bx, bz) && !inSquare(bx, bz);
+  let postIn = false;
+  let px = 0;
+  let pz = 0;
   if (post) {
     ex = clampX(bx);
     ez = clampZ(bz);
+    px = ex;
+    pz = ez;
+    if (stepIn(ex, ez, inner)) {
+      postIn = true;
+      ex = inner.x;
+      ez = inner.z;
+    }
   }
   planPath(scratch, sx, sz, ex, ez, ignore);
   for (let i = 0; i < scratch.n; i++) path.push(scratch.x[i]!, scratch.z[i]!);
+  if (postIn) path.push(px, pz);
   if (post) path.push(bx, bz);
+}
+
+/** How far into the square a route steps from a lot's doorstep before it turns along the square. */
+const DOOR_STEP_IN = 1.1;
+const inner = { x: 0, z: 0 };
+
+/** The point DOOR_STEP_IN inside the square from edge point (x, z), if it is clear of the square's solids. */
+function stepIn(x: number, z: number, out: { x: number; z: number }): boolean {
+  out.x = Math.min(SQUARE.maxX - DOOR_STEP_IN, Math.max(SQUARE.minX + DOOR_STEP_IN, x));
+  out.z = Math.min(SQUARE.maxZ - DOOR_STEP_IN, Math.max(SQUARE.minZ + DOOR_STEP_IN, z));
+  if (Math.hypot(out.x - x, out.z - z) < 0.05) return false;
+  return !insideObstacle(out.x, out.z);
 }
 
 /** The doorstep of market-town lot `lot` (just outside its footprint, on the side facing the square). */
@@ -434,6 +560,11 @@ export function nearestHome(x: number, z: number, doors: readonly { x: number; z
   out.x = best.x;
   out.z = best.z;
   return out;
+}
+
+/** True when the straight walk A→B passes through a solid itself (no person margin; an end on a solid is allowed). */
+export function solidBetween(ax: number, az: number, bx: number, bz: number): boolean {
+  return blockers(ax, az, bx, bz, TIGHT_MARGIN) !== 0;
 }
 
 /** True when the point is inside any obstacle (with the person margin). */

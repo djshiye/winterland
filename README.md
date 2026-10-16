@@ -126,6 +126,7 @@ node scripts/shot.mjs sim:2 shot:shots/now.png   # headless screenshot after 2 s
 npm run playtest -- shots/playtest              # an autoplay bot plays the whole game; screenshots each milestone
 node scripts/balance.mjs                        # the same bot without screenshots: milestone times + every purchase
 npm test                                        # vitest: upgrade tables, sale prices, old-save compatibility, layout
+npm run soak                                    # AI soak: hours of headless play, flags stuck / colliding / jammed characters
 node scripts/check-reveals.mjs                  # headless check of the pad reveal order and its save/restore
 ```
 

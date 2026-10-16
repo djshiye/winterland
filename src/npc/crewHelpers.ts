@@ -111,7 +111,7 @@ const HOPPER_LOOK: XZ = { x: LAYOUT.ridge.workshop.hopper.x, z: PINE_APPROACH.z 
 
 // --- Market Town: the porters' home on the square, beside the corridor mouth (clear of every zone and queue) ------
 const TOWN = LAYOUT.town;
-const PORTER_HOME: XZ = { x: 18.2, z: 28.4 };
+export const PORTER_HOME: XZ = { x: 18.2, z: 28.4 };
 const PORTER_LOOK: XZ = { x: TOWN.tree.x, z: TOWN.tree.z };
 /** Cabin door → gate → street → corridor → square → home. */
 const PORTER_ROUTE: XZ[] = [...CABIN_LEG, ...TRUNK, PORTER_HOME];
