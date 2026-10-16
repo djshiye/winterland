@@ -354,6 +354,15 @@ const CASH_GRID: PileGrid = { cols: 3, rows: 3, layers: 10, spacing: { x: 0.37, 
 /** Every sales counter is the art-spec wooden table: 1.6 long × 0.6 deep × 0.8 high (FENCE_WOOD). */
 const COUNTER_SIZE = { length: 1.6, depth: 0.6, height: 0.8 };
 
+/**
+ * 0.9.4: the Market Town was too cramped to walk once everything was built. Everything south of the square's north edge
+ * (z 21: the north lots, their pads and the corridor mouth stay put) is stretched along Z by TOWN_STRETCH, so the
+ * square, the amenities, the south and east lots and the Grand Market spread out. Building sizes and pad offsets keep
+ * their size, so every gap between them grows. Saves keep lot / amenity indices, so old towns load on the new plots.
+ */
+export const TOWN_STRETCH = 1.5;
+export const townZ = (z: number): number => (z <= 21 ? z : Math.round((21 + TOWN_STRETCH * (z - 21)) * 100) / 100);
+
 export const LAYOUT = {
   /** Walkable yard (the player is clamped inside). The -X edge is the river bank (no fence). */
   yard: { minX: -10.2, maxX: 10, minZ: -10, maxZ: 10 } as Rect,
@@ -725,7 +734,7 @@ export const LAYOUT = {
    */
   town: {
     /** Whole district footprint (decor keep-out, fences, ground). */
-    area: { minX: 15.2, maxX: 38.0, minZ: 13.6, maxZ: 38.6 } as Rect,
+    area: { minX: 15.2, maxX: 38.0, minZ: 13.6, maxZ: townZ(38.6) } as Rect,
     /** Gap in the village's east fence (x = village.area.maxX) where the corridor leaves, closed until revealed. */
     gate: { minZ: 25.9, maxZ: 27.5 },
     /**
@@ -734,17 +743,17 @@ export const LAYOUT = {
      */
     walk: [
       { minX: 5.4, maxX: 16.4, minZ: 25.9, maxZ: 27.5 },
-      { minX: 15.6, maxX: 32.2, minZ: 21.0, maxZ: 33.2 },
+      { minX: 15.6, maxX: 32.2, minZ: 21.0, maxZ: townZ(35.8) - 2.6 },
     ] as Rect[],
     /**
      * 0.9.2: extra room for the PLAYER only (the townsfolk's routes keep `walk`). The square's edges stopped the player
      * half-way onto the lot pads; this reaches the lot fronts (north z 20.0, south z 33.6) and the strip up to the rail
      * (x 33.6). Buildings, stalls and the fence keep their own colliders.
      */
-    playerWalk: { minX: 15.5, maxX: 32.7, minZ: 20.1, maxZ: 33.5 } as Rect,
+    playerWalk: { minX: 15.5, maxX: 32.7, minZ: 20.1, maxZ: townZ(35.8) - 2.3 } as Rect,
     /** Packed-snow / cobbled square (visual) and its centrepiece (a big lit fir; solid circle). */
-    square: { minX: 15.6, maxX: 32.2, minZ: 21.0, maxZ: 33.2 } as Rect,
-    tree: { x: 24.0, z: 27.1, r: 1.3 },
+    square: { minX: 15.6, maxX: 32.2, minZ: 21.0, maxZ: townZ(35.8) - 2.6 } as Rect,
+    tree: { x: 24.0, z: townZ(27.1), r: 1.3 },
     /** Square lot size; a building's footprint stays within it. */
     lotSize: 4.4,
     /**
@@ -754,19 +763,19 @@ export const LAYOUT = {
     lots: [
       { x: 19.0, z: 17.8, face: { x: 0, z: 1 } },
       { x: 24.6, z: 17.8, face: { x: 0, z: 1 } },
-      { x: 19.0, z: 35.8, face: { x: 0, z: -1 } },
-      { x: 24.6, z: 35.8, face: { x: 0, z: -1 } },
+      { x: 19.0, z: townZ(35.8), face: { x: 0, z: -1 } },
+      { x: 24.6, z: townZ(35.8), face: { x: 0, z: -1 } },
       { x: 30.2, z: 17.8, face: { x: 0, z: 1 } },
-      { x: 30.2, z: 35.8, face: { x: 0, z: -1 } },
-      { x: 35.0, z: 23.8, face: { x: -1, z: 0 } },
-      { x: 35.0, z: 30.4, face: { x: -1, z: 0 } },
+      { x: 30.2, z: townZ(35.8), face: { x: 0, z: -1 } },
+      { x: 35.0, z: townZ(23.8), face: { x: -1, z: 0 } },
+      { x: 35.0, z: townZ(30.4), face: { x: -1, z: 0 } },
     ] as { x: number; z: number; face: XZ }[],
     padOffset: 3.4,
     padSize: 1.6,
     /** Where townsfolk enter / leave the district (the corridor mouth and a lane off the south-east corner). */
     entrances: [
       { x: 15.0, z: 26.7 },
-      { x: 37.6, z: 33.6 },
+      { x: 37.6, z: townZ(35.8) - 2.2 },
     ] as XZ[],
     /**
      * Wave 12: fixed amenity sites on the square (built like the Great Lodge: a pad beside each, logs + cash).
@@ -777,17 +786,17 @@ export const LAYOUT = {
      * (tests/townAmenities.test.ts checks all of it).
      */
     amenities: {
-      cafe: { x: 21.2, z: 27.25, w: 2.2, d: 1.4, pad: { x: 18.5, z: 28.3 } as XZ },
-      pond: { x: 22.5, z: 30.1, w: 2.8, d: 1.8, pad: { x: 24.45, z: 29.7 } as XZ },
-      bandstand: { x: 22.5, z: 23.5, w: 2.2, d: 2.2, pad: { x: 24.65, z: 23.9 } as XZ },
-      snowmanPark: { x: 28.2, z: 27.1, w: 2.2, d: 1.6, pad: { x: 26.35, z: 27.1 } as XZ },
+      cafe: { x: 21.2, z: townZ(27.25), w: 2.2, d: 1.4, pad: { x: 18.5, z: 33.0 } as XZ },
+      pond: { x: 22.5, z: townZ(30.1), w: 2.8, d: 1.8, pad: { x: 24.45, z: townZ(29.7) } as XZ },
+      bandstand: { x: 22.5, z: townZ(23.5), w: 2.2, d: 2.2, pad: { x: 24.65, z: townZ(23.9) } as XZ },
+      snowmanPark: { x: 28.2, z: townZ(27.1), w: 2.2, d: 1.6, pad: { x: 26.35, z: townZ(27.1) } as XZ },
     },
     amenityPadSize: 1.5,
     /**
      * Wave 13: the Grand Market hall in the south-east corner of the district (clear of the south lots x ≤ 32.4 and
      * the east lots z ≤ 32.6); its pad in front, toward the square. The builder validates clearance.
      */
-    grandMarket: { x: 35.4, z: 36.7, w: 4.2, d: 3.0, pad: { x: 35.4, z: 33.9 } as XZ, padSize: 1.8 },
+    grandMarket: { x: 35.4, z: townZ(36.7), w: 4.2, d: 3.0, pad: { x: 35.4, z: townZ(33.9) } as XZ, padSize: 1.8 },
   },
 } as const;
 
