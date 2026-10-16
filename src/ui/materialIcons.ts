@@ -106,40 +106,40 @@ const MATERIAL_ICONS: Record<string, string> = {
        <circle cx="19.5" cy="19.5" r="1.6" fill="#e8c650" stroke-width="0"/>`),
   ),
   uranium: svg(
-    g(`<path d="M8 28h32l-3 14H11z" fill="#2d3b2a"/>
-       <path d="M6 26h36v4H6z" fill="#4a5c46"/>
+    g(`<path d="M8 28h32l-3 14H11z" fill="#3d5259"/>
+       <path d="M6 26h36v4H6z" fill="#56707a"/>
        <rect x="9" y="33" width="30" height="4" fill="#f2c230" stroke-width="0"/>
-       <circle cx="15" cy="20" r="5" fill="#7bd04a"/><circle cx="25" cy="16" r="5.5" fill="#9be866"/><circle cx="34" cy="20" r="5" fill="#7bd04a"/>
-       <circle cx="20" cy="24" r="4" fill="#b8f08c"/><circle cx="30" cy="25" r="4" fill="#9be866"/>`),
+       <circle cx="15" cy="20" r="5" fill="#4ea885"/><circle cx="25" cy="16" r="5.5" fill="#6cc4a0"/><circle cx="34" cy="20" r="5" fill="#4ea885"/>
+       <circle cx="20" cy="24" r="4" fill="#9ee0c4"/><circle cx="30" cy="25" r="4" fill="#6cc4a0"/>`),
   ),
   fuelRod: svg(
-    g(`<rect x="6" y="10" width="36" height="9" rx="4.5" fill="#9fe070"/><rect x="6" y="10" width="7" height="9" rx="3" fill="#5a6470"/><rect x="35" y="10" width="7" height="9" rx="3" fill="#5a6470"/>
-       <rect x="6" y="29" width="36" height="9" rx="4.5" fill="#9fe070"/><rect x="6" y="29" width="7" height="9" rx="3" fill="#5a6470"/><rect x="35" y="29" width="7" height="9" rx="3" fill="#5a6470"/>
-       <path d="M16 13h18M16 32h18" stroke="#d8ffbd" stroke-width="2" fill="none"/>
+    g(`<rect x="6" y="10" width="36" height="9" rx="4.5" fill="#8fdcb4"/><rect x="6" y="10" width="7" height="9" rx="3" fill="#5a6470"/><rect x="35" y="10" width="7" height="9" rx="3" fill="#5a6470"/>
+       <rect x="6" y="29" width="36" height="9" rx="4.5" fill="#8fdcb4"/><rect x="6" y="29" width="7" height="9" rx="3" fill="#5a6470"/><rect x="35" y="29" width="7" height="9" rx="3" fill="#5a6470"/>
+       <path d="M16 13h18M16 32h18" stroke="#d4f7e6" stroke-width="2" fill="none"/>
        <rect x="21" y="6" width="6" height="36" rx="2" fill="#5a6470"/>`),
   ),
   power: svg(
-    g(`<rect x="13" y="9" width="22" height="34" rx="5" fill="#1d2a38"/>
-       <rect x="13" y="19" width="22" height="14" fill="#3ad1ff"/>
+    g(`<rect x="13" y="9" width="22" height="34" rx="5" fill="#3d5259"/>
+       <rect x="13" y="19" width="22" height="14" fill="#70f5d9"/>
        <rect x="19" y="4" width="10" height="6" rx="2" fill="#dfe6ee"/>
-       <path d="M26 20l-6 8h5l-3 8 8-10h-5z" fill="#fff" stroke-width="1.6"/>`),
+       <path d="M26 20l-6 8h5l-3 8 8-10h-5z" fill="#fffbef" stroke-width="1.6"/>`),
   ),
   aiCore: svg(
-    g(`<path d="M24 5l17 8v22l-17 8-17-8V13z" fill="#1f2240"/>
-       <path d="M24 5l17 8-17 8-17-8z" fill="#3a3f78"/>
-       <path d="M24 13l9 4v10l-9 4-9-4V17z" fill="#9b6cff"/>
-       <path d="M24 17l4 2v6l-4 2-4-2v-6z" fill="#e6d8ff" stroke-width="1.6"/>
+    g(`<path d="M24 5l17 8v22l-17 8-17-8V13z" fill="#526475"/>
+       <path d="M24 5l17 8-17 8-17-8z" fill="#6f8296"/>
+       <path d="M24 13l9 4v10l-9 4-9-4V17z" fill="#e8a848"/>
+       <path d="M24 17l4 2v6l-4 2-4-2v-6z" fill="#ffe9b8" stroke-width="1.6"/>
        <path d="M24 31v12" fill="none"/>`),
   ),
   robot: svg(
-    g(`<rect x="12" y="6" width="24" height="17" rx="4" fill="#dfe3ec"/>
-       <rect x="15" y="11" width="18" height="7" rx="2" fill="#232846"/>
-       <rect x="18" y="13" width="4" height="3" fill="#5be0ff" stroke-width="0"/><rect x="26" y="13" width="4" height="3" fill="#5be0ff" stroke-width="0"/>
-       <path d="M24 6V2" fill="none"/><circle cx="24" cy="2.5" r="1.6" fill="#9b6cff" stroke-width="1.4"/>
-       <rect x="14" y="25" width="20" height="14" rx="3" fill="#dfe3ec"/>
-       <rect x="19" y="28" width="10" height="6" rx="1.5" fill="#9b6cff"/>
-       <rect x="6" y="26" width="6" height="11" rx="2" fill="#bcc3d6"/><rect x="36" y="26" width="6" height="11" rx="2" fill="#bcc3d6"/>
-       <rect x="15" y="39" width="7" height="6" rx="2" fill="#9b6cff"/><rect x="26" y="39" width="7" height="6" rx="2" fill="#9b6cff"/>`),
+    g(`<rect x="12" y="6" width="24" height="17" rx="4" fill="#f5f0e6"/>
+       <rect x="15" y="11" width="18" height="7" rx="2" fill="#526475"/>
+       <rect x="18" y="13" width="4" height="3" fill="#ffe082" stroke-width="0"/><rect x="26" y="13" width="4" height="3" fill="#ffe082" stroke-width="0"/>
+       <path d="M24 6V2" fill="none"/><circle cx="24" cy="2.5" r="1.6" fill="#e8a848" stroke-width="1.4"/>
+       <rect x="14" y="25" width="20" height="14" rx="3" fill="#f5f0e6"/>
+       <rect x="19" y="28" width="10" height="6" rx="1.5" fill="#e8a848"/>
+       <rect x="6" y="26" width="6" height="11" rx="2" fill="#d8cfbd"/><rect x="36" y="26" width="6" height="11" rx="2" fill="#d8cfbd"/>
+       <rect x="15" y="39" width="7" height="6" rx="2" fill="#e8a848"/><rect x="26" y="39" width="7" height="6" rx="2" fill="#e8a848"/>`),
   ),
 };
 

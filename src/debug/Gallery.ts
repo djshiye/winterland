@@ -8,6 +8,8 @@
  * - `?gallery` shows everything; `?gallery=<domain>` (e.g. items, machines) or `?gallery=<asset>` /
  *   `?gallery=<domain>/<asset>` focuses a subset. `&spin` turns every asset slowly; `&zoom=<k>`
  *   multiplies the auto-fit zoom. Mouse: drag = pan, wheel = zoom.
+ * - A catalog object (or any child) may set `userData.galleryAnimate = (dt) => …`; it runs every frame,
+ *   so machines show their moving part (e.g. ?gallery=eraMachines2).
  * - Installs window.__WINTERLAND__ with pause / resume / simulate(seconds) / state() / render() so
  *   scripts/shot.mjs works unchanged: `node scripts/shot.mjs --query gallery=items shot:x.png`.
  */
@@ -40,6 +42,8 @@ export class Gallery {
   private lastTime = 0;
   private time = 0;
   private readonly spinning: THREE.Object3D[] = [];
+  /** Per-frame hooks from catalog entries (`userData.galleryAnimate(dt)`), so animated parts move. */
+  private readonly animators: ((dt: number) => void)[] = [];
   private spin = false;
   private fitZoom = 1;
   private count = 0;
@@ -127,6 +131,10 @@ export class Gallery {
       error = err instanceof Error ? err.message : String(err);
       object = mesh(geo.box(0.6, 0.6, 0.6), basic(0xff3355), { cast: false });
     }
+    object.traverse((o) => {
+      const f: unknown = o.userData.galleryAnimate;
+      if (typeof f === 'function') this.animators.push(f as (dt: number) => void);
+    });
     // Measure with the object at the origin, unrotated.
     object.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(object);
@@ -241,6 +249,7 @@ export class Gallery {
   private step(dt: number): void {
     this.time += dt;
     if (this.spin) for (const o of this.spinning) o.rotation.y += dt * 0.6;
+    for (const f of this.animators) f(dt);
     this.rig.update(0);
     this.renderer.setShadowFocus(this.rig.target);
   }

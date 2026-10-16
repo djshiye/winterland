@@ -31,6 +31,7 @@ import {
   type CharacterModel,
 } from '../assets/characters';
 import { damp } from '../core/math';
+import { instanceAcrossScene } from './instancer';
 
 const CARRY_ARM = -1.15;
 
@@ -97,6 +98,8 @@ export class CharacterRig {
     this.hat = model.hat;
     this.scale = opts.scale ?? 1;
     this.root.scale.setScalar(this.scale);
+    // the same part on every pawn (a boot, an arm) draws as ONE instanced mesh across the scene
+    instanceAcrossScene(this.root);
   }
 
   /** Top of the head/hat above the feet, in world units (speech bubbles float above it). */

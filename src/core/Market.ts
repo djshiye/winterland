@@ -10,8 +10,9 @@
  * (at most twelve) positions' ages. The random source is injectable so tests are deterministic.
  */
 import type * as THREE from 'three';
-import { demandOf, seasonMult } from './demand';
-import { BOND_CAP_SHARE, ERAS, INVEST, INVEST_MAX_POSITIONS, isMaterial, MARKET, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
+import { CLIMB } from '../config';
+import { climbMult, demandOf, investMaxPositions, seasonMult } from './demand';
+import { BOND_CAP_SHARE, ERAS, INVEST, isMaterial, MARKET, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
 import type { GameContext, InvestmentState, ItemKind, MaterialKind, Updatable } from './types';
 
 /** Most physical units one order may deliver to an import dock. */
@@ -62,10 +63,11 @@ export class Market implements Updatable {
     return MATERIALS[kind].value * this.index(kind) * (1 - (this.ctx.state.market.pressure[kind] ?? 0));
   }
 
-  /** What an export depot pays for `count` units of `kind` now (× the era's Trade upgrade × season bonus). */
+  /** What an export depot pays for `count` units of `kind` now (× the era's Trade upgrade × season bonus × Renown × Mastery). */
   exportPrice(kind: ItemKind, count: number): number {
     if (!isMaterial(kind)) return Math.round(this.unitValue(kind) * count);
-    return Math.round(this.unitValue(kind) * count * this.tradeMult(kind) * seasonMult(this.ctx.state));
+    const s = this.ctx.state;
+    return Math.round(this.unitValue(kind) * count * this.tradeMult(kind) * seasonMult(s) * climbMult(s));
   }
 
   /** An export depot received `count` units: credit the money, apply supply pressure, stats, 'sale' {buyer 'export'}. */
@@ -78,7 +80,11 @@ export class Market implements Updatable {
     return amount;
   }
 
-  /** Jack's offer for one `kind` right now (UPGRADES.jack share × unitValue, at least $1 for anything but cash). */
+  /**
+   * Jack's offer for one `kind` right now (UPGRADES.jack share × unitValue, at least $1 for anything but cash). No Trade,
+   * Renown or Mastery, and the share stops at 0.9 (core/ladder.ts): an order costs at least 1.1 × unitValue, so ordering
+   * goods in and handing them to Jack can never print money.
+   */
   jackOffer(kind: ItemKind): number {
     if (kind === 'cash') return 0;
     return Math.max(1, Math.round(this.unitValue(kind) * this.ctx.upgrades.value('jack')));
@@ -143,9 +149,13 @@ export class Market implements Updatable {
     return MARKET.spread / Math.max(1, this.ctx.upgrades.value('broker'));
   }
 
-  /** Per-unit trading price including the spread ('buy' pays more, 'sell' gets less). */
+  /**
+   * Per-unit trading price including the spread ('buy' pays more, 'sell' gets less). Supply pressure only lowers what
+   * sellers get, never what buyers pay, so crashing a price yourself and buying back cheap cannot print money.
+   */
   quote(kind: MaterialKind, side: 'buy' | 'sell'): number {
-    return this.unitValue(kind) * (1 + (side === 'buy' ? 1 : -1) * this.spread());
+    const p = side === 'buy' ? MATERIALS[kind].value * this.index(kind) : this.unitValue(kind);
+    return p * (1 + (side === 'buy' ? 1 : -1) * this.spread());
   }
 
   /** Dollars `units` virtual units cost right now. */
@@ -187,7 +197,7 @@ export class Market implements Updatable {
       m.holdings[kind] = held - units;
     }
     this.addPressure(kind, units, TRADE_PRESSURE_SHARE);
-    this.ctx.economy.add(proceeds);
+    this.ctx.economy.add(proceeds, Math.max(0, profit)); // the returned cost basis is not money earned
     if (profit > 0) this.ctx.state.stats.tradeProfit += profit;
     this.ctx.events.emit('market:trade', { kind, units, side: 'sell', amount: proceeds, profit });
     if (profit > 0) this.ctx.events.emit('income', { source: 'trade', amount: profit, position: null });
@@ -220,12 +230,14 @@ export class Market implements Updatable {
 
   /**
    * Dollars an order of `units` (clamped to ORDER_MAX_UNITS) delivered to a dock costs: the buy quote plus the delivery
-   * surcharge. It also carries the era's Trade upgrade and the season bonus, so carrying an order straight to an
-   * export depot can never print money (it always loses the spread and the surcharge).
+   * surcharge. It also carries the era's Trade upgrade, the season bonus, Renown and Mastery (every multiplier exportPrice
+   * has), so carrying an order straight to an export depot can never print money (it always loses the spread and the
+   * surcharge), however far the climb goes.
    */
   orderCost(kind: MaterialKind, units: number): number {
     const n = Math.max(1, Math.min(ORDER_MAX_UNITS, Math.floor(units)));
-    return Math.max(1, Math.round(this.quote(kind, 'buy') * n * (1 + MARKET.delivery) * this.tradeMult(kind) * seasonMult(this.ctx.state)));
+    const s = this.ctx.state;
+    return Math.max(1, Math.round(this.quote(kind, 'buy') * n * (1 + MARKET.delivery) * this.tradeMult(kind) * seasonMult(s) * climbMult(s)));
   }
 
   /** Buy `units` physical units delivered to era `era`'s import dock (spends money, emits 'market:order'). */
@@ -234,8 +246,9 @@ export class Market implements Updatable {
     const { state } = this.ctx;
     if (units < 1 || !this.isTradable(kind)) return false;
     if (!Number.isInteger(era) || era < 2 || era > state.eras.age || !state.eras.regions[era]?.unlocked) return false;
-    if (!this.ctx.economy.spend(this.orderCost(kind, units))) return false;
-    this.ctx.events.emit('market:order', { kind, count: units, era });
+    const cost = this.orderCost(kind, units);
+    if (!this.ctx.economy.spend(cost)) return false;
+    this.ctx.events.emit('market:order', { kind, count: units, era, amount: cost });
     return true;
   }
 
@@ -248,9 +261,12 @@ export class Market implements Updatable {
     return (Object.keys(INVEST) as InvestProductId[]).filter((p) => INVEST[p].era <= this.ctx.state.eras.age);
   }
 
-  /** Dollars a bond pays at maturity per dollar of principal (the Broker raises the rate). */
+  /**
+   * Dollars a bond pays at maturity per dollar of principal (the Broker raises the rate). Broker levels past its
+   * table only tighten the spread: bonds stop at the authored top, exactly as in 0.9 (docs/EXPANSION.md §A1).
+   */
   bondPayout(): number {
-    return 1 + INVEST.bond.rate * Math.sqrt(this.ctx.upgrades.value('broker'));
+    return 1 + INVEST.bond.rate * Math.sqrt(Math.min(this.ctx.upgrades.value('broker'), CLIMB.bondBrokerMax));
   }
 
   /** Principal in bonds right now. */
@@ -271,11 +287,11 @@ export class Market implements Updatable {
     const { state, economy } = this.ctx;
     amount = Math.floor(amount);
     if (!def || def.era > state.eras.age || amount < def.min || amount > economy.money) return false;
-    if (state.market.investments.length >= INVEST_MAX_POSITIONS) return false;
+    if (state.market.investments.length >= investMaxPositions(state)) return false;
     let backed = 0;
     if (product === 'venture') {
       backed = era === 0 ? state.eras.age : era;
-      if (!Number.isInteger(backed) || backed < 2 || backed > state.eras.age) return false;
+      if (!Number.isInteger(backed) || backed < def.era || backed > state.eras.age) return false;
     }
     if (product === 'bond' && amount > this.bondRoom()) return false;
     if (!economy.spend(amount)) return false;
@@ -294,7 +310,7 @@ export class Market implements Updatable {
     m.investments.splice(i, 1);
     const pay = Math.round(pos.product === 'bond' && !this.matured(pos) ? pos.principal : pos.value);
     const gain = pay - pos.principal;
-    this.ctx.economy.add(pay);
+    this.ctx.economy.add(pay, Math.max(0, gain)); // the returned principal is not money earned
     if (gain > 0) this.ctx.state.stats.investEarned += gain;
     this.ctx.events.emit('invest:changed', {});
     if (gain > 0) this.ctx.events.emit('income', { source: 'interest', amount: gain, position: null });
