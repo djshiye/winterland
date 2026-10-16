@@ -1,6 +1,6 @@
 /** 0.9.2: the delivery docks (one per place goods wait for customers): bigger counters and more, faster customers. */
 import { describe, expect, it } from 'vitest';
-import { LAYOUT, UPGRADES } from '../src/config';
+import { LAYOUT, TIMING, UPGRADES } from '../src/config';
 import { introEra, valueAt } from '../src/core/ladder';
 import { dockRoom } from '../src/level/Level';
 
@@ -27,5 +27,11 @@ describe('delivery docks', () => {
     expect(dockRoom(c.baseRoom, 1.4)).toBe(Math.round(k.base * 1.4));
     expect(dockRoom(c.baseRoom, 6)).toBe(2 * k.base);
     expect(c.grid.cols * c.grid.rows * c.grid.layers).toBeGreaterThanOrEqual(2 * k.base);
+  });
+
+  it('0.9.3: delivery customers load twice as fast as townsfolk, and a dock speeds that up to ×4', () => {
+    expect(TIMING.dockTakeInterval).toBe(TIMING.npcTakeInterval / 2);
+    expect(TIMING.dockLoadMax).toBe(4);
+    for (const k of DOCKS) expect(valueAt(UPGRADES[k.id], 7)).toBeGreaterThanOrEqual(2.5);
   });
 });

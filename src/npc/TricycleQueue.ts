@@ -9,7 +9,7 @@
  * Behaviour (LAYOUT.tricycles, DEMAND trikeGap / trikeWant, ECONOMY.cratePrice) lives in npc/VehicleQueue.ts: trikes spawn
  * at (laneX, spawnZ), drive +Z with smooth accel / braking to slot i (z = frontZ − i·spacing; the front
  * trike's cargo tray parks beside the SE counter), the front one shows a crate bubble ("0/4") and loads
- * crates from counter.pile into its tray one every ~npcTakeInterval·1.3, then pays salePrice(want · cratePrice), emits
+ * crates from counter.pile into its tray one every ~dockTakeInterval·1.3 (÷ the Tricycle Dock), then pays salePrice(want · cratePrice), emits
  * 'sale' { buyer: 'tricycle' }, cheers, drives off +Z to exitZ and returns to the pool.
  */
 import { ECONOMY, LAYOUT, TIMING } from '../config';
@@ -46,7 +46,7 @@ export class TricycleQueue extends VehicleQueue {
       spawnU: T.spawnZ,
       exitU: T.exitZ,
       slotU: (i) => T.frontZ + TRAY_OFFSET - i * T.spacing,
-      takeInterval: TIMING.npcTakeInterval * 1.3,
+      takeInterval: TIMING.dockTakeInterval * 1.3,
       boost: () => ctx.upgrades.value('trikeDock'),
       accel: 7,
       decel: 9,
