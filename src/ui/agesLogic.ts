@@ -109,28 +109,25 @@ export const BAND_PIPS = 10;
 export interface BandView {
   /** Pips lit (0..10) of the band that ends at the gate's level. */
   fill: number;
-  /** Whole bands done (the band star's number; 0 hides it). */
-  bands: number;
-  /** "Lv 23 · need 30", "Lv 30 ✓", "Not hired", "Lv 10 · era standard", "Lv 47". */
+  /** "Lv 7 · need 10", "Lv 10 ✓", "Not hired", "Lv 10". */
   text: string;
   /** 'low' below the gate's level, 'ok' at it, '' with no gate ahead. */
   tone: 'low' | 'ok' | '';
 }
 
 /**
- * One shop card's band view. `shown` is the shown level, `stored` the stored one and `base` the era offset (R4);
- * `hired` is false for a crew at stored 0; `need` is the next era's gate level for an id in that gate, else null.
+ * One shop card's band view. `shown` is the shown level; `hired` is false for a crew at stored 0; `need` is the next
+ * gate's level for an id in that gate, else null. (0.9.7: the old climb's band star and "era standard" are gone: every
+ * upgrade goes Lv 1 → 10 once, R17.)
  */
-export function bandView(shown: number, stored: number, base: number, hired: boolean, need: number | null, unhired = 'Not hired'): BandView {
+export function bandView(shown: number, hired: boolean, need: number | null, unhired = 'Not hired'): BandView {
   const top = need ?? Math.max(BAND_PIPS, Math.ceil(shown / BAND_PIPS) * BAND_PIPS);
   const fill = Math.max(0, Math.min(BAND_PIPS, shown - (top - BAND_PIPS)));
   const below = need !== null && shown < need;
   let text = hired ? `Lv ${shown}` : unhired;
-  // R5: an era upgrade that just arrived at its offset says so (the tooltip explains; the tab dot still says "below")
-  if (hired && stored === 0 && base > 0) text += ' \u00b7 era standard';
-  else if (below) text += ` \u00b7 need ${need}`;
+  if (below) text += ` \u00b7 need ${need}`;
   else if (need !== null && hired) text += ' \u2713';
-  return { fill, bands: Math.floor(shown / BAND_PIPS), text, tone: below ? 'low' : need !== null && hired ? 'ok' : '' };
+  return { fill, text, tone: below ? 'low' : need !== null && hired ? 'ok' : '' };
 }
 
 /** The checklist row's second line: the prereq, "pad LV 8 → LV 10 · $X" (R6) or "Lv 7 → 10 · $X in all". */
@@ -264,16 +261,6 @@ export function travelNote(p: TravelPoint, age: number): TravelNote {
   if (p.kind === 'district') return { cost: null, need: age >= p.era ? null : `Needs the ${ERA_NAMES[p.era] ?? 'next'} era` };
   if (age >= p.era) return { cost: null, need: null };
   return { cost: expansionCostText(p.era), need: p.open ? 'Pad is open: buy it to enter' : reachNote(p.era) };
-}
-
-/** "✦ Mastery 340 · +41% on every sale": the GateCard's Mastery line (points > 0 only; mult = core/ladder.ts masteryMult). */
-export function masteryLine(points: number, mult: number): string {
-  return `\u2726 Mastery ${points} · +${Math.round((mult - 1) * 100)}% on every sale`;
-}
-
-/** The era chip's short Mastery tag: "✦ 340 · +41%". */
-export function masteryTag(points: number, mult: number): string {
-  return `\u2726 ${points} · +${Math.round((mult - 1) * 100)}%`;
 }
 
 /**

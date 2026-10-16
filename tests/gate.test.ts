@@ -50,7 +50,10 @@ describe('eraGate rows', () => {
       for (const m of machinesOfEra(n - 1)) expect(own).toContain(m);
       expect(g.rows.every((r) => introEra(UPGRADES[r.id]) === n - 1 && r.need === 10)).toBe(true);
     }
-    expect(eraGate(s, MAX_ERA + 1).total).toBe(0);
+    // 0.9.7: the final gate, "Winterland Complete": era 10's own ids at Lv 10 and Settlement 50; nothing past it
+    expect(eraGate(s, MAX_ERA + 1).total).toBe(IDS.filter((id) => introEra(UPGRADES[id]) === MAX_ERA).length);
+    expect(eraGate(s, MAX_ERA + 1).settlementNeed).toBe(50);
+    expect(eraGate(s, MAX_ERA + 2).total).toBe(0);
   });
 
   it('offset mode: lists every id introduced before era n: 28 for era 2, then everything before era n', () => {
@@ -234,10 +237,15 @@ describe('expansionOffered', () => {
 });
 
 describe('nextGoal', () => {
-  it('is null before the Great Lodge and after the last era', () => {
+  it('is null before the Great Lodge and once the final gate is met (0.9.7: era 10 has a last goal)', () => {
     expect(nextGoal(createGameState(), 1e12)).toBeNull();
     const s = lodge();
     s.eras.age = MAX_ERA;
+    for (let n = 2; n <= MAX_ERA; n++) s.eras.regions[n]!.unlocked = true;
+    const goal = nextGoal(s, 1e12);
+    expect(goal).not.toBeNull();
+    for (const id of IDS) if (introEra(UPGRADES[id]) === MAX_ERA) s.upgrades[id] = 10;
+    s.eras.settlement = 50;
     expect(nextGoal(s, 1e12)).toBeNull();
   });
 

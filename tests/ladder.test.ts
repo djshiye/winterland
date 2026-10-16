@@ -1,7 +1,9 @@
 /** Upgrade ladders to level 100 (core/ladder.ts, docs/EXPANSION.md §A): frozen prefix, prices, caps, Mastery. */
 import { describe, expect, it } from 'vitest';
 import { CLIMB, GATE, price3, UPGRADES, type UpgradeDef } from '../src/config';
-import { authoredMax, base, costAt, hardCapStored, introEra, LEVEL_CAP, masteryMult, masteryPoints, maxStored, shown, valueAt } from '../src/core/ladder';
+import { authoredMax, base, costAt, hardCapStored, introEra, LEGACY_LEVEL_CAP, maxStored, shown, valueAt } from '../src/core/ladder';
+import { legacyMasteryMult, legacyMasteryPoints } from '../src/core/refund';
+import type { GameState } from '../src/core/types';
 
 const DEFS = Object.values(UPGRADES) as UpgradeDef[];
 const ERA1 = DEFS.filter((d) => introEra(d) === 1);
@@ -13,7 +15,8 @@ describe('ladder: frozen prefix', () => {
       expect(maxStored(d, false)).toBe(m);
       for (let s = 0; s <= m; s++) expect(valueAt(d, s)).toBe(d.values[s]);
       if (introEra(d) === 1) for (let s = 0; s < m; s++) expect(costAt(d, s)).toBe(d.costs[s]);
-      for (let s = 0; s <= m; s++) expect(masteryPoints(d, s)).toBe(0);
+      // no level for sale (≤ Lv 10) ever earned Mastery: that is why it could be removed (0.9.7)
+      for (let s = 0; s <= 10; s++) expect(legacyMasteryPoints({ upgrades: { [d.id]: s } } as unknown as GameState)).toBe(0);
     });
   }
 });
@@ -33,8 +36,8 @@ describe('ladder: levels', () => {
 
   it('the climb runs every id to shown level 100 (offset mode)', () => {
     for (const d of DEFS) {
-      expect(maxStored(d, true, 'offset')).toBe(LEVEL_CAP - base(d, 'offset'));
-      expect(shown(d, maxStored(d, true, 'offset'), 'offset')).toBe(LEVEL_CAP);
+      expect(maxStored(d, true, 'offset')).toBe(LEGACY_LEVEL_CAP - base(d, 'offset'));
+      expect(shown(d, maxStored(d, true, 'offset'), 'offset')).toBe(LEGACY_LEVEL_CAP);
     }
   });
 
@@ -42,7 +45,7 @@ describe('ladder: levels', () => {
     expect(GATE.mode).toBe('literal');
     for (const d of DEFS) {
       expect(base(d, 'literal')).toBe(0);
-      expect(maxStored(d, true, 'literal')).toBe(LEVEL_CAP);
+      expect(maxStored(d, true, 'literal')).toBe(LEGACY_LEVEL_CAP);
     }
   });
 
@@ -131,7 +134,7 @@ describe('ladder: effects past the authored max', () => {
         if (hc !== null && s >= hc) expect(v).toBe(valueAt(d, hc));
         prev = v;
       }
-      if (hc !== null) expect(masteryPoints(d, maxStored(d, true))).toBe(maxStored(d, true) - hc);
+      if (hc !== null) expect(legacyMasteryPoints({ upgrades: { [d.id]: maxStored(d, true) } } as unknown as GameState)).toBe(maxStored(d, true) - hc);
     });
   }
 
@@ -155,10 +158,10 @@ describe('ladder: effects past the authored max', () => {
   });
 });
 
-describe('ladder: Mastery', () => {
+describe('ladder: legacy Mastery (old saves only, core/refund.ts)', () => {
   it('is 1 with no points, bounded and logarithmic after', () => {
-    expect(masteryMult(0)).toBe(1);
-    expect(masteryMult(500)).toBeCloseTo(1.53, 2);
-    expect(masteryMult(1500)).toBeCloseTo(1.71, 2);
+    expect(legacyMasteryMult(0)).toBe(1);
+    expect(legacyMasteryMult(500)).toBeCloseTo(1.53, 2);
+    expect(legacyMasteryMult(1500)).toBeCloseTo(1.71, 2);
   });
 });

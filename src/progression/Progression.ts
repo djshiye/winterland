@@ -38,7 +38,7 @@ import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, PADS, QUARTERS, TOWN, UPGRA
 import type { FlagId, GameContext, ItemKind, PadId, Phase } from '../core/types';
 import type { Level } from '../level/Level';
 import { DISTRICTS, ERAS, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
-import { climbOpen, eraMatOf, nextGoal } from '../eras/gate';
+import { climbOpen, eraMatOf, hasGate, nextGoal } from '../eras/gate';
 import { expansionOffered, regionLayout } from '../eras/layout';
 import { MAT_SIZE, machinePadTarget } from '../eras/rules';
 import { MATERIAL_KINDS } from '../core/kinds';
@@ -463,11 +463,12 @@ export class Progression {
     this.moment(at, 2.0);
   }
 
-  /** The Great Lodge is complete: the finale. */
+  /** The Great Lodge is complete: Survival's finale ("Survival complete, the Frontier awaits"), and its trophy. */
   private onFinale(): void {
     const flags = this.ctx.state.flags;
     if (flags.finale) return;
     flags.finale = true;
+    this.ctx.state.trophies.lodge++; // 0.9.7: lifetime, survives New Season
     const g = LAYOUT.village.greatLodge;
     const at = new THREE.Vector3(g.x, 0, g.z);
     this.ctx.events.emit('finale:start', { position: at.clone() });
@@ -476,6 +477,7 @@ export class Progression {
 
   /** The Grand Market is complete: the second finale (the flag marks it for the save; fireworks + card are others' job). */
   private onFinale2(position: THREE.Vector3): void {
+    if (!this.ctx.state.flags.grandMarket) this.ctx.state.trophies.market++; // 0.9.7: lifetime trophy
     this.ctx.state.flags.grandMarket = true;
     if (this.intro === 'done') this.ctx.cameraRig.focus(position, { duration: 1.0, hold: 3.0 });
   }
@@ -891,7 +893,7 @@ export class Progression {
   private climbGuide(): boolean {
     const s = this.ctx.state;
     const n = s.eras.age + 1;
-    if (!climbOpen(s) || !ERAS[n] || expansionOffered(s, n)) return false;
+    if (!climbOpen(s) || !hasGate(n) || expansionOffered(s, n)) return false; // 0.9.7: era 10 guides to the final gate too
     const goal = nextGoal(s, this.ctx.economy.money);
     if (!goal) return false;
     const text = goal.hint ?? goal.text;

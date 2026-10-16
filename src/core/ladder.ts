@@ -8,13 +8,18 @@
  *   every owned upgrade at shown level 10 · (n − 1).
  *
  * Up to the authored max m (values.length − 1) valueAt / costAt return the tables unchanged (tests/era1Frozen.test.ts).
- * Past it the effect follows a per-display curve towards a hard cap, after which further levels earn Mastery points.
- * Whether levels past m may be bought at all (the climb has started) is the caller's call: maxStored(def, climb).
+ * Past it the effect follows a per-display curve towards a hard cap. Whether levels past m may be bought at all (the
+ * climb has started) is the caller's call: capStored(def, climb, age), which stops every upgrade at Lv 10 (R17).
+ * 0.9.7: Mastery (points for levels past a hard cap) is gone from play; only the 0.9.6 refund still reads it, for old
+ * saves (core/refund.ts legacyMastery).
  */
 import { CLIMB, GATE, price3, type UpgradeDef } from '../config';
 
-/** Highest shown level; the era-10 finale has everything here. */
-export const LEVEL_CAP = CLIMB.levelCap;
+/**
+ * The old climb's top level (0.9.0-0.9.4, and the unused 'offset' gate mode). Nothing for sale goes past Lv 10 any more
+ * (capStored); sanitizeState only keeps levels up to this so the 0.9.6 refund can pay an old save back for them.
+ */
+export const LEGACY_LEVEL_CAP = 100;
 
 /**
  * Effect past the authored max: value = curve(vₘ, t) with t = stored − m, clamped at `cap` (null = uncapped).
@@ -91,9 +96,9 @@ export function shown(def: UpgradeDef, stored: number, mode: 'offset' | 'literal
   return stored + base(def, mode);
 }
 
-/** Highest stored level: the authored max before the climb, then whatever reaches shown LEVEL_CAP. */
+/** Highest stored level a save may hold: the authored max before the climb, then shown LEGACY_LEVEL_CAP (old saves). */
 export function maxStored(def: UpgradeDef, climb: boolean, mode: 'offset' | 'literal' = GATE.mode): number {
-  return climb ? LEVEL_CAP - base(def, mode) : authoredMax(def);
+  return climb ? LEGACY_LEVEL_CAP - base(def, mode) : authoredMax(def);
 }
 
 /**
@@ -102,7 +107,7 @@ export function maxStored(def: UpgradeDef, climb: boolean, mode: 'offset' | 'lit
  */
 export function eraCapShown(age: number, mode: 'offset' | 'literal' = GATE.mode): number {
   if (mode === 'literal') return CLIMB.bandSize;
-  return Math.min(LEVEL_CAP, CLIMB.bandSize * Math.max(1, Math.floor(age)));
+  return Math.min(LEGACY_LEVEL_CAP, CLIMB.bandSize * Math.max(1, Math.floor(age)));
 }
 
 /**
@@ -113,12 +118,6 @@ export function capStored(def: UpgradeDef, climb: boolean, age: number, mode: 'o
   // before the climb the authored tables (all below shown 10 in era 1) are the limit, as in 0.8.0
   if (!climb) return authoredMax(def);
   return Math.max(0, Math.min(maxStored(def, true, mode), eraCapShown(age, mode) - base(def, mode)));
-}
-
-/** At the era cap but not at the final level: the next era's expansion lifts it ('offset' mode only; 10 is final in 'literal'). */
-export function atEraCap(def: UpgradeDef, stored: number, age: number, mode: 'offset' | 'literal' = GATE.mode): boolean {
-  if (mode === 'literal') return false;
-  return stored >= eraCapShown(age, mode) - base(def, mode) && stored < maxStored(def, true, mode);
 }
 
 /**
@@ -148,7 +147,7 @@ export function valueAt(def: UpgradeDef, s: number): number {
 
 const capCache = new Map<string, number | null>();
 
-/** First stored level whose effect sits at the hard cap (null: uncapped, or not reached by shown LEVEL_CAP). */
+/** First stored level whose effect sits at the hard cap (null: uncapped, or not reached by shown LEGACY_LEVEL_CAP). */
 export function hardCapStored(def: UpgradeDef): number | null {
   const key = `${def.id}:${GATE.mode}`;
   const hit = capCache.get(key);
@@ -202,13 +201,3 @@ export function stepCost(def: UpgradeDef, s: number): number {
   return costAt(def, s);
 }
 
-/** Mastery points from one upgrade at stored level s: the levels bought while its effect was already at the cap. */
-export function masteryPoints(def: UpgradeDef, s: number): number {
-  const hc = hardCapStored(def);
-  return hc === null ? 0 : Math.max(0, s - hc);
-}
-
-/** Price multiplier from the total Mastery points: bounded and logarithmic (1 with no points). */
-export function masteryMult(points: number): number {
-  return 1 + CLIMB.masteryScale * Math.log2(1 + Math.max(0, points) / CLIMB.masteryPoints);
-}

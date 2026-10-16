@@ -9,7 +9,7 @@ import { productMult } from '../src/core/demand';
 import { Market } from '../src/core/Market';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
-import { authoredMax, costAt, introEra, LEVEL_CAP, maxStored, shown, stepCost, valueAt } from '../src/core/ladder';
+import { authoredMax, costAt, introEra, LEGACY_LEVEL_CAP, maxStored, shown, stepCost, valueAt } from '../src/core/ladder';
 import { mergeState, sanitizeState } from '../src/core/Save';
 import { createGameState, type GameContext, type GameEvents, type UpgradeId } from '../src/core/types';
 import { Upgrades } from '../src/core/Upgrades';
@@ -75,7 +75,6 @@ describe('Upgrades on the ladder', () => {
     while (up.buy(id));
     expect(up.level(id)).toBe(10);
     expect(up.isMax(id)).toBe(true);
-    expect(up.atEraCap(id)).toBe(true);
     expect(up.nextCost(id)).toBeNull();
     // each era lifts the cap by 10; era 10 reaches the final level
     for (let age = 2; age <= 10; age++) {
@@ -84,13 +83,12 @@ describe('Upgrades on the ladder', () => {
       while (up.buy(id));
       expect(up.shownLevel(id)).toBe(10 * age);
     }
-    expect(up.atEraCap(id)).toBe(false);
-    expect(up.level(id)).toBe(LEVEL_CAP);
-    expect(up.shownLevel(id)).toBe(LEVEL_CAP);
+    expect(up.level(id)).toBe(LEGACY_LEVEL_CAP);
+    expect(up.shownLevel(id)).toBe(LEGACY_LEVEL_CAP);
     expect(up.value(id)).toBe(50); // the hard cap
     // closing the climb again (debug) never takes bought levels away; it only stops further purchases
     state.village.greatLodge.tier = -1;
-    expect(up.level(id)).toBe(LEVEL_CAP);
+    expect(up.level(id)).toBe(LEGACY_LEVEL_CAP);
     expect(up.isMax(id)).toBe(true);
   });
 
@@ -127,7 +125,6 @@ describe('Upgrades on the ladder', () => {
       state.eras.age = age;
       for (const id of ['carry', 'harvester', 'frontierCrew', 'frontierBelts', 'quarry', 'aiRigs'] as UpgradeId[]) {
         expect(up.maxLevel(id)).toBe(10);
-        expect(up.atEraCap(id)).toBe(false);
       }
     }
     // an era-n id shows its stored level (no offset) but is priced in era n's band: era 3 costs far more than era 2
@@ -165,10 +162,10 @@ describe('Upgrades on the ladder', () => {
     expect(up.level('axe')).toBe(30);
     expect(up.value('axe')).toBe(valueAt(UPGRADES.axe, 30));
     up.setLevel('axe', 500);
-    expect(up.level('axe')).toBe(LEVEL_CAP);
+    expect(up.level('axe')).toBe(LEGACY_LEVEL_CAP);
     up.setLevel('ironRigs', 500);
-    expect(up.level('ironRigs')).toBe(LEVEL_CAP - 20);
-    expect(up.shownLevel('ironRigs')).toBe(LEVEL_CAP);
+    expect(up.level('ironRigs')).toBe(LEGACY_LEVEL_CAP - 20);
+    expect(up.shownLevel('ironRigs')).toBe(LEGACY_LEVEL_CAP);
     up.setLevel('dog', -4);
     expect(up.level('dog')).toBe(0);
   });
@@ -244,8 +241,8 @@ describe('Save clamp', () => {
     sanitizeState(state);
     expect(state.upgrades.carry).toBe(17);
     expect(state.upgrades.frontierRigs).toBe(40);
-    expect(state.upgrades.aiRigs).toBe(LEVEL_CAP - 90);
-    expect(state.upgrades.speed).toBe(LEVEL_CAP);
-    expect(shown(UPGRADES.aiRigs, state.upgrades.aiRigs)).toBe(LEVEL_CAP);
+    expect(state.upgrades.aiRigs).toBe(LEGACY_LEVEL_CAP - 90);
+    expect(state.upgrades.speed).toBe(LEGACY_LEVEL_CAP);
+    expect(shown(UPGRADES.aiRigs, state.upgrades.aiRigs)).toBe(LEGACY_LEVEL_CAP);
   });
 });

@@ -132,7 +132,9 @@ describe('the Lv 10 rule in words, and the gate groups', () => {
   it('names what to raise and what to buy', () => {
     expect(gateRuleText(2)).toBe(`Raise Survival's machines, crew and upgrades to Lv 10 and grow to Settlement 5, then buy ${ERAS[2]!.region}.`);
     expect(gateRuleText(3)).toBe(`Raise ${ERAS[2]!.region}'s machines, crew and upgrades to Lv 10 and grow to Settlement 10, then buy ${ERAS[3]!.region}.`);
-    expect(gateRuleText(11)).toBe('');
+    // 0.9.7: the final gate (era 10's own things), then nothing
+    expect(gateRuleText(11)).toBe(`Raise ${ERAS[10]!.region}'s machines, crew and upgrades to Lv 10 and grow to Settlement 50 for Winterland Complete.`);
+    expect(gateRuleText(12)).toBe('');
     expect(gateRuleShort(4)).toContain(ERAS[3]!.region);
   });
 

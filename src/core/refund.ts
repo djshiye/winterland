@@ -6,8 +6,9 @@
  *
  * `refundPrice` is the one switch: swap it (e.g. for core/ladder.ts costAt, today's prices) to change the rule.
  */
-import { price3, type UpgradeDef, type UpgradeGroup } from '../config';
-import { authoredMax, introEra } from './ladder';
+import { price3, UPGRADES, type UpgradeDef, type UpgradeGroup } from '../config';
+import { authoredMax, hardCapStored, introEra } from './ladder';
+import type { GameState } from './types';
 
 /** The 0.9.1-0.9.4 CLIMB price constants (git show v0.9.4:src/config.ts). */
 const CLIMB_094 = {
@@ -51,6 +52,32 @@ export const refundPrice: (def: UpgradeDef, s: number) => number = originalCost;
  * 'multiplier': the bonus is frozen in state.legacy.masteryMult and keeps raising every sale for good. The one switch.
  */
 export const MASTERY_KEEP: 'cash' | 'multiplier' = 'cash';
+
+/** The 0.9.0-0.9.6 Mastery constants (git show v0.9.6:src/config.ts CLIMB.masteryScale / masteryPoints), frozen here. */
+const MASTERY_096 = { scale: 0.12, points: 25 };
+
+/** Mastery points an old save's levels earned: one per level bought while the effect already sat at its hard cap. */
+export function legacyMasteryPoints(state: Pick<GameState, 'upgrades'>): number {
+  let points = 0;
+  for (const d of Object.values(UPGRADES)) {
+    const hc = hardCapStored(d);
+    if (hc !== null) points += Math.max(0, (state.upgrades[d.id] ?? 0) - hc);
+  }
+  return points;
+}
+
+/** The 0.9.0-0.9.6 Mastery multiplier for `points` (1 with none): bounded and logarithmic. */
+export function legacyMasteryMult(points: number): number {
+  return 1 + MASTERY_096.scale * Math.log2(1 + Math.max(0, points) / MASTERY_096.points);
+}
+
+/**
+ * The Mastery bonus an old save had when it loads (1 = none): from its levels past the caps, or the bonus it already
+ * keeps (state.legacy), whichever is higher. Only the '0.9.6-lv10-refund' migration reads it (core/Save.ts).
+ */
+export function legacyMastery(state: Pick<GameState, 'upgrades'> & { legacy?: GameState['legacy'] }): number {
+  return Math.max(legacyMasteryMult(legacyMasteryPoints(state)), state.legacy?.masteryMult ?? 1);
+}
 
 /** About one era of play (tests/pacing.test.ts: eras run 90-160 model minutes): 2.5 h. */
 export const MASTERY_PAYOUT_SECONDS = 9000;
