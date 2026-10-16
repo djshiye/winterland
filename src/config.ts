@@ -764,7 +764,7 @@ export const LAYOUT = {
      * (tests/townAmenities.test.ts checks all of it).
      */
     amenities: {
-      cafe: { x: 21.2, z: 27.5, w: 2.2, d: 1.4, pad: { x: 21.6, z: 25.75 } as XZ },
+      cafe: { x: 21.2, z: 27.25, w: 2.2, d: 1.4, pad: { x: 18.5, z: 28.3 } as XZ },
       pond: { x: 22.5, z: 30.1, w: 2.8, d: 1.8, pad: { x: 24.45, z: 29.7 } as XZ },
       bandstand: { x: 22.5, z: 23.5, w: 2.2, d: 2.2, pad: { x: 24.65, z: 23.9 } as XZ },
       snowmanPark: { x: 28.2, z: 27.1, w: 2.2, d: 1.6, pad: { x: 26.35, z: 27.1 } as XZ },
