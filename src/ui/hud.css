@@ -1122,6 +1122,13 @@
   filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.4));
 }
 
+.wl-village-happy-l {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
 @media (max-width: 420px) {
   .wl-village-happy {
     gap: 1px;

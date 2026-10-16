@@ -6,7 +6,7 @@ import { EventBus } from '../src/core/EventBus';
 import { QUEST_DEFS, Quests } from '../src/core/quests';
 import { createGameState, type GameEvents } from '../src/core/types';
 import { VILLAGE } from '../src/config';
-import { ERAS } from '../src/eras/data';
+import { ERA_NAMES } from '../src/eras/data';
 import { gateSize } from '../src/eras/gate';
 import { meetGate } from './gateHelpers';
 
@@ -104,11 +104,12 @@ describe('gate quests (0.9.0 climb)', () => {
     return s;
   };
 
-  it('one per era gate, right before the era it opens: "All upgrades Lv 10" with the gate row count', () => {
+  it('one per era gate, right before the era it opens: "All Survival upgrades Lv 10" with the gate row count', () => {
     const ids = QUEST_DEFS.map((q) => q.id);
     for (let n = 2; n <= 10; n++) {
       expect(ids.indexOf(`gate${n}`), `gate${n}`).toBe(ids.indexOf(`era${n}`) - 1);
-      expect(def(`gate${n}`).title).toBe(n === 2 ? 'All upgrades Lv 10' : `All ${ERAS[n - 1]!.region} upgrades Lv 10`);
+      // 0.9.6 (P2-12): named by era, so it never reads as Survival-only or as one region's shop only
+      expect(def(`gate${n}`).title).toBe(`All ${ERA_NAMES[n - 1]} upgrades Lv 10`);
       expect(def(`gate${n}`).target).toBe(gateSize(n));
       expect(def(`gate${n}`).reward).toBeGreaterThan(0);
     }

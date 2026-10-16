@@ -86,7 +86,8 @@ export class VillageBadge {
       return;
     }
     this.happyEl.style.display = '';
-    this.happyEl.innerHTML = `<i class="wl-village-heart">\u2665</i><span class="wl-village-happy-n">${pct}%</span>`;
+    // 0.9.6: "Town" names it, so it never reads as the district card's "City happiness"
+    this.happyEl.innerHTML = `<span class="wl-village-happy-l">Town</span><i class="wl-village-heart">\u2665</i><span class="wl-village-happy-n">${pct}%</span>`;
     this.happyEl.title = `Town happiness: every sale pays up to +${Math.round(HAPPINESS.priceBonus * 100)}% (now +${Math.round(HAPPINESS.priceBonus * pct)}%)`;
   }
 

@@ -151,12 +151,13 @@ export class QuestPanel {
         continue;
       }
       if (row.el.style.display === 'none') row.el.style.display = '';
-      const { def, progress } = a;
+      const { def, progress, reward } = a;
       if (row.id !== def.id) {
         row.id = def.id;
         row.title.textContent = def.title;
-        row.reward.textContent = formatMoney(def.reward);
       }
+      const money = formatMoney(reward);
+      if (row.reward.textContent !== money) row.reward.textContent = money;
       const p = Math.floor(progress);
       const text = `${formatCount(p)} / ${formatCount(def.target)}`;
       if (text !== row.shown) {
