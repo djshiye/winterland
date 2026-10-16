@@ -321,7 +321,7 @@ const buildCell: Builder = (b, m) => {
   b.add(box(0.05, 0.075, 0.012), 0xffffff, 0.012, y0 + h * 0.42, z, { rz: 0.35 });
 };
 
-/** AI core: a glowing violet cube floating inside a dark frame with corner posts and a bright heart. */
+/** AI core: a glowing gold cube floating inside a dark frame with corner posts and a bright heart. */
 const buildCore: Builder = (b, m) => {
   const s = m.size.w;
   const t = s * 0.1;
@@ -339,11 +339,11 @@ const buildCore: Builder = (b, m) => {
   for (const x of [-o, o]) for (const y of [-o, o]) for (const z of [-o, o]) b.add(box(t * 1.5, t * 1.5, t * 1.5), frame, x, y, z);
   // glowing cube + hot heart + four side nodes
   b.add(box(s * 0.5, s * 0.5, s * 0.5), m.color, 0, 0, 0, { ry: Math.PI / 4, rx: 0.25 });
-  b.add(box(s * 0.28, s * 0.28, s * 0.28), 0xe6d8ff, 0, 0, 0, { ry: Math.PI / 4 + 0.4, rx: 0.25 });
+  b.add(box(s * 0.28, s * 0.28, s * 0.28), 0xfff0c8, 0, 0, 0, { ry: Math.PI / 4 + 0.4, rx: 0.25 });
   for (const [x, z] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) b.add(box(t, t, t), m.color, x * (o + 0.0), 0, z * o);
 };
 
-/** Tiny boxy robot: white body, purple chest panel with lights, visor head with cyan eyes, antenna, arms and feet. */
+/** Tiny boxy robot: cream body, gold chest panel with lights, visor head with sun-gold eyes, antenna, arms and feet. */
 const buildRobot: Builder = (b, m) => {
   const { w, h, d } = m.size;
   const y0 = -h / 2;
@@ -359,7 +359,7 @@ const buildRobot: Builder = (b, m) => {
   b.add(box(bodyW, th, d * 0.78), m.color, 0, ty + th / 2, 0);
   b.add(box(bodyW * 0.7, th * 0.55, 0.02), m.accent, 0, ty + th * 0.55, d * 0.39);
   for (const [i, c] of [0xff7a6b, 0xffe066, 0x6be08f].entries()) b.add(box(0.026, 0.026, 0.014), c, (i - 1) * 0.055, ty + th * 0.62, d * 0.4);
-  b.add(box(bodyW * 0.7, 0.02, 0.014), 0xbbc2d4, 0, ty + th * 0.2, d * 0.4);
+  b.add(box(bodyW * 0.7, 0.02, 0.014), 0xd8cfbd, 0, ty + th * 0.2, d * 0.4);
   // arms with fists
   for (const s of [-1, 1]) {
     b.add(box(w * 0.14, th * 0.82, d * 0.24), shade(m.color, 0.88), s * (bodyW / 2 + w * 0.08), ty + th * 0.52, 0);
@@ -370,8 +370,8 @@ const buildRobot: Builder = (b, m) => {
   const hh = h * 0.28;
   b.add(box(bodyW * 0.3, 0.025, d * 0.3), shade(m.color, 0.7), 0, hy + 0.0125, 0);
   b.add(box(bodyW * 0.86, hh, d * 0.8), shade(m.color, 1.08), 0, hy + 0.025 + hh / 2, 0);
-  b.add(box(bodyW * 0.7, hh * 0.5, 0.02), 0x232846, 0, hy + 0.025 + hh * 0.52, d * 0.4);
-  for (const s of [-1, 1]) b.add(box(0.05, 0.034, 0.014), 0x5be0ff, s * 0.05, hy + 0.025 + hh * 0.52, d * 0.412);
+  b.add(box(bodyW * 0.7, hh * 0.5, 0.02), 0x3f4d5c, 0, hy + 0.025 + hh * 0.52, d * 0.4);
+  for (const s of [-1, 1]) b.add(box(0.05, 0.034, 0.014), 0xffe082, s * 0.05, hy + 0.025 + hh * 0.52, d * 0.412);
   // ear nubs + antenna
   for (const s of [-1, 1]) b.add(box(0.02, hh * 0.4, d * 0.3), m.accent, s * (bodyW * 0.43 + 0.008), hy + 0.025 + hh * 0.5, 0);
   b.add(cyl(0.008, 0.008, h * 0.08, 5), shade(m.color, 0.7), 0, hy + 0.025 + hh + h * 0.04, 0);

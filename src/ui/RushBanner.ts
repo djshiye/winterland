@@ -5,6 +5,7 @@
  * bottom-centre pill on phones; fits 800x450 and 390x844.
  */
 import type { GameContext } from '../core/types';
+import { steadyHighlights } from '../fx/comfort';
 import { backOut, h } from './dom';
 
 export class RushBanner {
@@ -58,7 +59,7 @@ export class RushBanner {
     this.pulse += dt;
     const e = this.want ? backOut(this.k) : this.k;
     // a gentle heartbeat while it lasts, faster for the last 5 s
-    const beat = this.want ? 1 + 0.025 * Math.sin(this.pulse * (secs <= 5 ? 9 : 4.5)) : 1;
+    const beat = this.want && !steadyHighlights() ? 1 + 0.025 * Math.sin(this.pulse * (secs <= 5 ? 9 : 4.5)) : 1;
     this.root.style.opacity = Math.min(1, this.k * 2).toFixed(2);
     this.root.style.setProperty('--rush-s', ((0.75 + 0.25 * e) * beat).toFixed(3));
     this.root.classList.toggle('is-low', this.want && secs <= 5);

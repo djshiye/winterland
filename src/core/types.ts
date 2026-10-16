@@ -236,6 +236,12 @@ export interface ErasState {
   age: number;
   /** regions[n] for eras 2..10 (indices 0 and 1 are unused placeholders with no slots). */
   regions: RegionState[];
+  /**
+   * Best settlement level ever reached past Winterland (6..50; 0 = none yet). Recomputed after every city / machine
+   * build, demolish, era and load as max(saved, level of the city population), so it never goes down
+   * (core/demand.ts refreshSettlement; settlementLevel reads it once the village is Winterland).
+   */
+  settlement: number;
 }
 
 /** One city lot (a district of eras/data.ts DISTRICTS[n]); same payment shape as a machine slot. */
@@ -480,6 +486,7 @@ export function createGameState(): GameState {
     contract: { kind: '', target: 0, progress: 0, left: 0, bonus: 0 },
     eras: {
       age: 1,
+      settlement: 0,
       regions: REGION_SLOTS.map((n) => ({ unlocked: false, cash: 0, extra: 0, slots: Array.from({ length: n }, () => ({ machine: '' as const, tier: -1, cash: 0, extra: 0 })) })),
     },
     city: {
@@ -534,6 +541,11 @@ export interface GameEvents {
   'pad:shown': { id: PadId; position: THREE.Vector3 };
   'pad:paid': { id: PadId; remaining: number; cost: number; position: THREE.Vector3 };
   'pad:unlocked': { id: PadId; position: THREE.Vector3 };
+  /**
+   * A pad the player stood on finished its target (juice only: fx/JuiceDirector.ts, fx/Haptics.ts). id is the holder id
+   * ('pad:<id>'); kind 'unlock' / 'level' (UpgradePad) or 'build' (ConstructionPad). Emitted after the logic events.
+   */
+  'pad:complete': { id: string; kind: 'unlock' | 'level' | 'build'; position: THREE.Vector3 };
   /** Something new was constructed (pad effect). `object` (if given) is its root, for extra squash/pop effects. */
   built: { what: string; position: THREE.Vector3; object?: THREE.Object3D };
   'phase:changed': { phase: Phase };
@@ -640,6 +652,21 @@ export interface GameEvents {
   /** City population (whole settlement) or rank (eras/data.ts CITY_RANKS index) changed; rankUp after a new rank. */
   'city:changed': { population: number; rank: number };
   'city:rankUp': { rank: number; name: string; position: THREE.Vector3 | null };
+  /** The settlement level (core/demand.ts settlementLevel) changed; emitted by City after a build, demolish or era. */
+  'settlement:changed': { level: number; cityPopulation: number };
+  /**
+   * A settlement level ≥ 6 was reached (never while loading). `from` = the level before (several can be crossed at
+   * once), `gift` = dollars paid into the city gift pile, `charter` = a band was completed (j = 5). position: the
+   * district of the level's era.
+   */
+  'settlement:levelUp': { level: number; from: number; gift: number; charter: boolean; position: THREE.Vector3 };
+  /**
+   * The next era's gate moved (eras/GateTracker.ts, computed, nothing saved; never while loading): `ok` of `total` rows
+   * at need, `gained` rows finished since the last one (a city build that also meets the settlement can finish several), `readyNow` = it just became ready.
+   */
+  'gate:progress': { era: number; ok: number; total: number; gained: number; settlement: number; settlementNeed: number; ready: boolean; readyNow: boolean };
+  /** Open the era checklist (ui/GateCard.ts; the era chip). */
+  'gate:open': Record<string, never>;
   /** A Market Town business was demolished (the lot is for sale again). */
   'town:demolished': { lot: number; building: BusinessIdConst; position: THREE.Vector3 };
   /** Money credited that is not a buyer's sale (already added to the wallet). */
@@ -657,8 +684,8 @@ export interface GameEvents {
   /** Fast travel: the map asks Level to move the player; Level answers with travel:done after the teleport. */
   'travel:request': { x: number; z: number; label: string };
   'travel:done': { x: number; z: number; label: string };
-  /** The market bought `count` physical units for era n's import dock (money already spent); the region spawns them. */
-  'market:order': { kind: MaterialKind; count: number; era: number };
+  /** The market bought `count` physical units for era n's import dock (`amount` dollars already spent); the region spawns them. */
+  'market:order': { kind: MaterialKind; count: number; era: number; amount: number };
   /** A trade of virtual holdings closed (`amount` dollars moved; profit for sells, 0 for buys). */
   'market:trade': { kind: MaterialKind; units: number; side: 'buy' | 'sell'; amount: number; profit: number };
   /** Positions opened / closed / matured. */

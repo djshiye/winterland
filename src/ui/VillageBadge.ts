@@ -1,9 +1,11 @@
 /**
  * [B4] Village badge under the money pill: house icon, level name, villager count and a slim progress bar toward the
  * next village level. Hidden until the village is revealed (checked every frame, so a restored save shows it too).
+ * 0.9.0 climb: past era 1 at Winterland it shows the settlement level instead ("12 · Forge Town", Arabic numerals:
+ * easier to read than XII), the city population and the bar toward the next settlement level (docs/EXPANSION.md §B).
  */
 import { HAPPINESS, VILLAGE } from '../config';
-import { townHappiness } from '../core/demand';
+import { cityPopulation, settlementLevel, settlementName, settlementPop, townHappiness } from '../core/demand';
 import type { GameContext } from '../core/types';
 import { eraLabel, romanNumeral } from '../world/env/eras';
 import { backOut, h } from './dom';
@@ -53,6 +55,9 @@ export class VillageBadge {
     ctx.events.on('village:levelUp', () => {
       this.bump = 1;
     });
+    ctx.events.on('settlement:levelUp', () => {
+      this.bump = 1;
+    });
     ctx.events.on('village:revealed', () => this.reveal());
     ctx.events.on('amenity:built', () => this.refreshHappy());
   }
@@ -95,6 +100,8 @@ export class VillageBadge {
     }
     if (!this.shown) return false;
 
+    const s = this.ctx.state;
+    if (v.level >= VILLAGE.levels.length - 1 && s.eras.age >= 2) return this.updateSettlement(dt);
     const lvDef = VILLAGE.levels[Math.min(v.level, VILLAGE.levels.length - 1)]!;
     if (lvDef.name !== this.lastName) {
       this.lastName = lvDef.name;
@@ -121,6 +128,35 @@ export class VillageBadge {
       const span = Math.max(1, next.minPopulation - lvDef.minPopulation);
       target = Math.max(0, Math.min(1, (v.population - lvDef.minPopulation) / span));
     }
+    return this.animate(dt, target, maxed);
+  }
+
+  /** Settlement 5..50 (past era 1): level + name, city population, bar from this level's population to the next. */
+  private updateSettlement(dt: number): boolean {
+    const s = this.ctx.state;
+    const level = settlementLevel(s);
+    const name = `${level} \u00b7 ${settlementName(level)}`;
+    if (name !== this.lastName) {
+      this.lastName = name;
+      this.nameEl.innerHTML = '';
+      this.nameEl.append(h('span', 'wl-village-era', `${level} \u00b7`), settlementName(level));
+      this.nameEl.title = `Settlement ${level} \u00b7 ${settlementName(level)}`;
+    }
+    const pop = cityPopulation(s);
+    if (pop !== this.lastPop) {
+      this.lastPop = pop;
+      this.popEl.innerHTML = `<i class="wl-village-person">${ICON_PERSON}</i>${pop}`;
+    }
+    this.refreshHappy();
+    // the next level must be in a band the age allows (level 5(k − 1) + j needs age ≥ k)
+    const next = level + 1 <= 5 * s.eras.age ? settlementPop(level + 1) : null;
+    if (next === null) return this.animate(dt, 1, true);
+    const lo = settlementPop(level) ?? 0;
+    return this.animate(dt, Math.max(0, Math.min(1, (pop - lo) / Math.max(1, next - lo))), false);
+  }
+
+  /** Bar, appear pop-in and level-up bump. */
+  private animate(dt: number, target: number, maxed: boolean): boolean {
     if (this.barSnap) {
       this.barShown = target;
       this.barSnap = false;

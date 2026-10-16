@@ -262,9 +262,9 @@ function pylon(): THREE.BufferGeometry {
 function transformer(): THREE.BufferGeometry {
   const k = new Kit();
   k.box(1.8, 0.2, 1.4, 0x6d6a66, 0, 0, 0);
-  k.box(1.3, 1.4, 1.0, 0x2e4a5a, 0, 0.2, 0);
-  for (let i = 0; i < 5; i++) k.box(0.08, 1.0, 0.18, 0x3f6074, -0.55 + i * 0.28, 0.35, 0.58);
-  for (const x of [-0.4, 0, 0.4]) k.cyl(0.07, 0.5, 0xb8d6d0, x, 1.6, 0, 0.12, 6).cyl(0.14, 0.08, 0xc9773a, x, 2.0, 0);
+  k.box(1.3, 1.4, 1.0, 0x4c6b68, 0, 0.2, 0);
+  for (let i = 0; i < 5; i++) k.box(0.08, 1.0, 0.18, 0x6f918c, -0.55 + i * 0.28, 0.35, 0.58);
+  for (const x of [-0.4, 0, 0.4]) k.cyl(0.07, 0.5, 0xb8d6d0, x, 1.6, 0, 0.12, 6).cyl(0.14, 0.08, 0xd97f38, x, 2.0, 0);
   k.box(0.5, 0.5, 0.06, 0xf2d34a, 0, 0.7, -0.53); // warning plate
   k.cap(1.3, 1.0, 0, 1.6, 0);
   return k.geometry();
@@ -273,8 +273,8 @@ function transformer(): THREE.BufferGeometry {
 function cableDrum(): THREE.BufferGeometry {
   const k = new Kit();
   k.lying('x', 0.75, 0.1, 0x8a6a46, -0.45, 0.78, 0, 12).lying('x', 0.75, 0.1, 0x8a6a46, 0.45, 0.78, 0, 12);
-  k.lying('x', 0.55, 0.8, 0xc9773a, 0, 0.78, 0, 10).lying('x', 0.3, 0.9, 0x5a3a20, 0, 0.78, 0, 8);
-  k.box(1.2, 0.08, 0.7, 0x5e452c, 0, 0, -1.0).box(1.0, 0.12, 0.2, 0xc9773a, 0, 0.1, -1.0); // spare coil on a plank
+  k.lying('x', 0.55, 0.8, 0xd97f38, 0, 0.78, 0, 10).lying('x', 0.3, 0.9, 0x5a3a20, 0, 0.78, 0, 8);
+  k.box(1.2, 0.08, 0.7, 0x5e452c, 0, 0, -1.0).box(1.0, 0.12, 0.2, 0xd97f38, 0, 0.1, -1.0); // spare coil on a plank
   k.cap(1.0, 0.3, 0, 1.52, 0);
   return k.geometry();
 }
@@ -285,8 +285,8 @@ function cableDrum(): THREE.BufferGeometry {
 
 function derrick(): THREE.BufferGeometry {
   const k = new Kit();
-  const steel = 0xe0b03a;
-  const dark = 0x272a30;
+  const steel = 0xd99b26;
+  const dark = 0x36383a;
   k.box(2.4, 0.25, 2.4, dark, 0, 0, 0);
   const legs: [number, number][] = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
   for (const [x, z] of legs) k.beam([x, 0.25, z], [x * 0.25, 4.9, z * 0.25], 0.12, steel);
@@ -304,7 +304,7 @@ function storageTank(): THREE.BufferGeometry {
   const k = new Kit();
   k.cyl(1.5, 2.8, 0x8f9298, 0, 0.2, 0, 1.5, 12);
   for (const y of [1.0, 2.0]) k.cyl(1.54, 0.08, 0x44474e, 0, y, 0, 1.54, 12);
-  k.cyl(1.52, 0.4, 0xe0b03a, 0, 2.2, 0, 1.52, 12); // accent stripe
+  k.cyl(1.52, 0.4, 0xc44536, 0, 2.2, 0, 1.52, 12); // accent stripe
   k.cone(1.55, 0.55, 0x727880, 0, 3.0, 0, 12).cone(1.0, 0.2, SNOW, 0, 3.4, 0, 12);
   k.box(0.3, 3.0, 0.08, 0x44474e, 1.5, 0.2, 0.3, 0.5); // ladder
   k.box(1.4, 0.15, 1.4, 0x6d6a66, 0, 0, 0);
@@ -315,7 +315,7 @@ function barrelRack(): THREE.BufferGeometry {
   const k = new Kit();
   k.box(1.9, 0.12, 1.2, 0x6d5a48, 0, 0, 0);
   const barrel = (x: number, y0: number, z: number): void => {
-    k.cyl(0.3, 0.85, 0x2a2d33, x, y0, z, 0.3, 8).cyl(0.31, 0.08, 0xe0b03a, x, y0 + 0.35, z, 0.31, 8);
+    k.cyl(0.3, 0.85, 0x2a2d33, x, y0, z, 0.3, 8).cyl(0.31, 0.08, 0xc44536, x, y0 + 0.35, z, 0.31, 8);
   };
   for (const x of [-0.6, 0, 0.6]) for (const z of [-0.3, 0.3]) barrel(x, 0.12, z);
   barrel(-0.3, 0.97, 0);
@@ -330,13 +330,13 @@ function barrelRack(): THREE.BufferGeometry {
 
 function dish(): THREE.BufferGeometry {
   const k = new Kit();
-  k.box(1.6, 0.25, 1.6, 0x8a98a6, 0, 0, 0);
-  k.cyl(0.14, 2.6, 0xdfe6ee, 0, 0.25, 0, 0.18, 8);
+  k.box(1.6, 0.25, 1.6, 0x7c858e, 0, 0, 0);
+  k.cyl(0.14, 2.6, 0xe6dec8, 0, 0.25, 0, 0.18, 8);
   // the bowl: a flattened sphere cap tilted toward the camera
   const bowl = new THREE.SphereGeometry(1.7, 14, 6, 0, Math.PI * 2, 0, 0.55);
-  k.b.add(bowl, 0xf2f5f8, 0, 3.6, 0, { rx: 0.9, ry: 0.8, sx: 1, sy: 0.55, sz: 1 });
-  k.b.add(geo.cylinder(0.05, 0.05, 1.5, 5), 0x3aa0d8, 0.3, 4.1, 0.4, { rx: -0.6, rz: 0.3 });
-  k.box(0.22, 0.22, 0.22, 0x3aa0d8, 0.5, 4.8, 0.85);
+  k.b.add(bowl, 0xf2ede0, 0, 3.6, 0, { rx: 0.9, ry: 0.8, sx: 1, sy: 0.55, sz: 1 });
+  k.b.add(geo.cylinder(0.05, 0.05, 1.5, 5), 0x45858c, 0.3, 4.1, 0.4, { rx: -0.6, rz: 0.3 });
+  k.box(0.22, 0.22, 0.22, 0x45858c, 0.5, 4.8, 0.85);
   return k.geometry();
 }
 
@@ -344,10 +344,10 @@ function solarArray(): THREE.BufferGeometry {
   const k = new Kit();
   for (let i = 0; i < 3; i++) {
     const x = (i - 1) * 1.55;
-    k.box(0.12, 0.7, 0.12, 0x8a98a6, x, 0, 0.45);
-    k.b.add(geo.box(1.4, 0.07, 1.6), 0x244a78, x, 1.1, 0, { rx: 0.55 });
-    k.b.add(geo.box(1.45, 0.03, 0.05), 0xdfe8f2, x, 1.12, 0.05, { rx: 0.55 });
-    k.b.add(geo.box(0.05, 0.03, 1.55), 0xdfe8f2, x, 1.12, 0, { rx: 0.55 });
+    k.box(0.12, 0.7, 0.12, 0x7c858e, x, 0, 0.45);
+    k.b.add(geo.box(1.4, 0.07, 1.6), 0x3b5f6a, x, 1.1, 0, { rx: 0.55 });
+    k.b.add(geo.box(1.45, 0.03, 0.05), 0xe6dec8, x, 1.12, 0.05, { rx: 0.55 });
+    k.b.add(geo.box(0.05, 0.03, 1.55), 0xe6dec8, x, 1.12, 0, { rx: 0.55 });
     k.b.add(geo.box(1.4, 0.06, 0.2), SNOW, x, 1.45, -0.55, { rx: 0.55 });
   }
   return k.geometry();
@@ -355,9 +355,9 @@ function solarArray(): THREE.BufferGeometry {
 
 function relayBox(): THREE.BufferGeometry {
   const k = new Kit();
-  k.box(1.1, 1.5, 0.8, 0xdfe6ee, 0, 0, 0).box(1.2, 0.1, 0.9, 0x8a98a6, 0, 1.5, 0);
-  for (let i = 0; i < 4; i++) k.box(0.7, 0.05, 0.02, i % 2 ? 0x3aa0d8 : 0x2a3a4a, 0, 0.25 + i * 0.28, 0.41);
-  k.box(0.08, 1.3, 0.08, 0x8a98a6, 0.4, 1.6, 0.1).box(0.2, 0.2, 0.2, 0x3aa0d8, 0.4, 2.9, 0.1);
+  k.box(1.1, 1.5, 0.8, 0xe6dec8, 0, 0, 0).box(1.2, 0.1, 0.9, 0x7c858e, 0, 1.5, 0);
+  for (let i = 0; i < 4; i++) k.box(0.7, 0.05, 0.02, i % 2 ? 0x45858c : 0x4a5259, 0, 0.25 + i * 0.28, 0.41);
+  k.box(0.08, 1.3, 0.08, 0x7c858e, 0.4, 1.6, 0.1).box(0.2, 0.2, 0.2, 0x45858c, 0.4, 2.9, 0.1);
   k.cap(1.1, 0.8, 0, 1.6, 0);
   return k.geometry();
 }
@@ -369,10 +369,10 @@ function relayBox(): THREE.BufferGeometry {
 function lightMast(): THREE.BufferGeometry {
   const k = new Kit();
   k.box(1.2, 0.3, 1.2, 0x5a6470, 0, 0, 0);
-  k.cyl(0.12, 5.0, 0x6e7d6a, 0, 0.3, 0, 0.18, 6);
-  k.box(1.5, 0.35, 0.3, 0x2d3b2a, 0, 5.3, 0).box(0.3, 0.2, 0.1, 0xf5f1c0, -0.5, 5.4, 0.2).box(0.3, 0.2, 0.1, 0xf5f1c0, 0.5, 5.4, 0.2);
-  // hazard sign (yellow plate with a green trefoil dot)
-  k.box(0.9, 0.9, 0.08, 0xf2d34a, 0, 2.8, 0.22).box(0.4, 0.4, 0.1, 0x2d3b2a, 0, 3.05, 0.22).cone(0.25, 0.2, 0x7bd04a, 0, 2.95, 0.3, 3);
+  k.cyl(0.12, 5.0, 0x6f828a, 0, 0.3, 0, 0.18, 6);
+  k.box(1.5, 0.35, 0.3, 0x3d5259, 0, 5.3, 0).box(0.3, 0.2, 0.1, 0xf5f1c0, -0.5, 5.4, 0.2).box(0.3, 0.2, 0.1, 0xf5f1c0, 0.5, 5.4, 0.2);
+  // hazard sign (gold plate with a jade trefoil dot)
+  k.box(0.9, 0.9, 0.08, 0xe8c45a, 0, 2.8, 0.22).box(0.4, 0.4, 0.1, 0x3d5259, 0, 3.05, 0.22).cone(0.25, 0.2, 0x4ea885, 0, 2.95, 0.3, 3);
   k.cap(1.5, 0.3, 0, 5.65, 0);
   return k.geometry();
 }
@@ -380,7 +380,7 @@ function lightMast(): THREE.BufferGeometry {
 function leadWall(): THREE.BufferGeometry {
   const k = new Kit();
   k.box(3.2, 1.8, 0.7, 0x6b7380, 0, 0, 0);
-  for (let i = 0; i < 8; i++) k.box(0.4, 0.22, 0.74, i % 2 ? 0xf2d34a : 0x2d3b2a, -1.4 + i * 0.4, 1.8, 0, 0);
+  for (let i = 0; i < 8; i++) k.box(0.4, 0.22, 0.74, i % 2 ? 0xe8c45a : 0x3d5259, -1.4 + i * 0.4, 1.8, 0, 0);
   k.box(3.4, 0.14, 0.9, 0x4f5662, 0, 0, 0).box(3.6, 0.2, 1.1, 0x4f5662, 0, -0.0, 0);
   k.cap(3.2, 0.7, 0, 2.02, 0);
   return k.geometry();
@@ -389,7 +389,7 @@ function leadWall(): THREE.BufferGeometry {
 function hazardBarrels(): THREE.BufferGeometry {
   const k = new Kit();
   const barrel = (x: number, y0: number, z: number): void => {
-    k.cyl(0.3, 0.9, 0xf2d34a, x, y0, z, 0.3, 8).cyl(0.31, 0.2, 0x2d3b2a, x, y0 + 0.35, z, 0.31, 8).cyl(0.2, 0.04, 0x7bd04a, x, y0 + 0.88, z, 0.2, 6);
+    k.cyl(0.3, 0.9, 0xe8c45a, x, y0, z, 0.3, 8).cyl(0.31, 0.2, 0x3d5259, x, y0 + 0.35, z, 0.31, 8).cyl(0.2, 0.04, 0x4ea885, x, y0 + 0.88, z, 0.2, 6);
   };
   barrel(-0.4, 0, 0);
   barrel(0.4, 0, 0.05);
@@ -405,19 +405,19 @@ function hazardBarrels(): THREE.BufferGeometry {
 
 function holoPylon(): THREE.BufferGeometry {
   const k = new Kit();
-  k.cyl(0.9, 0.2, 0x2a2f55, 0, 0, 0, 1.1, 10);
-  k.cyl(0.12, 5.0, 0x1f2240, 0, 0.2, 0, 0.3, 6);
-  k.cyl(0.1, 0.2, 0x9b6cff, 0, 5.2, 0, 0.1, 6);
-  k.b.add(geo.torus(0.85, 0.06, 5, 16), 0x9b6cff, 0, 3.3, 0, { rx: Math.PI / 2 });
-  k.b.add(geo.torus(0.6, 0.05, 5, 16), 0xc8b0ff, 0, 4.3, 0, { rx: Math.PI / 2 });
-  k.b.add(geo.icosahedron(0.32, 0), 0xe8dcff, 0, 5.6, 0);
+  k.cyl(0.9, 0.2, 0x6f8296, 0, 0, 0, 1.1, 10);
+  k.cyl(0.12, 5.0, 0x526475, 0, 0.2, 0, 0.3, 6);
+  k.cyl(0.1, 0.2, 0xe8a848, 0, 5.2, 0, 0.1, 6);
+  k.b.add(geo.torus(0.85, 0.06, 5, 16), 0xe8a848, 0, 3.3, 0, { rx: Math.PI / 2 });
+  k.b.add(geo.torus(0.6, 0.05, 5, 16), 0xffe082, 0, 4.3, 0, { rx: Math.PI / 2 });
+  k.b.add(geo.icosahedron(0.32, 0), 0xfff0c8, 0, 5.6, 0);
   return k.geometry();
 }
 
 function nanoSpire(): THREE.BufferGeometry {
   const k = new Kit();
-  k.cyl(1.3, 0.2, 0x1f2240, 0, 0, 0, 1.5, 8);
-  for (const [x, z, h, c] of [[0, 0, 3.0, 0x9b6cff], [0.7, 0.3, 1.9, 0xc8b0ff], [-0.6, 0.5, 1.5, 0x7a4de0], [0.1, -0.7, 2.2, 0xb59bff]] as const) {
+  k.cyl(1.3, 0.2, 0x526475, 0, 0, 0, 1.5, 8);
+  for (const [x, z, h, c] of [[0, 0, 3.0, 0xe8a848], [0.7, 0.3, 1.9, 0xffe082], [-0.6, 0.5, 1.5, 0xd99b26], [0.1, -0.7, 2.2, 0xf2c46a]] as const) {
     k.cone(0.4, h, c, x, 0.2, z, 4, x);
   }
   return k.geometry();
@@ -425,10 +425,10 @@ function nanoSpire(): THREE.BufferGeometry {
 
 function serverCrate(): THREE.BufferGeometry {
   const k = new Kit();
-  k.box(1.1, 1.3, 0.9, 0x1f2240, 0, 0, 0).box(1.16, 0.08, 0.96, 0x3a3f70, 0, 1.3, 0);
+  k.box(1.1, 1.3, 0.9, 0x526475, 0, 0, 0).box(1.16, 0.08, 0.96, 0x6f8296, 0, 1.3, 0);
   for (let i = 0; i < 4; i++) {
-    k.box(0.9, 0.08, 0.02, 0x0e1030, 0, 0.2 + i * 0.28, 0.46);
-    k.box(0.1, 0.06, 0.03, i % 2 ? 0x9b6cff : 0x3aa0d8, -0.3 + (i % 3) * 0.3, 0.2 + i * 0.28, 0.47);
+    k.box(0.9, 0.08, 0.02, 0x3f4d5c, 0, 0.2 + i * 0.28, 0.46);
+    k.box(0.1, 0.06, 0.03, i % 2 ? 0xe8a848 : 0xffe082, -0.3 + (i % 3) * 0.3, 0.2 + i * 0.28, 0.47);
   }
   k.cap(1.1, 0.9, 0, 1.38, 0);
   return k.geometry();

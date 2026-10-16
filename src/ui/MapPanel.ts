@@ -8,7 +8,8 @@
  */
 import type { GameContext } from '../core/types';
 import { DISTRICTS, ERAS, REGIONS, ROADS, type ERect } from '../eras/data';
-import { expansionOffered, travelPoints, type TravelPoint } from '../eras/layout';
+import { climbOpen } from '../eras/gate';
+import { travelPoints, type TravelPoint } from '../eras/layout';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { eraRoman, groupTravelPoints, travelNote } from './agesLogic';
 import { hexCss, ICON_CLOSE, ICON_LOCK, ICON_PIN, shadeCss } from './icons';
@@ -139,7 +140,7 @@ export class MapPanel {
     out.push(`<rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" rx="5" fill="#dcebf8"/>`);
     // roads
     for (const r of ROADS) {
-      const open = r.opensAt <= 2 ? expansionOffered(state, 2) || age >= 2 : age >= r.opensAt - 1;
+      const open = r.opensAt <= 2 ? climbOpen(state) || age >= 2 : age >= r.opensAt - 1;
       out.push(`<rect ${rectAttrs(r.rect)} fill="#8a94a8" opacity="${open ? 0.95 : 0.28}"/>`);
     }
     // the old map

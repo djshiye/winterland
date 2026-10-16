@@ -1046,6 +1046,8 @@ interface PadTextureParams {
   cash?: { left: number; total: number };
   /** Third requirement (Grand Market toys). */
   extra?: { left: number; total: number; kind: string };
+  /** Construction pads on preview (0.9 era pads before their gate is met): greyed, a padlock + this note. */
+  locked?: string | undefined;
 }
 
 const params = new WeakMap<THREE.CanvasTexture, PadTextureParams>();
@@ -1389,12 +1391,56 @@ function drawConstruction(texture: THREE.CanvasTexture, p: PadTextureParams): vo
     if (p.extra) drawConstructionRow(g, 158, 'extra', p.extra, 1, ek);
     if (p.cash) drawConstructionRow(g, 208, 'cash', p.cash);
   }
+  if (p.locked !== undefined) drawLockedWash(g, p.locked);
   texture.needsUpdate = true;
+}
+
+/**
+ * Preview face (docs/EXPANSION.md §C): a grey wash over the whole tile, a padlock and a short progress note
+ * ("37/48 · S8/10") on a dark strip, so the pad reads "for sale, not yet" without a second mesh.
+ */
+function drawLockedWash(g: CanvasRenderingContext2D, note: string): void {
+  const inset = BORDER / 2;
+  g.save();
+  roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
+  g.fillStyle = 'rgba(150,158,170,0.62)';
+  g.fill();
+  // padlock: shackle + body
+  g.translate(SIZE / 2, note ? 104 : 128);
+  g.lineWidth = 11;
+  g.strokeStyle = '#ffffff';
+  g.beginPath();
+  g.arc(0, -14, 22, Math.PI, 0);
+  g.lineTo(22, 4);
+  g.moveTo(-22, 4);
+  g.lineTo(-22, -14);
+  g.stroke();
+  roundedRectPath(g, -36, 0, 72, 56, 10);
+  g.fillStyle = '#ffffff';
+  g.fill();
+  g.fillStyle = hex(COLORS.PAD_BG);
+  g.beginPath();
+  g.arc(0, 22, 8, 0, Math.PI * 2);
+  g.fill();
+  g.fillRect(-3.5, 24, 7, 16);
+  g.restore();
+  if (!note) return;
+  g.font = `700 40px ${GAME_FONT}`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.lineJoin = 'round';
+  g.lineWidth = 9;
+  g.strokeStyle = hex(COLORS.PAD_BG);
+  g.fillStyle = '#ffffff';
+  const maxW = SIZE - BORDER - 28;
+  g.strokeText(note, SIZE / 2, 200, maxW);
+  g.fillText(note, SIZE / 2, 200, maxW);
 }
 
 /**
  * Construction pad face: shelter icon on top, then "log icon + logs left" and "bill icon + cash left" rows (a
  * finished requirement shows a check mark). The fill rises with the combined progress. Redraws `target` in place.
+ * `locked` (a preview pad): the face is greyed under a padlock and that note.
  */
 export function createConstructionTexture(
   icon: ShelterIcon,
@@ -1402,13 +1448,14 @@ export function createConstructionTexture(
   cash: { left: number; total: number },
   target?: THREE.CanvasTexture,
   extra?: { left: number; total: number; kind: string },
+  locked?: string,
 ): THREE.CanvasTexture {
   const texture = target ?? makeCanvasTexture(SIZE, SIZE).texture;
   const part = (r: { left: number; total: number }): number => (r.total > 0 ? 1 - r.left / r.total : 1);
   // era pads (logs.total 0) have no log requirement: it must not count as a free third of the progress
   const parts = [...(logs.total > 0 ? [part(logs)] : []), part(cash), ...(extra ? [part(extra)] : [])];
   const ratio = parts.reduce((a, b) => a + b, 0) / parts.length;
-  const p: PadTextureParams = { kind: 'construction', icon, text: '', ratio, logs, cash, ...(extra ? { extra } : {}) };
+  const p: PadTextureParams = { kind: 'construction', icon, text: '', ratio, logs, cash, ...(extra ? { extra } : {}), locked };
   params.set(texture, p);
   draw(texture, p);
   hookFont(texture);
