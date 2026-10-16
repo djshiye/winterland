@@ -97,7 +97,10 @@ export const eraOfKey = (key: EraKey): number => ERA_KEYS.indexOf(key) + 2;
 // Materials (new item kinds). Every one is carriable.
 // ---------------------------------------------------------------------------
 
-export type MaterialShape = 'block' | 'brick' | 'nugget' | 'ingot' | 'lump' | 'gear' | 'beam' | 'coil' | 'barrel' | 'pellet' | 'crystal' | 'chip' | 'rod' | 'cell' | 'core' | 'robot' | 'computer';
+export type MaterialShape =
+  | 'block' | 'brick' | 'nugget' | 'ingot' | 'lump' | 'gear' | 'beam' | 'coil' | 'barrel' | 'pellet' | 'crystal' | 'chip' | 'rod' | 'cell' | 'core' | 'robot'
+  // 0.9.5 era 8-10 (assets/eraItems8to10.ts)
+  | 'computer';
 
 export interface MaterialDef {
   kind: MaterialKind;
