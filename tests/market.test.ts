@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
+import { CLIMB, UPGRADES } from '../src/config';
 import { Market, ORDER_MAX_UNITS } from '../src/core/Market';
 import { createGameState, type GameContext, type GameEvents } from '../src/core/types';
 import { BOND_CAP_SHARE, INVEST, INVEST_MAX_POSITIONS, MARKET, MATERIALS, SURVIVAL_VALUE } from '../src/eras/data';
@@ -113,8 +114,8 @@ describe('supply pressure', () => {
     expect(market.pressure('brick')).toBe(0);
   });
 
-  it('credits the export price and the stat, applies the era Trade upgrade', () => {
-    const { market, economy, state } = setup({ money: 0, upgrades: { frontierTrade: 1.5 } });
+  it('credits the export price and the stat, applies the material\'s sales upgrade (Trade and Fine merged, 0.9.6)', () => {
+    const { market, economy, state } = setup({ money: 0, upgrades: { stoneQuality: 1.5 } });
     const expected = Math.round(market.unitValue('stone') * 10 * 1.5);
     const paid = market.sellExport('stone', 10, new THREE.Vector3());
     expect(paid).toBe(expected);
@@ -299,25 +300,113 @@ describe('investments', () => {
     expect(market.invest('bond', 20_000)).toBe(true);
     expect(economy.money).toBe(50_000);
     expect(market.invest('bond', 1000)).toBe(false);
-    expect(market.invest('index', 1000)).toBe(true); // other products are not capped
+    expect(market.invest('index', 1000)).toBe(true); // each product has its own room
   });
 
-  it('index fund positions follow the fund; the fund drifts up and stays positive', () => {
-    const { market, state } = setup({ age: 2, money: 100_000, rng: seeded(5) });
-    market.invest('index', 10_000);
-    const pos = market.positions()[0]!;
-    const f0 = state.market.fund;
-    run(market, 120, MARKET.tick);
-    expect(state.market.fund).not.toBe(f0);
-    expect(pos.value / pos.principal).toBeCloseTo(state.market.fund / f0, 6);
+  it('index fund positions grow on the trend with a small wobble; the market mood stays in its band', () => {
     let sum = 0;
     for (let k = 0; k < 20; k++) {
-      const t = setup({ age: 2, rng: seeded(100 + k) });
-      run(t.market, 1800, MARKET.tick);
-      expect(t.state.market.fund).toBeGreaterThan(0);
-      sum += t.state.market.fund;
+      const t = setup({ age: 2, money: 100_000, rng: seeded(100 + k) });
+      t.market.invest('index', 10_000);
+      run(t.market, 600, MARKET.tick);
+      expect(t.state.market.fund).toBeGreaterThan(1 - (INVEST.index.dip ?? 0) - 1e-9);
+      expect(t.state.market.fund).toBeLessThan(1 + (INVEST.index.rise ?? 0) + 1e-9);
+      sum += t.market.positions()[0]!.value / 10_000;
     }
-    expect(sum / 20).toBeGreaterThan(1); // positive drift over half an hour
+    const trend = (1 + INVEST.index.rate) ** (600 / 3600);
+    expect(sum / 20).toBeGreaterThan(trend * 0.97); // about the trend over 10 minutes
+    expect(sum / 20).toBeLessThan(trend * 1.03);
+  });
+
+  // 0.9.6 (validation of PR #35): a little better than bonds (+12% per 10 minutes, locked), with no lock but some risk
+  it('the fund beats a bond over 10 minutes on average; a venture beats the fund on average', () => {
+    let idx = 0;
+    let ven = 0;
+    for (let k = 0; k < 40; k++) {
+      const t = setup({ age: 5, money: 1e6, rng: seeded(900 + k) });
+      t.market.invest('index', 100_000);
+      t.market.invest('venture', 100_000, 5);
+      run(t.market, 600, MARKET.tick);
+      idx += t.market.positions()[0]!.value / 100_000 / 40;
+      ven += t.market.positions()[1]!.value / 100_000 / 40;
+    }
+    expect(idx).toBeGreaterThan(1 + INVEST.bond.rate);
+    expect(ven).toBeGreaterThan(idx);
+  });
+
+  // 0.9.6 (CODE_AUDIT P0-2): 0.9.5 compounded the fund and ventures per minute, uncapped ($1B overnight became >$1T)
+  it('a night away never beats the ceiling: at most ×2 (fund) and ×3 (ventures) plus the wobble, for every seed', () => {
+    for (const product of ['index', 'venture'] as const) {
+      const def = INVEST[product];
+      let worst = 0;
+      for (let k = 0; k < 12; k++) {
+        const t = setup({ age: 5, money: 1e9, rng: seeded(500 + k) });
+        // a hot market (every index at the top) leans the wobble its way: still capped
+        if (k % 2 === 0) for (const kind of Object.keys(MATERIALS) as (keyof typeof MATERIALS)[]) t.state.market.index[kind] = MARKET.max;
+        expect(t.market.invest(product, 1e8, product === 'venture' ? 5 : 0)).toBe(true);
+        run(t.market, 8 * 3600, MARKET.tick * 20); // 20 price ticks a step, the most one update runs
+        worst = Math.max(worst, t.market.positions()[0]!.value / 1e8);
+      }
+      expect(worst, product).toBeLessThanOrEqual((def.top ?? 1) * (1 + (def.rise ?? 0)) + 1e-9);
+      expect(worst, product).toBeGreaterThan(1.5);
+    }
+  }, 30_000); // eight simulated hours per seed
+
+  // 0.9.6 (validation of PR #35): with caps from net worth alone, rolling bonds every 10 minutes and re-investing
+  // the gains grew money ×1.76 an hour with the factories idle (×84 overnight). The caps now follow recent sales.
+  it('caps each product at capMinutes of recent sales; with no sales nothing new goes in', () => {
+    const t = setup({ age: 3, money: 1e9 });
+    let rate = 1000;
+    t.market.setSalesRate(() => rate);
+    for (const p of ['bond', 'index', 'venture'] as const) {
+      expect(t.market.room(p)).toBe(INVEST[p].capMinutes * 60 * 1000);
+      expect(t.market.cappedBySales(p)).toBe(true);
+    }
+    rate = 0;
+    expect(t.market.invest('bond', INVEST.bond.min)).toBe(false);
+    expect(t.market.invest('index', INVEST.index.min)).toBe(false);
+  });
+
+  it('eight hours of optimal re-investing with no sales income adds less than half of what the factories earn', () => {
+    const rate = 100_000; // $/s the meter still reads, as if the factories kept selling (generous: no sales are paid in)
+    for (const seed of [11, 12, 13]) {
+      const t = setup({ age: 5, money: 1e9, rng: seeded(seed), upgrades: { broker: CLIMB.bondBrokerMax } });
+      t.market.setSalesRate(() => rate);
+      const start = t.market.netWorth();
+      const step = MARKET.tick * 15; // re-balance every minute
+      for (let s = 0; s < 8 * 3600; s += step) {
+        for (const p of [...t.market.positions()]) {
+          if (p.product === 'bond' ? t.market.matured(p) : p.value > p.principal) t.market.withdraw(p.id);
+        }
+        t.market.invest('bond', t.market.room('bond'));
+        t.market.invest('index', t.market.room('index'));
+        t.market.invest('venture', t.market.room('venture'), 5);
+        run(t.market, step, MARKET.tick * 5);
+      }
+      const gain = t.market.netWorth() - start;
+      expect(gain, `seed ${seed}`).toBeGreaterThan(0);
+      expect(gain, `seed ${seed}`).toBeLessThan(0.6 * rate * 8 * 3600);
+    }
+  }, 30_000);
+
+  it('caps the index fund and ventures at their share of net worth, like bonds', () => {
+    const { market } = setup({ age: 3, money: 100_000 });
+    expect(market.room('index')).toBe(Math.floor(INVEST.index.cap * 100_000));
+    expect(market.invest('index', market.room('index') + 1)).toBe(false);
+    expect(market.invest('index', market.room('index'))).toBe(true);
+    expect(market.room('index')).toBe(0);
+    expect(market.invest('index', 1000)).toBe(false);
+    expect(market.room('venture')).toBe(Math.floor(INVEST.venture.cap * 100_000));
+    expect(market.invest('venture', market.room('venture') + 1, 3)).toBe(false);
+    expect(market.invest('venture', market.room('venture'), 3)).toBe(true);
+    expect(market.invest('bond', 10_000)).toBe(true); // each product has its own room
+  });
+
+  it('a position from an older save that already grew past the band keeps its value and stops growing', () => {
+    const { market, state } = setup({ age: 3, money: 1e6, rng: seeded(3) });
+    state.market.investments.push({ id: 99, product: 'venture', era: 3, principal: 10_000, value: 170_000, age: 3600 });
+    run(market, 360, MARKET.tick);
+    expect(state.market.investments[0]!.value).toBe(170_000);
   });
 
   it('venture positions move with their era and never go negative; withdraw pays value and counts the gain', () => {
@@ -384,6 +473,23 @@ describe('money loops', () => {
     state.market.pressure.brick = MARKET.pressureMax;
     expect(market.orderCost('brick', ORDER_MAX_UNITS)).toBe(calm);
     expect(calm).toBeGreaterThan(market.exportPrice('brick', ORDER_MAX_UNITS) / (1 - MARKET.pressureMax));
+  });
+
+  // 0.9.6 (CODE_AUDIT P0-1): 0.9.5's orderCost left the Quality bonus out, so an order sold at a region market counter
+  // paid back ×0.87 at Fine Lv 0, ×1.42 at Lv 5 and ×2.06 at Lv 10
+  it('an order carried to a region market counter never pays back its cost, at any sales level, season or index', () => {
+    for (const kind of ['stone', 'brick'] as const) {
+      for (let lv = 0; lv <= 10; lv++) {
+        const q = UPGRADES[`${kind}Quality`].values[lv]!;
+        for (const index of [MARKET.min, 1, MARKET.max]) {
+          const { market, state } = setup({ age: 9, upgrades: { [`${kind}Quality`]: q }, rng: () => 0.5 });
+          state.market.index[kind] = index;
+          const cost = market.orderCost(kind, ORDER_MAX_UNITS);
+          expect(market.marketPrice(kind, ORDER_MAX_UNITS), `${kind} Lv ${lv} @${index}`).toBeLessThan(cost);
+          expect(market.exportPrice(kind, ORDER_MAX_UNITS), `${kind} Lv ${lv} @${index}`).toBeLessThan(cost);
+        }
+      }
+    }
   });
 
   it('does not count withdrawn principal or a sale\'s cost basis as money earned', () => {

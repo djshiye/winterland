@@ -92,7 +92,7 @@ describe('era player upgrades', () => {
         const def = UPGRADES[eraPlayerId(n, kind)];
         expect(def.era).toBe(n);
         expect(def.requires?.era).toBe(n);
-        expect(def.values).toHaveLength(10);
+        expect(def.values).toHaveLength(11); // 0.9.6: Lv 10 authored
         expect(def.costs).toHaveLength(0);
       }
       expect(UPGRADES[`${key}Tool`].label).toBe(eraContent(n).player.tool);

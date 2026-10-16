@@ -44,9 +44,9 @@ describe('eraGate rows', () => {
       const g = eraGate(s, n);
       const own = IDS.filter((id) => introEra(UPGRADES[id]) === n - 1);
       expect(g.total, `era ${n}`).toBe(own.length);
-      // Rigs, Trade, Belts, the hauler crew, six roles and one level per era machine type (+ era 2's tax office / broker)
+      // Rigs, Belts, the hauler crew, six roles and one level per era machine type (+ era 2's tax office / broker)
       const key = ERAS[n - 1]!.key;
-      for (const suffix of ['Carry', 'Boots', 'Tool', 'Pal', 'Rigs', 'Trade', 'Belts', 'Crew', 'Feeder', 'Shipper', 'Porter', 'Gatherer', 'Foreman', 'Clerk']) expect(own).toContain(`${key}${suffix}`);
+      for (const suffix of ['Carry', 'Boots', 'Tool', 'Pal', 'Rigs', 'Belts', 'Crew', 'Feeder', 'Shipper', 'Porter', 'Gatherer', 'Foreman', 'Clerk']) expect(own).toContain(`${key}${suffix}`);
       for (const m of machinesOfEra(n - 1)) expect(own).toContain(m);
       expect(g.rows.every((r) => introEra(UPGRADES[r.id]) === n - 1 && r.need === 10)).toBe(true);
     }

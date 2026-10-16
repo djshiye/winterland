@@ -528,13 +528,12 @@ function eraPlayerLevels(): Record<`${(typeof ERA_KEYS)[number]}${'Carry' | 'Boo
 /** Era crew role suffixes (config ERA_ROLES; kept here as data so this file needs no runtime config import). */
 const ERA_ROLE_SUFFIX = ['Feeder', 'Shipper', 'Porter', 'Gatherer', 'Foreman', 'Clerk'] as const;
 
-/** Level 0 for every era upgrade (`${key}Rigs` / `Crew` / `Trade` / `Belts` / the six roles, and each era machine). */
+/** Level 0 for every era upgrade (`${key}Rigs` / `Crew` / `Belts` / the six roles, and each era machine; 0.9.6: Trade merged into `${kind}Quality`). */
 function eraUpgradeLevels(): Record<EraUpgradeId | MachineId, number> {
   const out = {} as Record<EraUpgradeId | MachineId, number>;
   for (const k of ERA_KEYS) {
     out[`${k}Rigs`] = 0;
     out[`${k}Crew`] = 0;
-    out[`${k}Trade`] = 0;
     out[`${k}Belts`] = 0;
     for (const r of ERA_ROLE_SUFFIX) out[`${k}${r}`] = 0;
     out[`${k}Dock`] = 0;
@@ -550,7 +549,7 @@ function qualityLevels(): Record<`${MaterialKind}Quality`, number> {
   for (const k of MATERIAL_KINDS) out[`${k}Quality`] = 0;
   return out;
 }
-export type EraUpgradeId = `${(typeof ERA_KEYS)[number]}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | 'Dock' | 'Stall' | 'Cash' | (typeof ERA_ROLE_SUFFIX)[number]}`;
+export type EraUpgradeId = `${(typeof ERA_KEYS)[number]}${'Rigs' | 'Crew' | 'Belts' | 'Dock' | 'Stall' | 'Cash' | (typeof ERA_ROLE_SUFFIX)[number]}`;
 /** An era crew upgrade: the hauler (`${key}Crew`) or one of the six roles. */
 export type EraCrewId = `${(typeof ERA_KEYS)[number]}${'Crew' | (typeof ERA_ROLE_SUFFIX)[number]}`;
 

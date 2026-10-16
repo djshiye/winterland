@@ -15,6 +15,7 @@ import { createGameState, type GameState } from '../src/core/types';
 import { GAME_VERSION, isNewerVersion, parseVersion } from '../src/core/version';
 import { fuseConfig } from '../scripts/fuses.mjs';
 import { FuseV1Options } from '@electron/fuses';
+import { mergeTradeIntoSales } from '../src/core/salesMerge';
 
 const raw = (name: string): string => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const load = (name: string): SaveData => JSON.parse(raw(name));
@@ -184,10 +185,14 @@ describe('0.9.6 migration: levels past Lv 10 refunded, Mastery kept (decisions 2
     expect(levels).toBeGreaterThan(0);
     const mastery = masteryOf(state);
     const rate = save.salesRate > 0 ? save.salesRate : state.stats.moneyEarned / state.playTime;
-    const report = migrateState(state, false, { salesRate: save.salesRate });
+    // 0.9.6-trade-merge (core/salesMerge.ts) runs on the clamped levels and adds its own Trade refund
+    const clamped = Object.fromEntries(Object.entries(state.upgrades).map(([id, v]) => [id, Math.min(10, v)]));
+    const trade = mergeTradeIntoSales(clamped, save.state.upgrades);
+    const report = migrateState(state, false, { salesRate: save.salesRate, upgrades: save.state.upgrades });
     expect(report.applied).toEqual(MIGRATIONS.map((m) => m.id));
     expect(report.refundedLevels).toBe(levels);
-    expect(report.refund).toBe(Math.floor(refund));
+    expect(report.tradeLevels).toBe(trade.levels);
+    expect(report.refund).toBe(Math.floor(refund) + trade.refund);
     expect(report.refund).toBeGreaterThan(0);
     expect(MASTERY_KEEP).toBe('cash');
     expect(mastery).toBeGreaterThan(1);
@@ -202,8 +207,8 @@ describe('0.9.6 migration: levels past Lv 10 refunded, Mastery kept (decisions 2
     const next = createGameState();
     mergeState(next, JSON.parse(JSON.stringify(state)));
     sanitizeState(next);
-    const second = migrateState(next, false, { salesRate: save.salesRate });
-    expect(second).toEqual({ applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0 });
+    const second = migrateState(next, false, { salesRate: save.salesRate, upgrades: save.state.upgrades });
+    expect(second).toEqual({ applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0, tradeLevels: 0 });
     expect(next).toEqual(state);
   });
 

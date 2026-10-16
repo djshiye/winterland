@@ -310,17 +310,6 @@ function crewIcon(accent: number): string {
     </g>`);
 }
 
-/** Trade: a gold coin on a crate tinted with the era's accent. */
-function tradeIcon(accent: number): string {
-  return svg(`
-    <g stroke="${OUT}" stroke-width="2.5">
-      <rect x="4" y="22" width="30" height="21" rx="3" fill="${hexCss(accent)}"/>
-      <path d="M4 32h30M19 22v21" stroke="${shadeCss(accent, -0.3)}" stroke-width="2.4" fill="none"/>
-      <circle cx="33" cy="15" r="11" fill="#ffd84a"/>
-      <circle cx="33" cy="15" r="6.5" fill="none" stroke="#e8a21c" stroke-width="2.4"/>
-    </g>`);
-}
-
 /** 0.9.5 Belts: a short roller belt with a crate riding it, the frame in the era's accent colour. */
 function beltsIcon(accent: number): string {
   return svg(`
@@ -424,7 +413,6 @@ for (const era of ERAS) {
     [`${era.key}Pal`]: UPGRADE_ICONS.dog!,
     [`${era.key}Rigs`]: rigsIcon(era.colors.accent),
     [`${era.key}Crew`]: crewIcon(era.colors.accent),
-    [`${era.key}Trade`]: tradeIcon(era.colors.accent),
     [`${era.key}Belts`]: beltsIcon(era.colors.accent),
     [`${era.key}Dock`]: dockIcon(era.colors.accent),
     [`${era.key}Stall`]: stallIcon(era.colors.accent),

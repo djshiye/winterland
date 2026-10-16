@@ -1,6 +1,6 @@
 /**
  * Pacing of the ten-era climb (docs/EXPANSION.md §E) through the pure model core/pacing.ts: every era takes 60–180
- * model minutes (0.9.5 'literal' gate: each era's own upgrades to Lv 10), each longer than the last, and the era-1 climb 80–130, prices never go down, the settlement anchors fit the city, Jack never
+ * model minutes (0.9.5 'literal' gate: each era's own upgrades to Lv 10), each longer than the last, and the era-1 climb about 80 (0.9.6), prices never go down, the settlement anchors fit the city, Jack never
  * pays a full price and no effect passes its hard cap. The buyer walks: one purchase at a time, each at least
  * PACING.walkPerBuy seconds (upgrades are hands-on, bought standing on pads and shop mats). The era economy ×10 and the
  * retuned CITY_RANKS ride along.
@@ -48,10 +48,12 @@ describe('pacing model', () => {
     expect(run.settlement[50]).not.toBeNull();
   });
 
-  // 0.9.2: the five delivery docks joined the era-2 gate (+15 steps, about 6 model minutes of walking and buying)
-  it('the era-1 climb (every era-1 id to Lv 10 + the era-2 pad) takes at most 130 model minutes', () => {
-    expect(run.eras[0]!.minutes).toBeLessThanOrEqual(130);
-    expect(run.eras[0]!.minutes).toBeGreaterThanOrEqual(80);
+  // 0.9.6 (CODE_AUDIT P1-9): was 129 model minutes, the slowest stretch of the game; now about 80 (legacyStep 1.01 and
+  // +0.5 a level on the five Survival price upgrades past their tables), shorter than era 2
+  it('the era-1 climb (every era-1 id to Lv 10 + the era-2 pad) takes about 80 model minutes, less than era 2', () => {
+    expect(run.eras[0]!.minutes).toBeLessThanOrEqual(90);
+    expect(run.eras[0]!.minutes).toBeGreaterThanOrEqual(70);
+    expect(run.eras[0]!.minutes).toBeLessThan(run.eras[1]!.minutes);
     expect(run.eras[0]!.gateSteps).toBe(102);
   });
 

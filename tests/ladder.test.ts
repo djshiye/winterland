@@ -27,7 +27,7 @@ describe('ladder: levels', () => {
     expect(base(UPGRADES.broker, 'offset')).toBe(10);
     expect(base(UPGRADES.frontierCrew, 'offset')).toBe(10);
     expect(base(UPGRADES.ironRigs, 'offset')).toBe(20);
-    expect(base(UPGRADES.aiTrade, 'offset')).toBe(90);
+    expect(base(UPGRADES.aiRigs, 'offset')).toBe(90);
     expect(shown(UPGRADES.ironRigs, 3, 'offset')).toBe(23);
   });
 
@@ -50,13 +50,13 @@ describe('ladder: levels', () => {
     const rigs = UPGRADES.frontierRigs;
     // era 2's first step is band 2's price in either mode (Dino 0.9.5: the economy scales era by era)
     expect(costAt(rigs, 0)).toBe(price3((0.9 * CLIMB.unit * (CLIMB.bandTilt[2] ?? 1))));
-    expect(hardCapStored(rigs)).toBe(39); // literal: 3.0 + 0.1 · 30 = 6 at stored 39
-    expect(hardCapStored(UPGRADES.aiRigs)).toBe(39); // literal: reachable below 100
+    expect(hardCapStored(rigs)).toBe(34); // literal: 3.6 + 0.1 · 24 = 6 at stored 34 (0.9.6: Lv 10 authored)
+    expect(hardCapStored(UPGRADES.aiRigs)).toBe(34); // literal: reachable below 100
     for (const d of ERA1) expect(costAt(d, 0)).toBe(d.costs[0]);
     GATE.mode = 'offset';
     try {
       expect(costAt(rigs, 0)).toBe(price3((0.9 * CLIMB.unit * (CLIMB.bandTilt[2] ?? 1))));
-      expect(hardCapStored(rigs)).toBe(39);
+      expect(hardCapStored(rigs)).toBe(34);
       expect(hardCapStored(UPGRADES.aiRigs)).toBeNull(); // offset: base 90 leaves only 10 levels
     } finally {
       GATE.mode = 'literal';
@@ -80,21 +80,22 @@ describe('ladder: costs', () => {
   it('matches the calibrated sample prices', () => {
     // design §A2 at U 250k, growth 2.6: $125k / $225k / $201M / $401M; the pacing model (core/pacing.ts) set
     // U 300k, growth 4.3; 0.9.0 (every era longer than the last): U 190k, growth 4.3 × bandTilt; 0.9.5 (literal gate)
-    // re-solved bandTilt; again for the era 2-4 machines and six slots, and the era 5-7 content with the era player upgrades, and the region markets with their cash machines, and the era 8-10 machines
-    expect(costAt(UPGRADES.carry, 10)).toBe(169_000); // A 10, lumberjack
-    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(304_000); // A 10, industry: era 2's first level
-    expect(costAt(UPGRADES.frontierRigs, 9)).toBe(608_000); // era 2's last level
-    expect(costAt(UPGRADES.quarry, 0)).toBe(271_000); // A 10, machine level pad
-    expect(costAt(UPGRADES.carry, 89)).toBe(16_200_000_000); // A 89, lumberjack
-    expect(costAt(UPGRADES.taxOffice, 79)).toBe(32_400_000_000); // A 89, finance
+    // re-solved bandTilt; again for the era 2-4 machines and six slots, and the era 5-7 content with the era player upgrades, and the region markets with their cash machines, and the era 8-10 machines; 0.9.6 after the Trade/Fine merge and again on the 0.9.6 era chains
+    expect(costAt(UPGRADES.carry, 10)).toBe(181_000); // A 10, lumberjack
+    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(327_000); // A 10, industry: era 2's first level
+    expect(costAt(UPGRADES.frontierRigs, 9)).toBe(653_000); // era 2's last level
+    expect(costAt(UPGRADES.quarry, 0)).toBe(290_000); // A 10, machine level pad
+    expect(costAt(UPGRADES.carry, 89)).toBe(13_900_000_000); // A 89, lumberjack
+    expect(costAt(UPGRADES.taxOffice, 79)).toBe(27_900_000_000); // A 89, finance
   });
 
-  it('a Survival id first continues its last authored price by 5 % a level', () => {
-    expect(costAt(UPGRADES.dog, 4)).toBe(63_000);
-    expect(costAt(UPGRADES.jack, 9)).toBe(788_000);
+  // 0.9.6: 1 % a level (was 5 %), part of the shorter post-Lodge climb (CODE_AUDIT P1-9)
+  it('a Survival id first continues its last authored price by 1 % a level', () => {
+    expect(costAt(UPGRADES.dog, 4)).toBe(60_600);
+    expect(costAt(UPGRADES.jack, 9)).toBe(758_000);
   });
 
-  it('the era-2 gate (every era-1 id to Lv 10) costs about $11.8M over 102 steps (0.9.2: + the five docks)', () => {
+  it('the era-2 gate (every era-1 id to Lv 10) costs about $10.6M over 102 steps (0.9.6: was $11.8M at 5 % a level)', () => {
     let steps = 0;
     let total = 0;
     for (const d of ERA1) {
@@ -104,15 +105,15 @@ describe('ladder: costs', () => {
       }
     }
     expect(steps).toBe(102);
-    expect(total).toBeGreaterThan(11.8e6 * 0.95);
-    expect(total).toBeLessThan(11.8e6 * 1.05);
+    expect(total).toBeGreaterThan(10.6e6 * 0.95);
+    expect(total).toBeLessThan(10.6e6 * 1.05);
   });
 });
 
 describe('ladder: effects past the authored max', () => {
   /** Stored level where the hard cap is first reached (Survival ids: stored = shown). */
   const CAPS: Partial<Record<string, number>> = {
-    carry: 19, dog: 16, speed: 34, axe: 28, harvester: 19, processor: 25, megaSaw: 11, treeFeller: 11, cashTubes: 32, workshop: 34, jack: 24,
+    carry: 19, dog: 10, speed: 34, axe: 28, harvester: 19, processor: 25, megaSaw: 11, treeFeller: 11, cashTubes: 32, workshop: 34, jack: 24,
   };
   for (const [id, at] of Object.entries(CAPS)) {
     it(`${id} reaches its hard cap at Lv ${at}`, () => expect(hardCapStored(UPGRADES[id as keyof typeof UPGRADES])).toBe(at));
@@ -134,11 +135,11 @@ describe('ladder: effects past the authored max', () => {
     });
   }
 
-  it('Survival crews gain 0.2 a level up to ×8; sales gain 0.1 a level with no cap', () => {
+  it('Survival crews gain 0.2 a level up to ×8; sales gain 0.5 a level with no cap (0.9.6)', () => {
     expect(valueAt(UPGRADES.cashier, 7)).toBeCloseTo(3.0, 9);
     expect(valueAt(UPGRADES.cashier, 100)).toBe(8);
-    expect(valueAt(UPGRADES.plankQuality, 10)).toBeCloseTo(2.5, 9);
-    expect(valueAt(UPGRADES.plankQuality, 90)).toBeCloseTo(10.5, 9);
+    expect(valueAt(UPGRADES.plankQuality, 10)).toBeCloseTo(4.5, 9);
+    expect(valueAt(UPGRADES.plankQuality, 90)).toBeCloseTo(44.5, 9);
     expect(hardCapStored(UPGRADES.plankQuality)).toBeNull();
     expect(hardCapStored(UPGRADES.taxOffice)).toBeNull();
   });

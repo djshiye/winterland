@@ -12,7 +12,7 @@
 import type * as THREE from 'three';
 import { CLIMB } from '../config';
 import { climbMult, demandOf, investMaxPositions, seasonMult } from './demand';
-import { BOND_CAP_SHARE, ERAS, INVEST, isMaterial, MARKET, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
+import { INVEST, isMaterial, MARKET, MATERIALS, SURVIVAL_VALUE, type InvestProductDef, type InvestProductId } from '../eras/data';
 import type { GameContext, InvestmentState, ItemKind, MaterialKind, Updatable } from './types';
 
 /** Most physical units one order may deliver to an import dock. */
@@ -20,10 +20,14 @@ export const ORDER_MAX_UNITS = 24;
 /** A news shock happens on about one tick in this many: one material jumps by ±NEWS_JUMP. */
 const NEWS_ODDS = 40;
 const NEWS_JUMP = 0.25;
-/** Venture drift per tick per point of the era's average index above (or below) 1. */
-const VENTURE_INDEX_PULL = 0.004;
-/** Index fund drift per tick per point of the whole market's average index above (or below) 1. */
-const FUND_INDEX_PULL = 0.01;
+/** Seconds in an hour: index and venture rates are per hour (0.9.6). */
+const HOUR = 3600;
+/** The wobble's pull back toward its target per price tick (about a 7-minute half-life). */
+const WOBBLE_REVERSION = 0.01;
+/** How far a venture's wobble target leans per point of its era's average index above (or below) 1 (at most ±3%). */
+const VENTURE_INDEX_PULL = 0.05;
+/** The same lean for the index fund from the whole market's average index (at most ±1.5%). */
+const FUND_INDEX_PULL = 0.025;
 /** Most price ticks one update() may run (a long frame never freezes the game). */
 const MAX_TICKS_PER_UPDATE = 20;
 /** Selling held units presses the price this share of what a physical export would. */
@@ -36,6 +40,8 @@ export interface MarketOptions {
 
 export class Market implements Updatable {
   private rng: () => number;
+  /** $ per second of steady sales (Game wires the SalesMeter); unset (tests), only the net-worth share caps a product. */
+  private salesRate: (() => number) | null = null;
   /** Seconds since the last price tick. */
   private acc = 0;
   /** Recent unit values per material, oldest first (not saved). */
@@ -46,6 +52,11 @@ export class Market implements Updatable {
     opts: MarketOptions = {},
   ) {
     this.rng = opts.rng ?? Math.random;
+  }
+
+  /** Where the investment caps read the recent sales rate from (core/Save.ts SalesMeter). */
+  setSalesRate(rate: () => number): void {
+    this.salesRate = rate;
   }
 
   /** Swap the random source (tests). */
@@ -63,11 +74,11 @@ export class Market implements Updatable {
     return MATERIALS[kind].value * this.index(kind) * (1 - (this.ctx.state.market.pressure[kind] ?? 0));
   }
 
-  /** What an export depot pays for `count` units of `kind` now (× the era's Trade upgrade × season bonus × Renown × Mastery). */
+  /** What an export depot pays for `count` units of `kind` now (× the material's sales upgrade × season bonus × Renown × Mastery). */
   exportPrice(kind: ItemKind, count: number): number {
     if (!isMaterial(kind)) return Math.round(this.unitValue(kind) * count);
     const s = this.ctx.state;
-    return Math.round(this.unitValue(kind) * count * this.tradeMult(kind) * seasonMult(s) * climbMult(s));
+    return Math.round(this.unitValue(kind) * count * this.salesMult(kind) * seasonMult(s) * climbMult(s));
   }
 
   /** An export depot received `count` units: credit the money, apply supply pressure, stats, 'sale' {buyer 'export'}. */
@@ -81,12 +92,12 @@ export class Market implements Updatable {
   }
 
   /**
-   * 0.9.5: what a region market buyer pays for `count` units of `kind`: the export price × the material's Quality
-   * upgrade (eras/RegionMarket.ts; the money goes into the market's cash pile, not straight to the bank).
+   * 0.9.5: what a region market buyer pays for `count` units of `kind` (eras/RegionMarket.ts; the money goes into the
+   * market's cash pile, not straight to the bank). 0.9.6: the same as the depot, since the material's one sales upgrade
+   * (Trade and Fine merged, `${kind}Quality`) now counts at every counter.
    */
   marketPrice(kind: ItemKind, count: number): number {
-    const q = isMaterial(kind) ? this.ctx.upgrades.value(`${kind}Quality`) : 1;
-    return Math.max(1, Math.round(this.exportPrice(kind, count) * Math.max(1, q)));
+    return Math.max(1, this.exportPrice(kind, count));
   }
 
   /** 0.9.5: a region market sale was paid: the export stat and supply pressure, like the depot. */
@@ -125,10 +136,14 @@ export class Market implements Updatable {
     return this.ctx.state.market.pressure[kind] ?? 0;
   }
 
-  /** The era's Trade upgrade multiplier for `kind` (1 for Survival goods). */
-  tradeMult(kind: ItemKind): number {
+  /**
+   * The material's sales upgrade multiplier (1 for Survival goods). 0.9.6 (decision 9): the era Trade upgrade and the
+   * material's Fine upgrade are one upgrade per material, `${kind}Quality`, paid wherever it is sold (depot, dock, stall),
+   * so an era that sells an older era's goods still gets that material's own bonus.
+   */
+  salesMult(kind: ItemKind): number {
     if (!isMaterial(kind)) return 1;
-    return this.ctx.upgrades.value(`${ERAS[MATERIALS[kind].era]!.key}Trade`);
+    return Math.max(1, this.ctx.upgrades.value(`${kind}Quality`));
   }
 
   /** Recent unit values (oldest first) for a sparkline; at least two points. */
@@ -245,14 +260,15 @@ export class Market implements Updatable {
 
   /**
    * Dollars an order of `units` (clamped to ORDER_MAX_UNITS) delivered to a dock costs: the buy quote plus the delivery
-   * surcharge. It also carries the era's Trade upgrade, the season bonus, Renown and Mastery (every multiplier exportPrice
-   * has), so carrying an order straight to an export depot can never print money (it always loses the spread and the
-   * surcharge), however far the climb goes.
+   * surcharge. It also carries the material's sales upgrade, the season bonus, Renown and Mastery (every multiplier
+   * exportPrice and marketPrice have), so carrying an order straight to an export depot or a region market counter can
+   * never print money (it always loses the spread and the surcharge), however far the climb goes. (0.9.5 left the
+   * Quality bonus out: an order sold at a counter paid back up to ×2.06.)
    */
   orderCost(kind: MaterialKind, units: number): number {
     const n = Math.max(1, Math.min(ORDER_MAX_UNITS, Math.floor(units)));
     const s = this.ctx.state;
-    return Math.max(1, Math.round(this.quote(kind, 'buy') * n * (1 + MARKET.delivery) * this.tradeMult(kind) * seasonMult(s) * climbMult(s)));
+    return Math.max(1, Math.round(this.quote(kind, 'buy') * n * (1 + MARKET.delivery) * this.salesMult(kind) * seasonMult(s) * climbMult(s)));
   }
 
   /** Buy `units` physical units delivered to era `era`'s import dock (spends money, emits 'market:order'). */
@@ -284,16 +300,43 @@ export class Market implements Updatable {
     return 1 + INVEST.bond.rate * Math.sqrt(Math.min(this.ctx.upgrades.value('broker'), CLIMB.bondBrokerMax));
   }
 
+  /** Principal in one product right now. */
+  totalIn(product: InvestProductId): number {
+    let t = 0;
+    for (const p of this.ctx.state.market.investments) if (p.product === product) t += p.principal;
+    return t;
+  }
+
+  /**
+   * Most principal a product may hold: its share of net worth, and (0.9.6) no more than `capMinutes` of recent sales,
+   * so with the factories idle nothing new goes in and bonds can't be rolled into a money machine.
+   */
+  capOf(product: InvestProductId): number {
+    const def = INVEST[product];
+    const byWorth = def.cap * this.netWorth();
+    if (!this.salesRate) return byWorth;
+    const rate = this.salesRate();
+    return Math.min(byWorth, def.capMinutes * 60 * (Number.isFinite(rate) && rate > 0 ? rate : 0));
+  }
+
+  /** True when the sales-rate cap (not the net-worth share) is the one holding a product back. */
+  cappedBySales(product: InvestProductId): boolean {
+    return this.capOf(product) < INVEST[product].cap * this.netWorth();
+  }
+
+  /** Most that can still go into a product (its cap minus the principal already there). */
+  room(product: InvestProductId): number {
+    return Math.max(0, Math.floor(this.capOf(product) - this.totalIn(product)));
+  }
+
   /** Principal in bonds right now. */
   bondTotal(): number {
-    let t = 0;
-    for (const p of this.ctx.state.market.investments) if (p.product === 'bond') t += p.principal;
-    return t;
+    return this.totalIn('bond');
   }
 
   /** Most that can still go into bonds (BOND_CAP_SHARE of net worth minus what is already there). */
   bondRoom(): number {
-    return Math.max(0, Math.floor(BOND_CAP_SHARE * this.netWorth() - this.bondTotal()));
+    return this.room('bond');
   }
 
   /** Open a position (venture: `era` = the era it backs, 0 = the newest). False when refused (min, cap, money). */
@@ -308,7 +351,7 @@ export class Market implements Updatable {
       backed = era === 0 ? state.eras.age : era;
       if (!Number.isInteger(backed) || backed < def.era || backed > state.eras.age) return false;
     }
-    if (product === 'bond' && amount > this.bondRoom()) return false;
+    if (amount > this.room(product)) return false;
     if (!economy.spend(amount)) return false;
     const m = state.market;
     m.investments.push({ id: m.nextId++, product, era: backed, principal: amount, value: amount, age: 0 });
@@ -389,6 +432,12 @@ export class Market implements Updatable {
   private ageBonds(dt: number): void {
     let changed = false;
     for (const p of this.ctx.state.market.investments) {
+      // index / venture: the value follows the trend as time passes (the wobble moves on price ticks, tickInvestments)
+      if (p.product === 'index' || p.product === 'venture') {
+        const t0 = this.trend(p, p.age);
+        const w = t0 > 0 ? p.value / t0 : 1;
+        if (inBand(w, INVEST[p.product])) p.value = this.trend(p, p.age + dt) * w;
+      }
       p.age += dt;
       if (p.product === 'bond' && p.value <= p.principal && this.matured(p)) {
         p.value = p.principal * this.bondPayout();
@@ -396,6 +445,12 @@ export class Market implements Updatable {
       }
     }
     if (changed) this.ctx.events.emit('invest:changed', {});
+  }
+
+  /** An index / venture position's trend value at `age` seconds: principal × (1 + rate)^hours, at most × top. */
+  private trend(p: InvestmentState, age: number): number {
+    const def = INVEST[p.product];
+    return p.principal * Math.min(def.top ?? 1, (1 + def.rate) ** (age / HOUR));
   }
 
   /** Roughly normal noise (sum of three uniforms), mean 0, standard deviation 1, |x| ≤ 3. */
@@ -436,14 +491,19 @@ export class Market implements Updatable {
     return n > 0 ? sum / n : 1;
   }
 
-  /** One tick of the index fund and the ventures. */
+  /**
+   * One tick of the index fund and the ventures (0.9.6). A position is worth principal × trend × wobble: the trend grows
+   * at the product's rate per HOUR up to its `top` (×2 fund, ×3 ventures), and the wobble is a mean-reverting walk around
+   * 1 (leaning a little with the market), held inside [1 − dip, 1 + rise]. So a position never beats top × (1 + rise),
+   * however long it is left.
+   * Every new position starts at wobble 1, so timing a buy gains nothing. index positions share one noise draw per tick
+   * (they track one market), each venture draws its own. A position from an older save whose value already sits outside
+   * the band (0.9.5 compounded per minute) keeps its value and stops growing.
+   */
   private tickInvestments(): void {
     const m = this.ctx.state.market;
-    const perTick = MARKET.tick / 60;
     const idx = INVEST.index;
-    const ven = INVEST.venture;
     if (this.ctx.state.eras.age < idx.era) return;
-    // the fund walks whether or not anyone holds it, so a new position buys in at a live level
     const kinds = this.tradable();
     let avg = 1;
     if (kinds.length > 0) {
@@ -451,17 +511,18 @@ export class Market implements Updatable {
       for (const k of kinds) avg += this.index(k);
       avg /= kinds.length;
     }
-    const before = m.fund;
-    const step = idx.rate * perTick + idx.volatility * this.gauss() + (avg - 1) * FUND_INDEX_PULL;
-    m.fund = Math.max(0.2, m.fund * (1 + step));
-    const ratio = before > 0 ? m.fund / before : 1;
+    const fundTarget = 1 + clamp((avg - 1) * FUND_INDEX_PULL, -0.015, 0.015);
+    const g = this.gauss();
+    // the fund's own wobble walks whether or not anyone holds it (the shared market mood; saved as market.fund)
+    m.fund = wobble(m.fund, fundTarget, idx, g);
     for (const p of m.investments) {
-      if (p.product === 'index') {
-        p.value *= ratio;
-      } else if (p.product === 'venture') {
-        const s = ven.rate * perTick + ven.volatility * this.gauss() + (this.eraIndex(p.era) - 1) * VENTURE_INDEX_PULL;
-        p.value = Math.max(0, p.value * (1 + s));
-      }
+      if (p.product !== 'index' && p.product !== 'venture') continue;
+      const def = INVEST[p.product];
+      const trend = this.trend(p, p.age);
+      const w = trend > 0 ? p.value / trend : 1;
+      if (!inBand(w, def)) continue;
+      const target = p.product === 'index' ? fundTarget : 1 + clamp((this.eraIndex(p.era) - 1) * VENTURE_INDEX_PULL, -0.03, 0.03);
+      p.value = trend * wobble(w, target, def, p.product === 'index' ? g : this.gauss());
     }
   }
 
@@ -490,6 +551,16 @@ export class Market implements Updatable {
     }
     return out;
   }
+}
+
+/** A wobble inside [1 − dip, 1 + rise] (outside: a position from an older save, which keeps its value as it is). */
+function inBand(w: number, def: InvestProductDef): boolean {
+  return w <= 1 + (def.rise ?? 0) + 1e-9 && w >= 1 - (def.dip ?? 0) - 1e-9;
+}
+
+/** One step of a mean-reverting wobble toward `target`, kept inside [1 − dip, 1 + rise]. */
+function wobble(w: number, target: number, def: InvestProductDef, g: number): number {
+  return clamp(w + (target - w) * WOBBLE_REVERSION + def.volatility * g, 1 - (def.dip ?? 0), 1 + (def.rise ?? 0));
 }
 
 function clamp(v: number, lo: number, hi: number): number {

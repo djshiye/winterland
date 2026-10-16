@@ -576,22 +576,38 @@ export interface InvestProductDef {
   min: number;
   /** bond: seconds until maturity (early withdrawal returns the principal only). */
   lock?: number;
-  /** bond: total return at maturity. index / venture: expected growth per minute (drift). */
+  /**
+   * bond: total return at maturity. index / venture: trend growth per HOUR (0.9.6: was per minute, an AFK money loop),
+   * compounding until the trend reaches `top`, where the position stops growing (so a night away can't explode).
+   */
   rate: number;
-  /** index / venture: random step per tick (share of value). */
+  /** index / venture: random step per price tick of the wobble around the growth trend. */
   volatility: number;
+  /** index / venture: the wobble stays within trend × [1 − dip, 1 + rise], so a position never beats top × (1 + rise). */
+  dip?: number;
+  rise?: number;
+  /** index / venture: the most the trend grows a deposit (×). */
+  top?: number;
+  /** Money in this product may not exceed this share of net worth (bonds 0.5, as in 0.9). */
+  cap: number;
+  /**
+   * 0.9.6 (validation of PR #35): nor this many minutes of the save's recent sales rate (the SalesMeter that offline
+   * earnings use; interest and trading are left out of it), so re-investing can never outgrow the factories.
+   */
+  capMinutes: number;
   /** Era needed before it is offered. */
   era: number;
 }
 
 export const INVEST: Record<InvestProductId, InvestProductDef> = {
-  bond: { id: 'bond', label: 'Winter Bonds', blurb: 'Safe: +12% after 10 minutes. Early withdrawal returns your deposit only', min: 1_000, lock: 600, rate: 0.12, volatility: 0, era: 2 },
-  index: { id: 'index', label: 'Snow Index Fund', blurb: 'Tracks the whole market: grows over time, wobbles on the way', min: 1_000, rate: 0.015, volatility: 0.012, era: 2 },
-  venture: { id: 'venture', label: 'Era Ventures', blurb: 'Back the newest era: big swings, big rewards', min: 10_000, rate: 0.03, volatility: 0.04, era: 3 },
+  bond: { id: 'bond', label: 'Winter Bonds', blurb: 'Safe: +12% after 10 minutes. Early withdrawal returns your deposit only', min: 1_000, lock: 600, rate: 0.12, volatility: 0, cap: 0.5, capMinutes: 10, era: 2 },
+  // 0.9.6: a little better than bonds per 10 minutes (bonds +12%), with no lock but some risk, and a ceiling
+  index: { id: 'index', label: 'Snow Index Fund', blurb: 'Tracks the whole market: a bit faster than bonds, no lock, wobbles on the way, doubles at most', min: 1_000, rate: 1.2, volatility: 0.004, dip: 0.08, rise: 0.08, top: 2, cap: 0.3, capMinutes: 10, era: 2 },
+  venture: { id: 'venture', label: 'Era Ventures', blurb: 'Back an era: fast growth up to ×3, but it can dip hard', min: 10_000, rate: 2.0, volatility: 0.01, dip: 0.35, rise: 0.15, top: 3, cap: 0.2, capMinutes: 5, era: 3 },
 };
 export const INVEST_IDS: readonly InvestProductId[] = ['bond', 'index', 'venture'];
 /** Total money in bonds may not exceed this share of net worth (keeps the risk-free rate from dominating). */
-export const BOND_CAP_SHARE = 0.5;
+export const BOND_CAP_SHARE = INVEST.bond.cap;
 export const INVEST_MAX_POSITIONS = 12;
 
 // ---------------------------------------------------------------------------
