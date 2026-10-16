@@ -688,8 +688,12 @@ export class Game {
 function resourcesNotice(m: MigrationReport): Notice | null {
   if (m.resourcesAge < 5) return null;
   const lines = ['Forge Flats now runs on iron pellets and coke: your pig iron is iron pellets now, and the Steel Mill takes 2 pellets + 1 coke.'];
-  if (m.resourcesAge >= 10) lines.push('Neural Plateau now runs on rare earth and helium-3: your data shards are rare earth, your Fusion Plants are Helium Skimmers (same level), and the new Fusion Reactor turns helium-3 into fusion cells.');
-  lines.push('Everything you owned and every level you bought came along.');
+  if (m.resourcesAge >= 10) {
+    lines.push('Neural Plateau now runs on rare earth and helium-3: your data shards are rare earth, your Fusion Plants are Helium Skimmers (same level), and the new Fusion Reactor turns helium-3 into fusion cells.');
+    if (m.reactor === 'build') lines.push('Build a Fusion Reactor in Neural Plateau to keep AI cores coming. If the plot is full, open a machine\'s MANAGE card and demolish one to free a slot.');
+    else if (m.reactor === 'kept') lines.push('One Fusion Plant stayed as your Fusion Reactor, so your line keeps running.');
+  }
+  lines.push('Everything you owned and every level you bought came along. The new goods\' Fine upgrades start fresh.');
   return { icon: 'star', title: 'New resources in the late eras', lines, buttons: [{ label: 'Lovely!' }] };
 }
 

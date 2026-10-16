@@ -1,7 +1,8 @@
 /**
  * 0.9.7 era resources v2: a 0.9.6 save (pig iron, data shards, era 5 coal, era 10 power cells and Fusion Plants) loads
  * with nothing lost. Goods change kind one for one, levels and pad payments follow, built Fusion Plants become Helium
- * Skimmers, and the conversion runs once.
+ * Skimmers except the last of two or more, which stays as the Fusion Reactor (a full plot keeps its whole chain), and
+ * the conversion runs once.
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -52,23 +53,42 @@ describe('0.9.7 migration: era resources v2 (nothing a player owns is lost)', ()
     expect(w.eras[10]!.slots[2]!.in).toEqual({ rareEarth: 1, fusionCell: 2 });
     expect(w.eras[10]!.market!.dock).toEqual({ rareEarth: 3 });
     expect(w.eras[10]!.market!.stall).toEqual({ fusionCell: 1, aiCore: 2 });
-    // the old Fusion Plants' power cells (out piles of slots 0 and 4) go to the dock as fusion cells
-    expect(w.eras[10]!.dock).toEqual({ rareEarth: 5, fusionCell: 4 + 12 + 12 });
+    // the converted Fusion Plant's power cells (slot 0's out pile) go to the dock as fusion cells; slot 4 stays the
+    // Reactor, so its out pile is fusion cells already
+    expect(w.eras[10]!.dock).toEqual({ rareEarth: 5, fusionCell: 4 + 12 });
     expect(w.eras[10]!.slots[0]).toEqual({ in: {}, out: 0 });
+    expect(w.eras[10]!.slots[4]!.out).toBe(12);
     for (const r of w.eras) for (const s of r.slots) for (const k of Object.keys(s.in)) expect(['pigIron', 'dataShard']).not.toContain(k);
   });
 
-  it('built Fusion Plants become Helium Skimmers with their level and pad payment', () => {
-    const { state } = load(save096());
+  it('two Fusion Plants on a full plot: the first becomes a Helium Skimmer, the last stays as the Fusion Reactor', () => {
+    const { state, report } = load(save096());
     const slots = state.eras.regions[10]!.slots.map((s) => s.machine);
-    expect(slots).not.toContain('fusionPlant');
+    expect(slots.every((m) => m !== '')).toBe(true); // the fixture's era 10 plot is full
     expect(slots[0]).toBe('heliumSkimmer');
-    expect(slots[4]).toBe('heliumSkimmer');
+    expect(slots[4]).toBe('fusionPlant');
+    expect(slots.filter((m) => m === 'fusionPlant')).toHaveLength(1);
+    // both keep the old plant's level and pad payment
     expect(state.upgrades.heliumSkimmer).toBe(6);
-    expect(state.upgrades.fusionPlant).toBe(0);
+    expect(state.upgrades.fusionPlant).toBe(6);
     expect(state.padPaid['pad:heliumSkimmer']).toBe(500);
-    expect(state.padPaid['pad:fusionPlant']).toBeUndefined();
+    expect(state.padPaid['pad:fusionPlant']).toBe(500);
     expect(state.flags['reveal:levelPad:heliumSkimmer' as keyof typeof state.flags]).toBe(true);
+    expect(report.reactor).toBe('kept');
+  });
+
+  it('a lone Fusion Plant becomes a Helium Skimmer and the card asks for a Fusion Reactor', () => {
+    const s = save096();
+    const slots = (s.state as unknown as { eras: { regions: { slots: Record<string, unknown>[] }[] } }).eras.regions[10]!.slots;
+    slots[4] = { machine: '', tier: -1, cash: 0, extra: 0 };
+    s.world.eras[10]!.slots[4] = { in: {}, out: 0 };
+    const { state, report } = load(s);
+    const built = state.eras.regions[10]!.slots.map((x) => x.machine);
+    expect(built[0]).toBe('heliumSkimmer');
+    expect(built).not.toContain('fusionPlant');
+    expect(state.upgrades.heliumSkimmer).toBe(6);
+    expect(state.upgrades.fusionPlant).toBe(6); // the Reactor, once built, starts at the old plant's level
+    expect(report.reactor).toBe('build');
   });
 
   it('keeps Fine levels, pad payments, trading holdings, price records and an open contract', () => {

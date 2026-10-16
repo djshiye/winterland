@@ -8,8 +8,11 @@
  * - what era 5's coke ovens made (coal) becomes coke, and what era 10's fusion plants made (power cells) becomes
  *   fusion cells, wherever it lies in that era's region (older eras' coal and power are untouched);
  * - the Fusion Plant was era 10's power extractor; it is the Fusion Reactor (a processor) now and the new Helium
- *   Skimmer took over the extractor's job, so every built Fusion Plant becomes a Helium Skimmer with the plant's level
- *   and pad payment, and the cells on its out pile go to the import dock as fusion cells.
+ *   Skimmer took over the extractor's job. A region with two or more built Fusion Plants keeps its last one as the
+ *   Reactor and the rest become Helium Skimmers, so a full plot keeps its whole chain running; a lone Fusion Plant
+ *   becomes a Skimmer (the extractor comes first) and the welcome card says to build a Reactor. Both machines keep the
+ *   old plant's level and pad payment, and the cells on a converted plant's out pile go to the import dock as fusion
+ *   cells.
  * Region.restore hands any input a machine no longer uses to its import dock, so nothing in a hopper is lost.
  */
 import type { MaterialKind } from './kinds';
@@ -38,6 +41,8 @@ export interface ResourcesResult {
   converted: number;
   /** Built machines that changed id (Fusion Plant → Helium Skimmer). */
   machines: number;
+  /** Fusion Plants built: '' none, 'kept' one stayed as the Fusion Reactor, 'build' a lone one became a Skimmer. */
+  reactor: '' | 'kept' | 'build';
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -63,7 +68,7 @@ function renameIn(rec: Partial<Record<string, number>> | undefined, map: Readonl
  * sanitizer already dropped the old kinds' upgrade levels, market records and contract, so they are read from there.
  */
 export function convertEraResources(state: GameState, saved: unknown, world?: ResourcesWorld): ResourcesResult {
-  const out: ResourcesResult = { converted: 0, machines: 0 };
+  const out: ResourcesResult = { converted: 0, machines: 0, reactor: '' };
   const raw = isObj(saved) ? saved : {};
   const ups = state.upgrades as unknown as Record<string, number>;
   const rawUps = isObj(raw.upgrades) ? raw.upgrades : {};
@@ -73,13 +78,10 @@ export function convertEraResources(state: GameState, saved: unknown, world?: Re
     const v = rawUps[`${from}Quality`];
     if (isNum(v) && v > 0) ups[`${to}Quality`] = Math.max(ups[`${to}Quality`] ?? 0, Math.min(10, Math.floor(v)));
   }
-  // moved machines: the new id takes the old one's level; the old id (a different machine now) starts over
+  // moved machines: the new id takes the old one's level, and the old id (the Reactor now) keeps it too
   for (const [from, to] of Object.entries(MOVED_MACHINES)) {
     const v = ups[from] ?? 0;
-    if (v > 0) {
-      ups[to] = Math.max(ups[to] ?? 0, v);
-      ups[from] = 0;
-    }
+    if (v > 0) ups[to] = Math.max(ups[to] ?? 0, v);
   }
   // pad payments and reveal flags follow their upgrade / machine
   const ids: Record<string, string> = { ...MOVED_MACHINES };
@@ -88,7 +90,7 @@ export function convertEraResources(state: GameState, saved: unknown, world?: Re
     const paid = state.padPaid[`pad:${from}`];
     if (paid === undefined) continue;
     state.padPaid[`pad:${to}`] = (state.padPaid[`pad:${to}`] ?? 0) + paid;
-    delete state.padPaid[`pad:${from}`];
+    if (!(from in MOVED_MACHINES)) delete state.padPaid[`pad:${from}`]; // a moved machine's old id lives on as the Reactor
   }
   for (const k of Object.keys(state.flags)) {
     for (const [from, to] of Object.entries({ ...LEGACY_KINDS, ...MOVED_MACHINES })) {
@@ -131,12 +133,22 @@ export function convertEraResources(state: GameState, saved: unknown, world?: Re
     }
   }
 
-  // built machines that changed id: the slot keeps its place and paid progress
+  // built machines that changed id: the slot keeps its place and paid progress. With two or more, the last one stays
+  // as the Fusion Reactor so a full plot still has its whole chain.
   for (let n = 0; n < state.eras.regions.length; n++) {
     const slots = state.eras.regions[n]!.slots;
+    const kept = new Set<number>();
+    for (const from of Object.keys(MOVED_MACHINES)) {
+      const built = slots.flatMap((s, i) => (s.machine === from ? [i] : []));
+      if (built.length === 1) out.reactor = 'build';
+      if (built.length >= 2) {
+        kept.add(built[built.length - 1]!);
+        if (out.reactor === '') out.reactor = 'kept';
+      }
+    }
     for (let i = 0; i < slots.length; i++) {
       const to = MOVED_MACHINES[slots[i]!.machine];
-      if (!to) continue;
+      if (!to || kept.has(i)) continue;
       (slots[i] as { machine: string }).machine = to;
       out.machines++;
       // what it had made (power cells) goes to the import dock, converted below with the rest of the region

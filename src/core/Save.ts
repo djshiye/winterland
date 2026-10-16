@@ -375,6 +375,9 @@ export interface MigrationReport {
   tradeLevels: number;
   /** 0.9.7 era resources v2: the save had reached era 5 or later when its goods were converted (0 = not shown). */
   resourcesAge: number;
+  /** 0.9.7: a Fusion Plant stayed as the Fusion Reactor ('kept'), or a lone one became a Skimmer and the card asks
+   *  for a Reactor ('build'); '' when none was built. */
+  reactor: '' | 'kept' | 'build';
 }
 
 /** What a migration may know besides the state: the save's recent sales rate ($/s). */
@@ -446,15 +449,16 @@ export const MIGRATIONS: readonly Migration[] = [
     // become coke and fusion cells, built Fusion Plants become Helium Skimmers with their level (core/resourcesV2.ts).
     id: '0.9.7-era-resources',
     run(state, report, ctx) {
-      convertEraResources(state, ctx.saved, ctx.world);
+      const r = convertEraResources(state, ctx.saved, ctx.world);
       if (state.eras.age >= 5) report.resourcesAge = state.eras.age;
+      report.reactor = r.reactor;
     },
   },
 ];
 
 /** Apply every migration this save has not had yet (see MIGRATIONS). `fresh`: a new game, nothing to migrate. */
 export function migrateState(state: GameState, fresh: boolean, ctx: MigrationContext = { salesRate: 0 }, list: readonly Migration[] = MIGRATIONS): MigrationReport {
-  const report: MigrationReport = { applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0, tradeLevels: 0, resourcesAge: 0 };
+  const report: MigrationReport = { applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0, tradeLevels: 0, resourcesAge: 0, reactor: '' };
   for (const m of list) {
     if (state.migrations[m.id]) continue;
     if (!fresh) {
