@@ -208,6 +208,49 @@ describe('people meeting head-on', () => {
   });
 });
 
+describe('people walking past a shop queue', () => {
+  type W = { x: number; z: number; yaw: number };
+  /** Walk `w` toward (tx, tz) past people standing still at `still`; returns seconds taken and the closest approach. */
+  function walkPast(w: W, tx: number, tz: number, still: readonly (readonly [number, number])[]): { t: number; closest: number } {
+    const dt = 1 / 30;
+    const k = Math.min(1, 6 * dt) * 0.5;
+    let closest = Infinity;
+    let t = 0;
+    for (; t < 30; t += dt) {
+      const dx = tx - w.x;
+      const dz = tz - w.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < 0.05) break;
+      const step = Math.min(dist, 1.25 * dt);
+      w.yaw = Math.atan2(dx, dz);
+      w.x += (dx / dist) * step;
+      w.z += (dz / dist) * step;
+      for (const [bx, bz] of still) separationPush(w, bx, bz, true, k);
+      for (const [bx, bz] of still) closest = Math.min(closest, Math.hypot(w.x - bx, w.z - bz));
+    }
+    return { t, closest };
+  }
+  const queue = [[0, 0], [0, 0.6], [0, 1.2], [0, 1.8]] as const;
+
+  it('squeeze through the gap between two queuers instead of standing in it', () => {
+    // straight at the middle of each gap, both ways (where the soak run caught walkers standing for 9-13 s)
+    for (const z of [0.3, 0.9, 1.5]) {
+      for (const from of [-3, 3]) {
+        const r = walkPast({ x: from, z, yaw: 0 }, -from, z, queue);
+        expect(r.t, `from ${from},${z}`).toBeLessThan(8);
+      }
+    }
+  });
+
+  it('step round someone standing in the way without walking through them', () => {
+    for (const off of [0, 0.05, 0.15, -0.1]) {
+      const r = walkPast({ x: -3, z: off, yaw: 0 }, 3, off, [[0, 0]]);
+      expect(r.t, `offset ${off}`).toBeLessThan(8);
+      expect(r.closest, `offset ${off}`).toBeGreaterThan(0.25);
+    }
+  });
+});
+
 describe('routes between the market lots', () => {
   it('step into the square before turning, instead of brushing along the shop fronts', () => {
     const sq = NAV.square;

@@ -255,7 +255,13 @@
       const jam = hasRoute(a) && !moving;
       t.jamFor = jam ? t.jamFor + SAMPLE : 0;
       if (t.jamFor >= JAM_SECONDS && !t.jam) {
-        t.jam = { at: [round(p.x), round(p.z)], state: stateOf(a), route: routeOf(a), since: simTime - t.jamFor };
+        // who stands round it, so a jam can be told apart (a crowd at a door, a prop, a wall)
+        const near = [];
+        for (const o of tracks.values()) {
+          const d = Math.hypot(o.x - p.x, o.z - p.z);
+          if (o !== t && o.live && d < 1.5) near.push({ agent: o.path, d: round(d), state: stateOf(o.agent), moving: !!o.moving });
+        }
+        t.jam = { at: [round(p.x), round(p.z)], state: stateOf(a), route: routeOf(a), near, since: simTime - t.jamFor };
         t.jam.finding = add('jammed', t, { ...t.jam, seconds: t.jamFor, ongoing: true });
       }
       if (t.jam) {
@@ -268,7 +274,8 @@
 
       // a customer in the queue holding part of its order waits for the counter to restock: that is the game
       const waitingForStock = t.kind === 'customer' && stateOf(a) === 'queue';
-      t.loadFor = carrying(a) > 0 && t.stillFor > 0 && !waitingForStock ? t.stillFor : 0;
+      // counted from when the exempt wait ended, so a customer that waited minutes for stock and then paid is not loaded
+      t.loadFor = carrying(a) > 0 && t.stillFor > 0 && !waitingForStock ? t.loadFor + SAMPLE : 0;
       if (t.loadFor >= LOADED_SECONDS) once(t, `load:${Math.round(t.anchorT)}`, () => add('loaded', t, { at: [round(p.x), round(p.z)], items: carrying(a), state: stateOf(a) }));
 
       const atSpot = AT_SPOT.has(stateOf(a)) && !moving;

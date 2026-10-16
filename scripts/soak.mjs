@@ -166,9 +166,11 @@ for (const sc of SCENARIOS) {
       [SAVE_KEY, raw],
     );
   }
-  let page = await openGame(context, '');
   const merged = { scenario: sc.name, simSeconds: 0, findings: [], idle: [], stretches: [] };
+  let page = null;
   try {
+    // inside the try: a page that never loads (a busy machine, two soaks at once) is reported, not a crash
+    page = await openGame(context, '');
     await page.evaluate((n) => window.__soak.reset(n), sc.name);
     if (sc.setup) await page.evaluate(`(async () => { const W = __WINTERLAND__; await window.__soakSetup.${sc.setup}(); })()`);
     else await page.evaluate(() => window.__WINTERLAND__.skipIntro());

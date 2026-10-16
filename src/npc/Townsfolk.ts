@@ -261,6 +261,8 @@ class Agent {
   standYaw = 0;
   /** Seconds to the next check that the way to the current waypoint is still clear (see walkPath). */
   navT = 0;
+  /** Owner of the prop the current route walks up to (CrowdNav `ignore`), kept for a re-plan. */
+  navIgnore = 0;
   approachX = 0;
   approachZ = 0;
   waveT = 0;
@@ -298,6 +300,9 @@ const pick = <T>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]!
 /** The porters wait in a short line by the corridor mouth (crewHelpers PORTER_HOME, lanes up to 1.6 m off it). */
 const nearPorterPosts = (x: number, z: number): boolean => Math.hypot(x - PORTER_HOME.x, z - PORTER_HOME.z) < 2.2;
 
+/** Scratch route for walkPath's re-plan. */
+const replan = new Path();
+
 /** Seconds between two checks that a walker's way to its next waypoint is still clear of solids. */
 const NAV_CHECK = 0.5;
 
@@ -314,6 +319,9 @@ function arriving(a: Agent): boolean {
   return Math.hypot(p.x[p.i]! - a.x, p.z[p.i]! - a.z) < ARRIVE_RADIUS;
 }
 
+/** Share of a still person's backward shove on a walker that is dropped (see separationPush). */
+const BACK_SOFTEN = 0.6;
+
 /**
  * Push walker `a` (moving along its yaw) away from someone at (bx, bz) closer than 0.55 m; `k` is the frame's share.
  * A push straight back against the walking direction (two people meeting head-on in a lane) would cancel the walk
@@ -328,11 +336,18 @@ export function separationPush(a: { x: number; z: number; yaw: number }, bx: num
   const push = (0.55 - d) * k * (bStill ? 2 : 1);
   const nx = dx / d;
   const nz = dz / d;
-  a.x += nx * push;
-  a.z += nz * push;
   const hx = Math.sin(a.yaw);
   const hz = Math.cos(a.yaw);
-  if (nx * hx + nz * hz < -0.7) {
+  const back = nx * hx + nz * hz;
+  a.x += nx * push;
+  a.z += nz * push;
+  if (bStill && back < 0) {
+    // someone standing still mostly nudges a walker aside, not back: between two people in a queue the two
+    // backward shoves added up to a full step and the walker stood in the gap until the queue moved on
+    a.x -= hx * back * push * BACK_SOFTEN;
+    a.z -= hz * back * push * BACK_SOFTEN;
+  }
+  if (back < -0.7) {
     // right of the heading (yaw 0 = +Z, so right is -X)
     a.x -= hz * push;
     a.z += hx * push;
@@ -618,8 +633,11 @@ export class Townsfolk {
     if (a.navT <= 0) {
       a.navT = NAV_CHECK;
       if (a.act !== 'pond' && solidBetween(a.x, a.z, path.x[path.i]!, path.z[path.i]!)) {
-        const end = path.last!;
-        planTownPath(path, a.x, a.z, end.x, end.z);
+        // re-plan only the way to the current waypoint and keep the rest of the route (an approach spot, a seat)
+        planTownPath(replan, a.x, a.z, path.x[path.i]!, path.z[path.i]!, a.navIgnore);
+        for (let i = path.i + 1; i < path.n; i++) replan.push(path.x[i]!, path.z[i]!);
+        path.clear();
+        for (let i = 0; i < replan.n; i++) path.push(replan.x[i]!, replan.z[i]!);
         if (path.n === 0) return false;
       }
     }
@@ -653,6 +671,7 @@ export class Townsfolk {
   }
 
   private goTo(a: Agent, x: number, z: number, ignore = 0): void {
+    a.navIgnore = ignore;
     planPath(a.path, a.x, a.z, x, z, ignore);
   }
 
@@ -812,6 +831,7 @@ export class Townsfolk {
     a.fading = false;
     a.faceYaw = Number.NaN;
     a.maxSpeed = COMMUTE_SPEED;
+    a.navIgnore = 0;
     if (kind === 1) {
       nearestHome(a.x, a.z, this.homeDoors(tmpDoors), tmpXZ);
       a.exitX = tmpXZ.x;
@@ -1504,7 +1524,7 @@ export class Townsfolk {
     a.standYaw = Math.atan2(SNOWMAN.x - x, SNOWMAN.z - z);
     a.act = 'snow';
     a.mode = 'walk';
-    planPath(a.path, a.x, a.z, x, z, OWNER_SNOWMAN);
+    this.goTo(a, x, z, OWNER_SNOWMAN);
     return true;
   }
 
@@ -1584,6 +1604,7 @@ export class Townsfolk {
       a.timer = randRange(10, 20);
       a.act = 'pond';
       a.mode = 'walk';
+      a.navIgnore = 0;
       planTownPath(a.path, a.x, a.z, r.x, r.z);
       return true;
     }
@@ -1598,6 +1619,7 @@ export class Townsfolk {
     a.amenId = id;
     a.amenIdx = idx;
     a.standYaw = s.yaw;
+    a.navIgnore = 0;
     if (id === 'cafe') {
       // approach the stool from behind, then sit facing the table; a stool backing onto the big tree is approached
       // from its side instead (from behind, the approach spot was inside the tree and the walk went through it)
