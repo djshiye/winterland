@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   COMFORT_KEY,
+  clampUiScale,
   comfort,
   parseComfort,
   particleScale,
@@ -11,7 +12,11 @@ import {
   shakeScale,
   snowScale,
   steadyHighlights,
+  UI_SCALE,
+  uiScale,
 } from '../src/fx/comfort';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { backOut, cubicOut } from '../src/ui/dom';
 import { readSettingsTab, SETTINGS_TABS } from '../src/ui/SettingsPanel';
 
@@ -35,7 +40,7 @@ afterEach(() => {
 
 describe('parseComfort', () => {
   it('falls back to the defaults for missing, broken or hostile values', () => {
-    const d = { motion: false, effects: 'full', colorBlind: false };
+    const d = { motion: false, effects: 'full', colorBlind: false, uiScale: 1 };
     for (const text of [null, '', 'not json', 'null', '[]', '42', '"x"', '{"__proto__":{"motion":true}}']) {
       expect(parseComfort(text)).toEqual(d);
     }
@@ -47,6 +52,7 @@ describe('parseComfort', () => {
       motion: true,
       effects: 'calm',
       colorBlind: true,
+      uiScale: 1,
     });
   });
 
@@ -60,9 +66,9 @@ describe('parseComfort', () => {
 describe('setComfort', () => {
   it('remembers the choice and survives a restart', () => {
     setComfort({ effects: 'minimal', colorBlind: true });
-    expect(JSON.parse(store[COMFORT_KEY]!)).toEqual({ motion: false, effects: 'minimal', colorBlind: true });
+    expect(JSON.parse(store[COMFORT_KEY]!)).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1 });
     reloadComfort();
-    expect(comfort()).toEqual({ motion: false, effects: 'minimal', colorBlind: true });
+    expect(comfort()).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1 });
   });
 
   it('still applies for the session when storage is unavailable', () => {
@@ -116,6 +122,32 @@ describe('effect multipliers', () => {
     expect(snowScale()).toBe(0.5);
     expect(steadyHighlights()).toBe(true);
     for (const t of [0, 0.3, 0.6, 1]) expect(backOut(t)).toBeCloseTo(cubicOut(t));
+  });
+});
+
+describe('interface size (0.9.7)', () => {
+  it('clamps to 80-150 % on 5 % steps; junk is 100 %', () => {
+    expect(clampUiScale(1.23)).toBe(1.25);
+    expect(clampUiScale(0.2)).toBe(UI_SCALE.min);
+    expect(clampUiScale(9)).toBe(UI_SCALE.max);
+    for (const junk of [NaN, Infinity, '1.2', null, {}]) expect(clampUiScale(junk)).toBe(1);
+    expect(parseComfort('{"uiScale":1.4}').uiScale).toBe(1.4);
+    expect(parseComfort('{"uiScale":"huge"}').uiScale).toBe(1);
+  });
+
+  it('is remembered, read back by uiScale() and an old setting without it loads at 100 %', () => {
+    store[COMFORT_KEY] = '{"motion":true,"effects":"calm","colorBlind":false}';
+    reloadComfort();
+    expect(uiScale()).toBe(1);
+    setComfort({ uiScale: 1.3 });
+    reloadComfort();
+    expect(uiScale()).toBe(1.3);
+    expect(comfort().motion).toBe(true);
+  });
+
+  it('every HUD panel zooms by it, except the world-anchored effects', () => {
+    const css = readFileSync(resolve(__dirname, '../src/ui/comfort.css'), 'utf8').replace(/\r\n/g, '\n');
+    expect(css).toContain('.wl-hud > :not(.wl-float):not(.wl-edge):not(.wl-coin) {\n  zoom: var(--wl-ui, 1);');
   });
 });
 

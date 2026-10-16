@@ -9,7 +9,7 @@
  */
 import type { GameContext } from '../core/types';
 import { contractClock, contractItem } from '../core/Contracts';
-import { steadyHighlights } from '../fx/comfort';
+import { steadyHighlights, uiScale } from '../fx/comfort';
 import { h, shield } from './dom';
 import { formatMoney } from './format';
 
@@ -131,8 +131,10 @@ export class ContractCard {
     const q = this.layer.querySelector('.wl-quests');
     const r = q instanceof HTMLElement && q.style.display !== 'none' ? q.getBoundingClientRect() : null;
     const lr = this.layer.getBoundingClientRect();
-    const top = r && r.height > 0 ? `${Math.round(r.bottom - lr.top + 6)}px` : '';
-    const left = r && r.height > 0 ? `${Math.round(r.left - lr.left)}px` : '';
+    // 0.9.7: this card is zoomed by the Interface size, so screen px become its own px (÷ uiScale)
+    const k = uiScale();
+    const top = r && r.height > 0 ? `${Math.round((r.bottom - lr.top) / k + 6)}px` : '';
+    const left = r && r.height > 0 ? `${Math.round((r.left - lr.left) / k)}px` : '';
     if (top !== this.lastTop) {
       this.lastTop = top;
       this.root.style.top = top;

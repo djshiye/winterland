@@ -63,6 +63,9 @@ import { SettingsPanel } from './SettingsPanel';
 import { ShopPanel } from './ShopPanel';
 import { VillageBadge } from './VillageBadge';
 import { formatMoney } from './format';
+// 0.9.7: dom's backOut settles without overshoot under Reduce motion (it used to be a local copy that ignored it)
+import { backOut, cubicOut } from './dom';
+import { reducedMotion, steadyHighlights } from '../fx/comfort';
 import { ICON_MAP, ICON_MARKET } from './icons';
 import './hud.css';
 
@@ -91,12 +94,6 @@ const TOAST_STALE = 3;
 /** World-size multiplier of the 3D guide arrow (iso camera looks down on it, so it needs to be chunky). */
 const ARROW_SCALE = 1.5;
 
-const backOut = (t: number): number => {
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-};
-const cubicOut = (t: number): number => 1 - Math.pow(1 - t, 3);
 
 const ICON_CASH = `<svg viewBox="0 0 40 40" aria-hidden="true">
   <rect x="2" y="9" width="36" height="22" rx="5" fill="#2e9c48" stroke="#fff" stroke-width="2.5"/>
@@ -332,6 +329,13 @@ export class HUD {
     // wave 10 keyboard shortcuts (Game turns the keys into events)
     ctx.events.on('ui:escape', () => this.escape());
     ctx.events.on('ui:mute', () => this.toggleMute());
+    ctx.events.on('ui:map', () => {
+      if (!this.settings.isOpen) this.openMap();
+    });
+    ctx.events.on('ui:menu', () => this.settings.toggle());
+    ctx.events.on('ui:market', () => {
+      if (!this.settings.isOpen) this.openMarket();
+    });
     ctx.events.on('ui:fullscreen', () => {
       toggleFullscreen();
       this.settings.sync();
@@ -402,13 +406,22 @@ export class HUD {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     if (this.settings.isOpen) return;
-    if (e.code === 'KeyT' && (this.hasMapBtn || this.map.visible)) {
-      e.preventDefault();
-      this.map.toggle();
-    } else if (e.code === 'KeyB' && (this.hasMarketBtn || this.market.visible)) {
-      e.preventDefault();
-      this.toggleMarket();
-    }
+    if (e.code === 'KeyT' && this.openMap()) e.preventDefault();
+    else if (e.code === 'KeyB' && this.openMarket()) e.preventDefault();
+  }
+
+  /** T / gamepad Y: toggle the map once its button is on show. */
+  private openMap(): boolean {
+    if (!(this.hasMapBtn || this.map.visible)) return false;
+    this.map.toggle();
+    return true;
+  }
+
+  /** B / gamepad X: toggle the market once its button is on show. */
+  private openMarket(): boolean {
+    if (!(this.hasMarketBtn || this.market.visible)) return false;
+    this.toggleMarket();
+    return true;
   }
 
   /** What the mute button does (also the M key). */
@@ -740,7 +753,7 @@ export class HUD {
 
     if (this.bump > 0) {
       this.bump = Math.max(0, this.bump - dt / 0.32);
-      const s = 1 + 0.22 * Math.sin(Math.PI * (1 - this.bump));
+      const s = 1 + (reducedMotion() ? 0.04 : 0.22) * Math.sin(Math.PI * (1 - this.bump));
       this.moneyEl.style.transform = `scale(${s.toFixed(3)})`;
     } else if (this.moneyEl.style.transform) {
       this.moneyEl.style.transform = '';
@@ -848,11 +861,13 @@ export class HUD {
     }
 
     // 3D bouncing arrow
-    const bob = Math.abs(Math.sin(this.guideTime * 3.4)) * 0.55;
+    // 0.9.7: with Reduce motion the arrow hovers still (no bounce, spin or squash)
+    const still = reducedMotion();
+    const bob = still ? 0.2 : Math.abs(Math.sin(this.guideTime * 3.4)) * 0.55;
     this.arrow.visible = true;
     this.arrow.position.set(this.guidePos.x, this.guidePos.y + 3.3 + bob, this.guidePos.z);
-    this.arrow.rotation.y = this.guideTime * 1.8;
-    const sq = 1 + 0.05 * Math.sin(this.guideTime * 6.8);
+    this.arrow.rotation.y = still ? 0 : this.guideTime * 1.8;
+    const sq = still ? 1 : 1 + 0.05 * Math.sin(this.guideTime * 6.8);
     const big = this.guideScale * ARROW_SCALE;
     this.arrow.scale.set(big * sq, big / sq, big * sq);
 
@@ -879,8 +894,8 @@ export class HUD {
       const px = cx + dx * t;
       const py = cy + dy * t;
       const ang = Math.atan2(dy, dx);
-      const pulse = 1 + 0.12 * Math.sin(this.guideTime * 7);
-      const nudge = 4 * Math.sin(this.guideTime * 7);
+      const pulse = steadyHighlights() ? 1 : 1 + 0.12 * Math.sin(this.guideTime * 7);
+      const nudge = reducedMotion() ? 0 : 4 * Math.sin(this.guideTime * 7);
       const ox = Math.cos(ang) * nudge;
       const oy = Math.sin(ang) * nudge;
       const e = this.edgeEl.style;

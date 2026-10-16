@@ -33,6 +33,8 @@ import { createGiantLog, type GiantLogModel } from '../assets/machines';
 import { launchNew } from '../items/transfer';
 import type { Zone } from '../items/Zones';
 import type { DropZone } from './DropZone';
+import { motionScale } from '../fx/padJuice';
+import { steadyHighlights } from '../fx/comfort';
 
 export interface GiantLogOptions {
   dropZone: DropZone;
@@ -269,13 +271,13 @@ export class GiantLog {
   /** Bob / roll / wobble the body, pulse the foam, flash the cut band. */
   private applyPose(t: number): void {
     const m = this.model;
-    const a = this.floatAmp;
+    const a = this.floatAmp * motionScale(); // 0.9.7: a gentler float with Reduce motion
     const body = m.body;
     body.position.set(this.wobX.x, Math.sin(t * 1.35) * 0.04 * a, 0);
     body.rotation.z = Math.sin(t * 0.9 + 1) * 0.014 * a + this.wobRoll.x;
     body.rotation.x = Math.sin(t * 0.62) * 0.006 * a + this.wobPitch.x;
     m.foam.scale.set(1 + Math.sin(t * 2.1) * 0.012, 1, 1 + Math.sin(t * 1.7 + 0.6) * 0.008);
-    m.cutMaterial.emissiveIntensity = this.flash * 0.75;
+    m.cutMaterial.emissiveIntensity = this.flash * (steadyHighlights() ? 0.3 : 0.75);
     const s = 1 + this.flash * 0.025;
     m.cutBand.scale.set(s, s, 1);
     if (this.sawMarkZ !== null) m.sawMark.position.z = this.sawMarkZ - this.object.position.z;

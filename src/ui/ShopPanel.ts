@@ -28,6 +28,7 @@ import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
 import { hexCss, ICON_CLOSE, ICON_LOCK, upgradeIcon } from './icons';
 import './ages.css';
+import { reducedMotion } from '../fx/comfort';
 
 interface Card {
   id: UpgradeIdConst;
@@ -616,7 +617,7 @@ export class ShopPanel {
     for (const c of this.cards) {
       if (c.bump > 0) {
         c.bump = Math.max(0, c.bump - dt / 0.35);
-        const sc = 1 + 0.06 * Math.sin(Math.PI * (1 - c.bump));
+        const sc = 1 + (reducedMotion() ? 0.015 : 0.06) * Math.sin(Math.PI * (1 - c.bump));
         c.root.style.transform = c.bump > 0 ? `scale(${sc.toFixed(3)})` : '';
       }
     }

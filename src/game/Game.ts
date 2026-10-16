@@ -288,6 +288,9 @@ export class Game {
       if (s === 'escape') events.emit('ui:escape', {});
       else if (s === 'mute') events.emit('ui:mute', {});
       else if (s === 'fullscreen') events.emit('ui:fullscreen', {});
+      else if (s === 'map') events.emit('ui:map', {});
+      else if (s === 'market') events.emit('ui:market', {});
+      else if (s === 'menu') events.emit('ui:menu', {});
       else events.emit('camera:zoom', { delta: s === 'zoomIn' ? 0.1 : -0.1 });
     });
     input.onZoom((delta) => events.emit('camera:zoom', { delta }));
@@ -530,6 +533,7 @@ export class Game {
     c.cameraRig.update(dt);
     c.renderer.setShadowFocus(c.cameraRig.target);
     c.hud.update(dt);
+    c.input.updateMenus(dt);
 
     this.saveTimer -= dt;
     this.backupTimer -= dt;

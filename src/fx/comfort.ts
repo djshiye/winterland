@@ -9,6 +9,8 @@
  *   (100 / 40 / 0 %), how many fireworks; below 'full' sparkles stop twinkling and warnings stop flashing.
  * - colorBlind: a red / green safe UI palette (blue for go / good, deep orange for danger) via the `wl-cb` class
  *   on <html>; ui/comfort.css holds the colours.
+ * - uiScale (0.9.7, Interface size): 0.8..1.5, how big the HUD, cards and menus draw. Written to <html> as the CSS
+ *   variable `--wl-ui`; ui/comfort.css zooms every HUD panel by it (world-anchored effects keep their own size).
  * <html> also gets `wl-reduce-motion` and `wl-calm` so CSS can follow. Every storage / DOM access is guarded.
  */
 
@@ -20,6 +22,18 @@ export interface ComfortSettings {
   motion: boolean;
   effects: EffectsLevel;
   colorBlind: boolean;
+  /** Interface size, 0.8..1.5 (1 = as designed). */
+  uiScale: number;
+}
+
+/** Interface size limits and step (the Settings slider shows them as 80-150 %). */
+export const UI_SCALE = { min: 0.8, max: 1.5, step: 0.05 } as const;
+
+/** Clamp to the slider's range on its 5 % steps; anything not a finite number is 1. */
+export function clampUiScale(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 1;
+  const stepped = Math.round(v / UI_SCALE.step) * UI_SCALE.step;
+  return Math.round(Math.min(UI_SCALE.max, Math.max(UI_SCALE.min, stepped)) * 100) / 100;
 }
 
 export const COMFORT_KEY = 'winterland:comfort';
@@ -37,7 +51,7 @@ function systemReducedMotion(): boolean {
 }
 
 export function defaultComfort(): ComfortSettings {
-  return { motion: systemReducedMotion(), effects: 'full', colorBlind: false };
+  return { motion: systemReducedMotion(), effects: 'full', colorBlind: false, uiScale: 1 };
 }
 
 /**
@@ -59,6 +73,7 @@ export function parseComfort(text: string | null): ComfortSettings {
     motion: typeof r.motion === 'boolean' ? r.motion : d.motion,
     effects: EFFECTS_LEVELS.includes(r.effects as EffectsLevel) ? (r.effects as EffectsLevel) : d.effects,
     colorBlind: typeof r.colorBlind === 'boolean' ? r.colorBlind : d.colorBlind,
+    uiScale: r.uiScale === undefined ? d.uiScale : clampUiScale(r.uiScale),
   };
 }
 
@@ -80,6 +95,7 @@ function applyClasses(): void {
     root.toggle('wl-cb', state.colorBlind);
     root.toggle('wl-reduce-motion', state.motion);
     root.toggle('wl-calm', state.effects !== 'full');
+    document.documentElement.style.setProperty('--wl-ui', String(state.uiScale));
   } catch {
     /* no DOM */
   }
@@ -117,6 +133,11 @@ export function reloadComfort(): void {
 
 export function reducedMotion(): boolean {
   return state.motion;
+}
+
+/** Interface size (1 = as designed). Screen-pixel positions written onto a zoomed HUD panel are divided by it. */
+export function uiScale(): number {
+  return state.uiScale;
 }
 
 /** True when pulsing / flashing highlights should hold still (reduced motion or calmer effects). */

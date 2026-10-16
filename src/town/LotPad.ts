@@ -8,6 +8,7 @@ import { COLORS, PALETTE } from '../config';
 import { createPadModel, createPadSign } from '../assets/pads';
 import type { GameContext } from '../core/types';
 import { GAME_FONT, makeCanvasTexture } from '../render/materials';
+import { motionScale } from '../fx/padJuice';
 
 const SIZE = 256;
 const BORDER = 10;
@@ -156,9 +157,10 @@ export class LotPad {
   update(_dt: number): void {
     if (!this.shown) return;
     const t = this.ctx.time.elapsed;
-    const s = 1 + 0.03 * Math.sin(t * 3 + this.object.position.x);
+    const m = motionScale(); // 0.9.7: calmer with Reduce motion, like the other pads
+    const s = 1 + 0.03 * m * Math.sin(t * 3 + this.object.position.x);
     this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
-    this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.object.position.x) * 0.05;
+    this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.object.position.x) * 0.05 * m;
   }
 }
