@@ -93,7 +93,7 @@ export class Environment {
     this.town = buildTown(ctx, new Rng(9090));
     // 0.9.0: the old scatter is built exactly as before; whatever landed on the new land is pruned afterwards.
     pruneNewLand(decor.group);
-    this.frontier = buildFrontier(ctx, this.town.group);
+    this.frontier = buildFrontier(ctx, this.town.group, roads.trikeTail);
     this.chimney = buildings.chimney;
 
     for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, this.town, this.frontier, roads, mountains, decor, buildings, this.snowfall, this.aurora]) {

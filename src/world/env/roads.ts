@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { LAYOUT, PALETTE } from '../../config';
 import { geo, mesh, toon } from '../../render/materials';
+import { TRIKE_ROAD_END_Z } from '../../eras/data';
 import { Batch, W, type EnvPart } from './common';
 
 const HZ = LAYOUT.highway.z;
@@ -52,33 +53,45 @@ function archShape(radius: number, pillar: number): THREE.Shape {
   return s;
 }
 
-export function buildRoads(): EnvPart {
+/** The roads part; `trikeTail` = the tricycle road past TRIKE_ROAD_END_Z (hidden once the new land shows). */
+export function buildRoads(): EnvPart & { trikeTail: THREE.Object3D } {
   const group = new THREE.Group();
   group.name = 'roads';
 
   // ---- tricycle road ------------------------------------------------------
+  // 0.9.5: built in two pieces so the tail past TRIKE_ROAD_END_Z (it ran into era II's plot) can hide once the new
+  // land shows (env/frontier.ts); with both pieces shown it is the same road as before.
   const tr = LAYOUT.tricycles.road;
   const roadW = tr.maxX - tr.minX;
-  const road = mesh(geo.ground(roadW, tr.maxZ - tr.minZ), toon(PALETTE.road), { cast: false });
-  road.position.set((tr.minX + tr.maxX) / 2, 0.012, (tr.minZ + tr.maxZ) / 2);
-  group.add(road);
-  const ruts = new Batch();
-  const rutLen = tr.maxZ - tr.minZ;
-  const rutGeo = new THREE.BoxGeometry(1, 0.01, rutLen);
   const lane = LAYOUT.tricycles.laneX;
-  for (const [dx, w, c] of [
-    [-0.55, 0.22, 0x8d9db4],
-    [0.55, 0.22, 0x8d9db4],
-    [0, 0.14, 0x9aa9bf],
-    [1.55, 0.2, 0x98a8be],
-    [2.05, 0.2, 0x98a8be],
+  const trikeTail = new THREE.Group();
+  trikeTail.name = 'trikeRoadTail';
+  for (const [z0, z1, into] of [
+    [tr.minZ, TRIKE_ROAD_END_Z, group],
+    [TRIKE_ROAD_END_Z, tr.maxZ, trikeTail],
   ] as const) {
-    ruts.add(rutGeo, c, lane + dx, 0.016, (tr.minZ + tr.maxZ) / 2, { sx: w });
+    const len = z1 - z0;
+    const cz = (z0 + z1) / 2;
+    const road = mesh(geo.ground(roadW, len), toon(PALETTE.road), { cast: false });
+    road.position.set((tr.minX + tr.maxX) / 2, 0.012, cz);
+    into.add(road);
+    const ruts = new Batch();
+    const rutGeo = new THREE.BoxGeometry(1, 0.01, len);
+    for (const [dx, w, c] of [
+      [-0.55, 0.22, 0x8d9db4],
+      [0.55, 0.22, 0x8d9db4],
+      [0, 0.14, 0x9aa9bf],
+      [1.55, 0.2, 0x98a8be],
+      [2.05, 0.2, 0x98a8be],
+    ] as const) {
+      ruts.add(rutGeo, c, lane + dx, 0.016, cz, { sx: w });
+    }
+    // Soft lighter shoulders.
+    ruts.add(new THREE.BoxGeometry(0.18, 0.01, len), 0xdfe8f3, tr.minX + 0.12, 0.016, cz);
+    ruts.add(new THREE.BoxGeometry(0.18, 0.01, len), 0xdfe8f3, tr.maxX - 0.12, 0.016, cz);
+    into.add(ruts.mesh({ cast: false }));
   }
-  // Soft lighter shoulders.
-  ruts.add(new THREE.BoxGeometry(0.18, 0.01, rutLen), 0xdfe8f3, tr.minX + 0.12, 0.016, (tr.minZ + tr.maxZ) / 2);
-  ruts.add(new THREE.BoxGeometry(0.18, 0.01, rutLen), 0xdfe8f3, tr.maxX - 0.12, 0.016, (tr.minZ + tr.maxZ) / 2);
-  group.add(ruts.mesh({ cast: false }));
+  group.add(trikeTail);
 
   // ---- highway ------------------------------------------------------------------
   const hw = new Batch();
@@ -178,5 +191,5 @@ export function buildRoads(): EnvPart {
   const spur = sp.mesh({ cast: false, flat: true });
   group.add(spur);
 
-  return { group };
+  return { group, trikeTail };
 }
