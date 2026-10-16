@@ -16,6 +16,7 @@
  * - Mute toggle button top-right (calls ctx.audio.toggleMute()); a gear button next to it opens Settings
  *   (sound / music / graphics / show-FPS switches, reset progress with an in-page confirmation). PerfOverlay is the
  *   bottom-left FPS / draw-call readout.
+ * - 0.9.3: CarryMeter, the bottom-left "3 / 8" pill of what the player is carrying out of how much they can carry.
  * - ShopPanel (opens on 'shop:open'), VillageBadge, SeasonBadge ("Season N · +X% prices" chip after a New Season), OfflineCard (showOfflineEarnings), FinaleCard ('finale:start').
  * - Wave 8: QuestPanel (3 active quests, collapsible), RushBanner (countdown), MoveHand (first-run drag hint),
  *   coinBurst() (gold coins flying into the money pill), AutoQuality (one-way drop to Low graphics on a slow device).
@@ -33,9 +34,11 @@ import { toggleFullscreen } from '../platform/desktop';
 import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
 import { climbOpen } from '../eras/gate';
+import { ERA_NAMES } from '../eras/data';
 import { AgeCard } from './AgeCard';
 import { AutoQuality } from './AutoQuality';
 import { BuildPanel } from './BuildPanel';
+import { CarryMeter } from './CarryMeter';
 import { ChoosePanel } from './ChoosePanel';
 import { CoinBurst } from './CoinBurst';
 import { ContractCard } from './ContractCard';
@@ -139,9 +142,12 @@ export class HUD {
   private readonly marketBtn: HTMLButtonElement;
   private hasMapBtn = false;
   private hasMarketBtn = false;
+  private marketLocked = false;
   private hasEraChip = false;
   private readonly settings: SettingsPanel;
   private readonly perf: PerfOverlay;
+  /** 0.9.3: "3 / 8" carried-items pill, bottom left. */
+  private readonly carry: CarryMeter;
   private readonly offline: OfflineCard;
   private readonly village: VillageBadge;
   private readonly seasonBadge: SeasonBadge;
@@ -237,6 +243,7 @@ export class HUD {
     // settings (gear button sits left of the mute button)
     this.perf = new PerfOverlay(ctx, layer);
     this.settings = new SettingsPanel(ctx, layer, this.perf);
+    this.carry = new CarryMeter(ctx, layer);
     this.settings.onSoundChanged = () => this.muteBtn.classList.toggle('is-muted', ctx.audio.muted);
 
     // village badge, shop
@@ -377,6 +384,11 @@ export class HUD {
   }
 
   private toggleMarket(): void {
+    if (this.ctx.state.eras.age < 2 && !this.market.visible) {
+      // shown early (once the climb opens) so players know where trading and investing will live
+      this.toast(`The Market opens in the ${ERA_NAMES[2]}`, { sub: 'Trade goods and invest your savings there once you reach era 2' });
+      return;
+    }
     if (this.market.visible) this.market.close();
     else this.ctx.events.emit('market:open', {});
   }
@@ -620,6 +632,11 @@ export class HUD {
     this.chip.update(dt);
     this.autoQuality.update();
     this.perf.update();
+    this.carry.update(dt);
+    // the carry pill steps up above the FPS readout while that is on (hud.css)
+    if (this.layer.classList.contains('has-perf') !== this.perf.enabled) {
+      this.layer.classList.toggle('has-perf', this.perf.enabled);
+    }
     // on phones the shop is a bottom sheet over the FPS readout
     const sheetOpen = this.anySheetOpen;
     if (this.layer.classList.contains('shop-open') !== sheetOpen) {
@@ -650,12 +667,23 @@ export class HUD {
   // Per-frame pieces
   // ---------------------------------------------------------------------------------------------
 
-  /** Map / Market buttons and the era chip appear with the Ages (map: the climb open, i.e. the new land on show; market: era 2). */
+  /**
+   * Map / Market buttons and the era chip appear with the Ages (the climb open, i.e. the new land on show, or era 2). Before
+   * era 2 the Market button is on show but locked: a tap says when it opens.
+   */
   private updateAgeButtons(): void {
     const { state } = this.ctx;
     const age = state.eras.age;
     const mapOn = age >= 2 || climbOpen(state);
-    const marketOn = age >= 2;
+    const marketOn = mapOn;
+    const marketLocked = age < 2;
+    if (marketLocked !== this.marketLocked) {
+      this.marketLocked = marketLocked;
+      this.marketBtn.classList.toggle('is-locked', marketLocked);
+      const label = marketLocked ? `Market (B): opens in the ${ERA_NAMES[2]}` : 'Market (B)';
+      this.marketBtn.title = label;
+      this.marketBtn.setAttribute('aria-label', label);
+    }
     if (mapOn !== this.hasMapBtn) {
       this.hasMapBtn = mapOn;
       this.mapBtn.style.display = mapOn ? '' : 'none';
