@@ -12,10 +12,11 @@
  * a Mac (the release workflow uses a macOS runner); packaging darwin elsewhere still works but skips the signing.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packager } from '@electron/packager';
+import { updaterFiles } from './updater-files.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
@@ -34,8 +35,13 @@ run('npm', ['run', 'build']);
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
-// Only these go into the app: the shell, the built game and package.json (everything is already bundled).
-const keep = (p) => p === '' || p === '/package.json' || p.startsWith('/desktop') || p.startsWith('/dist');
+// Only these go into the app: the shell, the built game and package.json (everything is already bundled). The updater
+// sits next to the app instead (below), not inside it.
+const keep = (p) =>
+  p === '' ||
+  p === '/package.json' ||
+  (p.startsWith('/desktop') && !p.startsWith('/desktop/updater')) ||
+  p.startsWith('/dist');
 
 for (const target of targets) {
   const [platform, arch] = target.split('-');
@@ -55,13 +61,21 @@ for (const target of targets) {
     ignore: (p) => !keep(p.replace(/\\/g, '/')),
     win32metadata: { CompanyName: 'Winterland', ProductName: 'Winterland', FileDescription: 'Winterland' },
   });
+  // "Update Winterland" (desktop/updater): click it to get the newest release from GitHub.
+  for (const f of updaterFiles(platform, arch, pkg.version)) {
+    const file = join(dir, f.path);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, f.content);
+    chmodSync(file, f.mode);
+  }
   const zip = join(out, `Winterland-${pkg.version}-${platform}-${arch}.zip`);
   if (platform === 'darwin' && process.platform === 'darwin') {
     // No paid Apple certificate: an ad-hoc signature keeps Apple silicon happy ("unidentified developer" instead of
-    // "damaged"). ditto keeps the bundle's symlinks and metadata intact.
+    // "damaged"). ditto keeps the bundle's symlinks and metadata intact. The zip holds the whole folder, so the
+    // updater comes along next to Winterland.app.
     const appPath = join(dir, 'Winterland.app');
     run('codesign', ['--force', '--deep', '--sign', '-', appPath]);
-    run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', appPath, zip]);
+    run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', dir, zip]);
   } else if (process.platform === 'win32') {
     run('powershell', ['-NoProfile', '-Command', `Compress-Archive -Path '${dir}' -DestinationPath '${zip}' -Force`]);
   } else {

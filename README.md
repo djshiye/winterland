@@ -115,6 +115,18 @@ first run downloads the Electron runtime for each target (~100 MB each) and cach
   and drag `Winterland.app` to Applications. The app isn't notarised by Apple, so the first time *right-click → Open*
   it (or *System Settings → Privacy & Security → Open Anyway*).
 
+**Updating:** every zip has an **Update Winterland** file next to the game (`Update Winterland.cmd` on Windows,
+`Update Winterland.command` on macOS, `Update Winterland.sh` on Linux). Double-click it and it fetches the newest
+release from GitHub, checks the download against the release's `SHA256SUMS.txt`, swaps the game files and starts the
+new version. It only talks to `github.com/djshiye/winterland` over HTTPS, stops without changing anything if the
+checksum doesn't match, and never touches your save (that lives in your user folder, not the game folder). Close the
+game first; the updater waits if it's still open.
+
+- **Windows:** double-click `Update Winterland.cmd` in the Winterland folder (SmartScreen may ask once, like the game).
+- **macOS:** the first time, *right-click → Open* `Update Winterland.command` (it isn't notarised either). It updates
+  `Winterland.app` in Applications, or the one next to it if you kept it there.
+- **Linux:** run `./Update\ Winterland.sh`, or double-click it and choose *Run* (it opens a terminal to show progress).
+
 Settings → Display has a **Window mode** (Windowed / Fullscreen — borderless, so alt-tab stays friendly).
 **F11** or **Alt+Enter** toggles it from anywhere. The window size, position and mode are remembered in
 `window.json` next to the save, so the game opens the way you left it.
