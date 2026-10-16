@@ -27,6 +27,7 @@ import { Batch } from '../render/batch';
 import { geo } from '../render/materials';
 import { createCityBuilding, createCityScaffold, type CityBuildingModel } from '../assets/cityBuildings';
 import { LotPad } from '../town/LotPad';
+import { createPadSign } from '../assets/pads';
 import { ConstructionPad } from '../stations/ConstructionPad';
 import type { ColliderHandle } from '../world/Colliders';
 import type { Zone } from '../items/Zones';
@@ -65,6 +66,9 @@ const SURFACE: readonly ({ street: number; walk: number; plot: number; tile: num
 
 const SNOW = 0xf4f8ff;
 const PER_FRAME = 2;
+/** The MANAGE label over a built lot's tile: big enough to read from the usual camera distance. */
+const SIGN_SCALE = 0.9;
+const SIGN_HEIGHT = 1.3;
 
 /**
  * Free a dropped construction site's own merged base geometry (each scaffold merges a fresh one). The shell's unit box
@@ -88,6 +92,8 @@ interface Lot {
   model: CityBuildingModel | null;
   scaffold: { group: THREE.Group; setProgress(p: number): void } | null;
   collider: ColliderHandle | null;
+  /** Floating "MANAGE" label over a built lot's tile (the info / demolish card opens there). */
+  sign: THREE.Mesh | null;
   /** Which card the player's standing on this lot has open. */
   card: 'choose' | 'manage' | null;
 }
@@ -123,7 +129,7 @@ export class District {
       group.name = `lot:${n}:${frame.index}`;
       group.position.set(frame.x, 0, frame.z);
       this.root.add(group);
-      this.lots.push({ index: frame.index, frame, group, zone: null, lotPad: null, pad: null, model: null, scaffold: null, collider: null, card: null });
+      this.lots.push({ index: frame.index, frame, group, zone: null, lotPad: null, pad: null, model: null, scaffold: null, collider: null, sign: null, card: null });
     }
     // restored buildings: colliders now, models a few per frame
     for (const L of this.lots) {
@@ -172,8 +178,10 @@ export class District {
     if (!this.active && this.playerNear()) this.activate();
     for (let i = 0; i < PER_FRAME && this.queue.length > 0; i++) this.ensureModel(this.queue.shift()!, true);
     const t = this.ctx.time.elapsed;
+    const cam = this.ctx.camera.quaternion;
     for (const L of this.lots) {
       L.lotPad?.update(dt);
+      if (L.sign?.visible) L.sign.quaternion.copy(cam);
       L.model?.animate(t);
     }
   }
@@ -200,6 +208,11 @@ export class District {
       });
       L.lotPad = new LotPad(this.ctx, f.pad.x, f.pad.z, f.padSize);
       this.root.add(L.lotPad.object);
+      L.sign = createPadSign('MANAGE');
+      L.sign.scale.setScalar(SIGN_SCALE);
+      L.sign.position.set(f.pad.x, SIGN_HEIGHT, f.pad.z);
+      L.sign.visible = false;
+      this.root.add(L.sign);
       this.refresh(L, false);
     }
   }
@@ -219,6 +232,7 @@ export class District {
       }
       if (st.building === '') L.lotPad?.show(!animate);
       else L.lotPad?.hide();
+      if (L.sign) L.sign.visible = built;
       const on = built || lotOpen(st);
       if (L.zone && L.zone.enabled !== on) {
         // a player already standing on the tile must not get the card the moment it re-enables
