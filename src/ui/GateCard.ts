@@ -17,11 +17,12 @@
  * checklist prices every open step).
  */
 import { LAYOUT, PADS, UPGRADES, type PadIdConst } from '../config';
-import type { GameContext } from '../core/types';
+import type { GameContext, UpgradeId } from '../core/types';
 import { ERAS } from '../eras/data';
 import { masteryTotal } from '../core/demand';
-import { introEra, masteryMult } from '../core/ladder';
-import { climbOpen, eraGate, openRows, padPaid, prereqTarget, settlementGoal, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
+import { masteryMult } from '../core/ladder';
+import { climbOpen, eraGate, eraMatOf, openRows, padPaid, padTarget, prereqTarget, settlementGoal, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
+import { machinePadTarget } from '../eras/rules';
 import { regionLayout, travelPoints } from '../eras/layout';
 import { eraRoman, expansionCostText, gateRowLine, masteryLine } from './agesLogic';
 import { h, onTap } from './dom';
@@ -51,9 +52,9 @@ interface RowSlot {
  */
 export function rowTarget(row: GateRow, s: GameContext['state']): string {
   if (row.state === 'prereq') return prereqTarget(row.id, s);
-  if (row.where === 'pad') return `pad:${row.id}`;
-  const def = UPGRADES[row.id];
-  return def.group === 'industry' ? `shop:${introEra(def)}` : 'shop';
+  if (row.where === 'pad') return padTarget(row.id);
+  const e = eraMatOf(UPGRADES[row.id]);
+  return e !== null ? `shop:${e}` : 'shop';
 }
 
 /** Where a Go button takes the player (null: nowhere to go). */
@@ -73,6 +74,11 @@ export function goTarget(ctx: Pick<GameContext, 'state'>, target: string): { x: 
     const pad = PADS[target.slice(4) as PadIdConst];
     // stand just beside the tile, so arriving never pays by accident
     return pad ? { x: pad.x, z: pad.z + pad.size + 0.6, label: pad.label.charAt(0) + pad.label.slice(1).toLowerCase() } : null;
+  }
+  if (target.startsWith('machine:')) {
+    // 0.9.5: beside an era machine's level pad (the first built machine of that type)
+    const at = machinePadTarget(ctx.state, target.slice(8) as UpgradeId);
+    return at ? { x: at.x, z: at.z, label: `${UPGRADES[target.slice(8) as UpgradeId].label} pad` } : null;
   }
   if (target === 'quarters') {
     const q = LAYOUT.ridge.quarters.pad;

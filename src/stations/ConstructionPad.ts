@@ -173,6 +173,11 @@ export class ConstructionPad implements ItemHolder {
     return e ? Math.max(0, e.count - e.paid) : 0;
   }
 
+  /** 0.9.5: third-requirement units still to send (left minus those already flying in), for era foremen. */
+  get extraRoom(): number {
+    return Math.max(0, this.extraLeft - this.pendingExtra);
+  }
+
   /** The third requirement's item kind, or null. */
   get extraKind(): ItemKind | null {
     return this.target.extra?.kind ?? null;

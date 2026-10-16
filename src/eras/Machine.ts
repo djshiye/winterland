@@ -8,7 +8,7 @@
  *   def.inputs, each capped at three cycles' worth / an even share of the pile), output pile front-right
  *   (def.output). Player zones: feed (arms → input, 'give'), take (output → arms, 'take': hold to interact) and a
  *   small info zone beside the body (hooks.onManage / onManageExit: Region opens the manage card).
- * - Cycle length = def.cycle ÷ the era's Rigs upgrade value. Extractor: every cycle makes def.batch items while the
+ * - Cycle length = def.cycle ÷ the era's Rigs upgrade value ÷ the machine type's level (0.9.5, its level pad). Extractor: every cycle makes def.batch items while the
  *   output has room (the timer waits at a full cycle while it is full). Processor: starts when the hopper holds `per`
  *   of every input and the output has room for the batch; the inputs hop to the door and are swallowed (40 % of the
  *   cycle), then def.batch products hop out of the door onto the output pile.
@@ -28,7 +28,7 @@ import type { ColliderHandle } from '../world/Colliders';
 import { ERAS, MACHINE_PILES, type MachineDef } from './data';
 import type { SlotPlace, XZ } from './layout';
 import type { MachineRuntime } from './runtime';
-import { OUTPUT_CAPACITY, inputCap, machineFrame, toWorld, worldRect, type LRect, type MachineFrame } from './rules';
+import { OUTPUT_CAPACITY, inputCap, levelPadLocal, machineFrame, toWorld, worldRect, type LRect, type MachineFrame } from './rules';
 
 /** The MANAGE label over the info zone: big enough to read from the usual camera distance. */
 const SIGN_SCALE = 0.9;
@@ -101,6 +101,7 @@ export class Machine implements MachineRuntime {
   /** Floating "MANAGE" label over the info zone (the info / demolish card opens there). */
   private readonly sign: THREE.Mesh;
   private dead = false;
+  private readonly unfade: (() => void) | null;
 
   constructor(
     private readonly ctx: GameContext,
@@ -169,6 +170,8 @@ export class Machine implements MachineRuntime {
     this.sign.scale.setScalar(SIGN_SCALE);
     this.sign.position.set((manage.minX + manage.maxX) / 2, SIGN_HEIGHT, (manage.minZ + manage.maxZ) / 2);
     (parent ?? ctx.scene).add(this.sign);
+    // 0.9.5: fades when it hides the player or its level pad (like the town and city buildings)
+    this.unfade = ctx.occlusion?.addOccluder(model.root) ?? null;
   }
 
   /** Visible and running; not instant: pop-in + puff. */
@@ -197,10 +200,20 @@ export class Machine implements MachineRuntime {
     return Math.max(0, cap - inp.count(kind) - this.ctx.flights.inFlightTo(inp, kind));
   }
 
-  /** Cycle length in seconds right now (def.cycle ÷ the era's Rigs value). */
+  /** Cycle length in seconds right now (def.cycle ÷ the era's Rigs value ÷ this machine type's level, 0.9.5). */
   cycleTime(): number {
-    const key = ERAS[this.era]!.key;
-    return Math.max(0.3, this.def.cycle / Math.max(0.25, this.ctx.upgrades.value(`${key}Rigs`)));
+    return Math.max(0.3, this.def.cycle / (this.rigs() * this.levelBoost()));
+  }
+
+  /** 0.9.5: speed factor of this machine type's level (UPGRADES[def.id], bought on its level pad; ×1 at LV 1). */
+  levelBoost(): number {
+    return Math.max(1, this.ctx.upgrades.value(this.def.id));
+  }
+
+  /** World centre of this machine's level pad spot (eras/rules.ts levelPadLocal). */
+  levelPadSpot(): XZ {
+    const l = levelPadLocal(this.model.w, this.model.d);
+    return toWorld({ x: this.place.x, z: this.place.z }, this.place.yaw, l.u, l.v);
   }
 
   /** Upgrade value of the era's Rigs (for the info card). */
@@ -271,6 +284,7 @@ export class Machine implements MachineRuntime {
     this.output.dead = true;
     this.output.dispose();
     ctx.tweens.killTweensOf(this.group);
+    this.unfade?.();
     this.group.removeFromParent();
     this.sign.removeFromParent();
     const mat = this.sign.material as THREE.MeshBasicMaterial;
