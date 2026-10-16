@@ -14,6 +14,7 @@
 import { settlementLevel, townHappiness } from '../core/demand';
 import { completion, eraTimes, lifetime } from '../core/completion';
 import { QUEST_DEFS } from '../core/quests';
+import { releaseFinale } from '../core/quiet';
 import type { GameContext } from '../core/types';
 import { ERAS, ERA_NAMES, MAX_ERA } from '../eras/data';
 import { FINAL_NAME } from '../eras/gate';
@@ -68,6 +69,8 @@ export class FinaleCard {
   private readonly season: SeasonConfirm;
   private readonly slide = new Slide();
   private timer = -1;
+  /** The Winterland Complete card is (or was) up: closing it ends the ending's hush (core/quiet.ts). */
+  private hushing = false;
   private variant: FinaleVariant = 'lodge';
   private pending: FinaleVariant = 'lodge';
 
@@ -250,6 +253,7 @@ export class FinaleCard {
   /** Show immediately (tests, 'stats:open'). */
   showNow(variant?: FinaleVariant): void {
     if (variant) this.variant = variant;
+    if (this.variant === 'complete') this.hushing = true;
     this.timer = -1;
     this.primary.textContent = BUTTONS[this.variant];
     this.fill();
@@ -272,6 +276,10 @@ export class FinaleCard {
     if (s.step(dt, 0.4) || (s.k > 0 && s.k < 1)) {
       if (s.k <= 0) {
         this.backdrop.style.display = 'none';
+        if (this.hushing) {
+          this.hushing = false;
+          releaseFinale();
+        }
         return;
       }
       const e = s.open ? backOut(Math.min(1, s.k)) : s.k;

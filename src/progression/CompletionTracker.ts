@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { LAYOUT } from '../config';
 import { completion, runRecord } from '../core/completion';
+import { hushFinale, tickQuiet } from '../core/quiet';
 import { RUNS_CAP } from '../core/Save';
 import type { GameContext } from '../core/types';
 import { MAX_ERA } from '../eras/data';
@@ -22,8 +23,13 @@ import { reducedMotion } from '../fx/padJuice';
 
 const CHECK_EVERY = 0.5;
 
-/** Where the trophy stands: east of the Great Lodge's pad, between the last east plot and the Lodge (off the street). */
-export const TROPHY_SPOT = { x: 8.4, z: 26.8 } as const;
+/**
+ * Where the trophy stands: in the open corner east of the Great Lodge, south of the town corridor (no lamp, no
+ * walkway). Validator #41 note 2: it was villager-sized at the corridor mouth, partly behind a street lamp.
+ */
+export const TROPHY_SPOT = { x: 8.6, z: 29.7 } as const;
+/** About 4 m tall on a 2.2 m plinth: the ending's landmark, not a villager-sized ornament. */
+export const TROPHY_SCALE = 2.0;
 
 export class CompletionTracker {
   private acc = 0;
@@ -44,6 +50,7 @@ export class CompletionTracker {
 
   update(dt: number): void {
     this.t += dt;
+    tickQuiet(dt);
     if (this.trophy && !reducedMotion()) this.trophy.spin.rotation.y = this.t * 0.9;
     this.acc -= dt;
     if (this.acc > 0) return;
@@ -65,6 +72,7 @@ export class CompletionTracker {
     s.trophies.runs.push(runRecord(s));
     if (s.trophies.runs.length > RUNS_CAP) s.trophies.runs.splice(0, s.trophies.runs.length - RUNS_CAP);
     this.placeTrophy();
+    hushFinale();
     const g = LAYOUT.village.greatLodge;
     this.ctx.events.emit('complete:start', { position: new THREE.Vector3(g.x, 0, g.z) });
   }
@@ -76,6 +84,7 @@ export class CompletionTracker {
     if (this.trophy) this.ctx.scene.remove(this.trophy.root);
     this.trophy = createTrophyModel(n);
     this.trophy.root.position.set(TROPHY_SPOT.x, 0, TROPHY_SPOT.z);
+    this.trophy.root.scale.setScalar(TROPHY_SCALE);
     this.trophy.root.rotation.y = -Math.PI / 2; // faces the street (−X)
     this.trophyStars = n;
     this.ctx.scene.add(this.trophy.root);
