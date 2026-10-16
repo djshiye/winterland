@@ -1061,3 +1061,26 @@
     bottom: calc(max(8px, env(safe-area-inset-bottom)) + min(64vh, 560px) - 14px);
   }
 }
+
+/* Market before era 2: on show so players know it is coming, but muted with a little padlock */
+.wl-hudbtn.is-locked {
+  background: linear-gradient(#6b7590, #4f586f);
+}
+
+.wl-hudbtn.is-locked svg {
+  opacity: 0.6;
+}
+
+.wl-hudbtn.is-locked::after {
+  content: '';
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #f2b84b
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='6' y='11' width='12' height='9' rx='2' fill='%23ffffff'/%3E%3Cpath d='M8.5 11V8.5a3.5 3.5 0 0 1 7 0V11' fill='none' stroke='%23ffffff' stroke-width='2.4'/%3E%3C/svg%3E")
+    center / 12px no-repeat;
+}
