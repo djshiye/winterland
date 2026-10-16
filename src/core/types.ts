@@ -541,6 +541,11 @@ export interface GameEvents {
   'pad:shown': { id: PadId; position: THREE.Vector3 };
   'pad:paid': { id: PadId; remaining: number; cost: number; position: THREE.Vector3 };
   'pad:unlocked': { id: PadId; position: THREE.Vector3 };
+  /**
+   * A pad the player stood on finished its target (juice only: fx/JuiceDirector.ts, fx/Haptics.ts). id is the holder id
+   * ('pad:<id>'); kind 'unlock' / 'level' (UpgradePad) or 'build' (ConstructionPad). Emitted after the logic events.
+   */
+  'pad:complete': { id: string; kind: 'unlock' | 'level' | 'build'; position: THREE.Vector3 };
   /** Something new was constructed (pad effect). `object` (if given) is its root, for extra squash/pop effects. */
   built: { what: string; position: THREE.Vector3; object?: THREE.Object3D };
   'phase:changed': { phase: Phase };

@@ -8,12 +8,17 @@
  * - Pulses (rug breathes, sign bounces) while something in the shop is affordable: ctx.upgrades.canBuy over the
  *   'lumberjack' and 'crew' groups (checked twice a second).
  * - First time on the mat sets state.flags.shopVisited.
+ * - Juice (fx/PadRing.ts): while something is affordable and the player is off the mat, a warm glow breathes around
+ *   the rug; a purchase made while standing on it ('upgrade:bought') flashes the glow, squash-bounces the mat and emits
+ *   'pad:complete' (the JuiceDirector's chime and sparkle pop, a longer haptic). Bounces shrink under reduced motion.
  */
 import * as THREE from 'three';
 import { LAYOUT, PALETTE } from '../config';
 import type { GameContext } from '../core/types';
 import type { Zone } from '../items/Zones';
 import { createMatModel, createShopSign } from '../assets/pads';
+import { PadRing } from '../fx/PadRing';
+import { motionScale } from '../fx/padJuice';
 
 const SIGN_HEIGHT = 2.0;
 const CHECK_INTERVAL = 0.5;
@@ -27,6 +32,7 @@ export class ShopMat {
   private readonly zone: Zone;
   private readonly rug: THREE.Group;
   private readonly sign: THREE.Mesh;
+  private readonly ring: PadRing;
 
   constructor(readonly ctx: GameContext) {
     const r = LAYOUT.shop.mat;
@@ -34,6 +40,8 @@ export class ShopMat {
     const d = r.maxZ - r.minZ;
     this.rug = createMatModel(w, d);
     this.object.add(this.rug);
+    this.ring = new PadRing(w, d, { yaw: 0, gap: 0.1, radius: 0.22, y: 0.06 });
+    this.object.add(this.ring.mesh);
     this.sign = createShopSign();
     this.sign.position.set(0, SIGN_HEIGHT, 0);
     this.object.add(this.sign);
@@ -53,6 +61,12 @@ export class ShopMat {
         this.on = false;
         ctx.events.emit('shop:close', {});
       },
+    });
+    ctx.events.on('upgrade:bought', () => {
+      if (!this.on || !this.shown) return;
+      this.ring.flash();
+      ctx.tweens.squash(this.object, 0.12 * motionScale(), 0.42);
+      ctx.events.emit('pad:complete', { id: 'shop:mat', kind: 'level', position: this.object.position.clone() });
     });
     if (ctx.state.flags.shopRevealed) this.show(true);
   }
@@ -96,12 +110,13 @@ export class ShopMat {
     }
     const t = this.ctx.time.elapsed;
     const eager = this.affordable && !this.on;
-    const amp = eager ? 0.05 : 0.012;
+    const amp = (eager ? 0.05 : 0.012) * motionScale();
     const s = 1 + amp * Math.sin(t * (eager ? 5.5 : 2.4));
     this.rug.scale.set(s, 1, s);
+    this.ring.update(dt, t, eager);
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
     // the sign hops when there is something to buy, drifts gently otherwise
-    const hop = eager ? Math.abs(Math.sin(t * 4.2)) * 0.28 : Math.sin(t * 2) * 0.05;
+    const hop = (eager ? Math.abs(Math.sin(t * 4.2)) * 0.28 : Math.sin(t * 2) * 0.05) * motionScale();
     this.sign.position.y = SIGN_HEIGHT + hop;
     this.sign.visible = !this.on;
   }

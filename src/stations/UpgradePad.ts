@@ -21,6 +21,11 @@
  *   per flight, after TIMING.padHoldDelay of standing on the tile (walking across pays nothing).
  * - ItemHolder id 'pad:<id>': accepts 'cash' while shown and remaining − pending > 0.
  *
+ * Juice (fx/PadRing.ts, fx/padJuice.ts): a soft fill ring around the tile eases toward the paid ratio and flashes as
+ * each bundle lands (the bundles arc in with a gentle squash, the tile squashes a little), an affordable pad breathes a
+ * warm glow, completion plays a squash-and-stretch hump and emits 'pad:complete' (the JuiceDirector's sparkle pop,
+ * chime and haptics). Every bounce is scaled down under reduced motion. Visual only: drain rate and costs unchanged.
+ *
  * State is the truth (restore): the constructor reads state.padsVisible / unlocked / padPaid['pad:<id>'] and the
  * level-pad reveal flag and appears at once, silently. Live play writes padPaid on every reserve / receive (value
  * in flight included); it is reset to 0 when a target completes.
@@ -32,6 +37,8 @@ import { climbOpen } from '../eras/gate';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot, UpgradeId } from '../core/types';
 import type { Zone } from '../items/Zones';
 import { createPadModel, createPadSign, createPadTexture, formatCost, setPadSignLabel } from '../assets/pads';
+import { PadRing, playPadCelebrate } from '../fx/PadRing';
+import { PAD_CASH_FLIGHT, motionScale } from '../fx/padJuice';
 
 interface PadSlot extends Slot {
   value: number;
@@ -71,6 +78,7 @@ export class UpgradePad implements ItemHolder {
   private readonly pulse = new THREE.Group();
   private readonly model: THREE.Group;
   private readonly sign: THREE.Mesh;
+  private readonly ring: PadRing;
   private readonly tmpPos = new THREE.Vector3();
 
   constructor(
@@ -85,6 +93,8 @@ export class UpgradePad implements ItemHolder {
     this.remaining = def.cost;
     this.texture = createPadTexture(def.icon, formatCost(def.cost), 0);
     this.model = createPadModel(def.size, this.texture);
+    this.ring = new PadRing(def.size, def.size);
+    this.model.add(this.ring.mesh);
     this.pulse.add(this.model);
     this.object.add(this.pulse);
     this.sign = createPadSign(def.label);
@@ -103,6 +113,7 @@ export class UpgradePad implements ItemHolder {
       delay: TIMING.padHoldDelay,
       enabled: false,
       cashAmount: () => this.chunk(),
+      flight: PAD_CASH_FLIGHT,
     });
 
     // Restored game: appear at once, silently.
@@ -176,7 +187,7 @@ export class UpgradePad implements ItemHolder {
     this.unlock();
   }
 
-  update(_dt: number): void {
+  update(dt: number): void {
     if (!this.shown) {
       // the climb opened (Great Lodge) over a maxed level pad: it comes back for the levels past the authored max
       if (this.done && climbOpen(this.ctx.state) && this.levelReady()) this.showLevel();
@@ -186,9 +197,10 @@ export class UpgradePad implements ItemHolder {
     // debug / restore: the level changed behind our back
     if (this.mode === 'level' && this.upgradeId && this.ctx.upgrades.level(this.upgradeId) !== this.armedLevel) this.syncLevel();
     const eager = this.remaining > 0 && this.ctx.economy.money >= this.remaining;
-    const amp = eager ? 0.045 : 0.018;
+    const amp = (eager ? 0.045 : 0.018) * motionScale();
     const s = 1 + amp * Math.sin(t * (eager ? 5.5 : 3));
     this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
+    this.ring.update(dt, t, eager);
     // billboard the sign (plane faces +Z locally) and bob it a little
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
     this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.def.x) * 0.06;
@@ -221,7 +233,8 @@ export class UpgradePad implements ItemHolder {
     this.remaining = Math.max(0, this.remaining - s.value);
     this.writePaid();
     this.redraw();
-    if (this.remaining > 0) this.ctx.tweens.punchScale(this.model, 0.07, 0.14);
+    if (this.remaining > 0) this.ctx.tweens.squash(this.model, 0.07 * motionScale(), 0.24);
+    this.ring.flash();
     this.tmpPos.copy(this.object.position);
     this.ctx.events.emit('pad:paid', {
       id: this.def.id,
@@ -275,6 +288,7 @@ export class UpgradePad implements ItemHolder {
     this.remaining = Math.max(0, this.total - paid);
     setPadSignLabel(this.sign, this.label);
     this.redraw();
+    this.ring.snap(this.total > 0 ? paid / this.total : 0);
   }
 
   /** The level changed from outside (debug setUpgrade): re-arm silently, or hide at max. */
@@ -295,6 +309,7 @@ export class UpgradePad implements ItemHolder {
     const ratio = this.total > 0 ? 1 - this.remaining / this.total : 1;
     const badge = this.mode === 'level' ? `LV ${this.offeredLevel}` : undefined;
     createPadTexture(this.def.icon, formatCost(this.remaining), ratio, this.texture, badge);
+    this.ring.setProgress(ratio);
   }
 
   /** Put the pad on the floor (zone on, state written). instant: no animation / ring / sound. */
@@ -353,8 +368,10 @@ export class UpgradePad implements ItemHolder {
     this.ctx.state.padsVisible[this.def.id] = false;
     // Logic first: Level builds the station from this event.
     this.ctx.events.emit('pad:unlocked', { id: this.def.id, position: this.object.position.clone() });
-    if (wasVisible) this.playUnlockVisual();
-    else this.object.visible = false;
+    if (wasVisible) {
+      this.ctx.events.emit('pad:complete', { id: this.id, kind: 'unlock', position: this.object.position.clone() });
+      this.playUnlockVisual();
+    } else this.object.visible = false;
   }
 
   /** Level target paid: gain the level, re-arm for the next one (or hide at max). */
@@ -366,6 +383,7 @@ export class UpgradePad implements ItemHolder {
     this.zone.setEnabled(false);
     if (!id) return;
     this.ctx.upgrades.levelUp(id, this.object.position.clone());
+    this.ctx.events.emit('pad:complete', { id: this.id, kind: 'level', position: this.object.position.clone() });
     if (this.ctx.upgrades.isMax(id)) {
       this.playBounce(1.28, () => this.hide(true));
       return;
@@ -378,44 +396,24 @@ export class UpgradePad implements ItemHolder {
     });
   }
 
-  /** Scale hump on the whole pad (level purchases: smaller than the unlock bounce). */
+  /** Squash-and-stretch hump on the whole pad (level purchases: smaller than the unlock bounce). */
   private playBounce(peak: number, then?: () => void): void {
-    const o = this.object;
-    const tw = this.ctx.tweens;
-    tw.killTweensOf(o);
-    tw.run({
-      duration: 0.4,
-      onUpdate: (k) => o.scale.setScalar(1 + (peak - 1) * Math.sin(k * Math.PI) * (1 - 0.2 * k)),
-      onComplete: () => {
-        o.scale.setScalar(1);
-        then?.();
-      },
-    });
+    this.ctx.tweens.killTweensOf(this.model);
+    this.model.scale.setScalar(1);
+    playPadCelebrate(this.ctx.tweens, this.object, peak, { bounce: 0.4, onDone: then });
   }
 
-  /** Big scale-bounce (1 → 1.45 → 1), then pop out to nothing. Pure visuals. */
+  /** Big squash-and-stretch bounce (1 → 1.45 → 1), then pop out to nothing. Pure visuals. */
   private playUnlockVisual(): void {
     const o = this.object;
     const tw = this.ctx.tweens;
-    tw.killTweensOf(o);
     tw.killTweensOf(this.model);
     this.model.scale.setScalar(1);
     this.pulse.scale.setScalar(1);
-    tw.run({
-      duration: BOUNCE_TIME + POP_OUT_TIME,
-      onUpdate: (k) => {
-        const t = k * (BOUNCE_TIME + POP_OUT_TIME);
-        let s: number;
-        if (t < BOUNCE_TIME) {
-          const u = t / BOUNCE_TIME;
-          s = 1 + 0.45 * Math.sin(u * Math.PI) * (1 - 0.2 * u);
-        } else {
-          const u = (t - BOUNCE_TIME) / POP_OUT_TIME;
-          s = Math.max(0.0001, 1 - Ease.quadIn(u));
-        }
-        o.scale.set(s, s * (t < BOUNCE_TIME ? 1 : 1 + 0.3 * (1 - s)), s);
-      },
-      onComplete: () => {
+    playPadCelebrate(tw, o, 1.45, {
+      bounce: BOUNCE_TIME,
+      popOut: POP_OUT_TIME,
+      onDone: () => {
         o.visible = false;
         o.scale.setScalar(1);
         // Debug / restored flag: the level pad may already be due.
