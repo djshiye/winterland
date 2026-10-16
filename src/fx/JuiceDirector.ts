@@ -241,9 +241,11 @@ export class JuiceDirector {
       if (crewHire) return; // 'helper:hired' says HIRED! when the new worker walks out
       // one numbering everywhere (the pads, the shop, the era checklist): the shown level
       ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 2.6), `LV ${ctx.upgrades.shownLevel(e.id)}!`, { color: '#ffd84a', size: 32, duration: 1.2, rise: 1.6 });
-      // the era cap: nothing goes higher until the next era's expansion is bought
+      // 0.9.5: Lv 10 is the top of every upgrade (or the era cap in 'offset' mode)
       if (ctx.upgrades.atEraCap(e.id)) {
         ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 3.5), 'Max for this era', { color: '#bfe6ff', size: 22, duration: 2.2, rise: 1.2 });
+      } else if (ctx.upgrades.isMax(e.id)) {
+        ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 3.5), 'Max level!', { color: '#bfe6ff', size: 22, duration: 2.2, rise: 1.2 });
       }
     });
 

@@ -51,6 +51,8 @@ function curveOf(def: UpgradeDef): Curve {
       return interval(RATE_FLOOR[def.id] ?? 0.25 * def.values[0]!);
     case 'crew':
       return linear(0.2, 8);
+    case 'belt':
+      return linear(0.1, 4);
     case 'mult':
       return linear(0.1, null);
     case 'boost':
@@ -90,25 +92,37 @@ export function maxStored(def: UpgradeDef, climb: boolean, mode: 'offset' | 'lit
   return climb ? LEVEL_CAP - base(def, mode) : authoredMax(def);
 }
 
-/** Highest shown level for sale while `age` is the highest era reached: the next gate's need, 10 · age (100 in era 10). */
-export function eraCapShown(age: number): number {
+/**
+ * Highest shown level for sale. 'offset' mode: the next gate's need, 10 · age (100 in era 10). 'literal' mode (0.9.5,
+ * Dino): Lv 10 for every upgrade of every era, for good: each era's own upgrades go 1 → 10 and earlier eras stay at 10.
+ */
+export function eraCapShown(age: number, mode: 'offset' | 'literal' = GATE.mode): number {
+  if (mode === 'literal') return CLIMB.bandSize;
   return Math.min(LEVEL_CAP, CLIMB.bandSize * Math.max(1, Math.floor(age)));
 }
 
 /**
  * Highest stored level for sale now (Upgrades.maxLevel). Every upgrade, machines and crews alike, stops at the era cap
- * (shown 10 · age) until the next era's expansion is bought: era 1 caps at shown level 10, era 2 at 20, and so on.
- * Levels already owned above it (older saves) are kept; the cap only stops new purchases.
+ * (eraCapShown). Levels already owned above it (older saves) are kept; the cap only stops new purchases.
  */
 export function capStored(def: UpgradeDef, climb: boolean, age: number, mode: 'offset' | 'literal' = GATE.mode): number {
   // before the climb the authored tables (all below shown 10 in era 1) are the limit, as in 0.8.0
   if (!climb) return authoredMax(def);
-  return Math.max(0, Math.min(maxStored(def, true, mode), eraCapShown(age) - base(def, mode)));
+  return Math.max(0, Math.min(maxStored(def, true, mode), eraCapShown(age, mode) - base(def, mode)));
 }
 
-/** At the era cap but not at the final level: the next era's expansion lifts it. */
+/** At the era cap but not at the final level: the next era's expansion lifts it ('offset' mode only; 10 is final in 'literal'). */
 export function atEraCap(def: UpgradeDef, stored: number, age: number, mode: 'offset' | 'literal' = GATE.mode): boolean {
-  return stored >= eraCapShown(age) - base(def, mode) && stored < maxStored(def, true, mode);
+  if (mode === 'literal') return false;
+  return stored >= eraCapShown(age, mode) - base(def, mode) && stored < maxStored(def, true, mode);
+}
+
+/**
+ * Price offset of an id: the band its era's prices start in (10 · (introEra − 1)), whatever the display mode, so an
+ * era's upgrades cost what that era earns (Dino, 0.9.5: "the economy needs to scale").
+ */
+export function priceBase(def: UpgradeDef): number {
+  return CLIMB.bandSize * (introEra(def) - 1);
 }
 
 /** Uncapped curve value at stored level s > m (float noise trimmed so describe() never prints 3.4000000000000004). */
@@ -153,7 +167,7 @@ export function hardCapStored(def: UpgradeDef): number | null {
 function bandPrice(def: UpgradeDef, A: number): number {
   const b = Math.floor(A / CLIMB.bandSize) + 1;
   const j = A % CLIMB.bandSize;
-  return CLIMB.weights[def.group] * CLIMB.unit * CLIMB.bandGrowth ** (b - 2) * (CLIMB.bandTilt[b] ?? 1) * CLIMB.stepGrowth ** j;
+  return CLIMB.weights[def.group] * CLIMB.unit * CLIMB.bandGrowth ** (b - 2) * (CLIMB.bandTilt[Math.min(b, CLIMB.bandTilt.length - 1)] ?? 1) * CLIMB.stepGrowth ** j;
 }
 
 /**
@@ -162,7 +176,7 @@ function bandPrice(def: UpgradeDef, A: number): number {
  * Ids from era 2 on price every step on the band curve. Always a multiple of 5, strictly rising.
  */
 export function costAt(def: UpgradeDef, s: number): number {
-  if (introEra(def) >= 2) return price3(bandPrice(def, base(def) + s));
+  if (introEra(def) >= 2) return price3(bandPrice(def, priceBase(def) + s));
   return legacyCost(def, s);
 }
 
