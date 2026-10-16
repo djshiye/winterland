@@ -462,6 +462,7 @@ export function createGameState(): GameState {
       taxOffice: 0,
       broker: 0,
       ...eraUpgradeLevels(),
+      ...eraPlayerLevels(),
     },
     village: {
       revealed: false,
@@ -503,9 +504,16 @@ export function createGameState(): GameState {
 }
 
 /** Machine slots per region, index = era (must match eras/data.ts REGIONS[n].slots; tests/eras.test.ts checks). */
-export const REGION_SLOTS: readonly number[] = [0, 0, 4, 4, 5, 5, 6, 6, 7, 7, 8];
+export const REGION_SLOTS: readonly number[] = [0, 0, 6, 6, 6, 6, 6, 6, 7, 7, 8];
 /** Lots per city district, index = era (must match eras/data.ts DISTRICTS[n].lots). */
 export const DISTRICT_LOTS: readonly number[] = [0, 0, 6, 6, 6, 8, 8, 8, 9, 9, 12];
+
+/** 0.9.5: level 0 for every era player upgrade (`${key}Carry` / `Boots` / `Tool` / `Pal`, eras/playerUpgrades.ts). */
+function eraPlayerLevels(): Record<`${(typeof ERA_KEYS)[number]}${'Carry' | 'Boots' | 'Tool' | 'Pal'}`, number> {
+  const out = {} as Record<`${(typeof ERA_KEYS)[number]}${'Carry' | 'Boots' | 'Tool' | 'Pal'}`, number>;
+  for (const k of ERA_KEYS) for (const p of ['Carry', 'Boots', 'Tool', 'Pal'] as const) out[`${k}${p}`] = 0;
+  return out;
+}
 
 /** Era crew role suffixes (config ERA_ROLES; kept here as data so this file needs no runtime config import). */
 const ERA_ROLE_SUFFIX = ['Feeder', 'Shipper', 'Porter', 'Gatherer', 'Foreman', 'Clerk'] as const;
@@ -544,7 +552,8 @@ export interface GameEvents {
   /** A carried stack refused an item because it is full (fire at most ~2×/s per holder). */
   'stack:full': { holder: ItemHolder; position: THREE.Vector3 };
   /** Player's axe connected (emitted by Player at the impact frame of each swing). */
-  'player:chopHit': { position: THREE.Vector3 };
+  /** `node`: the era whose hand node was struck (0.9.5, eras/HandNode.ts); absent = the giant log. */
+  'player:chopHit': { position: THREE.Vector3; node?: number };
   /** A raw log piece was produced from the giant log. */
   'log:chopped': { position: THREE.Vector3; source: LogSource };
   /** A crate came out of the processor. */

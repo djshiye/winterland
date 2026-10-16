@@ -69,7 +69,9 @@ export type SfxName =
   | 'bellToll'
   | 'tick'
   | 'padDone'
-  | 'ding';
+  | 'ding'
+  // 0.9.5: a tool striking an era hand node (eras/HandNode.ts)
+  | 'strike';
 
 export interface PlayOptions {
   /** Playback-rate / frequency multiplier (1 = normal). */
@@ -126,6 +128,7 @@ const MIN_GAP: Record<SfxName, number> = {
   tick: 0.055,
   padDone: 0.3,
   ding: 0.12,
+  strike: 0.08,
 };
 
 /** Per-sound cap on overlapping voices, with each sound's length in seconds (sounds not listed: global cap only). */
@@ -555,6 +558,14 @@ export class AudioFX {
         this.tone(t + 0.04, 'sawtooth', 410 * p, 640 * p, 0.4, 0.06 * v, 0.05, 1500);
         this.tone(t + 0.1, 'triangle', 880 * p, 1320 * p, 0.3, 0.1 * v, 0.02);
         this.tone(t + 0.2, 'triangle', 1320 * p, 1760 * p, 0.3, 0.1 * v, 0.02);
+        break;
+      case 'strike':
+        // a hand tool biting an era node: a soft muffled thud under a small rounded "tink" and a pinch of grit
+        // (gentle on purpose: it repeats every swing)
+        this.tone(t, 'sine', 150 * p, 60 * p, 0.14, 0.38 * v, 0.002);
+        this.tone(t, 'triangle', 1180 * p, 1040 * p, 0.12, 0.07 * v, 0.002);
+        this.tone(t + 0.01, 'sine', 1770 * p, 1700 * p, 0.18, 0.04 * v, 0.003);
+        this.hiss(t, 'bandpass', 1900 * p, 900 * p, 0.05, 0.12 * v, 0.001, 1.3);
         break;
       case 'thunk':
         // light wooden knock

@@ -15,6 +15,7 @@
 
 import type { ItemKind } from './core/types';
 import { ERA_KEYS, ERA_NAMES, MATERIALS, MATERIAL_KINDS, ERA_SCALE, ERAS, MACHINES, MACHINE_IDS, type EraKey, type MachineId, type MaterialKind } from './eras/data';
+import { eraPlayerUpgrades, type EraPlayerUpgradeId } from './eras/playerUpgrades';
 
 export interface Rect {
   minX: number;
@@ -840,6 +841,8 @@ export type UpgradeIdConst =
   | 'taxOffice'
   | 'broker'
   | `${EraKey}${'Rigs' | 'Crew' | 'Trade'}`
+  // 0.9.5: the player's era upgrades (eras/playerUpgrades.ts)
+  | EraPlayerUpgradeId
   // 0.9.5: the rest of each era's crew (six roles beside the Crew hauler), its conveyor belts and one level per machine
   | `${EraKey}${EraRoleKey}`
   | `${EraKey}Belts`
@@ -948,6 +951,7 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
   // 0.9.0: Jack, finance and the era upgrades (shop tabs Finance / Industry)
   ...financeUpgrades(),
   ...eraUpgrades(),
+  ...eraPlayerUpgrades(),
   carry: {
     id: 'carry',
     group: 'lumberjack',
@@ -1275,7 +1279,7 @@ export const CLIMB = {
    * steps up hard; later bands ease off as each older region's Rigs, Trade and Renown compound less. Solved with the
    * pacing model (bisection per era, 0.9.5).
    */
-  bandTilt: [1, 1, 1.96, 4.73, 5.08, 4.2, 3.77, 3.73, 3.08, 2.8, 2.15] as readonly number[],
+  bandTilt: [1, 1, 1.93, 5.21, 5.05, 3.93, 2.97, 2.82, 3.08, 2.66, 1.97] as readonly number[],
   legacyStep: 1.05,
   weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
   masteryScale: 0.12,
