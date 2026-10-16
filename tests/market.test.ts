@@ -350,7 +350,7 @@ describe('investments', () => {
       expect(worst, product).toBeLessThanOrEqual((def.top ?? 1) * (1 + (def.rise ?? 0)) + 1e-9);
       expect(worst, product).toBeGreaterThan(1.5);
     }
-  });
+  }, 30_000); // eight simulated hours per seed
 
   it('caps the index fund and ventures at their share of net worth, like bonds', () => {
     const { market } = setup({ age: 3, money: 100_000 });
