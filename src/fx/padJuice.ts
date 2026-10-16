@@ -87,15 +87,18 @@ export function admitVoice(ends: number[], now: number, max: number, len: number
 
 let reducedCache: boolean | null = null;
 let override: boolean | null = null;
+let listening = false; // the change listener is registered once, however often the cache is reset
 
 function queryReduced(): boolean {
   try {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const sync = (): void => {
-      reducedCache = mq.matches;
-    };
-    if (typeof mq.addEventListener === 'function') mq.addEventListener('change', sync);
+    if (!listening && typeof mq.addEventListener === 'function') {
+      listening = true;
+      mq.addEventListener('change', () => {
+        reducedCache = mq.matches;
+      });
+    }
     return mq.matches;
   } catch {
     return false;
