@@ -12,8 +12,9 @@
  *   'pivot' (crane boom, flywheel, pumpjack beam, plasma ring, robot arm, smoke puff). `animate(dt, working)` runs the
  *   pivot at full speed while working and at a slow idle crawl otherwise. No allocation per frame.
  * - Depot / dock are plain Groups of ≤ 2 meshes (body + glow sign), ~3 × 2.4 m, static.
- * - Eras read distinct: timber + stone (2), rust iron (3), brick + brass (4), grey steel + orange (5), teal + copper (6),
- *   black + safety yellow (7), white + cyan (8), concrete + hazard green (9), navy + white + neon violet (10).
+ * - Eras read distinct: timber + stone (2), rust iron (3), brick + brass (4), grey steel + orange (5), enamel teal +
+ *   copper (6), honey yellow + crimson pipes (7), retro beige + sea teal + mint glow (8), porcelain + jade + sea-foam
+ *   glow (9), cream + pewter slate + sun-gold (10). Eras 6–10 follow the palette table of docs/art/guide.md (ARGON).
  */
 import * as THREE from 'three';
 import type { MachineId } from '../eras/data';
@@ -55,26 +56,32 @@ const CONCRETE = 0xb5b8bb;
 const CONCRETE_D = 0x8d9195;
 const ORANGE = 0xd0702a;
 const COPPER = 0xc9773a;
-const TEAL = 0x2e4a5a;
-const TEAL_L = 0x4f7a8c;
-const BLACK = 0x272a30;
-const YELLOW = 0xe0b03a;
-const SILVER = 0xc2c8ce;
-const WHITE = 0xeef2f6;
-const BLUE = 0x3aa0d8;
+// eras 6–10: Machine body / Accent / Trim / Glow of docs/art/guide.md (eras/data.ts colors)
+const TEAL = 0x4c6b68;
+const TEAL_L = 0x6f918c;
+const TEAL_D = 0x2b3b39;
+const BLACK = 0x36383a;
+const YELLOW = 0xd99b26;
+const CRIMSON = 0xc44536;
+const SILVER = 0xc9c6bf;
+const BEIGE = 0xe6dec8;
+const SEA = 0x45858c;
+const PEWTER = 0x4a5259;
 const SAND = 0xe2d3a0;
-const GREEN = 0x7bd04a;
-const GREEN_D = 0x2d3b2a;
-const NAVY = 0x1f2240;
-const VIOLET = 0x9b6cff;
+const PORCELAIN = 0xdce3e6;
+const JADE = 0x4ea885;
+const SLATE_D = 0x3d5259;
+const CREAM = 0xf5f0e6;
+const SLATE = 0x526475;
+const GOLD = 0xe8a848;
 const SMOKE = 0xdfe3e8;
 
 // glow tints (multiplied into the shared emissive material by vertex colour)
 const G_WARM = 0xffd070;
 const G_FIRE = 0xff8a30;
-const G_CYAN = 0x7fe0ff;
-const G_GREEN = 0x9dff6a;
-const G_VIOLET = 0xb48cff;
+const G_MINT = 0x66e0a3;
+const G_FOAM = 0x70f5d9;
+const G_SUN = 0xffe082;
 
 const colors = (n: number) => ERAS[n]!.colors;
 
@@ -457,7 +464,7 @@ const steelMill: Recipe = ({ body: b, glow: g, pivot: p }) => {
 };
 
 // ---------------------------------------------------------------------------
-// era 6 — Electric: teal, copper, pylons
+// era 6 — Electric: enamel teal, copper windings, pylons
 // ---------------------------------------------------------------------------
 
 /** copperMine: electric hoist tower with pylons. */
@@ -465,7 +472,7 @@ const copperMine: Recipe = ({ body: b, glow: g, pivot: p }) => {
   pad(b, 5.0, 4.8, 0x9ea39c);
   b.box(TEAL, 1.7, 3.4, 1.7, -0.7, 0.1, -0.7);
   for (const y of [0.9, 1.9, 2.7]) b.box(TEAL_L, 1.8, 0.1, 1.8, -0.7, y, -0.7);
-  flatRoof(b, 0x25394a, 1.7, 1.7, -0.7, 3.5, -0.7);
+  flatRoof(b, TEAL_D, 1.7, 1.7, -0.7, 3.5, -0.7);
   for (const [x, y] of [[-1.1, 1.3], [-0.3, 1.3], [-1.1, 2.2], [-0.3, 2.2]] as const) b.window(g, G_WARM, TEAL_L, x, y, 0.17, 0.4, 0.45, 0);
   b.box(COPPER, 0.5, 0.9, 0.06, -0.7, 0.1, 0.17);
   // hoist frame + wheel on top
@@ -532,7 +539,7 @@ const wireMill: Recipe = ({ body: b, glow: g, pivot: p }) => {
 };
 
 // ---------------------------------------------------------------------------
-// era 7 — Oil Age: black, safety yellow, silver
+// era 7 — Oil Age: honey yellow, crimson pipes, warm silver
 // ---------------------------------------------------------------------------
 
 /** oilPump: pumpjack with a walking beam. */
@@ -559,12 +566,12 @@ const oilPump: Recipe = ({ body: b, glow: g, pivot: p }) => {
   b.cyl(SILVER, 0.75, 1.3, -1.8, 0.1, -1.3, 14);
   b.cone(0x9aa0a8, 0.8, 0.4, -1.8, 1.4, -1.3, 14);
   b.cone(SNOW, 0.7, 0.2, -1.8, 1.65, -1.3, 14);
-  b.cyl(YELLOW, 0.77, 0.14, -1.8, 0.7, -1.3, 14);
+  b.cyl(CRIMSON, 0.77, 0.14, -1.8, 0.7, -1.3, 14);
   b.box(CONCRETE, 1.0, 1.0, 0.9, 1.9, 0.1, -1.4);
   flatRoof(b, BLACK, 1.0, 0.9, 1.9, 1.1, -1.4);
   g.box(G_WARM, 0.4, 0.4, 0.05, 1.9, 0.5, -0.93);
-  b.beam(YELLOW, [-1.2, 0.3, -1.1], [-0.1, 0.5, 1.5], 0.1);
-  b.beam(YELLOW, [1.9, 0.3, -0.9], [0.1, 0.5, 1.6], 0.1);
+  b.beam(CRIMSON, [-1.2, 0.3, -1.1], [-0.1, 0.5, 1.5], 0.1);
+  b.beam(CRIMSON, [1.9, 0.3, -0.9], [0.1, 0.5, 1.6], 0.1);
   // walking beam with horsehead, counterweight, bridle
   p.box(YELLOW, 0.34, 0.34, 3.3, 0, -0.17, 0);
   p.box(BLACK, 0.4, 0.2, 0.4, 0, 0.16, 0);
@@ -588,12 +595,12 @@ const refinery: Recipe = ({ body: b, glow: g, pivot: p }) => {
     b.box(YELLOW, 0.06, h - 0.4, 0.06, x + r * 0.7, 0.3, -1.2 + r * 0.7);
   }
   // pipe rack
-  for (const y of [1.0, 1.8, 2.6]) b.beam(YELLOW, [-1.6, y, -0.5], [0.75, y, -0.5], 0.1);
+  for (const y of [1.0, 1.8, 2.6]) b.beam(CRIMSON, [-1.6, y, -0.5], [0.75, y, -0.5], 0.1);
   b.beam(BLACK, [-1.6, 0.1, -0.5], [-1.6, 3.0, -0.5], 0.1);
   b.beam(BLACK, [0.75, 0.1, -0.5], [0.75, 3.0, -0.5], 0.1);
   // spherical tank on legs
   b.sph(SILVER, 0.85, 1.7, 1.4, 0.5);
-  b.cyl(YELLOW, 0.86, 0.12, 1.7, 1.38, 0.5, 14);
+  b.cyl(CRIMSON, 0.86, 0.12, 1.7, 1.38, 0.5, 14);
   b.sph(SNOW, 0.5, 1.7, 2.1, 0.5, { sy: 0.35 });
   for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) b.beam(STEEL_D, [1.7 + sx * 0.55, 0.1, 0.5 + sz * 0.55], [1.7 + sx * 0.4, 1.0, 0.5 + sz * 0.4], 0.1);
   // flare stack with a flame
@@ -601,7 +608,7 @@ const refinery: Recipe = ({ body: b, glow: g, pivot: p }) => {
   b.cyl(BLACK, 0.16, 0.2, -2.1, 4.3, 1.6, 8);
   g.cone(G_FIRE, 0.2, 0.55, -2.1, 4.5, 1.6, 8);
   g.cone(G_WARM, 0.11, 0.4, -2.1, 4.5, 1.6, 6);
-  b.beam(YELLOW, [-2.1, 1.0, 1.6], [-1.6, 1.0, -0.5], 0.08);
+  b.beam(CRIMSON, [-2.1, 1.0, 1.6], [-1.6, 1.0, -0.5], 0.08);
   // air cooler with a fan
   for (const [x, z] of [[-0.5, 0.7], [0.9, 0.7], [-0.5, 1.5], [0.9, 1.5]] as const) b.beam(STEEL_D, [x, 0.1, z], [x, 0.9, z], 0.1);
   b.box(BLACK, 1.8, 0.45, 1.1, 0.2, 0.9, 1.1);
@@ -612,12 +619,12 @@ const refinery: Recipe = ({ body: b, glow: g, pivot: p }) => {
 };
 
 // ---------------------------------------------------------------------------
-// era 8 — Computer Age: white, light blue, glass
+// era 8 — Computer Age: retro beige, sea teal, mint glow
 // ---------------------------------------------------------------------------
 
 /** sandPit: bucket-wheel dredge + crystal grower. */
 const sandPit: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  pad(b, 5.0, 4.8, 0xd5d9de);
+  pad(b, 5.0, 4.8, 0xd6d2c6);
   // sand terraces and basin
   b.box(SAND, 3.4, 0.5, 1.2, -0.5, 0.1, -1.8);
   b.box(0xd4c48f, 2.6, 0.3, 1.1, -0.5, 0.1, -0.9);
@@ -626,29 +633,29 @@ const sandPit: Recipe = ({ body: b, glow: g, pivot: p }) => {
   lumps(b, SAND, 1.0, 0.7, 0.6, 5, 41, 0.22);
   // dredger body on tracks + boom
   b.box(STEEL_L, 1.6, 0.3, 1.2, 0.7, 0.1, -0.2);
-  b.box(WHITE, 1.4, 1.0, 1.1, 0.7, 0.4, -0.2);
-  b.box(BLUE, 1.45, 0.16, 1.15, 0.7, 0.9, -0.2);
-  flatRoof(b, WHITE, 1.4, 1.1, 0.7, 1.4, -0.2);
-  g.box(G_CYAN, 0.6, 0.4, 0.05, 0.7, 0.6, 0.4);
+  b.box(BEIGE, 1.4, 1.0, 1.1, 0.7, 0.4, -0.2);
+  b.box(SEA, 1.45, 0.16, 1.15, 0.7, 0.9, -0.2);
+  flatRoof(b, BEIGE, 1.4, 1.1, 0.7, 1.4, -0.2);
+  g.box(G_MINT, 0.6, 0.4, 0.05, 0.7, 0.6, 0.4);
   b.beam(STEEL_L, [0.2, 1.1, -0.2], [-1.25, 1.15, 0.55], 0.14);
   b.beam(STEEL_L, [0.2, 1.3, -0.2], [-1.25, 1.35, 0.55], 0.06);
   // conveyor to the silo
-  b.beam(0x4a5560, [1.3, 1.2, -0.8], [1.85, 2.9, -1.7], 0.2);
-  b.cyl(WHITE, 0.62, 3.0, 1.85, 0.1, -1.8, 14);
-  b.cyl(BLUE, 0.64, 0.25, 1.85, 1.2, -1.8, 14);
+  b.beam(PEWTER, [1.3, 1.2, -0.8], [1.85, 2.9, -1.7], 0.2);
+  b.cyl(BEIGE, 0.62, 3.0, 1.85, 0.1, -1.8, 14);
+  b.cyl(SEA, 0.64, 0.25, 1.85, 1.2, -1.8, 14);
   b.dome(STEEL_L, 0.62, 1.85, 3.1, -1.8);
   b.sph(SNOW, 0.4, 1.85, 3.65, -1.8, { sy: 0.35 });
   // crystal grower
   b.cyl(STEEL_L, 0.5, 0.4, 1.7, 0.1, 1.2, 12);
-  b.cyl(BLUE, 0.52, 0.08, 1.7, 0.5, 1.2, 12);
-  g.cone(0xcdeeff, 0.22, 0.7, 1.7, 0.6, 1.2, 6);
-  g.cone(G_CYAN, 0.14, 0.55, 1.7, 0.45, 1.2, 6, { rx: Math.PI });
-  b.dome(0xcfe8f2, 0.5, 1.7, 0.5, 1.2);
+  b.cyl(SEA, 0.52, 0.08, 1.7, 0.5, 1.2, 12);
+  g.cone(0xd4f5e4, 0.22, 0.7, 1.7, 0.6, 1.2, 6);
+  g.cone(G_MINT, 0.14, 0.55, 1.7, 0.45, 1.2, 6, { rx: Math.PI });
+  b.dome(0xd8ece6, 0.5, 1.7, 0.5, 1.2);
   // bucket wheel
   p.torus(STEEL_L, 0.82, 0.09, 0, 0, 0, undefined, 16);
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    p.box(BLUE, 0.3, 0.24, 0.34, Math.cos(a) * 0.86 - 0.15, Math.sin(a) * 0.86 - 0.12, 0, { rz: a });
+    p.box(SEA, 0.3, 0.24, 0.34, Math.cos(a) * 0.86 - 0.15, Math.sin(a) * 0.86 - 0.12, 0, { rz: a });
     p.beam(STEEL_L, [0, 0, 0], [Math.cos(a) * 0.8, Math.sin(a) * 0.8, 0], 0.06);
   }
   p.cyl(STEEL_D, 0.14, 0.3, 0, -0.15, 0, 8, 0.14, { rx: Math.PI / 2 });
@@ -657,20 +664,20 @@ const sandPit: Recipe = ({ body: b, glow: g, pivot: p }) => {
 
 /** chipFab: white clean-room block with air vents. */
 const chipFab: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  pad(b, 5.0, 4.6, 0xd5d9de);
-  b.box(WHITE, 4.4, 2.5, 3.0, 0, 0.1, -0.4);
-  b.box(BLUE, 4.46, 0.3, 3.06, 0, 0.9, -0.4);
+  pad(b, 5.0, 4.6, 0xd6d2c6);
+  b.box(BEIGE, 4.4, 2.5, 3.0, 0, 0.1, -0.4);
+  b.box(SEA, 4.46, 0.3, 3.06, 0, 0.9, -0.4);
   for (const x of [-1.5, -0.5, 0.5, 1.5]) {
     b.box(STEEL_L, 0.76, 0.6, 0.06, x, 1.45, 1.1);
-    g.box(G_CYAN, 0.66, 0.5, 0.05, x, 1.5, 1.14);
+    g.box(G_MINT, 0.66, 0.5, 0.05, x, 1.5, 1.14);
   }
-  b.box(0xdfe6ec, 4.5, 0.16, 3.1, 0, 2.6, -0.4);
+  b.box(0xeee8d8, 4.5, 0.16, 3.1, 0, 2.6, -0.4);
   b.snow(0, 2.76, -0.4, 4.3, 2.9, 0.1);
   // airlock porch
   b.box(STEEL_L, 1.2, 1.7, 0.6, -1.6, 0.1, 1.4);
-  b.box(BLUE, 1.25, 0.12, 0.65, -1.6, 1.8, 1.4);
+  b.box(SEA, 1.25, 0.12, 0.65, -1.6, 1.8, 1.4);
   b.snow(-1.6, 1.92, 1.4, 1.3, 0.7, 0.08);
-  g.box(G_CYAN, 0.8, 1.2, 0.05, -1.6, 0.2, 1.72);
+  g.box(G_MINT, 0.8, 1.2, 0.05, -1.6, 0.2, 1.72);
   // rooftop vents and exhaust stacks
   for (const [x, z] of [[-1.4, -1.2], [-0.4, -1.2], [-1.4, 0.0]] as const) {
     b.box(STEEL_L, 0.7, 0.5, 0.7, x, 2.86, z);
@@ -678,32 +685,32 @@ const chipFab: Recipe = ({ body: b, glow: g, pivot: p }) => {
     for (let i = 0; i < 3; i++) b.box(STEEL_D, 0.66, 0.04, 0.04, x, 2.95 + i * 0.12, z + 0.35);
   }
   b.cyl(STEEL_L, 0.2, 1.0, 1.7, 2.86, -1.5, 10);
-  b.cyl(BLUE, 0.22, 0.1, 1.7, 3.5, -1.5, 10);
+  b.cyl(SEA, 0.22, 0.1, 1.7, 3.5, -1.5, 10);
   // side pipes
   b.beam(STEEL, [2.25, 0.5, -1.6], [2.25, 0.5, 0.6], 0.14);
   b.beam(STEEL, [2.25, 0.5, 0.6], [2.25, 2.4, 0.6], 0.14);
   // exhaust fan inside a shroud
   b.cyl(STEEL_L, 0.62, 0.3, 0.9, 2.86, -0.3, 14);
-  b.cyl(BLUE, 0.64, 0.08, 0.9, 3.16, -0.3, 14);
-  rotor(p, BLUE, STEEL_D, 0, 0, 0, 0.52, 4);
+  b.cyl(SEA, 0.64, 0.08, 0.9, 3.16, -0.3, 14);
+  rotor(p, SEA, STEEL_D, 0, 0, 0, 0.52, 4);
   return { at: [0.9, 3.12, -0.3], axis: 'y', mode: 'spin', speed: 1.1 };
 };
 
 // ---------------------------------------------------------------------------
-// era 9 — Nuclear Power: concrete, hazard green
+// era 9 — Nuclear Power: porcelain, concrete, jade, sea-foam glow
 // ---------------------------------------------------------------------------
 
 /** uraniumMine: shielded headframe, hazard stripes. */
 const uraniumMine: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  pad(b, 5.0, 4.8, 0xb9c1b3);
+  pad(b, 5.0, 4.8, 0xbcc6cc);
   b.box(CONCRETE, 1.9, 3.0, 1.9, -0.3, 0.1, -0.5);
   b.box(CONCRETE_D, 2.1, 0.3, 2.1, -0.3, 3.1, -0.5);
   b.snow(-0.3, 3.4, -0.5, 2.0, 2.0, 0.1);
   hazard(b, -0.3, 0.1, 0.46, 1.9, 0.3);
   hazard(b, -0.3, 2.7, 0.46, 1.9, 0.3);
-  b.window(g, G_GREEN, CONCRETE_D, -0.9, 1.4, 0.45, 0.4, 0.5, 0);
-  b.window(g, G_GREEN, CONCRETE_D, 0.3, 1.4, 0.45, 0.4, 0.5, 0);
-  b.box(GREEN_D, 0.7, 1.0, 0.1, -0.3, 0.4, 0.5);
+  b.window(g, G_FOAM, CONCRETE_D, -0.9, 1.4, 0.45, 0.4, 0.5, 0);
+  b.window(g, G_FOAM, CONCRETE_D, 0.3, 1.4, 0.45, 0.4, 0.5, 0);
+  b.box(SLATE_D, 0.7, 1.0, 0.1, -0.3, 0.4, 0.5);
   // hoist frame and wheel
   for (const z of [-1.0, 0.0]) {
     b.beam(YELLOW, [-0.9, 3.4, z], [-0.3, 4.4, z], 0.14);
@@ -715,7 +722,7 @@ const uraniumMine: Recipe = ({ body: b, glow: g, pivot: p }) => {
   b.box(CONCRETE_D, 1.2, 0.2, 1.0, 1.8, 0.1, 0.9);
   for (const [x, z] of [[1.5, 0.7], [1.9, 0.9], [1.6, 1.15]] as const) {
     b.cyl(0x56606a, 0.24, 0.62, x, 0.3, z, 10);
-    g.cyl(G_GREEN, 0.18, 0.05, x, 0.92, z, 8);
+    g.cyl(G_FOAM, 0.18, 0.05, x, 0.92, z, 8);
     b.cyl(YELLOW, 0.25, 0.1, x, 0.5, z, 10);
   }
   b.cyl(CONCRETE_D, 0.3, 0.8, 1.9, 0.1, -1.4, 10);
@@ -724,26 +731,26 @@ const uraniumMine: Recipe = ({ body: b, glow: g, pivot: p }) => {
   b.snow(-1.45, 1.0, 1.5, 1.9, 0.3, 0.08);
   hazard(b, -1.45, 0.5, 1.7, 1.6, 0.2);
   b.beam(STEEL_D, [2.1, 0.1, -0.3], [2.1, 3.2, -0.3], 0.1);
-  g.sph(G_GREEN, 0.14, 2.1, 3.3, -0.3);
+  g.sph(G_FOAM, 0.14, 2.1, 3.3, -0.3);
   rails(b, STEEL_D, 0.9, -1.8, 0.2);
   return { at: [-0.3, 4.55, -0.5], axis: 'x', mode: 'spin', speed: 0.5 };
 };
 
 /** enricher: centrifuge cascade hall. */
 const enricher: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  pad(b, 5.0, 4.8, 0xb9c1b3);
+  pad(b, 5.0, 4.8, 0xbcc6cc);
   b.box(CONCRETE, 4.4, 2.0, 1.9, 0, 0.1, -1.3);
   b.box(CONCRETE_D, 4.5, 0.2, 2.0, 0, 2.1, -1.3);
   b.snow(0, 2.3, -1.3, 4.3, 1.9, 0.1);
   hazard(b, 0, 0.1, -0.33, 4.4, 0.26);
-  g.box(G_GREEN, 3.8, 0.55, 0.05, 0, 1.0, -0.32);
-  b.box(GREEN_D, 3.95, 0.14, 0.07, 0, 0.9, -0.33);
-  b.box(GREEN_D, 3.95, 0.14, 0.07, 0, 1.58, -0.33);
+  g.box(G_FOAM, 3.8, 0.55, 0.05, 0, 1.0, -0.32);
+  b.box(SLATE_D, 3.95, 0.14, 0.07, 0, 0.9, -0.33);
+  b.box(SLATE_D, 3.95, 0.14, 0.07, 0, 1.58, -0.33);
   // the cascade of centrifuges
   for (let i = 0; i < 6; i++) {
     const x = -1.9 + i * 0.76;
-    b.cyl(WHITE, 0.24, 1.7, x, 0.1, 0.9, 10);
-    b.cyl(GREEN, 0.26, 0.18, x, 0.5, 0.9, 10);
+    b.cyl(PORCELAIN, 0.24, 1.7, x, 0.1, 0.9, 10);
+    b.cyl(JADE, 0.26, 0.18, x, 0.5, 0.9, 10);
     b.cyl(STEEL_D, 0.27, 0.12, x, 1.7, 0.9, 10);
     b.dome(STEEL_L, 0.24, x, 1.82, 0.9);
     b.beam(STEEL, [x, 1.2, 0.9], [x, 1.2, -0.3], 0.08);
@@ -753,17 +760,17 @@ const enricher: Recipe = ({ body: b, glow: g, pivot: p }) => {
   // gas tanks at the back and a cooling stack
   hcyl(b, STEEL_L, 0.4, 1.4, -1.6, 2.7, -1.5, 'x', 12);
   b.snow(-1.6, 3.05, -1.5, 1.3, 0.5, 0.06);
-  stack(b, WHITE, GREEN, 1.7, 2.3, -1.6, 0.3, 1.3);
+  stack(b, PORCELAIN, JADE, 1.7, 2.3, -1.6, 0.3, 1.3);
   // rotating turbine on the roof
   b.cyl(CONCRETE_D, 0.62, 0.35, 0.3, 2.3, -1.3, 14);
-  b.cyl(GREEN, 0.64, 0.08, 0.3, 2.65, -1.3, 14);
-  rotor(p, GREEN, GREEN_D, 0, 0, 0, 0.55, 5);
+  b.cyl(JADE, 0.64, 0.08, 0.3, 2.65, -1.3, 14);
+  rotor(p, JADE, SLATE_D, 0, 0, 0, 0.55, 5);
   return { at: [0.3, 2.9, -1.3], axis: 'y', mode: 'spin', speed: 1.0 };
 };
 
 /** reactor: cooling tower + containment dome. */
 const reactor: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  pad(b, 5.0, 4.9, 0xb9c1b3);
+  pad(b, 5.0, 4.9, 0xbcc6cc);
   b.lathe(0xc9cdc6, [[1.35, 0], [1.2, 1.0], [1.03, 2.0], [0.94, 3.0], [0.95, 3.8], [1.02, 4.4]], -1.15, 0.1, -1.1, 18);
   b.cyl(0xa5aaa2, 1.04, 0.14, -1.15, 4.4, -1.1, 18);
   b.cyl(SNOW, 1.0, 0.07, -1.15, 4.54, -1.1, 18);
@@ -771,13 +778,13 @@ const reactor: Recipe = ({ body: b, glow: g, pivot: p }) => {
   // containment building: drum + dome with a glowing band
   b.cyl(CONCRETE, 1.2, 1.4, 1.2, 0.1, 0.7, 16);
   b.dome(0xd2d6cf, 1.2, 1.2, 1.5, 0.7);
-  g.cyl(G_GREEN, 1.215, 0.12, 1.2, 1.0, 0.7, 16);
-  b.cyl(GREEN_D, 1.22, 0.1, 1.2, 0.9, 0.7, 16);
+  g.cyl(G_FOAM, 1.215, 0.12, 1.2, 1.0, 0.7, 16);
+  b.cyl(SLATE_D, 1.22, 0.1, 1.2, 0.9, 0.7, 16);
   b.sph(SNOW, 0.5, 1.2, 2.65, 0.7, { sy: 0.4 });
   // turbine hall + pipes
   b.box(CONCRETE_D, 1.9, 1.1, 1.0, 0.3, 0.1, -1.9);
   flatRoof(b, CONCRETE, 1.9, 1.0, 0.3, 1.2, -1.9);
-  g.box(G_GREEN, 1.4, 0.2, 0.05, 0.3, 0.7, -1.38);
+  g.box(G_FOAM, 1.4, 0.2, 0.05, 0.3, 0.7, -1.38);
   hazard(b, 0.3, 0.1, -1.38, 1.9, 0.18);
   b.beam(STEEL, [-0.2, 1.0, -1.1], [0.5, 0.9, 0.0], 0.18);
   // steam plume from the tower
@@ -788,83 +795,83 @@ const reactor: Recipe = ({ body: b, glow: g, pivot: p }) => {
 };
 
 // ---------------------------------------------------------------------------
-// era 10 — AI Era: navy, white panels, neon violet
+// era 10 — AI Era: cream panels, pewter slate, sun-gold glow
 // ---------------------------------------------------------------------------
 
 /** fusionPlant: torus ring reactor with glow. */
 const fusionPlant: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  pad(b, 5.0, 4.8, 0xd9dde8);
-  b.cyl(WHITE, 2.35, 0.22, 0, 0.1, 0, 20);
-  b.cyl(NAVY, 2.2, 0.06, 0, 0.32, 0, 20);
-  g.torus(G_VIOLET, 1.85, 0.04, 0, 0.4, 0, { rx: Math.PI / 2 }, 28);
+  pad(b, 5.0, 4.8, 0xe4ddcc);
+  b.cyl(CREAM, 2.35, 0.22, 0, 0.1, 0, 20);
+  b.cyl(SLATE, 2.2, 0.06, 0, 0.32, 0, 20);
+  g.torus(G_SUN, 1.85, 0.04, 0, 0.4, 0, { rx: Math.PI / 2 }, 28);
   // outer coils round the vertical torus, supports
   const R = 1.5;
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI * 2;
-    b.box(i % 2 ? NAVY : WHITE, 0.95, 0.24, 1.0, Math.cos(a) * R, 2.4 + Math.sin(a) * R - 0.12, 0, { rz: a });
+    b.box(i % 2 ? SLATE : CREAM, 0.95, 0.24, 1.0, Math.cos(a) * R, 2.4 + Math.sin(a) * R - 0.12, 0, { rz: a });
   }
-  b.torus(0xdfe3f0, R, 0.12, 0, 2.4, 0.55, undefined, 24);
-  b.torus(0xdfe3f0, R, 0.12, 0, 2.4, -0.55, undefined, 24);
-  for (const s of [-1, 1]) b.beam(WHITE, [s * 0.9, 0.3, 0.1], [s * 0.45, 1.2, 0.0], 0.3);
+  b.torus(0xe9e2d2, R, 0.12, 0, 2.4, 0.55, undefined, 24);
+  b.torus(0xe9e2d2, R, 0.12, 0, 2.4, -0.55, undefined, 24);
+  for (const s of [-1, 1]) b.beam(CREAM, [s * 0.9, 0.3, 0.1], [s * 0.45, 1.2, 0.0], 0.3);
   // transformer blocks with neon strips
   for (const s of [-1, 1]) {
-    b.box(NAVY, 0.8, 1.2, 0.9, s * 1.85, 0.3, -1.45);
-    g.box(G_VIOLET, 0.08, 0.8, 0.05, s * 1.85 - s * 0.1, 0.5, -0.98);
+    b.box(SLATE, 0.8, 1.2, 0.9, s * 1.85, 0.3, -1.45);
+    g.box(G_SUN, 0.08, 0.8, 0.05, s * 1.85 - s * 0.1, 0.5, -0.98);
     b.snow(s * 1.85, 1.5, -1.45, 0.76, 0.86, 0.06);
   }
   // plasma ring with bright beads
-  p.torus(0x7a4cd8, R, 0.22, 0, 0, 0, undefined, 28);
+  p.torus(0xf2b644, R, 0.22, 0, 0, 0, undefined, 28);
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    p.sph(i % 2 ? 0xffffff : 0xe2d0ff, 0.2, Math.cos(a) * R, Math.sin(a) * R, 0);
+    p.sph(i % 2 ? 0xffffff : 0xfff0c8, 0.2, Math.cos(a) * R, Math.sin(a) * R, 0);
   }
   return { at: [0, 2.4, 0], axis: 'z', mode: 'spin', speed: 0.35, glow: true };
 };
 
 /** nanoFab: sleek block with holo panels. */
 const nanoFab: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  pad(b, 5.0, 4.6, 0xd9dde8);
-  b.box(NAVY, 4.4, 1.3, 3.0, 0, 0.1, -0.5);
-  b.box(WHITE, 3.8, 0.55, 2.5, 0, 1.4, -0.5);
-  b.box(0xf8faff, 3.9, 0.1, 2.6, 0, 1.95, -0.5);
+  pad(b, 5.0, 4.6, 0xe4ddcc);
+  b.box(CREAM, 4.4, 1.3, 3.0, 0, 0.1, -0.5);
+  b.box(SLATE, 3.8, 0.55, 2.5, 0, 1.4, -0.5);
+  b.box(0xfbf8f0, 3.9, 0.1, 2.6, 0, 1.95, -0.5);
   b.snow(0, 2.05, -0.5, 3.7, 2.4, 0.08);
-  g.box(G_VIOLET, 4.46, 0.07, 0.05, 0, 1.28, 1.0);
-  g.box(G_VIOLET, 0.05, 0.07, 3.06, 2.22, 1.28, -0.5);
-  g.box(G_VIOLET, 0.05, 0.07, 3.06, -2.22, 1.28, -0.5);
+  g.box(G_SUN, 4.46, 0.07, 0.05, 0, 1.28, 1.0);
+  g.box(G_SUN, 0.05, 0.07, 3.06, 2.22, 1.28, -0.5);
+  g.box(G_SUN, 0.05, 0.07, 3.06, -2.22, 1.28, -0.5);
   // holo panels on the front face
   for (const x of [-1.4, 0, 1.4]) {
-    b.box(WHITE, 1.1, 0.8, 0.06, x, 0.3, 1.02);
-    g.box(x === 0 ? G_CYAN : G_VIOLET, 0.95, 0.62, 0.05, x, 0.4, 1.07);
+    b.box(SLATE, 1.1, 0.8, 0.06, x, 0.3, 1.02);
+    g.box(x === 0 ? G_MINT : G_SUN, 0.95, 0.62, 0.05, x, 0.4, 1.07);
   }
   // fabricator bays on the side: small pods
   for (const z of [-1.2, 0.2]) {
-    b.sph(WHITE, 0.38, 2.1, 0.5, z, { sy: 0.8 });
-    g.box(G_CYAN, 0.06, 0.3, 0.3, 2.4, 0.4, z);
+    b.sph(CREAM, 0.38, 2.1, 0.5, z, { sy: 0.8 });
+    g.box(G_MINT, 0.06, 0.3, 0.3, 2.4, 0.4, z);
   }
-  b.beam(WHITE, [-1.9, 2.0, -1.4], [-1.9, 3.3, -1.4], 0.08);
-  g.sph(G_VIOLET, 0.1, -1.9, 3.4, -1.4);
+  b.beam(CREAM, [-1.9, 2.0, -1.4], [-1.9, 3.3, -1.4], 0.08);
+  g.sph(G_SUN, 0.1, -1.9, 3.4, -1.4);
   // floating hologram of two crossing rings and a core
   p.torus(0xffffff, 0.75, 0.05, 0, 0, 0, undefined, 20);
-  p.torus(0xd9c4ff, 0.75, 0.05, 0, 0, 0, { ry: Math.PI / 2 }, 20);
-  p.torus(0xb48cff, 0.5, 0.04, 0, 0, 0, { rx: Math.PI / 2 }, 16);
+  p.torus(0xffe7b0, 0.75, 0.05, 0, 0, 0, { ry: Math.PI / 2 }, 20);
+  p.torus(0xf2c46a, 0.5, 0.04, 0, 0, 0, { rx: Math.PI / 2 }, 16);
   p.sph(0xffffff, 0.22, 0, 0, 0);
   return { at: [0, 3.1, -0.5], axis: 'y', mode: 'spin', speed: 0.4, glow: true };
 };
 
 /** dataCenter: server halls with blinking racks. */
 const dataCenter: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  pad(b, 5.0, 4.8, 0xd9dde8);
-  b.box(NAVY, 4.6, 2.0, 1.8, 0, 0.1, -1.55);
-  b.box(WHITE, 4.7, 0.18, 1.9, 0, 2.1, -1.55);
+  pad(b, 5.0, 4.8, 0xe4ddcc);
+  b.box(CREAM, 4.6, 2.0, 1.8, 0, 0.1, -1.55);
+  b.box(SLATE, 4.7, 0.18, 1.9, 0, 2.1, -1.55);
   b.snow(0, 2.28, -1.55, 4.5, 1.7, 0.1);
-  b.box(NAVY, 3.4, 1.5, 1.6, -0.4, 0.1, 0.65);
-  b.box(WHITE, 3.5, 0.16, 1.7, -0.4, 1.6, 0.65);
+  b.box(CREAM, 3.4, 1.5, 1.6, -0.4, 0.1, 0.65);
+  b.box(SLATE, 3.5, 0.16, 1.7, -0.4, 1.6, 0.65);
   b.snow(-0.4, 1.76, 0.65, 3.3, 1.5, 0.1);
   const rnd = seeded(77);
-  const tints = [G_VIOLET, G_CYAN, 0xffffff, G_VIOLET, G_VIOLET, 0xff7ad9];
+  const tints = [G_SUN, G_MINT, 0xffffff, G_SUN, G_SUN, 0xffb38a];
   const lights = (x0: number, y0: number, z: number, cols: number, rows: number, pitch: number): void => {
     for (let c = 0; c < cols; c++) {
-      b.box(0x15182f, pitch * 0.9, rows * 0.32 + 0.1, 0.05, x0 + c * pitch, y0 - 0.05, z - 0.02);
+      b.box(0x3f4d5c, pitch * 0.9, rows * 0.32 + 0.1, 0.05, x0 + c * pitch, y0 - 0.05, z - 0.02);
       for (let r = 0; r < rows; r++) if (rnd() > 0.2) g.box(tints[Math.floor(rnd() * tints.length)]!, pitch * 0.55, 0.12, 0.06, x0 + c * pitch, y0 + r * 0.32, z + 0.01);
     }
   };
@@ -872,51 +879,51 @@ const dataCenter: Recipe = ({ body: b, glow: g, pivot: p }) => {
   lights(-1.6, 0.35, 1.46, 7, 3, 0.5);
   // rooftop cooling fins and the AI core mast
   for (let i = 0; i < 5; i++) b.box(STEEL_L, 0.5, 0.35, 0.2, -1.6 + i * 0.5, 1.78, 1.0);
-  b.cyl(WHITE, 0.55, 0.5, 1.45, 1.76, 0.65, 12);
-  g.cyl(G_VIOLET, 0.45, 0.04, 1.45, 2.26, 0.65, 12);
-  b.beam(WHITE, [0, 2.3, -1.55], [0, 3.0, -1.55], 0.14);
-  b.cyl(NAVY, 0.3, 0.12, 0, 2.95, -1.55, 10);
+  b.cyl(CREAM, 0.55, 0.5, 1.45, 1.76, 0.65, 12);
+  g.cyl(G_SUN, 0.45, 0.04, 1.45, 2.26, 0.65, 12);
+  b.beam(CREAM, [0, 2.3, -1.55], [0, 3.0, -1.55], 0.14);
+  b.cyl(SLATE, 0.3, 0.12, 0, 2.95, -1.55, 10);
   // the AI core: a cage of rings round a bright orb
   p.torus(0xffffff, 0.6, 0.05, 0, 0, 0, undefined, 18);
-  p.torus(0xd9c4ff, 0.6, 0.05, 0, 0, 0, { ry: Math.PI / 2 }, 18);
-  p.sph(0xe4d4ff, 0.3, 0, 0, 0);
+  p.torus(0xffe7b0, 0.6, 0.05, 0, 0, 0, { ry: Math.PI / 2 }, 18);
+  p.sph(0xfff0c8, 0.3, 0, 0, 0);
   p.sph(0xffffff, 0.12, 0.34, 0.1, 0.1);
   return { at: [0, 3.65, -1.55], axis: 'y', mode: 'spin', speed: 0.3, glow: true };
 };
 
 /** robotWorks: assembly hall with robot arms. */
 const robotWorks: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  pad(b, 5.0, 4.8, 0xd9dde8);
-  b.box(WHITE, 4.6, 2.3, 2.0, 0, 0.1, -1.4);
-  b.box(VIOLET, 4.66, 0.18, 2.06, 0, 1.7, -1.4);
-  b.box(NAVY, 4.7, 0.2, 2.1, 0, 2.4, -1.4);
+  pad(b, 5.0, 4.8, 0xe4ddcc);
+  b.box(CREAM, 4.6, 2.3, 2.0, 0, 0.1, -1.4);
+  b.box(GOLD, 4.66, 0.18, 2.06, 0, 1.7, -1.4);
+  b.box(SLATE, 4.7, 0.2, 2.1, 0, 2.4, -1.4);
   b.snow(0, 2.6, -1.4, 4.5, 1.9, 0.1);
   // big gate, lit inside
-  b.box(NAVY, 1.9, 1.7, 0.1, 0, 0.1, -0.38);
-  g.box(G_VIOLET, 1.6, 1.4, 0.05, 0, 0.2, -0.33);
+  b.box(SLATE, 1.9, 1.7, 0.1, 0, 0.1, -0.38);
+  g.box(G_SUN, 1.6, 1.4, 0.05, 0, 0.2, -0.33);
   for (const x of [-1.6, 1.6]) {
-    b.window(g, G_CYAN, NAVY, x, 0.9, -0.38, 0.5, 0.7, 0);
+    b.window(g, G_MINT, SLATE, x, 0.9, -0.38, 0.5, 0.7, 0);
   }
   // assembly line in front: slab, conveyor, static robot
-  b.box(NAVY, 3.4, 0.2, 1.4, 0, 0.1, 1.15);
-  g.box(G_VIOLET, 3.0, 0.05, 0.22, 0, 0.3, 1.15);
-  for (let i = 0; i < 4; i++) b.box(WHITE, 0.3, 0.2, 0.3, -1.1 + i * 0.7, 0.31, 1.15);
-  b.cyl(NAVY, 0.28, 0.35, -1.45, 0.3, 0.75, 10);
-  b.beam(WHITE, [-1.45, 0.6, 0.75], [-1.45, 1.4, 1.0], 0.15);
-  b.beam(WHITE, [-1.45, 1.4, 1.0], [-0.9, 1.2, 1.5], 0.12);
-  g.sph(G_VIOLET, 0.1, -0.85, 1.15, 1.55);
-  b.box(WHITE, 0.4, 0.5, 0.35, 2.2, 0.1, -0.1);
-  b.cyl(WHITE, 0.14, 0.35, 2.2, 0.6, -0.1, 8);
-  g.sph(G_VIOLET, 0.13, 2.2, 1.05, -0.1);
+  b.box(SLATE, 3.4, 0.2, 1.4, 0, 0.1, 1.15);
+  g.box(G_SUN, 3.0, 0.05, 0.22, 0, 0.3, 1.15);
+  for (let i = 0; i < 4; i++) b.box(CREAM, 0.3, 0.2, 0.3, -1.1 + i * 0.7, 0.31, 1.15);
+  b.cyl(SLATE, 0.28, 0.35, -1.45, 0.3, 0.75, 10);
+  b.beam(CREAM, [-1.45, 0.6, 0.75], [-1.45, 1.4, 1.0], 0.15);
+  b.beam(CREAM, [-1.45, 1.4, 1.0], [-0.9, 1.2, 1.5], 0.12);
+  g.sph(G_SUN, 0.1, -0.85, 1.15, 1.55);
+  b.box(CREAM, 0.4, 0.5, 0.35, 2.2, 0.1, -0.1);
+  b.cyl(CREAM, 0.14, 0.35, 2.2, 0.6, -0.1, 8);
+  g.sph(G_SUN, 0.13, 2.2, 1.05, -0.1);
   // working arm: turntable, two links, claw, held part
-  p.cyl(NAVY, 0.36, 0.3, 0, 0, 0, 12);
-  p.cyl(WHITE, 0.26, 0.2, 0, 0.3, 0, 10);
-  p.beam(WHITE, [0, 0.4, 0], [-0.4, 1.35, 0], 0.2);
-  p.sph(VIOLET, 0.15, -0.4, 1.35, 0);
-  p.beam(WHITE, [-0.4, 1.35, 0], [-1.35, 0.9, 0], 0.16);
-  p.sph(VIOLET, 0.12, -1.35, 0.9, 0);
-  p.box(NAVY, 0.12, 0.3, 0.3, -1.45, 0.6, 0);
-  p.box(0xe4d4ff, 0.25, 0.22, 0.25, -1.55, 0.36, 0);
+  p.cyl(SLATE, 0.36, 0.3, 0, 0, 0, 12);
+  p.cyl(CREAM, 0.26, 0.2, 0, 0.3, 0, 10);
+  p.beam(CREAM, [0, 0.4, 0], [-0.4, 1.35, 0], 0.2);
+  p.sph(GOLD, 0.15, -0.4, 1.35, 0);
+  p.beam(CREAM, [-0.4, 1.35, 0], [-1.35, 0.9, 0], 0.16);
+  p.sph(GOLD, 0.12, -1.35, 0.9, 0);
+  p.box(SLATE, 0.12, 0.3, 0.3, -1.45, 0.6, 0);
+  p.box(0xfff0c8, 0.25, 0.22, 0.25, -1.55, 0.36, 0);
   return { at: [1.6, 0.4, 1.1], axis: 'y', mode: 'swing', speed: 0.28, amp: 0.85 };
 };
 
@@ -1025,16 +1032,16 @@ function skin(era: number): Skin {
   const c = colors(era);
   switch (tier(era)) {
     case 0: return { floor: PLANK, post: TIMBER_D, board: era === 2 ? TIMBER : 0x4a403a, trim: c.accent, crate: PLANK, crate2: TIMBER, sign: 0xffe8b0 };
-    case 1: return { floor: era === 4 ? 0x7a7672 : CONCRETE_D, post: IRON, board: era === 6 ? TEAL : 0x2f2b2b, trim: c.accent, crate: era === 6 ? COPPER : BRASS, crate2: STEEL_D, sign: era === 6 ? 0xfff2c0 : 0xffd98a };
-    case 2: return { floor: CONCRETE, post: BLACK, board: era === 7 ? BLACK : NAVY, trim: c.accent, crate: era === 7 ? YELLOW : BLUE, crate2: STEEL_L, sign: era === 7 ? 0xffe08a : 0xbfeaff };
-    default: return { floor: era === 9 ? 0xd2d8cf : 0xe6e9f2, post: era === 9 ? GREEN_D : NAVY, board: era === 9 ? GREEN_D : NAVY, trim: c.accent, crate: era === 9 ? GREEN : VIOLET, crate2: WHITE, sign: era === 9 ? 0xcfffb0 : 0xe2d4ff };
+    case 1: return { floor: era === 4 ? 0x7a7672 : CONCRETE_D, post: IRON, board: era === 6 ? TEAL : c.trim, trim: c.accent, crate: era === 6 ? COPPER : BRASS, crate2: STEEL_D, sign: era === 6 ? 0xfff2c0 : 0xffd98a };
+    case 2: return { floor: CONCRETE, post: c.trim, board: c.trim, trim: c.accent, crate: c.body, crate2: era === 7 ? STEEL_L : SEA, sign: era === 7 ? 0xffe08a : 0xc8f5dc };
+    default: return { floor: era === 9 ? 0xd2d8d8 : 0xe9e3d4, post: c.trim, board: c.trim, trim: c.accent, crate: c.accent, crate2: c.body, sign: era === 9 ? 0xc8fbef : 0xfff0c0 };
   }
 }
 
 const groupCache = new Map<string, { body: THREE.BufferGeometry; glow: THREE.BufferGeometry }>();
 
 function signGlowColor(era: number): number {
-  return tier(era) === 3 ? (era === 9 ? G_GREEN : G_VIOLET) : tier(era) === 2 ? (era === 7 ? G_WARM : G_CYAN) : G_WARM;
+  return tier(era) >= 2 ? colors(era).glow : G_WARM;
 }
 
 function assemble(key: string, era: number, make: (b: Kit, g: Kit, s: Skin) => void): THREE.Group {
