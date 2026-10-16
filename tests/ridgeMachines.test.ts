@@ -280,7 +280,8 @@ describe('workshop pad', () => {
   it('is walkable ridge ground and reachable from every side it is entered from (no collider within a player width)', () => {
     const walk = P.ridge.walk[1]!;
     expect(inRect(walk, { x: workshopPad.x, z: workshopPad.z })).toBe(true);
-    const gapToCabin = workshopBody.minZ - workshopPadRect.maxZ;
+    // 0.9.2: beside the cabin's east wall (camera side), so the cabin no longer hides the tile and its price
+    const gapToCabin = Math.max(workshopPadRect.minX - workshopBody.maxX, workshopBody.minZ - workshopPadRect.maxZ);
     expect(gapToCabin).toBeGreaterThan(0.2);
   });
   it('is not crossed by the crew routes (the pine hauler would walk over the tile): 0.25 m clearance', () => {

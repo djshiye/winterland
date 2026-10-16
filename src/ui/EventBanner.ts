@@ -52,6 +52,11 @@ export class EventBanner {
     return this.k > 0;
   }
 
+  /** The banner element (HUD's BannerStack places it). */
+  get element(): HTMLDivElement {
+    return this.root;
+  }
+
   private show(kind: EventKind): void {
     this.want = true;
     if (kind === this.kind) return;

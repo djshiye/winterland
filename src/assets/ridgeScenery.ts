@@ -161,7 +161,7 @@ export function buildRidgeScenery(): RidgeScenery {
     [
       [15.1, -4.4],
       [15.3, -6.3],
-      [17.0, -9.2],
+      [15.2, -8.4], // 0.9.2: off the tree feller pad (17.4, -8.6)
       [15.2, 3.4],
       // (wave 8: bushes moved off the workshop, sled counter / cash and the sled lane)
       [15.0, 5.6],

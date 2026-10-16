@@ -42,6 +42,11 @@ export class RushBanner {
     return this.k > 0;
   }
 
+  /** The banner element (HUD's BannerStack places it). */
+  get element(): HTMLDivElement {
+    return this.root;
+  }
+
   update(dt: number): void {
     const target = this.want ? 1 : 0;
     if (this.k === target && !this.want) return;

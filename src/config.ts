@@ -326,13 +326,13 @@ export const PADS: Record<PadIdConst, PadDef> = {
   /** In front of the east-fence gate: opens Timber Ridge (LAYOUT.ridge). */
   ridge: { id: 'ridge', cost: 12000, x: 8.4, z: -1.7, size: 1.8, label: 'TIMBER RIDGE', icon: 'ridge' },
   /** On the ridge, by the forest: the tracked tree feller that cuts pines onto the log deck. */
-  treeFeller: { id: 'treeFeller', cost: 9000, x: 19.6, z: -9.6, size: 2.0, label: 'TREE FELLER', icon: 'feller' },
+  treeFeller: { id: 'treeFeller', cost: 9000, x: 17.4, z: -8.6, size: 2.0, label: 'TREE FELLER', icon: 'feller' },
   /** Expanded north yard: a belt from the drop zone to the truck counter. */
   truckLoader: { id: 'truckLoader', cost: 10000, x: -1.2, z: -12.5, size: 2.0, label: 'TRUCK LOADER', icon: 'loader' },
   /** Beside the cabin: pneumatic tubes that bank every cash pile. */
-  cashTubes: { id: 'cashTubes', cost: 14000, x: 4.0, z: -7.6, size: 2.0, label: 'CASH TUBES', icon: 'tubes' },
+  cashTubes: { id: 'cashTubes', cost: 14000, x: 3.4, z: -6.4, size: 2.0, label: 'CASH TUBES', icon: 'tubes' },
   // Wave 8 (proposal; owners validate). On Timber Ridge in front of the workshop site.
-  workshop: { id: 'workshop', cost: 15000, x: 25.0, z: 0.9, size: 2.0, label: 'WORKSHOP', icon: 'workshop' },
+  workshop: { id: 'workshop', cost: 15000, x: 28.0, z: 1.2, size: 2.0, label: 'WORKSHOP', icon: 'workshop' },
 };
 
 // ---------------------------------------------------------------------------

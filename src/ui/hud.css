@@ -195,7 +195,8 @@
 .wl-toast {
   position: absolute;
   left: 50%;
-  top: 36%;
+  /* 0.9.2: below the objective / rush / event column when it reaches that far (ui/bannerStack.ts) */
+  top: max(36%, var(--wl-banner-bottom, 0px));
   width: max-content;
   max-width: calc(100% - 24px);
   text-align: center;
@@ -1918,7 +1919,8 @@
 /* plain one-line notice (the automatic graphics switch) */
 .wl-toast.is-small {
   top: auto;
-  bottom: calc(max(var(--wl-pad), env(safe-area-inset-bottom)) + 70px);
+  /* 0.9.2: above the phone rush / event pills while they show (ui/bannerStack.ts) */
+  bottom: max(calc(max(var(--wl-pad), env(safe-area-inset-bottom)) + 70px), var(--wl-pill-stack, 0px));
   max-width: min(460px, calc(100% - 24px));
 }
 
@@ -2407,6 +2409,6 @@
 /* phones: the full-width objective banner steps below the one-line contract chip (unless it is parked at the bottom) */
 @media (max-width: 640px) {
   .wl-hud.has-contract:not(.quests-open) .wl-objective {
-    margin-top: 30px;
+    margin-top: 36px;
   }
 }
