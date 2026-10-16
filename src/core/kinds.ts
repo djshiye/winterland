@@ -23,6 +23,16 @@ export const MATERIAL_KINDS = [
   'power',
   'aiCore',
   'robot',
+  // 0.9.5 era 2-4 content (docs/ERA_RESOURCES.md): appended so older kinds keep their index
+  'clay',
+  'roofTile',
+  'hearth',
+  'charcoal',
+  'tools',
+  'rail',
+  'scrap',
+  'boiler',
+  'steamEngine',
 ] as const;
 export type MaterialKind = (typeof MATERIAL_KINDS)[number];
 
