@@ -2,7 +2,9 @@
  * 0.9.5 eras 8-10 content (Computer Age, Nuclear Power, AI Era): every era has its two extractors, its processors and
  * a premium line (docs/EXPANSION.md §D), every recipe adds value, and the new goods have a model and an icon.
  */
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { ERA_PAL_NAMES, createEraPal, type PalEra } from '../src/assets/eraPals4';
 import { MACHINES, MATERIALS, machinesOfEra, type MachineId } from '../src/eras/data';
 import { createMachineModel } from '../src/assets/eraMachines';
 import { createEraItemModel } from '../src/assets/eraItems';
@@ -62,4 +64,28 @@ describe('eras 8-10 content', () => {
     }
     expect(icons.size).toBe(NEW_KINDS.length);
   });
+});
+
+describe('eras 8-10 pals', () => {
+  for (const era of [8, 9, 10] as PalEra[]) {
+    it(`${ERA_PAL_NAMES[era]} keeps the dog contract in 3 draw calls`, () => {
+      const pal = createEraPal(era);
+      let meshes = 0;
+      pal.root.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) meshes++;
+      });
+      expect(meshes).toBe(2); // body + one instanced part (+ the body's shadow = 3 calls)
+      for (let i = 0; i < 60; i++) pal.animate(i / 30, i < 30 ? 4 : 0);
+      pal.sit = 1;
+      pal.tailYaw = 0.4;
+      pal.animate(2.5, 0);
+      pal.setBag(true);
+      pal.setLevel(4);
+      const box = new THREE.Box3().setFromObject(pal.root);
+      expect(box.min.y).toBeGreaterThan(-0.05);
+      expect(box.max.y).toBeLessThan(1.4);
+      expect(Math.max(box.max.x - box.min.x, box.max.z - box.min.z)).toBeLessThan(1.3);
+      pal.dispose();
+    });
+  }
 });
