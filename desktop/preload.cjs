@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('winterlandDesktop', {
   setWindowMode: (mode) => {
     ipcRenderer.send('desktop:setWindowMode', mode);
   },
+  quit: () => {
+    ipcRenderer.send('desktop:quit');
+  },
   onWindowMode: (cb) => {
     if (typeof cb !== 'function') return () => {};
     const listener = (_event, mode) => cb(mode);

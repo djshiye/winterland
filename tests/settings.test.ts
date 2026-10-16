@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SAVE } from '../src/config';
 import { readSettingsTab, writeSettingsTab } from '../src/ui/SettingsPanel';
-import { importSave, NOT_A_SAVE, saveFileName, validateSaveText } from '../src/ui/saveTransfer';
+import { importSave, NEWER_SAVE, NOT_A_SAVE, saveFileName, validateSaveText } from '../src/ui/saveTransfer';
 
 let store: Record<string, string> = {};
 let reload = vi.fn();
@@ -35,7 +35,9 @@ describe('importSave', () => {
   });
 
   it('rejects a wrong version, a missing state and bad numbers', async () => {
-    for (const text of [valid({ v: 2 }), valid({ state: null }), valid({ state: 'x' }), valid({ money: '5' }), valid({ savedAt: null }), 'null', '[]', '42']) {
+    // 0.9.6: a save format newer than this build says so instead of "not a save"
+    expect(await importSave(file(valid({ v: SAVE.version + 1 })))).toBe(NEWER_SAVE);
+    for (const text of [valid({ v: 0 }), valid({ v: '1' }), valid({ state: null }), valid({ state: 'x' }), valid({ money: '5' }), valid({ savedAt: null }), 'null', '[]', '42']) {
       expect(await importSave(file(text))).toBe(NOT_A_SAVE);
     }
     expect(store[SAVE.key]).toBeUndefined();

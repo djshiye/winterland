@@ -4,8 +4,9 @@ import '@fontsource/fredoka/latin-600.css';
 import '@fontsource/fredoka/latin-700.css';
 import './style.css';
 import { SAVE } from './config';
-import { Game } from './game/Game';
+import { Game, RECOVERED_FLAG } from './game/Game';
 import { freshRequested } from './core/Save';
+import { pushBackup } from './core/saveVault';
 
 function showFatal(message: string): void {
   const el = document.createElement('div');
@@ -20,6 +21,8 @@ const RECOVERY_FLAG = 'winterland.recovery';
  * Starting the game threw. If a save exists it is the likely culprit (a corrupt / incompatible save would otherwise
  * brick the game on every reload): move it to `<key>.bak`, clear it and reload ONCE into a fresh game. A
  * sessionStorage flag stops the retry loop when the crash has another cause. Returns true when a reload was started.
+ * 0.9.6: the save is only cleared once its copy is safely stored (read back), and the fresh game tells the player
+ * where it is (RECOVERED_FLAG → a notice; Settings → Game → Earlier saves lists `<key>.bak`).
  */
 function recoverFromBadSave(): boolean {
   try {
@@ -27,11 +30,16 @@ function recoverFromBadSave(): boolean {
     const raw = localStorage.getItem(SAVE.key);
     if (!raw) return false;
     sessionStorage.setItem(RECOVERY_FLAG, '1');
+    const older = localStorage.getItem(`${SAVE.key}.bak`);
+    if (older && older !== raw) pushBackup(older); // an earlier rescue copy is not dropped either
     try {
       localStorage.setItem(`${SAVE.key}.bak`, raw);
     } catch {
-      // backup is best effort (storage full): still clear the broken save
+      /* checked just below */
     }
+    // never clear a save that could not be copied first (storage full): show the crash instead
+    if (localStorage.getItem(`${SAVE.key}.bak`) !== raw) return false;
+    localStorage.setItem(RECOVERED_FLAG, String(Date.now()));
     localStorage.removeItem(SAVE.key);
     location.reload();
     return true;

@@ -1,0 +1,96 @@
+/* 0.9.6 notice card (ui/NoticeCard.ts): same look as the welcome-back card, room for a few lines of text. */
+.wl-card.wl-notice {
+  overflow: visible;
+  padding-top: 34px;
+  width: min(400px, 100%);
+}
+
+.wl-notice-icon {
+  width: 64px;
+  height: 64px;
+  margin: -42px auto 6px;
+  filter: drop-shadow(0 4px 0 rgba(20, 30, 55, 0.4));
+}
+
+.wl-notice-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-notice .wl-card-title {
+  font-size: 26px;
+}
+
+.wl-notice-line {
+  margin: 0 4px 10px;
+  font-size: 17px;
+  line-height: 1.35;
+  opacity: 0.95;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.wl-notice-amount {
+  margin: 4px 0 16px;
+}
+
+.wl-notice-buttons {
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.wl-notice .wl-btn:focus-visible {
+  outline: 3px solid #ffd84a;
+  outline-offset: 3px;
+}
+
+/* 0.9.6 Settings → Game: Earlier saves list, Save & quit, version line */
+.wl-earlier-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.wl-earlier-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  text-align: left;
+}
+
+.wl-earlier-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 16px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.wl-earlier-text span {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.wl-earlier-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 16px;
+}
+
+.wl-earlier-empty {
+  font-size: 16px;
+  opacity: 0.9;
+}
+
+.wl-version {
+  margin-top: 12px;
+  font-size: 13px;
+  opacity: 0.7;
+}
