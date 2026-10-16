@@ -43,7 +43,7 @@ const OLD_PLACES: ReadonlyArray<{ id: string; label: string; rect: ERect; fill: 
   { id: 'yard', label: 'Yard', rect: { minX: -10, maxX: 10, minZ: -20, maxZ: 10 }, fill: '#b98a5a' },
   { id: 'ridge', label: 'Ridge', rect: { minX: 13.4, maxX: 34, minZ: -18, maxZ: 8 }, fill: '#7fa06c' },
   { id: 'village', label: 'Village', rect: { minX: 0, maxX: 9.6, minZ: 10.8, maxZ: 31.8 }, fill: '#d9bf91' },
-  { id: 'town', label: 'Town', rect: { minX: 15.2, maxX: 38, minZ: 14, maxZ: 40 }, fill: '#cdb89b' },
+  { id: 'town', label: 'Town', rect: { minX: 15.2, maxX: 38, minZ: 14, maxZ: 48.8 }, fill: '#cdb89b' },
 ];
 
 const rectAttrs = (r: ERect): string => `x="${r.minX}" y="${r.minZ}" width="${r.maxX - r.minX}" height="${r.maxZ - r.minZ}"`;
