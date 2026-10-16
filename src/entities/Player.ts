@@ -360,6 +360,7 @@ export class Player {
     // with that era's pal adopted, the companion trots along too
     if (up.value('dog') > 0 || pal > 0) {
       if (!this.dog) this.dog = new Dog(this.ctx, this);
+      this.dog.setEra(pal > 0 ? n : 0);
     } else if (this.dog) {
       this.dog.dispose();
       this.dog = null;

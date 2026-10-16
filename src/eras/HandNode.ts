@@ -30,12 +30,17 @@ export const NODE_PILE = { cols: 3, rows: 2, layers: 3, spacing: { x: 0.5, y: 0.
 const PILE_AT = { u: 2.6, v: 0.6 };
 
 /**
- * Where era n's node stands: the region layout's `node` place (eras/layout.ts, from the "Era roads and layout" work)
- * or null while the layout has no harvest area yet (then the region simply has no node).
+ * Where era n's node stands: the layout's own `node` place if it has one, else the middle of its HARVEST zone
+ * (eras/layout.ts zones, 0.9.5), facing the gate side where the player comes from; null while the layout has neither
+ * (then the region simply has no node).
  */
 export function handNodePlace(L: RegionLayout): { x: number; z: number; yaw: number } | null {
-  const node = (L as RegionLayout & { node?: { x: number; z: number; yaw: number } }).node;
-  return node ?? null;
+  const ext = L as RegionLayout & { node?: { x: number; z: number; yaw: number }; zones?: { harvest: { minX: number; maxX: number; minZ: number; maxZ: number } } };
+  if (ext.node) return ext.node;
+  const h = ext.zones?.harvest;
+  if (!h) return null;
+  // the node's +Z faces the processing yard (toward the gate): north gate → −Z (yaw π), south gate → +Z (yaw 0)
+  return { x: (h.minX + h.maxX) / 2 - 1.3, z: (h.minZ + h.maxZ) / 2, yaw: L.inward > 0 ? Math.PI : 0 };
 }
 
 /** Tool swing interval for era n: the `${key}Tool` upgrade's value when the upgrade exists. */
