@@ -347,9 +347,10 @@ export function planPath(L: RegionLayout, a: XZ, b: XZ): XZ[] {
   if (!s0 || dist(a, b) < 0.05) return [b];
   const inward = L.inward;
   const cell = L.cell;
-  const gridStart = s0.z - (inward * cell) / 2;
-  const rowOf = (p: XZ): number => Math.max(0, Math.floor(((p.z - gridStart) * inward) / cell + 1e-6));
-  const aisle = (r: number): number => (r === 0 ? gridStart - inward * 0.5 : gridStart + inward * r * cell);
+  const pitch = L.rowPitch; // 0.9.5: rows are rowPitch apart, columns `cell` wide
+  const gridStart = s0.z - (inward * pitch) / 2;
+  const rowOf = (p: XZ): number => Math.max(0, Math.floor(((p.z - gridStart) * inward) / pitch + 1e-6));
+  const aisle = (r: number): number => (r === 0 ? gridStart - inward * 0.5 : gridStart + inward * r * pitch);
   const ra = rowOf(a);
   const rb = rowOf(b);
   const pts: XZ[] = [{ x: a.x, z: aisle(ra) }];
