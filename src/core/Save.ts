@@ -11,7 +11,8 @@
  */
 import { AMENITIES, AMENITY_IDS, BUSINESSES, CLIMB, CONTRACTS, DAYNIGHT, ECONOMY, GATE, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, SETTLEMENT, UPGRADES, VILLAGE, type BusinessId } from '../config';
 import { CARRY_KINDS, createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type CarryKind, type FlagId, type GameContext, type GameState, type InvestmentState, type ItemKind } from './types';
-import { costAt, maxStored } from './ladder';
+import { maxStored } from './ladder';
+import { refundPrice } from './refund';
 import { INVEST_POSITIONS_CAP, masteryOf } from './demand';
 import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
 import { GAME_VERSION, isNewerVersion, parseVersion } from './version';
@@ -381,8 +382,8 @@ export interface Migration {
 export const MIGRATIONS: readonly Migration[] = [
   {
     // Decisions 2 and 6 (Dino, 2026-10-16): under the 0.9.5 rule every upgrade tops out at Lv 10, so levels an older
-    // save bought past it (the 0.9.0-0.9.4 climb, read as 10 since 0.9.5) are refunded at what they cost now, and the
-    // Mastery bonus those levels earned is frozen as the save's own one-off bonus before they go.
+    // save bought past it (the 0.9.0-0.9.4 climb, read as 10 since 0.9.5) are refunded at what they cost back then
+    // (core/refund.ts), and the Mastery bonus those levels earned is frozen as the save's own one-off bonus first.
     id: '0.9.6-lv10-refund',
     run(state, report) {
       if (GATE.mode !== 'literal') return;
@@ -392,7 +393,7 @@ export const MIGRATIONS: readonly Migration[] = [
       for (const def of Object.values(UPGRADES)) {
         const s = state.upgrades[def.id];
         if (!(s > top)) continue;
-        for (let k = top; k < s; k++) report.refund += costAt(def, k);
+        for (let k = top; k < s; k++) report.refund += refundPrice(def, k);
         report.refundedLevels += s - top;
         state.upgrades[def.id] = top;
       }
