@@ -79,6 +79,8 @@ export class Conveyor implements ItemHolder {
   private pending = 0;
   private spin = 0;
   private spinRate = 0;
+  private dead = false;
+  private spillTo: ((item: Item) => void) | null = null;
   private readonly maxOnBelt: number;
   private readonly segScale: Float32Array;
   private readonly sample = BeltPath.makeSample();
@@ -154,6 +156,10 @@ export class Conveyor implements ItemHolder {
 
   receive(item: Item, _slot: Slot): void {
     this.pending = Math.max(0, this.pending - 1);
+    if (this.dead) {
+      this.spill(item);
+      return;
+    }
     const b: BeltItem = { item, s: 0 };
     this.items.push(b);
     if (item.object.parent !== this.ctx.scene) this.ctx.scene.add(item.object);
@@ -178,6 +184,44 @@ export class Conveyor implements ItemHolder {
     this.items.shift();
     if (head.item.object.parent !== this.ctx.scene) this.ctx.scene.attach(head.item.object);
     return head.item;
+  }
+
+  /** Items riding the belt (landed on it, not in the air), by kind (saves count them). */
+  riding(kind: ItemKind): number {
+    let n = 0;
+    for (const b of this.items) if (b.item.kind === kind) n++;
+    return n;
+  }
+
+  /**
+   * 0.9.5 (era belts come and go with their machines): remove the belt for good. Riding items, and the ones still flying
+   * onto it, go to `spill` (never lost; default: back to the pool).
+   */
+  dispose(spill?: (item: Item) => void): void {
+    if (this.dead) return;
+    this.dead = true;
+    this.active = false;
+    this.spillTo = spill ?? null;
+    for (const b of this.items) {
+      this.ctx.tweens.killTweensOf(b.item.object);
+      this.spill(b.item);
+    }
+    this.items.length = 0;
+    this.object.removeFromParent();
+    this.object.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if ((m as THREE.InstancedMesh).isInstancedMesh) (m as THREE.InstancedMesh).dispose();
+      else if (m.isMesh) m.geometry.dispose();
+    });
+  }
+
+  get disposed(): boolean {
+    return this.dead;
+  }
+
+  private spill(item: Item): void {
+    if (this.spillTo) this.spillTo(item);
+    else this.ctx.items.release(item);
   }
 
   // --- simulation ---------------------------------------------------------------

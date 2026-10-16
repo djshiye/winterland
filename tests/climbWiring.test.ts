@@ -3,8 +3,8 @@
  * crewStats read core/ladder.ts; levels past the authored max are for sale only once the climb is open (the Great
  * Lodge). Era 1 below the Lodge stays 0.8.0 (tests/era1Frozen.test.ts).
  */
-import { describe, expect, it } from 'vitest';
-import { CLIMB, UPGRADES, type UpgradeDef } from '../src/config';
+import { afterEach, describe, expect, it } from 'vitest';
+import { CLIMB, GATE, UPGRADES, type UpgradeDef } from '../src/config';
 import { productMult } from '../src/core/demand';
 import { Market } from '../src/core/Market';
 import { Economy } from '../src/core/Economy';
@@ -17,6 +17,14 @@ import { INVEST, MARKET } from '../src/eras/data';
 import { climbOpen } from '../src/eras/gate';
 
 const DEFS = Object.values(UPGRADES) as UpgradeDef[];
+
+/** The 0.9.0 – 0.9.4 convention ('offset': era cap 10 · age) is still a switch; tests that pin it opt in. */
+const OFFSET = (): void => {
+  GATE.mode = 'offset';
+};
+afterEach(() => {
+  GATE.mode = 'literal';
+});
 
 const make = (money = 1e15, lodge = false) => {
   const state = createGameState();
@@ -49,7 +57,8 @@ describe('Upgrades on the ladder', () => {
     expect(up.nextValue('carry')).toBeNull();
   });
 
-  it('with the Lodge built the ladder runs on past the authored max, era cap by era cap, to shown level 100', () => {
+  it('offset mode: with the Lodge built the ladder runs on past the authored max, era cap by era cap, to shown level 100', () => {
+    OFFSET();
     const { up, state, economy } = make(1e15, true);
     const id: UpgradeId = 'carry';
     const d = UPGRADES[id];
@@ -85,13 +94,14 @@ describe('Upgrades on the ladder', () => {
     expect(up.isMax(id)).toBe(true);
   });
 
-  it('the era cap stops machines and crews alike at shown level 10 · age, and old saves above it keep their levels', () => {
+  it('offset mode: the era cap stops machines and crews alike at shown level 10 · age, and old saves above it keep their levels', () => {
+    OFFSET();
     const { up, state } = make(1e15, true);
     for (const id of ['harvester', 'processor', 'megaSaw', 'treeFeller', 'cashTubes', 'workshop'] as UpgradeId[]) {
       expect(UPGRADES[id].group).toBe('machine');
       expect(up.maxLevel(id)).toBe(10);
     }
-    for (const id of up.group('crew')) expect(up.maxLevel(id)).toBe(10);
+    for (const id of up.group('crew').filter((i) => UPGRADES[i].era === undefined)) expect(up.maxLevel(id)).toBe(10);
     // an era-3 id starts at shown 20 (stored 0): in era 3 it caps at shown 30 (stored 10), like every older id
     state.eras.age = 3;
     expect(introEra(UPGRADES.ironRigs)).toBe(3);
@@ -108,6 +118,27 @@ describe('Upgrades on the ladder', () => {
     up.levelUp('harvester', null);
     expect(up.level('harvester')).toBe(25);
     expect(state.stats.upgradesBought).toBe(before);
+  });
+
+  it('literal mode (0.9.5): every id stops at Lv 10 for good, era after era; prices still climb by era', () => {
+    expect(GATE.mode).toBe('literal');
+    const { up, state } = make(1e15, true);
+    for (const age of [1, 2, 5, 10]) {
+      state.eras.age = age;
+      for (const id of ['carry', 'harvester', 'frontierCrew', 'frontierBelts', 'quarry', 'aiRigs'] as UpgradeId[]) {
+        expect(up.maxLevel(id)).toBe(10);
+        expect(up.atEraCap(id)).toBe(false);
+      }
+    }
+    // an era-n id shows its stored level (no offset) but is priced in era n's band: era 3 costs far more than era 2
+    expect(up.shownLevel('ironRigs')).toBe(0);
+    expect(costAt(UPGRADES.ironRigs, 0)).toBeGreaterThan(costAt(UPGRADES.frontierRigs, 9));
+    // old saves above 10 keep their stored levels (never lost) but read Lv 10 for display and effect
+    state.upgrades.carry = 17;
+    expect(up.level('carry')).toBe(10);
+    expect(up.value('carry')).toBe(valueAt(UPGRADES.carry, 10));
+    expect(up.isMax('carry')).toBe(true);
+    expect(state.upgrades.carry).toBe(17);
   });
 
   it('era-2+ ids have no cost table: every step is on the band curve and rises strictly', () => {
@@ -127,7 +158,8 @@ describe('Upgrades on the ladder', () => {
     }
   });
 
-  it('setLevel jumps past the authored max (to shown 100 at most), climb open or not', () => {
+  it('offset mode: setLevel jumps past the authored max (to shown 100 at most), climb open or not', () => {
+    OFFSET();
     const { up } = make();
     up.setLevel('axe', 30);
     expect(up.level('axe')).toBe(30);
@@ -186,7 +218,8 @@ describe('crewStats', () => {
     }
   });
 
-  it('clamps walk, capacity and cadence separately past the table', () => {
+  it('offset mode: clamps walk, capacity and cadence separately past the table', () => {
+    OFFSET();
     const { up } = make();
     const c = CLIMB.crew;
     up.setLevel('cashier', 100);
@@ -203,7 +236,8 @@ describe('crewStats', () => {
 });
 
 describe('Save clamp', () => {
-  it('keeps levels bought past the authored max, climb open or not', () => {
+  it('offset mode: keeps levels bought past the authored max, climb open or not', () => {
+    OFFSET();
     const state = createGameState();
     mergeState(state, { upgrades: { carry: 17, frontierRigs: 40, aiTrade: 50, speed: 1e6 } });
     sanitizeState(state);

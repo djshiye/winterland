@@ -5,13 +5,14 @@
  * the point where 0.8.0 shows its finale. Below it era 1 plays exactly like 0.8.0 (R1).
  *
  * Era n's gate (the checklist that makes its expansion pad payable):
- * - rows: EVERY upgrade introduced before era n (introEra ≤ n − 1: 23 for era 2, then 23 + 2 + 3·(n − 2) in 0.9),
- *   each at shown level 10·(n − 1). Unbuilt machines and unhired crews count too (R7): a row that cannot be bought yet
- *   says why ('prereq'), an unhired crew shows no level (null, "Not hired").
+ * - rows (0.9.5, Dino): every upgrade of the era before it (introEra = n − 1: Survival's 23 for era 2, then each era's
+ *   own crew, machines, belts, rigs and trade), each at Lv 10, the top level. Earlier eras are already done (they
+ *   stay at 10). Unbuilt machines and unhired crews count too (R7): a row that cannot be bought yet says why
+ *   ('prereq'), an unhired crew shows no level (null, "Not hired").
  * - settlement: level ≥ 5·(n − 1).
  * eraGate() is the full checklist for the UI; gateMet() is the cheap yes/no layout.expansionOffered asks every frame.
  */
-import { UPGRADES, type UpgradeDef } from '../config';
+import { GATE, UPGRADES, type UpgradeDef } from '../config';
 import { base, introEra, shown, stepCost } from '../core/ladder';
 import { upgradeRequirement } from '../core/Upgrades';
 import type { GameState, UpgradeId } from '../core/types';
@@ -69,9 +70,9 @@ export interface EraGate {
   padExtra: { kind: string; count: number };
 }
 
-/** Shown level era n's gate asks of every row. */
+/** Shown level era n's gate asks of every row: 10 · (n − 1) in 'offset' mode, Lv 10 (the top) in 'literal' mode. */
 export function gateNeed(n: number): number {
-  return 10 * (n - 1);
+  return GATE.mode === 'literal' ? 10 : 10 * (n - 1);
 }
 
 /** Settlement level era n's gate asks. */
@@ -82,16 +83,26 @@ export function settlementNeed(n: number): number {
 /** Settlement level (docs/EXPANSION.md §B): the village level until Winterland, then state.eras.settlement (6..50). */
 export { settlementLevel };
 
-const idsCache = new Map<number, readonly UpgradeId[]>();
+const idsCache = new Map<string, readonly UpgradeId[]>();
 
-/** Era n's gate rows, in table order: every id introduced before era n (cached: gateMet runs every frame). */
+/**
+ * Era n's gate rows, in table order (cached: gateMet runs every frame): the previous era's own ids in 'literal' mode,
+ * every id introduced before era n in 'offset' mode.
+ */
 function gateIds(n: number): readonly UpgradeId[] {
-  let ids = idsCache.get(n);
+  const literal = GATE.mode === 'literal';
+  const key = `${GATE.mode}:${n}`;
+  let ids = idsCache.get(key);
   if (!ids) {
-    ids = (Object.keys(UPGRADES) as UpgradeId[]).filter((id) => introEra(UPGRADES[id]) <= n - 1);
-    idsCache.set(n, ids);
+    ids = (Object.keys(UPGRADES) as UpgradeId[]).filter((id) => (literal ? introEra(UPGRADES[id]) === n - 1 : introEra(UPGRADES[id]) <= n - 1));
+    idsCache.set(key, ids);
   }
   return ids;
+}
+
+/** True when `id` is one of era n's gate rows. */
+export function inGate(id: UpgradeId, n: number): boolean {
+  return gateIds(n).includes(id);
 }
 
 /** Stored level that reaches the gate's shown need (offset or literal mode). */
@@ -134,8 +145,18 @@ export function gateMet(s: GameState, n: number): boolean {
   return true;
 }
 
+/**
+ * Era whose region shop mat sells `def` (Industry upgrades, and 0.9.5's era crews), or null for the cabin's shop mat
+ * (and for machine levels, which are bought on pads). Finance (Tax Office, Broker) stays at the cabin.
+ */
+export function eraMatOf(def: UpgradeDef): number | null {
+  if (def.group === 'machine' || def.group === 'finance') return null;
+  if (def.group === 'industry') return introEra(def);
+  return def.era !== undefined && def.era >= 2 ? def.era : null;
+}
+
 function whereOf(def: UpgradeDef): GateWhere {
-  return def.group === 'machine' ? 'pad' : def.group === 'industry' ? 'eraShop' : 'shop';
+  return def.group === 'machine' ? 'pad' : eraMatOf(def) !== null ? 'eraShop' : 'shop';
 }
 
 function rowOf(s: GameState, id: UpgradeId, n: number): GateRow {
@@ -145,7 +166,7 @@ function rowOf(s: GameState, id: UpgradeId, n: number): GateRow {
   const where = whereOf(def);
   const row: GateRow = {
     id,
-    shown: def.display === 'crew' && stored <= 0 ? null : shown(def, stored),
+    shown: (def.display === 'crew' || def.display === 'belt') && stored <= 0 ? null : shown(def, stored),
     need: gateNeed(n),
     state: 'ok',
     costToNeed: 0,
@@ -221,7 +242,11 @@ export interface NextGoal {
 
 /** What a prereq row asks for first, as a build target (nextGoal, the GateCard's Go). */
 export function prereqTarget(id: UpgradeId, s: GameState): string {
-  const r = UPGRADES[id].requires;
+  const def = UPGRADES[id];
+  // 0.9.5: an era machine that is not built yet, or an era crew waiting for the settlement: its region / district
+  if (def.group === 'machine' && def.era !== undefined && def.era >= 2) return `region:${def.era}`;
+  if (def.era !== undefined && def.era >= 2 && def.requires?.settlement !== undefined) return `district:${s.eras.age}`;
+  const r = def.requires;
   if (r?.unlocked && !s.unlocked[r.unlocked]) return `pad:${r.unlocked}`;
   if (r?.villageLevel !== undefined && s.village.level < r.villageLevel) return 'village';
   return 'quarters';
@@ -229,13 +254,20 @@ export function prereqTarget(id: UpgradeId, s: GameState): string {
 
 /** Buy at the shop, or walk to the machine's level pad. */
 function buyAction(r: GateRow): NextGoal['action'] {
-  return r.where === 'pad' ? { kind: 'go', target: `pad:${r.id}` } : { kind: 'buy', target: r.id };
+  return r.where === 'pad' ? { kind: 'go', target: padTarget(r.id) } : { kind: 'buy', target: r.id };
+}
+
+/** Where a machine level is bought: 'pad:<id>' for a Survival machine, 'machine:<id>' for an era machine's level pad. */
+export function padTarget(id: UpgradeId): string {
+  const e = UPGRADES[id].era;
+  return e !== undefined && e >= 2 ? `machine:${id}` : `pad:${id}`;
 }
 
 /** "Sharp Axe → Lv 10" (an unhired crew: "Hire the Cashier"). */
 function rowText(r: GateRow): string {
-  const label = UPGRADES[r.id].label;
-  return r.shown === null ? `Hire the ${label}` : `${label} → Lv ${r.need}`;
+  const def = UPGRADES[r.id];
+  if (r.shown === null) return def.display === 'belt' ? `Build the ${def.label}` : `Hire the ${def.label}`;
+  return `${def.label} → Lv ${r.need}`;
 }
 
 /**

@@ -6,6 +6,15 @@ This document covers the era unlock rule, upgrade ladders to level 100, settleme
 
 It fixes every problem the judges raised. I checked the numbers against the code (files and lines are cited). The cost and capacity numbers come from a scratch script that copies `price3`, `regionLayout`'s slot fit, `DISTRICTS` and `CITY_BUILDINGS`.
 
+> **0.9.5 change (Dino, 2026-10-16): each era levels its own things 1 to 10.** The cumulative gate below (every older id to `10·(n−1)`) is replaced by `GATE.mode = 'literal'` (src/config.ts):
+> - Every upgrade, in every era, goes Lv 1 to 10 and stops there. Era 1 stays at 10 once era 2 opens; levels already owned above 10 on old saves are kept.
+> - Era n+1 opens when **era n's own** upgrades are all at Lv 10 (src/eras/gate.ts `gateIds`), plus settlement `5n` and the expansion pad. The era-2 gate is unchanged (Survival's ids to Lv 10).
+> - Each era from 2 on has, all bought at its own shop mat: Rigs, Trade, **Belts** (conveyors between its machines, src/eras/belts.ts), the hauler crew and **six crew roles** (Feeder, Shipper, Porter, Gatherer, Foreman, Clerk; config `ERA_ROLES`, `ERA_ROLE_NAMES`), plus one **machine level** per machine type, bought on a level pad beside the machine (src/eras/LevelPad.ts).
+> - Prices still scale per era: era n's ids are priced in band n (core/ladder.ts `priceBase`), re-solved with the pacing model so era 2 takes about 90 model minutes, each era longer than the last, era 10 about 160 (tests/pacing.test.ts).
+> - Mastery (levels past a hard cap) only comes from levels old saves already own.
+>
+> Sections A to C describe the original offset design; the code keeps it behind `GATE.mode = 'offset'` for tests.
+
 ---
 
 ## 0. Rule conflicts and the interpretation used
