@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
-import { UPGRADES } from '../src/config';
+import { CLIMB, UPGRADES } from '../src/config';
 import { Market, ORDER_MAX_UNITS } from '../src/core/Market';
 import { createGameState, type GameContext, type GameEvents } from '../src/core/types';
 import { BOND_CAP_SHARE, INVEST, INVEST_MAX_POSITIONS, MARKET, MATERIALS, SURVIVAL_VALUE } from '../src/eras/data';
@@ -351,6 +351,43 @@ describe('investments', () => {
       expect(worst, product).toBeGreaterThan(1.5);
     }
   }, 30_000); // eight simulated hours per seed
+
+  // 0.9.6 (validation of PR #35): with caps from net worth alone, rolling bonds every 10 minutes and re-investing
+  // the gains grew money ×1.76 an hour with the factories idle (×84 overnight). The caps now follow recent sales.
+  it('caps each product at capMinutes of recent sales; with no sales nothing new goes in', () => {
+    const t = setup({ age: 3, money: 1e9 });
+    let rate = 1000;
+    t.market.setSalesRate(() => rate);
+    for (const p of ['bond', 'index', 'venture'] as const) {
+      expect(t.market.room(p)).toBe(INVEST[p].capMinutes * 60 * 1000);
+      expect(t.market.cappedBySales(p)).toBe(true);
+    }
+    rate = 0;
+    expect(t.market.invest('bond', INVEST.bond.min)).toBe(false);
+    expect(t.market.invest('index', INVEST.index.min)).toBe(false);
+  });
+
+  it('eight hours of optimal re-investing with no sales income adds less than half of what the factories earn', () => {
+    const rate = 100_000; // $/s the meter still reads, as if the factories kept selling (generous: no sales are paid in)
+    for (const seed of [11, 12, 13]) {
+      const t = setup({ age: 5, money: 1e9, rng: seeded(seed), upgrades: { broker: CLIMB.bondBrokerMax } });
+      t.market.setSalesRate(() => rate);
+      const start = t.market.netWorth();
+      const step = MARKET.tick * 15; // re-balance every minute
+      for (let s = 0; s < 8 * 3600; s += step) {
+        for (const p of [...t.market.positions()]) {
+          if (p.product === 'bond' ? t.market.matured(p) : p.value > p.principal) t.market.withdraw(p.id);
+        }
+        t.market.invest('bond', t.market.room('bond'));
+        t.market.invest('index', t.market.room('index'));
+        t.market.invest('venture', t.market.room('venture'), 5);
+        run(t.market, step, MARKET.tick * 5);
+      }
+      const gain = t.market.netWorth() - start;
+      expect(gain, `seed ${seed}`).toBeGreaterThan(0);
+      expect(gain, `seed ${seed}`).toBeLessThan(0.6 * rate * 8 * 3600);
+    }
+  }, 30_000);
 
   it('caps the index fund and ventures at their share of net worth, like bonds', () => {
     const { market } = setup({ age: 3, money: 100_000 });

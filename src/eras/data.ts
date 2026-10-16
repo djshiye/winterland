@@ -590,15 +590,20 @@ export interface InvestProductDef {
   top?: number;
   /** Money in this product may not exceed this share of net worth (bonds 0.5, as in 0.9). */
   cap: number;
+  /**
+   * 0.9.6 (validation of PR #35): nor this many minutes of the save's recent sales rate (the SalesMeter that offline
+   * earnings use; interest and trading are left out of it), so re-investing can never outgrow the factories.
+   */
+  capMinutes: number;
   /** Era needed before it is offered. */
   era: number;
 }
 
 export const INVEST: Record<InvestProductId, InvestProductDef> = {
-  bond: { id: 'bond', label: 'Winter Bonds', blurb: 'Safe: +12% after 10 minutes. Early withdrawal returns your deposit only', min: 1_000, lock: 600, rate: 0.12, volatility: 0, cap: 0.5, era: 2 },
+  bond: { id: 'bond', label: 'Winter Bonds', blurb: 'Safe: +12% after 10 minutes. Early withdrawal returns your deposit only', min: 1_000, lock: 600, rate: 0.12, volatility: 0, cap: 0.5, capMinutes: 10, era: 2 },
   // 0.9.6: a little better than bonds per 10 minutes (bonds +12%), with no lock but some risk, and a ceiling
-  index: { id: 'index', label: 'Snow Index Fund', blurb: 'Tracks the whole market: a bit faster than bonds, no lock, wobbles on the way, doubles at most', min: 1_000, rate: 1.2, volatility: 0.004, dip: 0.08, rise: 0.08, top: 2, cap: 0.3, era: 2 },
-  venture: { id: 'venture', label: 'Era Ventures', blurb: 'Back an era: fast growth up to ×3, but it can dip hard', min: 10_000, rate: 2.0, volatility: 0.01, dip: 0.35, rise: 0.15, top: 3, cap: 0.2, era: 3 },
+  index: { id: 'index', label: 'Snow Index Fund', blurb: 'Tracks the whole market: a bit faster than bonds, no lock, wobbles on the way, doubles at most', min: 1_000, rate: 1.2, volatility: 0.004, dip: 0.08, rise: 0.08, top: 2, cap: 0.3, capMinutes: 10, era: 2 },
+  venture: { id: 'venture', label: 'Era Ventures', blurb: 'Back an era: fast growth up to ×3, but it can dip hard', min: 10_000, rate: 2.0, volatility: 0.01, dip: 0.35, rise: 0.15, top: 3, cap: 0.2, capMinutes: 5, era: 3 },
 };
 export const INVEST_IDS: readonly InvestProductId[] = ['bond', 'index', 'venture'];
 /** Total money in bonds may not exceed this share of net worth (keeps the risk-free rate from dominating). */

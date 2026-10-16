@@ -40,6 +40,8 @@ export interface MarketOptions {
 
 export class Market implements Updatable {
   private rng: () => number;
+  /** $ per second of steady sales (Game wires the SalesMeter); unset (tests), only the net-worth share caps a product. */
+  private salesRate: (() => number) | null = null;
   /** Seconds since the last price tick. */
   private acc = 0;
   /** Recent unit values per material, oldest first (not saved). */
@@ -50,6 +52,11 @@ export class Market implements Updatable {
     opts: MarketOptions = {},
   ) {
     this.rng = opts.rng ?? Math.random;
+  }
+
+  /** Where the investment caps read the recent sales rate from (core/Save.ts SalesMeter). */
+  setSalesRate(rate: () => number): void {
+    this.salesRate = rate;
   }
 
   /** Swap the random source (tests). */
@@ -300,9 +307,26 @@ export class Market implements Updatable {
     return t;
   }
 
-  /** Most that can still go into a product (its cap share of net worth minus the principal already there). */
+  /**
+   * Most principal a product may hold: its share of net worth, and (0.9.6) no more than `capMinutes` of recent sales,
+   * so with the factories idle nothing new goes in and bonds can't be rolled into a money machine.
+   */
+  capOf(product: InvestProductId): number {
+    const def = INVEST[product];
+    const byWorth = def.cap * this.netWorth();
+    if (!this.salesRate) return byWorth;
+    const rate = this.salesRate();
+    return Math.min(byWorth, def.capMinutes * 60 * (Number.isFinite(rate) && rate > 0 ? rate : 0));
+  }
+
+  /** True when the sales-rate cap (not the net-worth share) is the one holding a product back. */
+  cappedBySales(product: InvestProductId): boolean {
+    return this.capOf(product) < INVEST[product].cap * this.netWorth();
+  }
+
+  /** Most that can still go into a product (its cap minus the principal already there). */
   room(product: InvestProductId): number {
-    return Math.max(0, Math.floor(INVEST[product].cap * this.netWorth() - this.totalIn(product)));
+    return Math.max(0, Math.floor(this.capOf(product) - this.totalIn(product)));
   }
 
   /** Principal in bonds right now. */

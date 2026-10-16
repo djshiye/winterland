@@ -268,6 +268,7 @@ export class Game {
     if (save) this.level.restoreWorld(save.world);
     new GateTracker(ctx); // 0.9.0 climb: computed 'gate:progress' (seeded from the loaded world, so a load is silent)
     this.sales = new SalesMeter(ctx, save?.salesRate ?? 0);
+    ctx.market.setSalesRate(() => this.sales.rate); // 0.9.6: investment caps follow the factories' income
 
     input.onFirstGesture(() => ctx.audio.unlock());
     cameraRig.follow(ctx.player.object);

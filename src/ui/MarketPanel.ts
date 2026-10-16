@@ -593,7 +593,8 @@ export class MarketPanel {
       const amount = this.amountFor(c);
       let why = '';
       if (full) why = `All ${max} positions are open`;
-      else if (amount < def.min) why = economy.money >= def.min ? `Capped at ${formatMoney(market.room(c.id) + market.totalIn(c.id))} (${Math.round(def.cap * 100)}% of your net worth)` : `Needs at least ${formatMoney(def.min)}`;
+      else if (amount < def.min && market.cappedBySales(c.id) && market.capOf(c.id) < def.min) why = 'Room to invest grows with your sales';
+      else if (amount < def.min) why = economy.money >= def.min ? `Capped at ${formatMoney(Math.floor(market.capOf(c.id)))} (${market.cappedBySales(c.id) ? `${def.capMinutes} minutes of your sales` : `${Math.round(def.cap * 100)}% of your net worth`})` : `Needs at least ${formatMoney(def.min)}`;
       put(c.btn, `Invest<small>${formatMoney(amount)}</small>`);
       c.btn.disabled = why !== '';
       put(c.hint, why || this.productNote(c.id));
