@@ -209,7 +209,7 @@ describe('0.9.6 migration: levels past Lv 10 refunded, Mastery kept (decisions 2
     mergeState(next, JSON.parse(JSON.stringify(state)));
     sanitizeState(next);
     const second = migrateState(next, false, { salesRate: save.salesRate, upgrades: save.state.upgrades });
-    expect(second).toEqual({ applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0, tradeLevels: 0 });
+    expect(second).toEqual({ applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0, tradeLevels: 0, resourcesAge: 0, reactor: '' });
     expect(next).toEqual(state);
   });
 

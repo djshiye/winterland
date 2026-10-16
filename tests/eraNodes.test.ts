@@ -26,9 +26,11 @@ function size(o: THREE.Object3D): THREE.Vector3 {
 describe('era hand nodes', () => {
   it('covers eras 2..10 with the art spec names', () => {
     expect(NODE_ERAS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    // 0.9.7 era resources v2 re-themed two nodes after the era JSON specs were written
+    const renamed: Record<number, string> = { 5: 'Taconite Ridge', 10: 'Rare Earth Geode' };
     for (const n of NODE_ERAS) {
       const spec = JSON.parse(readFileSync(`docs/art/era-${String(n).padStart(2, '0')}.json`, 'utf8')) as { node: { name: string } };
-      expect(ERA_NODES[n]!.name).toBe(spec.node.name);
+      expect(ERA_NODES[n]!.name).toBe(renamed[n] ?? spec.node.name);
       expect(ERA_NODES[n]!.era).toBe(n);
     }
   });

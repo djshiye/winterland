@@ -12,11 +12,11 @@ import { createEraItemModel } from '../src/assets/eraItems';
 import { materialIcon, materialLabel } from '../src/ui/materialIcons';
 import type { MaterialKind } from '../src/core/kinds';
 
-const NEW_KINDS: MaterialKind[] = ['gold', 'board', 'computer', 'graphite', 'battery', 'quantumCore'];
+const NEW_KINDS: MaterialKind[] = ['gold', 'board', 'computer', 'graphite', 'battery', 'quantumCore', 'rareEarth', 'helium3', 'fusionCell'];
 const LINES: Record<number, { extractors: MachineId[]; processors: MachineId[]; premium: MachineId }> = {
   8: { extractors: ['sandPit', 'goldPanner'], processors: ['chipFab', 'boardShop'], premium: 'pcAssembly' },
   9: { extractors: ['uraniumMine', 'graphitePit'], processors: ['enricher', 'reactor'], premium: 'batteryPlant' },
-  10: { extractors: ['fusionPlant', 'nanoFab'], processors: ['dataCenter', 'robotWorks'], premium: 'quantumLab' },
+  10: { extractors: ['nanoFab', 'heliumSkimmer'], processors: ['fusionPlant', 'dataCenter', 'robotWorks'], premium: 'quantumLab' },
 };
 
 describe('eras 8-10 content', () => {
@@ -50,7 +50,7 @@ describe('eras 8-10 content', () => {
   });
 
   it('new machines build through createMachineModel', () => {
-    for (const id of ['goldPanner', 'boardShop', 'pcAssembly', 'graphitePit', 'batteryPlant', 'quantumLab'] as MachineId[]) {
+    for (const id of ['goldPanner', 'boardShop', 'pcAssembly', 'graphitePit', 'batteryPlant', 'quantumLab', 'heliumSkimmer'] as MachineId[]) {
       const m = createMachineModel(id);
       expect(m.root.name).toBe(`machine:${id}:${MACHINES[id].era}`);
     }
