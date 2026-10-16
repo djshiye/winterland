@@ -2,7 +2,7 @@
  * [MAIN] Runtime contracts between the era region world (eras/EraWorld.ts), its machines (eras/Machine.ts), the era
  * workers (npc/EraCrew.ts) and Jack's carts. Types only.
  */
-import type { ItemHolder, ItemKind } from '../core/types';
+import type { Item, ItemHolder, ItemKind } from '../core/types';
 import type { Pile } from '../items/Pile';
 import type { MachineDef } from './data';
 import type { RegionLayout, XZ } from './layout';
@@ -46,7 +46,7 @@ export interface RegionRuntime {
   readonly layout: RegionLayout;
   /** Index = slot; null while empty / under construction. Read live (machines appear and get demolished). */
   readonly machines: readonly (MachineRuntime | null)[];
-  /** Export depot: every material that lands in it is sold at once (core/Market.ts sellExport). Accepts era materials. */
+  /** Export depot: every material that lands in it goes to the market counters, or is sold at once when that is full. */
   readonly depot: ItemHolder;
   readonly depotSpot: XZ;
   /** Import dock: market orders arrive here; workers take inputs from it; the player may drop materials into it. */
@@ -54,4 +54,20 @@ export interface RegionRuntime {
   readonly dockSpot: XZ;
   /** 0.9.5: construction sites wanting material right now (read live). */
   sites(): readonly SiteRuntime[];
+  /**
+   * 0.9.5 market: the depot hands what it receives to the loading dock (raw) or market stall (refined) while they have
+   * room; buyer trucks take from the dock, walk-in shoppers from the stall, both pay into `cash`.
+   * `forward` is the depot's hand-off (false when both counters are full).
+   */
+  readonly market: {
+    readonly dockPile: Pile;
+    readonly stallPile: Pile;
+    /** The cash pile buyers pay into (`value` dollars, bundles in `pile`). */
+    readonly cash: { readonly pile: Pile; readonly value: number };
+    /** Era clerks: where they stand to collect the cash, and where they hand it in (at the depot). */
+    readonly clerkSpot: XZ;
+    readonly cashSpot: XZ;
+    readonly bank: ItemHolder;
+    forward(item: Item): boolean;
+  };
 }

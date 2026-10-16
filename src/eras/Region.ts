@@ -10,6 +10,8 @@
  *   the choice can still be changed (the zone stays on). A built machine has an info zone: 'manage:open' with its stats
  *   and a demolish button (pay DEMOLISH_SHARE of its price, no refund; the slot becomes empty again).
  * - The era crew (EraCrew) and the market's physical orders (deliver()).
+ * - 0.9.5: the market (eras/RegionMarket.ts) in the market zone: a loading dock for buyer trucks on the road and a market
+ *   stall for walk-in shoppers, both paying into one cash pile.
  *
  * Construction is silent (a restored game builds every region instantly: no events, no sounds); the live path
  * (EraWorld.unlock) calls appear() for the pop-in. Slot state is the truth: every transition writes state first.
@@ -34,6 +36,7 @@ import { regionLayout, type RegionLayout, type XZ } from './layout';
 import { EraBelts } from './EraBelts';
 import { EraLevelPad } from './LevelPad';
 import { Machine } from './Machine';
+import { RegionMarket } from './RegionMarket';
 import type { RegionRuntime, SiteRuntime } from './runtime';
 import { DEPOT_FRAME, DOCK_FRAME, LEVEL_PAD_SIZE, MAT_SIZE, chooseOptions, demolishCost, machineStatRows, slotKey, slotTarget, slotTitle, slotUntouched, toWorld, worldRect } from './rules';
 
@@ -68,6 +71,8 @@ export class Region implements RegionRuntime {
   readonly node: HandNode | null;
   /** 0.9.5: conveyor belts between the machines (from Lv 1 of the era's Belts upgrade). */
   readonly belts: EraBelts;
+  /** 0.9.5: the sales counter and its buyer trucks (the depot hands goods to it first). */
+  readonly market: RegionMarket;
 
   private readonly slots: SlotSite[] = [];
   /** 0.9.5: one level pad per machine type, beside the first built machine of that type (slot index). */
@@ -102,6 +107,11 @@ export class Region implements RegionRuntime {
       interval: TIMING.dropInterval,
       marker: true,
     });
+
+    // ---- market (0.9.5): loading dock + market stall in the market zone, buyers from the road --------------------
+    this.market = new RegionMarket(ctx, era, L, this.root);
+    this.pops.push(...this.market.models);
+    this.depot.forward = (item) => this.market.forward(item);
 
     // ---- import dock ------------------------------------------------------------------------------------------
     this.addModel(createDockModel(era), L.dock, yaw);
@@ -193,6 +203,7 @@ export class Region implements RegionRuntime {
     this.node?.update(dt);
     this.crew.update(dt);
     this.jack.update(dt);
+    this.market.update(dt);
   }
 
   // ---- slots ----------------------------------------------------------------------------------------------------
@@ -457,7 +468,7 @@ export class Region implements RegionRuntime {
       const n = this.dock.count(k) + fl.inFlightTo(this.dock, k) + fl.inFlightTo(this.depot, k) + fl.inFlightTo(this.jack.sink, k) + (carried[k] ?? 0);
       if (n > 0) dock[k] = n;
     }
-    return { slots: this.slots.map((S) => (S.machine ? S.machine.snapshot() : { in: {}, out: 0 })), dock };
+    return { slots: this.slots.map((S) => (S.machine ? S.machine.snapshot() : { in: {}, out: 0 })), dock, market: this.market.snapshot() };
   }
 
   restore(e: WorldSnapshot['eras'][number]): void {
@@ -475,6 +486,7 @@ export class Region implements RegionRuntime {
       const over = n - (this.dock.count(k) - before);
       if (over > 0) this.ctx.economy.add(Math.round(this.ctx.market.quote(k, 'sell') * over));
     }
+    this.market.restore(e.market);
   }
 
   // ---- internals --------------------------------------------------------------------------------------------------
