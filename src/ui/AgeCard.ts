@@ -1,6 +1,7 @@
 /**
  * [0.9.0 Ages — UI] Celebration cards for the city's big moments.
  * - 'era:unlocked' { era }: "A NEW ERA · ERA IV · STEAM AGE", the era's tagline, its perks, the region's name and two
+ *   rule (0.9.6, eras/gate.ts gateRuleText: what to raise to Lv 10 before the next expansion) and two
  *   buttons: "Go there" (fast travel to the region's front door via 'travel:request') and Close. Stays until dismissed.
  * - 'city:rankUp' { rank, name }: a smaller banner "Your city is now a Big City!" that fades on its own (it waits its
  *   turn while the era card is up).
@@ -9,6 +10,7 @@
  */
 import type { GameContext } from '../core/types';
 import { ERAS } from '../eras/data';
+import { gateNeed, gateRuleText } from '../eras/gate';
 import { regionLayout } from '../eras/layout';
 import { eraTitle } from './agesLogic';
 import { backOut, h, onTap, shield } from './dom';
@@ -27,6 +29,7 @@ export class AgeCard {
   private readonly tagEl: HTMLDivElement;
   private readonly perksEl: HTMLDivElement;
   private readonly placeEl: HTMLDivElement;
+  private readonly ruleEl: HTMLDivElement;
   private readonly goBtn: HTMLButtonElement;
   private readonly banner: HTMLDivElement;
   /** Seconds since the era card opened (−1 = none) and since it started closing (−1 = not closing). */
@@ -47,6 +50,7 @@ export class AgeCard {
     this.tagEl = h('div', 'wl-era-tag');
     this.perksEl = h('div', 'wl-era-perks');
     this.placeEl = h('div', 'wl-agecard-place');
+    this.ruleEl = h('div', 'wl-agecard-rule');
     const stars = h('div', 'wl-era-stars', `<i>${ICON_STAR}</i><i>${ICON_STAR}</i><i>${ICON_STAR}</i>`);
     const btns = h('div', 'wl-agecard-btns');
     this.goBtn = h('button', 'wl-agecard-btn is-go', 'Go there');
@@ -54,7 +58,7 @@ export class AgeCard {
     const closeBtn = h('button', 'wl-agecard-btn is-plain', 'Close');
     closeBtn.type = 'button';
     btns.append(this.goBtn, closeBtn);
-    this.root.append(stars, this.kickerEl, this.titleEl, this.tagEl, this.perksEl, this.placeEl, btns);
+    this.root.append(stars, this.kickerEl, this.titleEl, this.tagEl, this.perksEl, this.placeEl, this.ruleEl, btns);
     layer.appendChild(this.root);
     onTap(this.goBtn, () => this.goThere());
     onTap(closeBtn, () => {
@@ -95,6 +99,7 @@ export class AgeCard {
       }),
     );
     this.placeEl.textContent = `${e.region} is open`;
+    this.ruleEl.textContent = ERAS[n + 1] ? gateRuleText(n + 1) : `Raise ${e.region}'s machines, crew and upgrades to Lv ${gateNeed(n)}.`;
     this.root.style.setProperty('--era-accent', hexCss(e.colors.accent));
     this.root.setAttribute('aria-label', `A new era: ${e.name}`);
     this.t = 0;

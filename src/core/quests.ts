@@ -3,9 +3,15 @@
  * Progress is read from state each check, so restore needs nothing but state.quests (ids done). A goal met while
  * it is not yet shown completes the moment it is shown. At most one completes per COMPLETE_GAP seconds, so a
  * burst reads as a sequence of toasts. Rewards go straight to the money; 'quest:done' drives the juice.
+ *
+ * 0.9.6 (F9): from era 2 on, the quests of the era the player is in come first (then older leftovers, then later
+ * ones), so "Sell 60 chairs to the dog sleds" no longer sits above the era's own goals; and a reward is at least
+ * QUEST_INCOME_SECONDS of the recent sales rate (core/incomeWindow.ts), fixed the moment the quest shows, so no
+ * quest pays pocket change in a later era. Era 1 (age 1) is untouched.
  */
 import { AMENITY_IDS, GATE } from '../config';
-import { CITY_BUILDINGS, DISTRICTS, ERAS, ERA_SCALE, REGIONS, unlockCash, type CityBuildingKind } from '../eras/data';
+import { CITY_BUILDINGS, DISTRICTS, ERAS, ERA_NAMES, ERA_SCALE, REGIONS, unlockCash, type CityBuildingKind } from '../eras/data';
+import { IncomeWindow, sig2Money } from './incomeWindow';
 import { settlementLevel, townHappiness } from './demand';
 import { climbOpen, gateCount, gateNeed, gateSize } from '../eras/gate';
 import type { Economy } from './Economy';
@@ -81,8 +87,9 @@ function eraQuests(): QuestDef[] {
   // climb (era 1 below it reads exactly as 0.8.0). An era already reached counts its gate as met.
   const gate = (n: number): QuestDef => ({
     id: `gate${n}`,
-    // literal mode (0.9.5): from era 3 the gate is the previous region's own upgrades
-    title: GATE.mode === 'literal' && n >= 3 ? `All ${ERAS[n - 1]!.region} upgrades Lv ${gateNeed(n)}` : `All upgrades Lv ${gateNeed(n)}`,
+    // literal mode: the previous era's own upgrades, named by era (0.9.6: "All Granite Hollow upgrades" read as only
+    // that region's, though the era's finance is bought at the cabin; "All upgrades" meant Survival's only)
+    title: GATE.mode === 'literal' ? `All ${ERA_NAMES[n - 1]} upgrades Lv ${gateNeed(n)}` : `All upgrades Lv ${gateNeed(n)}`,
     target: gateSize(n),
     reward: Math.round((unlockCash(n) * 0.05) / 1000) * 1000,
     unlocked: climbOpen,
@@ -138,6 +145,23 @@ function questTrio(n: number): QuestDef[] {
 /** The era-1 quests (everything before the first era quest). */
 const SURVIVAL_QUESTS: readonly QuestDef[] = QUEST_DEFS.slice(0, QUEST_DEFS.findIndex((d) => d.id === 'gate2'));
 
+/** The era a quest belongs to: Survival's are 1, a gate or reach quest the era it is earned in, a trio its era. */
+export function questEra(id: string): number {
+  const m = /^(gate|era|trio|materials)(\d+)/.exec(id);
+  if (m) {
+    const n = Number(m[2]);
+    if (m[1] === 'materials' && n === 100) return 2;
+    return m[1] === 'gate' || m[1] === 'era' ? n - 1 : n;
+  }
+  if (id === 'machines6' || id === 'city12') return 3;
+  if (id === 'city60') return 10;
+  if (['machine1', 'jack1', 'city1', 'invest1'].includes(id)) return 2;
+  return 1;
+}
+
+/** Seconds of the recent sales rate every quest reward is worth at least, from era 2 on. */
+export const QUEST_INCOME_SECONDS = 60;
+
 /** How many quests are shown (and checked) at once. */
 export const ACTIVE_QUESTS = 3;
 const COMPLETE_GAP = 1.5;
@@ -147,27 +171,53 @@ export interface ActiveQuest {
   def: QuestDef;
   /** 0..target */
   progress: number;
+  /** What completing it pays (def.reward in era 1; at least QUEST_INCOME_SECONDS of sales from era 2 on). */
+  reward: number;
 }
 
 export class Quests {
   private check = 0;
   private gap = 0;
+  private readonly income = new IncomeWindow();
+  /** Rewards fixed when a quest first shows (era 2+), so the number on the panel never drifts. */
+  private readonly rewards = new Map<string, number>();
 
   constructor(
     private readonly state: GameState,
     private readonly economy: Economy,
     private readonly events: EventBus<GameEvents>,
-  ) {}
+  ) {
+    events.on('sale', (e) => {
+      if (e.buyer !== 'jack') this.income.add(e.amount);
+    });
+  }
 
-  /** The quests on show right now (first ACTIVE_QUESTS not done, in list order). */
+  /**
+   * The quests on show right now: the first ACTIVE_QUESTS not done, in list order; from era 2 on the current era's
+   * first (after any already met), then older ones, then later ones (stable within each).
+   */
   active(): ActiveQuest[] {
-    const out: ActiveQuest[] = [];
-    for (const def of QUEST_DEFS) {
-      if (this.state.quests[def.id] || (def.unlocked && !def.unlocked(this.state))) continue;
-      out.push({ def, progress: Math.min(def.target, Math.max(0, def.progress(this.state))) });
-      if (out.length >= ACTIVE_QUESTS) break;
+    const age = this.state.eras.age;
+    const open = QUEST_DEFS.filter((def) => !this.state.quests[def.id] && !(def.unlocked && !def.unlocked(this.state)));
+    // a goal already met comes first, so it pays out at once instead of waiting for a free row
+    const rank = (def: QuestDef): number => {
+      if (def.progress(this.state) >= def.target) return -1;
+      const e = questEra(def.id);
+      return e === age ? 0 : e < age ? 1 : 2;
+    };
+    const ordered = age >= 2 ? open.map((d, i) => ({ d, i })).sort((a, b) => rank(a.d) - rank(b.d) || a.i - b.i).map((x) => x.d) : open;
+    return ordered.slice(0, ACTIVE_QUESTS).map((def) => ({ def, progress: Math.min(def.target, Math.max(0, def.progress(this.state))), reward: this.rewardOf(def) }));
+  }
+
+  /** def.reward in era 1; from era 2 on at least QUEST_INCOME_SECONDS of recent sales, fixed when first asked. */
+  private rewardOf(def: QuestDef): number {
+    if (this.state.eras.age < 2) return def.reward;
+    let r = this.rewards.get(def.id);
+    if (r === undefined) {
+      r = Math.max(def.reward, sig2Money(this.income.rate * QUEST_INCOME_SECONDS));
+      this.rewards.set(def.id, r);
     }
-    return out;
+    return r;
   }
 
   /** Quests counted on the panel: era 1 counts the Survival list only (as in 0.8.0) until the ages are in play. */
@@ -185,19 +235,21 @@ export class Quests {
   }
 
   update(dt: number): void {
+    this.income.tick(dt);
     this.gap -= dt;
     this.check -= dt;
     if (this.check > 0 || this.gap > 0) return;
     this.check = CHECK_EVERY;
     const ready = this.active().find((q) => q.progress >= q.def.target);
     if (!ready) return;
-    this.complete(ready.def);
+    this.complete(ready.def, ready.reward);
   }
 
-  private complete(def: QuestDef): void {
+  private complete(def: QuestDef, reward: number): void {
     this.state.quests[def.id] = true;
     this.gap = COMPLETE_GAP;
-    this.economy.add(def.reward);
-    this.events.emit('quest:done', { id: def.id, title: def.title, reward: def.reward });
+    this.rewards.delete(def.id);
+    this.economy.add(reward);
+    this.events.emit('quest:done', { id: def.id, title: def.title, reward });
   }
 }

@@ -10,14 +10,18 @@
  * blocks under a "City" heading with their district name, so the two never look like two "era II" places. A dashed
  * trail (eras/layout.ts eraTrail) runs from the town along the roads through every region gate in era order and ends
  * on the next era's gate, so the way on is always on the map.
+ *
+ * 0.9.6 (R26): roman numerals belong to the era regions only. City districts carry their name and a house badge, and
+ * a locked region names what it really waits for: the next one shows the gate's count ("Granite Hollow at Lv 10:
+ * 12/29 · Settlement 7/10"), the ones after it "Open Iron Ridge first".
  */
 import type { GameContext } from '../core/types';
 import { DISTRICTS, ERAS, REGIONS, ROADS, type ERect } from '../eras/data';
-import { climbOpen } from '../eras/gate';
+import { climbOpen, gateCount } from '../eras/gate';
 import { eraTrail, travelPoints, type TravelPoint } from '../eras/layout';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { eraRoman, groupTravelPoints, travelNote } from './agesLogic';
-import { hexCss, ICON_CLOSE, ICON_LOCK, ICON_PIN, shadeCss } from './icons';
+import { hexCss, ICON_CLOSE, ICON_HOUSE, ICON_LOCK, ICON_PIN, shadeCss } from './icons';
 import './ages.css';
 
 /** World rectangle the SVG shows: the old map plus every region, road and district (0.9.5: computed, 4 m margin). */
@@ -191,8 +195,7 @@ export class MapPanel {
       out.push(
         `<g ${open && tp ? `data-tp="${tp.id}" class="is-open"` : ''}>` +
           `<rect ${rectAttrs(d.rect)} rx="2.5" fill="#4a5672" stroke="${hexCss(e.colors.accent)}" stroke-width="1.1" ${open ? '' : 'opacity="0.35" stroke-dasharray="3 2"'}/>` +
-          `<text class="wl-map-dnum" x="${cx}" y="${cz - 1}" ${open ? '' : 'opacity="0.6"'}>${eraRoman(n)}</text>` +
-          `<text class="wl-map-dname" x="${cx}" y="${cz + 6}" ${d.name.length > 9 ? 'textLength="26" lengthAdjust="spacingAndGlyphs"' : ''} ${open ? '' : 'opacity="0.6"'}>${d.name}</text></g>`,
+          `<text class="wl-map-dname" x="${cx}" y="${cz + 2}" ${d.name.length > 9 ? 'textLength="26" lengthAdjust="spacingAndGlyphs"' : ''} ${open ? '' : 'opacity="0.6"'}>${d.name}</text></g>`,
       );
     }
     // era regions
@@ -242,13 +245,15 @@ export class MapPanel {
 
   private makeRow(p: TravelPoint, age: number): HTMLElement {
     const note = travelNote(p, age);
+    if (p.kind === 'region' && !p.open && age < p.era) note.need = this.regionNeed(p.era, age);
     const e = p.era >= 2 ? ERAS[p.era] : null;
     const row = h('button', 'wl-map-row');
     row.type = 'button';
     row.classList.toggle('is-locked', !p.open);
-    const badge = h('div', 'wl-map-badge', p.era >= 2 ? eraRoman(p.era) : ICON_PIN);
+    // numerals only on era regions (R26): a district gets a house, so "II Brickside" never sits by "II Granite Hollow"
+    const badge = h('div', 'wl-map-badge', p.kind === 'district' ? ICON_HOUSE : p.era >= 2 ? eraRoman(p.era) : ICON_PIN);
     if (e && p.kind === 'district') {
-      // a city block: dark like the map's blocks, the number in the era's colour
+      // a city block: dark like the map's blocks, ringed in the era's colour
       badge.style.background = '#4a5672';
       badge.style.color = hexCss(e.colors.accent);
       badge.style.boxShadow = `inset 0 0 0 2px ${hexCss(e.colors.accent)}`;
@@ -267,6 +272,15 @@ export class MapPanel {
     if (p.open) onTap(row, () => this.travel(p));
     else row.disabled = true;
     return row;
+  }
+
+  /** What a locked region waits for: the next one's real gate, or the region before it. */
+  private regionNeed(n: number, age: number): string {
+    if (n > age + 1) return `Open ${ERAS[n - 1]?.region ?? 'the region before'} first`;
+    if (!climbOpen(this.ctx.state)) return 'Build the Great Lodge first';
+    const c = gateCount(this.ctx.state, n);
+    const owner = ERAS[n - 1]?.region ?? 'Survival';
+    return `${owner} at Lv 10: ${c.ok}/${c.total} · Settlement ${Math.min(c.settlement, c.settlementNeed)}/${c.settlementNeed}`;
   }
 
   /** Put the "you are here" dot on the player's position. */

@@ -19,6 +19,7 @@
  *
  * Draw calls: pavement 1, lamps 1 (+ bulbs 1, + night halos 1), every building 2 (+1 pivot), every pad ~3.
  */
+import { fadeManageSign } from '../fx/manageSign';
 import * as THREE from 'three';
 import { CITY_BUILDINGS, CITY_HAPPINESS_BONUS, DISTRICT_MATERIAL, ERA_NAMES, districtDef, era, type CityBuildingDef, type CityBuildingId } from '../eras/data';
 import type { ChooseOption, GameContext } from '../core/types';
@@ -179,9 +180,13 @@ export class District {
     for (let i = 0; i < PER_FRAME && this.queue.length > 0; i++) this.ensureModel(this.queue.shift()!, true);
     const t = this.ctx.time.elapsed;
     const cam = this.ctx.camera.quaternion;
+    const player = this.ctx.player?.position;
     for (const L of this.lots) {
       L.lotPad?.update(dt);
-      if (L.sign?.visible) L.sign.quaternion.copy(cam);
+      if (L.sign?.visible) {
+        L.sign.quaternion.copy(cam);
+        fadeManageSign(L.sign, player);
+      }
       L.model?.animate(t);
     }
   }
@@ -462,10 +467,11 @@ const fmt = (v: number): string => (v >= 100 ? Math.round(v).toLocaleString('en-
 
 /** "40 residents, $4/s rent" etc. for the choose card. */
 function statLine(def: CityBuildingDef): string {
-  if (def.kind === 'home') return `${def.people} residents, $${fmt(def.income)}/s rent`;
-  if (def.kind === 'park') return `+${Math.round(def.happiness * 100)}% happiness, ${def.jobs} jobs`;
+  // 0.9.6: say plainly which lots grow the settlement (only homes do), so a full district never soft-locks it by surprise
+  if (def.kind === 'home') return `${def.people} residents (+${def.people} settlement), $${fmt(def.income)}/s rent`;
+  if (def.kind === 'park') return `+${Math.round(def.happiness * 100)}% happiness, ${def.jobs} jobs · no settlement`;
   const h = def.happiness > 0 ? `, +${Math.round(def.happiness * 100)}% happiness` : '';
-  return `${def.jobs} jobs, $${fmt(def.income)}/s${h}`;
+  return `${def.jobs} jobs, $${fmt(def.income)}/s${h} · no settlement`;
 }
 
 /** The refined material a district's buildings are made of (for hints). */

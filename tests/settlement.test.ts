@@ -134,10 +134,11 @@ describe('threshold scale', () => {
 });
 
 describe('levels from the city population', () => {
-  it('level 5(k − 1) + j needs age ≥ k: era 1 never passes 5, each era fills only its own band', () => {
+  it('rises freely to 50 from era 2 on (decision 7, 0.9.6): era 1 never passes 5, homes always count', () => {
     expect(settlementLevelFor(1e9, 1)).toBe(0);
-    expect(settlementLevelFor(1e9, 2)).toBe(10);
-    expect(settlementLevelFor(1e9, 3)).toBe(15);
+    expect(settlementLevelFor(1e9, 2)).toBe(50);
+    expect(settlementLevelFor(1e9, 3)).toBe(50);
+    expect(settlementLevelFor(settlementPop(13)!, 2)).toBe(13); // past era 2's own band: no cap, no five-step jump later
     expect(settlementLevelFor(1e9, 10)).toBe(50);
     expect(settlementLevelFor(0, 10)).toBe(0);
     expect(settlementLevelFor(settlementPop(7)!, 2)).toBe(7);
@@ -199,6 +200,24 @@ describe('levels from the city population', () => {
     const goal = nextGoal(s, 0)!;
     expect(goal.action).toEqual({ kind: 'build', target: 'district:2' });
     expect(goal.text).toBe(`Build a home in ${DISTRICTS[2]!.name} (+${homeOf(2).people}) → Settlement 6`);
+  });
+
+  it('F7 (0.9.6): an affordable row comes before a crew that waits for the settlement, then the settlement step', () => {
+    const s = winterland(2);
+    const ids = Object.keys(UPGRADES) as (keyof typeof UPGRADES)[];
+    for (const id of ids) s.upgrades[id] = 99;
+    const waiting = ids.find((id) => UPGRADES[id].era === 2 && (UPGRADES[id].requires?.settlement ?? 0) > 5)!;
+    const free = ids.find((id) => UPGRADES[id].era === 2 && UPGRADES[id].group !== 'machine' && !UPGRADES[id].requires?.settlement && UPGRADES[id].display !== 'crew' && UPGRADES[id].display !== 'belt')!;
+    expect(waiting).toBeDefined();
+    expect(free).toBeDefined();
+    s.upgrades[waiting] = 0;
+    s.upgrades[free] = 0;
+    const rich = nextGoal(s, 1e15)!;
+    expect(rich.action).toEqual({ kind: 'buy', target: free });
+    expect(rich.text).not.toMatch(/Reach Settlement/);
+    const broke = nextGoal(s, 0)!;
+    expect(broke.action).toEqual({ kind: 'build', target: 'district:2' });
+    expect(broke.text).toMatch(/^Build a home in /);
   });
 });
 
@@ -305,7 +324,8 @@ describe('Renown and the band perks', () => {
     s.eras.settlement = 6;
     expect(q.active().map((a) => a.def.id)).toEqual(['trio2homes', 'trio2machines', 'trio2landmark']);
     build(s, 2, 0, idOf(2, 'landmark'));
-    expect(q.active()[2]!.progress).toBe(1);
+    // a met goal moves to the front so it pays at once (0.9.6)
+    expect(q.active()[0]).toMatchObject({ def: { id: 'trio2landmark' }, progress: 1 });
   });
 });
 
@@ -378,11 +398,13 @@ describe('City announces new levels', () => {
     expect(city.incomeRate).toBeGreaterThan(0);
     events.emit('machine:built', { era: 2, slot: 0, machine: 'quarry', position: new THREE.Vector3(), object: new THREE.Group() });
     const e = up.mock.calls[0]![0];
-    expect(e.level).toBe(10);
+    // settlement rises freely (0.9.6): a full district passes 10, and the band it completed on the way is a Charter
+    expect(e.level).toBeGreaterThanOrEqual(10);
+    expect(e.level).toBeLessThan(15);
     expect(e.charter).toBe(true);
     // the income rate is read after the level rose (Renown and the j = 3 decor already count)
     // (in whole cash bundles)
-    const raw = city.incomeRate * (5 * SETTLEMENT.giftSeconds + SETTLEMENT.charterSeconds);
+    const raw = city.incomeRate * ((e.level - 5) * SETTLEMENT.giftSeconds + SETTLEMENT.charterSeconds);
     expect(e.gift).toBe(Math.max(SETTLEMENT.giftMin, Math.round(raw / ECONOMY.cashBundleValue) * ECONOMY.cashBundleValue));
     expect(city.giftValue).toBe(e.gift);
     expect(MACHINES.quarry.era).toBe(2);

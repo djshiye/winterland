@@ -394,9 +394,34 @@ function qualityIcon(color: number, accent: number): string {
     </g>`);
 }
 
+/** 0.9.6: era player Carry: a work satchel in the era's accent (it used to fall back to Survival's log stack). */
+function satchelIcon(accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M17 16c0-6 14-6 14 0" fill="none" stroke-width="3.2"/>
+      <rect x="7" y="16" width="34" height="26" rx="6" fill="${hexCss(accent)}"/>
+      <path d="M7 25h34" stroke="${shadeCss(accent, 0.4)}" stroke-width="2.6" fill="none"/>
+      <rect x="20" y="22" width="8" height="7" rx="2" fill="#ffd84a"/>
+    </g>`);
+}
+
+/** 0.9.6: era player Tool: a pick with the era's accent on its head. */
+function pickIcon(accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M14 42L32 14" stroke-width="7"/>
+      <path d="M14 42L32 14" stroke-width="3.6" stroke="#c98a4b"/>
+      <path d="M12 12c8-6 20-6 28 2-6-2-12-2-17 0-4 1-7 0-11-2z" fill="${hexCss(accent)}"/>
+    </g>`);
+}
+
 for (const era of ERAS) {
   if (!era) continue;
   const icons: Record<string, string> = {
+    [`${era.key}Carry`]: satchelIcon(era.colors.accent),
+    [`${era.key}Boots`]: UPGRADE_ICONS.speed!,
+    [`${era.key}Tool`]: pickIcon(era.colors.accent),
+    [`${era.key}Pal`]: UPGRADE_ICONS.dog!,
     [`${era.key}Rigs`]: rigsIcon(era.colors.accent),
     [`${era.key}Crew`]: crewIcon(era.colors.accent),
     [`${era.key}Trade`]: tradeIcon(era.colors.accent),
