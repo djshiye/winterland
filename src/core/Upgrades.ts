@@ -13,7 +13,7 @@
  * to the era cap: shown level 10 · age, so era 1 stops at 10 until the era-2 expansion is bought.
  */
 import type * as THREE from 'three';
-import { CLIMB, QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
+import { CLIMB, GATE, QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
 import { ERA_NAMES } from '../eras/data';
 import { climbOpen } from '../eras/gate';
 import { atEraCap, capStored, introEra, maxStored, shown, stepCost, valueAt } from './ladder';
@@ -45,8 +45,13 @@ export class Upgrades {
     return IDS.filter((id) => UPGRADES[id].group === group);
   }
 
+  /**
+   * The level every system reads. 0.9.5 'literal' gate: Lv 10 is the top of every upgrade, so a level an older save
+   * owns above it (the 0.9.0–0.9.4 climb) is read as 10 for display and effect; the stored level is kept, never lost.
+   */
   level(id: UpgradeId): number {
-    return this.state.upgrades[id];
+    const s = this.state.upgrades[id];
+    return GATE.mode === 'literal' ? Math.min(s, CLIMB.bandSize) : s;
   }
 
   /**
@@ -125,7 +130,7 @@ export class Upgrades {
   /** Gain one level that has already been paid for (level pads). Ignored at max level. */
   levelUp(id: UpgradeId, position: THREE.Vector3 | null): void {
     if (this.isMax(id)) return;
-    this.state.upgrades[id]++;
+    this.state.upgrades[id] = this.level(id) + 1;
     this.state.stats.upgradesBought++;
     this.events.emit('upgrade:bought', { id, level: this.state.upgrades[id], position });
   }

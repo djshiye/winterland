@@ -133,10 +133,12 @@ describe('Upgrades on the ladder', () => {
     // an era-n id shows its stored level (no offset) but is priced in era n's band: era 3 costs far more than era 2
     expect(up.shownLevel('ironRigs')).toBe(0);
     expect(costAt(UPGRADES.ironRigs, 0)).toBeGreaterThan(costAt(UPGRADES.frontierRigs, 9));
-    // old saves above 10 keep their levels (bought levels are never taken away)
+    // old saves above 10 keep their stored levels (never lost) but read Lv 10 for display and effect
     state.upgrades.carry = 17;
-    expect(up.level('carry')).toBe(17);
+    expect(up.level('carry')).toBe(10);
+    expect(up.value('carry')).toBe(valueAt(UPGRADES.carry, 10));
     expect(up.isMax('carry')).toBe(true);
+    expect(state.upgrades.carry).toBe(17);
   });
 
   it('era-2+ ids have no cost table: every step is on the band curve and rises strictly', () => {
@@ -216,7 +218,8 @@ describe('crewStats', () => {
     }
   });
 
-  it('clamps walk, capacity and cadence separately past the table', () => {
+  it('offset mode: clamps walk, capacity and cadence separately past the table', () => {
+    OFFSET();
     const { up } = make();
     const c = CLIMB.crew;
     up.setLevel('cashier', 100);

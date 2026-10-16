@@ -513,7 +513,11 @@ export class ShopPanel {
 
       let btnHtml: string;
       let cls: string;
-      if (isMax) {
+      if (req && lvl === 0) {
+        // an era not reached yet (or a machine not built) reads locked, never MAX (0.9.5, Dino's Iron Age screenshot)
+        btnHtml = `<span class="wl-lock">${ICON_LOCK}</span><span class="wl-req">${req}</span>`;
+        cls = 'is-lock';
+      } else if (isMax) {
         // the era cap reads differently from the final level: the next era's expansion lifts it
         btnHtml = up.atEraCap(id) ? '<small>Era</small>MAX' : 'MAX';
         cls = 'is-max';
