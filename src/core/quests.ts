@@ -4,7 +4,7 @@
  * it is not yet shown completes the moment it is shown. At most one completes per COMPLETE_GAP seconds, so a
  * burst reads as a sequence of toasts. Rewards go straight to the money; 'quest:done' drives the juice.
  */
-import { AMENITY_IDS } from '../config';
+import { AMENITY_IDS, GATE } from '../config';
 import { CITY_BUILDINGS, DISTRICTS, ERAS, ERA_SCALE, REGIONS, unlockCash, type CityBuildingKind } from '../eras/data';
 import { settlementLevel, townHappiness } from './demand';
 import { climbOpen, gateCount, gateNeed, gateSize } from '../eras/gate';
@@ -81,7 +81,8 @@ function eraQuests(): QuestDef[] {
   // climb (era 1 below it reads exactly as 0.8.0). An era already reached counts its gate as met.
   const gate = (n: number): QuestDef => ({
     id: `gate${n}`,
-    title: `All upgrades Lv ${gateNeed(n)}`,
+    // literal mode (0.9.5): from era 3 the gate is the previous region's own upgrades
+    title: GATE.mode === 'literal' && n >= 3 ? `All ${ERAS[n - 1]!.region} upgrades Lv ${gateNeed(n)}` : `All upgrades Lv ${gateNeed(n)}`,
     target: gateSize(n),
     reward: Math.round((unlockCash(n) * 0.05) / 1000) * 1000,
     unlocked: climbOpen,

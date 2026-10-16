@@ -6,7 +6,7 @@
  *
  * Start: the Great Lodge is built (0.8.0's finale, about 67 bot minutes, frozen and not modelled), every era-1 upgrade
  * sits at its authored max, no money. Each era ends when the next era's expansion pad is paid; era 10 ends at the
- * finale (every upgrade at shown level 100, settlement 50).
+ * finale (0.9.5 'literal' gate: era 10's own upgrades at Lv 10, settlement 50).
  *
  * Income ($/s, constant between two purchases, so time advances exactly to the next affordable buy):
  * - Survival: PACING.survivalLateRate × the Survival sales upgrades' mean gain over their authored max × Renown ×
@@ -26,7 +26,7 @@
  * nothing buys remotely or on its own): each purchase takes at least PACING.walkPerBuy seconds (the walk to the next
  * pad or mat and the stand on it), with income still flowing, so a step costs max(walk, wait for the money).
  */
-import { SETTLEMENT, UPGRADES, type UpgradeDef } from '../config';
+import { CLIMB, GATE, SETTLEMENT, UPGRADES, type UpgradeDef } from '../config';
 import { CITY_BUILDINGS, ERAS, MACHINES, MARKET, MATERIALS, MAX_ERA, SURVIVAL_VALUE, cityBuildingsOfEra, isMaterial, machinesOfEra, type CityBuildingId, type MachineId } from '../eras/data';
 import { incomeSplit, landmarkTaken } from '../city/rules';
 import { cityPopulation, climbMult, refreshSettlement, settledCityTotals, settlementLevel } from './demand';
@@ -110,7 +110,8 @@ function regionIncome(s: GameState, n: number, k: PacingKnobs): number {
     const c = counts.get(id) ?? 0;
     if (c === 0) continue;
     const def = MACHINES[id];
-    let cycles = c / Math.max(k.minCycle, def.cycle / rigs);
+    // 0.9.5: each machine type's own level (its level pad) speeds it up like eras/Machine.ts cycleTime
+    let cycles = c / Math.max(k.minCycle, def.cycle / (rigs * Math.max(1, value(s, id))));
     for (const inp of def.inputs) if (own.has(inp.kind)) cycles = Math.min(cycles, (supply.get(inp.kind) ?? 0) / inp.per);
     for (const inp of def.inputs) {
       if (own.has(inp.kind)) supply.set(inp.kind, (supply.get(inp.kind) ?? 0) - cycles * inp.per);
@@ -156,8 +157,15 @@ export function pacingStart(): GameState {
   return s;
 }
 
-/** Stored level gate n asks of an id (n = MAX_ERA + 1: the finale, shown level 100). */
-const storedNeed = (def: UpgradeDef, n: number): number => Math.min(maxStored(def, true), 10 * (n - 1) - base(def));
+/**
+ * Stored level gate n asks of an id, 0 when the id is not one of its rows. 'literal' mode (0.9.5): the previous era's
+ * own ids at Lv 10 (n = MAX_ERA + 1, the finale: era 10's own at Lv 10). 'offset' mode: every id introduced before era
+ * n at shown 10 · (n − 1) (the finale: shown level 100).
+ */
+function storedNeed(def: UpgradeDef, n: number): number {
+  if (GATE.mode === 'literal') return introEra(def) === n - 1 ? Math.min(maxStored(def, true), CLIMB.bandSize) : 0;
+  return introEra(def) <= n - 1 ? Math.min(maxStored(def, true), 10 * (n - 1) - base(def)) : 0;
+}
 /** Settlement gate n asks (the finale: 50). */
 const settlementGoal = (n: number): number => Math.min(SETTLEMENT.max, 5 * (n - 1));
 
@@ -166,7 +174,7 @@ function cheapestGateStep(s: GameState, n: number): Buy | null {
   let best: Buy | null = null;
   for (const id of IDS) {
     const def = UPGRADES[id];
-    if (introEra(def) > n - 1 || s.upgrades[id] >= storedNeed(def, n)) continue;
+    if (s.upgrades[id] >= storedNeed(def, n)) continue;
     const cost = costAt(def, s.upgrades[id]);
     if (!best || cost < best.cost) best = { kind: 'gate', id, cost };
   }

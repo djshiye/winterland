@@ -14,7 +14,7 @@
  */
 
 import type { ItemKind } from './core/types';
-import { ERA_KEYS, ERA_NAMES, MATERIALS, MATERIAL_KINDS, ERA_SCALE, type EraKey, type MaterialKind } from './eras/data';
+import { ERA_KEYS, ERA_NAMES, MATERIALS, MATERIAL_KINDS, ERA_SCALE, ERAS, MACHINES, MACHINE_IDS, type EraKey, type MachineId, type MaterialKind } from './eras/data';
 
 export interface Rect {
   minX: number;
@@ -839,7 +839,11 @@ export type UpgradeIdConst =
   | 'jack'
   | 'taxOffice'
   | 'broker'
-  | `${EraKey}${'Rigs' | 'Crew' | 'Trade'}`;
+  | `${EraKey}${'Rigs' | 'Crew' | 'Trade'}`
+  // 0.9.5: the rest of each era's crew (six roles beside the Crew hauler), its conveyor belts and one level per machine
+  | `${EraKey}${EraRoleKey}`
+  | `${EraKey}Belts`
+  | MachineId;
 
 /**
  * lumberjack + crew + sales: bought in the cabin shop panel (one tab each) · machine: the machine's own pad re-arms
@@ -883,7 +887,7 @@ export interface UpgradeDef {
    */
   costs: readonly number[];
   /** Upgrades.describe(): 'count' → "16 items", 'speed' → "7.4 m/s", 'rate' → items per second from an interval, 'crew' → "×1.3". */
-  display: 'count' | 'speed' | 'rate' | 'crew' | 'mult' | 'boost' | 'share' | 'income' | 'factor';
+  display: 'count' | 'speed' | 'rate' | 'crew' | 'mult' | 'boost' | 'share' | 'income' | 'factor' | 'belt';
   /** sales: the product whose price this multiplies. */
   product?: ProductId;
   /** 0.9.0 industry upgrades: the era they belong to (2..10), for the shop's Industry tab grouping. */
@@ -894,6 +898,51 @@ export interface UpgradeDef {
   unit?: string;
   requires?: UpgradeRequirement;
 }
+
+/**
+ * 0.9.5: the six crew roles every era 2..10 gets beside its `${key}Crew` hauler (docs/EXPANSION.md §D, Survival's
+ * crews as the model). One npc/EraWorker class runs them all; the role decides which trips it takes (EraWorker pickJob):
+ * - feeder: machine output → the processors that use it (the logHauler's job);
+ * - shipper: finished goods and surplus → the export depot (the crateRunner's);
+ * - porter: import-dock goods (market orders, the player's drops) → the machines (the porter's);
+ * - gatherer: keeps the extractors running: raw material from a filling extractor → a reserve on the import dock;
+ * - foreman: carries the era's materials to machine slots the player has started paying for (never cash);
+ * - clerk: banks the region's cash (the cashier's job) once sales leave cash, otherwise ships the fullest pile first.
+ * `settlement`: band offset of the settlement level that unlocks the role (5·(n − 1) + offset; 0 = era n opens it).
+ * `scarf`: the knitted scarf the role wears over the era outfit (and its shop icon's hat): sage, honey, sky, teal,
+ * terracotta, lavender, so a glance tells the roles apart (the hauler wears none).
+ */
+export type EraRoleKey = 'Feeder' | 'Shipper' | 'Porter' | 'Gatherer' | 'Foreman' | 'Clerk';
+export type EraRole = 'hauler' | 'feeder' | 'shipper' | 'porter' | 'gatherer' | 'foreman' | 'clerk';
+export const ERA_ROLES: readonly { key: EraRoleKey; role: EraRole; settlement: number; blurb: string; scarf: number }[] = [
+  { key: 'Feeder', role: 'feeder', settlement: 0, blurb: 'Carries raw material from one machine to the next', scarf: 0x7cc28a },
+  { key: 'Shipper', role: 'shipper', settlement: 0, blurb: 'Takes finished goods to the export depot', scarf: 0xf2c14e },
+  { key: 'Porter', role: 'porter', settlement: 2, blurb: 'Brings import-dock goods to the machines', scarf: 0x6fa8dc },
+  { key: 'Gatherer', role: 'gatherer', settlement: 2, blurb: 'Clears full extractors into a reserve on the dock', scarf: 0x58b8a8 },
+  { key: 'Foreman', role: 'foreman', settlement: 4, blurb: 'Hauls materials to machines you are building', scarf: 0xe07a5f },
+  { key: 'Clerk', role: 'clerk', settlement: 4, blurb: 'Keeps the fullest piles moving to the depot', scarf: 0xb48ad6 },
+];
+
+/**
+ * 0.9.5: role names per era (index = era; 0 and 1 unused), in ERA_ROLES order. docs/EXPANSION.md §D's table; the
+ * hauler keeps ERAS[n].worker.
+ */
+export const ERA_ROLE_NAMES: readonly (readonly string[])[] = [
+  [],
+  [],
+  ['Kiln Feeder', 'Carter', 'Dock Hand', 'Stonebreaker', 'Master Mason', 'Tally Clerk'],
+  ['Ore Sorter', 'Rail Carter', 'Lumper', 'Prospector', 'Pit Boss', 'Paymaster'],
+  ['Coal Heaver', 'Engine Driver', 'Navvy', 'Coal Picker', 'Chief Engineer', 'Bookkeeper'],
+  ['Crane Hand', 'Teamster', 'Stevedore', 'Slag Raker', 'Plant Manager', 'Payroll Clerk'],
+  ['Coil Winder', 'Tram Driver', 'Freight Hand', 'Copper Scrapper', 'Electrical Foreman', 'Switchboard Clerk'],
+  ['Pipefitter', 'Tanker Driver', 'Dockworker', 'Seep Skimmer', 'Toolpusher', 'Accountant'],
+  ['Wafer Handler', 'Courier', 'Logistics Tech', 'Sand Sifter', 'Project Lead', 'Data Clerk'],
+  ['Rod Handler', 'Hazmat Driver', 'Decon Porter', 'Crystal Cutter', 'Shift Supervisor', 'Auditor'],
+  ['Feeder Bot', 'Courier Drone', 'Dock Bot', 'Prospector Drone', 'Builder Bot', 'Ledger AI'],
+];
+
+/** Crew work multipliers (index = stored level; 0 = not hired), shared by every era role. */
+const ERA_CREW_VALUES = [0, 1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0] as const;
 
 export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
   // 0.9.0: Jack, finance and the era upgrades (shop tabs Finance / Industry)
@@ -1212,21 +1261,21 @@ export const CLIMB = {
   /** Levels per band: era n's gate needs every owned upgrade at shown level bandSize · (n − 1). */
   bandSize: 10,
   /**
-   * Calibrated with the pacing model (core/pacing.ts, tests/pacing.test.ts): every era 60–200 model minutes. The
-   * design's 250k / 2.6 left eras 3–10 at 40 → 1 min: an era's income grows about ×4.5 (×3 material prices, more slots,
-   * Rigs, Trade and Renown on every older region), so the band price has to grow almost as fast. 0.9.0 retune: every
-   * era runs longer than the last (era 2 about 100 model minutes, then +5–12 per era, era 10 about 177), with the
-   * buyer walking to each pad or shop mat (PACING.walkPerBuy) and the Founder's Scarf's Renown from Settlement 20.
+   * Calibrated with the pacing model (core/pacing.ts, tests/pacing.test.ts). 0.9.5 ('literal' gate: an era's gate is
+   * the previous era's own upgrades at Lv 10, each era's prices in its own band): every era runs longer than the last,
+   * era 2 about 90 model minutes, +9 per era, era 10 about 160, a purchase about every 35–60 s, with the buyer walking
+   * to each pad or shop mat (PACING.walkPerBuy) and the Founder's Scarf's Renown from Settlement 20.
    */
   unit: 190_000,
   bandGrowth: 4.3,
   stepGrowth: 1.08,
   /**
-   * Per-band price multiplier (index = band; 1 where missing), on top of bandGrowth^(band − 2). Era 2 starts from
-   * Survival income alone while era 3 inherits a running region, so band 3 steps up hard (×10 over band 2); later
-   * bands ease off as each older region's Rigs, Trade and Renown compound less. Solved with the pacing model.
+   * Per-band price multiplier (index = band = the era whose own upgrades it prices; bands past the end use the last), on top of
+   * bandGrowth^(band − 2). Era 2 starts from Survival income alone while era 3 inherits a running region, so band 3
+   * steps up hard; later bands ease off as each older region's Rigs, Trade and Renown compound less. Solved with the
+   * pacing model (bisection per era, 0.9.5).
    */
-  bandTilt: [1, 1, 1, 2.35, 2.75, 2.72, 2.68, 2.67, 2.45, 2.11, 1.78] as readonly number[],
+  bandTilt: [1, 1, 1.96, 4.79, 5.14, 4.26, 3.81, 3.77, 3.76, 3.31, 2.4] as readonly number[],
   legacyStep: 1.05,
   weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
   masteryScale: 0.12,
@@ -1243,8 +1292,10 @@ export const CLIMB = {
 /**
  * The era gate's level convention (docs/EXPANSION.md R4). 'offset': an upgrade introduced in era e shows
  * stored + 10 · (e − 1), so every era asks +10 levels of everything; 'literal': shown = stored for every id.
+ * 0.9.5 (Dino): 'literal'. Every era's own upgrades go Lv 1 → 10 and stop there; era n + 1 opens once era n's own
+ * upgrades are all at Lv 10 (eras/gate.ts). Prices still climb era by era (core/ladder.ts priceBase).
  */
-export const GATE: { mode: 'offset' | 'literal' } = { mode: 'offset' };
+export const GATE: { mode: 'offset' | 'literal' } = { mode: 'literal' };
 
 /**
  * Settlement levels 6..50 (docs/EXPANSION.md §B; the pure rules are in core/demand.ts). Levels 0..5 stay the village
@@ -1323,34 +1374,66 @@ function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> 
 }
 
 /**
- * 0.9.0: three upgrades per era n (2..10), ten authored levels each ("level 10" = index 9):
+ * Upgrades of era n (2..10), ten authored levels each; every one is bought hands-on at the era's shop mat or the
+ * machine's level pad, and caps at Lv 10 (core/ladder.ts capStored): era n + 1 opens once all of them reach it.
  * - `${key}Rigs`: every machine of the era works faster (cycle ÷ value).
- * - `${key}Crew`: hires the era's workers (0 = none; workers = 1 / 2 / 3 at levels 1 / 4 / 7) and speeds them up.
+ * - `${key}Crew`: hires the era's haulers (0 = none; workers = 1 / 2 / 3 at levels 1 / 4 / 7) and speeds them up.
  * - `${key}Trade`: the era's materials sell for more at export depots.
+ * - 0.9.5 `${key}<Role>`: the six other crew roles (ERA_ROLES; workers ERA_ROLE_COUNT).
+ * - 0.9.5 `${key}Belts`: conveyor belts between the era's machines (Lv 1 builds them, each level speeds them up).
+ * - 0.9.5 one level per machine type (the MachineId): that machine works faster, bought on its level pad.
  * No cost tables: every step is priced on the climb's band curve (core/ladder.ts costAt, CLIMB), like taxOffice / broker.
  */
-function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade'}`, UpgradeDef> {
-  const out = {} as Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade'}`, UpgradeDef>;
+function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | EraRoleKey}` | MachineId, UpgradeDef> {
+  const out = {} as Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' | EraRoleKey}` | MachineId, UpgradeDef>;
   ERA_KEYS.forEach((key, i) => {
     const n = i + 2;
     const name = ERA_NAMES[n]!;
+    const band = 5 * (n - 1);
     out[`${key}Rigs`] = {
       id: `${key}Rigs`, group: 'industry', era: n, label: `${name} Rigs`, blurb: `Every ${name} machine works faster`,
       values: [1, 1.15, 1.3, 1.5, 1.7, 1.9, 2.15, 2.4, 2.7, 3.0], costs: [],
       display: 'boost', requires: { era: n },
     };
+    out[`${key}Belts`] = {
+      id: `${key}Belts`, group: 'industry', era: n, label: `${name} Belts`, blurb: 'Conveyor belts link the machines that feed each other',
+      values: [0, 1, 1.15, 1.3, 1.45, 1.6, 1.8, 2.0, 2.25, 2.5], costs: [],
+      display: 'belt', requires: { era: n },
+    };
     out[`${key}Crew`] = {
-      id: `${key}Crew`, group: 'industry', era: n, label: `${name} Crew`, blurb: `Workers haul ${name} materials between machines and the depot`,
-      values: [0, 1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0], costs: [],
+      id: `${key}Crew`, group: 'crew', era: n, label: ERAS[n]?.worker.label ?? `${name} Crew`, blurb: `Haulers move ${name} materials wherever they are needed`,
+      values: ERA_CREW_VALUES, costs: [],
       display: 'crew', requires: { era: n },
     };
+    ERA_ROLES.forEach((r, k) => {
+      const id = `${key}${r.key}` as const;
+      out[id] = {
+        id, group: 'crew', era: n, label: ERA_ROLE_NAMES[n]![k]!, blurb: r.blurb,
+        values: ERA_CREW_VALUES, costs: [],
+        display: 'crew', requires: r.settlement > 0 ? { era: n, settlement: band + r.settlement } : { era: n },
+      };
+    });
     out[`${key}Trade`] = {
       id: `${key}Trade`, group: 'industry', era: n, label: `${name} Trade`, blurb: `${name} materials sell for more`,
       values: [1, 1.1, 1.2, 1.32, 1.45, 1.6, 1.75, 1.9, 2.1, 2.4], costs: [],
       display: 'mult', requires: { era: n },
     };
+    for (const m of MACHINE_IDS) {
+      const d = MACHINES[m];
+      if (d.era !== n) continue;
+      out[m] = {
+        id: m, group: 'machine', era: n, label: d.label, blurb: `Every ${d.label} works faster`,
+        values: [1, 1.06, 1.12, 1.18, 1.24, 1.3, 1.36, 1.42, 1.48, 1.54, 1.6], costs: [],
+        display: 'boost', requires: { era: n },
+      };
+    }
   });
   return out;
+}
+
+/** 0.9.5: workers of one era role per stored level: 1 from level 1, 2 from 4, 3 from 7 (like the haulers). */
+export function eraRoleCount(level: number): number {
+  return level <= 0 ? 0 : level < 4 ? 1 : level < 7 ? 2 : 3;
 }
 
 /** 0.9.0: era workers per `${key}Crew` level (index = level; 0 = not hired). */
