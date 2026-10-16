@@ -156,6 +156,14 @@ read by anyone.
   vertex-coloured mesh (shared `vcMat()`), `Batch` builds one from primitives. Bake per animated pivot (a wheel, an
   arm, a blade keeps its own node with its parts baked inside it); keep textured, emissive, transparent and flashing
   parts separate. Items are one mesh each; a character is 6, a vehicle 4–7, a machine 2–7.
+* **Repeated meshes are instanced at draw time** (`render/instancer.ts`), invisibly to game code: the landed items
+  of a pile / carried stack / cash stack (`instanceChildren(group)`, registered by Pile, CarryStack, CashStack) and
+  the parts of every pawn and cart (`instanceAcrossScene(root)`, registered by CharacterRig and the vehicle
+  factories) draw as ONE call per geometry + material. That only pays off when copies share geometry: give identical
+  baked parts one geometry with `shareBaked(bake(...))`, or build new models with `assets/artModel.ts`
+  (`artModel(key, build)`: the art guide's body + glow + anim contract, built once per key and pooled, so N copies
+  cost 3 calls). Opt a mesh out with `userData.noInstance = true`; `renderer.instancing = false` turns it all off
+  (A/B checks in `scripts/perf-scenario.mjs --ab`).
 * Colours come from `COLORS` (the exact art-direction master palette) / `PALETTE` (aliases + derived shades) in
   `config.ts`. Vibrant, clean, toy-like; chunky proportions; no textures from files.
 * Shadows: one sun with a 2048 shadow map that follows the camera target. Large flat ground pieces receive only.
@@ -173,6 +181,10 @@ read by anyone.
 * Renderer budget (checked with `__bot.perf()` and `scripts/perf-breakdown.js`): normal late-game play ≤ ~800 draw
   calls (currently ~430 desktop, ~500 phone), forced worst case (everything unlocked, 150 s, no cash collected)
   ≤ ~1500 (currently ~1030).
+* `node scripts/perf-scenario.mjs [--ab] [--breakdown] [--views yard,village,...]` builds the forced 0.9 late game
+  (every pad, plot, lot, amenity, all ten eras with every machine slot and city lot, 150 s of play, night) and
+  prints draw calls, triangles and render time per view; `--ab` renders each view with instancing off and on and
+  diffs the pixels, `--breakdown` lists what draws the most. Set `WL_CHROMIUM` to use an installed Chromium.
 * `npm run playtest [outDir] [--mobile]` injects `scripts/playtest-bot.js`, an in-page bot that plays the real economy
   through all five phases (teleporting between stations, stepping the sim), screenshots each milestone and prints the
   unlock timeline, action counts and renderer cost (`__bot.perf()`: draw calls, triangles, live items).
