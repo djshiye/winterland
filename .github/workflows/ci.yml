@@ -1,5 +1,6 @@
 # Every push and pull request: type-check, unit tests (save compatibility), production build, and a headless
-# bot run that must reach the processor (catches crashes and broken progression).
+# bot run that must reach the processor (catches crashes and broken progression), plus the desktop updater on
+# Linux, macOS and Windows.
 name: CI
 
 on:
@@ -32,3 +33,21 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Bot playthrough to the processor
         run: node scripts/balance.mjs --goal processor --budget 900
+
+  # "Update Winterland" (desktop/updater): the real updater against a fake GitHub release, on each system it ships for.
+  updater:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Lint the shell updater
+        if: runner.os == 'Linux'
+        run: shellcheck -s bash desktop/updater/update.sh
+      - run: node scripts/test-updater.mjs
