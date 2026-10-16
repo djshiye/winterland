@@ -10,6 +10,7 @@
  *   the window bounds and maximised flag).
  * - `onWindowMode(cb)`: fires whenever the mode changes, including from F11 / Alt+Enter handled in the main process.
  *   Returns an unsubscribe.
+ * - `quit()` (0.9.6): close the app (Settings → Save & quit; the game writes its save first). Absent in older shells.
  */
 export type WindowMode = 'windowed' | 'fullscreen';
 
@@ -18,6 +19,7 @@ export interface DesktopBridge {
   getWindowMode(): Promise<WindowMode>;
   setWindowMode(mode: WindowMode): void;
   onWindowMode(cb: (mode: WindowMode) => void): () => void;
+  quit?(): void;
 }
 
 /** The bridge when running inside the desktop app, else null. */

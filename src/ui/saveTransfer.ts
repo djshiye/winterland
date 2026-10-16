@@ -4,29 +4,22 @@
  * game boots from the restored save exactly like a normal start (loadSave() sanitises every field).
  */
 import { SAVE } from '../config';
+import { parseSave } from '../core/Save';
 
 export const NOT_A_SAVE = "That file isn't a Winterland save.";
+export const NEWER_SAVE = 'That save is from a newer Winterland. Update the game to open it.';
 
-const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
-
-/** Same gate as loadSave(): version, a state object, finite money and savedAt. Returns an error message or null. */
+/** Same gate as the game's own load (core/Save.ts parseSave). Returns an error message or null. */
 export function validateSaveText(text: string): string | null {
-  try {
-    const data = JSON.parse(text) as Record<string, unknown> | null;
-    if (!data || typeof data !== 'object') return NOT_A_SAVE;
-    if (data.v !== SAVE.version) return NOT_A_SAVE;
-    if (typeof data.state !== 'object' || !data.state) return NOT_A_SAVE;
-    if (!isNum(data.money) || !isNum(data.savedAt)) return NOT_A_SAVE;
-    return null;
-  } catch {
-    return NOT_A_SAVE;
-  }
+  const r = parseSave(text);
+  if (r.kind === 'ok') return null;
+  return r.kind === 'unreadable' && r.reason === 'newer-format' ? NEWER_SAVE : NOT_A_SAVE;
 }
 
-/** `winterland-save-YYYYMMDD-HHMM.json` in local time. */
-export function saveFileName(d: Date = new Date()): string {
+/** `winterland-save-YYYYMMDD-HHMM.json` in local time (`prefix` 'winterland-unreadable-save' for a kept copy). */
+export function saveFileName(d: Date = new Date(), prefix = 'winterland-save'): string {
   const p = (n: number): string => String(n).padStart(2, '0');
-  return `winterland-save-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
+  return `${prefix}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
 }
 
 function readRaw(): string | null {
@@ -51,12 +44,17 @@ interface ArtifactRuntime {
 export async function exportSave(): Promise<ExportResult> {
   const raw = readRaw();
   if (!raw) return 'none';
+  return exportText(raw, saveFileName());
+}
+
+/** Download `raw` as `filename` (the save, or 0.9.6 a kept copy of one that could not be opened). */
+export async function exportText(raw: string, filename: string): Promise<ExportResult> {
   const rt = (window as unknown as { claude?: ArtifactRuntime }).claude;
   if (rt && typeof rt.use === 'function') {
     try {
       const dl = await rt.use('downloads');
       if (dl) {
-        await dl.save({ filename: saveFileName(), data: raw });
+        await dl.save({ filename, data: raw });
         return 'saved';
       }
     } catch (e) {
@@ -67,7 +65,7 @@ export async function exportSave(): Promise<ExportResult> {
     const url = URL.createObjectURL(new Blob([raw], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = saveFileName();
+    a.download = filename;
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
