@@ -6,6 +6,7 @@
  */
 import { EVENTS, type EventKind } from '../config';
 import type { GameContext } from '../core/types';
+import { steadyHighlights } from '../fx/comfort';
 import { backOut, h } from './dom';
 
 export class EventBanner {
@@ -78,7 +79,7 @@ export class EventBanner {
     }
     this.pulse += dt;
     const e = this.want ? backOut(this.k) : this.k;
-    const beat = this.want ? 1 + 0.02 * Math.sin(this.pulse * (secs <= 5 ? 9 : 3)) : 1;
+    const beat = this.want && !steadyHighlights() ? 1 + 0.02 * Math.sin(this.pulse * (secs <= 5 ? 9 : 3)) : 1;
     this.root.style.opacity = Math.min(1, this.k * 2).toFixed(2);
     this.root.style.setProperty('--event-s', ((0.75 + 0.25 * e) * beat).toFixed(3));
   }

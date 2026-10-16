@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { UPGRADES } from '../src/config';
 import { productMult, salePrice } from '../src/core/demand';
+import { introEra } from '../src/core/ladder';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
 import { createGameState, type GameEvents, type UpgradeId } from '../src/core/types';
@@ -9,8 +10,8 @@ import { Upgrades } from '../src/core/Upgrades';
 
 describe('UPGRADES table', () => {
   for (const d of Object.values(UPGRADES)) {
-    it(`${d.id}: one cost per level step, multiples of 5, rising`, () => {
-      expect(d.costs).toHaveLength(d.values.length - 1);
+    it(`${d.id}: one cost per level step (era 2+: none, priced by the ladder), multiples of 5, rising`, () => {
+      expect(d.costs).toHaveLength(introEra(d) >= 2 ? 0 : d.values.length - 1);
       for (const c of d.costs) expect(c % 5).toBe(0);
       for (let i = 1; i < d.costs.length; i++) expect(d.costs[i]!).toBeGreaterThan(d.costs[i - 1]!);
     });

@@ -21,11 +21,11 @@ export class Economy {
     return this._money >= amount;
   }
 
-  /** Add money (positive amounts only). Counts toward stats.moneyEarned. */
-  add(amount: number): void {
+  /** Add money (positive amounts only). `earned` (default: all of it) counts toward stats.moneyEarned; returned principal does not. */
+  add(amount: number, earned = amount): void {
     if (amount <= 0) return;
     this._money += amount;
-    this.state.stats.moneyEarned += amount;
+    this.state.stats.moneyEarned += Math.max(0, Math.min(amount, earned));
     this.events.emit('money:changed', { money: this._money, delta: amount });
   }
 

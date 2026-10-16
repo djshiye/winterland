@@ -50,9 +50,11 @@ import { grandMarketCatalog } from './grandMarket';
 import { townAmenityCatalog } from './townAmenities';
 import { vehicleCatalog } from './vehicles';
 import { eraItemCatalog } from './eraItems';
-import { eraMachineCatalog } from './eraMachines';
+import { eraMachineCatalog, eraSheetCatalog } from './eraMachines';
+import { eraMachine2Catalog } from './eraMachines2';
 import { eraMachine3Catalog } from './eraMachines3';
 import { eraWorkerCatalog } from './eraWorkers';
+import { eraNodeCatalog } from './eraNodes';
 import { cityBuildingCatalog } from './cityBuildings';
 import { jackCatalog } from './jack';
 import { frontierCatalog } from './frontierProps';
@@ -90,8 +92,11 @@ export const ASSET_CATALOG: Record<string, Record<string, AssetBuilder>> = {
   // 0.9.0 Ages (each file owns its catalog)
   eraItems: eraItemCatalog,
   eraMachines: eraMachineCatalog,
-  eraMachines3: eraMachine3Catalog, // 1.0 expansion: new era 5–7 machines (not wired in yet)
+  eraMachines2: eraMachine2Catalog,
+  eraMachines3: eraMachine3Catalog, // 1.0 expansion: new era 5–7 machines
+  eraSheets: eraSheetCatalog,
   eraWorkers: eraWorkerCatalog,
+  eraNodes: eraNodeCatalog,
   cityBuildings: cityBuildingCatalog,
   jack: jackCatalog,
   frontierProps: frontierCatalog,

@@ -25,7 +25,7 @@
  */
 import * as THREE from 'three';
 import { COLORS, PALETTE } from '../config';
-import { bake } from '../render/batch';
+import { bake, shareBaked } from '../render/batch';
 import { geo, mesh, toon } from '../render/materials';
 
 /** 'worker': hired crew (crate runner / cashier / log hauler — variant 0 / 1 / 2; the porter is PORTER_VARIANT and up). */
@@ -106,7 +106,7 @@ export function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: 
   torso.position.y = BASE_Y + s.bodyH / 2 - HIP;
   torsoG.add(torso);
   s.torsoExtras?.(torsoG, topY);
-  squash.add(bake(torsoG, { name: 'torso' }));
+  squash.add(shareBaked(bake(torsoG, { name: 'torso' })));
 
   // head (+ eyes, beard, hat): pivot group with one mesh
   const headY = topY + s.headR * 0.6;
@@ -124,7 +124,7 @@ export function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: 
     headG.add(eye);
   }
   s.headExtras?.(headG);
-  head.add(bake(headG, { name: 'head' }));
+  head.add(shareBaked(bake(headG, { name: 'head' })));
   squash.add(head);
 
   // arms: pivot at the shoulder, hanging down; each is one mesh (sleeve + mitten)
@@ -142,7 +142,7 @@ export function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: 
     const h = mesh(geo.sphere(0.1, 10, 8), handMat);
     h.position.y = -CHARACTER_ARM_REACH;
     ag.add(a, h);
-    arm.add(bake(ag, { name: 'arm' }));
+    arm.add(shareBaked(bake(ag, { name: 'arm' })));
     squash.add(arm);
     arms.push(arm);
   }
@@ -162,7 +162,7 @@ export function buildPawn(s: PawnSpec): CharacterModel & { headY: number; topY: 
     const boot = mesh(geo.box(0.22, 0.2, 0.32), bootMat);
     boot.position.set(0, -0.15, 0.05);
     lg.add(boot);
-    leg.add(bake(lg, { name: 'boot' }));
+    leg.add(shareBaked(bake(lg, { name: 'boot' })));
     root.add(leg);
     legs.push(leg);
   }
@@ -248,6 +248,35 @@ export function createPlayerModel(): CharacterModel {
   });
   m.height = m.headY + 0.13 + 0.29 * 0.78;
   return m;
+}
+
+const FOUNDER_RED = 0xc8322f;
+const FOUNDER_GOLD = 0xffc933;
+
+/**
+ * 0.9.0 climb: the Founder's Scarf (the Settlement 20 perk, SETTLEMENT.founder), worn by the player over the neck
+ * collar: a chunky red knit ring and two short tails with gold stripes hanging at the front left. One baked mesh in the
+ * squash pivot's space (entities/Player.ts adds it to the rig, so it bobs and squashes with the coat).
+ */
+export function createFounderScarf(): THREE.Mesh {
+  const topY = BASE_Y + 0.8; // the player's torso top (createPlayerModel: bodyH 0.8)
+  const g = new THREE.Group();
+  g.add(torusRing(0.315, 0.085, FOUNDER_RED, topY + 0.03 - HIP));
+  for (const [x, len, tilt] of [[-0.12, 0.34, 0.12], [-0.22, 0.27, 0.3]] as const) {
+    const tail = new THREE.Group();
+    tail.position.set(x, topY - 0.02 - HIP, 0.31);
+    tail.rotation.set(0.18, 0, tilt);
+    const knit = mesh(geo.box(0.11, len, 0.05), toon(FOUNDER_RED));
+    knit.position.y = -len / 2;
+    tail.add(knit);
+    for (const k of [0.62, 0.84]) {
+      const stripe = mesh(geo.box(0.115, 0.03, 0.055), toon(FOUNDER_GOLD));
+      stripe.position.y = -len * k;
+      tail.add(stripe);
+    }
+    g.add(tail);
+  }
+  return bake(g, { name: 'founderScarf' });
 }
 
 // ---------------------------------------------------------------------------

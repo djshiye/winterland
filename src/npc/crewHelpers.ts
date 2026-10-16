@@ -111,7 +111,7 @@ const HOPPER_LOOK: XZ = { x: LAYOUT.ridge.workshop.hopper.x, z: PINE_APPROACH.z 
 
 // --- Market Town: the porters' home on the square, beside the corridor mouth (clear of every zone and queue) ------
 const TOWN = LAYOUT.town;
-const PORTER_HOME: XZ = { x: 18.2, z: 28.4 };
+export const PORTER_HOME: XZ = { x: 18.2, z: 28.4 };
 const PORTER_LOOK: XZ = { x: TOWN.tree.x, z: TOWN.tree.z };
 /** Cabin door → gate → street → corridor → square → home. */
 const PORTER_ROUTE: XZ[] = [...CABIN_LEG, ...TRUNK, PORTER_HOME];
@@ -265,12 +265,17 @@ export abstract class Helper {
     return this.ctx.upgrades.value(this.id);
   }
 
+  /** Walk / capacity / cadence factors, each clamped past the authored table (Upgrades.crewStats). */
+  protected get stats(): { walk: number; capacity: number; cadence: number } {
+    return this.ctx.upgrades.crewStats(this.id);
+  }
+
   protected get interval(): number {
-    return BASE_INTERVAL / Math.max(0.5, this.mult);
+    return BASE_INTERVAL / this.stats.cadence;
   }
 
   protected get capacity(): number {
-    return Math.max(1, Math.floor(CREW[this.id].capacity * this.mult));
+    return Math.max(1, Math.floor(CREW[this.id].capacity * this.stats.capacity));
   }
 
   get moving(): boolean {
@@ -389,7 +394,7 @@ export abstract class Helper {
       const dx = goal.x - p.x;
       const dz = goal.z - p.z;
       const dist = Math.hypot(dx, dz);
-      const max = CREW[this.id].walkSpeed * Math.max(0.5, this.mult);
+      const max = CREW[this.id].walkSpeed * this.stats.walk;
       const target = last ? Math.min(max, 1.2 + dist * 4) : max;
       this.speed = approach(this.speed, target, ACCEL * dt);
       const stepLen = this.speed * dt;
@@ -546,6 +551,11 @@ export class Cashier extends Helper {
         return;
       }
       case 'go':
+        // the pile went away under us (a demolished town till): turn back now, not after the walk
+        if (!this.stop!.pile()) {
+          this.leave(this.routeIdx);
+          return;
+        }
         if (this.moving) return;
         this.look = this.stop!.look;
         this.phase = 'collect';
@@ -570,8 +580,9 @@ export class Cashier extends Helper {
     }
   }
 
-  private leave(): void {
-    this.goReverse(this.stop!.route, CASHIER_HOME);
+  /** Head home back along the stop's route: all of it from the post, only the `passed` waypoints when turning back mid-walk. */
+  private leave(passed = this.stop!.route.length): void {
+    this.goReverse(this.stop!.route.slice(0, passed), CASHIER_HOME);
     this.phase = 'back';
   }
 
@@ -603,7 +614,7 @@ export class Cashier extends Helper {
         },
         post,
         look,
-        pile: () => till,
+        pile: () => (b.dead ? null : till),
       });
     }
     return out;

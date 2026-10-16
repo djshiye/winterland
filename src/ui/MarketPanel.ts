@@ -7,8 +7,9 @@
  * Rows are built once (one per material, one card per product); refresh() rewrites only what changed, and runs when
  * something marked the panel dirty (at most ~5 times a second) or every second while open, because prices tick.
  */
-import { ERAS, ERA_NAMES, INVEST, INVEST_MAX_POSITIONS, MACHINES, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
+import { ERAS, ERA_NAMES, INVEST, MACHINES, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
 import { ORDER_MAX_UNITS } from '../core/Market';
+import { investMaxPositions } from '../core/demand';
 import type { GameContext, InvestmentState, ItemKind, MaterialKind } from '../core/types';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatDuration, formatMoney } from './format';
@@ -369,9 +370,11 @@ export class MarketPanel {
     const card: TradeCard = { kind, root, quote, held, buys, sells, dest, orders, picked: 0, shownAge: 0 };
     dest.addEventListener('change', () => {
       card.picked = Number(dest.value) || 0;
+      dest.blur();
       this.mark();
     });
     dest.addEventListener('click', (e) => e.stopPropagation());
+    this.escCloses(dest);
     for (const units of [10, ORDER_MAX_UNITS]) {
       const el = this.makeButton('wl-mk-btn is-order', () => this.tap(() => m.order(kind, units, this.destOf(card))));
       deliver.appendChild(el);
@@ -380,6 +383,19 @@ export class MarketPanel {
     root.appendChild(deliver);
     parent.appendChild(root);
     return card;
+  }
+
+  /**
+   * A focused <select> eats the game's keys (Input / HUD skip SELECT targets): picks blur it to give the keyboard back
+   * (letters / arrows would silently change the region otherwise), and Esc still closes the market (as SettingsPanel).
+   */
+  private escCloses(sel: HTMLSelectElement): void {
+    sel.addEventListener('keydown', (e) => {
+      if (e.code !== 'Escape') return;
+      e.stopPropagation();
+      sel.blur();
+      this.close();
+    });
   }
 
   private makeProduct(id: InvestProductId, parent: HTMLElement): ProductCard {
@@ -400,9 +416,11 @@ export class MarketPanel {
       sel.setAttribute('aria-label', 'Era to back');
       sel.addEventListener('change', () => {
         card.picked = Number(sel.value) || 0;
+        sel.blur();
         this.mark();
       });
       sel.addEventListener('click', (e) => e.stopPropagation());
+      this.escCloses(sel);
       row.appendChild(sel);
       card.era = sel;
       root.appendChild(row);
@@ -444,7 +462,7 @@ export class MarketPanel {
 
   private ventureEra(card: ProductCard): number {
     const age = this.ctx.state.eras.age;
-    return card.picked >= 2 && card.picked <= age ? card.picked : age;
+    return card.picked >= INVEST.venture.era && card.picked <= age ? card.picked : age;
   }
 
   /** Dollars the chosen chip would invest now (never below the product's minimum; bonds never above the room left). */
@@ -556,7 +574,8 @@ export class MarketPanel {
   private refreshInvest(age: number): void {
     const { market, economy } = this.ctx;
     const offered = new Set(market.products());
-    const full = market.positions().length >= INVEST_MAX_POSITIONS;
+    const max = investMaxPositions(this.ctx.state);
+    const full = market.positions().length >= max;
     for (const c of this.products) {
       const def = INVEST[c.id];
       const on = offered.has(c.id);
@@ -565,7 +584,7 @@ export class MarketPanel {
       for (const k of c.chips) setCls(k.el, `wl-mk-chip-btn${k.pick === c.pick ? ' is-on' : ''}`);
       if (c.era && c.shownAge !== age) {
         c.shownAge = age;
-        this.fillRegions(c.era, 2, age);
+        this.fillRegions(c.era, INVEST.venture.era, age);
       }
       if (c.era) {
         const e = String(this.ventureEra(c));
@@ -573,7 +592,7 @@ export class MarketPanel {
       }
       const amount = this.amountFor(c);
       let why = '';
-      if (full) why = `All ${INVEST_MAX_POSITIONS} positions are open`;
+      if (full) why = `All ${max} positions are open`;
       else if (amount < def.min) why = c.id === 'bond' && economy.money >= def.min ? `Bonds are capped at ${formatMoney(market.bondRoom() + market.bondTotal())} (half your net worth)` : `Needs at least ${formatMoney(def.min)}`;
       put(c.btn, `Invest<small>${formatMoney(amount)}</small>`);
       c.btn.disabled = why !== '';
@@ -592,7 +611,7 @@ export class MarketPanel {
   private refreshPositions(): void {
     const { market } = this.ctx;
     const list = market.positions();
-    put(this.positionTitle, `Your positions <small>${list.length}/${INVEST_MAX_POSITIONS}</small>`);
+    put(this.positionTitle, `Your positions <small>${list.length}/${investMaxPositions(this.ctx.state)}</small>`);
     const seen = new Set<number>();
     for (const p of list) {
       seen.add(p.id);

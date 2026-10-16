@@ -16,13 +16,17 @@
  * Expansion pad of era n (2..10): ConstructionPad key `expansion:${n}`, logs 0, cash = unlock.cash, extra = unlock.extra,
  * at regionLayout(n).expansionPad. Shown while expansionOffered(state, n) (re-checked on 'village:changed' and once a
  * second) and the region is closed; its progress lives in state.eras.regions[n].cash / .extra. Paying it opens the era.
+ * While expansionPreview(state, n) the same pad shows greyed and locked under the gate's progress (docs/EXPANSION.md
+ * §C, eras/gate.ts gateNote): it takes nothing, and 'expansion:offered' fires only when it turns payable (the gate met,
+ * picked up by the one-second poll).
  */
 import * as THREE from 'three';
 import type { WorldSnapshot } from '../core/Save';
 import { REGION_SLOTS, type GameContext } from '../core/types';
 import { ConstructionPad } from '../stations/ConstructionPad';
 import { ERAS, MAX_ERA } from './data';
-import { expansionOffered, regionLayout } from './layout';
+import { eraGate, gateNote } from './gate';
+import { expansionOffered, expansionPreview, regionLayout } from './layout';
 import { Region } from './Region';
 import type { RegionRuntime } from './runtime';
 import { settlePaidSlots } from './rules';
@@ -43,10 +47,10 @@ export class EraWorld {
     for (let n = 2; n <= MAX_ERA; n++) if (st.regions[n]!.unlocked) this.regions[n] = new Region(ctx, n);
     this.refreshPads(false);
     ctx.events.on('village:changed', () => this.refreshPads(true));
-    ctx.events.on('market:order', ({ kind, count, era }) => {
+    ctx.events.on('market:order', ({ kind, count, era, amount }) => {
       const r = this.regions[era];
-      if (r) r.deliver(kind, count);
-      else ctx.economy.add(Math.round(ctx.market.quote(kind, 'buy') * count)); // no dock (cannot happen): give the money back
+      if (r) r.deliver(kind, count, amount);
+      else ctx.economy.add(amount, 0); // no dock (cannot happen): give the money back
     });
   }
 
@@ -109,15 +113,22 @@ export class EraWorld {
   }
 
   // ---- expansion pads ---------------------------------------------------------------------------------------------
-  /** Show the pads that are on offer, hide the others. `live`: a newly shown pad pops in and announces itself. */
+  /**
+   * Show the pads that are on offer (payable) or on preview (greyed, locked), hide the others. `live`: a newly shown pad
+   * pops in, and a pad that turns payable announces itself.
+   */
   private refreshPads(live: boolean): void {
     const state = this.ctx.state;
     for (let n = 2; n <= MAX_ERA; n++) {
       if (!ERAS[n]) continue;
-      if (expansionOffered(state, n) && !this.regions[n]) {
+      const offered = expansionOffered(state, n);
+      if ((offered || expansionPreview(state, n)) && !this.regions[n]) {
         const pad = this.padFor(n);
-        if (pad.visible) continue;
-        pad.show(!live);
+        const wasPayable = pad.visible && !pad.locked;
+        // preview: the gate's progress "37/48 · S8/10" under the padlock (redrawn only when the text changes)
+        pad.setLocked(offered ? null : gateNote(eraGate(state, n)));
+        if (!pad.visible) pad.show(!live);
+        if (!offered || wasPayable) continue;
         if (live) {
           const p = regionLayout(n).expansionPad;
           this.ctx.events.emit('expansion:offered', { era: n, position: new THREE.Vector3(p.x, 0, p.z) });

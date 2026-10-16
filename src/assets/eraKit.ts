@@ -5,7 +5,7 @@
  *   cylinders and cones take the Y of their BOTTOM face (stack parts by passing the previous top); spheres, tori and
  *   `beam` are centred. Everything is merged into one vertex-coloured geometry.
  * - `eraGlowMaterial()`: ONE shared emissive material for every era window / lamp / neon strip. Its emissive colour is
- *   multiplied by the vertex colour (a tiny shader patch), so warm amber windows, cyan holo panels and violet AI cores
+ *   multiplied by the vertex colour (a tiny shader patch), so warm amber windows, mint holo panels and sun-gold AI cores
  *   all live on the same material and the night-glow registry (world/env/glow.ts) lifts all of them at once.
  *   Never write its `emissiveIntensity` per frame: `updateGlow` owns it.
  * - `pixelText()`: blocky 3 × 5 pixel letters (E X P O R T I M …) as boxes, for the EXPORT / IMPORT signs.
