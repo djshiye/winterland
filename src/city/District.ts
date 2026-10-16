@@ -17,6 +17,11 @@
  *   built models are made a few per frame so loading a huge city never stalls, and the pads / zones of a district
  *   are only created once the player first comes near.
  *
+ * - 1.0: `sitePad(lot)` makes / shows a chosen lot's pad on demand (silently) for the era foremen (city/lotAccess.ts),
+ *   and the district's walking residents and shoppers live in `life` (city/DistrictLife.ts, the city's shared crowd).
+ *   A pad is re-armed only for a new choice: re-arming on every progress report dropped the pad's in-flight count, so
+ *   each bundle / brick paid while the district was active used to count twice.
+ *
  * Draw calls: pavement 1, lamps 1 (+ bulbs 1, + night halos 1), every building 2 (+1 pivot), every pad ~3.
  */
 import { fadeManageSign } from '../fx/manageSign';
@@ -32,6 +37,8 @@ import { createPadSign } from '../assets/pads';
 import { ConstructionPad } from '../stations/ConstructionPad';
 import type { ColliderHandle } from '../world/Colliders';
 import type { Zone } from '../items/Zones';
+import type { Crowd } from '../npc/Crowd';
+import { DistrictLife } from './DistrictLife';
 import { buildHalos, bulbMaterial, type HaloSpot } from '../world/env/glow';
 import {
   canChoose,
@@ -90,6 +97,8 @@ interface Lot {
   zone: Zone | null;
   lotPad: LotPad | null;
   pad: ConstructionPad | null;
+  /** The building the pad is armed for ('' = re-arm on the next choice): re-arming resets its in-flight counts. */
+  padFor: CityBuildingId | '';
   model: CityBuildingModel | null;
   scaffold: { group: THREE.Group; setProgress(p: number): void } | null;
   collider: ColliderHandle | null;
@@ -107,18 +116,23 @@ export class District {
   private readonly queue: Lot[] = [];
   private readonly tmp = new THREE.Vector3();
   private readonly inflated: { minX: number; maxX: number; minZ: number; maxZ: number };
+  /** 1.0: residents and shoppers walking the district (only with the city's shared crowd). */
+  readonly life: DistrictLife | null;
 
   /**
    * @param ctx       game services
    * @param n         the era / district number (2..10)
    * @param onChange  called after a lot completed / was demolished (City recomputes the economy)
+   * @param crowd     1.0: the city's shared crowd for the district's walking people (none: no district life)
    */
   constructor(
     readonly ctx: GameContext,
     n: number,
     private readonly onChange: () => void,
+    crowd?: () => Crowd,
   ) {
     this.n = n;
+    this.life = crowd ? new DistrictLife(ctx, n, crowd) : null;
     const def = districtDef(n);
     this.root.name = `district:${n}`;
     this.root.add(buildScenery(n));
@@ -130,7 +144,7 @@ export class District {
       group.name = `lot:${n}:${frame.index}`;
       group.position.set(frame.x, 0, frame.z);
       this.root.add(group);
-      this.lots.push({ index: frame.index, frame, group, zone: null, lotPad: null, pad: null, model: null, scaffold: null, collider: null, sign: null, card: null });
+      this.lots.push({ index: frame.index, frame, group, zone: null, lotPad: null, pad: null, padFor: '', model: null, scaffold: null, collider: null, sign: null, card: null });
     }
     // restored buildings: colliders now, models a few per frame
     for (const L of this.lots) {
@@ -174,9 +188,25 @@ export class District {
     return this.lots[lot]?.pad ?? null;
   }
 
+  /**
+   * 1.0 (era foremen): the pad of a chosen, unbuilt lot, made and shown on demand when the player has not been near the
+   * district yet; silent (no pop-in, sound or event), like a restored save. Null when the lot has nothing chosen or is
+   * built. Activation later finds it armed and shown and leaves it as it is.
+   */
+  sitePad(lot: number): ConstructionPad | null {
+    const L = this.lots[lot];
+    if (!L) return null;
+    const st = this.state(L);
+    if (st.building === '' || lotBuilt(st)) return null;
+    const pad = this.armPad(L, st.building as CityBuildingId);
+    if (!pad.visible) pad.show(true);
+    return pad;
+  }
+
   // ---- frame update ------------------------------------------------------------------------------------------
   update(dt: number): void {
     if (!this.active && this.playerNear()) this.activate();
+    this.life?.update(dt);
     for (let i = 0; i < PER_FRAME && this.queue.length > 0; i++) this.ensureModel(this.queue.shift()!, true);
     const t = this.ctx.time.elapsed;
     const cam = this.ctx.camera.quaternion;
@@ -266,7 +296,12 @@ export class District {
     const def = CITY_BUILDINGS[id];
     const target = { label: def.label.toUpperCase(), icon: 'building' as const, logs: 0, cash: def.cash, paidLogs: 0, paidCash: st.cash, extra: { kind: def.extra.kind, count: def.extra.count, paid: st.extra } };
     if (L.pad) {
-      L.pad.rearm(target);
+      // 1.0: only a new choice re-arms. Every payment reports its progress (refresh → here) while the item is still
+      // flying, and re-arming then would drop the pad's in-flight count and credit that item twice on landing.
+      if (L.padFor !== id) {
+        L.pad.rearm(target);
+        L.padFor = id;
+      }
       return L.pad;
     }
     const pad = new ConstructionPad(this.ctx, {
@@ -284,6 +319,7 @@ export class District {
       onComplete: () => this.complete(L, false),
     });
     L.pad = pad;
+    L.padFor = id;
     return pad;
   }
 
@@ -395,6 +431,7 @@ export class District {
     st.extra = 0;
     ctx.state.stats.cityBuilt++;
     L.pad?.hide();
+    L.padFor = '';
     this.addCollider(L);
     this.ensureModel(L, instant);
     this.refresh(L, !instant);
@@ -459,6 +496,7 @@ export class District {
     L.model = null;
     if (L.collider) this.ctx.colliders.remove(L.collider);
     L.collider = null;
+    L.padFor = '';
     this.refresh(L, false);
   }
 }
