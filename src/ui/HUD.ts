@@ -16,6 +16,7 @@
  * - Mute toggle button top-right (calls ctx.audio.toggleMute()); a gear button next to it opens Settings
  *   (sound / music / graphics / show-FPS switches, reset progress with an in-page confirmation). PerfOverlay is the
  *   bottom-left FPS / draw-call readout.
+ * - 0.9.3: CarryMeter, the bottom-left "3 / 8" pill of what the player is carrying out of how much they can carry.
  * - ShopPanel (opens on 'shop:open'), VillageBadge, SeasonBadge ("Season N · +X% prices" chip after a New Season), OfflineCard (showOfflineEarnings), FinaleCard ('finale:start').
  * - Wave 8: QuestPanel (3 active quests, collapsible), RushBanner (countdown), MoveHand (first-run drag hint),
  *   coinBurst() (gold coins flying into the money pill), AutoQuality (one-way drop to Low graphics on a slow device).
@@ -37,6 +38,7 @@ import { ERA_NAMES } from '../eras/data';
 import { AgeCard } from './AgeCard';
 import { AutoQuality } from './AutoQuality';
 import { BuildPanel } from './BuildPanel';
+import { CarryMeter } from './CarryMeter';
 import { ChoosePanel } from './ChoosePanel';
 import { CoinBurst } from './CoinBurst';
 import { ContractCard } from './ContractCard';
@@ -144,6 +146,8 @@ export class HUD {
   private hasEraChip = false;
   private readonly settings: SettingsPanel;
   private readonly perf: PerfOverlay;
+  /** 0.9.3: "3 / 8" carried-items pill, bottom left. */
+  private readonly carry: CarryMeter;
   private readonly offline: OfflineCard;
   private readonly village: VillageBadge;
   private readonly seasonBadge: SeasonBadge;
@@ -239,6 +243,7 @@ export class HUD {
     // settings (gear button sits left of the mute button)
     this.perf = new PerfOverlay(ctx, layer);
     this.settings = new SettingsPanel(ctx, layer, this.perf);
+    this.carry = new CarryMeter(ctx, layer);
     this.settings.onSoundChanged = () => this.muteBtn.classList.toggle('is-muted', ctx.audio.muted);
 
     // village badge, shop
@@ -627,6 +632,11 @@ export class HUD {
     this.chip.update(dt);
     this.autoQuality.update();
     this.perf.update();
+    this.carry.update(dt);
+    // the carry pill steps up above the FPS readout while that is on (hud.css)
+    if (this.layer.classList.contains('has-perf') !== this.perf.enabled) {
+      this.layer.classList.toggle('has-perf', this.perf.enabled);
+    }
     // on phones the shop is a bottom sheet over the FPS readout
     const sheetOpen = this.anySheetOpen;
     if (this.layer.classList.contains('shop-open') !== sheetOpen) {
