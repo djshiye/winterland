@@ -97,7 +97,10 @@ export const eraOfKey = (key: EraKey): number => ERA_KEYS.indexOf(key) + 2;
 // Materials (new item kinds). Every one is carriable.
 // ---------------------------------------------------------------------------
 
-export type MaterialShape = 'block' | 'brick' | 'nugget' | 'ingot' | 'lump' | 'gear' | 'beam' | 'coil' | 'barrel' | 'pellet' | 'crystal' | 'chip' | 'rod' | 'cell' | 'core' | 'robot';
+export type MaterialShape =
+  | 'block' | 'brick' | 'nugget' | 'ingot' | 'lump' | 'gear' | 'beam' | 'coil' | 'barrel' | 'pellet' | 'crystal' | 'chip' | 'rod' | 'cell' | 'core' | 'robot'
+  // 0.9.5 era 2-4 (assets/eraItems2to4.ts)
+  | 'tile' | 'hearth' | 'tools' | 'rail' | 'boiler' | 'engine';
 
 export interface MaterialDef {
   kind: MaterialKind;
@@ -118,6 +121,9 @@ export interface MaterialDef {
 /** Base export prices of era n's raw and refined materials (× ERA_SCALE, like every era price). */
 const RAW = (n: number): number => 180 * ERA_SCALE * 3 ** (n - 2);
 const REF = (n: number): number => 700 * ERA_SCALE * 3 ** (n - 2);
+/** 0.9.5 grades (docs/EXPANSION.md D): an era's second refined good is worth 0.8 × REF, its premium good 2.6 × REF. */
+const REF2 = (n: number): number => 0.8 * REF(n);
+const PREMIUM = (n: number): number => 2.6 * REF(n);
 function mat(kind: MaterialKind, label: string, n: number, grade: 'raw' | 'refined', value: number, shape: MaterialShape, color: number, accent: number, w: number, h: number, d: number): MaterialDef {
   return { kind, label, era: n, grade, value: Math.round(value / 5) * 5, shape, color, accent, size: { w, h, d, stackHeight: h + 0.01 } };
 }
@@ -141,6 +147,16 @@ export const MATERIALS: Record<MaterialKind, MaterialDef> = {
   power: mat('power', 'Power Cells', 9, 'refined', REF(9) * 0.5, 'cell', 0x70f5d9, 0x3d5259, 0.3, 0.36, 0.3),
   aiCore: mat('aiCore', 'AI Cores', 10, 'refined', REF(10), 'core', 0xe8a848, 0x526475, 0.34, 0.34, 0.34),
   robot: mat('robot', 'Robots', 10, 'refined', REF(10) * 2.6, 'robot', 0xf5f0e6, 0xe8a848, 0.36, 0.46, 0.3),
+  // 0.9.5 era 2-4 content (docs/ERA_RESOURCES.md): each era's second raw, second refined and premium good
+  clay: mat('clay', 'Clay', 2, 'raw', RAW(2), 'lump', 0xc26a4a, 0xe0a07c, 0.38, 0.24, 0.34),
+  roofTile: mat('roofTile', 'Roof Tiles', 2, 'refined', REF2(2), 'tile', 0xc0583a, 0xe8c9a8, 0.42, 0.18, 0.32),
+  hearth: mat('hearth', 'Hearths', 2, 'refined', PREMIUM(2), 'hearth', 0xa7a39b, 0xffa040, 0.4, 0.42, 0.32),
+  charcoal: mat('charcoal', 'Charcoal', 3, 'raw', RAW(3), 'lump', 0x3a3330, 0xd8703a, 0.38, 0.24, 0.34),
+  tools: mat('tools', 'Tools', 3, 'refined', REF2(3), 'tools', 0x8d949c, 0x9a6a42, 0.44, 0.14, 0.34),
+  rail: mat('rail', 'Rails', 3, 'refined', PREMIUM(3), 'rail', 0x7a8088, 0x5c4028, 0.46, 0.16, 0.3),
+  scrap: mat('scrap', 'Scrap', 4, 'raw', RAW(4), 'nugget', 0x8a7a6a, 0xc0763a, 0.38, 0.26, 0.34),
+  boiler: mat('boiler', 'Boilers', 4, 'refined', REF2(4), 'boiler', 0x9e4737, 0xd49a35, 0.36, 0.4, 0.36),
+  steamEngine: mat('steamEngine', 'Steam Engines', 4, 'refined', PREMIUM(4), 'engine', 0x383d40, 0xd49a35, 0.44, 0.42, 0.34),
 };
 
 export function isMaterial(kind: ItemKind): kind is MaterialKind {
@@ -172,6 +188,10 @@ export type MachineId =
   | 'quarry' | 'kiln'
   | 'ironMine' | 'smelter'
   | 'coalPit' | 'steamWorks'
+  // 0.9.5 era 2-4 content (models: assets/eraMachines2.ts)
+  | 'clayPit' | 'tileKiln' | 'masonYard'
+  | 'charcoalClamp' | 'forge' | 'railMill'
+  | 'scrapYard' | 'boilerShop' | 'engineWorks'
   | 'deepMine' | 'cokeOven' | 'steelMill'
   | 'copperMine' | 'wireMill'
   | 'oilPump' | 'refinery'
@@ -217,6 +237,16 @@ export const MACHINES: Record<MachineId, MachineDef> = {
   smelter: machine('smelter', 3, 'processor', 'Smelter', '2 ore → an iron ingot', [{ kind: 'ore', per: 2 }], 'iron', 1, 2.4, 0.18, { kind: 'ore', count: 12 }, 'blast furnace tower, glowing mouth'),
   coalPit: machine('coalPit', 4, 'extractor', 'Coal Pit', 'Steam diggers bring up coal', [], 'coal', 1, 1.8, 0.1, undefined, 'steam shovel over a black pit'),
   steamWorks: machine('steamWorks', 4, 'processor', 'Steam Works', 'Iron + coal → gears', [{ kind: 'iron', per: 1 }, { kind: 'coal', per: 1 }], 'gear', 1, 2.6, 0.18, { kind: 'coal', count: 12 }, 'brick hall, big flywheel, steam stacks'),
+  // 0.9.5 era 2-4: second extractor, second processor and premium works per era (docs/ERA_RESOURCES.md)
+  clayPit: machine('clayPit', 2, 'extractor', 'Clay Pit', 'A bucket wheel scoops wet red clay', [], 'clay', 1, 2.0, 0.1, { kind: 'stone', count: 8 }, 'timber bucket wheel over a clay pond'),
+  tileKiln: machine('tileKiln', 2, 'processor', 'Tile Kiln', '2 clay → roof tiles, fired in a long kiln', [{ kind: 'clay', per: 2 }], 'roofTile', 1, 2.4, 0.18, { kind: 'clay', count: 12 }, 'long low kiln with a tile rack'),
+  masonYard: machine('masonYard', 2, 'processor', "Mason's Yard", 'Bricks + roof tiles → a cosy hearth', [{ kind: 'brick', per: 1 }, { kind: 'roofTile', per: 1 }], 'hearth', 1, 3.0, 0.25, { kind: 'brick', count: 10 }, 'open yard with a hoist and a half-built hearth'),
+  charcoalClamp: machine('charcoalClamp', 3, 'extractor', 'Charcoal Clamp', 'A smouldering earth mound bakes charcoal', [], 'charcoal', 1, 2.0, 0.1, { kind: 'brick', count: 8 }, 'turf-covered smoking mound'),
+  forge: machine('forge', 3, 'processor', 'Forge', 'Iron + charcoal → two bundles of tools', [{ kind: 'iron', per: 1 }, { kind: 'charcoal', per: 1 }], 'tools', 2, 2.8, 0.18, { kind: 'charcoal', count: 12 }, 'open forge with bellows and anvil'),
+  railMill: machine('railMill', 3, 'processor', 'Rail Mill', '2 iron + charcoal → a length of rail', [{ kind: 'iron', per: 2 }, { kind: 'charcoal', per: 1 }], 'rail', 1, 3.0, 0.25, { kind: 'iron', count: 10 }, 'rolling stand with a trip hammer'),
+  scrapYard: machine('scrapYard', 4, 'extractor', 'Scrap Yard', 'A magnet crane sorts old iron', [], 'scrap', 1, 2.0, 0.1, { kind: 'iron', count: 8 }, 'magnet crane over a scrap heap'),
+  boilerShop: machine('boilerShop', 4, 'processor', 'Boiler Shop', 'Scrap + coal → a riveted boiler', [{ kind: 'scrap', per: 1 }, { kind: 'coal', per: 1 }], 'boiler', 1, 2.6, 0.18, { kind: 'scrap', count: 12 }, 'riveting shed with a boiler on blocks'),
+  engineWorks: machine('engineWorks', 4, 'processor', 'Engine Works', 'Gears + a boiler → a steam engine', [{ kind: 'gear', per: 1 }, { kind: 'boiler', per: 1 }], 'steamEngine', 1, 3.0, 0.25, { kind: 'gear', count: 8 }, 'erecting hall with a test engine'),
   deepMine: machine('deepMine', 5, 'extractor', 'Deep Ore Mine', 'A steel headframe, twice as deep', [], 'ore', 2, 2.0, 0.08, undefined, 'steel lattice headframe'),
   cokeOven: machine('cokeOven', 5, 'extractor', 'Coke Ovens', 'A battery of ovens baking coal', [], 'coal', 2, 2.0, 0.08, undefined, 'row of brick ovens + quench tower'),
   steelMill: machine('steelMill', 5, 'processor', 'Steel Mill', 'Ore + 2 coal → steel beams', [{ kind: 'ore', per: 1 }, { kind: 'coal', per: 2 }], 'steel', 1, 2.6, 0.18, { kind: 'coal', count: 16 }, 'converter vessel pouring sparks, tall stack'),
@@ -276,9 +306,9 @@ export interface RegionLayoutDef {
 export const REGIONS: readonly (RegionLayoutDef | null)[] = [
   null,
   null,
-  { n: 2, rect: R(-24, 40, 66, 114), gate: 'north', slots: 4, room: 8 }, // 64 × 48
-  { n: 3, rect: R(-98, -30, 66, 118), gate: 'north', slots: 4, room: 8 }, // 68 × 52
-  { n: 4, rect: R(-176, -104, 66, 122), gate: 'north', slots: 5, room: 8 }, // 72 × 56
+  { n: 2, rect: R(-24, 40, 66, 114), gate: 'north', slots: 6, room: 8 }, // 64 × 48
+  { n: 3, rect: R(-98, -30, 66, 118), gate: 'north', slots: 6, room: 8 }, // 68 × 52
+  { n: 4, rect: R(-176, -104, 66, 122), gate: 'north', slots: 6, room: 8 }, // 72 × 56
   { n: 5, rect: R(-178, -100, 132, 192), gate: 'north', slots: 5, room: 8 }, // 78 × 60
   { n: 6, rect: R(-94, -10, 132, 196), gate: 'north', slots: 6, room: 8 }, // 84 × 64
   { n: 7, rect: R(-4, 86, 132, 200), gate: 'north', slots: 6, room: 8 }, // 90 × 68
