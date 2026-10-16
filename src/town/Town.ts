@@ -84,6 +84,9 @@ const T = LAYOUT.town;
 const SMOKE_TICK = 0.24;
 const HINT_HEIGHT = 1.05;
 const HINT_SCALE = 0.46;
+/** The MANAGE label over a built lot's manage tile: the same size as the city's and the machines' (readable from the camera). */
+const MANAGE_SIGN_SCALE = 0.9;
+const MANAGE_SIGN_HEIGHT = 1.3;
 
 export interface BuildChoice {
   def: BusinessDef;
@@ -655,8 +658,8 @@ export class Town {
       onExit: () => ctx.events.emit('manage:close', { key: this.manageKey(L.index) }),
     });
     const sign = createPadSign('MANAGE');
-    sign.scale.setScalar(HINT_SCALE);
-    sign.position.set((area.minX + area.maxX) / 2, HINT_HEIGHT - 0.2, (area.minZ + area.maxZ) / 2);
+    sign.scale.setScalar(MANAGE_SIGN_SCALE);
+    sign.position.set((area.minX + area.maxX) / 2, MANAGE_SIGN_HEIGHT, (area.minZ + area.maxZ) / 2);
     sign.visible = false;
     this.root.add(sign);
     L.manageSign = sign;
