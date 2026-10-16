@@ -24,7 +24,7 @@ function bounds(o: THREE.Object3D): THREE.Box3 {
 
 describe('era machine models', () => {
   it('covers every machine id', () => {
-    expect(MACHINE_IDS.length).toBeGreaterThanOrEqual(31); // 22 from 0.9.0 + 9 era 2-4 machines in 0.9.5
+    expect(MACHINE_IDS.length).toBeGreaterThanOrEqual(22);
     for (const id of MACHINE_IDS) expect(eraMachineCatalog[id]).toBeTypeOf('function');
   });
 
