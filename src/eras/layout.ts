@@ -193,6 +193,170 @@ export function regionLayout(n: number): RegionLayout {
   };
 }
 
+// ---- 0.9.7 era-1-style places in every plot ------------------------------------------------------------------------
+
+/** One crew hut in the huts zone (`role` 0 = the hauler crew, 1..6 = config ERA_ROLES in order). */
+export interface HutPlace {
+  role: number;
+  x: number;
+  z: number;
+  /** Turns the hut's local +Z (its door) toward the crew green. */
+  yaw: number;
+  w: number;
+  d: number;
+  /** Unit world direction the annex grows in: behind the hut, away from the green. */
+  backX: number;
+  backZ: number;
+}
+
+/** One shopfront on the market street (local +Z = its shop window, facing the street and the gate). */
+export interface ShopPlace {
+  x: number;
+  z: number;
+  yaw: number;
+  w: number;
+  d: number;
+  h: number;
+  /** The open-air stall of the street (an awning and a counter instead of a shop). */
+  stall: boolean;
+}
+
+/** 0.9.7: where each era-1-style place of a region stands (R34). World rects / points, deterministic, pure. */
+export interface PlotPlaces {
+  /** Seven crew homes in an L round a little green, one per crew role. */
+  huts: HutPlace[];
+  /** The crew green the huts face (a fire pit / well / kiosk stands in its middle). */
+  green: ERect;
+  /** The market streets: paved strips across the back of the market (1 to 3, more in deeper markets), each with its
+   * row of shopfronts on its north side and lamps on its south kerb. */
+  streets: ERect[];
+  shops: ShopPlace[];
+  lamps: XZ[];
+  /** The processing yard's paved floor under the whole machine grid (room slots, not only the live ones). */
+  yardPave: ERect;
+  /** The harvest field: the era's resource beds east of the hand node, rows along X. */
+  field: ERect;
+  beds: ERect[];
+}
+
+/** Hut body footprint limits (metres) and the depth the annex adds behind it. */
+export const HUT_W = 4.4;
+export const HUT_D = 3.6;
+export const HUT_ANNEX = 1.8;
+/** Shopfront depth and the street's width. */
+export const SHOP_D = 3.6;
+export const STREET_W = 3.2;
+/** How far into the market (from the gate edge) the street may start: clear of the counters, cash pile and vault. */
+export const STREET_MIN_DEPTH = 17.5;
+
+const placesCache = new Map<string, PlotPlaces>();
+
+/** World rect between depths d0..d1 (from the gate edge, along `inward`) and x0..x1. */
+function depthRect(L: RegionLayout, x0: number, x1: number, d0: number, d1: number): ERect {
+  const e = L.gate.z;
+  const a = e + L.inward * d0;
+  const b = e + L.inward * d1;
+  return { minX: Math.min(x0, x1), maxX: Math.max(x0, x1), minZ: Math.min(a, b), maxZ: Math.max(a, b) };
+}
+
+/** Depth (metres from the gate edge) of a world z. */
+function depthOf(L: RegionLayout, z: number): number {
+  return (z - L.gate.z) * L.inward;
+}
+
+/** Era n's places (2..10). Cached per plot shape, so the slot / room numbers are part of the key. */
+export function plotPlaces(n: number): PlotPlaces {
+  const def = regionDef(n);
+  const key = `${n}|${def.slots}|${def.room}`;
+  const hit = placesCache.get(key);
+  if (hit) return hit;
+  const L = regionLayout(n);
+  const Z = L.zones;
+
+  // The places face the camera (it sits toward +X/+Z), so their doors, windows and awnings show: every gate is on the
+  // north edge since 0.9.5, so "toward the camera" is also "away from the gate" (south) and east.
+  const faceSouth = 0; // local +Z → world +Z
+  const faceEast = Math.PI / 2; // local +Z → world +X
+
+  // ---- huts: an L of crew homes round a green in the zone's south-east: a row along the zone's north edge (doors
+  // south) and a column along its west edge (doors east); annexes grow behind them (north / west)
+  const H = Z.huts;
+  const hx0 = H.minX + 2.4; // clear of the path along the column split
+  const hx1 = H.maxX - 1.4; // clear of the fence
+  const hz0 = H.minZ + 1.2;
+  const hz1 = H.maxZ - 1.2;
+  const huts: HutPlace[] = [];
+  const rowRoles = [0, 1, 2, 3];
+  const colRoles = [4, 5, 6];
+  const rowPitch = Math.min(9, (hx1 - hx0) / rowRoles.length);
+  const rowW = Math.min(HUT_W, rowPitch - 0.9);
+  const rowZ = hz0 + HUT_ANNEX + HUT_D / 2;
+  rowRoles.forEach((role, i) => huts.push({ role, x: hx0 + rowPitch * (i + 0.5), z: rowZ, yaw: faceSouth, w: rowW, d: HUT_D, backX: 0, backZ: -1 }));
+  const colTop = rowZ + HUT_D / 2 + 1.0;
+  const colPitch = Math.min(9, (hz1 - colTop) / colRoles.length);
+  const colW = Math.min(HUT_W, colPitch - 0.9);
+  const colX = hx0 + HUT_ANNEX + HUT_D / 2;
+  colRoles.forEach((role, i) => huts.push({ role, x: colX, z: colTop + colPitch * (i + 0.5), yaw: faceEast, w: colW, d: HUT_D, backX: -1, backZ: 0 }));
+  const greenX1 = Math.min(hx1, hx0 + rowPitch * rowRoles.length) - 0.6;
+  const green: ERect = { minX: colX + HUT_D / 2 + 1.0, maxX: Math.max(colX + HUT_D / 2 + 5, greenX1), minZ: colTop, maxZ: Math.min(hz1, colTop + colPitch * colRoles.length) };
+
+  // ---- market streets behind the counters: rows of shopfronts (windows south), each with its street in front and
+  // lamps on the street's far kerb. Placed past the vault so nothing hides a pad or the cash machine. A deeper market
+  // (later eras) gets a second and third street, so the market grows into a little market town.
+  const M = Z.market;
+  const mFar = Math.max(depthOf(L, M.minZ), depthOf(L, M.maxZ));
+  const mx0 = M.minX + 2.4;
+  const mx1 = M.maxX - 1.4;
+  const need = SHOP_D + 0.4 + STREET_W;
+  const GAP = 1.6;
+  const avail = mFar - 1.0 - STREET_MIN_DEPTH;
+  const rowsN = Math.max(1, Math.min(3, Math.floor((avail + GAP) / (need + GAP))));
+  const slack = Math.max(0, avail - rowsN * need - (rowsN - 1) * GAP);
+  const first = STREET_MIN_DEPTH + Math.min(3, slack / 2);
+  const streets: ERect[] = [];
+  const shops: ShopPlace[] = [];
+  const lamps: XZ[] = [];
+  const count = Math.max(2, Math.floor((mx1 - mx0) / 5.4));
+  const pitch = (mx1 - mx0) / count;
+  for (let row = 0; row < rowsN; row++) {
+    const shopNear = first + row * (need + GAP);
+    const streetNear = shopNear + SHOP_D + 0.4;
+    streets.push(depthRect(L, mx0, mx1, streetNear, streetNear + STREET_W));
+    // the open stall sits mid-row on the first street, then shifts so the rows don't line up
+    const stallAt = (Math.floor((count - 1) / 2) + row * 2) % count;
+    for (let i = 0; i < count; i++) {
+      const x = mx0 + pitch * (i + 0.5);
+      const z = L.gate.z + L.inward * (shopNear + SHOP_D / 2);
+      const stall = row === 0 ? i === stallAt : false;
+      shops.push({ x, z, yaw: faceSouth, w: Math.min(4.6, pitch - 0.7), d: SHOP_D, h: stall ? 2.5 : 2.9 + ((i * 7 + n + row * 5) % 3) * 0.3, stall });
+    }
+    const lampN = Math.max(2, Math.round((mx1 - mx0) / 7));
+    for (let i = 0; i < lampN; i++) lamps.push({ x: mx0 + ((mx1 - mx0) * (i + 0.5)) / lampN, z: L.gate.z + L.inward * (streetNear + STREET_W + 0.45) });
+  }
+
+  // ---- processing yard floor: the full room grid, so slots that open later already stand on paving
+  const room = Math.max(def.slots, def.room);
+  const cols = Math.max(1, L.slots.filter((s) => Math.abs(s.z - L.slots[0]!.z) < 0.01).length);
+  const span = Math.min(Z.processing.maxX - Z.processing.minX - 2, cols * L.cell);
+  const px = (Z.processing.minX + Z.processing.maxX) / 2;
+  const rows = Math.ceil(room / cols);
+  const yardPave = depthRect(L, px - span / 2, px + span / 2, YARD_DEPTH + 0.5, YARD_DEPTH + 1 + rows * L.rowPitch);
+
+  // ---- harvest field: east of the hand node's patch, clear of the path along the harvest's near edge
+  const F = Z.harvest;
+  const fx0 = L.node.x + 7.5;
+  const fx1 = F.maxX - 1.6;
+  const fNear = Math.min(depthOf(L, F.minZ), depthOf(L, F.maxZ)) + 2;
+  const fFar = Math.max(depthOf(L, F.minZ), depthOf(L, F.maxZ)) - 1.6;
+  const field = depthRect(L, fx0, Math.max(fx0 + 4, fx1), fNear, fFar);
+  const beds: ERect[] = [];
+  for (let d = fNear + 0.4; d + 1.4 <= fFar - 0.2; d += 2.6) beds.push(depthRect(L, fx0 + 0.4, fx1 - 0.4, d, d + 1.4));
+
+  const out: PlotPlaces = { huts, green, streets, shops, lamps, yardPave, field, beds };
+  placesCache.set(key, out);
+  return out;
+}
+
 /**
  * True while era n's expansion pad takes payment (docs/EXPANSION.md §C): era n is next, the climb is open (Great
  * Lodge), and its gate is met: every upgrade introduced before era n at shown level 10·(n − 1) and the settlement at
