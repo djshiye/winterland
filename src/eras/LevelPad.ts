@@ -1,7 +1,7 @@
 /**
  * [eras] 0.9.5: the LEVEL pad of an era machine type (Dino: "era 1 was done right"): the same floor tile, ring, sign,
  * bundle arcs, tick ladder and bounce as Survival's machine level pads (stations/UpgradePad.ts, level mode), beside
- * the first built machine of its type in the region. Standing on it pays the next level of that type's upgrade
+ * the first built machine of its type in the region (0.9.5: also the era cash machine's pad, eras/CashMachine.ts). Standing on it pays the next level of that type's upgrade
  * (UPGRADES[machineId], group 'machine'): "<LABEL> LV n" where n is the level the purchase reaches, so the last pad
  * reads LV 10. Fully paid → ctx.upgrades.levelUp(id, position) ('upgrade:bought': sparkles + "LV n!"), a bounce, then
  * the pad re-arms for the next level or pops out at the top level.
@@ -16,8 +16,7 @@ import { PALETTE, TIMING, rect } from '../config';
 import { createPadModel, createPadSign, createPadTexture, formatCost, setPadSignLabel } from '../assets/pads';
 import { PadRing, playPadCelebrate } from '../fx/PadRing';
 import { PAD_CASH_FLIGHT, motionScale } from '../fx/padJuice';
-import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
-import type { MachineId } from './data';
+import type { GameContext, Item, ItemHolder, ItemKind, Slot, UpgradeId } from '../core/types';
 import type { Zone } from '../items/Zones';
 import type { XZ } from './layout';
 
@@ -56,7 +55,7 @@ export class EraLevelPad implements ItemHolder {
 
   constructor(
     private readonly ctx: GameContext,
-    readonly upgradeId: MachineId,
+    readonly upgradeId: UpgradeId,
     readonly at: XZ,
     readonly size: number,
     private readonly label: string,

@@ -1,6 +1,6 @@
 /** [B4] Inline SVG icons (no image files). All use a 48x48 viewBox unless noted. */
 import { ERA_ROLES, type BusinessId, type UpgradeIdConst } from '../config';
-import { ERAS, MACHINES, MACHINE_IDS } from '../eras/data';
+import { ERAS, MACHINES, MACHINE_IDS, MATERIALS, MATERIAL_KINDS } from '../eras/data';
 
 const svg = (inner: string, vb = '0 0 48 48'): string =>
   `<svg viewBox="${vb}" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
@@ -345,6 +345,55 @@ function machineIcon(accent: number): string {
     </g>`);
 }
 
+/** 0.9.5 Loading Dock: a pickup truck in the era's accent backed up to a striped counter. */
+function dockIcon(accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="3" y="24" width="24" height="11" rx="2" fill="${hexCss(accent)}"/>
+      <path d="M27 35V21h7l6 7v7z" fill="${hexCss(accent)}"/>
+      <path d="M30 23h3l4 5h-7z" fill="#bfe6ff"/>
+      <rect x="6" y="15" width="18" height="9" rx="2" fill="${shadeCss(accent, 0.35)}"/>
+      <circle cx="10" cy="38" r="5" fill="#f3f6fb"/><circle cx="33" cy="38" r="5" fill="#f3f6fb"/>
+      <path d="M4 8h40" stroke="${shadeCss(accent, -0.25)}" stroke-width="4" fill="none"/>
+    </g>`);
+}
+
+/** 0.9.5 Market Stall: a little stall with a striped awning in the era's accent and a shopper's bag. */
+function stallIcon(accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M6 18l4-10h28l4 10z" fill="${hexCss(accent)}"/>
+      <path d="M16 8l-2 10M24 8v10M32 8l2 10" stroke="#fff4dc" stroke-width="3" fill="none"/>
+      <rect x="8" y="18" width="32" height="7" rx="2" fill="${shadeCss(accent, -0.2)}"/>
+      <rect x="10" y="25" width="28" height="17" rx="2" fill="#d9aa66"/>
+      <path d="M18 31h12l-1.5 9h-9z" fill="#ffd84a"/>
+      <path d="M21 31c0-4 6-4 6 0" fill="none"/>
+    </g>`);
+}
+
+/** 0.9.5 era cash machine: a little safe in the era's accent with a gold wheel door and a cash bundle going in. */
+function vaultIcon(accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <rect x="18" y="4" width="16" height="9" rx="2" fill="#5ee07a"/>
+      <rect x="7" y="13" width="34" height="27" rx="5" fill="${hexCss(accent)}"/>
+      <circle cx="24" cy="27" r="8.5" fill="#ffd84a"/>
+      <path d="M24 21v12M18 27h12" stroke-width="2.4" fill="none"/>
+      <path d="M11 40v4M37 40v4" stroke-width="3.2"/>
+    </g>`);
+}
+
+/** 0.9.5 Fine <material>: a gold rosette with a swatch of the material's colours. */
+function qualityIcon(color: number, accent: number): string {
+  return svg(`
+    <g stroke="${OUT}" stroke-width="2.5">
+      <path d="M14 30l-5 14 7-3 4 6 4-13zM34 30l5 14-7-3-4 6-4-13z" fill="${hexCss(accent)}"/>
+      <circle cx="24" cy="21" r="16" fill="#ffd84a"/>
+      <rect x="15" y="13" width="18" height="16" rx="4" fill="${hexCss(color)}"/>
+      <path d="M18 18h12" stroke="${shadeCss(color, 0.4)}" stroke-width="2.6" fill="none"/>
+    </g>`);
+}
+
 for (const era of ERAS) {
   if (!era) continue;
   const icons: Record<string, string> = {
@@ -352,11 +401,18 @@ for (const era of ERAS) {
     [`${era.key}Crew`]: crewIcon(era.colors.accent),
     [`${era.key}Trade`]: tradeIcon(era.colors.accent),
     [`${era.key}Belts`]: beltsIcon(era.colors.accent),
+    [`${era.key}Dock`]: dockIcon(era.colors.accent),
+    [`${era.key}Stall`]: stallIcon(era.colors.accent),
+    [`${era.key}Cash`]: vaultIcon(era.colors.accent),
   };
   // each crew role wears its scarf colour on the hat (config ERA_ROLES)
   for (const r of ERA_ROLES) icons[`${era.key}${r.key}`] = crewIcon(r.scarf);
   for (const m of MACHINE_IDS) if (MACHINES[m].era === era.n) icons[m] = machineIcon(era.colors.accent);
   Object.assign(UPGRADE_ICONS, icons);
+}
+for (const kind of MATERIAL_KINDS) {
+  const m = MATERIALS[kind];
+  UPGRADE_ICONS[`${kind}Quality`] ??= qualityIcon(m.color, m.accent);
 }
 
 // finance: Jack's swap cart, City Hall, the stock broker's chart

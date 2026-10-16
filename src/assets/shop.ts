@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { COLORS, PALETTE } from '../config';
 import { bake } from '../render/batch';
 import { GAME_FONT, geo, makeCanvasTexture, mesh, toon } from '../render/materials';
+import { MATERIALS, isMaterial, type MaterialKind } from '../eras/data';
 
 // ---------------------------------------------------------------------------
 // Counter
@@ -92,7 +93,8 @@ export function createCounterModel(length: number, depth: number, height: number
 // Speech bubble
 // ---------------------------------------------------------------------------
 
-export type BubbleIcon = 'plank' | 'crate' | 'log' | 'check' | 'furniture';
+/** 0.9.5: an era material kind draws that material's block (era Trading Post buyers). */
+export type BubbleIcon = 'plank' | 'crate' | 'log' | 'check' | 'furniture' | MaterialKind;
 
 /** Small corner badge drawn on the bubble (VIP customers wear a crown). */
 export type BubbleBadge = 'crown';
@@ -226,6 +228,25 @@ function drawChair(g: CanvasRenderingContext2D, cx: number, cy: number, s: numbe
   part(-30, 2, 60, 12); // seat
 }
 
+/** 0.9.5: an era material as a chunky block in its colours (stone, bricks, ingots …). */
+function drawMaterial(g: CanvasRenderingContext2D, kind: MaterialKind, cx: number, cy: number, s: number): void {
+  const m = MATERIALS[kind];
+  const w = 70 * s;
+  const h = 48 * s;
+  g.beginPath();
+  g.roundRect(cx - w / 2, cy - h / 2 + 6 * s, w, h, 9 * s);
+  g.fillStyle = hex(m.color);
+  g.fill();
+  g.lineWidth = 5 * s;
+  g.strokeStyle = hex(m.accent);
+  g.stroke();
+  // top face highlight
+  g.beginPath();
+  g.roundRect(cx - w / 2 + 8 * s, cy - h / 2 + 12 * s, w - 16 * s, 9 * s, 4 * s);
+  g.fillStyle = 'rgba(255,255,255,0.45)';
+  g.fill();
+}
+
 function drawCrown(g: CanvasRenderingContext2D, cx: number, cy: number): void {
   g.beginPath();
   g.moveTo(cx - 19, cy + 15);
@@ -293,6 +314,7 @@ export function createSpeechBubble(scale = 1.1): SpeechBubble {
       else if (icon === 'crate') drawCrate(g, cx, cy, s);
       else if (icon === 'log') drawLog(g, cx, cy, s);
       else if (icon === 'furniture') drawChair(g, cx, cy + 4, s);
+      else if (icon !== 'check' && isMaterial(icon)) drawMaterial(g, icon, cx, cy, s);
       else drawCheck(g, cx, cy, 1.2);
       if (hasText) {
         g.font = `800 40px ${GAME_FONT}`;
