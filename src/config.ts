@@ -264,6 +264,13 @@ export const TIMING = {
   chopInterval: 0.4,
   /** NPC takes one item from its counter every N seconds. */
   npcTakeInterval: 0.14,
+  /**
+   * 0.9.3: delivery customers (walk-in buyers, tricycles, trucks, sleds, trains) load twice as fast as townsfolk; their
+   * dock upgrade divides this again (up to ×dockLoadMax), so a busy dock turns customers over quickly.
+   */
+  dockTakeInterval: 0.07,
+  /** 0.9.3: the most a dock upgrade speeds loading (its value, clamped). */
+  dockLoadMax: 4,
   /** Seconds the player must stand on a pad before cash starts flying (walking across one pays nothing). */
   padHoldDelay: 0.25,
   /** A pad payment takes about this many flights, whatever the cost (each bundle carries cost / N, a multiple of 5). */

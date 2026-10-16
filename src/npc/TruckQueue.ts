@@ -47,7 +47,7 @@ export class TruckQueue extends VehicleQueue {
       spawnU: -T.spawnX,
       exitU: -T.exitX,
       slotU: (i) => -(T.frontX - TRUCK_BED_X + i * T.spacing),
-      takeInterval: TIMING.npcTakeInterval,
+      takeInterval: TIMING.dockTakeInterval,
       boost: () => ctx.upgrades.value('truckDock'),
       accel: 6,
       decel: 8,
