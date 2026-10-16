@@ -70,7 +70,7 @@ describe('eraGate rows', () => {
     const s = allBuilt(lodge());
     s.upgrades.harvester = 6;
     const h = eraGate(s, 2).rows.find((r) => r.id === 'harvester')!;
-    expect(h).toMatchObject({ state: 'low', shown: 6, padLabel: 'pad LV 8 → LV 11' });
+    expect(h).toMatchObject({ state: 'low', shown: 6, padLabel: 'pad LV 7 → LV 10' });
     s.upgrades.harvester = 10;
     const done = eraGate(s, 2).rows.find((r) => r.id === 'harvester')!;
     expect(done.state).toBe('ok');

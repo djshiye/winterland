@@ -47,7 +47,7 @@ export interface GateRow {
   /** Dollars of the remaining steps to `need` at today's prices (0 when ok). */
   costToNeed: number;
   where: GateWhere;
-  /** Level pads count the built machine as LV 1 (R6): "pad LV 8 → LV 11". Pad rows only. */
+  /** The next level pad and the level the gate needs, in the pads' numbering (shown level): "pad LV 8 → LV 10". Pad rows only. */
   padLabel?: string;
 }
 
@@ -152,7 +152,7 @@ function rowOf(s: GameState, id: UpgradeId, n: number): GateRow {
     where,
   };
   if (stored >= target) return row;
-  if (where === 'pad') row.padLabel = `pad LV ${stored + 2} → LV ${target + 1}`;
+  if (where === 'pad') row.padLabel = `pad LV ${shown(def, stored) + 1} → LV ${gateNeed(n)}`;
   for (let k = stored; k < target; k++) row.costToNeed += stepCost(def, k);
   const req = upgradeRequirement(s, id);
   if (req) {

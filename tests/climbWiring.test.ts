@@ -49,7 +49,7 @@ describe('Upgrades on the ladder', () => {
     expect(up.nextValue('carry')).toBeNull();
   });
 
-  it('with the Lodge built the ladder runs on to shown level 100', () => {
+  it('with the Lodge built the ladder runs on past the authored max, era cap by era cap, to shown level 100', () => {
     const { up, state, economy } = make(1e15, true);
     const id: UpgradeId = 'carry';
     const d = UPGRADES[id];
@@ -62,7 +62,20 @@ describe('Upgrades on the ladder', () => {
     expect(economy.money).toBe(before - costAt(d, authoredMax(d)));
     expect(up.value(id)).toBe(41);
     expect(up.describe(id)).toBe('41 items');
+    // era 1 stops at shown level 10 (the era-2 gate) until the era-2 expansion is bought
     while (up.buy(id));
+    expect(up.level(id)).toBe(10);
+    expect(up.isMax(id)).toBe(true);
+    expect(up.atEraCap(id)).toBe(true);
+    expect(up.nextCost(id)).toBeNull();
+    // each era lifts the cap by 10; era 10 reaches the final level
+    for (let age = 2; age <= 10; age++) {
+      state.eras.age = age;
+      expect(up.isMax(id)).toBe(false);
+      while (up.buy(id));
+      expect(up.shownLevel(id)).toBe(10 * age);
+    }
+    expect(up.atEraCap(id)).toBe(false);
     expect(up.level(id)).toBe(LEVEL_CAP);
     expect(up.shownLevel(id)).toBe(LEVEL_CAP);
     expect(up.value(id)).toBe(50); // the hard cap
@@ -70,6 +83,31 @@ describe('Upgrades on the ladder', () => {
     state.village.greatLodge.tier = -1;
     expect(up.level(id)).toBe(LEVEL_CAP);
     expect(up.isMax(id)).toBe(true);
+  });
+
+  it('the era cap stops machines and crews alike at shown level 10 · age, and old saves above it keep their levels', () => {
+    const { up, state } = make(1e15, true);
+    for (const id of ['harvester', 'processor', 'megaSaw', 'treeFeller', 'cashTubes', 'workshop'] as UpgradeId[]) {
+      expect(UPGRADES[id].group).toBe('machine');
+      expect(up.maxLevel(id)).toBe(10);
+    }
+    for (const id of up.group('crew')) expect(up.maxLevel(id)).toBe(10);
+    // an era-3 id starts at shown 20 (stored 0): in era 3 it caps at shown 30 (stored 10), like every older id
+    state.eras.age = 3;
+    expect(introEra(UPGRADES.ironRigs)).toBe(3);
+    expect(up.maxLevel('ironRigs')).toBe(10);
+    expect(up.maxLevel('harvester')).toBe(30);
+    // a save from 0.9.0 with a machine already past the cap: nothing is taken away, it just can't go higher yet
+    state.eras.age = 1;
+    state.upgrades.harvester = 25;
+    expect(up.level('harvester')).toBe(25);
+    expect(up.isMax('harvester')).toBe(true);
+    expect(up.nextCost('harvester')).toBeNull();
+    expect(up.canBuy('harvester')).toBe(false);
+    const before = state.stats.upgradesBought;
+    up.levelUp('harvester', null);
+    expect(up.level('harvester')).toBe(25);
+    expect(state.stats.upgradesBought).toBe(before);
   });
 
   it('era-2+ ids have no cost table: every step is on the band curve and rises strictly', () => {

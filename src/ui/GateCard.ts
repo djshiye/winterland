@@ -7,7 +7,7 @@
  *   "then the expansion: $1.5M + 20 Crates". Once the gate is met a gold "Frontier is for sale!" with Go replaces it.
  * - "✓ 12 done", then only the TOP 5 open rows (eras/gate.ts openRows: prereqs first, then cheapest to finish) and
  *   "+8 more". Every row has Go (fast travel to where it is bought): a shop row to the cabin's shop mat, an Industry
- *   row to its era's shop mat, a pad row ("pad LV 8 → LV 11") to the level pad, a prereq row to what unlocks it.
+ *   row to its era's shop mat, a pad row ("pad LV 8 → LV 10") to the level pad, a prereq row to what unlocks it.
  * - The settlement row while it is short: "Build a home in Brickside (+40) → Settlement 6" with Go to the district.
  * - Once a level has passed a hard cap, the Mastery line under the bar: "Mastery 340 · +41 % on every sale".
  *

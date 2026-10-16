@@ -90,6 +90,27 @@ export function maxStored(def: UpgradeDef, climb: boolean, mode: 'offset' | 'lit
   return climb ? LEVEL_CAP - base(def, mode) : authoredMax(def);
 }
 
+/** Highest shown level for sale while `age` is the highest era reached: the next gate's need, 10 · age (100 in era 10). */
+export function eraCapShown(age: number): number {
+  return Math.min(LEVEL_CAP, CLIMB.bandSize * Math.max(1, Math.floor(age)));
+}
+
+/**
+ * Highest stored level for sale now (Upgrades.maxLevel). Every upgrade, machines and crews alike, stops at the era cap
+ * (shown 10 · age) until the next era's expansion is bought: era 1 caps at shown level 10, era 2 at 20, and so on.
+ * Levels already owned above it (older saves) are kept; the cap only stops new purchases.
+ */
+export function capStored(def: UpgradeDef, climb: boolean, age: number, mode: 'offset' | 'literal' = GATE.mode): number {
+  // before the climb the authored tables (all below shown 10 in era 1) are the limit, as in 0.8.0
+  if (!climb) return authoredMax(def);
+  return Math.max(0, Math.min(maxStored(def, true, mode), eraCapShown(age) - base(def, mode)));
+}
+
+/** At the era cap but not at the final level: the next era's expansion lifts it. */
+export function atEraCap(def: UpgradeDef, stored: number, age: number, mode: 'offset' | 'literal' = GATE.mode): boolean {
+  return stored >= eraCapShown(age) - base(def, mode) && stored < maxStored(def, true, mode);
+}
+
 /** Uncapped curve value at stored level s > m (float noise trimmed so describe() never prints 3.4000000000000004). */
 function rawPast(def: UpgradeDef, c: Curve, s: number): number {
   const m = authoredMax(def);
