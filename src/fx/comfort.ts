@@ -11,6 +11,8 @@
  *   on <html>; ui/comfort.css holds the colours.
  * - uiScale (0.9.7, Interface size): 0.8..1.5, how big the HUD, cards and menus draw. Written to <html> as the CSS
  *   variable `--wl-ui`; ui/comfort.css zooms every HUD panel by it (world-anchored effects keep their own size).
+ *   A size above 100 % is fitted to the window (`fitUiScale`), so a small window never crowds the top bar; the big
+ *   centre toast stops at TOAST_UI_MAX (`--wl-ui-toast`).
  * <html> also gets `wl-reduce-motion` and `wl-calm` so CSS can follow. Every storage / DOM access is guarded.
  */
 
@@ -34,6 +36,21 @@ export function clampUiScale(v: unknown): number {
   if (typeof v !== 'number' || !Number.isFinite(v)) return 1;
   const stepped = Math.round(v / UI_SCALE.step) * UI_SCALE.step;
   return Math.round(Math.min(UI_SCALE.max, Math.max(UI_SCALE.min, stepped)) * 100) / 100;
+}
+
+/** The window (CSS px) the HUD needs per 100 % of size: a bigger size only applies where the window has room. */
+export const UI_FIT = { w: 850, h: 560 } as const;
+/** The centre toast ("Quest complete!") grows no bigger than this, so it never covers the middle of the screen. */
+export const TOAST_UI_MAX = 1.25;
+
+/**
+ * Pure: the size actually drawn for a chosen size in a w × h window. Sizes up to 100 % always apply; above that, no
+ * more than the window has room for (never below 100 % because of the window).
+ */
+export function fitUiScale(chosen: number, w: number, h: number): number {
+  if (!(w > 0 && h > 0) || chosen <= 1) return chosen;
+  const room = Math.min(w / UI_FIT.w, h / UI_FIT.h);
+  return Math.floor(Math.min(chosen, Math.max(1, room)) * 100) / 100;
 }
 
 export const COMFORT_KEY = 'winterland:comfort';
@@ -86,21 +103,41 @@ function load(): ComfortSettings {
 }
 
 let state: ComfortSettings = load();
+/** The size drawn now: state.uiScale fitted to the window. */
+let drawn = state.uiScale;
 const listeners = new Set<(s: Readonly<ComfortSettings>) => void>();
 
+/** The window size in CSS px (0 × 0 without a window: then nothing is fitted). */
+function windowSize(): { w: number; h: number } {
+  try {
+    return typeof window === 'undefined' ? { w: 0, h: 0 } : { w: window.innerWidth, h: window.innerHeight };
+  } catch {
+    return { w: 0, h: 0 };
+  }
+}
+
 function applyClasses(): void {
+  const win = windowSize();
+  drawn = fitUiScale(state.uiScale, win.w, win.h);
   try {
     if (typeof document === 'undefined') return;
     const root = document.documentElement.classList;
     root.toggle('wl-cb', state.colorBlind);
     root.toggle('wl-reduce-motion', state.motion);
     root.toggle('wl-calm', state.effects !== 'full');
-    document.documentElement.style.setProperty('--wl-ui', String(state.uiScale));
+    document.documentElement.style.setProperty('--wl-ui', String(drawn));
+    document.documentElement.style.setProperty('--wl-ui-toast', String(Math.min(drawn, TOAST_UI_MAX)));
   } catch {
     /* no DOM */
   }
 }
 applyClasses();
+try {
+  // a resized window re-fits the interface size
+  if (typeof window !== 'undefined') window.addEventListener('resize', applyClasses);
+} catch {
+  /* no window */
+}
 
 /** The current settings (read-only view). */
 export function comfort(): Readonly<ComfortSettings> {
@@ -135,9 +172,14 @@ export function reducedMotion(): boolean {
   return state.motion;
 }
 
-/** Interface size (1 = as designed). Screen-pixel positions written onto a zoomed HUD panel are divided by it. */
+/** Interface size drawn now (1 = as designed). Screen-pixel positions written onto a zoomed HUD panel are divided by it. */
 export function uiScale(): number {
-  return state.uiScale;
+  return drawn;
+}
+
+/** True when the window is too small for the chosen size, so a smaller one is drawn (Settings says so). */
+export function uiScaleFitted(): boolean {
+  return drawn < state.uiScale;
 }
 
 /** True when pulsing / flashing highlights should hold still (reduced motion or calmer effects). */

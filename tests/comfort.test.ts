@@ -4,6 +4,8 @@ import {
   COMFORT_KEY,
   clampUiScale,
   comfort,
+  fitUiScale,
+  TOAST_UI_MAX,
   parseComfort,
   particleScale,
   reloadComfort,
@@ -148,6 +150,25 @@ describe('interface size (0.9.7)', () => {
   it('every HUD panel zooms by it, except the world-anchored effects', () => {
     const css = readFileSync(resolve(__dirname, '../src/ui/comfort.css'), 'utf8').replace(/\r\n/g, '\n');
     expect(css).toContain('.wl-hud > :not(.wl-float):not(.wl-edge):not(.wl-coin) {\n  zoom: var(--wl-ui, 1);');
+  });
+
+  it('a size above 100 % is fitted to the window, never below 100 % and never bigger than chosen', () => {
+    expect(fitUiScale(1.5, 1920, 1080)).toBe(1.5);
+    expect(fitUiScale(1.5, 1024, 600)).toBe(1.07); // the validator's crowded case: 600 / 560
+    expect(fitUiScale(1.5, 1280, 720)).toBe(1.28);
+    expect(fitUiScale(1.5, 800, 600)).toBe(1);
+    expect(fitUiScale(1.5, 360, 640)).toBe(1);
+    // 100 % and smaller always draw as chosen, even in a tiny window
+    expect(fitUiScale(0.8, 360, 640)).toBe(0.8);
+    expect(fitUiScale(1, 360, 640)).toBe(1);
+    // no window (tests, workers): as chosen
+    expect(fitUiScale(1.4, 0, 0)).toBe(1.4);
+  });
+
+  it('the centre toast stops at 125 %', () => {
+    expect(TOAST_UI_MAX).toBe(1.25);
+    const css = readFileSync(resolve(__dirname, '../src/ui/comfort.css'), 'utf8').replace(/\r\n/g, '\n');
+    expect(css).toContain('.wl-hud > .wl-toast:not(.wl-float):not(.wl-edge):not(.wl-coin) {\n  zoom: var(--wl-ui-toast, 1);');
   });
 });
 

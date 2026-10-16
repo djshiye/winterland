@@ -6,10 +6,11 @@
  *   1. what the era runs on (its resource, in one line);
  *   2. the hand node: harvest the raw by hand (done once some is in hand, or after standing there a while);
  *   3. the era's shop mat: crew and the era's own upgrades (done on stepping onto it);
- *   4. the import dock: where spare goods wait for the machines (done on stepping onto it);
+ *   4. the import dock: where spare goods wait for the machines (done on stepping onto its give / take strip in front);
  *   5. the era rule: everything here to Lv 10 opens the next era (era 10: the 100 % award).
  *
- * Reading steps stay up READ_SECONDS. Once finished the guide never returns for that era (flag `seen:starter<N>`,
+ * Reading steps stay up READ_SECONDS; a walking step moves on by itself after WALK_SECONDS, so the banner can never
+ * stick. Once finished the guide never returns for that era (flag `seen:starter<N>`,
  * kept across New Season), and an era whose first machine is already chosen never starts it (old saves). The node's
  * name, verb and resource come from the era data, so renames there follow automatically; RESOURCE_LINES is the one
  * hand-written line per era (era resources v2: iron pellets + coke, chips from silicon, rare earths + helium-3).
@@ -19,12 +20,14 @@ import { ERA_NODES } from '../assets/eraNodes';
 import { ERAS, MATERIALS } from '../eras/data';
 import { handNodePlace } from '../eras/HandNode';
 import { regionLayout, type XZ } from '../eras/layout';
-import { MAT_SIZE } from '../eras/rules';
+import { DOCK_FRAME, MAT_SIZE, worldRect } from '../eras/rules';
 import type { FlagId, ItemKind } from '../core/types';
 
 export const STARTER_STEPS = 5;
 /** Seconds a reading step (1 and 5) stays up. */
 export const READ_SECONDS = 6;
+/** Safety net: a walking step (3 and 4) moves on after this long even if the player never steps onto it. */
+export const WALK_SECONDS = 20;
 /** Seconds at the node that count as "you've got it" even before anything is picked up. */
 export const NODE_LINGER = 5;
 
@@ -77,8 +80,16 @@ export function starterSteps(n: number): StarterStep[] {
     d: 5,
   });
   steps.push({ kind: 'walk', text: tag(3, `The shop mat: hire ${lower(era.worker.plural)} and buy upgrades`), spot: L.shopMat, w: MAT_SIZE.w, d: MAT_SIZE.d });
-  steps.push({ kind: 'walk', text: tag(4, 'The dock keeps spare goods for your machines'), spot: L.dock, w: 3, d: 2.4 });
-  const last = n >= 10 ? `Get everything in ${era.region} to Lv 10 for the 100 % award` : `Get everything in ${era.region} to Lv 10 to open the next era`;
+  // the strip in front of the dock (its give + take zones), never the dock's solid body
+  const front = worldRect(L.dock, L.facilityYaw, { u0: DOCK_FRAME.give.u0, u1: DOCK_FRAME.take.u1, v0: DOCK_FRAME.give.v0, v1: DOCK_FRAME.give.v1 });
+  steps.push({
+    kind: 'walk',
+    text: tag(4, 'The dock keeps spare goods for your machines'),
+    spot: { x: (front.minX + front.maxX) / 2, z: (front.minZ + front.maxZ) / 2 },
+    w: front.maxX - front.minX,
+    d: front.maxZ - front.minZ,
+  });
+  const last = n >= 10 ? `Get everything in ${era.region} to Lv 10; the era chip then shows the last pieces for 100 %` : `Get everything in ${era.region} to Lv 10 to open the next era`;
   steps.push({ kind: 'read', text: tag(5, last), spot: null, w: 0, d: 0 });
   return steps;
 }
@@ -129,7 +140,7 @@ export class EraStarter {
       if (raw && s.carrying(raw) > 0) next = true;
       if (inside(s.player, cur) && this.t >= NODE_LINGER) next = true;
       if (!cur.spot) next = this.t >= READ_SECONDS;
-    } else next = inside(s.player, cur) || !cur.spot;
+    } else next = inside(s.player, cur) || !cur.spot || this.t >= WALK_SECONDS;
     if (next) {
       this.step++;
       this.t = 0;
