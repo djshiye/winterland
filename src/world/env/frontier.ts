@@ -18,7 +18,7 @@
 import * as THREE from 'three';
 import { LAYOUT, PALETTE, type Rect } from '../../config';
 import { eraPropGeometry, PROP_RADIUS, PROP_ROLES, strungWires, type PropRole } from '../../assets/frontierProps';
-import { ERAS, REGIONS, ROADS, unlockCash } from '../../eras/data';
+import { ERAS, REGIONS, RIVER_END_Z, RIVER_POND, ROADS, unlockCash } from '../../eras/data';
 import { climbOpen } from '../../eras/gate';
 import { regionLayout, type RegionLayout } from '../../eras/layout';
 import type { GameContext } from '../../core/types';
@@ -59,6 +59,14 @@ export function gateWalk(l: RegionLayout): Rect {
   const z0 = l.gate.z - l.inward * 1.2;
   const z1 = l.gate.z + l.inward * 1.2;
   return { minX: l.gate.x - 1.7, maxX: l.gate.x + 1.7, minZ: Math.min(z0, z1), maxZ: Math.max(z0, z1) };
+}
+
+/** Walk rect of a region's market gate (0.9.5): 2.4 m wide, reaching 1.2 m out onto the road and 1.2 m in. Pure. */
+export function marketGateWalk(l: RegionLayout): Rect {
+  const g = l.marketGate;
+  const z0 = g.z - l.inward * 1.2;
+  const z1 = g.z + l.inward * 1.2;
+  return { minX: g.x - g.width / 2 + 0.3, maxX: g.x + g.width / 2 - 0.3, minZ: Math.min(z0, z1), maxZ: Math.max(z0, z1) };
 }
 
 /** The Market Town fence's south edge (where the south avenue leaves). */
@@ -165,6 +173,7 @@ function gateZones(): Rect[] {
     if (!REGIONS[n]) continue;
     const l = regionLayout(n);
     out.push({ minX: l.gate.x - 2.8, maxX: l.gate.x + 2.8, minZ: l.gate.z - 1.5, maxZ: l.gate.z + 1.5 });
+    out.push({ minX: l.marketGate.x - 2.3, maxX: l.marketGate.x + 2.3, minZ: l.marketGate.z - 1.5, maxZ: l.marketGate.z + 1.5 });
   }
   return out;
 }
@@ -431,21 +440,51 @@ interface Region {
   ground: THREE.MeshToonMaterial;
   lock: THREE.Object3D;
   survey: THREE.Object3D;
+  zones: THREE.Object3D;
   paintSign: (locked: boolean) => void;
   lockedColor: number;
   openColor: number;
 }
 
-/** Does a prop of footprint radius `rad` at (x, z) fit inside region n, clear of its slot cells and front yard? */
+const inZone = (q: Rect, x: number, z: number, m: number): boolean => x > q.minX - m && x < q.maxX + m && z > q.minZ - m && z < q.maxZ + m;
+
+/**
+ * 0.9.5: the packed-snow paths that join a region's zones (2.2 m wide, world rects): along the yard's inner edge from
+ * the west fence to the market, down the line between the west column and the market / huts, and along the line
+ * between processing and harvest. Pure.
+ */
+export function regionPaths(l: RegionLayout): Rect[] {
+  const Z = l.zones;
+  const h = 1.1;
+  const yardIn = l.inward > 0 ? Z.yard.maxZ : Z.yard.minZ;
+  const procOut = l.inward > 0 ? Z.processing.maxZ : Z.processing.minZ;
+  const split = Z.yard.maxX;
+  const zLo = Math.min(yardIn, l.inward > 0 ? l.rect.maxZ - 1 : l.rect.minZ + 1);
+  const zHi = Math.max(yardIn, l.inward > 0 ? l.rect.maxZ - 1 : l.rect.minZ + 1);
+  return [
+    { minX: l.rect.minX + 1, maxX: split + 4, minZ: yardIn - h, maxZ: yardIn + h },
+    { minX: split - h, maxX: split + h, minZ: zLo, maxZ: zHi },
+    { minX: l.rect.minX + 1, maxX: split, minZ: procOut - h, maxZ: procOut + h },
+  ];
+}
+
+/**
+ * Does a prop of footprint radius `rad` at (x, z) fit inside region n? 0.9.5: props dress only the harvest zone (the
+ * era's wild ground), clear of the paths; the yard, processing, market and huts stay clear for what lives there.
+ */
 function propFree(l: RegionLayout, x: number, z: number, rad: number): boolean {
   const r = l.rect;
   if (x < r.minX + rad + 0.9 || x > r.maxX - rad - 0.9 || z < r.minZ + rad + 0.9 || z > r.maxZ - rad - 0.9) return false;
-  const edge = l.gate.z;
-  const dz = (z - edge) * l.inward; // depth into the region from the gate edge
-  if (dz < 8.4 + rad) return false;
-  const half = l.cell / 2 + 0.35 + rad * 0.5;
-  for (const s of l.slots) if (Math.abs(x - s.x) < half && Math.abs(z - s.z) < half) return false;
-  return true;
+  const H = l.zones.harvest;
+  if (!(x > H.minX + rad + 0.6 && x < H.maxX - rad - 0.6 && z > H.minZ + rad + 0.6 && z < H.maxZ - rad - 0.6)) return false;
+  if (inZone(nodePatch(l), x, z, rad + 0.3)) return false;
+  return !regionPaths(l).some((q) => inZone(q, x, z, rad + 0.3));
+}
+
+/** The hand node's patch kept clear of props: the node (r ≈ 2.2 m), its pile 2.6 m to the right and the take mat. Pure. */
+export function nodePatch(l: RegionLayout): Rect {
+  const n = l.node;
+  return { minX: n.x - 4, maxX: n.x + 6, minZ: n.z - 3.5, maxZ: n.z + 3.5 };
 }
 
 function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
@@ -466,20 +505,43 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   const lockedColor = mix(e.colors.ground, 0xf4f8ff, 0.5);
   const ground = toonUnique(lockedColor);
   const tile = new THREE.Mesh(geo.ground(W, D), ground);
-  // region 2 overlaps the old tricycle road's tail (asphalt z 52..70, y 0.012..0.016): its ground rides above it
-  const gy = n === 2 ? 0.03 : 0.014;
+  const gy = 0.014;
+  // 0.9.5 plots are 3–11× the 0.9.3 ones: dressing scales with the side length, not the area (keeps them airy)
+  const grow = Math.sqrt((W * D) / 720);
   tile.position.set(cx, gy, cz);
   tile.receiveShadow = true;
   group.add(tile);
   const decals = new Batch();
-  for (let i = 0; i < 16; i++) {
+  const nDecals = Math.round(16 * grow);
+  for (let i = 0; i < nDecals; i++) {
     const s = rng.range(0.8, 2.2);
     const col = shade(e.colors.ground, rng.next() < 0.6 ? 0.94 : 1.04);
-    decals.add(geo.circleGround(1, 10), col, rng.range(r.minX + 2, r.maxX - 2), gy + 0.004 + i * 0.0004, rng.range(r.minZ + 2, r.maxZ - 2), { sx: s, sz: s * rng.range(0.6, 1.0), ry: rng.range(0, 3) });
+    decals.add(geo.circleGround(1, 10), col, rng.range(r.minX + 2, r.maxX - 2), gy + 0.004 + (i % 16) * 0.0004, rng.range(r.minZ + 2, r.maxZ - 2), { sx: s, sz: s * rng.range(0.6, 1.0), ry: rng.range(0, 3) });
   }
   const rutLen = 14;
   for (const dx of [-0.9, 0.9]) decals.add(geo.box(0.4, 0.012, rutLen), shade(e.colors.ground, 0.78), l.gate.x + dx, gy + 0.008, l.gate.z + l.inward * (rutLen / 2 + 0.5));
+  // a worn footpath from the market gate into the market
+  decals.add(geo.box(1.6, 0.012, 6), shade(e.colors.ground, 0.86), l.marketGate.x, gy + 0.008, l.marketGate.z + l.inward * 3.2);
   const decalMesh = decals.mesh({ cast: false, receive: true });
+
+  // ---- 0.9.5 zones: a soft ground tint per zone and the paths between them (shown once the region is bought)
+  const zb = new Batch();
+  const Z = l.zones;
+  const tint: [Rect, number][] = [
+    [Z.yard, shade(e.colors.ground, 0.9)],
+    [Z.processing, shade(e.colors.ground, 0.96)],
+    [Z.market, mix(shade(e.colors.ground, 1.06), 0xffe9c4, 0.18)],
+    [Z.huts, mix(shade(e.colors.ground, 1.04), 0xfff4e0, 0.22)],
+  ];
+  for (const [q, c] of tint) {
+    const w = q.maxX - q.minX - 1.6;
+    const d = q.maxZ - q.minZ - 1.6;
+    if (w > 0 && d > 0) zb.add(geo.box(w, 0.01, d), c, (q.minX + q.maxX) / 2, gy + 0.001, (q.minZ + q.maxZ) / 2);
+  }
+  for (const q of regionPaths(l)) zb.add(geo.box(q.maxX - q.minX, 0.012, q.maxZ - q.minZ), shade(e.colors.ground, 0.8), (q.minX + q.maxX) / 2, gy + 0.003, (q.minZ + q.maxZ) / 2);
+  const zonesMesh = zb.mesh({ cast: false, receive: true });
+  zonesMesh.visible = false;
+  group.add(zonesMesh);
   group.add(decalMesh);
 
   // ---- fence with the gate gap, the gate arch
@@ -491,8 +553,19 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   const gateAtMin = l.gate.side === 'north';
   const gateEdge = gateAtMin ? r.minZ : r.maxZ;
   const farEdge = gateAtMin ? r.maxZ : r.minZ;
+  const mg = l.marketGate;
+  const mgA = mg.x - mg.width / 2;
+  const mgB = mg.x + mg.width / 2;
   fenceRun(fb, gb, kind, pal, 'x', gateEdge, r.minX, gapA);
-  fenceRun(fb, gb, kind, pal, 'x', gateEdge, gapB, r.maxX);
+  fenceRun(fb, gb, kind, pal, 'x', gateEdge, gapB, mgA);
+  fenceRun(fb, gb, kind, pal, 'x', gateEdge, mgB, r.maxX);
+  // the market gate: two posts with an awning beam in the era's accent colour (no leaves: customers walk right in)
+  for (const x of [mgA, mgB]) {
+    fb.add(geo.box(0.26, 2.3, 0.26), pal.dark, x, 1.15, mg.z);
+    fb.add(geo.box(0.34, 0.05, 0.34), PALETTE.snow, x, 2.32, mg.z);
+  }
+  fb.add(geo.box(mg.width + 0.5, 0.18, 0.24), pal.dark, mg.x, 2.15, mg.z);
+  for (let i = 0; i < 6; i++) fb.add(geo.box((mg.width + 0.4) / 6 - 0.03, 0.3, 0.06), i % 2 ? 0xfff3dc : pal.accent, mgA - 0.2 + ((i + 0.5) * (mg.width + 0.4)) / 6, 1.9, mg.z - l.inward * 0.14);
   fenceRun(fb, gb, kind, pal, 'x', farEdge, r.minX, r.maxX);
   fenceRun(fb, gb, kind, pal, 'z', r.minX, r.minZ, r.maxZ);
   fenceRun(fb, gb, kind, pal, 'z', r.maxX, r.minZ, r.maxZ);
@@ -534,7 +607,8 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   const sb = new Batch();
   for (const s of l.slots) {
     const h = l.cell / 2 - 0.9;
-    for (const [dx, dz] of [[-h, -h], [h, -h], [-h, h], [h, h]] as const) {
+    const v = l.rowPitch / 2 - 0.9;
+    for (const [dx, dz] of [[-h, -v], [h, -v], [-h, v], [h, v]] as const) {
       sb.add(geo.box(0.07, 0.8, 0.07), 0x8a6a46, s.x + dx, 0.4, s.z + dz);
       sb.add(geo.box(0.3, 0.17, 0.03), 0xd0453a, s.x + dx + 0.15, 0.72, s.z + dz, { ry: 0.5 });
     }
@@ -576,8 +650,9 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
     placed.push({ x, z, r: PROP_RADIUS.tall });
     byRole.tall.push({ x, z, ry: n === 6 ? 0 : rng.range(0, 6.28), sx: rng.range(0.95, 1.1), tint: 1 });
   }
-  for (const [role, count] of [['mid', 9], ['low', 16]] as const) {
-    for (let t = 0; t < 400 && byRole[role].length < count; t++) {
+  for (const [role, base] of [['mid', 9], ['low', 16]] as const) {
+    const count = Math.round(base * Math.sqrt(grow));
+    for (let t = 0; t < 400 * grow && byRole[role].length < count; t++) {
       const x = rng.range(r.minX + 1, r.maxX - 1);
       const z = rng.range(r.minZ + 1, r.maxZ - 1);
       const s = rng.range(0.85, 1.15);
@@ -595,7 +670,7 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   }
 
   root.add(group);
-  const reg: Region = { n, layout: l, group, unlocked: false, gateK: 0, colorK: 0, animating: false, leafL, leafR, ground, lock, survey, paintSign: paint, lockedColor, openColor: e.colors.ground };
+  const reg: Region = { n, layout: l, group, unlocked: false, gateK: 0, colorK: 0, animating: false, leafL, leafR, ground, lock, survey, zones: zonesMesh, paintSign: paint, lockedColor, openColor: e.colors.ground };
   paint(true);
   void ctx;
   return reg;
@@ -620,6 +695,58 @@ function carveTownGap(ctx: GameContext, town: THREE.Object3D, road: string): voi
   pruneInstances(town, (x, z) => inRect(spec.gap, x, z));
   if (spec.walk) ctx.colliders.addBounds(spec.walk);
   ctx.colliders.carve('town:fence', spec.wall);
+}
+
+// ---------------------------------------------------------------------------
+// Where the old map meets the new land (0.9.5)
+// ---------------------------------------------------------------------------
+
+/**
+ * The seams between era 1 and the new land, shown only with the new land: the frozen pond the river ends in (it used
+ * to stop dead in the snow), the snow over its channel past the pond, and a buffer stop where the Timber Ridge rail
+ * ends by R1.
+ */
+function buildSeams(): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'seams';
+  const b = new Batch();
+  const rv = LAYOUT.river;
+
+  // ---- the river past its pond is snowed over (it used to run on under R1 into era II's plot)
+  b.add(geo.box(rv.maxX - rv.minX + 0.6, 0.02, rv.maxZ - RIVER_END_Z + 0.4), PALETTE.snow, (rv.minX + rv.maxX) / 2, 0.006, (RIVER_END_Z + rv.maxZ) / 2);
+
+  // ---- frozen pond where the river ends: an ice oval over the channel's last metres, a snowy rim, skate swirls
+  const P = RIVER_POND;
+  const pcx = (P.minX + P.maxX) / 2;
+  const pcz = (P.minZ + P.maxZ) / 2;
+  const rx = (P.maxX - P.minX) / 2;
+  const rz = (P.maxZ - P.minZ) / 2;
+  b.add(geo.circleGround(1, 36), 0xf4f8ff, pcx, 0.018, pcz, { sx: rx + 0.7, sz: rz + 0.7 });
+  b.add(geo.circleGround(1, 36), 0xbfdcf0, pcx, 0.024, pcz, { sx: rx, sz: rz });
+  b.add(geo.circleGround(1, 28), 0xd7ebf8, pcx - 0.8, 0.028, pcz + 0.6, { sx: rx * 0.62, sz: rz * 0.55 });
+  // the river runs under the ice: a darker band fading into the pond from its north edge
+  b.add(geo.box(rv.maxX - rv.minX - 0.4, 0.004, 3.2), 0x9fc7e3, (rv.minX + rv.maxX) / 2, 0.03, P.minZ + 1.9);
+  const rng = new Rng(5150);
+  for (let i = 0; i < 5; i++) {
+    const a = rng.range(0, Math.PI * 2);
+    b.add(geo.box(rng.range(1.2, 2.6), 0.004, 0.06), 0xeef6fd, pcx + Math.cos(a) * rx * 0.4, 0.034, pcz + Math.sin(a) * rz * 0.4, { ry: rng.range(0, Math.PI) });
+  }
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2 + rng.range(-0.1, 0.1);
+    const s = rng.range(0.25, 0.5);
+    b.add(geo.box(s, s * 0.6, s), rng.next() < 0.5 ? PALETTE.rock : 0xe9eff7, pcx + Math.cos(a) * (rx + 0.35), s * 0.25, pcz + Math.sin(a) * (rz + 0.35), { ry: rng.range(0, 3) });
+  }
+
+  // ---- buffer stop at the end of the Timber Ridge rail (the trains leave the map there)
+  const rail = LAYOUT.ridge.rail;
+  const bz = rail.exitZ + 0.4;
+  for (const s of [-1, 1]) b.add(geo.box(0.22, 0.9, 0.22), 0x6e5238, rail.x + s * 0.72, 0.45, bz);
+  b.add(geo.box(2.0, 0.36, 0.3), 0xd0453a, rail.x, 0.75, bz);
+  for (const s of [-0.55, 0, 0.55]) b.add(geo.box(0.22, 0.3, 0.04), 0xffffff, rail.x + s, 0.75, bz - 0.16);
+  b.add(geo.box(2.1, 0.06, 0.4), PALETTE.snow, rail.x, 0.96, bz);
+
+  group.add(b.mesh({ cast: true, receive: true }));
+  return group;
 }
 
 // ---------------------------------------------------------------------------
@@ -688,7 +815,7 @@ function buildFarScatter(): THREE.Group {
  * Build the new land. `town` = the Market Town's group (its fence gets gaps where roads leave it). The part follows
  * 'village:changed' / 'era:unlocked' by itself; a restored game is brought up to date at construction, silently.
  */
-export function buildFrontier(ctx: GameContext, town: THREE.Object3D): FrontierPart {
+export function buildFrontier(ctx: GameContext, town: THREE.Object3D, trikeTail?: THREE.Object3D): FrontierPart {
   const group = new THREE.Group();
   group.name = 'frontier';
   group.visible = false;
@@ -704,6 +831,7 @@ export function buildFrontier(ctx: GameContext, town: THREE.Object3D): FrontierP
   const regions: Region[] = [];
   for (let n = 2; n < REGIONS.length; n++) if (REGIONS[n]) regions.push(buildRegion(ctx, n, group));
   group.add(buildFarScatter());
+  group.add(buildSeams());
 
   const pending = new Set<Region>();
   const view = (hint: number): LandState => ({ village: ctx.state.village, eras: { age: Math.max(ctx.state.eras.age, hint) } });
@@ -712,8 +840,10 @@ export function buildFrontier(ctx: GameContext, town: THREE.Object3D): FrontierP
     reg.unlocked = true;
     ctx.colliders.addBounds(regionWalk(reg.layout));
     ctx.colliders.addBounds(gateWalk(reg.layout));
+    ctx.colliders.addBounds(marketGateWalk(reg.layout));
     reg.lock.visible = false;
     reg.survey.visible = false;
+    reg.zones.visible = true;
     reg.paintSign(false);
     if (instant) {
       reg.gateK = 1;
@@ -733,6 +863,8 @@ export function buildFrontier(ctx: GameContext, town: THREE.Object3D): FrontierP
   const refresh = (hintEra = 0): void => {
     const s = view(hintEra);
     group.visible = landVisible(s);
+    // the era-1 tricycle road's tail ran into era II's plot: once the new land shows, the road ends on R1
+    if (trikeTail) trikeTail.visible = !group.visible;
     for (const road of roads) {
       const open = roadOpen(s, road.opensAt);
       road.open.visible = open;

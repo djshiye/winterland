@@ -105,6 +105,8 @@ export interface DebugApi {
   /** Autopilot the player toward a world XZ point (cleared on arrival). */
   moveTo(x: number, z: number): void;
   teleport(x: number, z: number): void;
+  /** Camera zoom at once (1 = default, < 1 shows more of the world; screenshots). */
+  cameraZoom(mult: number): void;
   addMoney(n: number): void;
   skipIntro(): void;
   unlock(id: PadId): void;
@@ -484,6 +486,7 @@ export class Game {
         ctx.player.teleport(x, z);
         ctx.cameraRig.snapToTarget();
       },
+      cameraZoom: (mult: number) => ctx.cameraRig.setZoom(mult, 0),
       unlockEra: (n: number) => {
         for (let k = Math.max(2, ctx.state.eras.age + 1); k <= n; k++) this.level.eras.unlock(k, true);
       },
