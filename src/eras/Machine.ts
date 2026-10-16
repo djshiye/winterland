@@ -16,7 +16,7 @@
  *   the inputs of the running cycle, so a save mid-cycle loses nothing.
  */
 import * as THREE from 'three';
-import { TIMING } from '../config';
+import { TIMING, type Rect } from '../config';
 import { createMachineModel, type MachineModel } from '../assets/eraMachines';
 import { createPadSign } from '../assets/pads';
 import { smoothstep } from '../core/math';
@@ -85,6 +85,8 @@ export class Machine implements MachineRuntime {
   readonly input: MachinePile | null;
   readonly output: MachinePile;
   readonly feedSpot: XZ;
+  /** 0.9.6: world rect of the machine's solid body (its collider). */
+  readonly body: Rect;
   readonly takeSpot: XZ;
 
   private state: State = 'idle';
@@ -129,7 +131,8 @@ export class Machine implements MachineRuntime {
     this.door.set(dw.x, f.door.y, dw.z);
     this.feedSpot = toWorld(at, yaw, f.feedSpot.u, f.feedSpot.v);
     this.takeSpot = toWorld(at, yaw, f.takeSpot.u, f.takeSpot.v);
-    this.collider = ctx.colliders.addBox(w(f.body), `era:${era}:${slot}`);
+    this.body = w(f.body);
+    this.collider = ctx.colliders.addBox(this.body, `era:${era}:${slot}`);
 
     const id = `pile:era${era}m${slot}`;
     const outPos = toWorld(at, yaw, f.outPile.u, f.outPile.v);
