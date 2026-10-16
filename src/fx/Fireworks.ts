@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { LAYOUT } from '../config';
 import type { GameContext, Updatable } from '../core/types';
+import { scaledCount } from './comfort';
 
 /** Cosy shell colour pairs (outer, inner). */
 const SHELLS: ReadonlyArray<readonly [number, number]> = [
@@ -56,6 +57,10 @@ export class Fireworks implements Updatable {
     ctx.events.on('village:levelUp', (e) => {
       if (e.level >= 3) this.celebrate(e.level, e.position);
     });
+    // a settlement Charter (a completed era band, docs/EXPANSION.md §B): rockets over that era's district
+    ctx.events.on('settlement:levelUp', (e) => {
+      if (e.charter) this.launch(e.position, Math.round(12 * (1 + 0.8 * ctx.dayNight.darkness)), { spread: 9, delay: 0.5 });
+    });
   }
 
   /** The era show: `4 + level` rockets by day, up to 80 % more when it is dark, over the square (or the village). */
@@ -79,13 +84,14 @@ export class Fireworks implements Updatable {
     const spread = opts.spread ?? 5;
     const interval = opts.interval ?? 0.45;
     const [h0, h1] = opts.height ?? [7, 11];
+    const want = scaledCount(count); // comfort: fewer rockets on Calm / Minimal effects
     let at = opts.delay ?? 0;
     let made = 0;
     const px = position.x;
     const py = position.y;
     const pz = position.z;
     for (const s of this.slots) {
-      if (made >= count) break;
+      if (made >= want) break;
       if (s.active) continue;
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.random()) * spread;

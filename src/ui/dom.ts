@@ -1,4 +1,5 @@
 /** [B4] Small DOM helpers shared by the HUD panels. */
+import { reducedMotion } from '../fx/comfort';
 
 export function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -47,7 +48,9 @@ export class Slide {
 }
 
 export const cubicOut = (t: number): number => 1 - Math.pow(1 - t, 3);
+/** Ease with a little overshoot (a bouncy pop); a plain ease-out with Reduce motion (fx/comfort). */
 export const backOut = (t: number): number => {
+  if (reducedMotion()) return cubicOut(t);
   const c1 = 1.70158;
   const c3 = c1 + 1;
   return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);

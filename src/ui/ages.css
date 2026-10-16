@@ -111,6 +111,98 @@
   white-space: nowrap;
 }
 
+/* 0.9.0 climb: the chip carries the next era's checklist (a progress ring, the count and the single next goal) */
+.wl-erachip-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.wl-erachip-count {
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+  color: #bfe8ff;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.wl-erachip-mastery {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffd84a;
+  white-space: nowrap;
+}
+
+.wl-erachip-mastery:empty {
+  display: none;
+}
+
+.wl-erachip-count:empty {
+  display: none;
+}
+
+.wl-erachip-ring {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+.wl-erachip-ring svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform: rotate(-90deg);
+}
+
+.wl-ring-bg,
+.wl-ring-fg {
+  fill: none;
+  stroke-width: 4;
+}
+
+.wl-ring-bg {
+  stroke: rgba(255, 255, 255, 0.22);
+}
+
+.wl-ring-fg {
+  stroke: #5ee07a;
+  stroke-linecap: round;
+}
+
+.wl-erachip.is-gate .wl-erachip-city {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #fff;
+}
+
+.wl-erachip.is-ready {
+  background: linear-gradient(#ffd84a, #e8a21c);
+}
+
+.wl-erachip.is-ready .wl-erachip-era,
+.wl-erachip.is-ready .wl-erachip-count,
+.wl-erachip.is-ready .wl-erachip-mastery {
+  color: #6b3a05;
+  text-shadow: none;
+}
+
+.wl-erachip.is-ready .wl-erachip-city {
+  color: #4a2a05;
+  font-weight: 700;
+}
+
+/* wide screens: the chip sits in the top row right of centre; the centred objective banner steps below the button row
+   (clear of the left column and the right-hand sheets) so the chip never covers it */
+@media (min-width: 700px) {
+  .wl-hud.has-erachip .wl-objective {
+    top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 58px);
+    max-width: max(240px, calc(100% - 800px));
+  }
+}
+
 /* phones: the chip drops under the button row (the objective banner already sits below the village badge) */
 @media (max-width: 699px) {
   .wl-hud .wl-erachip,
@@ -123,8 +215,23 @@
   .wl-erachip-city {
     display: none;
   }
+  /* the climb: just the ring and the count (the guide banner below carries the next goal) */
+  .wl-erachip.is-gate .wl-erachip-era {
+    display: none;
+  }
+  .wl-erachip.is-gate .wl-erachip-count {
+    font-size: 13px;
+    color: #fff;
+  }
+  .wl-erachip-mastery {
+    display: none;
+  }
   .wl-hud.has-erachip .wl-objective {
     top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 44px);
+  }
+  /* the village badge shares the chip's row: leave the chip its room (the name ellipsizes, pop / happy stay) */
+  .wl-hud.has-erachip .wl-village {
+    max-width: calc(100vw - 3 * var(--wl-pad) - 170px);
   }
 }
 
@@ -682,5 +789,273 @@
 @media (max-height: 520px) {
   .wl-hud .wl-agecard .wl-era-tag {
     display: none;
+  }
+}
+
+/* ---- 0.9.0 climb: the era checklist (ui/GateCard.ts; BuildPanel's sheet) ------------------------------- */
+
+.wl-gate-sum {
+  flex: none;
+  padding: 2px 4px 2px;
+}
+
+.wl-gate-bar {
+  height: 10px;
+  border-radius: 6px;
+  background: rgba(10, 18, 36, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+}
+
+.wl-gate-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: linear-gradient(#8af0a0, #38b957);
+}
+
+.wl-gate-next {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.wl-gate-ready {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: linear-gradient(#ffe680, #f0b52c);
+  color: #4a2a05;
+  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+}
+
+.wl-gate-ready-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wl-gate-ready-text b {
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+.wl-gate-ready-text span {
+  font-size: 12px;
+  line-height: 1.1;
+  font-weight: 600;
+}
+
+.wl-gate-done,
+.wl-gate-more {
+  flex: none;
+  padding: 0 6px;
+  font-size: 13px;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.wl-gate-done {
+  color: #8af0a0;
+}
+
+.wl-gate-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 16px;
+  background: #f1f6ff;
+  color: #2a3652;
+  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+}
+
+.wl-gate-row.is-locked {
+  background: #dfe5f0;
+}
+
+.wl-gate-row.is-locked .wl-gate-icon {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+.wl-gate-row.is-settle {
+  background: #eaf7ee;
+}
+
+.wl-gate-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: #dbe8fb;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.wl-gate-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wl-gate-name {
+  font-size: 16px;
+  line-height: 1.1;
+}
+
+.wl-gate-sub {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 500;
+  color: #5b6a8a;
+}
+
+.wl-gate-sub .wl-lock {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.wl-gate-sub .wl-lock svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Go on the right: one row stays the icon's height, so the top five rows fit without a scroll */
+.wl-gate-btns {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-gate-go {
+  min-height: 36px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  background: linear-gradient(#58b6ff, #2f86d6);
+  color: #fff;
+  min-width: 64px;
+  font-size: 16px;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 0 rgba(20, 30, 55, 0.45);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-gate-go:active {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 rgba(20, 30, 55, 0.45);
+}
+
+/* "✦ Mastery 340 · +41% on every sale": only once a level has passed its cap */
+.wl-gate-mastery {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b07a00;
+}
+
+/* the checklist is taller than the other sheets: the top five rows, "+N more" and the settlement show at a glance */
+@media (min-width: 700px) {
+  .wl-hud .wl-gate {
+    max-height: calc(100% - 84px);
+  }
+}
+
+@media (max-width: 699px) {
+  .wl-hud .wl-gate {
+    max-height: min(72vh, 640px);
+  }
+}
+
+/* ---- 0.9.0 climb: the shop's band pips and level / need badge ------------------------------------------ */
+
+.wl-band {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.wl-band .wl-pip {
+  width: 9px;
+  height: 7px;
+  border-radius: 3px;
+}
+
+.wl-bstar {
+  margin-left: 3px;
+  font-size: 11px;
+  line-height: 1;
+  color: #e8a21c;
+  white-space: nowrap;
+}
+
+.wl-bstar:empty {
+  display: none;
+}
+
+.wl-need {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #dbe8fb;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #5b6a8a;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.wl-need.is-low {
+  background: #ffe9b8;
+  color: #8a5a06;
+}
+
+.wl-need.is-ok {
+  background: linear-gradient(#ffe680, #f0b52c);
+  color: #5a3504;
+}
+
+/* a tab with upgrades below the gate's level: a gold dot (the green "something to buy" dot wins) */
+.wl-shop-tab.has-need .wl-dot {
+  display: block;
+  background: #ffb020;
+}
+
+.wl-shop-tab.has-hint .wl-dot {
+  background: #5ee07a;
+}
+
+/* the band row (pips, star, badge) wraps on a narrow card instead of pushing the price off it (climb only: era 1
+   below the Great Lodge keeps 0.8.0's row) */
+.wl-hud .wl-shop.is-climb .wl-pips {
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 3px;
+}
+
+/* phones: a small toast (gate progress, welcome) shows above the era checklist instead of under it */
+@media (max-width: 699px) {
+  .wl-hud.gate-open .wl-toast.is-small {
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + min(64vh, 560px) - 14px);
   }
 }

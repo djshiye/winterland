@@ -1,0 +1,1574 @@
+{
+ "v": 1,
+ "savedAt": 1792107876074,
+ "money": 50306182,
+ "state": {
+  "phase": "expansion",
+  "unlocked": {
+   "harvester": true,
+   "processor": true,
+   "westConveyor": true,
+   "eastConveyor": true,
+   "megaSaw": true,
+   "ridge": true,
+   "treeFeller": true,
+   "truckLoader": true,
+   "cashTubes": true,
+   "workshop": true
+  },
+  "padsVisible": {
+   "harvester": false,
+   "processor": false,
+   "westConveyor": false,
+   "eastConveyor": false,
+   "megaSaw": false,
+   "ridge": false,
+   "treeFeller": false,
+   "truckLoader": false,
+   "cashTubes": false,
+   "workshop": false
+  },
+  "expanded": true,
+  "stats": {
+   "logsChopped": 595,
+   "logsSold": 192,
+   "planksSold": 131,
+   "cratesMade": 131,
+   "cratesSold": 81,
+   "moneyEarned": 50306182,
+   "customersServed": 19,
+   "tricyclesServed": 13,
+   "trucksServed": 9,
+   "sheltersBuilt": 33,
+   "upgradesBought": 0,
+   "furnitureMade": 19,
+   "furnitureSold": 9,
+   "townBuilt": 6,
+   "goodsMade": 63,
+   "goodsSold": 7,
+   "materialsMade": 106,
+   "materialsSold": 22,
+   "machinesBuilt": 3,
+   "cityBuilt": 2,
+   "demolished": 0,
+   "cityEarned": 48962,
+   "jackEarned": 0,
+   "tradeProfit": 0,
+   "investEarned": 0
+  },
+  "upgrades": {
+   "carry": 15,
+   "speed": 15,
+   "axe": 15,
+   "harvester": 15,
+   "processor": 15,
+   "megaSaw": 15,
+   "crateRunner": 15,
+   "cashier": 15,
+   "logHauler": 15,
+   "plankQuality": 15,
+   "crateQuality": 15,
+   "bulkDeals": 15,
+   "treeFeller": 15,
+   "cashTubes": 15,
+   "pineHauler": 15,
+   "pineContracts": 15,
+   "workshop": 15,
+   "furnitureQuality": 15,
+   "porter": 15,
+   "sledLoader": 15,
+   "foreman": 15,
+   "dog": 15,
+   "jack": 15,
+   "taxOffice": 5,
+   "broker": 5,
+   "frontierRigs": 5,
+   "frontierCrew": 5,
+   "frontierTrade": 5,
+   "ironRigs": 0,
+   "ironCrew": 0,
+   "ironTrade": 0,
+   "steamRigs": 0,
+   "steamCrew": 0,
+   "steamTrade": 0,
+   "industrialRigs": 0,
+   "industrialCrew": 0,
+   "industrialTrade": 0,
+   "electricRigs": 0,
+   "electricCrew": 0,
+   "electricTrade": 0,
+   "oilRigs": 0,
+   "oilCrew": 0,
+   "oilTrade": 0,
+   "computerRigs": 0,
+   "computerCrew": 0,
+   "computerTrade": 0,
+   "nuclearRigs": 0,
+   "nuclearCrew": 0,
+   "nuclearTrade": 0,
+   "aiRigs": 0,
+   "aiCrew": 0,
+   "aiTrade": 0
+  },
+  "village": {
+   "revealed": true,
+   "plots": [
+    {
+     "tier": 3,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 3,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 3,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 3,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 3,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 3,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 3,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "tier": 3,
+     "logs": 0,
+     "cash": 0
+    }
+   ],
+   "greatLodge": {
+    "tier": 0,
+    "logs": 0,
+    "cash": 0
+   },
+   "population": 136,
+   "level": 5
+  },
+  "flags": {
+   "introDone": true,
+   "seen:moveHand": true,
+   "finale": true,
+   "reveal:greatLodge": true,
+   "reveal:harvesterPad": true,
+   "reveal:village": true,
+   "reveal:processorPad": true,
+   "conveyorsRevealed": true,
+   "reveal:megaSawPad": true,
+   "reveal:truckLoaderPad": true,
+   "reveal:ridgePad": true,
+   "reveal:treeFellerPad": true,
+   "reveal:cashTubesPad": true,
+   "reveal:workshopPad": true,
+   "reveal:town": true,
+   "reveal:levelPad:harvester": true,
+   "seen:levelPadToast": true,
+   "reveal:levelPad:processor": true,
+   "shopRevealed": true,
+   "firstCustomerSale": true,
+   "firstTrikeSale": true,
+   "reveal:levelPad:workshop": true,
+   "reveal:levelPad:megaSaw": true,
+   "reveal:levelPad:treeFeller": true,
+   "reveal:levelPad:cashTubes": true
+  },
+  "padPaid": {
+   "pad:harvester": 0,
+   "pad:processor": 0,
+   "pad:westConveyor": 0,
+   "pad:eastConveyor": 0,
+   "pad:megaSaw": 0,
+   "pad:ridge": 0,
+   "pad:treeFeller": 0,
+   "pad:truckLoader": 0,
+   "pad:cashTubes": 0,
+   "pad:workshop": 0
+  },
+  "playTime": 50.11669999999844,
+  "quarters": {
+   "tier": 2,
+   "logs": 0,
+   "cash": 0
+  },
+  "prestige": {
+   "season": 0
+  },
+  "clock": 74.11669999999717,
+  "quests": {
+   "harvester": true,
+   "hamlet": true,
+   "processor": true,
+   "planks10": true,
+   "hire": true,
+   "chop150": true,
+   "conveyors": true,
+   "megaSaw": true,
+   "crates40": true,
+   "town": true,
+   "ridge": true,
+   "marketTown": true,
+   "firstBusiness": true,
+   "bunkhouse": true
+  },
+  "town": {
+   "revealed": true,
+   "lots": [
+    {
+     "building": "farm",
+     "tier": 0,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "bakery",
+     "tier": 0,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "townhouse",
+     "tier": 0,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "ranch",
+     "tier": 0,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "butcher",
+     "tier": 0,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "toyFactory",
+     "tier": 0,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "",
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    {
+     "building": "",
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    }
+   ],
+   "amenities": {
+    "cafe": {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    "pond": {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    "bandstand": {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    },
+    "snowmanPark": {
+     "tier": -1,
+     "logs": 0,
+     "cash": 0
+    }
+   },
+   "grandMarket": {
+    "tier": -1,
+    "logs": 0,
+    "cash": 0,
+    "toys": 0
+   }
+  },
+  "priorities": {
+   "wood": "balanced",
+   "town": "balanced"
+  },
+  "contract": {
+   "kind": "",
+   "target": 0,
+   "progress": 0,
+   "left": 0,
+   "bonus": 0
+  },
+  "eras": {
+   "age": 2,
+   "settlement": 8,
+   "steward": true,
+   "regions": [
+    {
+     "unlocked": false,
+     "cash": 0,
+     "extra": 0,
+     "slots": []
+    },
+    {
+     "unlocked": false,
+     "cash": 0,
+     "extra": 0,
+     "slots": []
+    },
+    {
+     "unlocked": true,
+     "cash": 0,
+     "extra": 0,
+     "slots": [
+      {
+       "machine": "quarry",
+       "tier": 0,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "kiln",
+       "tier": 0,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "quarry",
+       "tier": 0,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "unlocked": false,
+     "cash": 2250000,
+     "extra": 17,
+     "slots": [
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "unlocked": false,
+     "cash": 0,
+     "extra": 0,
+     "slots": [
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "unlocked": false,
+     "cash": 0,
+     "extra": 0,
+     "slots": [
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "unlocked": false,
+     "cash": 0,
+     "extra": 0,
+     "slots": [
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "unlocked": false,
+     "cash": 0,
+     "extra": 0,
+     "slots": [
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "unlocked": false,
+     "cash": 0,
+     "extra": 0,
+     "slots": [
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "unlocked": false,
+     "cash": 0,
+     "extra": 0,
+     "slots": [
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "unlocked": false,
+     "cash": 0,
+     "extra": 0,
+     "slots": [
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "machine": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    }
+   ]
+  },
+  "city": {
+   "districts": [
+    {
+     "lots": []
+    },
+    {
+     "lots": []
+    },
+    {
+     "lots": [
+      {
+       "building": "frontierHome",
+       "tier": 0,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "frontierWork",
+       "tier": 0,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "lots": [
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "lots": [
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "lots": [
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "lots": [
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "lots": [
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "lots": [
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "lots": [
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    },
+    {
+     "lots": [
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      },
+      {
+       "building": "",
+       "tier": -1,
+       "cash": 0,
+       "extra": 0
+      }
+     ]
+    }
+   ]
+  },
+  "market": {
+   "index": {
+    "stone": 1.0893769140148901,
+    "brick": 1.0540179493402808
+   },
+   "pressure": {},
+   "holdings": {},
+   "basis": {},
+   "investments": [],
+   "fund": 0.9995914292680436,
+   "nextId": 1
+  }
+ },
+ "world": {
+  "piles": {
+   "dropZone": 83,
+   "walkIn": 36,
+   "hopper": 1,
+   "bench": 27,
+   "se": 16,
+   "truck": 33,
+   "deck": 8,
+   "platform": 26,
+   "workshopIn": 6,
+   "workshopOut": 5,
+   "sled": 5
+  },
+  "cash": {
+   "walkIn": 625,
+   "se": 0,
+   "truck": 0,
+   "platform": 0,
+   "sled": 0,
+   "gift": 5710
+  },
+  "arms": {
+   "log": 0,
+   "crate": 0,
+   "furniture": 0,
+   "wheat": 0,
+   "meat": 0,
+   "toy": 0,
+   "stone": 0,
+   "brick": 0,
+   "ore": 0,
+   "iron": 0,
+   "coal": 0,
+   "gear": 0,
+   "steel": 0,
+   "copper": 0,
+   "wire": 0,
+   "crude": 0,
+   "plastic": 0,
+   "silicon": 0,
+   "chip": 0,
+   "uranium": 0,
+   "fuelRod": 0,
+   "power": 0,
+   "aiCore": 0,
+   "robot": 0
+  },
+  "town": [
+   {
+    "in": {},
+    "out": 5,
+    "cash": 0
+   },
+   {
+    "in": {
+     "wheat": 7,
+     "log": 6
+    },
+    "out": 11,
+    "cash": 580
+   },
+   {
+    "in": {},
+    "out": 0,
+    "cash": 0
+   },
+   {
+    "in": {},
+    "out": 2,
+    "cash": 0
+   },
+   {
+    "in": {
+     "meat": 9,
+     "log": 5
+    },
+    "out": 12,
+    "cash": 0
+   },
+   {
+    "in": {
+     "crate": 7
+    },
+    "out": 0,
+    "cash": 0
+   },
+   {
+    "in": {},
+    "out": 0,
+    "cash": 0
+   },
+   {
+    "in": {},
+    "out": 0,
+    "cash": 0
+   }
+  ],
+  "eras": [
+   {
+    "slots": [],
+    "dock": {}
+   },
+   {
+    "slots": [],
+    "dock": {}
+   },
+   {
+    "slots": [
+     {
+      "in": {},
+      "out": 6
+     },
+     {
+      "in": {
+       "stone": 6
+      },
+      "out": 12
+     },
+     {
+      "in": {},
+      "out": 2
+     },
+     {
+      "in": {},
+      "out": 0
+     }
+    ],
+    "dock": {
+     "stone": 10
+    }
+   },
+   {
+    "slots": [
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     }
+    ],
+    "dock": {}
+   },
+   {
+    "slots": [
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     }
+    ],
+    "dock": {}
+   },
+   {
+    "slots": [
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     }
+    ],
+    "dock": {}
+   },
+   {
+    "slots": [
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     }
+    ],
+    "dock": {}
+   },
+   {
+    "slots": [
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     }
+    ],
+    "dock": {}
+   },
+   {
+    "slots": [
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     }
+    ],
+    "dock": {}
+   },
+   {
+    "slots": [
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     }
+    ],
+    "dock": {}
+   },
+   {
+    "slots": [
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     },
+     {
+      "in": {},
+      "out": 0
+     }
+    ],
+    "dock": {}
+   }
+  ]
+ },
+ "salesRate": 824.5833333333334
+}

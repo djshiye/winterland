@@ -1,0 +1,273 @@
+{
+  "era": 2,
+  "name": "Frontier",
+  "materials": [
+    {
+      "id": "stone",
+      "new": false,
+      "shape": "block",
+      "colors": ["#a7a39b", "#8a857c"]
+    },
+    {
+      "id": "clay",
+      "new": true,
+      "shape": "slab",
+      "size": [0.4, 0.2, 0.3],
+      "colors": ["#b5543c", "#8e4030", "#d9cfc0"],
+      "detail": "Moist terracotta clay slab with hand-kneaded thumb depression and damp clay sheen",
+      "icon": "Rich terracotta clay slab with thumb groove on quarry gravel background"
+    },
+    {
+      "id": "brick",
+      "new": false,
+      "shape": "brick",
+      "colors": ["#b5543c", "#d9cfc0"]
+    },
+    {
+      "id": "roofTile",
+      "new": true,
+      "shape": "tile",
+      "size": [0.38, 0.18, 0.32],
+      "colors": ["#c45b40", "#8e3825", "#f4f7fb"],
+      "detail": "Pair of interlocking S-curved terracotta roof tiles with rounded drip lip and kiln blush",
+      "icon": "Pair of curved terracotta roof tiles stacked diagonally with snowy corner"
+    },
+    {
+      "id": "hearth",
+      "new": true,
+      "shape": "hearth",
+      "size": [0.4, 0.32, 0.36],
+      "colors": ["#a7a39b", "#5c3b22", "#ff8a30", "#ffd070"],
+      "detail": "Miniature dressed stone fireplace mantle with recessed glowing charcoal embers",
+      "icon": "Chunky fieldstone fireplace with warm glowing amber firebox inside"
+    }
+  ],
+  "machines": [
+    {
+      "id": "quarry",
+      "new": false,
+      "parts": [
+        { "name": "pit", "primitive": "box", "size": [4.6, 1.2, 4.4], "pos": [0, 0.6, 0], "color": "#a7a39b" }
+      ],
+      "colors": ["#a7a39b", "#8a6a46"]
+    },
+    {
+      "id": "clayPit",
+      "new": true,
+      "role": "extractor",
+      "footprint": [4.6, 4.6],
+      "height": 3.2,
+      "parts": [
+        { "name": "terraceBase", "primitive": "cylinder", "size": [4.2, 0.6, 4.2], "pos": [0, 0.3, 0], "color": "#7a6650" },
+        { "name": "mudPit", "primitive": "cylinder", "size": [3.4, 0.4, 3.4], "pos": [0, 0.6, 0], "color": "#b5543c" },
+        { "name": "timberDerrick", "primitive": "box", "size": [0.3, 2.4, 0.3], "pos": [-1.0, 1.5, -0.8], "color": "#8a5a3b" },
+        { "name": "crossBeam", "primitive": "box", "size": [2.2, 0.25, 0.25], "pos": [0, 2.7, -0.8], "color": "#6d5a48" },
+        { "name": "sluiceChute", "primitive": "box", "size": [1.4, 0.3, 0.8], "pos": [1.2, 1.0, 0.6], "color": "#b4906a" },
+        { "name": "snowRim", "primitive": "torus", "size": [2.1, 0.16, 2.1], "pos": [0, 0.65, 0], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "lantern", "primitive": "sphere", "size": [0.28, 0.28, 0.28], "pos": [-1.0, 2.3, -0.5], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "bucketArm",
+        "pivot": [0, 2.6, -0.8],
+        "motion": "swing",
+        "period": 2.2
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "kiln",
+      "new": false,
+      "parts": [
+        { "name": "kilnDome", "primitive": "cylinder", "size": [3.4, 3.2, 3.4], "pos": [0, 1.6, 0], "color": "#b5543c" }
+      ],
+      "colors": ["#b5543c", "#6d5a48", "#ff8a30"]
+    },
+    {
+      "id": "tileKiln",
+      "new": true,
+      "role": "processor",
+      "footprint": [4.6, 4.4],
+      "height": 3.8,
+      "parts": [
+        { "name": "stoneOvenBase", "primitive": "box", "size": [3.8, 1.2, 3.6], "pos": [0, 0.6, 0], "color": "#a7a39b" },
+        { "name": "brickOvenChamber", "primitive": "cylinder", "size": [3.0, 1.8, 2.8], "pos": [0, 2.0, -0.2], "color": "#b5543c" },
+        { "name": "twinChimneys", "primitive": "cylinder", "size": [0.5, 1.4, 0.5], "pos": [-0.8, 3.1, -0.8], "color": "#8e4030" },
+        { "name": "twinChimneysR", "primitive": "cylinder", "size": [0.5, 1.4, 0.5], "pos": [0.8, 3.1, -0.8], "color": "#8e4030" },
+        { "name": "dryingRack", "primitive": "box", "size": [1.4, 1.6, 0.8], "pos": [-1.3, 0.9, 1.2], "color": "#8a5a3b" },
+        { "name": "snowCap", "primitive": "box", "size": [3.2, 0.2, 2.6], "pos": [0, 2.9, -0.2], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "fireboxArch", "primitive": "cylinder", "size": [0.8, 0.6, 0.5], "pos": [0, 0.6, 1.6], "color": "#ff8a30" },
+        { "name": "chimneySparks", "primitive": "sphere", "size": [0.25, 0.25, 0.25], "pos": [0.8, 3.8, -0.8], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "bellowsLever",
+        "pivot": [1.8, 1.1, 0.5],
+        "motion": "swing",
+        "period": 1.8
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "masonYard",
+      "new": true,
+      "role": "premium",
+      "footprint": [4.8, 4.6],
+      "height": 3.5,
+      "parts": [
+        { "name": "flagstoneFloor", "primitive": "box", "size": [4.4, 0.25, 4.2], "pos": [0, 0.12, 0], "color": "#b9b2a6" },
+        { "name": "workbench", "primitive": "box", "size": [2.6, 0.8, 1.2], "pos": [0, 0.65, -0.6], "color": "#8a5a3b" },
+        { "name": "timberShelterRoof", "primitive": "box", "size": [3.8, 0.3, 2.6], "pos": [0, 2.8, -0.4], "color": "#6d5a48" },
+        { "name": "supportPosts", "primitive": "cylinder", "size": [0.22, 2.5, 0.22], "pos": [-1.7, 1.4, 0.7], "color": "#5c3b22" },
+        { "name": "supportPostsR", "primitive": "cylinder", "size": [0.22, 2.5, 0.22], "pos": [1.7, 1.4, 0.7], "color": "#5c3b22" },
+        { "name": "roughBlockStack", "primitive": "box", "size": [1.2, 0.9, 1.0], "pos": [-1.4, 0.55, -1.2], "color": "#a7a39b" },
+        { "name": "snowGable", "primitive": "box", "size": [3.9, 0.22, 2.7], "pos": [0, 3.0, -0.4], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "hearthDisplayGlow", "primitive": "box", "size": [0.5, 0.4, 0.4], "pos": [0, 1.2, -0.6], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "stoneSawPivot",
+        "pivot": [0, 1.5, -0.6],
+        "motion": "swing",
+        "period": 2.4
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "strongbox",
+      "new": true,
+      "role": "cash",
+      "footprint": [4.2, 4.2],
+      "height": 3.0,
+      "parts": [
+        { "name": "plinth", "primitive": "box", "size": [3.8, 0.4, 3.8], "pos": [0, 0.2, 0], "color": "#a7a39b" },
+        { "name": "chestBody", "primitive": "box", "size": [2.6, 1.6, 2.2], "pos": [0, 1.2, -0.2], "color": "#8a5a3b" },
+        { "name": "ironBands", "primitive": "box", "size": [2.68, 1.66, 0.3], "pos": [0, 1.2, -0.2], "color": "#3d3a3a" },
+        { "name": "coinChuteHopper", "primitive": "cone", "size": [0.8, 0.9, 0.8], "pos": [0, 2.4, -0.2], "color": "#b5543c" },
+        { "name": "heavyPadlock", "primitive": "torus", "size": [0.35, 0.08, 0.35], "pos": [0, 1.3, 0.95], "color": "#e8b341" },
+        { "name": "snowCap", "primitive": "box", "size": [2.8, 0.18, 2.4], "pos": [0, 2.05, -0.2], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "counterLamp", "primitive": "sphere", "size": [0.26, 0.26, 0.26], "pos": [0.9, 2.2, 0.8], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "depositHopperLid",
+        "pivot": [0, 2.8, -0.5],
+        "motion": "swing",
+        "period": 2.0
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    }
+  ],
+  "workers": [
+    {
+      "role": "hauler",
+      "title": "Quarryman",
+      "hat": "flat cap + #6d5a48",
+      "coat": "#b5543c",
+      "prop": "mason's stone chisel + [0.15, 0.3, 0.08] + #7a5230",
+      "anim": "heavy balanced stride lugging raw stone blocks"
+    },
+    {
+      "role": "feeder",
+      "title": "Kiln Feeder",
+      "hat": "leather baker cap + #7a6650",
+      "coat": "#9e533c",
+      "prop": "long wooden peel shovel + [0.2, 1.1, 0.1] + #8a5a3b",
+      "anim": "smooth sliding shove motion pushing tiles into kiln mouth"
+    },
+    {
+      "role": "shipper",
+      "title": "Carter",
+      "hat": "slouch felt hat + #5c4738",
+      "coat": "#6d5a48",
+      "prop": "braided leather cargo whip + [0.1, 0.6, 0.1] + #4a382c",
+      "anim": "rhythmic walking stride waving whip forward"
+    },
+    {
+      "role": "porter",
+      "title": "Dock Hand",
+      "hat": "wool watch cap + #4a3e35",
+      "coat": "#7a6650",
+      "prop": "iron timber cargo hook + [0.1, 0.35, 0.1] + #5d6268",
+      "anim": "steady shoulder heave steadying loaded cargo pack"
+    },
+    {
+      "role": "clerk",
+      "title": "Tally Clerk",
+      "hat": "narrow bowler cap + #3d342d",
+      "coat": "#8c6b54",
+      "prop": "wooden slate tally board + [0.22, 0.32, 0.04] + #b4906a",
+      "anim": "diligent pencil flick tapping ledger rows"
+    },
+    {
+      "role": "foreman",
+      "title": "Master Mason",
+      "hat": "creased foreman cap + #42352b",
+      "coat": "#a84f37",
+      "prop": "heavy brass plumb bob + [0.12, 0.45, 0.12] + #e8b341",
+      "anim": "checking vertical plumb line with one eye squinted"
+    },
+    {
+      "role": "gatherer",
+      "title": "Stonebreaker",
+      "hat": "reinforced visor cap + #5a4b3f",
+      "coat": "#8f5745",
+      "prop": "long-handled sledgehammer + [0.22, 0.95, 0.15] + #6d5a48",
+      "anim": "overhead two-handed hammer swing cracking boulder face"
+    }
+  ],
+  "gear": [
+    {
+      "slot": "carry",
+      "name": "Mason's Hod",
+      "look": "V-shaped timber trough with shoulder cushion resting over right shoulder",
+      "colors": ["#8a5a3b", "#6d5a48", "#f4f7fb"]
+    },
+    {
+      "slot": "boots",
+      "name": "Hobnail Boots",
+      "look": "Rugged oiled leather boots with visible steel studs in the thick soles",
+      "colors": ["#5c3b22", "#3d3a3a", "#8a5a3b"]
+    },
+    {
+      "slot": "tool",
+      "name": "Stone Pick",
+      "look": "Pointed dual-beaked forged pick head mounted on straight ash wood shaft",
+      "colors": ["#7d786f", "#8a6a46", "#4a484d"]
+    }
+  ],
+  "pet": {
+    "name": "Pack Mule",
+    "parts": [
+      { "name": "torso", "primitive": "capsule", "size": [0.65, 0.9, 0.55], "pos": [0, 0.75, 0], "color": "#8a6a46" },
+      { "name": "head", "primitive": "box", "size": [0.3, 0.45, 0.4], "pos": [0, 1.15, 0.45], "color": "#8a6a46" },
+      { "name": "muzzle", "primitive": "box", "size": [0.22, 0.22, 0.28], "pos": [0, 1.0, 0.68], "color": "#b9b2a6" },
+      { "name": "ears", "primitive": "cone", "size": [0.1, 0.35, 0.1], "pos": [-0.14, 1.45, 0.38], "color": "#5c4028" },
+      { "name": "earsR", "primitive": "cone", "size": [0.1, 0.35, 0.1], "pos": [0.14, 1.45, 0.38], "color": "#5c4028" },
+      { "name": "panniers", "primitive": "box", "size": [1.1, 0.45, 0.5], "pos": [0, 0.82, -0.05], "color": "#6d5a48" },
+      { "name": "legs", "primitive": "cylinder", "size": [0.12, 0.6, 0.12], "pos": [-0.22, 0.3, 0.28], "color": "#5c4028" },
+      { "name": "snowBlanket", "primitive": "box", "size": [0.55, 0.08, 0.65], "pos": [0, 1.06, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#8a6a46", "#5c4028", "#b9b2a6", "#6d5a48", "#f4f7fb"],
+    "anim": "Steady four-legged plod with swaying wicker panniers and nodding ears"
+  },
+  "node": {
+    "name": "Great Boulder",
+    "parts": [
+      { "name": "mainCrag", "primitive": "sphere", "size": [2.4, 1.8, 2.2], "pos": [0, 0.9, 0], "color": "#a7a39b" },
+      { "name": "clayLedge", "primitive": "box", "size": [1.4, 0.5, 1.2], "pos": [0.7, 0.5, 0.5], "color": "#b5543c" },
+      { "name": "chiseledFlake", "primitive": "box", "size": [0.9, 0.8, 0.7], "pos": [-0.8, 0.6, -0.4], "color": "#8a857c" },
+      { "name": "snowDrift", "primitive": "sphere", "size": [1.8, 0.4, 1.6], "pos": [-0.1, 1.8, -0.1], "color": "#f4f7fb" }
+    ],
+    "colors": ["#a7a39b", "#b5543c", "#8a857c", "#f4f7fb"],
+    "anim": "Satisfying squash wobble releasing small granite fragments and snow dust"
+  }
+}

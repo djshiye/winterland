@@ -1,0 +1,273 @@
+{
+  "era": 8,
+  "name": "Computer Age",
+  "materials": [
+    {
+      "id": "silicon",
+      "new": false,
+      "shape": "crystal",
+      "colors": ["#8ea2b8", "#dfe8f2"]
+    },
+    {
+      "id": "gold",
+      "new": true,
+      "shape": "gold",
+      "size": [0.4, 0.18, 0.24],
+      "colors": ["#e8b341", "#ffd026", "#6f5a2c"],
+      "detail": "Pair of mirror-polished gold bullion ingots with stamped purity hallmark and bevelled edges",
+      "icon": "Gleaming twin gold bullion bars with bright white specular glint"
+    },
+    {
+      "id": "chip",
+      "new": false,
+      "shape": "chip",
+      "colors": ["#2f6f4e", "#e8c650"]
+    },
+    {
+      "id": "board",
+      "new": true,
+      "shape": "board",
+      "size": [0.42, 0.12, 0.34],
+      "colors": ["#2f6f4e", "#8a98a6", "#3aa0d8", "#e8c650"],
+      "detail": "Emerald-green PCB motherboard populated with miniature IC packages, bus lines, and shiny solder dots",
+      "icon": "Green printed circuit board with silver solder tracks and gold connector pins"
+    },
+    {
+      "id": "computer",
+      "new": true,
+      "shape": "computer",
+      "size": [0.38, 0.34, 0.34],
+      "colors": ["#eef2f6", "#2a3a4a", "#3aa0d8", "#8a98a6"],
+      "detail": "Cute vintage beige modular PC workstation with CRT monitor, glowing cyan screen, and clicky keyboard",
+      "icon": "Cozy retro beige computer monitor with glowing cyan cursor and keyboard"
+    }
+  ],
+  "machines": [
+    {
+      "id": "sandPit",
+      "new": false,
+      "parts": [
+        { "name": "dredge", "primitive": "box", "size": [4.6, 4.2, 4.4], "pos": [0, 2.1, 0], "color": "#c9cdd2" }
+      ],
+      "colors": ["#c9cdd2", "#3aa0d8"]
+    },
+    {
+      "id": "goldPanner",
+      "new": true,
+      "role": "extractor",
+      "footprint": [4.6, 4.6],
+      "height": 3.4,
+      "parts": [
+        { "name": "cleanTerraceDeck", "primitive": "box", "size": [4.2, 0.5, 4.2], "pos": [0, 0.25, 0], "color": "#c9cdd2" },
+        { "name": "sluiceTableFrame", "primitive": "box", "size": [2.6, 1.4, 2.0], "pos": [0, 1.1, -0.2], "color": "#8a98a6" },
+        { "name": "spiralPanningBasin", "primitive": "cylinder", "size": [1.8, 0.6, 1.8], "pos": [0, 1.8, 0.2], "color": "#2a3a4a" },
+        { "name": "waterFeedPipe", "primitive": "cylinder", "size": [0.3, 2.2, 0.3], "pos": [-1.4, 1.6, -1.0], "color": "#3aa0d8" },
+        { "name": "goldCollectionHopper", "primitive": "box", "size": [1.0, 0.5, 0.8], "pos": [1.2, 0.8, 0.9], "color": "#e8b341" },
+        { "name": "snowTrimmedRoof", "primitive": "box", "size": [4.4, 0.18, 4.4], "pos": [0, 0.65, 0], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "inspectionFloodlamp", "primitive": "sphere", "size": [0.28, 0.28, 0.28], "pos": [-0.8, 2.6, 0.2], "color": "#7fe0ff" },
+        { "name": "goldFleckGleam", "primitive": "sphere", "size": [0.18, 0.18, 0.18], "pos": [0, 1.9, 0.2], "color": "#ffd026" }
+      ],
+      "anim": {
+        "part": "spiralPanningBowl",
+        "pivot": [0, 1.8, 0.2],
+        "motion": "spin",
+        "period": 2.0
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "chipFab",
+      "new": false,
+      "parts": [
+        { "name": "cleanroom", "primitive": "box", "size": [4.8, 4.0, 4.4], "pos": [0, 2.0, 0], "color": "#eef2f6" }
+      ],
+      "colors": ["#eef2f6", "#3aa0d8", "#2a3a4a"]
+    },
+    {
+      "id": "boardShop",
+      "new": true,
+      "role": "processor",
+      "footprint": [4.8, 4.6],
+      "height": 3.8,
+      "parts": [
+        { "name": "cleanroomPodium", "primitive": "box", "size": [4.4, 0.6, 4.2], "pos": [0, 0.3, 0], "color": "#8a98a6" },
+        { "name": "smdAssemblyLineHall", "primitive": "box", "size": [4.0, 2.2, 3.4], "pos": [0, 1.4, -0.3], "color": "#eef2f6" },
+        { "name": "waveSolderChamber", "primitive": "box", "size": [2.2, 1.0, 1.4], "pos": [-0.6, 1.2, 0.8], "color": "#2a3a4a" },
+        { "name": "exhaustScrubberTube", "primitive": "cylinder", "size": [0.4, 2.0, 0.4], "pos": [1.4, 2.4, -1.2], "color": "#3aa0d8" },
+        { "name": "nitrogenDewarTank", "primitive": "cylinder", "size": [0.8, 1.6, 0.8], "pos": [-1.4, 1.1, -1.2], "color": "#8a98a6" },
+        { "name": "snowCoveredFlatRoof", "primitive": "box", "size": [4.2, 0.22, 3.6], "pos": [0, 2.55, -0.3], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "irSolderTunnelGlow", "primitive": "box", "size": [0.8, 0.4, 0.2], "pos": [-0.6, 1.1, 1.45], "color": "#ff8a30" },
+        { "name": "opticalInspectionLaser", "primitive": "sphere", "size": [0.24, 0.24, 0.24], "pos": [0.8, 1.6, 0.8], "color": "#7fe0ff" }
+      ],
+      "anim": {
+        "part": "pickAndPlaceGantryHead",
+        "pivot": [0.8, 1.9, 0.8],
+        "motion": "bob",
+        "period": 0.9
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "pcAssembly",
+      "new": true,
+      "role": "premium",
+      "footprint": [5.0, 4.8],
+      "height": 4.2,
+      "parts": [
+        { "name": "modularFacilityBase", "primitive": "box", "size": [4.6, 0.5, 4.4], "pos": [0, 0.25, 0], "color": "#8a98a6" },
+        { "name": "cleanTechAssemblyBay", "primitive": "box", "size": [4.2, 2.4, 3.6], "pos": [0, 1.5, -0.3], "color": "#eef2f6" },
+        { "name": "hvacAirFiltrationCube", "primitive": "box", "size": [1.4, 1.2, 1.4], "pos": [-1.3, 2.9, -1.0], "color": "#2a3a4a" },
+        { "name": "packagingConveyorTable", "primitive": "box", "size": [2.4, 0.7, 1.4], "pos": [0.6, 0.75, 0.8], "color": "#3aa0d8" },
+        { "name": "burnInRackFrame", "primitive": "cylinder", "size": [1.6, 1.8, 1.6], "pos": [-0.8, 1.4, 0.4], "color": "#2a3a4a" },
+        { "name": "snowCappedModularRoof", "primitive": "box", "size": [4.4, 0.25, 3.8], "pos": [0, 2.75, -0.3], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "testScreenBank", "primitive": "box", "size": [1.2, 0.8, 0.1], "pos": [-0.8, 1.6, 1.15], "color": "#7fe0ff" },
+        { "name": "stationStatusLamp", "primitive": "sphere", "size": [0.22, 0.22, 0.22], "pos": [1.2, 1.8, 0.8], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "burnInCarouselRack",
+        "pivot": [-0.8, 1.4, 0.4],
+        "motion": "rotate Y",
+        "period": 3.0
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "atmNetwork",
+      "new": true,
+      "role": "cash",
+      "footprint": [4.4, 4.2],
+      "height": 3.6,
+      "parts": [
+        { "name": "compositeFoundationPad", "primitive": "box", "size": [4.0, 0.5, 3.8], "pos": [0, 0.25, 0], "color": "#8a98a6" },
+        { "name": "kioskEnclosure", "primitive": "box", "size": [2.8, 2.2, 2.2], "pos": [0, 1.4, -0.2], "color": "#eef2f6" },
+        { "name": "fasciaDisplayHood", "primitive": "box", "size": [2.4, 0.6, 0.8], "pos": [0, 2.4, 0.6], "color": "#2a3a4a" },
+        { "name": "cashDispenseSlot", "primitive": "box", "size": [1.2, 0.2, 0.3], "pos": [0, 0.9, 0.9], "color": "#3aa0d8" },
+        { "name": "cryptoDataAntenna", "primitive": "cylinder", "size": [0.15, 1.2, 0.15], "pos": [-1.1, 2.9, -0.8], "color": "#3aa0d8" },
+        { "name": "snowRimKiosk", "primitive": "box", "size": [3.0, 0.18, 2.4], "pos": [0, 2.55, -0.2], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "atmScreenInterface", "primitive": "box", "size": [1.4, 0.8, 0.1], "pos": [0, 1.6, 0.88], "color": "#7fe0ff" },
+        { "name": "keypadIllumination", "primitive": "box", "size": [0.8, 0.2, 0.2], "pos": [0, 1.15, 0.88], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "cardReaderLightBar",
+        "pivot": [0, 1.35, 0.92],
+        "motion": "bob",
+        "period": 1.4
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    }
+  ],
+  "workers": [
+    {
+      "role": "hauler",
+      "title": "Technician",
+      "hat": "antistatic cleanroom hood + #eef2f6",
+      "coat": "#eef2f6",
+      "prop": "silicon wafer carrier pod + [0.25, 0.35, 0.25] + #3aa0d8",
+      "anim": "meticulous smooth glide carrying fragile silicon carrier"
+    },
+    {
+      "role": "feeder",
+      "title": "Wafer Handler",
+      "hat": "filtered cleanroom mask and cap + #d9e2ec",
+      "coat": "#d6e0ea",
+      "prop": "vacuum wand wafer pick + [0.12, 0.45, 0.12] + #3aa0d8",
+      "anim": "delicate wrist rotation maneuvering wafer disc onto spindle"
+    },
+    {
+      "role": "shipper",
+      "title": "Courier",
+      "hat": "aerodynamic cycling helmet + #3aa0d8",
+      "coat": "#3aa0d8",
+      "prop": "insulated thermal tech backpack + [0.3, 0.4, 0.2] + #2a3a4a",
+      "anim": "swift jogging stride swinging tech courier dispatch pack"
+    },
+    {
+      "role": "porter",
+      "title": "Logistics Tech",
+      "hat": "smart barcode-scanner visor + #2a3a4a",
+      "coat": "#4a5a6a",
+      "prop": "handheld optical RFID laser scanner + [0.12, 0.25, 0.1] + #3aa0d8",
+      "anim": "scanning cargo boxes with rapid laser line flicks"
+    },
+    {
+      "role": "clerk",
+      "title": "Data Clerk",
+      "hat": "ultralight tech headset + #8a98a6",
+      "coat": "#e2e7ec",
+      "prop": "translucent digital stylus tablet + [0.2, 0.28, 0.04] + #3aa0d8",
+      "anim": "swiping charts and tapping virtual keypad on tablet"
+    },
+    {
+      "role": "foreman",
+      "title": "Project Lead",
+      "hat": "slate tech beret + #2a3a4a",
+      "coat": "#344556",
+      "prop": "laser holographic pointer + [0.08, 0.35, 0.08] + #3aa0d8",
+      "anim": "calm gestures directing robotic assembly flow"
+    },
+    {
+      "role": "gatherer",
+      "title": "Sand Sifter",
+      "hat": "antistatic broad sun visor + #b0bcc8",
+      "coat": "#c0cbd6",
+      "prop": "fine mesh laser-cut sieve + [0.35, 0.65, 0.12] + #8a98a6",
+      "anim": "circular rhythmic swirl grading ultra-pure quartz grains"
+    }
+  ],
+  "gear": [
+    {
+      "slot": "carry",
+      "name": "Smart Cart",
+      "look": "Self-balancing motorized white composite caddy that rolls behind the player on soft rubber tracks",
+      "colors": ["#eef2f6", "#3aa0d8", "#2a3a4a"]
+    },
+    {
+      "slot": "boots",
+      "name": "E-Bike",
+      "look": "Clip-on motorized hub roller boots with illuminated cyan rim LEDs",
+      "colors": ["#3aa0d8", "#eef2f6", "#2a3a4a"]
+    },
+    {
+      "slot": "tool",
+      "name": "Laser Sieve",
+      "look": "Ergonomic titanium wand emitting a grid of focused blue optical beams",
+      "colors": ["#8a98a6", "#3aa0d8", "#eef2f6"]
+    }
+  ],
+  "pet": {
+    "name": "Rover Bot",
+    "parts": [
+      { "name": "chassisBlock", "primitive": "box", "size": [0.45, 0.35, 0.55], "pos": [0, 0.4, 0], "color": "#eef2f6" },
+      { "name": "sensorTurretHead", "primitive": "sphere", "size": [0.22, 0.22, 0.22], "pos": [0, 0.65, 0.18], "color": "#3aa0d8" },
+      { "name": "opticalMast", "primitive": "cylinder", "size": [0.06, 0.35, 0.06], "pos": [0.15, 0.72, -0.15], "color": "#2a3a4a" },
+      { "name": "softRubberWheels", "primitive": "cylinder", "size": [0.12, 0.1, 0.12], "pos": [-0.26, 0.18, 0.18], "color": "#2a3a4a" },
+      { "name": "whipAntenna", "primitive": "cylinder", "size": [0.02, 0.45, 0.02], "pos": [-0.15, 0.75, -0.2], "color": "#8a98a6" },
+      { "name": "snowSkidPlate", "primitive": "box", "size": [0.4, 0.06, 0.6], "pos": [0, 0.2, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#eef2f6", "#3aa0d8", "#2a3a4a", "#8a98a6", "#f4f7fb"],
+    "anim": "Chirpy six-wheeled rover crawl over snow drifts with pivoting sensor mast and wagging whip antenna"
+  },
+  "node": {
+    "name": "Sand Dune",
+    "parts": [
+      { "name": "silicaSandstoneDune", "primitive": "sphere", "size": [2.4, 1.5, 2.2], "pos": [0, 0.75, 0], "color": "#c9cdd2" },
+      { "name": "monocrystallineLedge", "primitive": "box", "size": [1.4, 0.8, 1.2], "pos": [0.6, 0.65, 0.4], "color": "#8ea2b8" },
+      { "name": "sparklingQuartzPrism", "primitive": "cone", "size": [0.8, 1.1, 0.8], "pos": [-0.6, 0.9, -0.3], "color": "#3aa0d8" },
+      { "name": "windblownSnowDrift", "primitive": "sphere", "size": [1.7, 0.35, 1.5], "pos": [0, 1.6, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#c9cdd2", "#8ea2b8", "#3aa0d8", "#f4f7fb"],
+    "anim": "Crystalline chime resonance with sparkling silica dust cloud and glistening raw silicon prisms tumbling"
+  }
+}
