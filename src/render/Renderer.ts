@@ -260,9 +260,9 @@ export class Renderer {
   render(): void {
     if (this.darknessSource) this.setDarkness(this.darknessSource());
     // repeated pile / stack items and NPC parts draw as one instanced mesh per kind (render/instancer.ts)
-    if (this.instancing) prepareInstances(this.scene);
-    else hideInstanced();
     try {
+      if (this.instancing) prepareInstances(this.scene);
+      else hideInstanced();
       this.renderer.render(this.scene, this.camera);
     } finally {
       restoreInstances();
