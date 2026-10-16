@@ -33,10 +33,20 @@ describe('every era runs on its own land (F1, F2, X1)', () => {
     }
   });
 
-  it('the fixed chains: gears from scrap, chips from silicon, robots from AI cores and data shards', () => {
+  it('the fixed chains: gears from scrap, chips from 2 silicon, robots from AI cores and rare-earth magnets', () => {
     expect(MACHINES.steamWorks.inputs.map((i) => i.kind)).toEqual(['scrap', 'coal']);
-    expect(MACHINES.chipFab.inputs.map((i) => i.kind)).toEqual(['silicon']);
-    expect(MACHINES.robotWorks.inputs.map((i) => i.kind)).toEqual(['aiCore', 'dataShard']);
+    expect(MACHINES.chipFab.inputs).toEqual([{ kind: 'silicon', per: 2 }]);
+    expect(MACHINES.robotWorks.inputs.map((i) => i.kind)).toEqual(['aiCore', 'rareEarth']);
+  });
+
+  it('0.9.7: every input and build material of eras 5-10 is a material of that same era (era resources v2)', () => {
+    for (let n = 5; n <= MAX_ERA; n++) {
+      for (const id of machinesOfEra(n)) {
+        const d = MACHINES[id];
+        for (const i of d.inputs) expect(MATERIALS[i.kind as keyof typeof MATERIALS]?.era, `${id} needs ${i.kind}`).toBe(n);
+        if (d.extra) expect(MATERIALS[d.extra.kind as keyof typeof MATERIALS]?.era, `${id} costs ${d.extra.kind}`).toBe(n);
+      }
+    }
   });
 
   it('every step of a chain pays: a cycle makes at least 1.3 × the value of what it uses', () => {
@@ -49,14 +59,22 @@ describe('every era runs on its own land (F1, F2, X1)', () => {
   });
 });
 
-describe('eras 5 and 10 have a main resource of their own (F5, decision 15)', () => {
-  it('pig iron (era 5) and data shards (era 10) are raw materials of their era', () => {
-    expect(MATERIALS.pigIron).toMatchObject({ era: 5, grade: 'raw' });
-    expect(MATERIALS.dataShard).toMatchObject({ era: 10, grade: 'raw' });
-    expect(MACHINES.deepMine.output).toBe('pigIron');
-    expect(MACHINES.nanoFab.output).toBe('dataShard');
-    expect(UPGRADES.pigIronQuality.era).toBe(5);
-    expect(UPGRADES.dataShardQuality.era).toBe(10);
+describe('eras 5 and 10 have main resources of their own (F5, decision 15, era resources v2)', () => {
+  it('era 5: iron pellets + coke make steel; era 10: rare earth + helium-3, fused into fusion cells', () => {
+    for (const k of ['pellets', 'coke'] as const) expect(MATERIALS[k]).toMatchObject({ era: 5, grade: 'raw' });
+    for (const k of ['rareEarth', 'helium3'] as const) expect(MATERIALS[k]).toMatchObject({ era: 10, grade: 'raw' });
+    expect(MATERIALS.fusionCell).toMatchObject({ era: 10, grade: 'refined' });
+    expect(MACHINES.deepMine.output).toBe('pellets');
+    expect(MACHINES.cokeOven.output).toBe('coke');
+    expect(MACHINES.steelMill.inputs).toEqual([{ kind: 'pellets', per: 2 }, { kind: 'coke', per: 1 }]);
+    expect(MACHINES.nanoFab.output).toBe('rareEarth');
+    expect(MACHINES.heliumSkimmer).toMatchObject({ era: 10, kind: 'extractor', output: 'helium3' });
+    expect(MACHINES.fusionPlant).toMatchObject({ kind: 'processor', inputs: [{ kind: 'helium3', per: 1 }], output: 'fusionCell', batch: 2 });
+    expect(MACHINES.dataCenter.inputs.map((i) => i.kind)).toEqual(['rareEarth', 'fusionCell']);
+    expect(MACHINES.quantumLab.inputs.map((i) => i.kind)).toEqual(['aiCore', 'helium3']);
+    for (const k of ['pellets', 'coke', 'rareEarth', 'helium3', 'fusionCell'] as const) expect(UPGRADES[`${k}Quality`].era).toBe(MATERIALS[k].era);
+    // era 10 reuses nothing from era 9 any more
+    for (const id of machinesOfEra(10)) expect(MACHINES[id].inputs.map((i) => i.kind)).not.toContain('power');
   });
 
   it("every era's hand node yields that era's own raw material, and its content lists it", () => {

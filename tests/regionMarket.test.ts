@@ -99,9 +99,9 @@ describe('market upgrades', () => {
     }
     expect(eraFallback(2, 'raw')).toBe('stone');
     expect(eraFallback(2, 'refined')).toBe('brick');
-    expect(eraFallback(5, 'raw')).toBe('pigIron'); // 0.9.6: era 5 mines its own pig iron
-    expect(eraFallback(10, 'raw')).toBe('dataShard');
-    expect(eraFallback(10, 'refined')).toBe('aiCore');
+    expect(eraFallback(5, 'raw')).toBe('pellets'); // 0.9.7: era 5 mines its own iron pellets
+    expect(eraFallback(10, 'raw')).toBe('rareEarth');
+    expect(eraFallback(10, 'refined')).toBe('fusionCell'); // 0.9.7: the Fusion Reactor's cells come first in the chain
   });
 });
 

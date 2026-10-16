@@ -20,7 +20,7 @@ import type { MachineModel } from './eraMachines';
 export type Era4MachineId =
   | 'goldPanner' | 'boardShop' | 'pcAssembly' | 'atmNetwork'
   | 'graphitePit' | 'batteryPlant' | 'atomicVault'
-  | 'quantumLab' | 'quantumBank';
+  | 'quantumLab' | 'quantumBank' | 'heliumSkimmer';
 
 /** Era and role of every machine in this file (roles as in the art spec). */
 export const ERA4_MACHINES: Record<Era4MachineId, { era: 8 | 9 | 10; role: 'extractor' | 'processor' | 'premium' | 'cash' }> = {
@@ -33,6 +33,7 @@ export const ERA4_MACHINES: Record<Era4MachineId, { era: 8 | 9 | 10; role: 'extr
   atomicVault: { era: 9, role: 'cash' },
   quantumLab: { era: 10, role: 'premium' },
   quantumBank: { era: 10, role: 'cash' },
+  heliumSkimmer: { era: 10, role: 'extractor' },
 };
 export const ERA4_MACHINE_IDS = Object.keys(ERA4_MACHINES) as Era4MachineId[];
 
@@ -550,6 +551,48 @@ const quantumLab: Recipe = ({ body: b, glow: g, pivot: p }) => {
   return { at: [0, y0 + 3.75, -0.9], axis: 'y', mode: 'spin', speed: 0.42 };
 };
 
+/**
+ * heliumSkimmer (0.9.7 era resources v2): a cream ceramic
+ * dome hood with gold bands over a pale shimmering frost vent, a soft peach glow leaking from under the hood, a rack of
+ * cryo flasks beside it; a gold collector ring turns slowly over the dome.
+ */
+const heliumSkimmer: Recipe = ({ body: b, glow: g, pivot: p }) => {
+  const c = E10;
+  plinth(b, c.ground);
+  // the vent: a frosted crater ring with a pale shimmer inside
+  b.cyl(0xe6edf4, 1.45, 0.16, 0, P, -0.6, 18, 1.55);
+  b.torus(0xd2dce6, 1.3, 0.14, 0, P + 0.16, -0.6, { rx: Math.PI / 2 }, 22);
+  g.cyl(G_PEACH, 1.05, 0.04, 0, P + 0.14, -0.6, 18);
+  // hood: a cream dome on four slate legs, two gold bands, a peach glow skirt under its rim
+  for (const [x, z] of [[-1.05, -1.65], [1.05, -1.65], [-1.05, 0.45], [1.05, 0.45]] as const) b.beam(c.trim, [x, P, z], [x * 0.85, P + 1.1, -0.6 + (z + 0.6) * 0.85], 0.14);
+  b.cyl(c.body, 1.3, 0.35, 0, P + 1.0, -0.6, 18, 1.25);
+  b.dome(c.body, 1.25, 0, P + 1.35, -0.6);
+  for (const [y, r] of [[1.1, 1.31], [1.85, 1.08]] as const) b.torus(c.accent, r, 0.07, 0, P + y, -0.6, { rx: Math.PI / 2 }, 24);
+  g.torus(G_PEACH, 1.22, 0.05, 0, P + 0.98, -0.6, { rx: Math.PI / 2 }, 24);
+  b.sph(SNOW, 0.95, 0, P + 2.2, -0.6, { sy: 0.32 });
+  // crown: a slate mast with a gold beacon, the ring turns round it
+  b.cyl(c.trim, 0.12, 1.3, 0, P + 2.45, -0.6, 10);
+  g.sph(c.glow, 0.18, 0, P + 3.85, -0.6);
+  // filling pipe down to a rack of cream cryo flasks (front right, beside the output pallet)
+  b.beam(c.trimL, [0.9, P + 1.3, -0.1], [1.75, P + 0.9, 0.35], 0.12);
+  b.box(c.trim, 1.3, 0.12, 0.7, 1.55, P, 0.25);
+  for (const x of [1.15, 1.55, 1.95]) {
+    b.cyl(c.body, 0.16, 0.5, x, P + 0.12, 0.25, 10);
+    b.cyl(c.accent, 0.17, 0.06, x, P + 0.42, 0.25, 10);
+    g.sph(G_PEACH, 0.07, x, P + 0.32, 0.4);
+  }
+  // little control post (front left)
+  b.box(c.trim, 0.5, 0.9, 0.4, -1.6, P, 0.35);
+  pane(b, g, c.trimL, c.glow, -1.6, P + 0.62, 0.56, 0.3, 0.2);
+  // the collector ring: gold, with three cream catch-cups
+  p.torus(c.accent, 1.0, 0.08, 0, 0, 0, { rx: Math.PI / 2 }, 28);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    p.sph(c.body, 0.16, Math.cos(a), 0, Math.sin(a));
+  }
+  return { at: [0, P + 3.0, -0.6], axis: 'y', mode: 'spin', speed: 0.35 };
+};
+
 /** quantumBank: an arched cream ledger hall with gold columns; holographic coin rings swirl above the funnel. */
 const quantumBank: Recipe = ({ body: b, glow: g, pivot: p }) => {
   const c = E10;
@@ -598,6 +641,7 @@ const quantumBank: Recipe = ({ body: b, glow: g, pivot: p }) => {
 
 const RECIPES: Record<Era4MachineId, Recipe> = {
   goldPanner, boardShop, pcAssembly, atmNetwork, graphitePit, batteryPlant, atomicVault, quantumLab, quantumBank,
+  heliumSkimmer,
 };
 
 // ---------------------------------------------------------------------------

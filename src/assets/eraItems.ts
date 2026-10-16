@@ -404,7 +404,7 @@ const BUILDERS: Record<MaterialShape, Builder> = {
 };
 
 /** Shapes drawn from rough rocks / crystals / pellets: flat (per-face) normals keep their facets crisp. */
-const FLAT: ReadonlySet<MaterialShape> = new Set<MaterialShape>(['block', 'nugget', 'lump', 'crystal', 'pellet', 'shards']);
+const FLAT: ReadonlySet<MaterialShape> = new Set<MaterialShape>(['block', 'nugget', 'lump', 'crystal', 'pellet', 'coke', 'geode']);
 
 /** Centre `g` on the origin and scale it per axis to exactly the item's size box (so stacks sit stackHeight apart). */
 function fit(g: THREE.BufferGeometry, size: MaterialDef['size']): THREE.BufferGeometry {

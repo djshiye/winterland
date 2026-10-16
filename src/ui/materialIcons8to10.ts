@@ -43,14 +43,28 @@ export const ERA8_10_ICONS: Record<string, string> = {
        <ellipse cx="24" cy="24" rx="15" ry="6" fill="none" stroke="#e8a848" stroke-width="2.2" transform="rotate(-30 24 24)"/>
        <circle cx="24" cy="24" r="7" fill="#b9a6e0"/><circle cx="24" cy="24" r="3" fill="#fff0c8" stroke-width="1.4"/>`),
   ),
-  // 0.9.6: era 10's own raw material (ARGON docs/art/10-data-shards.md): three flat-topped berry crystals with pink
-  // tops in a chunky gold circuit tray, two gold traces stepping up the centre shard
-  dataShard: svg(
-    g(`<path d="M8 12l7-2 5 2-2 20h-8z" fill="#9b4dca"/>
-       <path d="M28 12l5-2 7 2-2 20h-8z" fill="#9b4dca"/>
-       <path d="M17 8l7-3 7 3-1 24H18z" fill="#9b4dca"/>
-       <path d="M17 8l7-3 7 3-7 2z M8 12l7-2 5 2-6 1z M28 12l5-2 7 2-6 1z" fill="#ff7eb6" stroke-width="1.6"/>
-       <path d="M22 30v-7l2-2v-6M26 30v-5l-2-2" stroke="#f3a833" stroke-width="2" fill="none"/>
-       <rect x="5" y="31" width="38" height="10" rx="2.5" fill="#f3a833"/>`, 3),
+  // 0.9.7 era resources v2: era 10's rare earth (a cut-open geode, lavender crystals in a pale rind with gold flecks),
+  // helium-3 (a chubby cream cryo flask with a peach window) and the fusion cell (a cream puck with a glowing ring on
+  // top).
+  rareEarth: svg(
+    g(`<path d="M5 30c0-10 8-17 19-17s19 7 19 17l-3 10H8z" fill="#d8cfc0"/>
+       <path d="M10 30c1-7 7-12 14-12s13 5 14 12z" fill="#8f78bd"/>
+       <path d="M15 30l3-10 3 10M21 30l3-14 3 14M27 30l3-9 3 9" fill="#b9a0e0" stroke-width="2"/>
+       <circle cx="24" cy="17" r="1.4" fill="#e8c46a" stroke-width="0"/><circle cx="31" cy="22" r="1.2" fill="#e8c46a" stroke-width="0"/>
+       <path d="M6 34h36" stroke="#b4aa9a" stroke-width="2" fill="none"/>`),
+  ),
+  helium3: svg(
+    g(`<rect x="11" y="13" width="26" height="29" rx="11" fill="#f5efe2"/>
+       <rect x="18" y="5" width="12" height="9" rx="2.5" fill="#e8b341"/>
+       <path d="M21 5h6" stroke="#526475" stroke-width="3" fill="none"/>
+       <path d="M11 22h26M11 35h26" stroke="#e8b341" stroke-width="3" fill="none"/>
+       <circle cx="24" cy="28.5" r="5" fill="#ffc69a" stroke-width="2"/><circle cx="22.5" cy="27" r="1.3" fill="#ffffff" stroke-width="0"/>`),
+  ),
+  fusionCell: svg(
+    g(`<path d="M6 18v16c0 4 8 7 18 7s18-3 18-7V18z" fill="#f5f0e6"/>
+       <path d="M6 30c0 4 8 7 18 7s18-3 18-7" fill="none" stroke="#f2b644" stroke-width="3"/>
+       <ellipse cx="24" cy="18" rx="18" ry="7" fill="#e8b341"/>
+       <ellipse cx="24" cy="18" rx="11" ry="4" fill="#526475" stroke-width="2"/>
+       <ellipse cx="24" cy="18" rx="7" ry="2.4" fill="none" stroke="#fff0c8" stroke-width="2.4"/>`),
   ),
 };

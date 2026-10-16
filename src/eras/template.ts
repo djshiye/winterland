@@ -5,7 +5,8 @@
  * Every era 2..10 is the same size as Survival: 6 machines (2 extractors, 2 processors, a premium machine, a cash
  * machine), 7 worker roles, 4 player upgrades (carry, boots, tool, pal) with a hand node, and 4 sales products
  * (each with its "Fine" `${material}Quality` upgrade). 0.9.6: every era's chain runs on its own land (eras 4, 8 and 10
- * no longer need older eras' goods), and eras 5 and 10 mine their own raw material (pig iron, data shards).
+ * no longer need older eras' goods). 0.9.7 era resources v2: era 5 runs on iron pellets + coke and era 10 on rare
+ * earth + helium-3 with fusion; era 10, the finale, has one more processor (`more`), so it uses its bigger region.
  *
  * Ownership: each content thread edits only its own eras' rows (2-4, 5-7, 8-10). Ids are plain strings here so a
  * row can name a machine or material before it is added to eras/data.ts; readers skip ids that do not exist yet
@@ -35,7 +36,7 @@ export const ERA_ROLE_JOBS: Readonly<Record<EraRole, string>> = {
 export interface EraContent {
   n: number;
   /** Section D order: two extractors, two processors, the premium machine and the cash machine. */
-  machines: { ext: readonly [string, string]; proc: readonly [string, string]; premium: string; cash: string };
+  machines: { ext: readonly [string, string]; proc: readonly [string, string]; premium: string; cash: string; more?: readonly string[] };
   /** The era's materials, raw first (new ones are added to core/kinds.ts MATERIAL_KINDS by the era's thread). */
   materials: readonly string[];
   /** Role → { label, plural }. `hauler` keeps the era's old worker name (eras/data.ts ERAS[n].worker). */
@@ -90,11 +91,11 @@ export const ERA_CONTENT: readonly (EraContent | null)[] = [
   {
     n: 5,
     machines: { ext: ['deepMine', 'cokeOven'], proc: ['steelMill', 'rollingMill'], premium: 'plowWorks', cash: 'bankVault' },
-    materials: ['pigIron', 'coal', 'steel', 'girder', 'snowplow'],
-    roles: roles([['Steelworker', 'Steelworkers'], ['Crane Hand', 'Crane Hands'], ['Teamster', 'Teamsters'], ['Stevedore', 'Stevedores'], ['Payroll Clerk', 'Payroll Clerks'], ['Plant Manager', 'Plant Managers'], ['Slag Raker', 'Slag Rakers']]),
+    materials: ['pellets', 'coke', 'steel', 'girder', 'snowplow'],
+    roles: roles([['Steelworker', 'Steelworkers'], ['Crane Hand', 'Crane Hands'], ['Teamster', 'Teamsters'], ['Stevedore', 'Stevedores'], ['Payroll Clerk', 'Payroll Clerks'], ['Plant Manager', 'Plant Managers'], ['Pellet Raker', 'Pellet Rakers']]),
     player: { carry: 'Steel Barrow', boots: 'Work Boots', tool: 'Rivet Hammer', pal: 'Draft Horse' },
-    node: { label: 'Slag Heap', yields: 'pigIron', verb: 'Break' },
-    sales: ['pigIron', 'steel', 'girder', 'snowplow'],
+    node: { label: 'Taconite Ridge', yields: 'pellets', verb: 'Hammer' },
+    sales: ['pellets', 'steel', 'girder', 'snowplow'],
   },
   {
     n: 6,
@@ -135,12 +136,12 @@ export const ERA_CONTENT: readonly (EraContent | null)[] = [
   },
   {
     n: 10,
-    machines: { ext: ['fusionPlant', 'nanoFab'], proc: ['dataCenter', 'robotWorks'], premium: 'quantumLab', cash: 'quantumBank' },
-    materials: ['power', 'dataShard', 'aiCore', 'robot', 'quantumCore'],
+    machines: { ext: ['nanoFab', 'heliumSkimmer'], proc: ['fusionPlant', 'dataCenter'], more: ['robotWorks'], premium: 'quantumLab', cash: 'quantumBank' },
+    materials: ['rareEarth', 'helium3', 'fusionCell', 'aiCore', 'robot', 'quantumCore'],
     roles: roles([['Robot', 'Robots'], ['Feeder Bot', 'Feeder Bots'], ['Courier Drone', 'Courier Drones'], ['Dock Bot', 'Dock Bots'], ['Ledger AI', 'Ledger AIs'], ['Builder Bot', 'Builder Bots'], ['Prospector Drone', 'Prospector Drones']]),
     player: { carry: 'Exo Suit', boots: 'Jet Boots', tool: 'Nano Wand', pal: 'Robo Pup' },
-    node: { label: 'Data Crystal', yields: 'dataShard', verb: 'Tune' },
-    sales: ['dataShard', 'aiCore', 'robot', 'quantumCore'],
+    node: { label: 'Rare Earth Geode', yields: 'rareEarth', verb: 'Tune' },
+    sales: ['rareEarth', 'aiCore', 'robot', 'quantumCore'],
   },
 ];
 
@@ -151,8 +152,8 @@ export function eraContent(n: number): EraContent {
   return c;
 }
 
-/** All six machine ids of era n in section D order (ext, ext, proc, proc, premium, cash). */
+/** Every machine id of era n in section D order (ext, ext, proc, proc, any `more` processors, premium, cash). */
 export function contentMachines(n: number): string[] {
   const m = eraContent(n).machines;
-  return [...m.ext, ...m.proc, m.premium, m.cash];
+  return [...m.ext, ...m.proc, ...(m.more ?? []), m.premium, m.cash];
 }

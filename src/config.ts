@@ -1281,9 +1281,10 @@ export const CLIMB = {
    * Per-band price multiplier (index = band = the era whose own upgrades it prices; bands past the end use the last), on top of
    * bandGrowth^(band − 2). Era 2 starts from Survival income alone while era 3 inherits a running region, so band 3
    * steps up hard; later bands ease off as each older region's Rigs, sales upgrades and Renown compound less. Solved
-   * with the pacing model (bisection per era; re-solved in 0.9.6 after the Trade/Fine merge and the authored Lv 10s, and again on the 0.9.6 era chains).
+   * with the pacing model (bisection per era; re-solved in 0.9.6 after the Trade/Fine merge and the authored Lv 10s, again on the 0.9.6 era chains, and for bands 5-10 on
+   * the 0.9.7 era resources v2, whose era 5 sells at its own era's prices now).
    */
-  bandTilt: [1, 1, 1.91, 5.3, 5.28, 5.48, 4.09, 3.39, 3.01, 2.7, 2.44] as readonly number[],
+  bandTilt: [1, 1, 1.91, 5.3, 5.28, 5.51, 5.55, 3.8, 3.12, 2.73, 2.42] as readonly number[],
   legacyStep: 1.01,
   weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
   masteryScale: 0.12,
