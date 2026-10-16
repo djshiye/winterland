@@ -16,6 +16,7 @@
     "package:win": "node scripts/package-desktop.mjs win32-x64",
     "package:mac": "node scripts/package-desktop.mjs darwin-arm64 darwin-x64",
     "test": "vitest run",
+    "test:updater": "node scripts/test-updater.mjs",
     "soak": "node scripts/soak.mjs"
   },
   "dependencies": {
