@@ -9,12 +9,15 @@
  * - Orientation slerps from launch orientation to to.getSlotWorldQuaternion(slot); optional `spin`
  *   adds whole turns around a random horizontal axis (nice for chopped logs).
  * - Optional scaleFrom: item scales from that value to 1 during the flight.
+ * - Optional squash (pads' cash bundles): the item stretches tall-and-thin through the arc and lands squashed flat,
+ *   scaled by the reduced-motion preference (fx/padJuice.ts motionScale). Shape only: duration and path are unchanged.
  * - Arrival: to.receive(item, slot); emit 'item:landed' { item, holder: to, position }; then
  *   opts.onLand?.(item). No per-frame allocations (flight records and temp vectors are reused).
  */
 import * as THREE from 'three';
 import { TIMING } from '../config';
 import { TAU, arcPoint, clamp } from '../core/math';
+import { motionScale } from '../fx/padJuice';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 
 export interface FlightOptions {
@@ -26,6 +29,8 @@ export interface FlightOptions {
   spin?: number;
   /** Scale at launch, tweened to 1 on arrival (default: keep current scale). */
   scaleFrom?: number;
+  /** Squash-and-stretch amount (0 = none, ~0.25 = gentle). */
+  squash?: number;
   onLand?: (item: Item) => void;
 }
 
@@ -38,6 +43,7 @@ interface Flight {
   height: number;
   spin: number;
   scaleFrom: number;
+  squash: number;
   onLand: ((item: Item) => void) | undefined;
   readonly start: THREE.Vector3;
   readonly startQuat: THREE.Quaternion;
@@ -71,6 +77,7 @@ export class FlightSystem {
     f.duration = Math.max(0.001, opts?.duration ?? TIMING.arcTime);
     f.spin = opts?.spin ?? 0;
     f.scaleFrom = opts?.scaleFrom ?? obj.scale.x;
+    f.squash = opts?.squash ? opts.squash * motionScale() : 0;
     f.onLand = opts?.onLand;
     f.start.copy(obj.position);
     f.startQuat.copy(obj.quaternion);
@@ -133,7 +140,12 @@ export class FlightSystem {
         obj.quaternion.premultiply(tmpSpin);
       }
       const s = f.scaleFrom + (1 - f.scaleFrom) * k;
-      obj.scale.set(s, s, s);
+      if (f.squash > 0) {
+        // stretched through the arc, squashed flat over the last fifth (landing)
+        const st = f.squash * Math.sin(Math.PI * Math.min(1, k / 0.8));
+        const sq = k > 0.8 ? f.squash * Math.sin(Math.PI * ((k - 0.8) / 0.2) * 0.5) : 0;
+        obj.scale.set(s * (1 - 0.4 * st + 0.6 * sq), s * (1 + st - 0.8 * sq), s * (1 - 0.4 * st + 0.6 * sq));
+      } else obj.scale.set(s, s, s);
       if (f.t < 1) continue;
 
       // Landed. Free the record first: receive()/onLand may launch new flights or touch the economy.
@@ -165,6 +177,7 @@ export class FlightSystem {
       height: TIMING.arcHeight,
       spin: 0,
       scaleFrom: 1,
+      squash: 0,
       onLand: undefined,
       start: new THREE.Vector3(),
       startQuat: new THREE.Quaternion(),

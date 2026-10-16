@@ -13,14 +13,17 @@
  * - sale → 'sell' + floatText "+$<amount>" in green above the position.
  * - stack:full → 'full' + floatText "FULL" over counters/hoppers (throttled). The player's own stack
  *   already wears a persistent MAX badge (CarryStack), so it only gets the sound.
- * - pad:paid → 'pay' (combo); pad:unlocked → 'unlock', confetti, ring, shake, toast.
+ * - pad:paid / construction:paid (cash) → a soft 'tick' whose pitch climbs a pentatonic ladder while the player keeps
+ *   paying the same pad (fx/padJuice.ts TickLadder, ±3 % jitter, at most one per TICK_GAP per pad);
+ *   pad:complete (any pad, the shop mat) → a warm 'padDone' chord and a cozy snow-sparkle pop (pooled particles;
+ *   skipped / shrunk under reduced motion); pad:unlocked → 'unlock', confetti, ring, shake, toast.
  * - built → 'build', puff + ring.
  * - intro:crash → 'crash' + 'splash', splash particles, big shake.
  *
  * Full-game events:
  * - upgrade:bought → 'upgrade', sparkles at the pad / machine (or around the player for shop buys), "LV n!"
  *   (crew level 1 is the hire: 'helper:hired' does the cheer + "HIRED!").
- * - construction:paid → light wood 'thunk' (logs) / coin 'pay' tick (cash), throttled.
+ * - construction:paid → light wood 'thunk' (logs) / the pad 'tick' ladder (cash), throttled.
  * - shelter:built → pop + dust ring + chime + "+N villagers".
  * - village:revealed / reveal → whoosh / soft chime + toast. village:levelUp → fanfare, confetti, toast with perks.
  * - finale:start → fanfare, a volley of firework rockets for ~4 s (the stats card is the HUD's job).
@@ -32,7 +35,7 @@
  *   (trees fall every few seconds). quarters:built → like shelter:built plus fanfare, confetti and the "More crew can
  *   work now" toast. sale from a 'train' → the usual sale sound / popup plus a train whistle (rate-limited in Audio).
  *
- * 0.9.0 climb: gate:progress → a tick per finished row, a toast every 5 rows, confetti every 10 %, the fanfare and a camera
+ * 0.9.0 climb: gate:progress → a tiny 'ding-ding' per finished row (up to 3), a toast every 5 rows, confetti every 10 %, the fanfare and a camera
  * look at the expansion pad when the gate is met.
  *
  * Wave 8: quest:done → 'quest' chime, "Quest complete!" toast and a coin burst flying to the money pill (HUD.coinBurst);
@@ -52,11 +55,16 @@ import { expansionCostText } from '../ui/agesLogic';
 import { ERAS } from '../eras/data';
 import { regionLayout } from '../eras/layout';
 import { Haptics } from './Haptics';
+import { TickLadder, burstCount, motionScale, pitchJitter } from './padJuice';
 
 const WOOD_CHIPS = [PALETTE.bark, PALETTE.barkDark, PALETTE.woodEnd, PALETTE.woodRing, PALETTE.plank];
 const SNOW = [0xffffff, 0xeaf4ff, 0xd4e6fa];
 const SAWDUST = [PALETTE.woodEnd, PALETTE.woodRing, 0xf6e3bd];
 const CASH_COLORS = [0x46c35f, 0x5ee07a, 0xffd84a, 0xffffff];
+/** The completion pop: snow, frost and a touch of candle gold. */
+const SNOW_SPARKLE = [0xffffff, 0xeaf4ff, 0xd4e6fa, 0xfff1c4];
+/** Minimum seconds between two audible pad ticks of the same pad (bundles land ~20 per second). */
+const TICK_GAP = 0.07;
 /** Firework shell colours: [main, inner]. */
 const FIREWORKS: Array<[number, number]> = [
   [0xff4d6d, 0xffd1dc],
@@ -78,6 +86,8 @@ export class JuiceDirector {
   private lastPadFx = 0;
   private lastFell = -10;
   private lastSaw = -10;
+  /** Per pad holder id: the rising tick ladder and the last audible tick. */
+  private readonly ticks = new Map<string, { ladder: TickLadder; last: number }>();
   /** Delayed one-shots (simulation time), e.g. the splash a beat after the crash. */
   private readonly pending: Array<{ at: number; fn: () => void }> = [];
 
@@ -165,17 +175,33 @@ export class JuiceDirector {
       ctx.hud.floatText(this.tmp, 'FULL', { color: '#ff9a2e', size: 26, duration: 1.0 });
     });
 
-    ev.on('pad:paid', () => {
-      ctx.audio.play('pay', { combo: true, volume: 0.8 });
+    ev.on('pad:paid', (e) => {
+      this.padTick(`pad:${e.id}`, 1);
+    });
+
+    ev.on('pad:complete', (e) => {
+      ctx.audio.play('padDone', { pitch: pitchJitter(), volume: 0.85 });
+      const at = this.tmp.copy(e.position).setY(e.position.y + 0.35);
+      const n = burstCount(16);
+      if (n > 0) {
+        ctx.particles.burst(at, { colors: SNOW_SPARKLE, count: n, speed: 3.4, size: 0.13, spread: 1.15, life: 0.85, gravity: 5, shape: 'sphere' });
+      }
+      ctx.particles.sparkle(this.tmp2.copy(at).setY(at.y + 0.5), 0xffffff);
+      if (motionScale() >= 1) {
+        ctx.particles.sparkle(this.tmp2.setY(at.y + 1.1), 0xfff1c4);
+        ctx.particles.ring(e.position, { color: 0xffffff, radius: 2.2, life: 0.5 });
+      }
     });
 
     ev.on('pad:unlocked', (e) => {
       ctx.audio.play('unlock');
       this.tmp.copy(e.position);
-      ctx.particles.confetti(this.tmp, 60);
+      const m = motionScale();
+      const confetti = burstCount(60 * m);
+      if (confetti > 0) ctx.particles.confetti(this.tmp, confetti);
       ctx.particles.ring(this.tmp, { color: PALETTE.padFill, radius: 4, life: 0.7 });
       ctx.particles.ring(this.tmp, { color: 0xffffff, radius: 2.6, life: 0.5 });
-      ctx.cameraRig.shake(0.25, 0.3);
+      ctx.cameraRig.shake(0.25 * m, 0.3);
       const label = PADS[e.id]?.label ?? String(e.id).toUpperCase();
       ctx.hud.toast(`${label} UNLOCKED!`);
     });
@@ -220,7 +246,7 @@ export class JuiceDirector {
         ctx.audio.play('thunk', { combo: true, pitch: 0.95 + Math.random() * 0.1, volume: 0.9 });
         ctx.particles.burst(e.position, { colors: SAWDUST, count: 3, speed: 2.2, size: 0.1, spread: 1.2, life: 0.4, shape: 'cube' });
       } else {
-        ctx.audio.play('pay', { combo: true, volume: 0.7 });
+        this.padTick(`pad:${e.key}`, 0.9);
         ctx.particles.sparkle(e.position, 0xaaffbb);
       }
     });
@@ -340,7 +366,8 @@ export class JuiceDirector {
     ev.on('gate:progress', (e) => {
       const era = ERAS[e.era];
       if (!era) return;
-      for (let i = 0; i < Math.min(e.gained, 8); i++) this.later(i * 0.09, () => ctx.audio.play('pop', { combo: true, pitch: 1.3, volume: 0.45 }));
+      // a tiny "ding-ding" per row that turned green (a few at most, each a pentatonic step higher)
+      for (let i = 0; i < Math.min(e.gained, 3); i++) this.later(i * 0.26, () => ctx.audio.play('ding', { pitch: pitchJitter() * Math.pow(2, (i * 2) / 12), volume: 0.8 }));
       if (e.gained > 0 && !e.ready) {
         const before = e.ok - e.gained;
         if (Math.floor(e.ok / 5) > Math.floor(before / 5)) {
@@ -497,6 +524,16 @@ export class JuiceDirector {
     ctx.audio.play('saw', { pitch: 0.94 + Math.random() * 0.12, volume: 0.8 });
     ctx.particles.burst(at, { colors: SAWDUST, count: 12, speed: 3.4, size: 0.14, spread: 1.5, life: 0.7, shape: 'cube', gravity: 7 });
     ctx.particles.puff(at, { color: 0xf6e3bd, count: 3, size: 0.55, life: 0.7 });
+  }
+
+  /** One soft tick into pad `id`: rate-limited per pad, its pitch walks the pad's pentatonic ladder. */
+  private padTick(id: string, volume: number): void {
+    const now = this.ctx.time.elapsed;
+    let t = this.ticks.get(id);
+    if (!t) this.ticks.set(id, (t = { ladder: new TickLadder(), last: -10 }));
+    if (now - t.last < TICK_GAP) return;
+    t.last = now;
+    this.ctx.audio.play('tick', { pitch: t.ladder.next(now, Math.random()), volume });
   }
 
   /** Where shop purchases and other "no position" effects go: just above the player. */
