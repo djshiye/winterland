@@ -20,6 +20,7 @@
 import * as THREE from 'three';
 import { CAMERA, ECONOMY, ITEM_SIZE, type PileGrid } from '../config';
 import { UP } from '../core/math';
+import { instanceChildren, stopInstancing } from '../render/instancer';
 import { MATERIAL_KINDS, type GameContext, type Item, type ItemHolder, type ItemKind, type Slot } from '../core/types';
 
 export interface PileOptions {
@@ -93,6 +94,7 @@ export class Pile implements ItemHolder {
     this.towardCol = Math.sign(Math.round(Math.sin(yaw) * 1000));
     this.towardRow = Math.sign(Math.round(Math.cos(yaw) * 1000));
     this.occlude = (opts.occlude ?? !opts.parent) && opts.accepts.length === 1 && opts.grid.layers > 1;
+    instanceChildren(this.root); // landed items of one kind draw as ONE instanced mesh
   }
 
   // --- ItemHolder -----------------------------------------------------------
@@ -291,6 +293,7 @@ export class Pile implements ItemHolder {
   /** Clear and detach the pile from the scene. */
   dispose(): void {
     this.clear();
+    stopInstancing(this.root);
     this.root.removeFromParent();
   }
 
