@@ -80,12 +80,17 @@ export interface JobView {
   depotAccepts: (kind: ItemKind) => boolean;
   /** True when the import dock has room for this kind. */
   dockAccepts: (kind: ItemKind) => boolean;
+  /** 0.9.5: the region market's cash pile (dollars, bundles, where a clerk stands to collect). Absent = none. */
+  cash?: { value: number; bundles: number; spot: XZ };
 }
 
-/** Where a load comes from: the import dock or a machine slot. */
-export type JobSource = 'dock' | number;
-/** Where it goes: the export depot, the import dock, a processor slot, or (0.9.5) a construction site on a slot. */
-export type JobDest = 'depot' | 'dock' | number | `site${number}`;
+/** Where a load comes from: the import dock, a machine slot or (0.9.5, clerks) the market's cash pile. */
+export type JobSource = 'dock' | 'cash' | number;
+/**
+ * Where it goes: the export depot, the import dock, a processor slot, (0.9.5) a construction site on a slot, or the
+ * bank (clerks hand the market's cash in at the depot).
+ */
+export type JobDest = 'depot' | 'dock' | 'bank' | number | `site${number}`;
 
 /** 0.9.5: the construction-site destination of slot `slot`. */
 export const siteDest = (slot: number): `site${number}` => `site${slot}`;
@@ -106,7 +111,7 @@ export const DOCK_RESERVE = 12;
 const GATHER_AT = 6;
 
 export interface Job {
-  type: 'feed' | 'ship' | 'surplus' | 'stock' | 'build';
+  type: 'feed' | 'ship' | 'surplus' | 'stock' | 'build' | 'bank';
   item: ItemKind;
   take: number;
   from: JobSource;
@@ -123,7 +128,9 @@ export interface Claims {
 export type Owed = ReadonlyMap<ItemKind, number>;
 const NO_OWED: Owed = new Map();
 export const NO_CLAIMS: Claims = { sources: new Map(), dests: new Map() };
-export const srcId = (from: JobSource, kind: ItemKind): string => `${from === 'dock' ? 'dock' : `m${from}`}:${kind}`;
+export const srcId = (from: JobSource, kind: ItemKind): string => `${from === 'dock' || from === 'cash' ? from : `m${from}`}:${kind}`;
+/** 0.9.5: a clerk walks to the market's cash pile once it holds this many dollars (era 1's cashier: 10). */
+export const BANK_MIN = 10;
 export const destId = (slot: number, kind: ItemKind, site = false): string => `${site ? 's' : 'm'}${slot}:${kind}`;
 
 const dist = (a: XZ, b: XZ): number => Math.hypot(a.x - b.x, a.z - b.z);
@@ -199,7 +206,11 @@ export function pickJob(view: JobView, capacity: number, claims: Claims, at: XZ,
     case 'shipper':
       return shipJob(view, avail, capacity, at, lenient, owed, 'ship') ?? shipJob(view, avail, capacity, at, lenient, owed, 'surplus');
     case 'clerk':
-      return shipJob(view, avail, capacity, at, lenient, owed, 'surplus', true) ?? shipJob(view, avail, capacity, at, lenient, owed, 'ship', true);
+      return (
+        bankJob(view, capacity, claims) ??
+        shipJob(view, avail, capacity, at, lenient, owed, 'surplus', true) ??
+        shipJob(view, avail, capacity, at, lenient, owed, 'ship', true)
+      );
     case 'gatherer': {
       const extractor = new Set(view.machines.filter((m) => m.extractor).map((m) => m.slot));
       return stockJob(view, avail, capacity, claims, at, lenient) ?? feedJob(view, sources, avail, capacity, claims, at, lenient, (s) => typeof s.from === 'number' && extractor.has(s.from));
@@ -213,6 +224,13 @@ export function pickJob(view: JobView, capacity: number, claims: Claims, at: XZ,
         shipJob(view, avail, capacity, at, lenient, owed, 'surplus')
       );
   }
+}
+
+/** 0.9.5 clerk: bank the market's cash pile (era 1's cashier), one clerk at a time. */
+function bankJob(view: JobView, capacity: number, claims: Claims): Job | null {
+  const c = view.cash;
+  if (!c || c.bundles <= 0 || c.value < BANK_MIN || (claims.sources.get(srcId('cash', 'cash')) ?? 0) > 0) return null;
+  return { type: 'bank', item: 'cash', take: Math.min(capacity, c.bundles), from: 'cash', to: 'bank' };
 }
 
 /** a) feed a processor from the sources `ok` allows. */
@@ -459,7 +477,7 @@ export class EraWorker {
     this.group.name = `era${region.era}:worker:${index}`;
     this.stack = new CarryStack(ctx, {
       id: `npc:era${region.era}:worker:${index}`,
-      accepts: [...MATERIAL_KINDS],
+      accepts: [...MATERIAL_KINDS, 'cash'],
       capacity: 1,
       anchor: this.rig.armsAnchor,
       columnSize: 6,
@@ -583,6 +601,11 @@ export class EraWorker {
     if (this.gone) return;
     // hand the load back to the import dock (never lose goods: what a full dock refuses is sold at the depot quote)
     for (let item = this.stack.take(); item; item = this.stack.take()) {
+      // a clerk's cash bundles were banked when they left the pile
+      if (item.kind === 'cash') {
+        this.ctx.items.release(item);
+        continue;
+      }
       if (this.region.dock.addImmediate(item)) continue;
       this.ctx.economy.add(Math.round(this.ctx.market.quote(item.kind as MaterialKind, 'sell')));
       this.ctx.items.release(item);
@@ -637,7 +660,9 @@ export class EraWorker {
       if (n > 0) dock[k] = n;
     }
     const sites = this.role === 'foreman' ? r.sites().map((x) => ({ slot: x.slot, kind: x.kind, room: x.room, spot: x.spot })) : [];
-    return { machines, sites, dock, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
+    const m = r.market;
+    const cash = this.role === 'clerk' ? { value: m.cash.value, bundles: m.cash.pile.count('cash'), spot: m.clerkSpot } : undefined;
+    return { machines, sites, dock, cash, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
   }
 
   private lookAtSlot(slot: number): XZ | null {
@@ -648,6 +673,7 @@ export class EraWorker {
   private sourceRef(from: JobSource): Ref {
     const r = this.region;
     if (from === 'dock') return { machine: null, holder: r.dock, spot: r.dockSpot, look: awayOrNull(r.dockSpot, r.layout.dock) };
+    if (from === 'cash') return { machine: null, holder: r.market.cash.pile, spot: r.market.clerkSpot, look: r.market.cashSpot };
     const m = r.machines[from] ?? null;
     return { machine: m, holder: m?.output ?? null, spot: m?.takeSpot ?? this.at, look: this.lookAtSlot(from) };
   }
@@ -662,6 +688,7 @@ export class EraWorker {
       return { slot: null, machine: null, holder: live?.holder ?? null, spot: live?.spot ?? this.at, look: p ? { x: p.x, z: p.z } : null };
     }
     if (to === 'depot') return { slot: null, machine: null, holder: r.depot, spot: r.depotSpot, look: awayOrNull(r.depotSpot, r.layout.depot) };
+    if (to === 'bank') return { slot: null, machine: null, holder: r.market.bank, spot: r.depotSpot, look: awayOrNull(r.depotSpot, r.layout.depot) };
     if (to === 'dock') return { slot: null, machine: null, holder: r.dock, spot: r.dockSpot, look: awayOrNull(r.dockSpot, r.layout.dock) };
     const slot = to as number;
     const m = r.machines[slot] ?? null;
@@ -676,7 +703,7 @@ export class EraWorker {
 
   private heldKind(): ItemKind | null {
     for (const k of MATERIAL_KINDS) if (this.stack.count(k) > 0) return k;
-    return null;
+    return this.stack.count('cash') > 0 ? 'cash' : null;
   }
 
   // --- the job loop -------------------------------------------------------------------------------------------------
@@ -698,6 +725,13 @@ export class EraWorker {
 
   /** Send the worker (holding `kind`) to a new destination chosen from the live region. */
   private redirect(kind: ItemKind, exclude: number | null): void {
+    if (kind === 'cash') {
+      this.job = { type: 'bank', item: 'cash', take: this.stack.size, from: 'cash', to: 'bank' };
+      this.dest = this.destRef('bank');
+      this.goTo(this.dest.spot, this.dest.look);
+      this.phase = 'toDest';
+      return;
+    }
     const target = fallbackDest(this.view(), kind, this.claims(), this.at, exclude, this.job?.from === 'dock', this.owed);
     if (target === null) return this.park(1);
     this.job = { type: 'feed', item: kind, take: this.stack.size, from: this.job?.from ?? 'dock', to: target };
@@ -723,7 +757,14 @@ export class EraWorker {
 
   private move(from: ItemHolder, to: ItemHolder, kind: ItemKind): boolean {
     if (this.timer > 0) return false;
-    if (!transferOne(this.ctx, from, to, [kind], FLY)) return false;
+    const item = transferOne(this.ctx, from, to, [kind], FLY);
+    if (!item) return false;
+    // 0.9.5 clerks: a cash bundle is banked the moment it leaves the pile (like era 1's cash tubes), so a save or a
+    // dismissal mid-walk loses and doubles nothing; the bundle in the hands is only the picture of the trip
+    if (kind === 'cash' && to === this.stack) {
+      this.ctx.economy.add(item.value);
+      item.value = 0;
+    }
     this.timer = this.interval;
     this.idle = 0;
     return true;
@@ -775,8 +816,8 @@ export class EraWorker {
         const job = this.job!;
         const src = this.src!;
         const dest = this.dest!;
-        const srcSlot = job.from === 'dock' ? null : job.from;
-        const srcOk = src.holder !== null && (job.from === 'dock' || this.alive(src, srcSlot));
+        const srcSlot = typeof job.from === 'number' ? job.from : null;
+        const srcOk = src.holder !== null && (srcSlot === null || this.alive(src, srcSlot));
         const kind = job.item;
         // never take more than the hopper has room for (the arms are not counted in its room yet)
         let want = Math.min(job.take, this.capacity);

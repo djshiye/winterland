@@ -81,6 +81,21 @@ export class Market implements Updatable {
   }
 
   /**
+   * 0.9.5: what a region market buyer pays for `count` units of `kind`: the export price × the material's Quality
+   * upgrade (eras/RegionMarket.ts; the money goes into the market's cash pile, not straight to the bank).
+   */
+  marketPrice(kind: ItemKind, count: number): number {
+    const q = isMaterial(kind) ? this.ctx.upgrades.value(`${kind}Quality`) : 1;
+    return Math.max(1, Math.round(this.exportPrice(kind, count) * Math.max(1, q)));
+  }
+
+  /** 0.9.5: a region market sale was paid: the export stat and supply pressure, like the depot. */
+  noteMarketSale(kind: ItemKind, count: number): void {
+    this.ctx.state.stats.materialsSold += count;
+    if (isMaterial(kind)) this.addPressure(kind, count);
+  }
+
+  /**
    * Jack's offer for one `kind` right now (UPGRADES.jack share × unitValue, at least $1 for anything but cash). No Trade,
    * Renown or Mastery, and the share stops at 0.9 (core/ladder.ts): an order costs at least 1.1 × unitValue, so ordering
    * goods in and handing them to Jack can never print money.

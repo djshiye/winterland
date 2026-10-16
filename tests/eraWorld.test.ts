@@ -41,6 +41,17 @@ vi.mock('../src/assets/eraMachines', () => ({
   createDockModel: () => new THREE.Group(),
 }));
 vi.mock('../src/npc/EraCrew', () => ({ EraCrew: class { ids: string[] = []; reconcile(): void {} update(): void {} carried(): Record<string, never> { return {}; } dispose(): void {} } }));
+vi.mock('../src/assets/marketCounter', () => ({ createMarketCounterModel: () => new THREE.Group(), COUNTER_SIZE: { length: 3.0, depth: 0.8, height: 0.95 } }));
+vi.mock('../src/npc/EraBuyers', () => ({ EraBuyers: class { waiting = 0; update(): void {} unpaid(): void {} clear(): void {} } }));
+vi.mock('../src/npc/EraShoppers', () => ({ EraShoppers: class { waiting = 0; update(): void {} unpaid(): void {} clear(): void {} } }));
+vi.mock('../src/stations/CashPile', () => ({
+  CashPile: class {
+    value = 0;
+    pile = { id: 'pile:cash' };
+    pay(amount: number): void { this.value += amount; }
+    restoreValue(v: number): void { this.value = v; }
+  },
+}));
 vi.mock('../src/npc/Jack', () => ({ JackCart: class { sink = { id: 'jack:sink' }; update(): void {} dispose(): void {} } }));
 
 const { EraWorld } = await import('../src/eras/EraWorld');
@@ -527,7 +538,7 @@ describe('choose, pay, demolish', () => {
     expect(w.of('machine:demolished')).toHaveLength(1);
     expect(w.released.length - releasedBefore).toBe(6); // the 4 + 2 piled items went back to the pool
     expect(w.zones.filter((z) => z.opts.id.startsWith('pile:era2m1') && !z.removed)).toHaveLength(0);
-    expect(w.boxes.size).toBe(3); // depot, dock and hand node colliders remain, the kiln's is gone
+    expect(w.boxes.size).toBe(5); // depot, import dock, hand node, loading dock and market stall colliders remain, the kiln's is gone
     expect(w.zones.find((z) => z.opts.id === 'slot:2:1:choose')!.enabled).toBe(true); // the slot is open again
     expect(req.onDemolish()).toBe(false); // already gone
     // a new machine can be chosen and built there
@@ -550,16 +561,53 @@ describe('choose, pay, demolish', () => {
 });
 
 describe('depot, dock, orders', () => {
-  it('the depot sells every material at once and holds nothing', () => {
+  it('0.9.5: the depot hands goods to the market (refined to the stall, raw to the dock, then the other), then sells at once', () => {
     const w = makeWorld(2);
     const r = w.world.region(2)!;
-    const item = { id: 5, kind: 'brick', value: 0, object: new THREE.Object3D() } as Item;
-    const slot = r.depot.reserve(item);
-    r.depot.receive(item, slot);
+    const give = (id: number, kind: ItemKind): Item => {
+      const item = { id, kind, value: 0, object: new THREE.Object3D() } as Item;
+      r.depot.receive(item, r.depot.reserve(item));
+      return item;
+    };
+    // raw stone goes to the loading dock, refined brick to the market stall (TRADE_POST.room each at ×1)
+    for (let i = 0; i < 3; i++) give(300 + i, 'stone');
+    expect(r.market.dockPile.count('stone')).toBe(3);
+    for (let i = 0; i < 14; i++) give(100 + i, 'brick');
+    expect(r.market.stallPile.count('brick')).toBe(14);
+    // stall full: bricks spill onto the dock until that is full too
+    for (let i = 0; i < 11; i++) give(150 + i, 'brick');
+    expect(r.market.dockPile.count('brick')).toBe(11);
+    expect(w.sold).toEqual([]);
+    // both full: the depot sells the rest at once, as before 0.9.5
+    const item = give(5, 'brick');
     expect(w.sold).toEqual([{ kind: 'brick', count: 1 }]);
     expect(w.released).toContain(item);
     expect(r.depot.count('brick')).toBe(0);
     expect(r.depot.take()).toBeNull();
+  });
+
+  it('0.9.5: the market counters and cash are saved and restored; older saves start empty', () => {
+    const w = makeWorld(2);
+    const r = w.world.region(2)!;
+    for (let i = 0; i < 6; i++) {
+      const item = { id: 200 + i, kind: i < 4 ? 'brick' : 'stone', value: 0, object: new THREE.Object3D() } as Item;
+      r.depot.receive(item, r.depot.reserve(item));
+    }
+    (r.market.cash as unknown as { value: number }).value = 750;
+    const snap = w.world.snapshot();
+    expect(snap[2]!.market).toEqual({ dock: { stone: 2 }, stall: { brick: 4 }, cash: 750 });
+    const w2 = makeWorld(2);
+    w2.world.restore(snap);
+    const r2 = w2.world.region(2)!;
+    expect(r2.market.stallPile.count('brick')).toBe(4);
+    expect(r2.market.dockPile.count('stone')).toBe(2);
+    expect((r2.market.cash as unknown as { value: number }).value).toBe(750);
+    expect(w2.eco.money).toBe(0);
+    // an older save has no market entry: empty counters
+    const w3 = makeWorld(2);
+    w3.world.restore(snap.map((e) => ({ slots: e.slots, dock: e.dock })));
+    expect(w3.world.region(2)!.market.stallPile.total).toBe(0);
+    expect(w3.world.region(2)!.market.dockPile.total).toBe(0);
   });
 
   it('a market order lands on the dock; what does not fit is refunded at what it cost', () => {

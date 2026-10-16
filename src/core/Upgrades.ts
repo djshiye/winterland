@@ -14,7 +14,7 @@
  */
 import type * as THREE from 'three';
 import { CLIMB, GATE, QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
-import { ERA_NAMES } from '../eras/data';
+import { ERA_NAMES, ERAS } from '../eras/data';
 import { climbOpen } from '../eras/gate';
 import { atEraCap, capStored, introEra, maxStored, shown, stepCost, valueAt } from './ladder';
 import { settlementLevel } from './demand';
@@ -196,7 +196,8 @@ export function upgradeRequirement(state: Pick<GameState, 'unlocked' | 'village'
   }
   // 0.9.5: an era machine's level is bought on the level pad beside a built one
   const def = UPGRADES[id];
-  if (def.group === 'machine' && def.era !== undefined && def.era >= 2 && !machineBuilt(state, id)) {
+  // (the era cash machine `${key}Cash` is the exception: its pad builds it at Lv 1, eras/CashMachine.ts)
+  if (def.group === 'machine' && def.era !== undefined && def.era >= 2 && id !== `${ERAS[def.era]?.key}Cash` && !machineBuilt(state, id)) {
     return `Build a ${def.label} first`;
   }
   return null;
