@@ -49,9 +49,13 @@ export const MATERIAL_KINDS = [
   'graphite',
   'battery',
   'quantumCore',
-  // 0.9.6 (decision 15): eras 5 and 10 get a main resource of their own
-  'pigIron',
-  'dataShard',
+  // 0.9.7 era resources v2: era 5 runs on iron pellets + coke, era 10 on rare earth + helium-3 with fusion. (0.9.6's
+  // stand-ins pigIron and dataShard are gone; core/Save.ts migration '0.9.7-era-resources' converts old saves.)
+  'pellets',
+  'coke',
+  'rareEarth',
+  'helium3',
+  'fusionCell',
 ] as const;
 export type MaterialKind = (typeof MATERIAL_KINDS)[number];
 
