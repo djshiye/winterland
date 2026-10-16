@@ -26,8 +26,9 @@ const frozen = FROZEN.upgrades as Record<string, FrozenUpgrade>;
 const asJson = (v: unknown): unknown => JSON.parse(JSON.stringify(v, (_k, x) => (x === Infinity ? 'Infinity' : x)));
 
 describe('era 1 is frozen at 0.8.0', () => {
-  it('the era-1 upgrade ids are exactly the 22 Survival ids + jack', () => {
-    const era1 = (Object.values(UPGRADES) as UpgradeDef[]).filter((d) => introEra(d) === 1).map((d) => d.id);
+  it('the era-1 upgrade ids are exactly the 22 Survival ids + jack (+ the 0.9.2 delivery docks)', () => {
+    const DOCKS = ['trikeDock', 'truckDock', 'shopDock', 'sledDock', 'railDock'];
+    const era1 = (Object.values(UPGRADES) as UpgradeDef[]).filter((d) => introEra(d) === 1 && !DOCKS.includes(d.id)).map((d) => d.id);
     expect(era1.sort()).toEqual(Object.keys(frozen).sort());
   });
 

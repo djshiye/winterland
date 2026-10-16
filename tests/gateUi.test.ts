@@ -187,7 +187,7 @@ describe("GateTracker ('gate:progress')", () => {
     bump(events, 'speed');
     tick();
     expect(seen).toHaveLength(1);
-    expect(seen[0]).toMatchObject({ era: 2, ok: 2, total: 23, gained: 2, ready: false, readyNow: false });
+    expect(seen[0]).toMatchObject({ era: 2, ok: 2, total: 28, gained: 2, ready: false, readyNow: false });
     tick();
     expect(seen).toHaveLength(1); // nothing new: no event
     bump(events, 'axe'); // a level that finishes no row
@@ -196,7 +196,7 @@ describe("GateTracker ('gate:progress')", () => {
     meetGate(s, 2);
     bump(events, 'jack');
     tick();
-    expect(seen[1]).toMatchObject({ ok: 23, gained: 21, ready: true, readyNow: true });
+    expect(seen[1]).toMatchObject({ ok: 28, gained: 26, ready: true, readyNow: true });
     bump(events, 'jack');
     tick();
     expect(seen).toHaveLength(2);

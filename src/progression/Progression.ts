@@ -45,6 +45,7 @@ import { introEra } from '../core/ladder';
 import { MATERIAL_KINDS } from '../core/kinds';
 import { formatMoney } from '../ui/format';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
+import { grandMarketOffered } from '../town/rules';
 
 /** " (hold E)" with a keyboard, " (hold)" on touch, for the guide's pickup / payment hints. */
 function holdHint(): string {
@@ -660,6 +661,8 @@ export class Progression {
         return true;
     }
 
+    if (this.grandMarketGuide()) return true;
+
     // Nothing built or chosen yet: point at the first free lot once a building is nearly affordable.
     const anyChosen = s.town.lots.some((l) => l.building !== '');
     if (!anyChosen) {
@@ -708,6 +711,86 @@ export class Progression {
       }
     }
     return false;
+  }
+
+  /** 0.9.2: the built Toy Factory (the first one), or null. */
+  private toyFactory(): ReturnType<Level['town']['business']> {
+    const town = this.level.town;
+    for (let i = 0; i < LAYOUT.town.lots.length; i++) {
+      const b = town.business(i);
+      if (b && b.def.id === 'toyFactory') return b;
+    }
+    return null;
+  }
+
+  /** 0.9.2: toys the Grand Market still needs (0 when it is not offered or the toys are all in). */
+  private toysLeft(): number {
+    const s = this.ctx.state;
+    if (!grandMarketOffered(s)) return 0;
+    return Math.max(0, VILLAGE.grandMarket.toys - s.town.grandMarket.toys);
+  }
+
+  /**
+   * 0.9.2: the Grand Market, step by step. It needs logs, cash AND toys, and the toys come from a Toy Factory in the
+   * Market Town (crates in, toy trains out on its counter, which the player can pick up). The guide used to say nothing
+   * about it. Order: toys in hand → the pad; toys on the factory counter → pick them up; the factory short of crates →
+   * fetch crates from the processor; no factory → build one on a free lot; all toys in → logs and cash.
+   */
+  private grandMarketGuide(): boolean {
+    const ctx = this.ctx;
+    const s = ctx.state;
+    if (!grandMarketOffered(s)) return false;
+    const def = VILLAGE.grandMarket;
+    const st = s.town.grandMarket;
+    const pad = LAYOUT.town.grandMarket.pad;
+    const padArea = rect(pad.x, pad.z, 2.2, 2.2);
+    const padPoint = this.tmpPoint.set(pad.x, 0, pad.z);
+    const money = ctx.economy.money;
+    const arms = ctx.player.arms;
+    const left = this.toysLeft();
+    if (!s.flags['seen:grandMarketTip']) {
+      s.flags['seen:grandMarketTip'] = true;
+      ctx.hud.toast('The Grand Market awaits!', { sub: `It needs ${def.toys} toys from a Toy Factory`, duration: 3.6 });
+    }
+    if (left > 0) {
+      const inHand = arms.count('toy');
+      if (inHand > 0) {
+        this.setGoal(`Bring toys to the Grand Market (${st.toys}/${def.toys})`, padArea, padPoint);
+        return true;
+      }
+      const toys = this.toyFactory();
+      if (toys) {
+        if (arms.count() < arms.capacity && toys.pickupZone && (toys.output?.count('toy') ?? 0) > 0) {
+          this.setGoal(`Pick up toys at the toy factory (${st.toys}/${def.toys} delivered)`, toys.pickupZone);
+          return true;
+        }
+        const proc = this.level.processor;
+        const hungry = !!toys.input && toys.input.canAccept('crate') && toys.input.count('crate') < 2;
+        if (hungry && proc && arms.count() < arms.capacity && proc.output.count('crate') > 0) {
+          this.setGoal('Grab crates for the toy factory', proc.outputZone.area);
+          return true;
+        }
+        return false; // the factory is busy: let the rest of the guide speak
+      }
+      // A toy factory chosen on a lot is being paid for above (townGuide's lot payments). None at all: build one.
+      if (s.town.lots.some((l) => l.building === 'toyFactory')) return false;
+      const lot = s.town.lots.findIndex((l) => l.building === '');
+      const spot = lot >= 0 ? this.level.town.padSpot(lot) : null;
+      if (!spot || money < BUSINESSES.toyFactory.cash * 0.6) return false;
+      this.setGoal('Build a Toy Factory: the Grand Market needs toys', rect(spot.x, spot.z, 1.8, 1.8), this.tmpPoint.set(spot.x, 0, spot.z));
+      return true;
+    }
+    // every toy is in: logs and cash, once the cash part is in reach
+    const cashLeft = def.cash - st.cash;
+    if (cashLeft > 0 && money < cashLeft) return false;
+    const logsLeft = def.logs - st.logs;
+    return this.pursue({
+      spot: pad,
+      logsLeft,
+      cashLeft,
+      text: logsLeft > 0 ? 'Bring logs to the Grand Market' : `Pay for the Grand Market (${fmtMoney(cashLeft)})`,
+      pick: 'Pick up logs for the Grand Market',
+    });
   }
 
   /** 0.9.0: the unlocked region the player stands in, else the newest one (null before era 2). */
@@ -853,7 +936,21 @@ export class Progression {
       }
     }
 
-    // 2. Crates in hand → tricycles.
+    // 2. Toys in hand → the Grand Market (0.9.2); crates in hand → the toy factory while the Grand Market still needs
+    // toys, else the tricycles.
+    if (arms.count('toy') > 0 && this.toysLeft() > 0) {
+      const gm = VILLAGE.grandMarket;
+      const pad = LAYOUT.town.grandMarket.pad;
+      this.setGoal(`Bring toys to the Grand Market (${s.town.grandMarket.toys}/${gm.toys})`, rect(pad.x, pad.z, 2.2, 2.2), this.tmpPoint.set(pad.x, 0, pad.z));
+      return;
+    }
+    if (armsCrates > 0) {
+      const toys = this.toyFactory();
+      if (toys && this.toysLeft() > 0 && toys.input?.canAccept('crate') && toys.feedZone) {
+        this.setGoal('Bring crates to the toy factory', toys.feedZone);
+        return;
+      }
+    }
     if (armsCrates > 0 && L.seCounter) {
       this.setGoal('Load the tricycles', L.seCounter.zone.area);
       return;
