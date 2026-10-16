@@ -17,7 +17,7 @@
  */
 import { AMENITY_IDS, PADS, QUARTERS, UPGRADES, VILLAGE, type PadIdConst } from '../config';
 import { CITY_BUILDINGS, DISTRICTS, ERAS, MAX_ERA } from '../eras/data';
-import { QUEST_DEFS } from './quests';
+import { QUEST_DEFS, type QuestDef } from './quests';
 import { settlementLevel } from './demand';
 import { ERA_AT_LENGTH, type GameState, type RunRecord, type UpgradeId } from './types';
 
@@ -93,8 +93,43 @@ function buildItems(s: GameState): CompletionItem[] {
   return out;
 }
 
+/** Survival quests that are done at one place (the rest are sales goals, done anywhere). */
+const SURVIVAL_QUEST_TARGETS: Readonly<Record<string, string>> = {
+  harvester: 'pad:harvester', processor: 'pad:processor', megaSaw: 'pad:megaSaw', workshop: 'pad:workshop',
+  conveyors: 'pad:westConveyor', ridge: 'pad:ridge', hire: 'shop', upgrades12: 'shop',
+  hamlet: 'village', town: 'village', winterCity: 'village', shelters20: 'village', greatLodge: 'village',
+  marketTown: 'village', firstBusiness: 'town', town4: 'town', amenity1: 'town', amenity4: 'town', happy50: 'town', goods50: 'town',
+  bunkhouse: 'quarters',
+};
+
+/**
+ * Where a quest is done, for the Go button once quests are all the chip has left (validator #41 note 3): an era
+ * trio's district or region, a gate's region, a city goal the newest district; null for goals done anywhere.
+ */
+export function questTarget(s: GameState, id: string): string | undefined {
+  const trio = /^trio(\d+)(homes|machines|landmark)$/.exec(id);
+  if (trio) return `${trio[2] === 'machines' ? 'region' : 'district'}:${trio[1]}`;
+  const gate = /^gate(\d+)$/.exec(id);
+  if (gate) return Number(gate[1]) >= 3 ? `region:${Number(gate[1]) - 1}` : 'shop';
+  const newest = Math.max(2, Math.min(MAX_ERA, s.eras.age));
+  if (/^(city\d+|city1)$/.test(id)) return `district:${newest}`;
+  if (/^(materials\d+|machine1|machines6)$/.test(id)) return `region:${newest}`;
+  if (id === 'invest1') return 'town';
+  return SURVIVAL_QUEST_TARGETS[id];
+}
+
+/** A district quest that needs a lot of its kind while every lot is taken by something else: say to free one. */
+function questLabel(s: GameState, d: QuestDef): string {
+  const trio = /^trio(\d+)(homes|landmark)$/.exec(d.id);
+  if (trio && d.progress(s) < d.target) {
+    const lots = s.city.districts[Number(trio[1])]?.lots ?? [];
+    if (lots.length > 0 && lots.every(built)) return `Quest: ${d.title} (demolish a building to free a lot)`;
+  }
+  return `Quest: ${d.title}`;
+}
+
 function questItems(s: GameState): CompletionItem[] {
-  return QUEST_DEFS.map((d) => ({ id: `quest:${d.id}`, label: `Quest: ${d.title}`, have: flag(!!s.quests[d.id]), need: 1 }));
+  return QUEST_DEFS.map((d) => ({ id: `quest:${d.id}`, label: questLabel(s, d), have: flag(!!s.quests[d.id]), need: 1, target: questTarget(s, d.id) }));
 }
 
 function settlementItems(s: GameState): CompletionItem[] {

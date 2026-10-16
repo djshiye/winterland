@@ -3,7 +3,7 @@
  * top and a soft glow, placed on the Great Lodge plaza for good once a season reaches 100 % (core/completionTracker.ts).
  *
  * createTrophyModel(stars): { root, spin }. Local frame: origin on the ground at the plinth's centre, about 1.6 m tall,
- * 0.9 m square. `stars` (1..5) small gold stars ring the plinth, one per season completed. `spin` is the star on top,
+ * 0.9 m square (the tracker shows it at TROPHY_SCALE, a landmark you see from across the yard). `stars` (1..5) small gold stars ring the plinth, one per season completed. `spin` is the star on top,
  * which the tracker turns slowly (reduced motion: still).
  */
 import * as THREE from 'three';
@@ -79,5 +79,15 @@ export function createTrophyModel(stars = 1): TrophyModel {
     const x = (i - (n - 1) / 2) * 0.13;
     m.position.set(x, 0.35, 0.335);
   }
+  // a soft gold glow on the snow around the plinth (no light: one additive disc), so it reads from across the yard
+  const glow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.85, 32),
+    new THREE.MeshBasicMaterial({ color: 0xffd84a, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending }),
+  );
+  glow.name = 'trophy-glow';
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = 0.015;
+  glow.renderOrder = 1;
+  root.add(glow);
   return { root, spin };
 }

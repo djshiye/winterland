@@ -17,6 +17,7 @@
 import { EVENTS, type EventKind } from '../config';
 import { setTransientPriceMult } from './demand';
 import type { EventBus } from './EventBus';
+import { finaleQuiet } from './quiet';
 import type { GameEvents, GameState } from './types';
 
 export class WorldEvents {
@@ -85,6 +86,11 @@ export class WorldEvents {
   }
 
   update(dt: number): void {
+    // 0.9.7: no world event during the ending (core/quiet.ts); one running ends now
+    if (finaleQuiet()) {
+      if (this.current) this.end();
+      return;
+    }
     if (this.current) {
       this.left -= dt;
       if (this.left <= 0) this.end();

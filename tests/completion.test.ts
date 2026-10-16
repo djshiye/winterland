@@ -6,7 +6,10 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { AMENITY_IDS, BUSINESSES, PADS, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE, type BusinessId } from '../src/config';
-import { COMPLETION, COMPLETE_LEVEL, completion, completionTag, eraTimes, lifetime, nextMissing, runRecord } from '../src/core/completion';
+import { COMPLETION, COMPLETE_LEVEL, completion, completionTag, eraTimes, lifetime, nextMissing, questTarget, runRecord } from '../src/core/completion';
+import { finaleQuiet, QUIET_MAX, releaseFinale } from '../src/core/quiet';
+import { RushHours } from '../src/core/Rush';
+import { WorldEvents } from '../src/core/WorldEvents';
 import { EventBus } from '../src/core/EventBus';
 import { QUEST_DEFS } from '../src/core/quests';
 import { mergeState, migrateState, MIGRATIONS, newSeasonSave, parseSave, RUNS_CAP, sanitizeState, type SaveData } from '../src/core/Save';
@@ -14,7 +17,9 @@ import { createGameState, DISTRICT_LOTS, ERA_AT_LENGTH, LOT_COUNT, PLOT_COUNT, R
 import { introEra } from '../src/core/ladder';
 import { CITY_BUILDINGS, ERAS, MACHINES, MAX_ERA, type CityBuildingId, type MachineId } from '../src/eras/data';
 import { eraGate, FINAL_GATE, FINAL_NAME, gateMet, gateRuleShort, gateRuleText, gateSize, hasGate, nextGoal } from '../src/eras/gate';
-import { CompletionTracker, TROPHY_SPOT } from '../src/progression/CompletionTracker';
+import { CompletionTracker, TROPHY_SCALE, TROPHY_SPOT } from '../src/progression/CompletionTracker';
+import { LAYOUT } from '../src/config';
+import { villageLamps } from '../src/world/env/village';
 import { SEASON_KEEPS, SEASON_RESETS } from '../src/ui/SeasonConfirm';
 
 const IDS = Object.keys(UPGRADES) as UpgradeId[];
@@ -374,5 +379,97 @@ describe('the finale tracker (progression/CompletionTracker.ts)', () => {
     s.trophies.complete = 2;
     const { t } = make(s);
     expect(t.trophyObject).not.toBeNull();
+  });
+});
+
+describe('validator #41 polish', () => {
+  it('the ending hushes rush hours, world events and new ones until the card closes (or QUIET_MAX)', () => {
+    releaseFinale();
+    const s = complete();
+    const events = new EventBus<GameEvents>();
+    const ends: string[] = [];
+    events.on('rush:end', () => ends.push('rush'));
+    events.on('event:end', () => ends.push('event'));
+    const rush = new RushHours(s, events);
+    const world = new WorldEvents(s, events, () => 0);
+    rush.start(60);
+    world.start('festival', 60);
+    const ups: { update(dt: number): void }[] = [];
+    const ctx = { events, state: s, scene: new THREE.Scene(), addUpdatable: (u: { update(dt: number): void }) => ups.push(u) } as unknown as GameContext;
+    new CompletionTracker(ctx);
+    ups.forEach((u) => u.update(1));
+    expect(finaleQuiet()).toBe(true);
+    rush.update(0.1);
+    world.update(0.1);
+    expect(ends.sort()).toEqual(['event', 'rush']);
+    expect(rush.active).toBe(false);
+    expect(world.active).toBeNull();
+    // nothing new starts while hushed, however long the gap
+    for (let i = 0; i < 2000; i++) {
+      rush.update(1);
+      world.update(1);
+      if (i === 0) expect(finaleQuiet()).toBe(true);
+    }
+    expect(rush.active).toBe(false);
+    expect(world.active).toBeNull();
+    releaseFinale();
+    expect(finaleQuiet()).toBe(false);
+  });
+
+  it('the hush never outlasts QUIET_MAX seconds', () => {
+    const s = complete();
+    const events = new EventBus<GameEvents>();
+    const ups: { update(dt: number): void }[] = [];
+    const ctx = { events, state: s, scene: new THREE.Scene(), addUpdatable: (u: { update(dt: number): void }) => ups.push(u) } as unknown as GameContext;
+    new CompletionTracker(ctx);
+    ups.forEach((u) => u.update(0.5));
+    expect(finaleQuiet()).toBe(true);
+    for (let t = 0; t < QUIET_MAX + 1; t++) ups.forEach((u) => u.update(1));
+    expect(finaleQuiet()).toBe(false);
+  });
+
+  it('every era quest and every place-bound Survival quest has a Go target the chip can use', () => {
+    const s = complete();
+    for (const d of QUEST_DEFS) {
+      const t = questTarget(s, d.id);
+      if (/^(trio|gate|city|materials|machine)/.test(d.id) || d.id === 'invest1') expect(t, d.id).toBeTruthy();
+      if (t?.startsWith('pad:')) expect(PADS[t.slice(4) as PadId], d.id).toBeTruthy();
+      if (t?.startsWith('region:') || t?.startsWith('district:')) {
+        const n = Number(t.split(':')[1]);
+        expect(n >= 2 && n <= MAX_ERA, d.id).toBe(true);
+      }
+    }
+    expect(questTarget(s, 'trio4landmark')).toBe('district:4');
+    expect(questTarget(s, 'trio4machines')).toBe('region:4');
+    expect(questTarget(s, 'gate5')).toBe('region:4');
+    expect(questTarget(s, 'harvester')).toBe('pad:harvester');
+    expect(questTarget(s, 'planks10')).toBeUndefined(); // a sales goal: done anywhere
+  });
+
+  it("the chip's next quest carries the target, and says to free a lot when every lot is taken", () => {
+    const s = complete();
+    delete s.quests.trio4landmark;
+    const it4 = nextMissing(s)!;
+    expect(it4.id).toBe('quest:trio4landmark');
+    expect(it4.target).toBe('district:4');
+    // complete() fills every district lot with one non-landmark building: the landmark needs a lot freed first
+    expect(it4.label).toMatch(/demolish a building to free a lot/);
+    s.city.districts[4]!.lots[0]!.building = '' as CityBuildingId;
+    s.city.districts[4]!.lots[0]!.tier = -1;
+    expect(nextMissing(s)!.label).not.toMatch(/demolish/);
+  });
+
+  it('the trophy is a landmark: 2x or more, clear of the village lamps, the Lodge and the town corridor', () => {
+    expect(TROPHY_SCALE).toBeGreaterThanOrEqual(2);
+    const half = 0.45 * TROPHY_SCALE; // the plinth's half width
+    for (const l of villageLamps()) expect(Math.hypot(l.x - TROPHY_SPOT.x, l.z - TROPHY_SPOT.z), `lamp ${l.x},${l.z}`).toBeGreaterThan(half + 1.5);
+    const g = LAYOUT.village.greatLodge;
+    expect(TROPHY_SPOT.x - half).toBeGreaterThanOrEqual(g.x + g.w / 2);
+    expect(TROPHY_SPOT.x + half).toBeLessThanOrEqual(LAYOUT.village.area.maxX);
+    expect(TROPHY_SPOT.z - half).toBeGreaterThan(LAYOUT.town.gate.maxZ); // south of the corridor mouth
+    const s = createGameState();
+    s.trophies.complete = 1;
+    const ctx = { events: new EventBus<GameEvents>(), state: s, scene: new THREE.Scene(), addUpdatable: () => undefined } as unknown as GameContext;
+    expect(new CompletionTracker(ctx).trophyObject?.scale.x).toBe(TROPHY_SCALE);
   });
 });
