@@ -43,11 +43,14 @@ export const ERA8_10_ICONS: Record<string, string> = {
        <ellipse cx="24" cy="24" rx="15" ry="6" fill="none" stroke="#e8a848" stroke-width="2.2" transform="rotate(-30 24 24)"/>
        <circle cx="24" cy="24" r="7" fill="#b9a6e0"/><circle cx="24" cy="24" r="3" fill="#fff0c8" stroke-width="1.4"/>`),
   ),
-  // 0.9.6: era 10's own raw material: a cluster of glowing data shards with a little circuit trace inside
+  // 0.9.6: era 10's own raw material (ARGON docs/art/10-data-shards.md): three flat-topped berry crystals with pink
+  // tops in a chunky gold circuit tray, two gold traces stepping up the centre shard
   dataShard: svg(
-    g(`<path d="M17 41l-5-15 6-17 7 16-2 16z" fill="#8fd3ff"/>
-       <path d="M27 41l2-20 7-12 5 15-6 17z" fill="#c9a8ff"/>
-       <path d="M20 41l3-11 4 11z" fill="#bfe8ff"/>
-       <path d="M17 18v9l3 3M33 17v8l-3 3" stroke="#ffffff" stroke-width="1.8" fill="none"/>`),
+    g(`<path d="M8 12l7-2 5 2-2 20h-8z" fill="#9b4dca"/>
+       <path d="M28 12l5-2 7 2-2 20h-8z" fill="#9b4dca"/>
+       <path d="M17 8l7-3 7 3-1 24H18z" fill="#9b4dca"/>
+       <path d="M17 8l7-3 7 3-7 2z M8 12l7-2 5 2-6 1z M28 12l5-2 7 2-6 1z" fill="#ff7eb6" stroke-width="1.6"/>
+       <path d="M22 30v-7l2-2v-6M26 30v-5l-2-2" stroke="#f3a833" stroke-width="2" fill="none"/>
+       <rect x="5" y="31" width="38" height="10" rx="2.5" fill="#f3a833"/>`, 3),
   ),
 };

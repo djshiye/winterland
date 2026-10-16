@@ -103,8 +103,12 @@ export type MaterialShape =
   | 'tile' | 'hearth' | 'tools' | 'rail' | 'boiler' | 'engine'
   // 0.9.5 era 5-7 (assets/eraItems5to7.ts)
   | 'girder' | 'plow' | 'bulb' | 'radio' | 'canister' | 'jerrycan' | 'snowmobile'
+  // 0.9.6 pig iron (ARGON docs/art/05-pig-iron.md)
+  | 'pigbar'
   // 0.9.5 era 8-10 (assets/eraItems8to10.ts)
-  | 'computer';
+  | 'computer'
+  // 0.9.6 data shards (ARGON docs/art/10-data-shards.md)
+  | 'shards';
 
 export interface MaterialDef {
   kind: MaterialKind;
@@ -181,8 +185,8 @@ export const MATERIALS: Record<MaterialKind, MaterialDef> = {
   battery: mat('battery', 'Batteries', 9, 'refined', REF(9) * 1.6, 'cell', 0x4ea885, 0xe8b341, 0.32, 0.4, 0.32),
   quantumCore: mat('quantumCore', 'Quantum Cores', 10, 'refined', REF(10) * 3.2, 'core', 0xb9a6e0, 0xe8a848, 0.36, 0.36, 0.36),
   // 0.9.6 (decision 15): era 5's and era 10's own raw material (era 5 used to mine era 3's ore, era 10 era 9's power)
-  pigIron: mat('pigIron', 'Pig Iron', 5, 'raw', RAW(5), 'ingot', 0x5b524d, 0xe08a2b, 0.44, 0.16, 0.22),
-  dataShard: mat('dataShard', 'Data Shards', 10, 'raw', RAW(10), 'crystal', 0x8fd3ff, 0xc9a8ff, 0.36, 0.3, 0.3),
+  pigIron: mat('pigIron', 'Pig Iron', 5, 'raw', RAW(5), 'pigbar', 0x4a444b, 0xe87a3e, 0.44, 0.16, 0.22),
+  dataShard: mat('dataShard', 'Data Shards', 10, 'raw', RAW(10), 'shards', 0x9b4dca, 0xf3a833, 0.36, 0.3, 0.3),
 };
 
 export function isMaterial(kind: ItemKind): kind is MaterialKind {
