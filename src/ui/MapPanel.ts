@@ -33,7 +33,7 @@ const VIEW = (() => {
     minZ = Math.min(minZ, r.minZ);
     maxZ = Math.max(maxZ, r.maxZ);
   }
-  return { x: minX - 4, y: minZ, w: maxX - minX + 8, h: maxZ - minZ + 4 };
+  return { x: minX - 4, y: minZ - 6, w: maxX - minX + 8, h: maxZ - minZ + 10 };
 })();
 /** Marker / pin size relative to the 0.9.3 map (250 m wide), so they read the same on the bigger world. */
 const K = VIEW.w / 250;
@@ -192,7 +192,7 @@ export class MapPanel {
         `<g ${open && tp ? `data-tp="${tp.id}" class="is-open"` : ''}>` +
           `<rect ${rectAttrs(d.rect)} rx="2.5" fill="#4a5672" stroke="${hexCss(e.colors.accent)}" stroke-width="1.1" ${open ? '' : 'opacity="0.35" stroke-dasharray="3 2"'}/>` +
           `<text class="wl-map-dnum" x="${cx}" y="${cz - 1}" ${open ? '' : 'opacity="0.6"'}>${eraRoman(n)}</text>` +
-          `<text class="wl-map-dname" x="${cx}" y="${cz + 6}" ${d.name.length > 14 ? 'textLength="26" lengthAdjust="spacingAndGlyphs"' : ''} ${open ? '' : 'opacity="0.6"'}>${d.name}</text></g>`,
+          `<text class="wl-map-dname" x="${cx}" y="${cz + 6}" ${d.name.length > 9 ? 'textLength="26" lengthAdjust="spacingAndGlyphs"' : ''} ${open ? '' : 'opacity="0.6"'}>${d.name}</text></g>`,
       );
     }
     // era regions

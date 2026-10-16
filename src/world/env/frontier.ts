@@ -433,6 +433,7 @@ interface Region {
   ground: THREE.MeshToonMaterial;
   lock: THREE.Object3D;
   survey: THREE.Object3D;
+  zones: THREE.Object3D;
   paintSign: (locked: boolean) => void;
   lockedColor: number;
   openColor: number;
@@ -441,17 +442,35 @@ interface Region {
 const inZone = (q: Rect, x: number, z: number, m: number): boolean => x > q.minX - m && x < q.maxX + m && z > q.minZ - m && z < q.maxZ + m;
 
 /**
- * Does a prop of footprint radius `rad` at (x, z) fit inside region n? 0.9.5: props dress only the processing and
- * harvest zones (clear of the slot cells); the yard, the market and the huts are kept clear for what lives there.
+ * 0.9.5: the packed-snow paths that join a region's zones (2.2 m wide, world rects): along the yard's inner edge from
+ * the west fence to the market, down the line between the west column and the market / huts, and along the line
+ * between processing and harvest. Pure.
+ */
+export function regionPaths(l: RegionLayout): Rect[] {
+  const Z = l.zones;
+  const h = 1.1;
+  const yardIn = l.inward > 0 ? Z.yard.maxZ : Z.yard.minZ;
+  const procOut = l.inward > 0 ? Z.processing.maxZ : Z.processing.minZ;
+  const split = Z.yard.maxX;
+  const zLo = Math.min(yardIn, l.inward > 0 ? l.rect.maxZ - 1 : l.rect.minZ + 1);
+  const zHi = Math.max(yardIn, l.inward > 0 ? l.rect.maxZ - 1 : l.rect.minZ + 1);
+  return [
+    { minX: l.rect.minX + 1, maxX: split + 4, minZ: yardIn - h, maxZ: yardIn + h },
+    { minX: split - h, maxX: split + h, minZ: zLo, maxZ: zHi },
+    { minX: l.rect.minX + 1, maxX: split, minZ: procOut - h, maxZ: procOut + h },
+  ];
+}
+
+/**
+ * Does a prop of footprint radius `rad` at (x, z) fit inside region n? 0.9.5: props dress only the harvest zone (the
+ * era's wild ground), clear of the paths; the yard, processing, market and huts stay clear for what lives there.
  */
 function propFree(l: RegionLayout, x: number, z: number, rad: number): boolean {
   const r = l.rect;
   if (x < r.minX + rad + 0.9 || x > r.maxX - rad - 0.9 || z < r.minZ + rad + 0.9 || z > r.maxZ - rad - 0.9) return false;
-  const Z = l.zones;
-  if (inZone(Z.yard, x, z, rad + 0.4) || inZone(Z.market, x, z, rad + 0.6) || inZone(Z.huts, x, z, rad + 0.6)) return false;
-  const half = l.cell / 2 + 0.35 + rad * 0.5;
-  for (const s of l.slots) if (Math.abs(x - s.x) < half && Math.abs(z - s.z) < half) return false;
-  return true;
+  const H = l.zones.harvest;
+  if (!(x > H.minX + rad + 0.6 && x < H.maxX - rad - 0.6 && z > H.minZ + rad + 0.6 && z < H.maxZ - rad - 0.6)) return false;
+  return !regionPaths(l).some((q) => inZone(q, x, z, rad + 0.3));
 }
 
 function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
@@ -490,6 +509,25 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   // a worn footpath from the market gate into the market
   decals.add(geo.box(1.6, 0.012, 6), shade(e.colors.ground, 0.86), l.marketGate.x, gy + 0.008, l.marketGate.z + l.inward * 3.2);
   const decalMesh = decals.mesh({ cast: false, receive: true });
+
+  // ---- 0.9.5 zones: a soft ground tint per zone and the paths between them (shown once the region is bought)
+  const zb = new Batch();
+  const Z = l.zones;
+  const tint: [Rect, number][] = [
+    [Z.yard, shade(e.colors.ground, 0.9)],
+    [Z.processing, shade(e.colors.ground, 0.96)],
+    [Z.market, mix(shade(e.colors.ground, 1.06), 0xffe9c4, 0.18)],
+    [Z.huts, mix(shade(e.colors.ground, 1.04), 0xfff4e0, 0.22)],
+  ];
+  for (const [q, c] of tint) {
+    const w = q.maxX - q.minX - 1.6;
+    const d = q.maxZ - q.minZ - 1.6;
+    if (w > 0 && d > 0) zb.add(geo.box(w, 0.01, d), c, (q.minX + q.maxX) / 2, gy + 0.001, (q.minZ + q.maxZ) / 2);
+  }
+  for (const q of regionPaths(l)) zb.add(geo.box(q.maxX - q.minX, 0.012, q.maxZ - q.minZ), shade(e.colors.ground, 0.8), (q.minX + q.maxX) / 2, gy + 0.003, (q.minZ + q.maxZ) / 2);
+  const zonesMesh = zb.mesh({ cast: false, receive: true });
+  zonesMesh.visible = false;
+  group.add(zonesMesh);
   group.add(decalMesh);
 
   // ---- fence with the gate gap, the gate arch
@@ -591,14 +629,14 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   const byRole: Record<PropRole, Placement[]> = { tall: [], mid: [], low: [] };
   // tall: a row down the west strip (the camera looks toward -X/-Z, so they hide nothing there)
   const zStep = n === 6 ? 7.5 : 5.5;
-  for (let z = r.minZ + 2; z < r.maxZ - 1.5 && byRole.tall.length < Math.round(6 * grow); z += zStep) {
+  for (let z = r.minZ + 2; z < r.maxZ - 1.5 && byRole.tall.length < 6; z += zStep) {
     const x = r.minX + 2.0 + (n === 6 ? 0 : rng.range(-0.3, 0.5));
     if (!spot(x, z, PROP_RADIUS.tall)) continue;
     placed.push({ x, z, r: PROP_RADIUS.tall });
     byRole.tall.push({ x, z, ry: n === 6 ? 0 : rng.range(0, 6.28), sx: rng.range(0.95, 1.1), tint: 1 });
   }
   for (const [role, base] of [['mid', 9], ['low', 16]] as const) {
-    const count = Math.round(base * grow);
+    const count = Math.round(base * Math.sqrt(grow));
     for (let t = 0; t < 400 * grow && byRole[role].length < count; t++) {
       const x = rng.range(r.minX + 1, r.maxX - 1);
       const z = rng.range(r.minZ + 1, r.maxZ - 1);
@@ -617,7 +655,7 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   }
 
   root.add(group);
-  const reg: Region = { n, layout: l, group, unlocked: false, gateK: 0, colorK: 0, animating: false, leafL, leafR, ground, lock, survey, paintSign: paint, lockedColor, openColor: e.colors.ground };
+  const reg: Region = { n, layout: l, group, unlocked: false, gateK: 0, colorK: 0, animating: false, leafL, leafR, ground, lock, survey, zones: zonesMesh, paintSign: paint, lockedColor, openColor: e.colors.ground };
   paint(true);
   void ctx;
   return reg;
@@ -805,6 +843,7 @@ export function buildFrontier(ctx: GameContext, town: THREE.Object3D, trikeTail?
     ctx.colliders.addBounds(marketGateWalk(reg.layout));
     reg.lock.visible = false;
     reg.survey.visible = false;
+    reg.zones.visible = true;
     reg.paintSign(false);
     if (instant) {
       reg.gateK = 1;

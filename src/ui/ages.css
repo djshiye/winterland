@@ -568,7 +568,7 @@
 }
 
 .wl-map-dnum {
-  font-size: 7px;
+  font-size: calc(7px * var(--k, 1));
   font-weight: 700;
   text-anchor: middle;
   fill: #fff;
@@ -576,7 +576,7 @@
 }
 
 .wl-map-dname {
-  font-size: 3.4px;
+  font-size: calc(3.4px * var(--k, 1));
   font-weight: 700;
   text-anchor: middle;
   fill: #e7eefb;
