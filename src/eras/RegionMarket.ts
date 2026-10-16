@@ -212,6 +212,11 @@ export class RegionMarket {
     return true;
   }
 
+  /** 0.9.6 (F6): both counters are full, so the export depot sells what it receives at once, at the plain price. */
+  countersFull(): boolean {
+    return this.dockPile.isFull() && this.stallPile.isFull();
+  }
+
   update(dt: number): void {
     this.buyers.update(dt);
     this.shoppers.update(dt);

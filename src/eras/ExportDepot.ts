@@ -1,8 +1,9 @@
 /**
  * [eras] Export depot: an ItemHolder that swallows every era material delivered to it and sells it at once
- * (core/Market.ts sellExport: price × the era's Trade upgrade × season, supply pressure, 'sale' event → the usual
- * cash sound + "+$" popup). Items fly to the freight door, then are released to the pool. Holds nothing. 0.9.5: while
- * the region's Trading Post counter has room, the item hops on to it instead (its buyers pay more).
+ * (core/Market.ts sellExport: the plain depot price × season, supply pressure, 'sale' event → the usual cash sound +
+ * "+$" popup). Items fly to the freight door, then are released to the pool. Holds nothing. 0.9.5: while the region
+ * market's loading dock or stall has room, the item hops on to it instead (its buyers pay the Fine price). 0.9.6 (F6):
+ * when both are full a "COUNTERS FULL" sign shows over the depot (eras/Region.ts), so cheap selling is never silent.
  */
 import * as THREE from 'three';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
