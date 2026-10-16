@@ -16,6 +16,9 @@
  *   'settlement:changed' and 'settlement:levelUp' (never while loading) and pays a gift into the walk-collect gift
  *   pile on the city avenue: SETTLEMENT.giftSeconds of city income per level, + charterSeconds for a completed band.
  *   City income is × Renown × Mastery (climbMult) and its happiness gets the decor perk (settlementHappiness).
+ * - 1.0: residents and shoppers walk every district the player is near (city/DistrictLife.ts), all drawn by one shared
+ *   instanced crowd (npc/Crowd.ts, made on first use: 0 draw calls while nobody is out). The era foremen reach the
+ *   district lots through city/lotAccess.ts (registered here for this context).
  */
 import * as THREE from 'three';
 import { ECONOMY, SETTLEMENT } from '../config';
@@ -24,8 +27,13 @@ import { cityPopulation, climbMult, refreshSettlement, settledCityTotals, settle
 import type { GameContext } from '../core/types';
 import { CashPile } from '../stations/CashPile';
 import { Skyline } from '../world/env/skyline';
+import { Crowd } from '../npc/Crowd';
 import { District } from './District';
+import { registerCityLots } from './lotAccess';
 import { cityTotals, incomeSplit, rankFor, settlePaidCity } from './rules';
+
+/** People the districts' shared crowd can draw at once (≈ four full districts around the player). */
+const CITY_CROWD = 56;
 
 export class City {
   /** Everything the city draws hangs under this group. */
@@ -41,6 +49,8 @@ export class City {
   private lastSettlement = 0;
   /** The settlement gift pile, made the first time it is needed (a gift or a restored save). */
   private gift: CashPile | null = null;
+  /** 1.0: the shared crowd of every district's walking people (made the first time someone steps out). */
+  private crowd: Crowd | null = null;
 
   constructor(protected readonly ctx: GameContext) {
     this.root.name = 'city';
@@ -48,6 +58,13 @@ export class City {
     this.root.add(this.skyline.group);
     // a save written with the last bundle still flying holds a fully paid, never-completed lot: finish it silently
     ctx.state.stats.cityBuilt += settlePaidCity(ctx.state);
+    // 1.0: the era foremen deliver the district material to chosen lots (the pad is made on demand, silently)
+    registerCityLots(ctx, {
+      lotPad: (n, lot) => {
+        this.openDistricts();
+        return this.districts.get(n)?.sitePad(lot) ?? null;
+      },
+    });
     this.openDistricts();
     ctx.events.on('era:unlocked', () => {
       this.openDistricts();
@@ -120,8 +137,19 @@ export class City {
     return d.debugBuild(lot, def.id, instant);
   }
 
+  /** People walking the districts right now (tests / debug). */
+  get walkers(): number {
+    let n = 0;
+    for (const d of this.districts.values()) n += d.life?.count ?? 0;
+    return n;
+  }
+
   update(dt: number): void {
     for (const d of this.districts.values()) d.update(dt);
+    if (this.crowd) {
+      const ctx = this.ctx;
+      this.crowd.update(ctx.time.elapsed, ctx.dayNight ? ctx.dayNight.darkness : 0, ctx.renderer?.quality === 'high');
+    }
     // the gift pile only draws while something is on it
     if (this.gift) this.gift.pile.root.visible = this.gift.value > 0;
     this.timer += dt;
@@ -137,7 +165,7 @@ export class City {
     const age = this.ctx.state.eras.age;
     for (let n = 2; n <= MAX_ERA; n++) {
       if (age < n || this.districts.has(n) || !DISTRICTS[n]) continue;
-      const d = new District(this.ctx, n, () => this.recompute(true));
+      const d = new District(this.ctx, n, () => this.recompute(true), () => this.lifeCrowd());
       this.districts.set(n, d);
       this.root.add(d.root);
     }
@@ -198,6 +226,30 @@ export class City {
     const pile = this.giftPile();
     pile.pay(gift, new THREE.Vector3(pile.opts.x, 6, pile.opts.z));
     ctx.events.emit('settlement:levelUp', { level, from, gift, charter, position });
+  }
+
+  /** The districts' shared crowd: enough for the few districts around the player, culled over the whole city grid. */
+  private lifeCrowd(): Crowd {
+    if (!this.crowd) {
+      const crowd = new Crowd(CITY_CROWD);
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minZ = Infinity;
+      let maxZ = -Infinity;
+      for (const d of DISTRICTS) {
+        if (!d) continue;
+        minX = Math.min(minX, d.rect.minX);
+        maxX = Math.max(maxX, d.rect.maxX);
+        minZ = Math.min(minZ, d.rect.minZ);
+        maxZ = Math.max(maxZ, d.rect.maxZ);
+      }
+      const sphere = new THREE.Sphere(new THREE.Vector3((minX + maxX) / 2, 1, (minZ + maxZ) / 2), Math.hypot(maxX - minX, maxZ - minZ) / 2 + 2);
+      for (const m of crowd.meshes) m.boundingSphere = sphere.clone();
+      crowd.group.name = 'city-life';
+      this.root.add(crowd.group);
+      this.crowd = crowd;
+    }
+    return this.crowd;
   }
 
   private giftPile(): CashPile {
