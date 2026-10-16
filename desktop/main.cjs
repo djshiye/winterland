@@ -11,7 +11,7 @@
  * Fullscreen is Electron's borderless fullscreen (alt-tab friendly). While fullscreen, `bounds` keeps the last
  * windowed size so leaving fullscreen restores it. Saved bounds that are no longer on any display are ignored.
  *
- * Keys: F11 or Alt+Enter toggles fullscreen, Ctrl+R reloads, F12 / Ctrl+Shift+I open the dev tools (Cmd works for
+ * Keys: F11 or Alt+Enter (plus Ctrl+Cmd+F on macOS) toggles fullscreen, Ctrl+R reloads, F12 / Ctrl+Shift+I open the dev tools (Cmd works for
  * Ctrl on macOS). On macOS the app keeps the standard app menu so Cmd+Q, Cmd+H and Cmd+M behave as expected.
  *
  * Renderer bridge: desktop/preload.cjs exposes `window.winterlandDesktop` (see src/platform/desktop.ts); the IPC
@@ -21,6 +21,7 @@ const fs = require('node:fs');
 const { app, BrowserWindow, ipcMain, Menu, net, protocol, screen, shell } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const { fullscreenOptions, isFullscreenKey } = require('./window-options.cjs');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const DEFAULT_SIZE = { width: 1280, height: 800 };
@@ -85,7 +86,7 @@ function createWindow() {
     center: !saved.bounds,
     minWidth: MIN_SIZE.width,
     minHeight: MIN_SIZE.height,
-    fullscreen,
+    ...fullscreenOptions(saved.mode),
     title: 'Winterland',
     backgroundColor: '#cfe6f7',
     autoHideMenuBar: true,
@@ -160,7 +161,7 @@ function createWindow() {
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
     const ctrl = input.control || input.meta;
-    if (input.key === 'F11' || (input.alt && input.key === 'Enter')) {
+    if (isFullscreenKey(input, process.platform)) {
       if (!input.isAutoRepeat) win.setFullScreen(!win.isFullScreen());
       event.preventDefault();
     } else if (input.key === 'F12' || (ctrl && input.shift && input.key.toLowerCase() === 'i')) {
@@ -185,9 +186,16 @@ ipcMain.on('desktop:setWindowMode', (event, mode) => {
 });
 
 app.whenReady().then(() => {
-  // No menu bar in the game window; macOS keeps just the app menu (Hide, Quit) and the Window menu (Minimize).
+  // No menu bar in the game window; macOS keeps just the app menu (Hide, Quit), View > Enter Full Screen and the
+  // Window menu (Minimize).
   Menu.setApplicationMenu(
-    process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'windowMenu' }]) : null,
+    process.platform === 'darwin'
+      ? Menu.buildFromTemplate([
+          { role: 'appMenu' },
+          { label: 'View', submenu: [{ role: 'togglefullscreen' }] },
+          { role: 'windowMenu' },
+        ])
+      : null,
   );
   protocol.handle('app', (request) => {
     const { pathname } = new URL(request.url);
