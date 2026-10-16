@@ -1698,7 +1698,7 @@ export const padCatalog: Record<string, () => THREE.Object3D> = {
   padFeller: () => createPadModel(2.0, createPadTexture('feller', '$9000', 0.6)),
   padLoader: () => createPadModel(2.0, createPadTexture('loader', '$10k', 0)),
   padTubes: () => createPadModel(2.0, createPadTexture('tubes', '$14k', 0.2)),
-  padHarvesterLevel: () => createPadModel(2.2, createPadTexture('saw', '$400', 0.4, undefined, 'LV 2')),
+  padHarvesterLevel: () => createPadModel(2.2, createPadTexture('saw', '$400', 0.4, undefined, 'LV 1')),
   padHut: () => createPadModel(1.4, createConstructionTexture('hut', { left: 8, total: 12 }, { left: 350, total: 350 })),
   padFarm: () => createPadModel(1.8, createConstructionTexture('farm', { left: 24, total: 24 }, { left: 2500, total: 2500 })),
   padBakery: () => createPadModel(1.8, createConstructionTexture('bakery', { left: 20, total: 30 }, { left: 4000, total: 4000 })),

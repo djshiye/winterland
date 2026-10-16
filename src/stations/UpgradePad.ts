@@ -11,10 +11,11 @@
  *   'pad:unlocked' event), big scale-bounce, pop out.
  * - 'level' (UPGRADES[id].group === 'machine': harvester / processor / megaSaw): after the unlock and once
  *   Progression reveals it (flag `reveal:levelPad:<id>`, showLevel()), the pad reappears as "<LABEL> LV n" (gold
- *   border + "LV n" badge, n = upgrade level + 2: the first level pad offers LV 2) priced ctx.upgrades.nextCost(id).
+ *   border + "LV n" badge, n = the shown level it buys: the first level pad offers LV 1) priced ctx.upgrades.nextCost(id).
  *   Fully paid → ctx.upgrades.levelUp(id, position) ('upgrade:bought'), a smaller bounce, then re-armed for the
  *   next level, or hidden at max level. Conveyor pads hide after the unlock. Once the climb opens (Great Lodge,
- *   eras/gate.ts) the max moves to shown level 100 and a hidden maxed level pad comes back on its own.
+ *   eras/gate.ts) the max moves to the era cap (shown 10 · age) and a hidden maxed level pad comes back on its own;
+ *   at the cap it hides again until the next era's expansion is bought.
  *
  * Payment
  * - Chunked: the zone moves ONE bundle worth ≈ cost / TIMING.padFlights (a multiple of 5, ≥ 5, ≤ remaining − pending)
@@ -144,9 +145,12 @@ export class UpgradePad implements ItemHolder {
     return this.mode === 'level';
   }
 
-  /** Level this pad offers when in level mode (first level pad = 2), else 0. */
+  /**
+   * Level this pad offers when in level mode, else 0: the shown level the purchase reaches (first level pad = LV 1), the
+   * same number as the shop, the era checklist and the era cap, so the last era-1 pad reads LV 10.
+   */
   get offeredLevel(): number {
-    return this.mode === 'level' && this.upgradeId ? this.ctx.upgrades.level(this.upgradeId) + 2 : 0;
+    return this.mode === 'level' && this.upgradeId ? this.ctx.upgrades.shownLevel(this.upgradeId) + 1 : 0;
   }
 
   /** Cost of the current target. */
@@ -189,7 +193,7 @@ export class UpgradePad implements ItemHolder {
 
   update(dt: number): void {
     if (!this.shown) {
-      // the climb opened (Great Lodge) over a maxed level pad: it comes back for the levels past the authored max
+      // the climb opened (Great Lodge) or a new era lifted the cap over a maxed level pad: it comes back
       if (this.done && climbOpen(this.ctx.state) && this.levelReady()) this.showLevel();
       return;
     }

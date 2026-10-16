@@ -490,7 +490,8 @@ export class ShopPanel {
       let btnHtml: string;
       let cls: string;
       if (isMax) {
-        btnHtml = 'MAX';
+        // the era cap reads differently from the final level: the next era's expansion lifts it
+        btnHtml = up.atEraCap(id) ? '<small>Era</small>MAX' : 'MAX';
         cls = 'is-max';
       } else if (req) {
         btnHtml = `<span class="wl-lock">${ICON_LOCK}</span><span class="wl-req">${req}</span>`;
