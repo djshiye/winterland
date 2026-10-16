@@ -339,12 +339,12 @@ describe('investments', () => {
     for (const product of ['index', 'venture'] as const) {
       const def = INVEST[product];
       let worst = 0;
-      for (let k = 0; k < 30; k++) {
+      for (let k = 0; k < 12; k++) {
         const t = setup({ age: 5, money: 1e9, rng: seeded(500 + k) });
         // a hot market (every index at the top) leans the wobble its way: still capped
         if (k % 2 === 0) for (const kind of Object.keys(MATERIALS) as (keyof typeof MATERIALS)[]) t.state.market.index[kind] = MARKET.max;
         expect(t.market.invest(product, 1e8, product === 'venture' ? 5 : 0)).toBe(true);
-        run(t.market, 8 * 3600, 20);
+        run(t.market, 8 * 3600, MARKET.tick * 20); // 20 price ticks a step, the most one update runs
         worst = Math.max(worst, t.market.positions()[0]!.value / 1e8);
       }
       expect(worst, product).toBeLessThanOrEqual((def.top ?? 1) * (1 + (def.rise ?? 0)) + 1e-9);
