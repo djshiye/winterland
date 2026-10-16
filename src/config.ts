@@ -1730,11 +1730,16 @@ export const EVENTS = {
 /**
  * Wave 13: delivery contracts (core/Contracts.ts). One offer at a time from the village gate's notice board: sell
  * `count` of `kind` within `seconds` for a cash `bonus` on top of the sales. Saved (state.contract).
+ * 0.9.6 (F9): `offers` are Survival's (era 1, frozen). From era 2 on a contract follows the current era instead: one of
+ * that era's materials its built machines make, `era.count` of them, for a bonus of `era.incomeSeconds` of the
+ * player's recent sales (never below `era.minShare` × the goods' own export value), so it stays worth a few minutes
+ * of play in every era rather than "15 sausages · +$2,500" at $218B.
  */
 export const CONTRACTS = {
   minVillageLevel: 3,
   every: [150, 260] as readonly [number, number],
   seconds: 180,
+  era: { count: [20, 40] as readonly [number, number], incomeSeconds: 120, minShare: 0.5 },
   offers: [
     { kind: 'plank', count: 40, bonus: 800, requires: null },
     { kind: 'crate', count: 30, bonus: 1200, requires: 'processor' },

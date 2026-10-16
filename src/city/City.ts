@@ -192,7 +192,8 @@ export class City {
     // whole cash bundles, so the pile holds exactly what the card announces
     const b = ECONOMY.cashBundleValue;
     const gift = Math.max(SETTLEMENT.giftMin, Math.round((this.incomeRate * seconds) / b) * b);
-    const district = districtDef(Math.min(MAX_ERA, settlementBand(level))).rect;
+    // settlement rises freely (0.9.6), so its band can run ahead of the era: celebrate in a district that exists
+    const district = districtDef(Math.max(2, Math.min(MAX_ERA, ctx.state.eras.age, settlementBand(level)))).rect;
     const position = new THREE.Vector3((district.minX + district.maxX) / 2, 0, (district.minZ + district.maxZ) / 2);
     const pile = this.giftPile();
     pile.pay(gift, new THREE.Vector3(pile.opts.x, 6, pile.opts.z));

@@ -64,6 +64,7 @@
  * paid one first: rules.settlePaidGrandMarket, also called from Level). debugBuildGrandMarket() builds it without the event.
  */
 
+import { fadeManageSign } from '../fx/manageSign';
 import * as THREE from 'three';
 import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, VILLAGE, rect, type AmenityId, type BusinessDef, type BusinessId, type XZ } from '../config';
 import { createLotForSale, createTownScaffold, type TownScaffold } from '../assets/town';
@@ -395,7 +396,10 @@ export class Town {
     for (const L of this.lots) {
       L.buildPad.update(dt);
       if (L.hint?.visible) L.hint.quaternion.copy(cam);
-      if (L.manageSign?.visible) L.manageSign.quaternion.copy(cam);
+      if (L.manageSign?.visible) {
+        L.manageSign.quaternion.copy(cam);
+        fadeManageSign(L.manageSign, this.ctx.player?.position);
+      }
       L.business?.update(dt);
     }
     for (let i = this.graveyard.length - 1; i >= 0; i--) if (this.graveyard[i]!.drain()) this.graveyard.splice(i, 1);

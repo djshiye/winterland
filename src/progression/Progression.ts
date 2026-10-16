@@ -42,7 +42,7 @@ import { climbOpen, eraMatOf, nextGoal } from '../eras/gate';
 import { expansionOffered, regionLayout } from '../eras/layout';
 import { MAT_SIZE, machinePadTarget } from '../eras/rules';
 import { MATERIAL_KINDS } from '../core/kinds';
-import { formatMoney } from '../ui/format';
+import { article, formatMoney } from '../ui/format';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
 import { grandMarketOffered } from '../town/rules';
 
@@ -802,14 +802,22 @@ export class Progression {
     });
   }
 
-  /** 0.9.0: the unlocked region the player stands in, else the newest one (null before era 2). */
-  private nearRegion(): number {
+  /** 0.9.6: the unlocked era region the player stands in, or 0 outside every region. */
+  private regionHere(): number {
     const s = this.ctx.state;
     const p = this.ctx.player.object.position;
     for (let n = 2; n <= s.eras.age; n++) {
       const r = REGIONS[n]?.rect;
       if (r && p.x >= r.minX && p.x <= r.maxX && p.z >= r.minZ && p.z <= r.maxZ) return n;
     }
+    return 0;
+  }
+
+  /** 0.9.0: the unlocked region the player stands in, else the newest one (null before era 2). */
+  private nearRegion(): number {
+    const here = this.regionHere();
+    if (here) return here;
+    const s = this.ctx.state;
     return s.eras.age >= 2 ? s.eras.age : 0;
   }
 
@@ -821,7 +829,9 @@ export class Progression {
     const kind = MATERIAL_KINDS.find((k) => arms.count(k) > 0);
     if (!kind) return false;
     const home = this.nearRegion();
-    const order = [home, ...Array.from({ length: s.eras.age - 1 }, (_, i) => i + 2).filter((n) => n !== home)];
+    // 0.9.6: inside a region only that region's machines count (leftover bricks no longer point back to Granite
+    // Hollow from the Steam Age); what nothing here wants goes to this region's depot
+    const order = this.regionHere() ? [home] : [home, ...Array.from({ length: s.eras.age - 1 }, (_, i) => i + 2).filter((n) => n !== home)];
     for (const n of order) {
       const region = this.level.eras.region(n);
       if (!region) continue;
@@ -867,7 +877,7 @@ export class Progression {
     const first = machinesOfEra(n).find((id) => MACHINES[id].kind === 'extractor') ?? machinesOfEra(n)[0];
     const slot = regionLayout(n).slots[0];
     if (!first || !slot) return false;
-    this.setGoal(`Build a ${MACHINES[first].label.toLowerCase()} in ${ERAS[n]!.region}`, rect(slot.x, slot.z, 3, 3), this.tmpPoint.set(slot.x, 0, slot.z));
+    this.setGoal(`Build ${article(MACHINES[first].label)} ${MACHINES[first].label.toLowerCase()} in ${ERAS[n]!.region}`, rect(slot.x, slot.z, 3, 3), this.tmpPoint.set(slot.x, 0, slot.z));
     return true;
   }
 
@@ -939,6 +949,14 @@ export class Progression {
     const dropCount = L.dropZone.pile.count('log');
     const padPayable = (pad: (typeof L.pads)[PadId]): boolean =>
       pad.visible && pad.remaining > 0 && (money >= pad.remaining || (inArea(pad.zone.area) && money > 0));
+
+    // 0.9.6 (guide by location): inside an era region its own guide runs first, and Survival's chores (cash piles,
+    // logs, the cabin) never drag the arrow back to the yard mid-climb. Quiet when the region has nothing to ask.
+    if (this.regionHere() >= 2) {
+      if (this.eraGoodsInHand() || this.eraGuide() || this.climbGuide()) return;
+      this.setGoal(null, null);
+      return;
+    }
 
     // 1. An unlock pad we can pay right now.
     for (const id of PAD_ORDER) {
