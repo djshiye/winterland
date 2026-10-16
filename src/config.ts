@@ -1275,7 +1275,7 @@ export const CLIMB = {
    * steps up hard; later bands ease off as each older region's Rigs, Trade and Renown compound less. Solved with the
    * pacing model (bisection per era, 0.9.5).
    */
-  bandTilt: [1, 1, 1.96, 4.79, 5.14, 4.26, 3.81, 3.77, 3.76, 3.31, 2.4] as readonly number[],
+  bandTilt: [1, 1, 1.96, 4.73, 5.08, 4.2, 3.77, 3.73, 3.08, 2.8, 2.15] as readonly number[],
   legacyStep: 1.05,
   weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
   masteryScale: 0.12,
