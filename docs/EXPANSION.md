@@ -1,6 +1,6 @@
 # Winterland expansion design: ten-era climb (0.9 to 0.12)
 
-This document covers the era unlock rule, upgrade ladders to level 100, settlement levels 6 to 50 and the content template for each era. It merges three candidate designs and starts from the judges' favourite (design 0). It adds:
+This document covers the era unlock rule, the original upgrade ladders to level 100 (replaced by the Lv 10 rule below), settlement levels 6 to 50 and the content template for each era. It merges three candidate designs and starts from the judges' favourite (design 0). It adds:
 - the in-band settlement interpolation, grandfathering, top-5 checklist and Raise-all from design 2;
 - the crew and caps helper and the retained `ERA_CREW_COUNT` from design 1.
 
@@ -11,9 +11,11 @@ It fixes every problem the judges raised. I checked the numbers against the code
 > - Era n+1 opens when **era n's own** upgrades are all at Lv 10 (src/eras/gate.ts `gateIds`), plus settlement `5n` and the expansion pad. The era-2 gate is unchanged (Survival's ids to Lv 10).
 > - Each era from 2 on has, all bought at its own shop mat: Rigs, Trade, **Belts** (conveyors between its machines, src/eras/belts.ts), the hauler crew and **six crew roles** (Feeder, Shipper, Porter, Gatherer, Foreman, Clerk; config `ERA_ROLES`, `ERA_ROLE_NAMES`), plus one **machine level** per machine type, bought on a level pad beside the machine (src/eras/LevelPad.ts).
 > - Prices still scale per era: era n's ids are priced in band n (core/ladder.ts `priceBase`), re-solved with the pacing model so era 2 takes about 90 model minutes, each era longer than the last, era 10 about 160 (tests/pacing.test.ts).
-> - Mastery (levels past a hard cap) only comes from levels old saves already own.
+> - Mastery (levels past a hard cap) only comes from levels old saves already own; it is removed in 0.9.7 (decision 6).
 >
-> Sections A to C describe the original offset design; the code keeps it behind `GATE.mode = 'offset'` for tests.
+> **0.9.6 (1.0 plan decisions):** settlement rises freely up to 50 from era 2 on (decision 7), so the "five levels per era band, capped at 5 × age" rule in §B no longer caps it. The Raise-all and remote buying adopted from design 2 were never shipped (upgrades are hands-on). The catch-up grant (§F R14) is not needed under the literal rule. The ending is the 100 % completion award: every upgrade at Lv 10, every build, every quest, Settlement 50 and all ten eras; New Season moves to that card (decisions 3–5).
+>
+> Sections A to C describe the original offset design; the code keeps it behind `GATE.mode = 'offset'` for tests. Read them as history.
 
 ---
 

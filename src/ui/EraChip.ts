@@ -1,6 +1,7 @@
 /**
  * [0.9.0 Ages — UI] Two small HUD pieces about the growing city.
- * - EraChip: a compact chip "ERA III · IRON AGE" with the city rank and population under it. It appears once the climb
+ * - EraChip: a compact chip "ERA III · IRON AGE" with the settlement's name and city population under it (0.9.6: the
+ *   same name and number as the settlement badge; the old city rank only before Winterland's settlement starts). It appears once the climb
  *   opens (the Great Lodge: the new land shows, eras/gate.ts) or era 2 was reached and opens the map when tapped. Follows state.eras.age, 'era:unlocked'
  *   and 'city:changed' { population, rank }.
  *   0.9.0 climb (docs/EXPANSION.md §C): while the next era's gate is open the chip is the ONE next goal instead: a
@@ -16,7 +17,7 @@
 import type { GameContext } from '../core/types';
 import { CITY_RANKS, ERAS } from '../eras/data';
 import { climbOpen, gateCount, gateNote, nextGoal, padPaid } from '../eras/gate';
-import { masteryTotal } from '../core/demand';
+import { cityPopulation, masteryTotal, settlementLevel, settlementName } from '../core/demand';
 import { masteryMult } from '../core/ladder';
 import { cityStanding, eraChipVisible, eraRoman, formatPopulation, IncomeTicker, masteryTag, rankName } from './agesLogic';
 import { cubicOut, h, onTap, shield } from './dom';
@@ -155,7 +156,9 @@ export class EraChip {
       }
       return;
     }
-    const city = `${rankName(Math.min(this.rank, CITY_RANKS.length - 1))} · ${formatPopulation(this.population)} people`;
+    // 0.9.6 (F13): the same name and number as the settlement badge, never a second population ("Town · 146 people")
+    const level = settlementLevel(state);
+    const city = level > 5 ? `${settlementName(level)} · ${formatPopulation(cityPopulation(state))} people` : `${rankName(Math.min(this.rank, CITY_RANKS.length - 1))} · ${formatPopulation(this.population)} people`;
     if (city !== this.lastCity) {
       this.lastCity = city;
       this.cityEl.textContent = city;
