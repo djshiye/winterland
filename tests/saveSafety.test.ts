@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { GATE, SAVE, UPGRADES } from '../src/config';
 import { masteryOf } from '../src/core/demand';
 import { costAt } from '../src/core/ladder';
-import { MASTERY_KEEP, MASTERY_PAYOUT_SECONDS, masteryPayout, originalCost, refundPrice } from '../src/core/refund';
+import { legacyMastery, MASTERY_KEEP, MASTERY_PAYOUT_SECONDS, masteryPayout, originalCost, refundPrice } from '../src/core/refund';
 import { mergeState, migrateState, MIGRATIONS, newSeasonSave, parseSave, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
 import { BEFORE_KEY, backupKey, isBackupKey, keepUnreadable, listBackups, pushBackup, readBackup, RESCUE_KEY, snapshotBefore, unreadableKeys } from '../src/core/saveVault';
 import { createGameState, type GameState } from '../src/core/types';
@@ -184,7 +184,7 @@ describe('0.9.6 migration: levels past Lv 10 refunded, Mastery kept (decisions 2
       levels += Math.max(0, state.upgrades[def.id] - 10);
     }
     expect(levels).toBeGreaterThan(0);
-    const mastery = masteryOf(state);
+    const mastery = legacyMastery(state);
     const rate = save.salesRate > 0 ? save.salesRate : state.stats.moneyEarned / state.playTime;
     // 0.9.6-trade-merge (core/salesMerge.ts) runs on the clamped levels and adds its own Trade refund
     const clamped = Object.fromEntries(Object.entries(state.upgrades).map(([id, v]) => [id, Math.min(10, v)]));

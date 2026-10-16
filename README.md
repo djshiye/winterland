@@ -57,8 +57,8 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
    roll in for a minute or two (slow going and hungry shops, double buyers, or +25 % prices). From Town, the notice
    board by the village gate posts **delivery contracts**: sell so many loaves, chairs or toys within three minutes
    for a cash bonus (from the Frontier on, the contracts ask for the goods of the era you are in). A **Sled Dog** (Lumberjack tab) follows you and carries extra.
-10. **The finale:** at Winter City, build the Great Lodge for a celebration and a stats card. Play goes on after, or start a **New Season**. Everything resets, but every sale pays 25%
-   more for each season played. In the **Winterland** era the **Grand Market** waits on the square: 120 logs, $60,000
+10. **Survival complete:** at Winter City, build the Great Lodge for a celebration and a stats card: the Frontier
+   awaits. In the **Winterland** era the **Grand Market** waits on the square: 120 logs, $60,000
    and 20 toys from the toy factory, for a second celebration.
 11. **The Ages:** the Great Lodge opens the climb through nine more eras: Frontier, Iron Age, Steam Age, Industrial,
    Electric Age, Oil Age, Computer Age, Nuclear Power and the AI Era. **Each era levels its own things from Lv 1 to
@@ -76,6 +76,12 @@ npm run dev        # → http://localhost:5173  (also on your LAN: http://<this-
    **MANAGE** tile and tap **Demolish** (from the Frontier era on). The **Map** (T) fast-travels between the yard, the
    village, the town, the regions and the districts. From Settlement 20 you earn the **Founder's Scarf** (and a little
    more Renown).
+12. **The ending, 100 %:** the era chip always shows how much of Winterland you have done (★ 63 %) and the next missing
+   piece: every upgrade at Lv 10, every build and machine slot, every quest, Settlement 50 and all ten eras. Era 10's
+   last goal is **Winterland Complete**. At 100 % the fireworks go up, a gold trophy stands by the Great Lodge for good
+   and the stats page opens (time played, money earned, time per era, trophies). From that card you may start a
+   **New Season**: everything starts over, every sale pays 25 % more for each season, and your trophies and finished
+   seasons' stats stay.
 
 Along the way: **quests** (three short goals at a time with cash rewards), **VIP customers** who tip, **rush
 hours** when customers flood in, and a **day/night cycle** with glowing windows and northern lights.
@@ -85,7 +91,7 @@ mill earned while you were away. Settings (the gear) has three tabs: **Sound** (
 Effects and Music volume), **Display** (fullscreen or window mode, graphics quality — Low turns off shadows for slower
 computers, and the game switches to Low by itself once if it runs slowly — a resolution scale, a frame-rate cap, an
 FPS readout and day/night) and **Game** (vibration on phones, the controls, back up and restore the save as a file,
-New Season after the finale, and a reset).
+Stats & trophies, and a reset).
 
 A whole game takes the autoplay bot about 60–70 minutes (targets in [docs/DESIGN.md](docs/DESIGN.md)).
 

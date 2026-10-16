@@ -167,6 +167,8 @@ export type FlagId =
   | 'shopVisited'
   | 'finale'
   | 'grandMarket'
+  /** 0.9.7: this season reached 100 % (core/completion.ts): the Winterland Complete finale has played. */
+  | 'complete'
   | `reveal:${string}`
   | `seen:${string}`;
 
@@ -387,7 +389,39 @@ export interface GameState {
   migrations: Partial<Record<string, boolean>>;
   /** 0.9.6: what a migrated older save keeps. masteryMult: the Mastery bonus frozen when levels past 10 were refunded (1 = none). */
   legacy: { masteryMult: number };
+  /**
+   * 0.9.7: play time (s) when each era was reached this season, index = era (1 = 0, the start); −1 = not reached, or
+   * reached before 0.9.7 kept a record. Index MAX_ERA + 1 = the moment the season hit 100 %. The stats page's "time
+   * per era". Starts over with each season (core/completion.ts eraTimes).
+   */
+  eraAt: number[];
+  /** 0.9.7: lifetime trophies and finished seasons. Survives New Season (core/Save.ts newSeasonSave). */
+  trophies: TrophyState;
 }
+
+/** 0.9.7: one season played to 100 % (the stats page's past seasons). */
+export interface RunRecord {
+  /** Season number (0 = the first run). */
+  season: number;
+  playTime: number;
+  moneyEarned: number;
+  /** Seconds spent in era 1..10 (index = era; −1 = unknown, a save from before 0.9.7). */
+  eraSeconds: number[];
+}
+
+/** 0.9.7: lifetime trophies (how many times each was earned, across seasons) and the finished seasons. */
+export interface TrophyState {
+  /** The Great Lodge: Survival complete. */
+  lodge: number;
+  /** The Grand Market opened. */
+  market: number;
+  /** Winterland Complete: a season at 100 %. */
+  complete: number;
+  runs: RunRecord[];
+}
+
+/** Length of GameState.eraAt: eras 0..10 plus the 100 % moment (MAX_ERA + 2; literal so this file imports only types). */
+export const ERA_AT_LENGTH = 12;
 
 /** Must match LAYOUT.village.plots.length (kept literal so this file only imports types from config). */
 export const PLOT_COUNT = 8;
@@ -486,6 +520,8 @@ export function createGameState(): GameState {
     prestige: { season: 0 },
     migrations: {},
     legacy: { masteryMult: 1 },
+    eraAt: Array.from({ length: ERA_AT_LENGTH }, (_, n) => (n === 1 ? 0 : -1)),
+    trophies: { lodge: 0, market: 0, complete: 0, runs: [] },
     clock: 24, // DAYNIGHT.startAt × cycleSeconds (literal: this file imports only types from config)
     quests: {},
     town: {
@@ -636,8 +672,12 @@ export interface GameEvents {
   'helper:hired': { id: UpgradeId; position: THREE.Vector3 };
   /** Progression revealed something new that is not a pad ('shop', 'village', 'levelPad:harvester', 'greatLodge'…). */
   reveal: { what: string; position: THREE.Vector3 | null };
-  /** The Great Lodge is complete: celebration, then the stats card. */
+  /** The Great Lodge is complete: celebration, then the "Survival complete" card. */
   'finale:start': { position: THREE.Vector3 };
+  /** 0.9.7: the season reached 100 % (core/completionTracker.ts): the Winterland Complete finale, trophy and stats. */
+  'complete:start': { position: THREE.Vector3 };
+  /** 0.9.7: open the stats page (the era chip at 100 %, Settings → Stats & trophies). */
+  'stats:open': Record<string, never>;
   /** The welcome-back card's Collect was pressed (money already added). */
   'offline:collected': { amount: number };
   /** Settings → Reset progress → confirmed. Game wipes the save and reloads the page. */

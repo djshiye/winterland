@@ -1,0 +1,327 @@
+/* 0.9.7 the ending: the era chip's completion tag, the gate card's Completion bars, the Winterland Complete card and
+   stats page (ui/FinaleCard.ts) and the honest New Season lists (ui/SeasonConfirm.ts). Cream-on-night like the other
+   cards; gold for anything that counts towards 100 %. */
+
+/* ---- era chip: "★ 63%" ---------------------------------------------------------------------------------------- */
+
+.wl-erachip-pct {
+  margin-left: 2px;
+  padding: 1px 6px 2px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: #4a2a05;
+  background: linear-gradient(#ffe27a, #f2b52c);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.wl-erachip-pct:empty {
+  display: none;
+}
+
+.wl-erachip.is-ready .wl-erachip-pct {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.wl-erachip.is-complete {
+  background: linear-gradient(#ffd84a, #e8a21c);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 18px rgba(255, 216, 74, 0.55);
+}
+
+.wl-erachip.is-complete .wl-erachip-era,
+.wl-erachip.is-complete .wl-erachip-city {
+  color: #4a2a05;
+  text-shadow: none;
+}
+
+/* phones: the chip keeps its ring, count and the completion tag (the era name and goal line are hidden there) */
+@media (max-width: 699px) {
+  .wl-erachip-pct {
+    font-size: 12px;
+  }
+}
+
+/* ---- gate card: the Completion section ------------------------------------------------------------------------- */
+
+.wl-gate-completion {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.22);
+}
+
+.wl-gate-completion-head {
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffd84a;
+  letter-spacing: 0.02em;
+}
+
+/* ---- the Winterland Complete card and the stats page ------------------------------------------------------------- */
+
+.wl-finale.is-stats {
+  width: min(520px, 100%);
+}
+
+.wl-finale-stars.is-trophy {
+  height: 72px;
+}
+
+.wl-finale-stars.is-trophy svg,
+.wl-finale-stars.is-trophy svg:nth-child(2) {
+  width: 72px;
+  height: 72px;
+  filter: drop-shadow(0 4px 0 rgba(20, 30, 55, 0.45)) drop-shadow(0 0 14px rgba(255, 216, 74, 0.6));
+}
+
+.wl-finale-sub {
+  margin: -4px 4px 14px;
+  font-size: 15px;
+  line-height: 1.35;
+  opacity: 0.92;
+}
+
+.wl-finale-head {
+  margin: 4px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffd84a;
+  text-align: left;
+}
+
+.wl-finale-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.7;
+  text-align: left;
+}
+
+.wl-finale-progress {
+  margin-bottom: 12px;
+}
+
+.wl-finale-pct {
+  margin-bottom: 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffd84a;
+}
+
+.wl-finale-bar {
+  display: grid;
+  grid-template-columns: 84px 1fr 38px;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0;
+  font-size: 13px;
+  text-align: left;
+}
+
+.wl-finale-bar i {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.wl-finale-bar i b {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #8fd8ff, #5ee07a);
+}
+
+.wl-finale-bar.is-done i b {
+  background: linear-gradient(90deg, #ffe27a, #f2b52c);
+}
+
+.wl-finale-bar em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  opacity: 0.85;
+}
+
+.wl-finale-eras {
+  margin-bottom: 14px;
+}
+
+.wl-era-row {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 12px;
+  font-size: 14px;
+  text-align: left;
+}
+
+.wl-era-row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.wl-era-row b {
+  font-size: 13px;
+  color: #ffd84a;
+  letter-spacing: 0.05em;
+}
+
+.wl-era-row span small {
+  margin-left: 6px;
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.wl-era-row em {
+  font-style: normal;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wl-era-row.is-now em {
+  color: #5ee07a;
+}
+
+.wl-era-row.is-locked {
+  opacity: 0.4;
+}
+
+.wl-finale-trophies {
+  margin-bottom: 14px;
+}
+
+.wl-trophy-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.wl-trophy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px 6px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.wl-trophy.is-won {
+  opacity: 1;
+  filter: none;
+  background: rgba(255, 216, 74, 0.16);
+}
+
+.wl-trophy svg {
+  width: 30px;
+  height: 30px;
+}
+
+.wl-trophy.is-gold svg {
+  width: 36px;
+  height: 36px;
+}
+
+.wl-trophy span {
+  font-size: 11px;
+  line-height: 1.15;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wl-trophy b {
+  font-size: 15px;
+  color: #ffd84a;
+}
+
+.wl-finale-life {
+  margin-bottom: 14px;
+}
+
+.wl-life-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+
+.wl-life-line b {
+  font-size: 16px;
+  color: #fff;
+}
+
+/* ---- New Season: what starts over, what stays ---------------------------------------------------------------- */
+
+.wl-season-lists {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+  text-align: left;
+}
+
+.wl-season-list {
+  padding: 8px 10px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+
+.wl-season-list b {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wl-season-list ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.wl-season-list.is-reset {
+  background: rgba(255, 120, 100, 0.14);
+}
+
+.wl-season-list.is-reset b {
+  color: #ffb3a3;
+}
+
+.wl-season-list.is-keep {
+  background: rgba(94, 224, 122, 0.14);
+}
+
+.wl-season-list.is-keep b {
+  color: #8ff0a4;
+}
+
+@media (max-width: 420px) {
+  .wl-season-lists {
+    grid-template-columns: 1fr;
+  }
+  .wl-finale-bar {
+    grid-template-columns: 70px 1fr 34px;
+  }
+}
+
+@media (max-height: 520px) {
+  .wl-finale-stars.is-trophy {
+    display: none;
+  }
+  .wl-era-row {
+    padding: 3px 8px;
+    font-size: 13px;
+  }
+}

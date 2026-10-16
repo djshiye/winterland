@@ -5,7 +5,7 @@
 import { AMENITIES, AMENITY_IDS, BUSINESSES, DEMAND, ECONOMY, HAPPINESS, PRESTIGE, SETTLEMENT, UPGRADES, VILLAGE, type BusinessId, type DemandLevel, type ProductId } from '../config';
 import { CITY_BUILDINGS, DISTRICTS, INVEST_MAX_POSITIONS, MAX_ERA, REGIONS } from '../eras/data';
 import { cityTotals, type CityTotals } from '../city/rules';
-import { masteryMult, masteryPoints, valueAt } from './ladder';
+import { valueAt } from './ladder';
 import type { GameState } from './types';
 
 /** Buyer behaviour for the current village level. */
@@ -215,21 +215,12 @@ export function founderScarf(level: number): boolean {
 }
 
 /**
- * Mastery points (docs/EXPANSION.md §A1): one per level bought while an upgrade's effect already sat at its hard cap,
- * summed over every upgrade. 0 before the climb: no authored table reaches a cap (core/ladder.ts hardCapStored).
+ * 0.9.7: Mastery is gone from play (no level for sale reaches a hard cap under the Lv 10 rule). What is left is the
+ * bonus an older save keeps for good when core/refund.ts MASTERY_KEEP is 'multiplier' (state.legacy, frozen by the 0.9.6
+ * Lv 10 refund in core/Save.ts); 1 otherwise (the default pays it once as cash).
  */
-export function masteryTotal(state: Pick<GameState, 'upgrades'>): number {
-  let points = 0;
-  for (const d of Object.values(UPGRADES)) points += masteryPoints(d, state.upgrades[d.id] ?? 0);
-  return points;
-}
-
-/**
- * Mastery: the bounded, logarithmic multiplier of masteryTotal (exactly 1 with no points), or the bonus an older save
- * keeps for good (state.legacy, frozen by the 0.9.6 Lv 10 refund in core/Save.ts), whichever is higher.
- */
-export function masteryOf(state: Pick<GameState, 'upgrades'> & { legacy?: GameState['legacy'] }): number {
-  return Math.max(masteryMult(masteryTotal(state)), state.legacy?.masteryMult ?? 1);
+export function masteryOf(state: { legacy?: GameState['legacy'] }): number {
+  return Math.max(1, state.legacy?.masteryMult ?? 1);
 }
 
 /**

@@ -10,10 +10,11 @@
  * simply runs without saving. `?fresh` in the URL ignores (but does not delete) the save.
  */
 import { AMENITIES, AMENITY_IDS, BUSINESSES, CLIMB, CONTRACTS, DAYNIGHT, ECONOMY, GATE, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, SETTLEMENT, UPGRADES, VILLAGE, type BusinessId } from '../config';
-import { CARRY_KINDS, createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type CarryKind, type FlagId, type GameContext, type GameState, type InvestmentState, type ItemKind } from './types';
+import { CARRY_KINDS, createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type CarryKind, type FlagId, type GameContext, type GameState, type InvestmentState, type ItemKind, type RunRecord } from './types';
+import { cleanEraAt } from './completion';
 import { maxStored } from './ladder';
-import { MASTERY_KEEP, masteryPayout, refundPrice } from './refund';
-import { INVEST_POSITIONS_CAP, masteryOf } from './demand';
+import { legacyMastery, MASTERY_KEEP, masteryPayout, refundPrice } from './refund';
+import { INVEST_POSITIONS_CAP } from './demand';
 import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
 import { mergeTradeIntoSales } from './salesMerge';
 import { GAME_VERSION, isNewerVersion, parseVersion } from './version';
@@ -184,7 +185,20 @@ export function mergeState(target: GameState, saved: unknown): void {
       age: isNum(o.age) ? o.age : 0,
     }));
   }
+  // 0.9.7: finished seasons (open-ended, like the investments): copied here, sanitized later
+  const runs = isObj(saved) && isObj(saved.trophies) ? saved.trophies.runs : undefined;
+  if (Array.isArray(runs)) {
+    target.trophies.runs = runs.filter(isObj).slice(-RUNS_CAP).map((o) => ({
+      season: isNum(o.season) ? o.season : 0,
+      playTime: isNum(o.playTime) ? o.playTime : 0,
+      moneyEarned: isNum(o.moneyEarned) ? o.moneyEarned : 0,
+      eraSeconds: Array.isArray(o.eraSeconds) ? o.eraSeconds.map((x) => (isNum(x) ? x : -1)) : [],
+    }));
+  }
 }
+
+/** Finished seasons kept for the stats page (the oldest drop off past this). */
+export const RUNS_CAP = 50;
 
 function mergeInto(target: Record<string, unknown>, saved: unknown): void {
   if (!isObj(saved)) return;
@@ -342,13 +356,27 @@ export function sanitizeState(state: GameState): void {
   }
 
   state.prestige.season = int(state.prestige.season, 0, 1_000_000);
-  // 0.9.6: a frozen Mastery bonus is a price multiplier (core/ladder.ts masteryMult is bounded far below 10)
+  // 0.9.6: a frozen Mastery bonus is a price multiplier (core/refund.ts legacyMasteryMult is bounded far below 10)
   state.legacy.masteryMult = isNum(state.legacy.masteryMult) ? Math.max(1, Math.min(10, state.legacy.masteryMult)) : 1;
   for (const k of Object.keys(state.migrations)) if (state.migrations[k] !== true) delete state.migrations[k];
   const C = DAYNIGHT.cycleSeconds;
   if (!isNum(state.clock)) state.clock = 0;
   else if (state.clock < 0 || state.clock >= C) state.clock = ((state.clock % C) + C) % C; // in range: untouched (no float drift)
   state.playTime = nonNeg(state.playTime);
+  // 0.9.7: era timeline and lifetime trophies
+  state.eraAt = cleanEraAt(state.eraAt);
+  {
+    const t = state.trophies;
+    t.lodge = int(t.lodge, 0, 1_000_000);
+    t.market = int(t.market, 0, 1_000_000);
+    t.complete = int(t.complete, 0, 1_000_000);
+    t.runs = t.runs.slice(-RUNS_CAP).map((r): RunRecord => ({
+      season: int(r.season, 0, 1_000_000),
+      playTime: nonNeg(r.playTime),
+      moneyEarned: nonNeg(r.moneyEarned),
+      eraSeconds: Array.from({ length: MAX_ERA + 1 }, (_, n) => (isNum(r.eraSeconds[n]) && r.eraSeconds[n]! >= 0 ? r.eraSeconds[n]! : -1)),
+    }));
+  }
   for (const k of Object.keys(state.stats) as (keyof typeof state.stats)[]) state.stats[k] = nonNeg(state.stats[k]);
   for (const k of Object.keys(state.padPaid)) state.padPaid[k] = nonNeg(state.padPaid[k]);
 }
@@ -402,7 +430,7 @@ export const MIGRATIONS: readonly Migration[] = [
     id: '0.9.6-lv10-refund',
     run(state, report, ctx) {
       if (GATE.mode !== 'literal') return;
-      const mastery = masteryOf(state);
+      const mastery = legacyMastery(state);
       report.masteryHad = Math.max(report.masteryHad, mastery);
       if (MASTERY_KEEP === 'multiplier') {
         if (mastery > state.legacy.masteryMult) state.legacy.masteryMult = mastery;
@@ -431,6 +459,15 @@ export const MIGRATIONS: readonly Migration[] = [
       const r = mergeTradeIntoSales(state.upgrades as unknown as Record<string, number>, ctx.upgrades);
       report.refund = Math.min(Number.MAX_SAFE_INTEGER, report.refund + r.refund);
       report.tradeLevels += r.levels;
+    },
+  },
+  {
+    // 0.9.7 (decisions 3-5): trophies are lifetime and survive New Season. A save that already built the Great Lodge or
+    // opened the Grand Market has earned those two. Eras reached before this build kept no dates (eraAt stays −1).
+    id: '0.9.7-trophies',
+    run(state) {
+      if (state.flags.finale || state.village.greatLodge.tier >= 0) state.trophies.lodge = Math.max(1, state.trophies.lodge);
+      if (state.flags.grandMarket || state.town.grandMarket.tier >= 0) state.trophies.market = Math.max(1, state.trophies.market);
     },
   },
 ];
@@ -520,9 +557,12 @@ const EMPTY_WORLD: WorldSnapshot = {
 };
 
 /**
- * Prestige: the save that starts the next season after the finale. Everything resets except the season count
- * (+1, a permanent price bonus, PRESTIGE.bonusPerSeason) and the one-shot UI hints (`seen:*`, introDone: no intro
- * replay). Stats and play time start over too: reveal rules read them, and the finale card shows that season's run. Starting money PRESTIGE.startMoneyPerSeason × season.
+ * Prestige: the save that starts the next season after the 100 % finale (0.9.7: offered only on that card). Everything
+ * resets (ui/SeasonConfirm.ts SEASON_RESETS lists it for the player) except the season count (+1, a permanent price
+ * bonus, PRESTIGE.bonusPerSeason), the trophies and finished seasons (state.trophies: the stats page's lifetime numbers),
+ * applied migrations, a frozen Mastery bonus and the one-shot UI hints (`seen:*`, introDone: no intro replay). This
+ * season's stats and play time start over (reveal rules read them); the finished season is already in trophies.runs.
+ * Starting money PRESTIGE.startMoneyPerSeason × season.
  */
 export function newSeasonSave(prev: GameState, now: number): SaveData {
   const state = createGameState();
@@ -530,6 +570,7 @@ export function newSeasonSave(prev: GameState, now: number): SaveData {
   // 0.9.6: migrations stay applied and a frozen Mastery bonus is kept for good (it belongs to the player, not the run)
   state.migrations = { ...prev.migrations };
   state.legacy = { ...prev.legacy };
+  state.trophies = structuredClone(prev.trophies);
   for (const [flag, on] of Object.entries(prev.flags)) {
     if (on && (flag === 'introDone' || flag.startsWith('seen:'))) state.flags[flag as FlagId] = true;
   }

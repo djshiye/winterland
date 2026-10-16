@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DAYNIGHT, OFFLINE, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE } from '../src/config';
 import { salePrice } from '../src/core/demand';
-import { authoredMax, LEVEL_CAP } from '../src/core/ladder';
+import { authoredMax, LEGACY_LEVEL_CAP } from '../src/core/ladder';
 import { EventBus } from '../src/core/EventBus';
 import { legacyTradeDef } from '../src/core/salesMerge';
 import { refundPrice } from '../src/core/refund';
@@ -20,7 +20,9 @@ const fixture = (): SaveData => load('save-v1-town.json');
 /** Every real save captured from a released build: each must keep loading as the state grows. */
 const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json', 'save-v7-eras.json', 'save-v8-climb.json',
   // 0.9.6: one save written by each of 0.9.1-0.9.5 (tests/saveSafety.test.ts covers their migration)
-  'save-v9-0.9.1-era3.json', 'save-v9-0.9.2-era5.json', 'save-v9-0.9.3-era7.json', 'save-v9-0.9.4-era10-mastery.json', 'save-v9-0.9.5-era4-lv10.json'];
+  'save-v9-0.9.1-era3.json', 'save-v9-0.9.2-era5.json', 'save-v9-0.9.3-era7.json', 'save-v9-0.9.4-era10-mastery.json', 'save-v9-0.9.5-era4-lv10.json',
+  // 0.9.7: a 0.9.6 save (no trophies yet) and a 0.9.7 save in its second season (tests/completion.test.ts)
+  'save-v9-0.9.6-era10.json', 'save-v9-0.9.7-season2.json'];
 
 describe('0.9.6 Trade merged into the material sales upgrades (migration 0.9.6-trade-merge)', () => {
   const era = (n: number) => MATERIAL_KINDS.filter((k) => MATERIALS[k].era === n);
@@ -273,7 +275,7 @@ describe('sanitizeState', () => {
     expect(state.village.greatLodge.tier).toBe(0);
     expect(state.village.level).toBe(VILLAGE.levels.length - 1);
     expect(state.quarters.tier).toBe(QUARTERS.tiers.length - 1);
-    expect(state.upgrades.carry).toBe(LEVEL_CAP); // shown level 100, climb open or not (docs/EXPANSION.md §F)
+    expect(state.upgrades.carry).toBe(LEGACY_LEVEL_CAP); // shown level 100, climb open or not (docs/EXPANSION.md §F)
     expect(state.upgrades.speed).toBe(0);
     expect(state.upgrades.axe).toBe(2);
     // a maxed plot has nothing left to pay
