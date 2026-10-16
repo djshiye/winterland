@@ -10,7 +10,7 @@
 import { formatMoney } from '../ui/format';
 import type { ChooseOption, GameState } from '../core/types';
 import { DEMOLISH_MIN, DEMOLISH_SHARE, ERAS, MACHINES, MACHINE_PILES, MATERIALS, isMaterial, machinesOfEra, type ERect, type MachineDef } from './data';
-import type { XZ } from './layout';
+import { regionLayout, type XZ } from './layout';
 import type { ItemKind } from '../core/types';
 
 /** Local rectangle (u along the thing's X, v along its Z). */
@@ -81,6 +81,38 @@ export function machineFrame(w: number, d: number): MachineFrame {
   };
 }
 
+/** 0.9.5: an era machine's level pad (the tile its type's level is bought on), beside the body away from MANAGE. */
+export const LEVEL_PAD_SIZE = 1.6;
+/** Gap between the machine body and its level pad. */
+const LEVEL_PAD_GAP = 0.35;
+
+/** Local centre of the level pad of a machine whose body is `w` × `d`: beside its left side, flush with its front. */
+export function levelPadLocal(w: number, d: number): { u: number; v: number } {
+  return { u: -(w / 2 + LEVEL_PAD_GAP + LEVEL_PAD_SIZE / 2), v: d / 2 - LEVEL_PAD_SIZE / 2 };
+}
+
+/** Footprint every era machine model stays within (assets/eraMachines.ts: 4.8..5.2 × 4.4..5.0); used where no model exists. */
+export const MACHINE_NOMINAL = { w: 5.2, d: 5.0 } as const;
+
+/**
+ * Where the level pad of era machine `id` is (the first built machine of that type in its region carries it), and a spot
+ * just in front of it to stand on without paying; null while none is built.
+ */
+export function machinePadTarget(state: Pick<GameState, 'eras'>, id: string): { pad: XZ; size: number; x: number; z: number } | null {
+  const def = (MACHINES as Record<string, MachineDef | undefined>)[id];
+  if (!def) return null;
+  const slots = state.eras.regions[def.era]?.slots ?? [];
+  const i = slots.findIndex((sl) => sl.machine === id && sl.tier >= 0);
+  if (i < 0) return null;
+  const place = regionLayout(def.era).slots[i];
+  if (!place) return null;
+  const at = { x: place.x, z: place.z };
+  const l = levelPadLocal(MACHINE_NOMINAL.w, MACHINE_NOMINAL.d);
+  const pad = toWorld(at, place.yaw, l.u, l.v);
+  const stand = toWorld(at, place.yaw, l.u, l.v + LEVEL_PAD_SIZE + 0.4);
+  return { pad, size: LEVEL_PAD_SIZE, x: stand.x, z: stand.z };
+}
+
 /** Facilities of the front yard (depot, dock): body footprint, zones and the worker spot, in the facility's local frame. */
 export const DEPOT_FRAME = {
   body: { u0: -1.5, u1: 1.5, v0: -1.1, v1: 1.1 } as LRect,
@@ -142,8 +174,12 @@ export function chooseOptions(n: number): ChooseOption[] {
 }
 
 /** Rows of a machine's info card. `have` = what sits in its piles now. */
-export function machineStatRows(def: MachineDef, rigs: number, have: { input: Partial<Record<ItemKind, number>>; output: number }): { label: string; value: string }[] {
-  const rows = [{ label: 'Makes', value: `${def.batch} ${kindLabel(def.output)} per cycle` }, { label: 'Cycle', value: `${(def.cycle / Math.max(0.1, rigs)).toFixed(1)} s (Rigs ×${rigs.toFixed(2).replace(/\.?0+$/, '')})` }];
+export function machineStatRows(def: MachineDef, rigs: number, have: { input: Partial<Record<ItemKind, number>>; output: number }, level?: { shown: number; boost: number }): { label: string; value: string }[] {
+  const boost = level?.boost ?? 1;
+  const x = (v: number): string => v.toFixed(2).replace(/\.?0+$/, '');
+  const rows = [{ label: 'Makes', value: `${def.batch} ${kindLabel(def.output)} per cycle` }, { label: 'Cycle', value: `${(def.cycle / Math.max(0.1, rigs * boost)).toFixed(1)} s (Rigs ×${x(rigs)})` }];
+  // 0.9.5: the machine type's level (its level pad beside the first one built)
+  if (level) rows.push({ label: 'Level', value: `${level.shown > 0 ? `LV ${level.shown}` : 'Base'} · ×${x(boost)} speed` });
   if (def.inputs.length > 0) {
     rows.push({ label: 'Needs', value: def.inputs.map((i) => `${i.per} ${kindLabel(i.kind)}`).join(' + ') });
     rows.push({ label: 'Hopper', value: def.inputs.map((i) => `${have.input[i.kind] ?? 0}/${inputCap(def, i.kind)} ${kindLabel(i.kind)}`).join(', ') });

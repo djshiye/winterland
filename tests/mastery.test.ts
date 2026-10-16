@@ -91,7 +91,7 @@ describe('Mastery', () => {
     expect(masteryTotal(f)).toBe(want);
     expect(want).toBeGreaterThan(500);
     expect(masteryOf(f)).toBeGreaterThan(1.5);
-    expect(masteryOf(f)).toBeLessThan(2);
+    expect(masteryOf(f)).toBeLessThan(2.1); // 0.9.5: + every era's crew roles, belts and machine levels
   });
 
   it('multiplies Survival sales (salePrice), exports and orders (Market) and city income alike', () => {

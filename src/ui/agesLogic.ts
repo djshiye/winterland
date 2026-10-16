@@ -5,7 +5,8 @@
  */
 import { CITY_RANKS, ERA_NAMES, ERAS, MATERIALS, MAX_ERA, isMaterial, unlockCash } from '../eras/data';
 import type { TravelPoint } from '../eras/layout';
-import type { GameState, IncomeSource, ItemKind } from '../core/types';
+import type { GameState, IncomeSource, ItemKind, UpgradeId } from '../core/types';
+import { UPGRADES } from '../config';
 import { cityTotals, rankFor } from '../city/rules';
 import { formatMoney } from './format';
 import { romanNumeral } from '../world/env/eras';
@@ -120,11 +121,11 @@ export interface BandView {
  * One shop card's band view. `shown` is the shown level, `stored` the stored one and `base` the era offset (R4);
  * `hired` is false for a crew at stored 0; `need` is the next era's gate level for an id in that gate, else null.
  */
-export function bandView(shown: number, stored: number, base: number, hired: boolean, need: number | null): BandView {
+export function bandView(shown: number, stored: number, base: number, hired: boolean, need: number | null, unhired = 'Not hired'): BandView {
   const top = need ?? Math.max(BAND_PIPS, Math.ceil(shown / BAND_PIPS) * BAND_PIPS);
   const fill = Math.max(0, Math.min(BAND_PIPS, shown - (top - BAND_PIPS)));
   const below = need !== null && shown < need;
-  let text = hired ? `Lv ${shown}` : 'Not hired';
+  let text = hired ? `Lv ${shown}` : unhired;
   // R5: an era upgrade that just arrived at its offset says so (the tooltip explains; the tab dot still says "below")
   if (hired && stored === 0 && base > 0) text += ' \u00b7 era standard';
   else if (below) text += ` \u00b7 need ${need}`;
@@ -133,10 +134,10 @@ export function bandView(shown: number, stored: number, base: number, hired: boo
 }
 
 /** The checklist row's second line: the prereq, "pad LV 8 → LV 10 · $X" (R6) or "Lv 7 → 10 · $X in all". */
-export function gateRowLine(row: { shown: number | null; need: number; state: string; prereq?: string; costToNeed: number; where: string; padLabel?: string }): string {
+export function gateRowLine(row: { id?: string; shown: number | null; need: number; state: string; prereq?: string; costToNeed: number; where: string; padLabel?: string }): string {
   if (row.state === 'prereq') return row.prereq ?? '';
   if (row.where === 'pad') return `${row.padLabel ?? ''} \u00b7 ${formatMoney(row.costToNeed)}`;
-  const lv = row.shown === null ? 'Not hired' : `Lv ${row.shown}`;
+  const lv = row.shown === null ? (UPGRADES[row.id as UpgradeId]?.display === 'belt' ? 'Not built' : 'Not hired') : `Lv ${row.shown}`;
   return `${lv} \u2192 ${row.need} \u00b7 ${formatMoney(row.costToNeed)} in all`;
 }
 
