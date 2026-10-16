@@ -13,7 +13,10 @@
  *   Mastery (era-1 throughput past the tables is capped by its belts and buyers; only prices keep rising).
  * - Each reached region: its built machines as a steady flow (extractors feed the region's processors, inputs from
  *   other eras are imported at the order price), cycle = max(minCycle, cycle ÷ Rigs) like eras/Machine.ts; what is
- *   left over is exported at value × Trade × (1 − the steady supply pressure) × Renown × Mastery. Hauling is free.
+ *   left over is exported at value × the material's sales upgrade (0.9.6: Trade and Fine merged) × (1 − the steady
+ *   supply pressure) × Renown × Mastery. Hauling is free.
+ * - Investments are left out: from 0.9.6 the index fund and ventures grow per hour (an hour is at most × 1.1,
+ *   tests/market.test.ts) on capped deposits, so parked money adds a few percent at most.
  * - The city: rent + staffed business × happiness × City Hall × Renown × Mastery (city/rules.ts incomeSplit), plus
  *   each settlement level's gift pile (SETTLEMENT.giftSeconds of city income, a Charter + charterSeconds).
  *
@@ -126,9 +129,9 @@ function regionIncome(s: GameState, n: number, k: PacingKnobs): number {
     // supply pressure: each unit adds pressurePerUnit (raw half), decaying linearly; a smooth steady-state estimate
     const inflow = units * MARKET.pressurePerUnit * (m.grade === 'raw' ? 0.5 : 1);
     const pressure = Math.min(MARKET.pressureMax, (MARKET.pressureMax * inflow) / MARKET.pressureDecay);
-    // 0.9.5: the region market's buyers pay the export price × the material's Quality (eras/RegionMarket.ts); the dock
+    // 0.9.6: every counter pays the export price × the material's one sales upgrade (Trade and Fine merged); the dock
     // and stall keep up with the machines, so every unit sells there
-    sales += units * m.value * (1 - pressure) * value(s, `${ERAS[m.era]!.key}Trade`) * Math.max(1, value(s, `${kind}Quality`));
+    sales += units * m.value * (1 - pressure) * Math.max(1, value(s, `${kind}Quality`));
   }
   return sales - imports;
 }

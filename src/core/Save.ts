@@ -15,6 +15,7 @@ import { maxStored } from './ladder';
 import { MASTERY_KEEP, masteryPayout, refundPrice } from './refund';
 import { INVEST_POSITIONS_CAP, masteryOf } from './demand';
 import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
+import { mergeTradeIntoSales } from './salesMerge';
 import { GAME_VERSION, isNewerVersion, parseVersion } from './version';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
@@ -369,11 +370,15 @@ export interface MigrationReport {
   masteryHad: number;
   /** Dollars paid once for that bonus (MASTERY_KEEP 'cash'), on top of the refund. */
   masteryPayout: number;
+  /** Era Trade levels refunded when Trade merged into the material sales upgrades (their dollars are in `refund`). */
+  tradeLevels: number;
 }
 
 /** What a migration may know besides the state: the save's recent sales rate ($/s). */
 export interface MigrationContext {
   salesRate: number;
+  /** The save's raw upgrades record, before unknown (removed) ids were dropped. */
+  upgrades?: unknown;
 }
 
 export interface Migration {
@@ -417,11 +422,22 @@ export const MIGRATIONS: readonly Migration[] = [
       report.refund = Math.min(Number.MAX_SAFE_INTEGER, Math.floor(report.refund));
     },
   },
+  {
+    // Decision 9 (Dino, 2026-10-16): each era's Trade upgrade merged into its materials' Fine upgrades (one sales
+    // upgrade per material). Every material keeps max(Fine, Trade) up to Lv 10, and the Trade levels no material
+    // carries over are refunded at what they cost (core/salesMerge.ts). Runs after the Lv 10 refund, so Fine is ≤ 10.
+    id: '0.9.6-trade-merge',
+    run(state, report, ctx) {
+      const r = mergeTradeIntoSales(state.upgrades as unknown as Record<string, number>, ctx.upgrades);
+      report.refund = Math.min(Number.MAX_SAFE_INTEGER, report.refund + r.refund);
+      report.tradeLevels += r.levels;
+    },
+  },
 ];
 
 /** Apply every migration this save has not had yet (see MIGRATIONS). `fresh`: a new game, nothing to migrate. */
 export function migrateState(state: GameState, fresh: boolean, ctx: MigrationContext = { salesRate: 0 }, list: readonly Migration[] = MIGRATIONS): MigrationReport {
-  const report: MigrationReport = { applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0 };
+  const report: MigrationReport = { applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0, tradeLevels: 0 };
   for (const m of list) {
     if (state.migrations[m.id]) continue;
     if (!fresh) {
@@ -463,6 +479,13 @@ export class SalesMeter {
     ctx.events.on('sale', ({ buyer, amount: sale, tip }) => {
       if (buyer === 'jack') return; // a discard at Jack's cart is not a steady income
       const amount = sale + (tip ?? 0); // VIP tips are income too
+      this.times.push(ctx.time.elapsed);
+      this.amounts.push(amount);
+      this.sum += amount;
+    });
+    // 0.9.6 (CODE_AUDIT P2-15): city rent and business income are steady income too (trading and interest are not)
+    ctx.events.on('income', ({ source, amount }) => {
+      if (source !== 'rent' && source !== 'business') return;
       this.times.push(ctx.time.elapsed);
       this.amounts.push(amount);
       this.sum += amount;

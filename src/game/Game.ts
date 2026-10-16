@@ -215,7 +215,7 @@ export class Game {
       mergeState(state, save.state);
       sanitizeState(state);
     }
-    const migration = migrateState(state, !save, { salesRate: save?.salesRate ?? 0 });
+    const migration = migrateState(state, !save, { salesRate: save?.salesRate ?? 0, upgrades: (save?.state as { upgrades?: unknown } | undefined)?.upgrades });
     const startMoney = save ? Math.min(Number.MAX_SAFE_INTEGER, save.money + migration.refund + migration.masteryPayout) : ECONOMY.startMoney;
     const economy = new Economy(events, state, startMoney);
     const upgrades = new Upgrades(state, economy, events);
@@ -268,6 +268,7 @@ export class Game {
     if (save) this.level.restoreWorld(save.world);
     new GateTracker(ctx); // 0.9.0 climb: computed 'gate:progress' (seeded from the loaded world, so a load is silent)
     this.sales = new SalesMeter(ctx, save?.salesRate ?? 0);
+    ctx.market.setSalesRate(() => this.sales.rate); // 0.9.6: investment caps follow the factories' income
 
     input.onFirstGesture(() => ctx.audio.unlock());
     cameraRig.follow(ctx.player.object);
@@ -683,11 +684,12 @@ export class Game {
 
 /** The one-off "welcome to the new rule" card for a save whose levels past 10 were refunded (null when none were). */
 function refundNotice(m: MigrationReport): Notice | null {
-  if (m.refundedLevels <= 0) return null;
-  const lines = [
-    'Every upgrade now tops out at Lv 10, in every era.',
-    `The ${m.refundedLevels.toLocaleString('en-US')} level${m.refundedLevels === 1 ? '' : 's'} you had bought past Lv 10 ${m.refundedLevels === 1 ? 'is' : 'are'} refunded in full:`,
-  ];
+  if (m.refundedLevels <= 0 && m.tradeLevels <= 0) return null;
+  const lines = ['Every upgrade now tops out at Lv 10, in every era.'];
+  if (m.refundedLevels > 0) lines.push(`The ${m.refundedLevels.toLocaleString('en-US')} level${m.refundedLevels === 1 ? '' : 's'} you had bought past Lv 10 ${m.refundedLevels === 1 ? 'is' : 'are'} refunded in full.`);
+  // 0.9.6 decision 9: Trade merged into each material's Fine upgrade (core/salesMerge.ts)
+  if (m.tradeLevels > 0) lines.push(`Trade and Fine are now one upgrade per material. Each kept your best level, and the ${m.tradeLevels.toLocaleString('en-US')} Trade level${m.tradeLevels === 1 ? '' : 's'} it no longer needs ${m.tradeLevels === 1 ? 'is' : 'are'} refunded in full.`);
+  lines.push('Your refund:');
   const n: Notice = { icon: 'coin', title: 'Welcome to the new level rule', lines, amount: m.refund + m.masteryPayout, buttons: [{ label: 'Lovely!' }] };
   const pct = Math.round((m.masteryHad - 1) * 100);
   if (m.masteryPayout > 0) {

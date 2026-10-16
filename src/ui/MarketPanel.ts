@@ -465,12 +465,12 @@ export class MarketPanel {
     return card.picked >= INVEST.venture.era && card.picked <= age ? card.picked : age;
   }
 
-  /** Dollars the chosen chip would invest now (never below the product's minimum; bonds never above the room left). */
+  /** Dollars the chosen chip would invest now (never below the product's minimum, never above the product's room left). */
   private amountFor(card: ProductCard): number {
     const def = INVEST[card.id];
     const money = this.ctx.economy.money;
     let amount = card.pick === 'min' ? def.min : Math.max(def.min, nice((money * card.pick) / 100));
-    if (card.id === 'bond') amount = Math.min(amount, this.ctx.market.bondRoom());
+    amount = Math.min(amount, this.ctx.market.room(card.id));
     return Math.min(amount, Math.floor(money));
   }
 
@@ -593,7 +593,8 @@ export class MarketPanel {
       const amount = this.amountFor(c);
       let why = '';
       if (full) why = `All ${max} positions are open`;
-      else if (amount < def.min) why = c.id === 'bond' && economy.money >= def.min ? `Bonds are capped at ${formatMoney(market.bondRoom() + market.bondTotal())} (half your net worth)` : `Needs at least ${formatMoney(def.min)}`;
+      else if (amount < def.min && market.cappedBySales(c.id) && market.capOf(c.id) < def.min) why = 'Room to invest grows with your sales';
+      else if (amount < def.min) why = economy.money >= def.min ? `Capped at ${formatMoney(Math.floor(market.capOf(c.id)))} (${market.cappedBySales(c.id) ? `${def.capMinutes} minutes of your sales` : `${Math.round(def.cap * 100)}% of your net worth`})` : `Needs at least ${formatMoney(def.min)}`;
       put(c.btn, `Invest<small>${formatMoney(amount)}</small>`);
       c.btn.disabled = why !== '';
       put(c.hint, why || this.productNote(c.id));
@@ -604,8 +605,9 @@ export class MarketPanel {
 
   private productNote(id: InvestProductId): string {
     if (id === 'bond') return `Pays ${pct(this.ctx.market.bondPayout() - 1)} after ${formatDuration(INVEST.bond.lock ?? 0)}`;
-    if (id === 'index') return `Drifts about ${pct(INVEST.index.rate)} a minute`;
-    return `Drifts about ${pct(INVEST.venture.rate)} a minute, swings hard`;
+    const tenMin = (r: number): string => pct((1 + r) ** (1 / 6) - 1);
+    if (id === 'index') return `About ${tenMin(INVEST.index.rate)} every 10 minutes, up to ×${INVEST.index.top ?? 1}, no lock`;
+    return `About ${tenMin(INVEST.venture.rate)} every 10 minutes, up to ×${INVEST.venture.top ?? 1}, can dip hard`;
   }
 
   private refreshPositions(): void {

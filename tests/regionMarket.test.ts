@@ -62,9 +62,10 @@ describe('market upgrades', () => {
       for (const id of [`${key}Dock`, `${key}Stall`] as const) {
         const def = UPGRADES[id];
         expect(def).toMatchObject({ group: 'sales', era: n, display: 'boost', requires: { era: n } });
-        expect(def.values).toHaveLength(10);
+        expect(def.values).toHaveLength(11);
         expect(valueAt(def, 0)).toBe(1);
         expect(valueAt(def, 9)).toBe(3);
+        expect(valueAt(def, 10)).toBe(3.5);
       }
     }
   });
@@ -74,7 +75,7 @@ describe('market upgrades', () => {
       const def = UPGRADES[`${kind}Quality`];
       expect(def).toMatchObject({ group: 'sales', era: MATERIALS[kind].era, display: 'mult' });
       expect(def.values[0]).toBe(1);
-      expect(def.values).toHaveLength(10);
+      expect(def.values).toHaveLength(11);
       for (let i = 1; i < def.values.length; i++) expect(def.values[i]!).toBeGreaterThan(def.values[i - 1]!);
     }
     expect(UPGRADES.plankQuality.era).toBeUndefined();

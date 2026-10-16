@@ -178,7 +178,7 @@ describe('Upgrades on the ladder', () => {
     const d = UPGRADES.plankQuality;
     s.upgrades.plankQuality = authoredMax(d) + 5;
     expect(productMult(s, 'plank')).toBeCloseTo(valueAt(d, authoredMax(d) + 5), 9);
-    expect(productMult(s, 'plank')).toBeCloseTo(2.5, 9);
+    expect(productMult(s, 'plank')).toBeCloseTo(4.5, 9); // 0.9.6: +0.5 a level past the table
   });
 });
 
@@ -188,11 +188,12 @@ describe('broker past its table', () => {
     const events = new EventBus<GameEvents>();
     const market = new Market({ events, state, economy, upgrades: up } as unknown as GameContext);
     const d = UPGRADES.broker;
-    up.setLevel('broker', authoredMax(d));
+    // 0.9.6: Lv 10 is authored (4.2) but bonds still read at most bondBrokerMax, the 0.9.5 top (3.5)
+    up.setLevel('broker', authoredMax(d) - 1);
     const top = market.bondPayout();
-    expect(top).toBeCloseTo(1 + INVEST.bond.rate * Math.sqrt(d.values[authoredMax(d)]!), 12);
+    expect(top).toBeCloseTo(1 + INVEST.bond.rate * Math.sqrt(CLIMB.bondBrokerMax), 12);
     const spread = market.spread();
-    up.setLevel('broker', authoredMax(d) + 20);
+    up.setLevel('broker', authoredMax(d));
     expect(up.value('broker')).toBeGreaterThan(CLIMB.bondBrokerMax);
     expect(market.bondPayout()).toBe(top);
     expect(market.spread()).toBeLessThan(spread);
@@ -239,12 +240,12 @@ describe('Save clamp', () => {
   it('offset mode: keeps levels bought past the authored max, climb open or not', () => {
     OFFSET();
     const state = createGameState();
-    mergeState(state, { upgrades: { carry: 17, frontierRigs: 40, aiTrade: 50, speed: 1e6 } });
+    mergeState(state, { upgrades: { carry: 17, frontierRigs: 40, aiRigs: 50, speed: 1e6 } });
     sanitizeState(state);
     expect(state.upgrades.carry).toBe(17);
     expect(state.upgrades.frontierRigs).toBe(40);
-    expect(state.upgrades.aiTrade).toBe(LEVEL_CAP - 90);
+    expect(state.upgrades.aiRigs).toBe(LEVEL_CAP - 90);
     expect(state.upgrades.speed).toBe(LEVEL_CAP);
-    expect(shown(UPGRADES.aiTrade, state.upgrades.aiTrade)).toBe(LEVEL_CAP);
+    expect(shown(UPGRADES.aiRigs, state.upgrades.aiRigs)).toBe(LEVEL_CAP);
   });
 });
