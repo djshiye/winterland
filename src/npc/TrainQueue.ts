@@ -226,7 +226,7 @@ export class TrainQueue {
     this.mode = 'idle';
     // next train: gap read live from the village level
     const gap = demandOf(this.ctx.state).trainGap;
-    this.timer = randRange(gap[0], gap[1]);
+    this.timer = randRange(gap[0], gap[1]) / this.dock(); // 0.9.2: Rail Platform
   }
 
   private arrived(): void {
@@ -237,6 +237,11 @@ export class TrainQueue {
     this.ctx.tweens.popIn(this.bubble!.sprite);
     this.model!.root.updateMatrixWorld();
     this.honk(1);
+  }
+
+  /** 0.9.2: the Rail Platform upgrade's value (×1 at level 0): trains come that much more often, load up to 3× as fast. */
+  private dock(): number {
+    return Math.max(1, this.ctx.upgrades.value('railDock'));
   }
 
   // --- loading + payment -------------------------------------------------------------------------
@@ -251,7 +256,7 @@ export class TrainQueue {
     this.takeTimer -= dt;
     const pile = this.opts.counter.pile;
     if (this.takeTimer <= 0 && cargo.total < this.want && pile.count('log') > 0) {
-      this.takeTimer = TIMING.npcTakeInterval;
+      this.takeTimer = TIMING.npcTakeInterval / Math.min(3, this.dock());
       transferOne(this.ctx, pile, cargo, ['log'], { duration: 0.28, arcHeight: 1.7 });
     }
     if (have >= this.want) this.pay();

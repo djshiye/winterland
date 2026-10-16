@@ -87,7 +87,7 @@ export class TruckLoader {
     const gate = (): boolean => {
       if (!to.canAccept('log')) return false;
       // keep every log on the belt matched by a free slot at the counter
-      return !pile || pile.capacity - pile.total > this.belt.load;
+      return !pile || pile.room - pile.total > this.belt.load;
     };
     this.belt = new Conveyor(ctx, {
       id: 'conveyor:truck',

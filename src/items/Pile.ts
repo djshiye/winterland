@@ -34,6 +34,8 @@ export interface PileOptions {
   overflowMerge?: boolean;
   /** Hide covered interior items (default: only piles placed straight in the world). Pass true for a static parent. */
   occlude?: boolean;
+  /** 0.9.2: live room limit below the grid's capacity (the dock upgrades grow a counter's room). Read on every check. */
+  limit?: () => number;
 }
 
 const KIND_INDEX = { log: 0, crate: 1, cash: 2, plank: 3, furniture: 4, wheat: 5, bread: 6, meat: 7, sausage: 8, toy: 9, ...Object.fromEntries(MATERIAL_KINDS.map((k, i) => [k, 10 + i])) } as Record<ItemKind, number>;
@@ -100,7 +102,7 @@ export class Pile implements ItemHolder {
   // --- ItemHolder -----------------------------------------------------------
   canAccept(kind: ItemKind): boolean {
     if (!this.opts.accepts.includes(kind)) return false;
-    if (this.landedTotal + this.reservedTotal < this.capacity) return true;
+    if (this.landedTotal + this.reservedTotal < this.room) return true;
     return !!this.opts.overflowMerge && kind === 'cash';
   }
 
@@ -201,7 +203,12 @@ export class Pile implements ItemHolder {
   }
 
   isFull(): boolean {
-    return this.landedTotal + this.reservedTotal >= this.capacity;
+    return this.landedTotal + this.reservedTotal >= this.room;
+  }
+
+  /** Items the pile may hold right now: the grid's capacity, or less while a `limit` is set. */
+  get room(): number {
+    return this.opts.limit ? Math.max(0, Math.min(this.capacity, Math.floor(this.opts.limit()))) : this.capacity;
   }
 
   /** True when nothing has landed (nothing can be taken). */

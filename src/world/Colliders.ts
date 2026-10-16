@@ -159,6 +159,44 @@ export class ColliderWorld {
     this.clampToBounds(pos, radius);
   }
 
+  /**
+   * True if the circle overlaps an enabled obstacle whose tag passes `only` (ignores bounds). The player's steering
+   * assist uses it to ask "is the way ahead blocked by decor I could walk around?".
+   */
+  overlapsWhere(x: number, z: number, radius: number, only: (tag: string) => boolean): boolean {
+    const list = this.colliders;
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i]!;
+      if (!c.enabled || !only(c.tag)) continue;
+      if (c.kind === 0) {
+        const cx = x < c.minX ? c.minX : x > c.maxX ? c.maxX : x;
+        const cz = z < c.minZ ? c.minZ : z > c.maxZ ? c.maxZ : z;
+        const dx = x - cx;
+        const dz = z - cz;
+        if (dx * dx + dz * dz < radius * radius) return true;
+      } else {
+        const dx = x - c.x;
+        const dz = z - c.z;
+        const min = c.r + radius;
+        if (dx * dx + dz * dz < min * min) return true;
+      }
+    }
+    return false;
+  }
+
+  /** True if a circle of `radius` centred at (x, z) stands on walkable ground (inside the bounds, clear of every obstacle). */
+  isFree(x: number, z: number, radius: number): boolean {
+    return !this.overlaps(x, z, radius) && this.inBounds(x, z, radius);
+  }
+
+  /** True if a circle of `radius` centred at (x, z) lies inside the walkable bounds (obstacles ignored). */
+  inBounds(x: number, z: number, radius: number): boolean {
+    const b = this.bounds;
+    if (x >= b.minX + radius && x <= b.maxX - radius && z >= b.minZ + radius && z <= b.maxZ - radius) return true;
+    for (const r of this.extra) if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
+    return false;
+  }
+
   /** True if the circle overlaps any enabled obstacle (ignores bounds). */
   overlaps(x: number, z: number, radius: number): boolean {
     const list = this.colliders;

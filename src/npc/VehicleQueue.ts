@@ -58,6 +58,11 @@ export interface VehicleQueueConfig {
   slotU: (index: number) => number;
   /** Seconds between two loaded units. */
   takeInterval: number;
+  /**
+   * 0.9.2: the dock upgrade's value (×1 at level 0). Vehicles come `boost`× as often and load up to 3× as fast, so a
+   * busy yard isn't left waiting on its customers.
+   */
+  boost?: () => number;
   accel: number;
   decel: number;
   variants: number;
@@ -128,6 +133,11 @@ export abstract class VehicleQueue {
     this.pools = Array.from({ length: cfg.variants }, () => []);
   }
 
+  /** The dock upgrade's multiplier (1 without one). */
+  private boost(): number {
+    return Math.max(1, this.cfg.boost?.() ?? 1);
+  }
+
   /** Vehicles currently queued (including the one loading). */
   get waiting(): number {
     return this.queue.length;
@@ -170,7 +180,7 @@ export abstract class VehicleQueue {
       return;
     }
     const dm = this.cfg.demand(demandOf(this.ctx.state));
-    this.spawnTimer = randRange(dm.gap[0], dm.gap[1]) / (this.cfg.rushScaled ? this.ctx.rush.spawnMult : 1);
+    this.spawnTimer = randRange(dm.gap[0], dm.gap[1]) / (this.cfg.rushScaled ? this.ctx.rush.spawnMult : 1) / this.boost();
     const variant = this.spawned++ % this.cfg.variants;
     let v = this.pools[variant]!.pop();
     if (!v) v = new Vehicle(this.ctx, this.buildParts(variant), variant, `${this.cfg.idPrefix}:${this.spawned}`, this.cfg);
@@ -257,7 +267,7 @@ export abstract class VehicleQueue {
     }
     v.takeTimer -= dt;
     if (v.takeTimer <= 0 && v.cargo.total < v.want && this.counter.pile.count(cfg.kind) > 0) {
-      v.takeTimer = cfg.takeInterval;
+      v.takeTimer = cfg.takeInterval / Math.min(3, this.boost());
       transferOne(this.ctx, this.counter.pile, v.cargo, [cfg.kind], { duration: 0.28, arcHeight: 1.7 });
     }
     if (have >= v.want) this.pay(v);

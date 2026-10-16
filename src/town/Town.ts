@@ -412,6 +412,7 @@ export class Town {
     this.root.visible = true;
     ctx.environment.openTownGate(instant);
     for (const r of T.walk) ctx.colliders.addBounds(r);
+    ctx.colliders.addBounds(T.playerWalk); // 0.9.2: up to the lot fronts, not just the square
     ctx.colliders.addBounds(this.market.frame.walk); // the Grand Market's pad lies beyond the square
     for (const L of this.lots) {
       const st = ctx.state.town.lots[L.index]!;

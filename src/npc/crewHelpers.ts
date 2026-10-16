@@ -694,7 +694,7 @@ export class LogHauler extends Helper {
   private fill(d: HaulDest): CounterFill | null {
     const c = d === 'truck' ? this.level.truckCounter : this.level.walkInCounter;
     if (!c) return null;
-    return { room: c.input.canAccept('log'), free: Math.max(0, c.pile.capacity - c.pile.total) / c.pile.capacity };
+    return { room: c.input.canAccept('log'), free: Math.max(0, c.pile.room - c.pile.total) / Math.max(1, c.pile.room) };
   }
 
   /** By the wood priority (see woodDest): the truck counter or the walk-in counter, whichever has room. */

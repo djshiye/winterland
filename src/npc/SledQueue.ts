@@ -210,7 +210,7 @@ export class SledQueue {
     this.mode = 'idle';
     // next sled: gap read live from the village level (same semantics as TrainQueue: counted from the departure)
     const gap = demandOf(this.ctx.state).sledGap;
-    this.timer = randRange(gap[0], gap[1]);
+    this.timer = randRange(gap[0], gap[1]) / this.dock(); // 0.9.2: Sled Dock
   }
 
   private arrived(): void {
@@ -227,6 +227,11 @@ export class SledQueue {
     this.bubbleTimer = 0.4;
   }
 
+  /** 0.9.2: the Sled Dock upgrade's value (×1 at level 0): sleds come that much more often, load up to 3× as fast. */
+  private dock(): number {
+    return Math.max(1, this.ctx.upgrades.value('sledDock'));
+  }
+
   // --- loading + payment -------------------------------------------------------------------------
   private load(dt: number): void {
     this.driveTo(this.track.sStop, dt);
@@ -239,7 +244,7 @@ export class SledQueue {
     this.takeTimer -= dt;
     const pile = this.opts.counter.pile;
     if (this.takeTimer <= 0 && cargo.total < this.want && pile.count('furniture') > 0) {
-      this.takeTimer = TIMING.npcTakeInterval;
+      this.takeTimer = TIMING.npcTakeInterval / Math.min(3, this.dock());
       transferOne(this.ctx, pile, cargo, ['furniture'], { duration: 0.3, arcHeight: 1.6 });
     }
     if (have >= this.want) this.pay();

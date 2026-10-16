@@ -137,6 +137,11 @@ export class CustomerQueue {
     }
   }
 
+  /** 0.9.2: the Shop Counter upgrade's value (×1 at level 0). */
+  private dock(): number {
+    return Math.max(1, this.ctx.upgrades.value('shopDock'));
+  }
+
   // --- spawning -------------------------------------------------------------
   private spawnStep(dt: number): void {
     this.spawnTimer -= dt;
@@ -149,7 +154,8 @@ export class CustomerQueue {
       return;
     }
     // rush hour: gaps shrink by rush.spawnMult (read live, 1 outside a rush)
-    this.spawnTimer = randRange(dm.customerGap[0], dm.customerGap[1]) / rush.spawnMult;
+    // 0.9.2 Shop Counter: customers come `dock`× as often
+    this.spawnTimer = randRange(dm.customerGap[0], dm.customerGap[1]) / rush.spawnMult / this.dock();
     this.spawn(dm.customerWant, dm.vipChance > 0 && Math.random() < dm.vipChance);
   }
 
@@ -234,7 +240,7 @@ export class CustomerQueue {
 
     c.takeTimer -= dt;
     if (c.takeTimer <= 0 && c.stack.size < c.want && counter.pile.count(counter.displayKind) > 0) {
-      c.takeTimer = TIMING.npcTakeInterval;
+      c.takeTimer = TIMING.npcTakeInterval / Math.min(3, this.dock());
       if (transferOne(this.ctx, counter.pile, c.stack, [counter.displayKind])) c.rig.setCarrying(true);
     }
 

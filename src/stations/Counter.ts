@@ -39,6 +39,8 @@ export interface CounterOptions {
   display?: ItemKind;
   grid: PileGrid;
   playerZone: Rect;
+  /** 0.9.2: live room on the table (the dock upgrades); the grid is sized for the most it can reach. */
+  limit?: () => number;
 }
 
 export class Counter {
@@ -72,6 +74,7 @@ export class Counter {
       parent: this.object,
       occlude: true,
       grid: opts.grid,
+      limit: opts.limit,
     });
     this.input =
       this.displayKind === opts.accepts
