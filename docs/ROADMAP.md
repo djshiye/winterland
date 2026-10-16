@@ -6,7 +6,10 @@ the artifact republish are the owner's release steps).**
   each (machine slots, export depot, import dock, era crew), 22 era machines and 18 materials, Jack's swap cart, the
   market (prices, trading, orders, bonds, an index fund, ventures), pay-to-demolish, nine city districts with a
   skyline, and the climb: ladders to Lv 100, the era gate (every owned upgrade at Lv 10·(N−1) and settlement
-  5·(N−1)), settlement levels 6–50 with Renown and gifts, Mastery, the Steward and the GateCard.
+  5·(N−1)), settlement levels 6–50 with Renown and gifts, Mastery, the Founder's Scarf and the GateCard checklist.
+- **Upgrades are hands-on: stand on pads.** (Owner decision.) Every level is bought in person, on a level pad or a shop
+  mat, one at a time. No auto-buyer (the Steward is gone), no Raise all, no Buy ×10 and no buying from the checklist
+  or from afar; the GateCard's Go takes the player to the pad or mat. Keep it that way in every later release.
 - The "make it a game" list is done, plus the village and the Great Lodge finale.
 - **Waves 6–7 are done:**
   - longer upgrade ladders and the Sales tab;
@@ -181,4 +184,6 @@ Kept for reference. Deviations: the shop is one doormat that opens a panel (not 
 - **Saves:** `SAVE.version` unchanged, state additive and sanitized, every fixture in `tests/fixtures/` loads.
 - **No bot runs** (`scripts/balance.mjs`, the full `playtest-bot.js`) unless Dino asks.
 - **Cozy and ADHD-friendly:** one clear next goal, short sessions pay off, nothing punishing.
+- **Upgrades are hands-on: stand on pads.** Every level is bought in person on a level pad or a shop mat, one at a time.
+  No auto-buyers, no Raise all / Buy ×10, no buying from a checklist or from afar (Dino's decision, 0.9.0).
 - **The plank flow is unconfirmed.** Logs turning into planks on the walk-in counter is an interpretation of the brief. Confirm it or change it.

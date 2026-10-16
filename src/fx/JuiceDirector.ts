@@ -33,7 +33,7 @@
  *   work now" toast. sale from a 'train' → the usual sale sound / popup plus a train whistle (rate-limited in Audio).
  *
  * 0.9.0 climb: gate:progress → a tick per finished row, a toast every 5 rows, confetti every 10 %, the fanfare and a camera
- * look at the expansion pad when the gate is met; a batch 'upgrade:bought' (Buy ×10, Raise all) gets no per-level juice.
+ * look at the expansion pad when the gate is met.
  *
  * Wave 8: quest:done → 'quest' chime, "Quest complete!" toast and a coin burst flying to the money pill (HUD.coinBurst);
  * rush:start → service bell; sale with vip → gold "+$tip TIP!" popup (floatText) + sparkle; night:start / day:start →
@@ -192,7 +192,6 @@ export class JuiceDirector {
     // ------------------------------------------------------------------------------------------------
 
     ev.on('upgrade:bought', (e) => {
-      if (e.batch) return; // one press of Buy ×10 / Raise all: the press plays one sound, the gate ticks its rows
       const crewHire = UPGRADES[e.id].group === 'crew' && e.level === 1;
       const at = e.position ? this.tmp2.copy(e.position) : this.playerSpot(this.tmp2);
       ctx.audio.play('upgrade');

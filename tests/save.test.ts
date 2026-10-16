@@ -316,7 +316,10 @@ describe('v7 eras save fixture', () => {
   });
 });
 
-/** 0.9.0 climb: the Great Lodge built, levels past the authored tables, settlement 8, the Steward on, a half-paid era-3 pad. */
+/**
+ * 0.9.0 climb: the Great Lodge built, levels past the authored tables, settlement 8, a half-paid era-3 pad. Saved while
+ * the Steward auto-buyer existed (eras.steward true): the field is dropped on load (upgrades are hands-on).
+ */
 describe('v8 climb save fixture', () => {
   it('restores the climb untouched by sanitizeState', () => {
     const save = load('save-v8-climb.json');
@@ -328,7 +331,8 @@ describe('v8 climb save fixture', () => {
     expect(state.village.greatLodge.tier).toBeGreaterThanOrEqual(0);
     expect(state.eras.age).toBe(2);
     expect(state.eras.settlement).toBe(8);
-    expect(state.eras.steward).toBe(true);
+    expect((save.state.eras as unknown as Record<string, unknown>).steward).toBe(true);
+    expect('steward' in state.eras).toBe(false);
     expect(state.eras.regions[3]).toMatchObject({ unlocked: false, cash: 2_250_000, extra: 17 });
     expect(state.upgrades.carry).toBe(15);
     expect(state.upgrades.frontierRigs).toBe(5);

@@ -4,8 +4,8 @@
  *
  * - Marked dirty by 'upgrade:bought', 'settlement:changed', 'machine:built', 'pad:unlocked', 'quarters:built',
  *   'village:changed' (the Great Lodge opens the climb) and 'era:unlocked' (the next gate starts).
- * - update() re-counts once per frame at most (gateCount, no prices), so a Raise all that buys forty levels in one
- *   press is ONE event with `gained` = the rows it finished.
+ * - update() re-counts once per frame at most (gateCount, no prices), so a frame that finishes several rows (a city
+ *   build that also meets the settlement, a debug jump) is ONE event with `gained` = the rows it finished.
  * - Emits only on a change of the counts, and only once the climb is open with a next era to reach. A new era resets
  *   the baseline without an event (its rows start from wherever the upgrades already are).
  */

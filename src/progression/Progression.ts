@@ -40,6 +40,8 @@ import type { Level } from '../level/Level';
 import { DISTRICTS, ERAS, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
 import { climbOpen, nextGoal } from '../eras/gate';
 import { expansionOffered, regionLayout } from '../eras/layout';
+import { MAT_SIZE } from '../eras/rules';
+import { introEra } from '../core/ladder';
 import { MATERIAL_KINDS } from '../core/kinds';
 import { formatMoney } from '../ui/format';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
@@ -780,8 +782,9 @@ export class Progression {
   /**
    * 0.9.0 climb (docs/EXPANSION.md §C): the era gate's single next goal (eras/gate.ts nextGoal, the era chip's line)
    * once nothing more urgent is due, with the arrow where it needs walking: a machine's level pad, what unlocks a
-   * prereq, the district to build a home in, the cabin for a Survival shop row. Industry rows sell at the era shop
-   * mats and through the checklist, so they get no arrow. Quiet while the expansion pad itself is the goal (eraGuide).
+   * prereq, the district to build a home in, the cabin's shop mat for a shop row, the era's shop mat for an Industry row
+   * (upgrades are hands-on: every level is bought standing on a pad or a mat). Quiet while the expansion pad itself is
+   * the goal (eraGuide).
    */
   private climbGuide(): boolean {
     const s = this.ctx.state;
@@ -807,9 +810,18 @@ export class Progression {
         this.setGoal(text, d.rect);
         return true;
       }
-    } else if (kind === 'buy' && UPGRADES[target as UpgradeIdConst]?.group !== 'industry') {
-      this.setGoal(text, LAYOUT.shop.mat);
-      return true;
+    } else if (kind === 'buy' && UPGRADES[target as UpgradeIdConst]) {
+      const def = UPGRADES[target as UpgradeIdConst];
+      if (def.group !== 'industry') {
+        this.setGoal(text, LAYOUT.shop.mat);
+        return true;
+      }
+      const e = introEra(def);
+      if (e <= s.eras.age) {
+        const at = regionLayout(e).shopMat;
+        this.setGoal(text, rect(at.x, at.z, MAT_SIZE.w, MAT_SIZE.d));
+        return true;
+      }
     }
     this.setGoal(text, null);
     return true;

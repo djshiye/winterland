@@ -241,12 +241,12 @@ describe('era 1 and saves', () => {
 });
 
 describe('Renown and the band perks', () => {
-  it('Renown is ×1.02 per level past Winterland (×2.2 at 45)', () => {
+  it("Renown is ×1.02 per level past Winterland (×2.2 at 45, ×1.05 more with the Founder's Scarf from 20)", () => {
     const s = winterland(10);
     s.eras.settlement = 6;
     expect(renownMult(s)).toBeCloseTo(1.02, 10);
     s.eras.settlement = 45;
-    expect(renownMult(s)).toBeCloseTo(2.208, 3);
+    expect(renownMult(s)).toBeCloseTo(2.208 * 1.05, 3);
   });
 
   it('Renown multiplies buyer sales', () => {
