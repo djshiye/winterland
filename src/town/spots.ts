@@ -19,17 +19,17 @@ const TREE = { x: LAYOUT.town.tree.x, z: LAYOUT.town.tree.z };
 export const BENCHES: readonly Spot[] = [
   { x: 20.4, z: townZ(24.7) },
   { x: 27.6, z: townZ(24.7) },
-  { x: 19.8, z: 34.2 }, // 0.9.4: west of the pond's rim
+  { x: 19.4, z: 35.2 }, // 0.9.4: west of the pond's rim
   { x: 27.6, z: townZ(29.5) },
 ].map((p) => ({ ...p, yaw: toward(p, TREE) }));
 
 /**
- * Market stalls (≈1.8 × 1.0 m, solid) by the corridor mouth (z 25.9..27.5, not stretched), 1.6 m clear of it on each
- * side; the stallholder stands behind, facing the yaw.
+ * Market stalls (≈1.8 × 1.0 m, solid) by the corridor mouth (z 25.9..27.5, not stretched; the south one leaves the
+ * porters' corner at z 28.4..29.2 clear); the stallholder stands behind, facing the yaw.
  */
 export const STALLS: readonly Spot[] = [
   { x: 17.6, z: 23.4, yaw: Math.PI / 2 },
-  { x: 17.6, z: 30.0, yaw: Math.PI / 2 },
+  { x: 17.6, z: 30.8, yaw: Math.PI / 2 },
 ];
 
 /** A snowman (solid, r 0.5) kids gather around. */
