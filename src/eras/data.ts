@@ -97,7 +97,10 @@ export const eraOfKey = (key: EraKey): number => ERA_KEYS.indexOf(key) + 2;
 // Materials (new item kinds). Every one is carriable.
 // ---------------------------------------------------------------------------
 
-export type MaterialShape = 'block' | 'brick' | 'nugget' | 'ingot' | 'lump' | 'gear' | 'beam' | 'coil' | 'barrel' | 'pellet' | 'crystal' | 'chip' | 'rod' | 'cell' | 'core' | 'robot';
+export type MaterialShape =
+  | 'block' | 'brick' | 'nugget' | 'ingot' | 'lump' | 'gear' | 'beam' | 'coil' | 'barrel' | 'pellet' | 'crystal' | 'chip' | 'rod' | 'cell' | 'core' | 'robot'
+  // 0.9.5 era 5-7 (assets/eraItems5to7.ts)
+  | 'girder' | 'plow' | 'bulb' | 'radio' | 'canister' | 'jerrycan' | 'snowmobile';
 
 export interface MaterialDef {
   kind: MaterialKind;
@@ -118,6 +121,8 @@ export interface MaterialDef {
 /** Base export prices of era n's raw and refined materials (× ERA_SCALE, like every era price). */
 const RAW = (n: number): number => 180 * ERA_SCALE * 3 ** (n - 2);
 const REF = (n: number): number => 700 * ERA_SCALE * 3 ** (n - 2);
+/** 0.9.5: a product sells for at least this × the value of its inputs. */
+const VALUE_ADD = 1.3;
 function mat(kind: MaterialKind, label: string, n: number, grade: 'raw' | 'refined', value: number, shape: MaterialShape, color: number, accent: number, w: number, h: number, d: number): MaterialDef {
   return { kind, label, era: n, grade, value: Math.round(value / 5) * 5, shape, color, accent, size: { w, h, d, stackHeight: h + 0.01 } };
 }
@@ -141,6 +146,16 @@ export const MATERIALS: Record<MaterialKind, MaterialDef> = {
   power: mat('power', 'Power Cells', 9, 'refined', REF(9) * 0.5, 'cell', 0x70f5d9, 0x3d5259, 0.3, 0.36, 0.3),
   aiCore: mat('aiCore', 'AI Cores', 10, 'refined', REF(10), 'core', 0xe8a848, 0x526475, 0.34, 0.34, 0.34),
   robot: mat('robot', 'Robots', 10, 'refined', REF(10) * 2.6, 'robot', 0xf5f0e6, 0xe8a848, 0.36, 0.46, 0.3),
+  // ---- 0.9.5 era 5-7 content (ERA_RESOURCES.md). A product is worth at least 1.3× its inputs, so every step of
+  // the chain pays: max(section D's grade price, VALUE_ADD × the inputs' value).
+  girder: mat('girder', 'Girders', 5, 'refined', Math.max(REF(5) * 0.8, VALUE_ADD * 2 * REF(5)), 'girder', 0x7f8b99, 0xe08a2b, 0.48, 0.2, 0.24),
+  snowplow: mat('snowplow', 'Snowplows', 5, 'refined', Math.max(REF(5) * 2.6, VALUE_ADD * (VALUE_ADD * 2 + 1) * REF(5)), 'plow', 0x485866, 0xe08a2b, 0.44, 0.36, 0.44),
+  quartz: mat('quartz', 'Quartz', 6, 'raw', RAW(6), 'crystal', 0xeed3e2, 0xa9a49a, 0.36, 0.3, 0.3),
+  bulb: mat('bulb', 'Light Bulbs', 6, 'refined', Math.max(REF(6) * 0.8, VALUE_ADD * (REF(6) + RAW(6))), 'bulb', 0xfff1c4, 0xf0e4cb, 0.3, 0.42, 0.3),
+  radio: mat('radio', 'Radios', 6, 'refined', Math.max(REF(6) * 2.6, VALUE_ADD * (REF(6) + VALUE_ADD * (REF(6) + RAW(6)))), 'radio', 0xa8673c, 0xf0e4cb, 0.44, 0.36, 0.3),
+  gas: mat('gas', 'Gas', 7, 'raw', RAW(7), 'canister', 0x4f7fa8, 0xf2f2f2, 0.3, 0.44, 0.3),
+  fuel: mat('fuel', 'Fuel', 7, 'refined', Math.max(REF(7) * 0.8, VALUE_ADD * 2 * RAW(7)), 'jerrycan', 0xc44536, 0xe2ad3c, 0.4, 0.38, 0.2),
+  snowmobile: mat('snowmobile', 'Snowmobiles', 7, 'refined', Math.max(REF(7) * 2.6, VALUE_ADD * (REF(7) + REF(7) * 0.8)), 'snowmobile', 0xd99b26, 0xc44536, 0.4, 0.34, 0.48),
 };
 
 export function isMaterial(kind: ItemKind): kind is MaterialKind {
@@ -172,9 +187,9 @@ export type MachineId =
   | 'quarry' | 'kiln'
   | 'ironMine' | 'smelter'
   | 'coalPit' | 'steamWorks'
-  | 'deepMine' | 'cokeOven' | 'steelMill'
-  | 'copperMine' | 'wireMill'
-  | 'oilPump' | 'refinery'
+  | 'deepMine' | 'cokeOven' | 'steelMill' | 'rollingMill' | 'plowWorks'
+  | 'copperMine' | 'wireMill' | 'quartzPit' | 'bulbWorks' | 'radioWorks'
+  | 'oilPump' | 'refinery' | 'gasWell' | 'cracker' | 'snowmobileWorks'
   | 'sandPit' | 'chipFab'
   | 'uraniumMine' | 'enricher' | 'reactor'
   | 'fusionPlant' | 'nanoFab' | 'dataCenter' | 'robotWorks';
@@ -220,10 +235,18 @@ export const MACHINES: Record<MachineId, MachineDef> = {
   deepMine: machine('deepMine', 5, 'extractor', 'Deep Ore Mine', 'A steel headframe, twice as deep', [], 'ore', 2, 2.0, 0.08, undefined, 'steel lattice headframe'),
   cokeOven: machine('cokeOven', 5, 'extractor', 'Coke Ovens', 'A battery of ovens baking coal', [], 'coal', 2, 2.0, 0.08, undefined, 'row of brick ovens + quench tower'),
   steelMill: machine('steelMill', 5, 'processor', 'Steel Mill', 'Ore + 2 coal → steel beams', [{ kind: 'ore', per: 1 }, { kind: 'coal', per: 2 }], 'steel', 1, 2.6, 0.18, { kind: 'coal', count: 16 }, 'converter vessel pouring sparks, tall stack'),
+  rollingMill: machine('rollingMill', 5, 'processor', 'Rolling Mill', '2 steel → a riveted girder', [{ kind: 'steel', per: 2 }], 'girder', 1, 2.8, 0.2, { kind: 'steel', count: 12 }, 'roller stands with a red-hot bar'),
+  plowWorks: machine('plowWorks', 5, 'processor', 'Plow Works', 'Girder + steel → a snowplow', [{ kind: 'girder', per: 1 }, { kind: 'steel', per: 1 }], 'snowplow', 1, 3.4, 0.28, { kind: 'girder', count: 6 }, 'assembly shed, plow blade on a hoist'),
   copperMine: machine('copperMine', 6, 'extractor', 'Copper Mine', 'An electric hoist lifts copper ore', [], 'copper', 1, 1.8, 0.1, undefined, 'electric hoist tower with pylons'),
   wireMill: machine('wireMill', 6, 'processor', 'Wire Mill', '2 copper → a coil of wire', [{ kind: 'copper', per: 2 }], 'wire', 1, 2.4, 0.18, { kind: 'copper', count: 12 }, 'long shed with spinning spools'),
+  quartzPit: machine('quartzPit', 6, 'extractor', 'Quartz Pit', 'An electric shovel digs pink quartz', [], 'quartz', 1, 1.8, 0.1, undefined, 'electric shovel over a quartz pit'),
+  bulbWorks: machine('bulbWorks', 6, 'processor', 'Bulb Works', 'Wire + quartz → a light bulb', [{ kind: 'wire', per: 1 }, { kind: 'quartz', per: 1 }], 'bulb', 1, 2.6, 0.2, { kind: 'wire', count: 10 }, 'glass-blowing hall with a glowing furnace'),
+  radioWorks: machine('radioWorks', 6, 'processor', 'Radio Works', 'Wire + bulb → a radio set', [{ kind: 'wire', per: 1 }, { kind: 'bulb', per: 1 }], 'radio', 1, 3.2, 0.28, { kind: 'bulb', count: 6 }, 'art-deco factory with a spinning antenna'),
   oilPump: machine('oilPump', 7, 'extractor', 'Oil Pump', 'A nodding pumpjack fills barrels', [], 'crude', 1, 1.8, 0.1, undefined, 'pumpjack with walking beam'),
   refinery: machine('refinery', 7, 'processor', 'Refinery', '2 crude → plastic pellets', [{ kind: 'crude', per: 2 }], 'plastic', 1, 2.4, 0.18, { kind: 'crude', count: 12 }, 'distillation columns, pipes, flare stack'),
+  gasWell: machine('gasWell', 7, 'extractor', 'Gas Well', 'A wellhead fills gas bottles', [], 'gas', 1, 1.8, 0.1, undefined, 'wellhead tree with a flare'),
+  cracker: machine('cracker', 7, 'processor', 'Cracker', 'Crude + gas → fuel', [{ kind: 'crude', per: 1 }, { kind: 'gas', per: 1 }], 'fuel', 1, 2.6, 0.2, { kind: 'crude', count: 12 }, 'catalytic cracking tower'),
+  snowmobileWorks: machine('snowmobileWorks', 7, 'processor', 'Snowmobile Works', 'Plastic + fuel → a snowmobile', [{ kind: 'plastic', per: 1 }, { kind: 'fuel', per: 1 }], 'snowmobile', 1, 3.4, 0.28, { kind: 'plastic', count: 6 }, 'assembly line with a test track'),
   sandPit: machine('sandPit', 8, 'extractor', 'Sand Pit', 'Dredges pure quartz sand into silicon', [], 'silicon', 1, 1.8, 0.1, undefined, 'conveyor dredge + crystal grower'),
   chipFab: machine('chipFab', 8, 'processor', 'Chip Fab', 'Silicon + wire → microchips', [{ kind: 'silicon', per: 1 }, { kind: 'wire', per: 1 }], 'chip', 1, 2.8, 0.18, { kind: 'silicon', count: 12 }, 'white clean-room block with air vents'),
   uraniumMine: machine('uraniumMine', 9, 'extractor', 'Uranium Mine', 'Robotic diggers in lead-lined suits', [], 'uranium', 1, 1.8, 0.1, undefined, 'shielded headframe, hazard stripes'),

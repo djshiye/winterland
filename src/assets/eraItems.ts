@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import type { MaterialKind } from '../core/types';
 import { MATERIALS, type MaterialDef, type MaterialShape } from '../eras/data';
 import { Batch, vcMat } from '../render/batch';
+import { ERA5_7_ITEM_BUILDERS } from './eraItems5to7';
 
 const HALF_PI = Math.PI / 2;
 
@@ -395,6 +396,7 @@ const BUILDERS: Record<MaterialShape, Builder> = {
   cell: buildCell,
   core: buildCore,
   robot: buildRobot,
+  ...ERA5_7_ITEM_BUILDERS,
 };
 
 /** Shapes drawn from rough rocks / crystals / pellets: flat (per-face) normals keep their facets crisp. */
