@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { GATE, SAVE, UPGRADES } from '../src/config';
 import { masteryOf } from '../src/core/demand';
 import { costAt } from '../src/core/ladder';
-import { originalCost, refundPrice } from '../src/core/refund';
+import { MASTERY_KEEP, MASTERY_PAYOUT_SECONDS, masteryPayout, originalCost, refundPrice } from '../src/core/refund';
 import { mergeState, migrateState, MIGRATIONS, newSeasonSave, parseSave, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
 import { BEFORE_KEY, backupKey, isBackupKey, keepUnreadable, listBackups, pushBackup, readBackup, RESCUE_KEY, snapshotBefore, unreadableKeys } from '../src/core/saveVault';
 import { createGameState, type GameState } from '../src/core/types';
@@ -173,8 +173,8 @@ describe('0.9.6 migration: levels past Lv 10 refunded, Mastery kept (decisions 2
     expect(GATE.mode).toBe('literal');
   });
 
-  it.each(OLD_CLIMB)('%s: refunds every level past 10 at what it cost then and freezes the Mastery bonus', (name) => {
-    const { state } = loaded(name);
+  it.each(OLD_CLIMB)('%s: refunds every level past 10 at what it cost then and pays Mastery out once', (name) => {
+    const { state, save } = loaded(name);
     let refund = 0;
     let levels = 0;
     for (const def of Object.values(UPGRADES)) {
@@ -183,29 +183,43 @@ describe('0.9.6 migration: levels past Lv 10 refunded, Mastery kept (decisions 2
     }
     expect(levels).toBeGreaterThan(0);
     const mastery = masteryOf(state);
-    const report = migrateState(state, false);
+    const rate = save.salesRate > 0 ? save.salesRate : state.stats.moneyEarned / state.playTime;
+    const report = migrateState(state, false, { salesRate: save.salesRate });
     expect(report.applied).toEqual(MIGRATIONS.map((m) => m.id));
     expect(report.refundedLevels).toBe(levels);
     expect(report.refund).toBe(Math.floor(refund));
     expect(report.refund).toBeGreaterThan(0);
-    expect(state.legacy.masteryMult).toBe(mastery);
-    expect(masteryOf(state)).toBe(mastery); // the bonus is unchanged after the levels are gone
+    expect(MASTERY_KEEP).toBe('cash');
+    expect(mastery).toBeGreaterThan(1);
+    expect(report.masteryHad).toBe(mastery);
+    expect(report.masteryPayout).toBe(masteryPayout(mastery, rate));
+    expect(report.masteryPayout).toBeGreaterThan(0);
+    // retired: nothing multiplies sales any more
+    expect(state.legacy.masteryMult).toBe(1);
+    expect(masteryOf(state)).toBe(1);
     for (const def of Object.values(UPGRADES)) expect(state.upgrades[def.id]).toBeLessThanOrEqual(10);
     // once only: a second load (state written back and read again) changes nothing and pays nothing
     const next = createGameState();
     mergeState(next, JSON.parse(JSON.stringify(state)));
     sanitizeState(next);
-    const second = migrateState(next, false);
-    expect(second).toEqual({ applied: [], refund: 0, refundedLevels: 0, masteryMult: mastery });
+    const second = migrateState(next, false, { salesRate: save.salesRate });
+    expect(second).toEqual({ applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0 });
     expect(next).toEqual(state);
   });
 
-  it('the 0.9.4 era-10 save had Mastery and keeps it for good', () => {
+  it('Mastery pays out the extra it would earn over one era of play', () => {
+    expect(masteryPayout(1.5, 1000)).toBe(0.5 * 1000 * MASTERY_PAYOUT_SECONDS);
+    expect(masteryPayout(1, 1e9)).toBe(0);
+    expect(masteryPayout(1.76, -5)).toBe(0);
+    expect(masteryPayout(1.76, Number.POSITIVE_INFINITY)).toBe(0);
+  });
+
+  it('a new season keeps the applied migrations and any frozen bonus', () => {
     const { state } = loaded('save-v9-0.9.4-era10-mastery.json');
     migrateState(state, false);
-    expect(state.legacy.masteryMult).toBeGreaterThan(1);
+    state.legacy.masteryMult = 1.2; // as MASTERY_KEEP 'multiplier' would leave it
     const season = newSeasonSave(state, 1).state;
-    expect(season.legacy.masteryMult).toBe(state.legacy.masteryMult);
+    expect(season.legacy.masteryMult).toBe(1.2);
     expect(season.migrations).toEqual(state.migrations);
   });
 

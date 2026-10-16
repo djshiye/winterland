@@ -44,3 +44,22 @@ export function originalCost(def: UpgradeDef, s: number): number {
 
 /** The refund for one level (stored s → s + 1). */
 export const refundPrice: (def: UpgradeDef, s: number) => number = originalCost;
+
+/**
+ * Decision 6: Mastery is removed and an old save keeps its bonus "as a one-off". 'cash' (default): the bonus is paid
+ * once, as cash, when its levels are refunded, and nothing multiplies sales afterwards (every era stays the same grind).
+ * 'multiplier': the bonus is frozen in state.legacy.masteryMult and keeps raising every sale for good. The one switch.
+ */
+export const MASTERY_KEEP: 'cash' | 'multiplier' = 'cash';
+
+/** About one era of play (tests/pacing.test.ts: eras run 90-160 model minutes): 2.5 h. */
+export const MASTERY_PAYOUT_SECONDS = 9000;
+
+/**
+ * The one-off Mastery payout: the extra a +X% bonus would have earned over one era of play at the save's income rate
+ * ($/s; Save.ts passes the recent sales rate, or the lifetime average when a save has none). Whole dollars, never negative.
+ */
+export function masteryPayout(mult: number, incomePerSecond: number): number {
+  const v = Math.max(0, mult - 1) * Math.max(0, incomePerSecond) * MASTERY_PAYOUT_SECONDS;
+  return Number.isFinite(v) ? Math.min(Number.MAX_SAFE_INTEGER, Math.floor(v)) : 0;
+}

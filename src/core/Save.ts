@@ -12,7 +12,7 @@
 import { AMENITIES, AMENITY_IDS, BUSINESSES, CLIMB, CONTRACTS, DAYNIGHT, ECONOMY, GATE, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, SETTLEMENT, UPGRADES, VILLAGE, type BusinessId } from '../config';
 import { CARRY_KINDS, createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type CarryKind, type FlagId, type GameContext, type GameState, type InvestmentState, type ItemKind } from './types';
 import { maxStored } from './ladder';
-import { refundPrice } from './refund';
+import { MASTERY_KEEP, masteryPayout, refundPrice } from './refund';
 import { INVEST_POSITIONS_CAP, masteryOf } from './demand';
 import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
 import { GAME_VERSION, isNewerVersion, parseVersion } from './version';
@@ -363,15 +363,24 @@ export interface MigrationReport {
   refund: number;
   /** How many levels past Lv 10 were refunded. */
   refundedLevels: number;
-  /** The Mastery bonus the save keeps for good (1 = none). */
+  /** The Mastery bonus the save keeps for good (1 = none; core/refund.ts MASTERY_KEEP 'multiplier'). */
   masteryMult: number;
+  /** The Mastery bonus the save had (1 = none), whatever form it is kept in. */
+  masteryHad: number;
+  /** Dollars paid once for that bonus (MASTERY_KEEP 'cash'), on top of the refund. */
+  masteryPayout: number;
+}
+
+/** What a migration may know besides the state: the save's recent sales rate ($/s). */
+export interface MigrationContext {
+  salesRate: number;
 }
 
 export interface Migration {
   /** Stable id, stored in state.migrations once applied (never rename one that shipped). */
   id: string;
   /** Change the merged, sanitized state in place; add any refund to report.refund. */
-  run(state: GameState, report: MigrationReport): void;
+  run(state: GameState, report: MigrationReport, ctx: MigrationContext): void;
 }
 
 /**
@@ -383,12 +392,20 @@ export const MIGRATIONS: readonly Migration[] = [
   {
     // Decisions 2 and 6 (Dino, 2026-10-16): under the 0.9.5 rule every upgrade tops out at Lv 10, so levels an older
     // save bought past it (the 0.9.0-0.9.4 climb, read as 10 since 0.9.5) are refunded at what they cost back then
-    // (core/refund.ts), and the Mastery bonus those levels earned is frozen as the save's own one-off bonus first.
+    // (core/refund.ts). Mastery is gone too: the bonus those levels earned is kept as a one-off (core/refund.ts
+    // MASTERY_KEEP): paid once as cash (default), or frozen as the save's own multiplier.
     id: '0.9.6-lv10-refund',
-    run(state, report) {
+    run(state, report, ctx) {
       if (GATE.mode !== 'literal') return;
       const mastery = masteryOf(state);
-      if (mastery > state.legacy.masteryMult) state.legacy.masteryMult = mastery;
+      report.masteryHad = Math.max(report.masteryHad, mastery);
+      if (MASTERY_KEEP === 'multiplier') {
+        if (mastery > state.legacy.masteryMult) state.legacy.masteryMult = mastery;
+      } else if (mastery > 1) {
+        // the save's recent sales rate; a save with none recorded falls back to its lifetime average
+        const rate = ctx.salesRate > 0 ? ctx.salesRate : state.playTime > 0 ? state.stats.moneyEarned / state.playTime : 0;
+        report.masteryPayout += masteryPayout(mastery, rate);
+      }
       const top = CLIMB.bandSize;
       for (const def of Object.values(UPGRADES)) {
         const s = state.upgrades[def.id];
@@ -403,12 +420,12 @@ export const MIGRATIONS: readonly Migration[] = [
 ];
 
 /** Apply every migration this save has not had yet (see MIGRATIONS). `fresh`: a new game, nothing to migrate. */
-export function migrateState(state: GameState, fresh: boolean, list: readonly Migration[] = MIGRATIONS): MigrationReport {
-  const report: MigrationReport = { applied: [], refund: 0, refundedLevels: 0, masteryMult: 1 };
+export function migrateState(state: GameState, fresh: boolean, ctx: MigrationContext = { salesRate: 0 }, list: readonly Migration[] = MIGRATIONS): MigrationReport {
+  const report: MigrationReport = { applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0 };
   for (const m of list) {
     if (state.migrations[m.id]) continue;
     if (!fresh) {
-      m.run(state, report);
+      m.run(state, report, ctx);
       report.applied.push(m.id);
     }
     state.migrations[m.id] = true;
