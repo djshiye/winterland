@@ -155,9 +155,13 @@ export function settlementBand(level: number): number {
   return Math.max(1, Math.ceil(level / SETTLEMENT.band));
 }
 
-/** Highest settlement level ≥ 6 a city population reaches at this age (level 5(k − 1) + j needs age ≥ k), or 0. */
+/**
+ * Highest settlement level ≥ 6 a city population reaches, or 0. 0.9.6 (decision 7): from era 2 on it rises freely
+ * up to 50, so every home always counts (it used to stop at 5 · age and jump five steps when an era opened). Era 1
+ * has no city, so it stays 0 there (era 1 is frozen).
+ */
 export function settlementLevelFor(cityPop: number, age: number): number {
-  const top = Math.min(SETTLEMENT.max, SETTLEMENT.band * age);
+  const top = age >= 2 ? SETTLEMENT.max : 0;
   let level = 0;
   for (let L = SETTLEMENT.band + 1; L <= top; L++) {
     if (cityPop >= THRESHOLDS[L]!) level = L;

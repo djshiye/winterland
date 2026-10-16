@@ -2,9 +2,8 @@
  * Pad juice, the pure part (no WebAudio, no three.js scene): shared by the pads (stations/UpgradePad.ts,
  * stations/ConstructionPad.ts, stations/ShopMat.ts), the flights into them and the JuiceDirector, and unit-testable.
  *
- * - Comfort: reducedMotion() is the player's "reduce motion" wish. The game has no Settings switch for it, so it reads
- *   window.matchMedia('(prefers-reduced-motion: reduce)') (cached, follows live changes; false where there is no
- *   window). motionScale() is the multiplier every bounce / squash / burst size goes through (REDUCED_MOTION_SCALE when
+ * - Comfort: reducedMotion() is the player's "reduce motion" wish, read from the in-game Settings switch
+ *   (fx/comfort.ts, which follows the OS preference until the player picks). motionScale() is the multiplier every bounce / squash / burst size goes through (REDUCED_MOTION_SCALE when
  *   reduced), burstCount() the particle count (bursts are skipped below the reduced scale).
  * - Sound: TickLadder walks a major-pentatonic ladder while the player keeps paying the same pad (one step every
  *   TICK_STEP_EVERY ticks, capped at the top note so it never gets shrill; it starts over after TICK_RESET of
@@ -13,6 +12,8 @@
  * - Look: bounceScale() is the squash-and-stretch hump the pads play on completion; fillApproach() eases the drawn
  *   fill ring toward the paid ratio (frame-rate independent); breath() is the idle glow of an affordable pad.
  */
+
+import { reducedMotion as comfortReducedMotion } from './comfort';
 
 /** Major pentatonic, in semitones above the base tick (two octaves would get shrill: stop at +14). */
 export const PENTATONIC: readonly number[] = [0, 2, 4, 7, 9, 12, 14];
@@ -85,37 +86,20 @@ export function admitVoice(ends: number[], now: number, max: number, len: number
 // Reduced motion
 // ---------------------------------------------------------------------------
 
-let reducedCache: boolean | null = null;
 let override: boolean | null = null;
-let listening = false; // the change listener is registered once, however often the cache is reset
 
-function queryReduced(): boolean {
-  try {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (!listening && typeof mq.addEventListener === 'function') {
-      listening = true;
-      mq.addEventListener('change', () => {
-        reducedCache = mq.matches;
-      });
-    }
-    return mq.matches;
-  } catch {
-    return false;
-  }
-}
-
-/** True when the player asked for less motion (OS / browser preference). */
+/**
+ * True when the player asked for less motion: the in-game Settings switch (fx/comfort.ts), which follows the OS /
+ * browser preference until the player picks.
+ */
 export function reducedMotion(): boolean {
   if (override !== null) return override;
-  if (reducedCache === null) reducedCache = queryReduced();
-  return reducedCache;
+  return comfortReducedMotion();
 }
 
-/** Force the preference (tests, debug); null goes back to the media query (read afresh). */
+/** Force the preference (tests, debug); null goes back to the Settings switch. */
 export function setReducedMotion(on: boolean | null): void {
   override = on;
-  if (on === null) reducedCache = null;
 }
 
 /** Multiplier for bounces, squashes and burst sizes. */

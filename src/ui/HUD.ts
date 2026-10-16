@@ -860,7 +860,8 @@ export class HUD {
     const rig = this.ctx.cameraRig;
     this.tmp3.copy(this.guidePos);
     this.tmp3.y += 1;
-    if (this.hasGuide && !rig.isOnScreen(this.tmp3, 28)) {
+    // 0.9.6: never over an open panel (shop, build, checklist ...): the edge arrow waits until it closes
+    if (this.hasGuide && !this.anySheetOpen && !rig.isOnScreen(this.tmp3, 28)) {
       rig.worldToScreen(this.tmp3, this.tmp2);
       const w = this.ctx.renderer.width;
       const h = this.ctx.renderer.height;

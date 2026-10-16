@@ -2,13 +2,19 @@
  * [0.9.0 climb — UI] The era checklist (docs/EXPANSION.md §C): what still stands between the player and the next era's
  * expansion pad. Opens on 'gate:open' (tapping the era chip), closes on its X and Esc; the BuildPanel's sheet look.
  *
- * ADHD-friendly by construction: never the whole list.
- * - Header: "ERA II · FRONTIER" and "12/23 upgrades at Lv 10 · Settlement 5/5", a progress bar, then what comes after:
- *   "then the expansion: $1.5M + 20 Crates". Once the gate is met a gold "Frontier is for sale!" with Go replaces it.
- * - "✓ 12 done", then only the TOP 5 open rows (eras/gate.ts openRows: prereqs first, then cheapest to finish) and
- *   "+8 more". Every row has Go (fast travel to where it is bought): a shop row to the cabin's shop mat, an Industry
- *   row to its era's shop mat, a pad row ("pad LV 8 → LV 10") to the level pad, a prereq row to what unlocks it.
- * - The settlement row while it is short: "Build a home in Brickside (+40) → Settlement 6" with Go to the district.
+ * ADHD-friendly by construction: the top of the list first, the rest one tap away.
+ * - Header: "ERA III · IRON AGE" and "Granite Hollow at Lv 10: 12/29 · Settlement 7/10", a progress bar, the rule in
+ *   one sentence (0.9.6, eras/gate.ts gateRuleText: "Raise Granite Hollow's machines, crew and upgrades to Lv 10 and
+ *   grow to Settlement 10, then buy Iron Ridge.") and the expansion's price. Once the gate is met a gold "Iron Ridge is
+ *   for sale!" with Go replaces it.
+ * - One small bar per group (0.9.6: Machines 3/6 · Crew 2/7 · Industry · Sales · You · Finance), so nothing hides.
+ * - "✓ 12 done", then the TOP 5 open rows (eras/gate.ts openRows: prereqs to build first, then cheapest to finish, settlement-locked rows last) and
+ *   "+8 more · Show all" (tap: every open row; tap again: back to 5). Every row has Go (fast travel to where it is
+ *   bought): a shop row to the cabin's shop mat, an Industry row to its era's shop mat, a pad row ("pad LV 8 → LV 10")
+ *   to the level pad, a prereq row to what unlocks it. A row that only waits for the settlement says "Locked"
+ *   (its line: "Reach Settlement 12") in place of Go: the settlement line below is the way there.
+ * - The settlement line, one clear line while it is short: "Settlement 7/10 · Build a home in Brickside (+40) →
+ *   Settlement 8" with Go to the district (settlement rises freely since 0.9.6, so homes always count).
  * - Once a level has passed a hard cap, the Mastery line under the bar: "Mastery 340 · +41 % on every sale".
  *
  * Read-only by design: upgrades are hands-on (stand on a pad, step on a shop mat). The card never buys anything.
@@ -21,7 +27,7 @@ import type { GameContext, UpgradeId } from '../core/types';
 import { ERAS } from '../eras/data';
 import { masteryTotal } from '../core/demand';
 import { masteryMult } from '../core/ladder';
-import { climbOpen, eraGate, eraMatOf, openRows, padPaid, padTarget, prereqTarget, settlementGoal, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
+import { climbOpen, eraGate, eraMatOf, gateGroups, gateRuleText, openRows, padPaid, padTarget, prereqTarget, settlementGoal, waitsForSettlement, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
 import { machinePadTarget } from '../eras/rules';
 import { regionLayout, travelPoints } from '../eras/layout';
 import { eraRoman, expansionCostText, gateRowLine, masteryLine } from './agesLogic';
@@ -41,6 +47,8 @@ interface RowSlot {
   name: HTMLDivElement;
   sub: HTMLDivElement;
   go: HTMLButtonElement;
+  /** "Locked" in place of Go for a row that only waits for the settlement (its line says which level). */
+  lock: HTMLSpanElement;
   row: GateRow | null;
   /** Last written html / class per element (skip redundant DOM writes). */
   key: string;
@@ -94,12 +102,17 @@ export class GateCard {
   private readonly subEl: HTMLDivElement;
   private readonly barFill: HTMLDivElement;
   private readonly nextEl: HTMLDivElement;
+  private readonly ruleEl: HTMLDivElement;
+  private readonly groupsEl: HTMLDivElement;
+  /** Every open row on show (tapped "Show all"), not only the top GATE_TOP. */
+  private expanded = false;
   private readonly ready: HTMLDivElement;
   private readonly readyText: HTMLDivElement;
   private readonly readyGo: HTMLButtonElement;
   private readonly doneEl: HTMLDivElement;
   private readonly slots: RowSlot[] = [];
-  private readonly moreEl: HTMLDivElement;
+  private readonly moreEl: HTMLButtonElement;
+  private readonly listEl: HTMLDivElement;
   private readonly settle: RowSlot;
   private readonly masteryEl: HTMLDivElement;
   private dirty = true;
@@ -131,13 +144,16 @@ export class GateCard {
     root.appendChild(head);
 
     const list = h('div', 'wl-build-list wl-gate-list');
+    this.listEl = list;
     const sum = h('div', 'wl-gate-sum');
     const bar = h('div', 'wl-gate-bar');
     this.barFill = h('div', 'wl-gate-fill');
     bar.appendChild(this.barFill);
+    this.ruleEl = h('div', 'wl-gate-rule');
     this.nextEl = h('div', 'wl-gate-next');
+    this.groupsEl = h('div', 'wl-gate-groups');
     this.masteryEl = h('div', 'wl-gate-mastery');
-    sum.append(bar, this.nextEl, this.masteryEl);
+    sum.append(bar, this.ruleEl, this.nextEl, this.groupsEl, this.masteryEl);
     list.appendChild(sum);
 
     this.ready = h('div', 'wl-gate-ready');
@@ -150,7 +166,14 @@ export class GateCard {
     this.doneEl = h('div', 'wl-gate-done');
     list.appendChild(this.doneEl);
     for (let i = 0; i < GATE_TOP; i++) list.appendChild(this.makeSlot().root);
-    this.moreEl = h('div', 'wl-gate-more');
+    this.moreEl = this.button('wl-gate-more', '');
+    onTap(this.moreEl, () => {
+      ctx.audio.play('click');
+      this.expanded = !this.expanded;
+      this.dirty = true;
+      this.acc = REFRESH_EVERY;
+      this.refresh();
+    });
     list.appendChild(this.moreEl);
     this.settle = this.makeSlot(true);
     list.appendChild(this.settle.root);
@@ -184,6 +207,7 @@ export class GateCard {
     if (!climbOpen(s) || !ERAS[s.eras.age + 1]) return;
     this.dirty = true;
     this.acc = REFRESH_EVERY;
+    this.expanded = false;
     this.refresh();
     this.sheet.setOpen(true);
   }
@@ -212,9 +236,11 @@ export class GateCard {
     mid.append(name, sub);
     const btns = h('div', 'wl-gate-btns');
     const go = this.button('wl-gate-go', 'Go');
-    btns.append(go);
+    const lock = h('span', 'wl-gate-lockpill');
+    lock.style.display = 'none';
+    btns.append(go, lock);
     root.append(icon, mid, btns);
-    const slot: RowSlot = { root, icon, name, sub, go, row: null, key: '' };
+    const slot: RowSlot = { root, icon, name, sub, go, lock, row: null, key: '' };
     if (settlement) {
       onTap(go, () => this.settleGoal && this.go(this.settleGoal.action.target));
       return slot;
@@ -222,6 +248,11 @@ export class GateCard {
     onTap(go, () => slot.row && this.go(rowTarget(slot.row, this.ctx.state)));
     this.slots.push(slot);
     return slot;
+  }
+
+  /** At least `n` row slots (the expanded list), new ones placed before "+N more". */
+  private ensureSlots(n: number): void {
+    while (this.slots.length < n) this.listEl.insertBefore(this.makeSlot().root, this.moreEl);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -274,8 +305,11 @@ export class GateCard {
     this.gate = g;
     this.sheet.root.style.setProperty('--era-accent', hexCss(era.colors.accent));
     this.text(this.titleEl, `ERA ${eraRoman(n)} · ${era.name.toUpperCase()}`);
-    const st = Math.min(g.settlement.level, g.settlementNeed);
-    this.text(this.subEl, `${g.ok}/${g.total} upgrades at Lv ${g.need} · Settlement ${st}/${g.settlementNeed}`);
+    const owner = ERAS[n - 1]?.region ?? 'Survival';
+    const settled = g.settlement.level >= g.settlementNeed;
+    const st = settled ? `Settlement ${g.settlement.level} ✓` : `Settlement ${g.settlement.level}/${g.settlementNeed}`;
+    this.text(this.subEl, `${owner} at Lv ${g.need}: ${g.ok}/${g.total} · ${st}`);
+    this.text(this.ruleEl, gateRuleText(n));
     const k = (g.ok + (g.settlement.level >= g.settlementNeed ? 1 : 0)) / (g.total + 1);
     const w = `${(k * 100).toFixed(1)}%`;
     if (this.barFill.style.width !== w) this.barFill.style.width = w;
@@ -286,13 +320,22 @@ export class GateCard {
     this.show(this.ready, offered);
     if (offered) this.text(this.readyText, `<b>${era.region} is for sale!</b><span>${expansionCostText(n)}</span>`);
 
+    this.text(
+      this.groupsEl,
+      gateGroups(g)
+        .map((c) => `<span class="wl-gate-grp${c.ok >= c.total ? ' is-done' : ''}"><b>${c.label}</b> ${c.ok}/${c.total}<i style="width:${((c.ok / c.total) * 100).toFixed(0)}%"></i></span>`)
+        .join(''),
+    );
+
     const open = openRows(g);
     this.show(this.doneEl, g.ok > 0);
     this.text(this.doneEl, `✓ ${g.ok} done`);
-    for (let i = 0; i < this.slots.length; i++) this.renderRow(this.slots[i]!, open[i] ?? null);
-    const more = open.length - this.slots.length;
+    const shown = this.expanded ? open.length : GATE_TOP;
+    this.ensureSlots(shown);
+    for (let i = 0; i < this.slots.length; i++) this.renderRow(this.slots[i]!, i < shown ? open[i] ?? null : null);
+    const more = open.length - GATE_TOP;
     this.show(this.moreEl, more > 0);
-    this.text(this.moreEl, `+${more} more`);
+    this.text(this.moreEl, this.expanded ? 'Show fewer' : `+${more} more · Show all`);
     this.renderSettlement(g);
 
     const points = masteryTotal(s);
@@ -312,7 +355,11 @@ export class GateCard {
     }
     this.text(slot.sub, row.state === 'prereq' ? `<span class="wl-lock">${ICON_LOCK}</span>${gateRowLine(row)}` : gateRowLine(row));
     slot.root.classList.toggle('is-locked', row.state === 'prereq');
-    this.show(slot.go, goTarget(this.ctx, rowTarget(row, this.ctx.state)) !== null);
+    // waiting for the settlement: no Go (the settlement line below is the way there), a plain "Locked" pill instead
+    const waits = waitsForSettlement(row);
+    this.show(slot.lock, waits);
+    if (waits) this.text(slot.lock, 'Locked');
+    this.show(slot.go, !waits && goTarget(this.ctx, rowTarget(row, this.ctx.state)) !== null);
   }
 
   private renderSettlement(g: EraGate): void {
@@ -326,7 +373,7 @@ export class GateCard {
     const goal = settlementGoal(this.ctx.state, g);
     this.settleGoal = goal;
     this.text(slot.name, `Settlement ${g.settlement.level}/${g.settlementNeed}`);
-    this.text(slot.sub, goal.text);
+    this.text(slot.sub, goal.text.replace(/ → Settlement \d+$/, ''));
     this.show(slot.go, goTarget(this.ctx, goal.action.target) !== null);
   }
 
