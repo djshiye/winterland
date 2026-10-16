@@ -303,51 +303,53 @@ describe('investments', () => {
     expect(market.invest('index', 1000)).toBe(true); // each product has its own room
   });
 
-  it('index fund positions grow on the hourly trend with a small wobble; the market mood stays near 1', () => {
-    const { market, state } = setup({ age: 2, money: 100_000, rng: seeded(5) });
-    market.invest('index', 10_000);
-    const pos = market.positions()[0]!;
-    run(market, 120, MARKET.tick);
-    expect(pos.value).not.toBe(10_000);
+  it('index fund positions grow on the trend with a small wobble; the market mood stays in its band', () => {
     let sum = 0;
     for (let k = 0; k < 20; k++) {
       const t = setup({ age: 2, money: 100_000, rng: seeded(100 + k) });
       t.market.invest('index', 10_000);
-      run(t.market, 1800, MARKET.tick);
+      run(t.market, 600, MARKET.tick);
       expect(t.state.market.fund).toBeGreaterThan(1 - (INVEST.index.dip ?? 0) - 1e-9);
       expect(t.state.market.fund).toBeLessThan(1 + (INVEST.index.rise ?? 0) + 1e-9);
       sum += t.market.positions()[0]!.value / 10_000;
     }
-    expect(state.market.fund).toBeGreaterThan(0);
-    expect(sum / 20).toBeGreaterThan(0.99); // about the trend (+0.75 % in half an hour), never a runaway
-    expect(sum / 20).toBeLessThan(1.04);
+    const trend = (1 + INVEST.index.rate) ** (600 / 3600);
+    expect(sum / 20).toBeGreaterThan(trend * 0.97); // about the trend over 10 minutes
+    expect(sum / 20).toBeLessThan(trend * 1.03);
   });
 
-  // 0.9.6 (CODE_AUDIT P0-2): 0.9.5 compounded the fund and ventures per minute (1 h: median ×2.35 / ×2.8, p90 ×4 / ×17)
-  it('an hour in the index fund or a venture grows at most ×1.1, for every seed', () => {
+  // 0.9.6 (validation of PR #35): a little better than bonds (+12% per 10 minutes, locked), with no lock but some risk
+  it('the fund beats a bond over 10 minutes on average; a venture beats the fund on average', () => {
+    let idx = 0;
+    let ven = 0;
+    for (let k = 0; k < 40; k++) {
+      const t = setup({ age: 5, money: 1e6, rng: seeded(900 + k) });
+      t.market.invest('index', 100_000);
+      t.market.invest('venture', 100_000, 5);
+      run(t.market, 600, MARKET.tick);
+      idx += t.market.positions()[0]!.value / 100_000 / 40;
+      ven += t.market.positions()[1]!.value / 100_000 / 40;
+    }
+    expect(idx).toBeGreaterThan(1 + INVEST.bond.rate);
+    expect(ven).toBeGreaterThan(idx);
+  });
+
+  // 0.9.6 (CODE_AUDIT P0-2): 0.9.5 compounded the fund and ventures per minute, uncapped ($1B overnight became >$1T)
+  it('a night away never beats the ceiling: at most ×2 (fund) and ×3 (ventures) plus the wobble, for every seed', () => {
     for (const product of ['index', 'venture'] as const) {
+      const def = INVEST[product];
       let worst = 0;
-      for (let k = 0; k < 60; k++) {
-        const t = setup({ age: 5, money: 1e6, rng: seeded(500 + k) });
+      for (let k = 0; k < 30; k++) {
+        const t = setup({ age: 5, money: 1e9, rng: seeded(500 + k) });
         // a hot market (every index at the top) leans the wobble its way: still capped
         if (k % 2 === 0) for (const kind of Object.keys(MATERIALS) as (keyof typeof MATERIALS)[]) t.state.market.index[kind] = MARKET.max;
-        expect(t.market.invest(product, 100_000, product === 'venture' ? 5 : 0)).toBe(true);
-        run(t.market, 3600, MARKET.tick);
-        worst = Math.max(worst, t.market.positions()[0]!.value / 100_000);
+        expect(t.market.invest(product, 1e8, product === 'venture' ? 5 : 0)).toBe(true);
+        run(t.market, 8 * 3600, 20);
+        worst = Math.max(worst, t.market.positions()[0]!.value / 1e8);
       }
-      expect(worst, product).toBeLessThanOrEqual(1.1);
-      expect(worst, product).toBeGreaterThan(1); // it does grow
+      expect(worst, product).toBeLessThanOrEqual((def.top ?? 1) * (1 + (def.rise ?? 0)) + 1e-9);
+      expect(worst, product).toBeGreaterThan(1.5);
     }
-  });
-
-  it('a long AFK stay grows by the hourly trend, not exponentially per minute', () => {
-    const t = setup({ age: 5, money: 1e9, rng: seeded(42) });
-    t.market.invest('index', 1e8);
-    t.market.invest('venture', 1e8, 5);
-    run(t.market, 8 * 3600, 20); // a night with the game left open
-    const [idx, ven] = t.market.positions();
-    expect(idx!.value / 1e8).toBeLessThan(1.015 ** 8 * (1 + (INVEST.index.rise ?? 0)) + 1e-9);
-    expect(ven!.value / 1e8).toBeLessThan(1.03 ** 8 * (1 + (INVEST.venture.rise ?? 0)) + 1e-9);
   });
 
   it('caps the index fund and ventures at their share of net worth, like bonds', () => {
@@ -363,13 +365,11 @@ describe('investments', () => {
     expect(market.invest('bond', 10_000)).toBe(true); // each product has its own room
   });
 
-  it('a position from an older save that already grew past the band keeps its value and only follows the trend', () => {
+  it('a position from an older save that already grew past the band keeps its value and stops growing', () => {
     const { market, state } = setup({ age: 3, money: 1e6, rng: seeded(3) });
     state.market.investments.push({ id: 99, product: 'venture', era: 3, principal: 10_000, value: 170_000, age: 3600 });
     run(market, 360, MARKET.tick);
-    const v = state.market.investments[0]!.value;
-    expect(v).toBeGreaterThan(170_000);
-    expect(v).toBeLessThan(170_000 * 1.03 ** 0.1 + 1);
+    expect(state.market.investments[0]!.value).toBe(170_000);
   });
 
   it('venture positions move with their era and never go negative; withdraw pays value and counts the gain', () => {

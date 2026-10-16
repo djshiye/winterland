@@ -51,6 +51,7 @@ import { MapPanel } from './MapPanel';
 import { MarketPanel } from './MarketPanel';
 import { MoveHand } from './MoveHand';
 import { OfflineCard } from './OfflineCard';
+import { NoticeCard, type Notice } from './NoticeCard';
 import { PerfOverlay } from './PerfOverlay';
 import { QuestPanel } from './QuestPanel';
 import { EraCard } from './EraCard';
@@ -149,6 +150,7 @@ export class HUD {
   /** 0.9.3: "3 / 8" carried-items pill, bottom left. */
   private readonly carry: CarryMeter;
   private readonly offline: OfflineCard;
+  private readonly notices: NoticeCard;
   private readonly village: VillageBadge;
   private readonly seasonBadge: SeasonBadge;
   private readonly finale: FinaleCard;
@@ -307,6 +309,7 @@ export class HUD {
 
     // modal cards go on top of everything else
     this.offline = new OfflineCard(ctx, layer);
+    this.notices = new NoticeCard(ctx, layer); // 0.9.6 save notices (after the offline card, so it sits above it)
     this.finale = new FinaleCard(ctx, layer);
 
     this.chip = new InteractChip(ctx, layer, () => this.anyModalOpen);
@@ -522,6 +525,16 @@ export class HUD {
     this.offline.show(amount, seconds, onCollect);
   }
 
+  /** 0.9.6: a save notice (unreadable save kept, Lv 10 refund, newer save); notices queue one at a time. */
+  showNotice(n: Notice): void {
+    this.notices.show(n);
+  }
+
+  /** Notice card (tests / debug). */
+  get noticeCard(): NoticeCard {
+    return this.notices;
+  }
+
   /** Quest panel (tests / debug). */
   get questPanel(): QuestPanel {
     return this.quests;
@@ -620,6 +633,7 @@ export class HUD {
     this.updateAgeButtons();
     this.settings.update(dt);
     this.offline.update(dt);
+    this.notices.update(dt);
     this.finale.update(dt);
     this.quests.update(dt);
     this.rushBanner.update(dt);

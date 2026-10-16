@@ -9,12 +9,14 @@
  * Storage can be missing, full or blocked (private windows, embedded pages): every access is wrapped and the game
  * simply runs without saving. `?fresh` in the URL ignores (but does not delete) the save.
  */
-import { AMENITIES, AMENITY_IDS, BUSINESSES, CONTRACTS, DAYNIGHT, ECONOMY, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, SETTLEMENT, UPGRADES, VILLAGE, type BusinessId } from '../config';
+import { AMENITIES, AMENITY_IDS, BUSINESSES, CLIMB, CONTRACTS, DAYNIGHT, ECONOMY, GATE, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, SETTLEMENT, UPGRADES, VILLAGE, type BusinessId } from '../config';
 import { CARRY_KINDS, createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type CarryKind, type FlagId, type GameContext, type GameState, type InvestmentState, type ItemKind } from './types';
 import { maxStored } from './ladder';
-import { INVEST_POSITIONS_CAP } from './demand';
+import { MASTERY_KEEP, masteryPayout, refundPrice } from './refund';
+import { INVEST_POSITIONS_CAP, masteryOf } from './demand';
 import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
-import { carryTradeIntoSales } from './salesMerge';
+import { mergeTradeIntoSales } from './salesMerge';
+import { GAME_VERSION, isNewerVersion, parseVersion } from './version';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
 export interface WorldSnapshot {
@@ -62,6 +64,8 @@ export interface WorldSnapshot {
 
 export interface SaveData {
   v: number;
+  /** 0.9.6: the game version that wrote it (absent in older saves). */
+  game?: string;
   /** Date.now() when written. */
   savedAt: number;
   money: number;
@@ -88,24 +92,58 @@ export function freshRequested(): boolean {
   }
 }
 
-export function loadSave(): SaveData | null {
+/**
+ * What is on disk: nothing, a save that opens (`newer`: the version of a newer build that wrote it, else null), or a
+ * save that cannot be opened (`raw` is its exact text, which the caller must keep before anything else is written).
+ */
+export type SaveRead =
+  | { kind: 'none' }
+  | { kind: 'ok'; data: SaveData; raw: string; newer: string | null }
+  | { kind: 'unreadable'; raw: string; reason: 'corrupt' | 'newer-format' };
+
+/** Parse a save text (the gate every load and every restore goes through). */
+export function parseSave(raw: string): SaveRead {
   try {
-    const raw = storage()?.getItem(SAVE.key);
-    if (!raw) return null;
     const data = JSON.parse(raw) as Partial<SaveData>;
-    if (!data || data.v !== SAVE.version || typeof data.state !== 'object' || !data.state) return null;
-    if (!isNum(data.money) || !isNum(data.savedAt)) return null;
+    if (!isObj(data)) return { kind: 'unreadable', raw, reason: 'corrupt' };
+    if (isNum(data.v) && data.v > SAVE.version) return { kind: 'unreadable', raw, reason: 'newer-format' };
+    if (data.v !== SAVE.version || !isObj(data.state)) return { kind: 'unreadable', raw, reason: 'corrupt' };
+    if (!isNum(data.money) || !isNum(data.savedAt)) return { kind: 'unreadable', raw, reason: 'corrupt' };
+    const game = typeof data.game === 'string' && parseVersion(data.game) ? data.game : undefined;
     return {
-      v: data.v,
-      savedAt: data.savedAt,
-      money: Math.max(0, Math.floor(data.money)),
-      state: data.state,
-      world: sanitizeWorld(data.world),
-      salesRate: isNum(data.salesRate) ? Math.max(0, data.salesRate) : 0,
+      kind: 'ok',
+      raw,
+      newer: game && isNewerVersion(game, GAME_VERSION) ? game : null,
+      data: {
+        v: data.v,
+        game,
+        savedAt: data.savedAt,
+        money: Math.max(0, Math.floor(data.money)),
+        state: data.state as GameState,
+        world: sanitizeWorld(data.world),
+        salesRate: isNum(data.salesRate) ? Math.max(0, data.salesRate) : 0,
+      },
     };
   } catch {
-    return null;
+    return { kind: 'unreadable', raw, reason: 'corrupt' };
   }
+}
+
+/** Read the save on disk (see SaveRead). Missing or blocked storage reads as no save. */
+export function readSave(): SaveRead {
+  let raw: string | null = null;
+  try {
+    raw = storage()?.getItem(SAVE.key) ?? null;
+  } catch {
+    raw = null;
+  }
+  return raw ? parseSave(raw) : { kind: 'none' };
+}
+
+/** The save on disk when it opens, else null (tools and tests; the game itself uses readSave). */
+export function loadSave(): SaveData | null {
+  const r = readSave();
+  return r.kind === 'ok' ? r.data : null;
 }
 
 export function writeSave(data: SaveData): boolean {
@@ -134,8 +172,6 @@ export function clearSave(): void {
  */
 export function mergeState(target: GameState, saved: unknown): void {
   mergeInto(target as unknown as Record<string, unknown>, saved);
-  // 0.9.6: the era Trade upgrades merged into each material's sales upgrade (core/salesMerge.ts)
-  if (isObj(saved)) carryTradeIntoSales(target.upgrades as unknown as Record<string, number>, saved.upgrades);
   // 0.9.0: open-ended arrays (the fresh one is empty, so mergeInto keeps nothing): copied here, sanitized later.
   const inv = isObj(saved) && isObj(saved.market) ? saved.market.investments : undefined;
   if (Array.isArray(inv)) {
@@ -219,15 +255,16 @@ export function sanitizeState(state: GameState): void {
   state.town.grandMarket.toys = int(state.town.grandMarket.toys, 0, state.town.grandMarket.tier < 0 ? VILLAGE.grandMarket.toys : 0);
   {
     const c = state.contract;
-    const offer = CONTRACTS.offers.find((o) => o.kind === c.kind);
-    if (!offer) {
+    // 0.9.6 (Clarity pass): contracts may also ask for an era's materials, with bonuses that scale per era
+    const known = CONTRACTS.offers.some((o) => o.kind === c.kind) || (MATERIAL_KINDS as readonly string[]).includes(c.kind);
+    if (!known) {
       c.kind = '';
       c.target = c.progress = c.left = c.bonus = 0;
     } else {
       c.target = int(c.target, 1, 100000);
       c.progress = int(c.progress, 0, c.target);
       c.left = Math.max(0, Math.min(isNum(c.left) ? c.left : 0, CONTRACTS.seconds));
-      c.bonus = int(c.bonus, 0, 1_000_000);
+      c.bonus = int(c.bonus, 0, Number.MAX_SAFE_INTEGER);
     }
   }
   // wave 11: priorities are enums
@@ -263,9 +300,9 @@ export function sanitizeState(state: GameState): void {
       paidSite(lot, lot.building === '' ? undefined : CITY_BUILDINGS[lot.building as CityBuildingId]);
     }
   }
-  // settlement 6..50: a best-ever level, never above the age's band (city/City.ts raises it to the city's population
-  // when it is built, so a valid save stays untouched here)
-  e.settlement = int(e.settlement, 0, Math.min(SETTLEMENT.max, SETTLEMENT.band * e.age));
+  // settlement 6..50: a best-ever level. Era 1 stays within its band; from era 2 it rises freely to SETTLEMENT.max
+  // (0.9.6, decision: settlement stays in the gate but is no longer capped per era).
+  e.settlement = int(e.settlement, 0, e.age >= 2 ? SETTLEMENT.max : Math.min(SETTLEMENT.max, SETTLEMENT.band * e.age));
   // 0.9.0 dev saves may still carry eras.steward (the auto-buyer, removed: upgrades are hands-on); mergeState copies
   // only the fields a fresh state has, so it is dropped on load and never written again.
   {
@@ -305,12 +342,112 @@ export function sanitizeState(state: GameState): void {
   }
 
   state.prestige.season = int(state.prestige.season, 0, 1_000_000);
+  // 0.9.6: a frozen Mastery bonus is a price multiplier (core/ladder.ts masteryMult is bounded far below 10)
+  state.legacy.masteryMult = isNum(state.legacy.masteryMult) ? Math.max(1, Math.min(10, state.legacy.masteryMult)) : 1;
+  for (const k of Object.keys(state.migrations)) if (state.migrations[k] !== true) delete state.migrations[k];
   const C = DAYNIGHT.cycleSeconds;
   if (!isNum(state.clock)) state.clock = 0;
   else if (state.clock < 0 || state.clock >= C) state.clock = ((state.clock % C) + C) % C; // in range: untouched (no float drift)
   state.playTime = nonNeg(state.playTime);
   for (const k of Object.keys(state.stats) as (keyof typeof state.stats)[]) state.stats[k] = nonNeg(state.stats[k]);
   for (const k of Object.keys(state.padPaid)) state.padPaid[k] = nonNeg(state.padPaid[k]);
+}
+
+/**
+ * What the migrations did to a loaded save, for the "welcome to the new rule" card (Game shows it when anything
+ * changed; the refund is already in `money`).
+ */
+export interface MigrationReport {
+  /** Ids applied in this load (empty for a save that was already up to date, and for a fresh game). */
+  applied: string[];
+  /** Dollars refunded for levels bought past Lv 10 (0.9.0-0.9.4 climb). */
+  refund: number;
+  /** How many levels past Lv 10 were refunded. */
+  refundedLevels: number;
+  /** The Mastery bonus the save keeps for good (1 = none; core/refund.ts MASTERY_KEEP 'multiplier'). */
+  masteryMult: number;
+  /** The Mastery bonus the save had (1 = none), whatever form it is kept in. */
+  masteryHad: number;
+  /** Dollars paid once for that bonus (MASTERY_KEEP 'cash'), on top of the refund. */
+  masteryPayout: number;
+  /** Era Trade levels refunded when Trade merged into the material sales upgrades (their dollars are in `refund`). */
+  tradeLevels: number;
+}
+
+/** What a migration may know besides the state: the save's recent sales rate ($/s). */
+export interface MigrationContext {
+  salesRate: number;
+  /** The save's raw upgrades record, before unknown (removed) ids were dropped. */
+  upgrades?: unknown;
+}
+
+export interface Migration {
+  /** Stable id, stored in state.migrations once applied (never rename one that shipped). */
+  id: string;
+  /** Change the merged, sanitized state in place; add any refund to report.refund. */
+  run(state: GameState, report: MigrationReport, ctx: MigrationContext): void;
+}
+
+/**
+ * Save migrations, in order. Each runs once per save: on the first load by a build that has it, after mergeState and
+ * sanitizeState and before any system is built. A fresh game marks them all applied without running them. Later
+ * 0.9.6+ changes that move saved data (merged upgrades, new materials) add an entry here.
+ */
+export const MIGRATIONS: readonly Migration[] = [
+  {
+    // Decisions 2 and 6 (Dino, 2026-10-16): under the 0.9.5 rule every upgrade tops out at Lv 10, so levels an older
+    // save bought past it (the 0.9.0-0.9.4 climb, read as 10 since 0.9.5) are refunded at what they cost back then
+    // (core/refund.ts). Mastery is gone too: the bonus those levels earned is kept as a one-off (core/refund.ts
+    // MASTERY_KEEP): paid once as cash (default), or frozen as the save's own multiplier.
+    id: '0.9.6-lv10-refund',
+    run(state, report, ctx) {
+      if (GATE.mode !== 'literal') return;
+      const mastery = masteryOf(state);
+      report.masteryHad = Math.max(report.masteryHad, mastery);
+      if (MASTERY_KEEP === 'multiplier') {
+        if (mastery > state.legacy.masteryMult) state.legacy.masteryMult = mastery;
+      } else if (mastery > 1) {
+        // the save's recent sales rate; a save with none recorded falls back to its lifetime average
+        const rate = ctx.salesRate > 0 ? ctx.salesRate : state.playTime > 0 ? state.stats.moneyEarned / state.playTime : 0;
+        report.masteryPayout += masteryPayout(mastery, rate);
+      }
+      const top = CLIMB.bandSize;
+      for (const def of Object.values(UPGRADES)) {
+        const s = state.upgrades[def.id];
+        if (!(s > top)) continue;
+        for (let k = top; k < s; k++) report.refund += refundPrice(def, k);
+        report.refundedLevels += s - top;
+        state.upgrades[def.id] = top;
+      }
+      report.refund = Math.min(Number.MAX_SAFE_INTEGER, Math.floor(report.refund));
+    },
+  },
+  {
+    // Decision 9 (Dino, 2026-10-16): each era's Trade upgrade merged into its materials' Fine upgrades (one sales
+    // upgrade per material). Every material keeps max(Fine, Trade) up to Lv 10, and the Trade levels no material
+    // carries over are refunded at what they cost (core/salesMerge.ts). Runs after the Lv 10 refund, so Fine is ≤ 10.
+    id: '0.9.6-trade-merge',
+    run(state, report, ctx) {
+      const r = mergeTradeIntoSales(state.upgrades as unknown as Record<string, number>, ctx.upgrades);
+      report.refund = Math.min(Number.MAX_SAFE_INTEGER, report.refund + r.refund);
+      report.tradeLevels += r.levels;
+    },
+  },
+];
+
+/** Apply every migration this save has not had yet (see MIGRATIONS). `fresh`: a new game, nothing to migrate. */
+export function migrateState(state: GameState, fresh: boolean, ctx: MigrationContext = { salesRate: 0 }, list: readonly Migration[] = MIGRATIONS): MigrationReport {
+  const report: MigrationReport = { applied: [], refund: 0, refundedLevels: 0, masteryMult: 1, masteryHad: 1, masteryPayout: 0, tradeLevels: 0 };
+  for (const m of list) {
+    if (state.migrations[m.id]) continue;
+    if (!fresh) {
+      m.run(state, report, ctx);
+      report.applied.push(m.id);
+    }
+    state.migrations[m.id] = true;
+  }
+  report.masteryMult = state.legacy.masteryMult;
+  return report;
 }
 
 /** Dollars earned while away, or 0 when the absence is too short / the amount too small. */
@@ -390,11 +527,15 @@ const EMPTY_WORLD: WorldSnapshot = {
 export function newSeasonSave(prev: GameState, now: number): SaveData {
   const state = createGameState();
   state.prestige.season = prev.prestige.season + 1;
+  // 0.9.6: migrations stay applied and a frozen Mastery bonus is kept for good (it belongs to the player, not the run)
+  state.migrations = { ...prev.migrations };
+  state.legacy = { ...prev.legacy };
   for (const [flag, on] of Object.entries(prev.flags)) {
     if (on && (flag === 'introDone' || flag.startsWith('seen:'))) state.flags[flag as FlagId] = true;
   }
   return {
     v: SAVE.version,
+    game: GAME_VERSION,
     savedAt: now,
     money: PRESTIGE.startMoneyPerSeason * state.prestige.season,
     state,

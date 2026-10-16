@@ -604,8 +604,9 @@ export class MarketPanel {
 
   private productNote(id: InvestProductId): string {
     if (id === 'bond') return `Pays ${pct(this.ctx.market.bondPayout() - 1)} after ${formatDuration(INVEST.bond.lock ?? 0)}`;
-    if (id === 'index') return `Grows about ${pct(INVEST.index.rate)} an hour`;
-    return `Grows about ${pct(INVEST.venture.rate)} an hour, can dip`;
+    const tenMin = (r: number): string => pct((1 + r) ** (1 / 6) - 1);
+    if (id === 'index') return `About ${tenMin(INVEST.index.rate)} every 10 minutes, up to ×${INVEST.index.top ?? 1}, no lock`;
+    return `About ${tenMin(INVEST.venture.rate)} every 10 minutes, up to ×${INVEST.venture.top ?? 1}, can dip hard`;
   }
 
   private refreshPositions(): void {
