@@ -17,7 +17,7 @@
  */
 import { fadeManageSign } from '../fx/manageSign';
 import * as THREE from 'three';
-import { TIMING } from '../config';
+import { TIMING, type Rect } from '../config';
 import { createMachineModel, type MachineModel } from '../assets/eraMachines';
 import { createPadSign } from '../assets/pads';
 import { smoothstep } from '../core/math';
@@ -86,6 +86,8 @@ export class Machine implements MachineRuntime {
   readonly input: MachinePile | null;
   readonly output: MachinePile;
   readonly feedSpot: XZ;
+  /** 0.9.6: world rect of the machine's solid body (its collider). */
+  readonly body: Rect;
   readonly takeSpot: XZ;
 
   private state: State = 'idle';
@@ -130,7 +132,8 @@ export class Machine implements MachineRuntime {
     this.door.set(dw.x, f.door.y, dw.z);
     this.feedSpot = toWorld(at, yaw, f.feedSpot.u, f.feedSpot.v);
     this.takeSpot = toWorld(at, yaw, f.takeSpot.u, f.takeSpot.v);
-    this.collider = ctx.colliders.addBox(w(f.body), `era:${era}:${slot}`);
+    this.body = w(f.body);
+    this.collider = ctx.colliders.addBox(this.body, `era:${era}:${slot}`);
 
     const id = `pile:era${era}m${slot}`;
     const outPos = toWorld(at, yaw, f.outPile.u, f.outPile.v);
@@ -150,7 +153,7 @@ export class Machine implements MachineRuntime {
     if (def.inputs.length > 0) {
       const kinds = def.inputs.map((i) => i.kind);
       const inPos = toWorld(at, yaw, f.inPile.u, f.inPile.v);
-      this.input = new MachinePile(ctx, { id: `${id}In`, accepts: kinds, position: new THREE.Vector3(inPos.x, 0, inPos.z), rotationY: yaw, grid: MACHINE_PILES.in }, (k) => inputCap(def, k));
+      this.input = new MachinePile(ctx, { id: `${id}In`, accepts: kinds, position: new THREE.Vector3(inPos.x, 0, inPos.z), rotationY: yaw, grid: MACHINE_PILES.in }, (k) => this.cap(k));
       this.zones.push(
         ctx.zones.addTransfer({
           id: `${id}In:feed`,
@@ -196,9 +199,14 @@ export class Machine implements MachineRuntime {
   wants(kind: ItemKind): number {
     const inp = this.input;
     if (!inp || this.dead) return 0;
-    const cap = inputCap(this.def, kind);
+    const cap = this.cap(kind);
     if (cap <= 0) return 0;
     return Math.max(0, cap - inp.count(kind) - this.ctx.flights.inFlightTo(inp, kind));
+  }
+
+  /** 0.9.6 (F3): units of `kind` the hopper holds at most now (it grows with this machine type's level). */
+  cap(kind: ItemKind): number {
+    return inputCap(this.def, kind, this.ctx.upgrades.level(this.def.id));
   }
 
   /** Cycle length in seconds right now (def.cycle ÷ the era's Rigs value ÷ this machine type's level, 0.9.5). */
@@ -251,8 +259,8 @@ export class Machine implements MachineRuntime {
       this.input.clear();
       const n = (k: ItemKind) => Math.max(0, Math.floor(w.in[k] ?? 0));
       const ins = this.def.inputs;
-      const resume = this.def.kind === 'processor' && ins.some((i) => n(i.kind) > inputCap(this.def, i.kind)) && ins.every((i) => n(i.kind) >= i.per && n(i.kind) <= inputCap(this.def, i.kind) + i.per);
-      for (const i of ins) this.input.fill(i.kind, Math.min(inputCap(this.def, i.kind), n(i.kind) - (resume ? i.per : 0)));
+      const resume = this.def.kind === 'processor' && ins.some((i) => n(i.kind) > this.cap(i.kind)) && ins.every((i) => n(i.kind) >= i.per && n(i.kind) <= this.cap(i.kind) + i.per);
+      for (const i of ins) this.input.fill(i.kind, Math.min(this.cap(i.kind), n(i.kind) - (resume ? i.per : 0)));
       if (resume) {
         for (const k of Object.keys(this.proc) as ItemKind[]) delete this.proc[k];
         for (const i of ins) this.proc[i.kind] = i.per;

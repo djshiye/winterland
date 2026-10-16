@@ -1256,6 +1256,7 @@ function drawMaterialIcon(g: CanvasRenderingContext2D, x: number, y: number, kin
       break;
     }
     case 'crystal':
+    case 'shards':
     case 'core': {
       g.beginPath();
       poly(g, [[0, -29], [22, -8], [14, 26], [-14, 26], [-22, -8]]);
@@ -1282,7 +1283,8 @@ function drawMaterialIcon(g: CanvasRenderingContext2D, x: number, y: number, kin
       }
       break;
     }
-    case 'ingot': {
+    case 'ingot':
+    case 'pigbar': {
       g.beginPath();
       poly(g, [[-30, 14], [-20, -12], [20, -12], [30, 14]]);
       g.fill();

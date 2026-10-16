@@ -24,6 +24,9 @@ import { backOut, h, onTap, shield, Slide } from './dom';
 import { ICON_CLOSE, ICON_GEAR } from './icons';
 import type { PerfOverlay } from './PerfOverlay';
 import { SeasonConfirm } from './SeasonConfirm';
+import { EarlierSaves } from './EarlierSaves';
+import { GAME_VERSION } from '../core/version';
+import './notice.css';
 import { exportSave, importSave, validateSaveText } from './saveTransfer';
 import './comfort.css';
 
@@ -78,6 +81,7 @@ export class SettingsPanel {
   private readonly tabEls = new Map<SettingsTab, HTMLButtonElement>();
   private readonly confirm: HTMLDivElement;
   private readonly restoreView: HTMLDivElement;
+  private readonly earlier: EarlierSaves;
   private readonly saveMsg: HTMLDivElement;
   private readonly fileInput: HTMLInputElement;
   private readonly season: SeasonConfirm;
@@ -435,6 +439,15 @@ export class SettingsPanel {
     });
     saveRow.append(backup, restore);
     pg.appendChild(saveRow);
+    // 0.9.6: the rolling backups and the copy from before the last reset / restore / new season
+    const earlierBtn = h('button', 'wl-btn wl-btn-grey wl-earlier-open', 'Earlier saves');
+    earlierBtn.type = 'button';
+    onTap(earlierBtn, () => {
+      ctx.audio.play('click');
+      this.earlier.refresh();
+      this.view('earlier');
+    });
+    pg.appendChild(earlierBtn);
     this.saveMsg = h('div', 'wl-save-msg');
     this.saveMsg.style.display = 'none';
     pg.appendChild(this.saveMsg);
@@ -455,6 +468,19 @@ export class SettingsPanel {
       this.showConfirm(true);
     });
     pg.appendChild(reset);
+    // 0.9.6: a way out of fullscreen without Alt+F4 (desktop app only; a browser tab closes itself)
+    if (desktop()?.quit) {
+      const quit = h('button', 'wl-btn wl-btn-green wl-quit', 'Save & quit');
+      quit.type = 'button';
+      onTap(quit, () => {
+        ctx.audio.play('click');
+        ctx.events.emit('game:quit', {});
+      });
+      pg.insertBefore(quit, pg.firstChild);
+    }
+    const version = h('div', 'wl-version');
+    version.textContent = `Winterland ${desktop()?.version || GAME_VERSION}`;
+    pg.appendChild(version);
 
     // --- confirm view
     this.confirm = h('div', 'wl-settings-confirm');
@@ -508,8 +534,10 @@ export class SettingsPanel {
 
     this.season = new SeasonConfirm(ctx, () => this.showSeason(false));
     this.season.el.style.display = 'none';
+    this.earlier = new EarlierSaves(ctx, () => this.view('main'));
+    this.earlier.el.style.display = 'none';
 
-    this.card.append(x, title, this.body, this.confirm, this.restoreView, this.season.el, this.fileInput);
+    this.card.append(x, title, this.body, this.confirm, this.restoreView, this.season.el, this.earlier.el, this.fileInput);
     this.backdrop.appendChild(this.card);
     layer.appendChild(this.backdrop);
     this.showTab();
@@ -610,7 +638,8 @@ export class SettingsPanel {
   }
 
   /** Show one view: the tabbed body, or one of the confirmations that replace it. */
-  private view(v: 'main' | 'reset' | 'season' | 'restore'): void {
+  private view(v: 'main' | 'reset' | 'season' | 'restore' | 'earlier'): void {
+    this.earlier.el.style.display = v === 'earlier' ? '' : 'none';
     this.body.style.display = v === 'main' ? '' : 'none';
     this.confirm.style.display = v === 'reset' ? '' : 'none';
     this.season.el.style.display = v === 'season' ? '' : 'none';

@@ -47,12 +47,12 @@ export const ERA_NODES: Readonly<Record<number, EraNodeDef>> = {
   2: { era: 2, name: 'Great Boulder', yields: 'stone', verb: 'Chip', tool: 'Stone Pick' },
   3: { era: 3, name: 'Ore Vein', yields: 'ore', verb: 'Pick', tool: 'Iron Pick' },
   4: { era: 4, name: 'Coal Seam', yields: 'coal', verb: 'Shovel', tool: 'Coal Shovel' },
-  5: { era: 5, name: 'Slag Heap', yields: 'ore', verb: 'Break', tool: 'Rivet Hammer' },
+  5: { era: 5, name: 'Slag Heap', yields: 'pigIron', verb: 'Break', tool: 'Rivet Hammer' },
   6: { era: 6, name: 'Copper Vein', yields: 'copper', verb: 'Drill', tool: 'Power Drill' },
   7: { era: 7, name: 'Oil Seep', yields: 'crude', verb: 'Drill', tool: 'Ice Auger' },
   8: { era: 8, name: 'Sand Dune', yields: 'silicon', verb: 'Sift', tool: 'Laser Sieve' },
   9: { era: 9, name: 'Uranium Crystal', yields: 'uranium', verb: 'Cut', tool: 'Geiger Tongs' },
-  10: { era: 10, name: 'Data Crystal', yields: 'power', verb: 'Tune', tool: 'Nano Wand' },
+  10: { era: 10, name: 'Data Crystal', yields: 'dataShard', verb: 'Tune', tool: 'Nano Wand' },
 };
 
 export const NODE_ERAS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10];
