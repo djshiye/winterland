@@ -20,8 +20,23 @@ import { eraRoman, groupTravelPoints, travelNote } from './agesLogic';
 import { hexCss, ICON_CLOSE, ICON_LOCK, ICON_PIN, shadeCss } from './icons';
 import './ages.css';
 
-/** World rectangle the SVG shows (x −100..150, z −24..160). */
-const VIEW = { x: -100, y: -24, w: 250, h: 184 };
+/** World rectangle the SVG shows: the old map plus every region, road and district (0.9.5: computed, 4 m margin). */
+const VIEW = (() => {
+  let minX = -24;
+  let maxX = 40;
+  let minZ = -24;
+  let maxZ = 40;
+  const rects: ERect[] = [...REGIONS.map((r) => r?.rect), ...DISTRICTS.map((d) => d?.rect), ...ROADS.map((r) => r.rect)].filter((r): r is ERect => !!r);
+  for (const r of rects) {
+    minX = Math.min(minX, r.minX);
+    maxX = Math.max(maxX, r.maxX);
+    minZ = Math.min(minZ, r.minZ);
+    maxZ = Math.max(maxZ, r.maxZ);
+  }
+  return { x: minX - 4, y: minZ - 6, w: maxX - minX + 8, h: maxZ - minZ + 10 };
+})();
+/** Marker / pin size relative to the 0.9.3 map (250 m wide), so they read the same on the bigger world. */
+const K = VIEW.w / 250;
 
 /** The old map's places (schematic rectangles, world units) and their colours. */
 const OLD_PLACES: ReadonlyArray<{ id: string; label: string; rect: ERect; fill: string }> = [
@@ -141,7 +156,7 @@ export class MapPanel {
     const { state } = this.ctx;
     const age = state.eras.age;
     const out: string[] = [];
-    out.push(`<svg viewBox="${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}" role="img" aria-label="World map" preserveAspectRatio="xMidYMid meet">`);
+    out.push(`<svg viewBox="${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}" role="img" aria-label="World map" preserveAspectRatio="xMidYMid meet" style="--k:${K.toFixed(3)}">`);
     out.push(`<rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" rx="5" fill="#dcebf8"/>`);
     // roads
     for (const r of ROADS) {
@@ -151,7 +166,7 @@ export class MapPanel {
     // the old map
     for (const p of OLD_PLACES) {
       out.push(`<rect ${rectAttrs(p.rect)} rx="2" fill="${p.fill}" stroke="#fff" stroke-width="0.9"/>`);
-      out.push(`<text class="wl-map-old" x="${(p.rect.minX + p.rect.maxX) / 2}" y="${p.rect.minZ - 1.6}">${p.label}</text>`);
+      out.push(`<text class="wl-map-old" x="${(p.rect.minX + p.rect.maxX) / 2}" y="${p.rect.minZ - 1.6 * K}">${p.label}</text>`);
     }
     // city districts: dark city blocks with their district name (not just a number, which read as a second region)
     let cityMinX = Infinity;
@@ -164,7 +179,7 @@ export class MapPanel {
       cityMaxX = Math.max(cityMaxX, d.rect.maxX);
       cityMinZ = Math.min(cityMinZ, d.rect.minZ);
     }
-    if (age >= 2 || climbOpen(state)) out.push(`<text class="wl-map-city" x="${(cityMinX + cityMaxX) / 2}" y="${cityMinZ - 2.2}">City</text>`);
+    if (age >= 2 || climbOpen(state)) out.push(`<text class="wl-map-city" x="${(cityMinX + cityMaxX) / 2}" y="${cityMinZ - 2.2 * K}">City</text>`);
     for (let n = 2; n < DISTRICTS.length; n++) {
       const d = DISTRICTS[n];
       const e = ERAS[n];
@@ -177,7 +192,7 @@ export class MapPanel {
         `<g ${open && tp ? `data-tp="${tp.id}" class="is-open"` : ''}>` +
           `<rect ${rectAttrs(d.rect)} rx="2.5" fill="#4a5672" stroke="${hexCss(e.colors.accent)}" stroke-width="1.1" ${open ? '' : 'opacity="0.35" stroke-dasharray="3 2"'}/>` +
           `<text class="wl-map-dnum" x="${cx}" y="${cz - 1}" ${open ? '' : 'opacity="0.6"'}>${eraRoman(n)}</text>` +
-          `<text class="wl-map-dname" x="${cx}" y="${cz + 6}" ${d.name.length > 14 ? 'textLength="26" lengthAdjust="spacingAndGlyphs"' : ''} ${open ? '' : 'opacity="0.6"'}>${d.name}</text></g>`,
+          `<text class="wl-map-dname" x="${cx}" y="${cz + 6}" ${d.name.length > 9 ? 'textLength="26" lengthAdjust="spacingAndGlyphs"' : ''} ${open ? '' : 'opacity="0.6"'}>${d.name}</text></g>`,
       );
     }
     // era regions
@@ -191,8 +206,8 @@ export class MapPanel {
       out.push(
         `<g ${open && tp ? `data-tp="${tp.id}" class="is-open"` : ''}>` +
           `<rect ${rectAttrs(r.rect)} rx="2.5" fill="${hexCss(e.colors.ground)}" stroke="${hexCss(e.colors.accent)}" stroke-width="1.4" ${bought ? '' : `opacity="${open ? 0.7 : 0.38}" stroke-dasharray="3 2"`}/>` +
-          `<text class="wl-map-num" x="${(r.rect.minX + r.rect.maxX) / 2}" y="${(r.rect.minZ + r.rect.maxZ) / 2 + 3}" fill="${shadeCss(e.colors.accent, -0.35)}" ${bought ? '' : 'opacity="0.55"'}>${eraRoman(n)}</text>` +
-          `<text class="wl-map-name" x="${(r.rect.minX + r.rect.maxX) / 2}" y="${(r.rect.minZ + r.rect.maxZ) / 2 + 9}" ${bought ? '' : 'opacity="0.55"'}>${e.region}</text></g>`,
+          `<text class="wl-map-num" x="${(r.rect.minX + r.rect.maxX) / 2}" y="${(r.rect.minZ + r.rect.maxZ) / 2 + 3 * K}" fill="${shadeCss(e.colors.accent, -0.35)}" ${bought ? '' : 'opacity="0.55"'}>${eraRoman(n)}</text>` +
+          `<text class="wl-map-name" x="${(r.rect.minX + r.rect.maxX) / 2}" y="${(r.rect.minZ + r.rect.maxZ) / 2 + 9 * K}" ${bought ? '' : 'opacity="0.55"'}>${e.region}</text></g>`,
       );
     }
     // the era trail: town → every region gate in order → the next era's gate
@@ -203,15 +218,15 @@ export class MapPanel {
       const end = trail[trail.length - 1]!;
       out.push(`<polyline class="wl-map-trail-bg" points="${line}"/>`);
       out.push(`<polyline class="wl-map-trail" points="${line}"/>`);
-      if (age < REGIONS.length - 1) out.push(`<circle class="wl-map-next" cx="${end.x}" cy="${end.z}" r="2.6"/>`);
+      if (age < REGIONS.length - 1) out.push(`<circle class="wl-map-next" cx="${end.x}" cy="${end.z}" r="${(2.6 * K).toFixed(2)}"/>`);
     }
     // home points as tappable pins
     for (const p of pts) {
       if (p.kind !== 'home') continue;
-      out.push(`<g ${p.open ? `data-tp="${p.id}" class="is-open"` : ''}><circle cx="${p.x}" cy="${p.z}" r="3" fill="#fff" stroke="#1f2b46" stroke-width="1.2" ${p.open ? '' : 'opacity="0.4"'}/></g>`);
+      out.push(`<g ${p.open ? `data-tp="${p.id}" class="is-open"` : ''}><circle cx="${p.x}" cy="${p.z}" r="${(3 * K).toFixed(2)}" fill="#fff" stroke="#1f2b46" stroke-width="${(1.2 * K).toFixed(2)}" ${p.open ? '' : 'opacity="0.4"'}/></g>`);
     }
-    out.push(`<circle class="wl-map-ring" cx="0" cy="0" r="4" fill="none" stroke="#e8553e" stroke-width="1"/>`);
-    out.push(`<circle class="wl-map-you" cx="0" cy="0" r="2.7" fill="#e8553e" stroke="#fff" stroke-width="1.1"/>`);
+    out.push(`<circle class="wl-map-ring" cx="0" cy="0" r="${(4 * K).toFixed(2)}" fill="none" stroke="#e8553e" stroke-width="${K.toFixed(2)}"/>`);
+    out.push(`<circle class="wl-map-you" cx="0" cy="0" r="${(2.7 * K).toFixed(2)}" fill="#e8553e" stroke="#fff" stroke-width="${(1.1 * K).toFixed(2)}"/>`);
     out.push('</svg>');
     return out.join('');
   }
