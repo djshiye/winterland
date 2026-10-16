@@ -11,7 +11,7 @@
  * - settlement: level ≥ 5·(n − 1).
  * eraGate() is the full checklist for the UI; gateMet() is the cheap yes/no layout.expansionOffered asks every frame.
  */
-import { CLIMB, PRIORITIES, UPGRADES, type UpgradeDef } from '../config';
+import { UPGRADES, type UpgradeDef } from '../config';
 import { base, introEra, shown, stepCost } from '../core/ladder';
 import { upgradeRequirement } from '../core/Upgrades';
 import type { GameState, UpgradeId } from '../core/types';
@@ -194,29 +194,13 @@ export function openRows(g: EraGate): GateRow[] {
   return g.rows.filter((r) => r.state !== 'ok').sort((a, b) => rank(a) - rank(b) || a.costToNeed - b.costToNeed);
 }
 
-/** A row the shop sells from anywhere (shop and Industry rows). Pad rows are paid at the machine's level pad (R6). */
+/**
+ * A row bought in the shop panel (shop and Industry rows), which opens only while the player stands on a shop mat (the
+ * cabin's, or an era region's for Industry). Pad rows are paid at the machine's level pad (R6). Upgrades are hands-on:
+ * nothing is bought from the checklist or from afar.
+ */
 export function rowBuyable(r: GateRow): boolean {
   return r.state === 'low' && r.where !== 'pad';
-}
-
-/** What Raise all leaves in the wallet: max($500, 20 %), the foreman's reserve (PRIORITIES), so it never empties it. */
-export function raiseReserve(money: number): number {
-  return Math.max(PRIORITIES.reserveMin, PRIORITIES.reserveShare * money);
-}
-
-/** What Raise all and the Steward may buy: every shop / Industry row still below its need, as Upgrades.raiseAll rows. */
-export function raiseRows(g: Pick<EraGate, 'rows'>): { id: UpgradeId; need: number }[] {
-  return g.rows.filter(rowBuyable).map((r) => ({ id: r.id, need: r.need }));
-}
-
-/** The Steward toggle is offered (the Settlement 20 perk; the climb is open by then, checked anyway). */
-export function stewardUnlocked(s: GameState): boolean {
-  return climbOpen(s) && settlementLevel(s) >= CLIMB.steward.settlement;
-}
-
-/** The Steward is working: unlocked, switched on, and a next era's checklist to raise. */
-export function stewardActive(s: GameState): boolean {
-  return s.eras.steward && !!ERAS[s.eras.age + 1] && stewardUnlocked(s);
 }
 
 /** The locked pad's note and the chip's count: "37/48 · S8/10". */
@@ -265,7 +249,11 @@ export function settlementGoal(s: GameState, g: EraGate): NextGoal {
   const age = s.eras.age;
   const home = Object.values(CITY_BUILDINGS).find((d) => d.era === age && d.kind === 'home');
   const where = DISTRICTS[age]?.name;
-  const text = home && where ? `Build a home in ${where} (+${home.people}) → Settlement ${g.settlement.level + 1}` : `Grow the city → Settlement ${g.settlementNeed}`;
+  // every lot taken (a chosen but unpaid lot counts): a home has to replace a park or shop (ManagePanel's demolish)
+  const lots = s.city.districts[age]?.lots;
+  const full = !!lots && lots.length > 0 && !lots.some((l) => l.building === '');
+  const next = `Settlement ${g.settlement.level + 1}`;
+  const text = !home || !where ? `Grow the city → Settlement ${g.settlementNeed}` : full ? `Swap a park or shop for a home in ${where} → ${next}` : `Build a home in ${where} (+${home.people}) → ${next}`;
   return { text, action: { kind: 'build', target: `district:${age}` } };
 }
 
@@ -277,10 +265,17 @@ export function settlementGoal(s: GameState, g: EraGate): NextGoal {
 export function nextGoal(s: GameState, money: number): NextGoal | null {
   const n = s.eras.age + 1;
   if (!climbOpen(s) || !ERAS[n]) return null;
+  // something already paid into the pad keeps it on sale (grandfathered, layout.expansionOffered): point there
+  if (padPaid(s, n) > 0) return { text: `${ERAS[n]!.region} is for sale!`, action: { kind: 'go', target: `region:${n}` } };
   const g = eraGate(s, n);
   const open = g.rows.filter((r) => r.state !== 'ok');
   const prereq = open.find((r) => r.state === 'prereq');
-  if (prereq) return { text: `${UPGRADES[prereq.id].label}: ${prereq.prereq}`, action: { kind: 'build', target: prereqTarget(prereq.id, s) } };
+  if (prereq) {
+    // "Build the Harvester first", not "Harvester: Build the Harvester first" (the upgrade named after its machine)
+    const label = UPGRADES[prereq.id].label;
+    const text = prereq.prereq!.includes(label) ? prereq.prereq! : `${label}: ${prereq.prereq}`;
+    return { text, action: { kind: 'build', target: prereqTarget(prereq.id, s) } };
+  }
   const next = (r: GateRow): number => stepCost(UPGRADES[r.id], s.upgrades[r.id]);
   const low = open.slice().sort((a, b) => next(a) - next(b) || a.costToNeed - b.costToNeed);
   const cheapest = low[0];

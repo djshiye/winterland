@@ -261,7 +261,8 @@ export function sanitizeState(state: GameState): void {
   // settlement 6..50: a best-ever level, never above the age's band (city/City.ts raises it to the city's population
   // when it is built, so a valid save stays untouched here)
   e.settlement = int(e.settlement, 0, Math.min(SETTLEMENT.max, SETTLEMENT.band * e.age));
-  e.steward = e.steward === true;
+  // 0.9.0 dev saves may still carry eras.steward (the auto-buyer, removed: upgrades are hands-on); mergeState copies
+  // only the fields a fresh state has, so it is dropped on load and never written again.
   {
     const m = state.market;
     for (const k of Object.keys(m.index) as (keyof typeof m.index)[]) {

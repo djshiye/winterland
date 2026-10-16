@@ -122,7 +122,12 @@ describe('gate quests (0.9.0 climb)', () => {
     for (const q of QUEST_DEFS.slice(0, QUEST_DEFS.findIndex((d) => d.id === 'gate2'))) state.quests[q.id] = true;
     state.village.level = VILLAGE.levels.length - 2;
     expect(def('gate2').unlocked!(state)).toBe(false);
-    expect(quests.active()[0]!.def.id).toBe('era2');
+    expect(quests.active()).toEqual([]);
+    // the Lodge the only Survival quest left: no era quest beside it (the land and pad are hidden until it)
+    state.quests.greatLodge = false;
+    expect(quests.active().map((q) => q.def.id)).toEqual(['greatLodge']);
+    state.eras.age = 2; // an old save already past era 1
+    expect(quests.active().map((q) => q.def.id)).toContain('era2');
     const s = lodge();
     expect(def('gate2').unlocked!(s)).toBe(true);
     expect(def('gate2').progress(s)).toBe(0);

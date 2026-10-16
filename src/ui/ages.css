@@ -194,6 +194,15 @@
   font-weight: 700;
 }
 
+/* wide screens: the chip sits in the top row right of centre; the centred objective banner steps below the button row
+   (clear of the left column and the right-hand sheets) so the chip never covers it */
+@media (min-width: 700px) {
+  .wl-hud.has-erachip .wl-objective {
+    top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 58px);
+    max-width: max(240px, calc(100% - 800px));
+  }
+}
+
 /* phones: the chip drops under the button row (the objective banner already sits below the village badge) */
 @media (max-width: 699px) {
   .wl-hud .wl-erachip,
@@ -219,6 +228,10 @@
   }
   .wl-hud.has-erachip .wl-objective {
     top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 44px);
+  }
+  /* the village badge shares the chip's row: leave the chip its room (the name ellipsizes, pop / happy stay) */
+  .wl-hud.has-erachip .wl-village {
+    max-width: calc(100vw - 3 * var(--wl-pad) - 170px);
   }
 }
 
@@ -922,29 +935,23 @@
   display: block;
 }
 
+/* Go on the right: one row stays the icon's height, so the top five rows fit without a scroll */
 .wl-gate-btns {
   flex: none;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
 }
 
-.wl-hud .wl-gate-buy {
-  min-width: 78px;
-  min-height: 36px;
-  font-size: 15px;
-}
-
-.wl-gate-to,
 .wl-gate-go {
-  min-height: 26px;
+  min-height: 36px;
   padding: 2px 10px;
   border-radius: 12px;
   border: 2px solid #fff;
   background: linear-gradient(#58b6ff, #2f86d6);
   color: #fff;
-  font-size: 13px;
+  min-width: 64px;
+  font-size: 16px;
   line-height: 1;
   white-space: nowrap;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
@@ -954,96 +961,9 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.wl-gate-go {
-  min-width: 64px;
-  min-height: 36px;
-  font-size: 16px;
-}
-
-.wl-gate-to.is-poor {
-  background: linear-gradient(#9aa6bf, #6c7893);
-}
-
-.wl-gate-to:active,
 .wl-gate-go:active {
   transform: translateY(2px);
   box-shadow: 0 0 0 rgba(20, 30, 55, 0.45);
-}
-
-.wl-gate-foot {
-  flex: none;
-  display: flex;
-  gap: 8px;
-  padding-top: 6px;
-}
-
-.wl-gate-raise {
-  flex: 1;
-  min-width: 0;
-  min-height: 44px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  border-radius: 16px;
-  border: 3px solid #fff;
-  background: linear-gradient(#5ee07a, #2e9c48);
-  color: #fff;
-  font-size: 17px;
-  line-height: 1.05;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
-  box-shadow: 0 3px 0 rgba(20, 30, 55, 0.45);
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.wl-gate-raise.is-poor {
-  background: linear-gradient(#9aa6bf, #6c7893);
-}
-
-.wl-gate-raise:active {
-  transform: translateY(2px);
-}
-
-.wl-gate-raise-note {
-  font-size: 11px;
-  font-weight: 500;
-  opacity: 0.9;
-}
-
-/* the Steward toggle (Settlement 20 perk): grey while off, gold while on */
-.wl-gate-steward {
-  flex: none;
-  width: 118px;
-  min-height: 44px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  border-radius: 16px;
-  border: 3px solid #fff;
-  background: linear-gradient(#9aa6bf, #6c7893);
-  color: #fff;
-  font-size: 15px;
-  line-height: 1.05;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
-  box-shadow: 0 3px 0 rgba(20, 30, 55, 0.45);
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.wl-gate-steward.is-on {
-  background: linear-gradient(#ffd84a, #e0a521);
-  color: #5a3a00;
-  text-shadow: none;
-}
-
-.wl-gate-steward:active {
-  transform: translateY(2px);
 }
 
 /* "✦ Mastery 340 · +41% on every sale": only once a level has passed its cap */
@@ -1054,14 +974,20 @@
   color: #b07a00;
 }
 
-/* phones: the checklist is taller than the other sheets (up to 64 % of the screen) */
-@media (max-width: 699px) {
+/* the checklist is taller than the other sheets: the top five rows, "+N more" and the settlement show at a glance */
+@media (min-width: 700px) {
   .wl-hud .wl-gate {
-    max-height: min(64vh, 560px);
+    max-height: calc(100% - 84px);
   }
 }
 
-/* ---- 0.9.0 climb: the shop's band pips, level / need badge, Buy ×10 and Raise all -------------------- */
+@media (max-width: 699px) {
+  .wl-hud .wl-gate {
+    max-height: min(72vh, 640px);
+  }
+}
+
+/* ---- 0.9.0 climb: the shop's band pips and level / need badge ------------------------------------------ */
 
 .wl-band {
   display: inline-flex;
@@ -1107,61 +1033,6 @@
 .wl-need.is-ok {
   background: linear-gradient(#ffe680, #f0b52c);
   color: #5a3504;
-}
-
-.wl-shop-btns {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-}
-
-.wl-shop-x10 {
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 10px;
-  border: 2px solid #fff;
-  font-size: 13px;
-  line-height: 1;
-  color: #fff;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
-  box-shadow: 0 2px 0 rgba(20, 30, 55, 0.45);
-  background: linear-gradient(#58b6ff, #2f86d6);
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.wl-shop-x10.is-poor {
-  background: linear-gradient(#9aa6bf, #6c7893);
-  cursor: default;
-}
-
-.wl-shop-x10:active:not(:disabled) {
-  transform: translateY(2px);
-  box-shadow: 0 0 0 rgba(20, 30, 55, 0.45);
-}
-
-.wl-shop-raise {
-  flex: none;
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 14px;
-  border: 2px solid #fff;
-  background: linear-gradient(#5ee07a, #2e9c48);
-  color: #fff;
-  font-size: 15px;
-  line-height: 1;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
-  box-shadow: 0 2px 0 rgba(20, 30, 55, 0.45);
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.wl-shop-raise:active {
-  transform: translateY(2px);
 }
 
 /* a tab with upgrades below the gate's level: a gold dot (the green "something to buy" dot wins) */

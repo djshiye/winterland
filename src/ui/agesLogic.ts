@@ -273,3 +273,13 @@ export function masteryLine(points: number, mult: number): string {
 export function masteryTag(points: number, mult: number): string {
   return `\u2726 ${points} · +${Math.round((mult - 1) * 100)}%`;
 }
+
+/**
+ * A card's effect line: "50 items → 60 items", "50 items (max)" at the top, and past an effect's hard cap during the
+ * climb (a level that only adds Mastery, docs/EXPANSION.md) "50 items (max) · +1 Mastery" instead of "50 → 50".
+ */
+export function shopDelta(now: string, next: string | null, climb: boolean): string {
+  if (next === null) return `${now} (max)`;
+  if (next === now && climb) return `${now} (max) · +1 Mastery`;
+  return `${now} → ${next}`;
+}

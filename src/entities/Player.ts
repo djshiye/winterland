@@ -18,12 +18,14 @@
  * - Small snow puffs at the feet while running (ctx.particles.puff, throttled).
  * - Wave 13: owns the Sled Dog companion (entities/Dog.ts). It exists while ctx.upgrades.value('dog') > 0 (polled, so saves and
  *   debug setUpgrade work), woofs when first hired ('upgrade:bought'), and its value adds to the arms capacity.
+ * - 0.9.0 climb: wears the Founder's Scarf (assets/characters.ts createFounderScarf) from Settlement 20 on (polled).
  */
 import * as THREE from 'three';
 import { PLAYER } from '../config';
 import { CARRY_KINDS, type GameContext } from '../core/types';
 import { approach, clamp, dampAngle } from '../core/math';
-import { createAxe } from '../assets/characters';
+import { createAxe, createFounderScarf } from '../assets/characters';
+import { founderScarf, settlementLevel } from '../core/demand';
 import { createCharacterRig, type CharacterRig } from '../render/characters';
 import { CarryStack } from '../items/CarryStack';
 import { CashStack } from '../items/CashStack';
@@ -76,6 +78,8 @@ export class Player {
   private readonly footprints: Footprints;
   /** Wave 13: the husky companion (null until the Sled Dog is hired). */
   dog: Dog | null = null;
+  /** 0.9.0 climb: the Founder's Scarf (the Settlement 20 perk), null until then. */
+  private scarf: THREE.Mesh | null = null;
 
   private readonly desired = new THREE.Vector3();
   private readonly prev = new THREE.Vector3();
@@ -294,6 +298,11 @@ export class Player {
       });
       this.axe = next;
       this.rig.handR.add(next);
+    }
+    // 0.9.0 climb: the Founder's Scarf from Settlement 20 on (the level never goes down; restored saves, debug too)
+    if (!this.scarf && founderScarf(settlementLevel(this.ctx.state))) {
+      this.scarf = createFounderScarf();
+      this.rig.model.squash.add(this.scarf);
     }
   }
 

@@ -5,9 +5,9 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DAYNIGHT, OFFLINE, PRESTIGE, QUARTERS, SAVE, VILLAGE } from '../src/config';
+import { DAYNIGHT, OFFLINE, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE } from '../src/config';
 import { salePrice } from '../src/core/demand';
-import { LEVEL_CAP } from '../src/core/ladder';
+import { authoredMax, LEVEL_CAP } from '../src/core/ladder';
 import { EventBus } from '../src/core/EventBus';
 import { mergeState, newSeasonSave, offlineEarnings, SalesMeter, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
 import { createGameState, type GameContext, type GameEvents } from '../src/core/types';
@@ -15,7 +15,7 @@ import { createGameState, type GameContext, type GameEvents } from '../src/core/
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
 /** Every real save captured from a released build: each must keep loading as the state grows. */
-const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json', 'save-v7-eras.json'];
+const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json', 'save-v7-eras.json', 'save-v8-climb.json'];
 
 describe.each(FIXTURES)('%s', (name) => {
   it('loads every saved field and the world', () => {
@@ -313,5 +313,43 @@ describe('v7 eras save fixture', () => {
     expect(state.eras.regions.every((r) => !r.unlocked)).toBe(true);
     expect(state.market.investments).toEqual([]);
     expect(sanitizeWorld(load('save-v6-events.json').world).eras[2]!.slots).toHaveLength(4);
+  });
+});
+
+/**
+ * 0.9.0 climb: the Great Lodge built, levels past the authored tables, settlement 8, a half-paid era-3 pad. Saved while
+ * the Steward auto-buyer existed (eras.steward true): the field is dropped on load (upgrades are hands-on).
+ */
+describe('v8 climb save fixture', () => {
+  it('restores the climb untouched by sanitizeState', () => {
+    const save = load('save-v8-climb.json');
+    const state = createGameState();
+    mergeState(state, save.state);
+    const before = JSON.stringify(state);
+    sanitizeState(state);
+    expect(JSON.stringify(state)).toBe(before);
+    expect(state.village.greatLodge.tier).toBeGreaterThanOrEqual(0);
+    expect(state.eras.age).toBe(2);
+    expect(state.eras.settlement).toBe(8);
+    expect((save.state.eras as unknown as Record<string, unknown>).steward).toBe(true);
+    expect('steward' in state.eras).toBe(false);
+    expect(state.eras.regions[3]).toMatchObject({ unlocked: false, cash: 2_250_000, extra: 17 });
+    expect(state.upgrades.carry).toBe(15);
+    expect(state.upgrades.frontierRigs).toBe(5);
+    expect(state.upgrades.carry).toBeGreaterThan(authoredMax(UPGRADES.carry));
+  });
+
+  it('round-trips: a save written from the restored state restores the same state and world', () => {
+    const save = load('save-v8-climb.json');
+    const a = createGameState();
+    mergeState(a, save.state);
+    sanitizeState(a);
+    const b = createGameState();
+    mergeState(b, JSON.parse(JSON.stringify(a)));
+    sanitizeState(b);
+    expect(b).toEqual(a);
+    const world = sanitizeWorld(save.world);
+    expect(sanitizeWorld(JSON.parse(JSON.stringify(world)))).toEqual(world);
+    expect(world.eras[2]!.slots.length).toBe(4);
   });
 });

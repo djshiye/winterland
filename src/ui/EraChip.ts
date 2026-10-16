@@ -15,7 +15,7 @@
  */
 import type { GameContext } from '../core/types';
 import { CITY_RANKS, ERAS } from '../eras/data';
-import { climbOpen, gateCount, gateNote, nextGoal } from '../eras/gate';
+import { climbOpen, gateCount, gateNote, nextGoal, padPaid } from '../eras/gate';
 import { masteryTotal } from '../core/demand';
 import { masteryMult } from '../core/ladder';
 import { cityStanding, eraChipVisible, eraRoman, formatPopulation, IncomeTicker, masteryTag, rankName } from './agesLogic';
@@ -45,6 +45,7 @@ export class EraChip {
   private gating = false;
   private goalAcc = GOAL_EVERY;
   private lastCount = '';
+  private lastLabel = '';
   private lastRing = -1;
   private pulse = 0;
   private population: number;
@@ -120,6 +121,7 @@ export class EraChip {
       this.ring.style.display = gating ? '' : 'none';
       if (!gating) this.setText(this.countEl, 'lastCount', '');
       this.lastCity = '';
+      this.lastLabel = '';
       this.goalAcc = GOAL_EVERY;
     }
     if (this.pulse > 0) {
@@ -173,11 +175,18 @@ export class EraChip {
       this.ringFg.setAttribute('stroke-dashoffset', (RING * (1 - k)).toFixed(2));
     }
     const goal = nextGoal(state, economy.money);
-    const text = goal ? (c.ready ? goal.text : `Next: ${goal.text}`) : '';
+    const ready = c.ready || padPaid(state, n) > 0; // a part-paid pad stays on sale (grandfathered)
+    const text = goal ? (ready ? goal.text : `Next: ${goal.text}`) : '';
     if (text !== this.lastCity) {
       this.lastCity = text;
       this.cityEl.textContent = text;
-      this.root.classList.toggle('is-ready', c.ready);
+      this.root.classList.toggle('is-ready', ready);
+    }
+    // the visible count and goal name the button (a fixed aria-label would hide them from screen readers)
+    const label = `Era checklist: ${this.lastCount}${text ? `. ${text}` : ''}`;
+    if (label !== this.lastLabel) {
+      this.lastLabel = label;
+      this.root.setAttribute('aria-label', label);
     }
   }
 

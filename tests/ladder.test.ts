@@ -76,11 +76,11 @@ describe('ladder: costs', () => {
 
   it('matches the calibrated sample prices', () => {
     // design §A2 at U 250k, growth 2.6: $125k / $225k / $201M / $401M; the pacing model (core/pacing.ts) set
-    // U 300k, growth 4.3
-    expect(costAt(UPGRADES.carry, 10)).toBe(150_000); // A 10, lumberjack
-    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(270_000); // A 10, industry
-    expect(costAt(UPGRADES.carry, 89)).toBe(8_150_000_000); // A 89, lumberjack
-    expect(costAt(UPGRADES.taxOffice, 79)).toBe(16_300_000_000); // A 89, finance
+    // U 300k, growth 4.3; 0.9.0 (every era longer than the last): U 190k, growth 4.3 × bandTilt
+    expect(costAt(UPGRADES.carry, 10)).toBe(95_000); // A 10, lumberjack
+    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(171_000); // A 10, industry
+    expect(costAt(UPGRADES.carry, 89)).toBe(10_900_000_000); // A 89, lumberjack
+    expect(costAt(UPGRADES.taxOffice, 79)).toBe(21_800_000_000); // A 89, finance
   });
 
   it('a Survival id first continues its last authored price by 5 % a level', () => {

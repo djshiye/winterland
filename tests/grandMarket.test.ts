@@ -55,8 +55,9 @@ function makeCtx() {
     tweens: {
       killTweensOf: () => undefined,
       popIn: () => undefined,
-      run: () => undefined,
+      run: () => ({}),
       punchScale: () => undefined,
+      squash: () => undefined,
       delay: (_s: number, fn: () => void) => fn(), // fires at once (a tick later in the game)
     },
     particles: { ring: () => undefined },
