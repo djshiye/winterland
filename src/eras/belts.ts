@@ -3,7 +3,8 @@
  * belt and the path it runs. No THREE, no GameContext; tested in tests/eraBelts.test.ts.
  *
  * Who gets a belt (planBelts): every built processor input is linked to the nearest built machine (another slot) that
- * makes that kind, at most one belt into each input and one belt out of each machine, shortest links first. Machines
+ * makes that kind, at most one belt into each input and one belt out of each machine: as many belts as fit (a maximum
+ * matching), shorter links preferred. Machines
  * at most one row apart only, and a belt never shares its stretch of lane or corridor with another belt. Whatever has
  * no belt is still carried by the crew.
  *
@@ -16,13 +17,19 @@ import type { MachineDef } from './data';
 import type { RegionLayout, XZ } from './layout';
 import { MACHINE_NOMINAL, toWorld } from './rules';
 
-/** Belt lane: this far in front of a machine's centre (its front face + the feed / take zones + half a belt). */
-export const BELT_LANE = MACHINE_NOMINAL.d / 2 + 2.3;
+/**
+ * Belt lane: this far in front of a machine's centre (its front face + the feed / take zones + half a belt), clear of
+ * the workers' aisle on the row boundary (layout ROW_PITCH 10.5: the boundary is 5.25 in front of the centre).
+ */
+export const BELT_LANE = MACHINE_NOMINAL.d / 2 + 2.2;
 /** Pile offsets the belt ends sit in front of (rules.ts PILE_OUT_U / PILE_U). */
 const OUT_U = 1.5;
 const IN_U = -1.4;
-/** A corridor belt runs this far beside the column boundary (the workers walk on the boundary itself). */
-export const CORRIDOR_OFFSET = 0.75;
+/**
+ * A corridor belt runs this far beside the column boundary (the workers walk on the boundary itself), on the side of
+ * the neighbouring machine's MANAGE zone, never over a machine's level pad (rules.ts levelPadLocal, on its −u side).
+ */
+export const CORRIDOR_OFFSET = 0.6;
 /** Belts closer than this (centre to centre) would touch. */
 const CLEAR = 0.9;
 
@@ -40,7 +47,7 @@ export function rowOf(L: RegionLayout, i: number): number {
   const s0 = L.slots[0];
   const s = L.slots[i];
   if (!s0 || !s) return 0;
-  return Math.round(((s.z - s0.z) * L.inward) / L.cell);
+  return Math.round(((s.z - s0.z) * L.inward) / L.rowPitch);
 }
 
 /** World point of local (u, BELT_LANE) of slot i. */
@@ -64,8 +71,10 @@ export function beltRoute(L: RegionLayout, a: number, b: number): XZ[] | null {
   const mid = (start.x + end.x) / 2;
   const k = Math.min(cols - 1, Math.max(1, Math.round((mid - (s0.x - L.cell / 2)) / L.cell)));
   const xb = s0.x - L.cell / 2 + k * L.cell;
-  // beside the boundary, on the side of the trip's middle (never on the workers' aisle)
-  const xc = xb + (mid >= xb ? CORRIDOR_OFFSET : -CORRIDOR_OFFSET);
+  // beside the boundary, on the MANAGE side (local +u, world +x for yaw 0): the cell left of the boundary has its +u
+  // side there when +u points to +x, else the cell right of it does; the level pads sit on the other side
+  const plusX = Math.cos(s0.yaw) > 0;
+  const xc = xb + (plusX ? -CORRIDOR_OFFSET : CORRIDOR_OFFSET);
   return [start, { x: xc, z: start.z }, { x: xc, z: end.z }, end];
 }
 
@@ -118,20 +127,50 @@ export function planBelts(L: RegionLayout, machines: SlotMachines): BeltLink[] {
     }
   });
   cands.sort((a, b) => len(a.path) - len(b.path) || a.from - b.from || a.to - b.to);
+  // as many belts as the machines allow (a maximum matching, shortest links tried first), then the shortest of the rest
+  const matched = new Set(maxMatching(cands));
   const out: BeltLink[] = [];
   const usedFrom = new Set<number>();
   const usedIn = new Set<string>();
   const segs: Seg[][] = [];
-  for (const c of cands) {
-    if (usedFrom.has(c.from) || usedIn.has(`${c.to}:${c.kind}`)) continue;
+  const take = (c: BeltLink): void => {
+    if (usedFrom.has(c.from) || usedIn.has(`${c.to}:${c.kind}`)) return;
     const s = segments(c.path);
-    if (segs.some((t) => overlaps(s, t))) continue;
+    if (segs.some((t) => overlaps(s, t))) return;
     out.push(c);
     segs.push(s);
     usedFrom.add(c.from);
     usedIn.add(`${c.to}:${c.kind}`);
-  }
+  };
+  for (const c of cands) if (matched.has(c)) take(c);
+  for (const c of cands) take(c);
   return out;
+}
+
+/** Kuhn's augmenting paths over the candidates (one belt out per producer, one in per consumer input), in order. */
+function maxMatching(cands: readonly BeltLink[]): BeltLink[] {
+  const byIn = new Map<string, BeltLink[]>();
+  for (const c of cands) {
+    const k = `${c.to}:${c.kind}`;
+    const list = byIn.get(k) ?? [];
+    list.push(c);
+    byIn.set(k, list);
+  }
+  const ofFrom = new Map<number, BeltLink>();
+  const tryIn = (k: string, seen: Set<number>): boolean => {
+    for (const c of byIn.get(k)!) {
+      if (seen.has(c.from)) continue;
+      seen.add(c.from);
+      const held = ofFrom.get(c.from);
+      if (!held || tryIn(`${held.to}:${held.kind}`, seen)) {
+        ofFrom.set(c.from, c);
+        return true;
+      }
+    }
+    return false;
+  };
+  for (const k of byIn.keys()) tryIn(k, new Set());
+  return [...ofFrom.values()];
 }
 
 /** Stable key of a belt (rebuild only what changed). */

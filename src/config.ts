@@ -1423,7 +1423,7 @@ function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Trade' | 'Belts' |
       if (d.era !== n) continue;
       out[m] = {
         id: m, group: 'machine', era: n, label: d.label, blurb: `Every ${d.label} works faster`,
-        values: [1, 1.06, 1.12, 1.18, 1.24, 1.3, 1.36, 1.42, 1.48, 1.54], costs: [],
+        values: [1, 1.06, 1.12, 1.18, 1.24, 1.3, 1.36, 1.42, 1.48, 1.54, 1.6], costs: [],
         display: 'boost', requires: { era: n },
       };
     }
