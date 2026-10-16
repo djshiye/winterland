@@ -1,0 +1,272 @@
+{
+  "era": 3,
+  "name": "Iron Age",
+  "materials": [
+    {
+      "id": "ore",
+      "new": false,
+      "shape": "nugget",
+      "colors": ["#7c5a4a", "#b0704e"]
+    },
+    {
+      "id": "charcoal",
+      "new": true,
+      "shape": "charcoal",
+      "size": [0.36, 0.22, 0.32],
+      "colors": ["#2c2b2e", "#4a484d", "#ff8a30"],
+      "detail": "Faceted charred timber briquettes with soft grey ash edges and tiny glowing ember core",
+      "icon": "Cracked charcoal lump with tiny glowing orange fire speck on cinder ground"
+    },
+    {
+      "id": "iron",
+      "new": false,
+      "shape": "ingot",
+      "colors": ["#8d949c", "#5d6268"]
+    },
+    {
+      "id": "tools",
+      "new": true,
+      "shape": "tools",
+      "size": [0.42, 0.2, 0.3],
+      "colors": ["#5d6268", "#8a5a3b", "#3d3a3a"],
+      "detail": "Crossed pair of forged heavy iron tongs and square blacksmith hammer bound with leather",
+      "icon": "Crossed heavy iron hammer and tongs bound with leather strap"
+    },
+    {
+      "id": "rail",
+      "new": true,
+      "shape": "rail",
+      "size": [0.48, 0.16, 0.22],
+      "colors": ["#5d6268", "#6d5a48", "#8d949c"],
+      "detail": "Miniature heavy iron T-rail segment spiked to dark creosote timber sleeper tie",
+      "icon": "Stout steel rail track section on wooden sleeper with silver crown"
+    }
+  ],
+  "machines": [
+    {
+      "id": "ironMine",
+      "new": false,
+      "parts": [
+        { "name": "headframe", "primitive": "box", "size": [4.4, 4.8, 3.8], "pos": [0, 2.4, 0], "color": "#6d5a48" }
+      ],
+      "colors": ["#6d5a48", "#3d3a3a", "#7c4a33"]
+    },
+    {
+      "id": "charcoalClamp",
+      "new": true,
+      "role": "extractor",
+      "footprint": [4.6, 4.6],
+      "height": 3.0,
+      "parts": [
+        { "name": "earthMound", "primitive": "cylinder", "size": [4.0, 1.4, 4.0], "pos": [0, 0.7, 0], "color": "#4a484d" },
+        { "name": "timberRetainingWall", "primitive": "cylinder", "size": [4.4, 0.6, 4.4], "pos": [0, 0.3, 0], "color": "#6d5a48" },
+        { "name": "centralFlueStack", "primitive": "cylinder", "size": [0.6, 1.6, 0.6], "pos": [0, 1.9, 0], "color": "#3d3a3a" },
+        { "name": "smokeCap", "primitive": "cone", "size": [0.8, 0.4, 0.8], "pos": [0, 2.8, 0], "color": "#2c2b2e" },
+        { "name": "turfSods", "primitive": "box", "size": [0.8, 0.3, 0.8], "pos": [1.2, 0.8, 1.1], "color": "#3a3532" },
+        { "name": "snowRim", "primitive": "torus", "size": [2.1, 0.18, 2.1], "pos": [0, 0.8, 0], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "ventDraftGlow", "primitive": "sphere", "size": [0.3, 0.3, 0.3], "pos": [0, 2.7, 0], "color": "#ff8a30" },
+        { "name": "bottomBorehole", "primitive": "box", "size": [0.3, 0.2, 0.2], "pos": [1.8, 0.3, 0.4], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "damperLid",
+        "pivot": [0, 2.7, -0.3],
+        "motion": "bob",
+        "period": 2.4
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "smelter",
+      "new": false,
+      "parts": [
+        { "name": "furnaceTower", "primitive": "cylinder", "size": [3.2, 4.2, 3.2], "pos": [0, 2.1, 0], "color": "#3d3a3a" }
+      ],
+      "colors": ["#3d3a3a", "#7c4a33", "#ff8a30"]
+    },
+    {
+      "id": "forge",
+      "new": true,
+      "role": "processor",
+      "footprint": [4.8, 4.6],
+      "height": 4.0,
+      "parts": [
+        { "name": "stoneHearthBase", "primitive": "box", "size": [4.2, 0.8, 4.0], "pos": [0, 0.4, 0], "color": "#4f4a48" },
+        { "name": "brickForgeHood", "primitive": "box", "size": [2.2, 1.8, 1.8], "pos": [-0.8, 1.7, -0.6], "color": "#7c4a33" },
+        { "name": "tripHammerFrame", "primitive": "box", "size": [1.6, 2.8, 1.8], "pos": [1.0, 1.4, -0.2], "color": "#3d3a3a" },
+        { "name": "anvilBlock", "primitive": "cylinder", "size": [0.8, 0.9, 0.8], "pos": [1.0, 0.85, 0.3], "color": "#5d6268" },
+        { "name": "waterQuenchTrough", "primitive": "box", "size": [1.2, 0.6, 0.8], "pos": [-1.2, 0.5, 1.1], "color": "#6d5a48" },
+        { "name": "snowRoof", "primitive": "box", "size": [3.8, 0.22, 3.2], "pos": [0, 3.6, -0.4], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "forgeFirebox", "primitive": "box", "size": [0.9, 0.5, 0.9], "pos": [-0.8, 1.1, -0.6], "color": "#ff8a30" },
+        { "name": "hotIronBar", "primitive": "box", "size": [0.4, 0.08, 0.12], "pos": [1.0, 1.32, 0.3], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "tripHammerArm",
+        "pivot": [1.0, 2.4, -0.7],
+        "motion": "swing",
+        "period": 1.4
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "railMill",
+      "new": true,
+      "role": "premium",
+      "footprint": [5.0, 4.8],
+      "height": 3.8,
+      "parts": [
+        { "name": "steelBedFrame", "primitive": "box", "size": [4.6, 0.6, 4.4], "pos": [0, 0.3, 0], "color": "#3d3a3a" },
+        { "name": "rollerStandPillars", "primitive": "cylinder", "size": [0.4, 2.6, 0.4], "pos": [-0.9, 1.6, -0.4], "color": "#5d6268" },
+        { "name": "rollerStandPillarsR", "primitive": "cylinder", "size": [0.4, 2.6, 0.4], "pos": [0.9, 1.6, -0.4], "color": "#5d6268" },
+        { "name": "corrugatedTinShed", "primitive": "box", "size": [4.2, 0.3, 3.4], "pos": [0, 3.2, -0.5], "color": "#7c4a33" },
+        { "name": "coolingRack", "primitive": "box", "size": [1.8, 0.4, 2.2], "pos": [1.2, 0.7, 0.8], "color": "#4f4a48" },
+        { "name": "snowRidge", "primitive": "box", "size": [4.3, 0.2, 3.5], "pos": [0, 3.4, -0.5], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "glowingBillet", "primitive": "box", "size": [2.6, 0.16, 0.2], "pos": [0, 0.85, -0.4], "color": "#ff8a30" },
+        { "name": "indicatorLamp", "primitive": "sphere", "size": [0.24, 0.24, 0.24], "pos": [-1.5, 2.2, 0.8], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "heavyDriveFlywheel",
+        "pivot": [-1.4, 1.6, -0.4],
+        "motion": "spin",
+        "period": 1.6
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    },
+    {
+      "id": "mintChute",
+      "new": true,
+      "role": "cash",
+      "footprint": [4.2, 4.2],
+      "height": 3.4,
+      "parts": [
+        { "name": "foundation", "primitive": "box", "size": [3.8, 0.4, 3.8], "pos": [0, 0.2, 0], "color": "#4f4a48" },
+        { "name": "castIronCabinet", "primitive": "box", "size": [2.6, 1.8, 2.4], "pos": [0, 1.3, -0.1], "color": "#3d3a3a" },
+        { "name": "heavyCoinChute", "primitive": "cone", "size": [0.9, 1.1, 0.9], "pos": [0, 2.6, -0.1], "color": "#7c4a33" },
+        { "name": "reinforcingRibs", "primitive": "box", "size": [2.8, 0.15, 2.5], "pos": [0, 1.2, -0.1], "color": "#5d6268" },
+        { "name": "dialLockWheel", "primitive": "cylinder", "size": [0.6, 0.12, 0.6], "pos": [0, 1.3, 1.15], "color": "#b08a3e" },
+        { "name": "snowLedge", "primitive": "box", "size": [2.8, 0.18, 2.5], "pos": [0, 2.25, -0.1], "color": "#f4f7fb" }
+      ],
+      "glow": [
+        { "name": "vaultGrateGlow", "primitive": "box", "size": [0.8, 0.3, 0.2], "pos": [0, 0.7, 1.12], "color": "#ffd070" }
+      ],
+      "anim": {
+        "part": "chuteTrapdoorLever",
+        "pivot": [0.7, 2.3, 0.2],
+        "motion": "swing",
+        "period": 1.8
+      },
+      "inputPile": [-1.6, 2.6],
+      "outputPile": [1.6, 2.6]
+    }
+  ],
+  "workers": [
+    {
+      "role": "hauler",
+      "title": "Miner",
+      "hat": "miner helmet with oil lamp + #4f4a48",
+      "coat": "#5d6268",
+      "prop": "handheld pickaxe + [0.25, 0.6, 0.1] + #7c4a33",
+      "anim": "sturdy crouched walk carrying a heavy ore basket"
+    },
+    {
+      "role": "feeder",
+      "title": "Ore Sorter",
+      "hat": "leather dust cap + #3d3a3a",
+      "coat": "#6b584d",
+      "prop": "iron sorting rake + [0.3, 0.9, 0.12] + #5d6268",
+      "anim": "sweeping side-to-side rake stroke grading ore rocks"
+    },
+    {
+      "role": "shipper",
+      "title": "Rail Carter",
+      "hat": "peaked railway cap + #2b2a2a",
+      "coat": "#4d4a48",
+      "prop": "switchman lantern + [0.15, 0.35, 0.15] + #e8b341",
+      "anim": "pushing heavy ore handcar forward along tracks"
+    },
+    {
+      "role": "porter",
+      "title": "Lumper",
+      "hat": "thick wool beanie + #383432",
+      "coat": "#5a4f48",
+      "prop": "iron timber barrow + [0.4, 0.8, 0.35] + #6d5a48",
+      "anim": "heaving heavy pig-iron stack onto shoulder"
+    },
+    {
+      "role": "clerk",
+      "title": "Paymaster",
+      "hat": "hard derby hat + #222222",
+      "coat": "#43403e",
+      "prop": "ironbound coin satchel + [0.25, 0.28, 0.14] + #8a5a3b",
+      "anim": "counting out iron token coins into worker palm"
+    },
+    {
+      "role": "foreman",
+      "title": "Pit Boss",
+      "hat": "broad iron brim helmet + #333130",
+      "coat": "#6a4030",
+      "prop": "heavy brass pocket chronometer + [0.1, 0.2, 0.05] + #b08a3e",
+      "anim": "snapping chronometer lid shut and shouting orders"
+    },
+    {
+      "role": "gatherer",
+      "title": "Prospector",
+      "hat": "weathered bush hat + #52473d",
+      "coat": "#735340",
+      "prop": "geological rock hammer + [0.18, 0.45, 0.08] + #8d949c",
+      "anim": "tapping rock outcrop and inspecting fracture loupe"
+    }
+  ],
+  "gear": [
+    {
+      "slot": "carry",
+      "name": "Ore Basket",
+      "look": "Stout woven willow wicker backpack reinforced with iron hoop bands",
+      "colors": ["#6d5a48", "#4f4a48", "#f4f7fb"]
+    },
+    {
+      "slot": "boots",
+      "name": "Miner's Boots",
+      "look": "Greased cowhide work boots with heavy forged iron toe caps and cleated soles",
+      "colors": ["#3d3a3a", "#5d6268", "#222222"]
+    },
+    {
+      "slot": "tool",
+      "name": "Iron Pick",
+      "look": "Tempered high-carbon iron pickaxe with hardened diamond tip and ribbed socket",
+      "colors": ["#8d949c", "#6d5a48", "#3d3a3a"]
+    }
+  ],
+  "pet": {
+    "name": "Pit Pony",
+    "parts": [
+      { "name": "sturdyBody", "primitive": "capsule", "size": [0.7, 0.95, 0.6], "pos": [0, 0.75, 0], "color": "#3d3a3a" },
+      { "name": "neckHead", "primitive": "box", "size": [0.32, 0.5, 0.45], "pos": [0, 1.15, 0.45], "color": "#222222" },
+      { "name": "leatherBridle", "primitive": "box", "size": [0.34, 0.2, 0.3], "pos": [0, 1.05, 0.6], "color": "#7c4a33" },
+      { "name": "ironOreBaskets", "primitive": "box", "size": [1.15, 0.45, 0.5], "pos": [0, 0.8, -0.05], "color": "#5d6268" },
+      { "name": "stoutLegs", "primitive": "cylinder", "size": [0.14, 0.55, 0.14], "pos": [-0.22, 0.28, 0.25], "color": "#222222" },
+      { "name": "warmRug", "primitive": "box", "size": [0.6, 0.08, 0.7], "pos": [0, 1.08, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#3d3a3a", "#222222", "#7c4a33", "#5d6268", "#f4f7fb"],
+    "anim": "Patient rhythmic trot with clinking iron harness and steaming breath"
+  },
+  "node": {
+    "name": "Ore Vein",
+    "parts": [
+      { "name": "basaltMatrix", "primitive": "sphere", "size": [2.3, 1.7, 2.1], "pos": [0, 0.85, 0], "color": "#4f4a48" },
+      { "name": "hematiteOutcrop", "primitive": "box", "size": [1.3, 0.9, 1.1], "pos": [0.6, 0.6, 0.5], "color": "#7c4a33" },
+      { "name": "bandedOreSeam", "primitive": "box", "size": [1.6, 0.3, 0.7], "pos": [-0.5, 0.9, -0.4], "color": "#b0704e" },
+      { "name": "snowCrest", "primitive": "sphere", "size": [1.7, 0.4, 1.5], "pos": [0, 1.75, 0], "color": "#f4f7fb" }
+    ],
+    "colors": ["#4f4a48", "#7c4a33", "#b0704e", "#f4f7fb"],
+    "anim": "Heavy metallic resonance with showers of rust sparks and loosened iron nuggets"
+  }
+}

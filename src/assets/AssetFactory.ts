@@ -50,7 +50,7 @@ import { grandMarketCatalog } from './grandMarket';
 import { townAmenityCatalog } from './townAmenities';
 import { vehicleCatalog } from './vehicles';
 import { eraItemCatalog } from './eraItems';
-import { eraMachineCatalog } from './eraMachines';
+import { eraMachineCatalog, eraSheetCatalog } from './eraMachines';
 import { eraWorkerCatalog } from './eraWorkers';
 import { cityBuildingCatalog } from './cityBuildings';
 import { jackCatalog } from './jack';
@@ -89,6 +89,7 @@ export const ASSET_CATALOG: Record<string, Record<string, AssetBuilder>> = {
   // 0.9.0 Ages (each file owns its catalog)
   eraItems: eraItemCatalog,
   eraMachines: eraMachineCatalog,
+  eraSheets: eraSheetCatalog,
   eraWorkers: eraWorkerCatalog,
   cityBuildings: cityBuildingCatalog,
   jack: jackCatalog,

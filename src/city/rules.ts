@@ -139,7 +139,7 @@ export function landmarkTaken(lots: readonly CityLotState[], except = -1): boole
   return lots.some((l, i) => i !== except && l.building !== '' && CITY_BUILDINGS[l.building].kind === 'landmark');
 }
 
-/** "$40,000 + 15 Bricks" */
+/** "$400,000 + 15 Bricks" */
 export function costText(def: CityBuildingDef): string {
   const k = def.extra.kind;
   const label = isMaterial(k) ? MATERIALS[k].label : String(k);

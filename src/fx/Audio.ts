@@ -15,6 +15,11 @@
  *   (two-tone freight-train horn), wave 8: quest (bright rising chime + coin ping), bell (rush hour: three
  *   service-bell dings), sparkle (VIP tip: glittering high arpeggio), saw (the furniture workshop's saw-whirr: a
  *   rising blade whine with a wood bite, ending in a knock), woof (a dog sled's cheerful two-bark "wuff wuff").
+ * - Pads (fx/padJuice.ts): tick (a soft wood-and-glass tick per cash bundle into a pad; the JuiceDirector walks its
+ *   pitch up a pentatonic ladder), padDone (a warm, low strummed major chord with a glassy top: a pad completes),
+ *   ding (a tiny two-note "ding-ding": an era-gate row turns green). These are kept quiet and soft-edged (lowpassed,
+ *   no sharp attacks) so hundreds of repeats never fatigue, and each has a per-sound cap on overlapping voices
+ *   (VOICE_CAP), on top of the global MAX_VOICES.
  * - combo: repeats of the same sound within ~0.35 s rise in pitch (semitone steps, capped at +12)
  *   — the classic stacking pickup feel. Rapid repeats are rate-limited per sound and the number of
  *   simultaneous voices is capped, so streams never clip.
@@ -29,6 +34,7 @@
  *   on/off persists in 'winterland:music' (default on).
  */
 import { Music } from './Music';
+import { admitVoice } from './padJuice';
 import { clampVolume, readVolume, volumeGain, writeVolume, type VolumeChannel } from './volume';
 
 export type SfxName =
@@ -60,7 +66,10 @@ export type SfxName =
   | 'sparkle'
   | 'saw'
   | 'woof'
-  | 'bellToll';
+  | 'bellToll'
+  | 'tick'
+  | 'padDone'
+  | 'ding';
 
 export interface PlayOptions {
   /** Playback-rate / frequency multiplier (1 = normal). */
@@ -114,6 +123,16 @@ const MIN_GAP: Record<SfxName, number> = {
   woof: 0.5,
   /** One church-bell strike every ~0.9 s at most (the dawn / dusk peal). */
   bellToll: 0.8,
+  tick: 0.055,
+  padDone: 0.3,
+  ding: 0.12,
+};
+
+/** Per-sound cap on overlapping voices, with each sound's length in seconds (sounds not listed: global cap only). */
+const VOICE_CAP: Partial<Record<SfxName, { max: number; len: number }>> = {
+  tick: { max: 3, len: 0.16 },
+  padDone: { max: 2, len: 1.3 },
+  ding: { max: 3, len: 0.6 },
 };
 
 type AudioCtor = typeof AudioContext;
@@ -176,6 +195,8 @@ export class AudioFX {
   private readonly lastCall = new Map<SfxName, number>();
   private readonly lastSound = new Map<SfxName, number>();
   private readonly comboStep = new Map<SfxName, number>();
+  /** End times (AudioContext clock) of the live voices of the VOICE_CAP sounds. */
+  private readonly capped = new Map<SfxName, number[]>();
 
   constructor() {
     try {
@@ -224,6 +245,12 @@ export class AudioFX {
       const played = this.lastSound.get(name);
       if (played !== undefined && now - played < MIN_GAP[name]) return;
       if (this.voices >= MAX_VOICES) return;
+      const cap = VOICE_CAP[name];
+      if (cap) {
+        let ends = this.capped.get(name);
+        if (!ends) this.capped.set(name, (ends = []));
+        if (!admitVoice(ends, now, cap.max, cap.len)) return;
+      }
       this.lastSound.set(name, now);
       if (DUCKS.has(name)) this.music?.dip();
       this.synth(name, now + 0.005, pitch, Math.max(0, Math.min(1, opts?.volume ?? 1)));
@@ -616,6 +643,35 @@ export class AudioFX {
         this.hiss(t, 'bandpass', 1800 * p, 700 * p, 0.09, 0.1 * v, 0.002, 1.1);
         break;
       }
+      case 'tick':
+        // soft wood-and-glass tick: a short rounded knock, a faint glassy partial above it and a breath of grain
+        this.tone(t, 'sine', 620 * p, 560 * p, 0.07, 0.14 * v, 0.003);
+        this.tone(t, 'sine', 620 * 2.76 * p, 620 * 2.76 * p, 0.05, 0.025 * v, 0.002);
+        this.tone(t, 'triangle', 1240 * p, 1240 * p, 0.04, 0.03 * v, 0.003, 2600);
+        this.hiss(t, 'bandpass', 2200, 1800, 0.018, 0.025 * v, 0.002, 1.6);
+        break;
+      case 'padDone': {
+        // warm chord: a low root + a gently strummed major triad (lowpassed triangles over sines), a glassy top note
+        const chord = [261.63, 329.63, 392, 523.25];
+        this.tone(t, 'sine', 130.81 * p, 130.81 * p, 1.1, 0.09 * v, 0.02);
+        for (let i = 0; i < chord.length; i++) {
+          const n = chord[i]! * p;
+          const at = t + i * 0.035;
+          this.tone(at, 'triangle', n, n, 1.0, 0.06 * v, 0.018, 1800);
+          this.tone(at, 'sine', n, n, 0.9, 0.06 * v, 0.015);
+        }
+        this.tone(t + 0.16, 'sine', 1046.5 * p, 1046.5 * p, 0.8, 0.035 * v, 0.01);
+        this.tone(t + 0.16, 'sine', 1046.5 * 2.76 * p, 1046.5 * 2.76 * p, 0.3, 0.008 * v, 0.01);
+        break;
+      }
+      case 'ding':
+        // tiny "ding-ding": two soft bell notes a major sixth apart, the second a hair quieter
+        for (const [at, f, g] of [[0, 1318.5, 1], [0.11, 1760, 0.8]] as const) {
+          const n = f * p;
+          this.tone(t + at, 'sine', n, n, 0.42, 0.09 * g * v, 0.004);
+          this.tone(t + at, 'sine', n * 2.76, n * 2.76, 0.14, 0.015 * g * v, 0.003);
+        }
+        break;
       case 'firework':
         // distant crackle + soft thud
         this.tone(t, 'sine', 120 * p, 45 * p, 0.28, 0.4 * v, 0.003);

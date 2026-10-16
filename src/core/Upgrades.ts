@@ -4,12 +4,19 @@
  * purchase (or a restored save) takes effect immediately without any event plumbing.
  *
  * Two ways to gain a level, both ending in levelUp() → 'upgrade:bought':
- * - buy(id): the shop panel (lumberjack + crew). Spends nextCost(id) at once.
+ * - buy(id): the shop panel (lumberjack + crew), open only while the player stands on a shop mat. Spends nextCost(id)
+ *   at once, one level per press: upgrades are hands-on, nothing buys levels from afar or on its own.
  * - levelUp(id, position): a machine's level pad, after the pad collected nextCost(id) itself.
+ *
+ * Effects and prices come from core/ladder.ts: the authored tables up to their max, then the climb's curves. The
+ * levels past the authored max can only be bought once the climb is open (the Great Lodge, eras/gate.ts).
  */
 import type * as THREE from 'three';
-import { QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
+import { CLIMB, QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
 import { ERA_NAMES } from '../eras/data';
+import { climbOpen } from '../eras/gate';
+import { introEra, maxStored, shown, stepCost, valueAt } from './ladder';
+import { settlementLevel } from './demand';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
 import type { GameEvents, GameState, UpgradeId } from './types';
@@ -41,8 +48,14 @@ export class Upgrades {
     return this.state.upgrades[id];
   }
 
+  /** Highest stored level for sale now: the authored max, or shown level 100 once the climb is open. */
   maxLevel(id: UpgradeId): number {
-    return UPGRADES[id].values.length - 1;
+    return maxStored(UPGRADES[id], climbOpen(this.state));
+  }
+
+  /** The level the player sees (stored + the id's era offset, docs/EXPANSION.md R4). */
+  shownLevel(id: UpgradeId): number {
+    return shown(UPGRADES[id], this.level(id));
   }
 
   isMax(id: UpgradeId): boolean {
@@ -51,18 +64,29 @@ export class Upgrades {
 
   /** Current effect (see UpgradeDef.values). Crew not hired → 0. */
   value(id: UpgradeId): number {
-    const v = UPGRADES[id].values;
-    return v[Math.min(this.level(id), v.length - 1)]!;
+    return valueAt(UPGRADES[id], this.level(id));
   }
 
   /** Effect after the next purchase, or null at max level. */
   nextValue(id: UpgradeId): number | null {
-    return this.isMax(id) ? null : UPGRADES[id].values[this.level(id) + 1]!;
+    return this.isMax(id) ? null : valueAt(UPGRADES[id], this.level(id) + 1);
   }
 
   /** Price of the next level, or null at max level. */
   nextCost(id: UpgradeId): number | null {
-    return this.isMax(id) ? null : UPGRADES[id].costs[this.level(id)]!;
+    return this.isMax(id) ? null : stepCost(UPGRADES[id], this.level(id));
+  }
+
+  /**
+   * Crew work factors on the role's base stats (docs/EXPANSION.md §A1): walk ×walk, capacity ⌊base × capacity⌋,
+   * cadence base ÷ cadence. Each clamps on its own, so a crew past its table speeds up without carrying meshes it
+   * cannot draw; up to v = 2.8 all three equal today's linear reads (0.5 floor on walk and cadence as before).
+   */
+  crewStats(id: UpgradeId): { mult: number; walk: number; capacity: number; cadence: number } {
+    const v = this.value(id);
+    const c = CLIMB.crew;
+    const capMax = introEra(UPGRADES[id]) === 1 ? c.capMaxSurvival : c.capMaxEra;
+    return { mult: v, walk: Math.max(0.5, Math.min(v, c.walkMax)), capacity: Math.min(v, capMax), cadence: Math.max(0.5, Math.min(v, c.cadenceMax)) };
   }
 
   /** Crew: hired at all. */
@@ -72,24 +96,7 @@ export class Upgrades {
 
   /** Human-readable unmet requirement ("Needs Hamlet", "Build the Processor first"), or null when available. */
   requirement(id: UpgradeId): string | null {
-    const r = UPGRADES[id].requires;
-    if (!r) return null;
-    const needQuarters = r.quarters !== undefined && this.state.quarters.tier < r.quarters;
-    if (r.unlocked && !this.state.unlocked[r.unlocked]) {
-      return needQuarters
-        ? `Needs the ${unlockName(r.unlocked)} and a ${QUARTERS.tiers[r.quarters!]!.label}`
-        : `Build the ${unlockName(r.unlocked)} first`;
-    }
-    if (r.villageLevel !== undefined && this.state.village.level < r.villageLevel) {
-      return `Needs ${VILLAGE.levels[r.villageLevel]!.name}`;
-    }
-    if (needQuarters) {
-      return `Build the ${QUARTERS.tiers[r.quarters!]!.label} first`;
-    }
-    if (r.era !== undefined && this.state.eras.age < r.era) {
-      return `Needs the ${ERA_NAMES[r.era] ?? 'next'} era`;
-    }
-    return null;
+    return upgradeRequirement(this.state, id);
   }
 
   /** Not maxed, requirement met, affordable. */
@@ -114,15 +121,15 @@ export class Upgrades {
     this.events.emit('upgrade:bought', { id, level: this.state.upgrades[id], position });
   }
 
-  /** Debug / tests: jump to a level silently (clamped). Systems pick it up on their next read. */
+  /** Debug / tests: jump to a level silently (clamped to shown level 100, climb open or not). Systems pick it up on their next read. */
   setLevel(id: UpgradeId, level: number): void {
-    this.state.upgrades[id] = Math.max(0, Math.min(this.maxLevel(id), Math.round(level)));
+    this.state.upgrades[id] = Math.max(0, Math.min(maxStored(UPGRADES[id], true), Math.round(level)));
   }
 
   /** Short effect text for a level (default: current), e.g. "16 items", "7.4 m/s", "2.9 chops/s", "×1.3". */
   describe(id: UpgradeId, level = this.level(id)): string {
     const d = UPGRADES[id];
-    const v = d.values[Math.min(level, d.values.length - 1)]!;
+    const v = valueAt(d, level);
     switch (d.display) {
       case 'count':
         return `${v} ${d.unit ?? ''}`.trim();
@@ -144,6 +151,34 @@ export class Upgrades {
         return `${Math.round(v * 100)}% of value`;
     }
   }
+}
+
+/**
+ * Pure form of Upgrades.requirement (the era gate's prereq rows read it without a GameContext): the first unmet
+ * requirement of an upgrade as one line ("Needs Hamlet", "Build the Processor first"), or null when available.
+ */
+export function upgradeRequirement(state: Pick<GameState, 'unlocked' | 'village' | 'quarters' | 'eras'>, id: UpgradeId): string | null {
+  const r = UPGRADES[id].requires;
+  if (!r) return null;
+  const needQuarters = r.quarters !== undefined && state.quarters.tier < r.quarters;
+  if (r.unlocked && !state.unlocked[r.unlocked]) {
+    return needQuarters
+      ? `Needs the ${unlockName(r.unlocked)} and a ${QUARTERS.tiers[r.quarters!]!.label}`
+      : `Build the ${unlockName(r.unlocked)} first`;
+  }
+  if (r.villageLevel !== undefined && state.village.level < r.villageLevel) {
+    return `Needs ${VILLAGE.levels[r.villageLevel]!.name}`;
+  }
+  if (needQuarters) {
+    return `Build the ${QUARTERS.tiers[r.quarters!]!.label} first`;
+  }
+  if (r.era !== undefined && state.eras.age < r.era) {
+    return `Needs the ${ERA_NAMES[r.era] ?? 'next'} era`;
+  }
+  if (r.settlement !== undefined && settlementLevel(state) < r.settlement) {
+    return `Reach Settlement ${r.settlement}`;
+  }
+  return null;
 }
 
 function unlockName(id: string): string {

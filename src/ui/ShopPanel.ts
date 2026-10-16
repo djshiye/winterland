@@ -1,17 +1,25 @@
 /**
- * [B4] Upgrade shop panel. Opens on 'shop:open', closes on 'shop:close' (player on / off the cabin doormat); the X
- * button hides it until the next 'shop:open'. Three tabs (Lumberjack | Crew | Sales). Bottom sheet on phones (≤ 44 % of the
+ * [B4] Upgrade shop panel. Opens on 'shop:open', closes on 'shop:close' (player on / off the cabin doormat, or an era
+ * region's shop mat); the X button hides it until the next 'shop:open'. A Buy press only counts while the panel is open,
+ * so levels are bought standing on a mat, one per press (upgrades are hands-on). Three tabs (Lumberjack | Crew | Sales). Bottom sheet on phones (≤ 44 % of the
  * viewport height, the rest stays bare canvas for the floating joystick), side card on wide screens.
  *
  * The cards are built once; refresh() only rewrites what changed and runs at most once per frame (from update())
  * while the panel is visible, because 'money:changed' fires for every cash bundle.
+ *
+ * 0.9.0 climb (docs/EXPANSION.md R5, §C), only once the Great Lodge opens it (below it every card is 0.8.0's):
+ * - band pips: 10 pips for the band the next era's gate asks (Lv need − 10 .. need) plus a band star with the bands
+ *   done, instead of the authored pips; a badge "Lv 23 · need 30", a gold "Lv 30 ✓" at the gate's level, "Not hired"
+ *   for a crew, "Lv 10 · era standard" (with its tooltip) for an era upgrade that arrived at its offset;
+ * - a gold dot on a tab while any of its upgrades is below the gate's level (the green "can buy" dot wins).
  */
 import { PRIORITIES, QUARTERS, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
+import { authoredMax, base, introEra } from '../core/ladder';
 import type { GameContext } from '../core/types';
-import { ERAS } from '../eras/data';
-import { expansionOffered } from '../eras/layout';
-import { eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopTabs, type ShopTab } from './agesLogic';
+import { ERAS, ERA_NAMES } from '../eras/data';
+import { climbOpen, gateNeed } from '../eras/gate';
+import { BAND_PIPS, bandView, eraRoman, industryEraNote, industryEraShown, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
 import { hexCss, ICON_CLOSE, ICON_LOCK, upgradeIcon } from './icons';
@@ -30,8 +38,13 @@ interface Card {
   /** "N helpers" tag on crew cards (the bunkhouse allows several of one role). */
   slots: HTMLSpanElement | null;
   btn: HTMLButtonElement;
+  /** 0.9.0 climb: the band pips (10 + the star) and the level / need badge. */
+  band: HTMLSpanElement;
+  bandPips: HTMLSpanElement[];
+  star: HTMLSpanElement;
+  need: HTMLSpanElement;
   /** Last written values, to skip redundant DOM writes. */
-  shown: { pips: number; delta: string; btn: string; cls: string; slots: string };
+  shown: { pips: number; delta: string; btn: string; cls: string; slots: string; band: string; need: string };
   bump: number;
 }
 
@@ -85,6 +98,8 @@ export class ShopPanel {
   /** Last applied tab / era / tab-strip layout (skips redundant DOM writes). */
   private layoutKey = '';
   private readonly prio: HTMLDivElement;
+  /** Climb open (band pips on), as last laid out. */
+  private climb = false;
   private readonly woodRow: PrioRow;
   private readonly townRow: PrioRow;
   private readonly slide = new Slide();
@@ -223,13 +238,13 @@ export class ShopPanel {
   }
 
   /**
-   * Which tabs, era headers and cards are on show (0.9.0): Industry appears with the first expansion offer, lists the eras
+   * Which tabs, era headers and cards are on show (0.9.0): Industry appears once the climb opens (the Great Lodge), lists the eras
    * up to the one after the current age (the next one locked), Finance is always there.
    */
   private applyLayout(): void {
     const { state } = this.ctx;
     const age = state.eras.age;
-    const tabs = shopTabs(age, expansionOffered(state, 2));
+    const tabs = shopTabs(age, climbOpen(state));
     const key = `${this.tab}|${age}|${tabs.join(',')}`;
     if (key === this.layoutKey) return;
     this.layoutKey = key;
@@ -267,7 +282,8 @@ export class ShopPanel {
     mid.appendChild(h('div', 'wl-shop-blurb', def.blurb));
     const pipRow = h('div', 'wl-pips');
     const pips: HTMLSpanElement[] = [];
-    const max = this.ctx.upgrades.maxLevel(id);
+    // the authored pips (0.8.0's row); levels past them, once the climb opens, show on the "Lv n/max" label
+    const max = authoredMax(def);
     const compact = max > COMPACT_PIPS;
     pipRow.classList.toggle('is-compact', compact);
     for (let i = 0; i < max; i++) {
@@ -277,6 +293,23 @@ export class ShopPanel {
     }
     const lv = compact ? h('span', 'wl-lv') : null;
     if (lv) pipRow.appendChild(lv);
+    // the climb's band view (hidden until the Great Lodge): 10 pips, the band star, the level / need badge
+    const band = h('span', 'wl-band');
+    const bandPips: HTMLSpanElement[] = [];
+    for (let i = 0; i < BAND_PIPS; i++) {
+      const p = h('span', 'wl-pip');
+      band.appendChild(p);
+      bandPips.push(p);
+    }
+    const star = h('span', 'wl-bstar');
+    band.appendChild(star);
+    band.style.display = 'none';
+    pipRow.appendChild(band);
+    const need = h('span', 'wl-need');
+    need.style.display = 'none';
+    pipRow.appendChild(need);
+    const e = introEra(def);
+    if (e >= 2 && base(def) > 0) need.title = `${ERA_NAMES[e] ?? 'Era'} gear arrives at Lv ${base(def)}, the level everything needs to open the ${ERA_NAMES[e] ?? 'next era'}.`;
     const slots = group === 'crew' && id in QUARTERS.crew ? h('span', 'wl-slots') : null;
     if (slots) pipRow.appendChild(slots);
     mid.appendChild(pipRow);
@@ -287,7 +320,23 @@ export class ShopPanel {
     btn.type = 'button';
     root.appendChild(btn);
     this.list.appendChild(root);
-    const card: Card = { id, group, era: def.era, root, pips, lv, delta, slots, btn, shown: { pips: -1, delta: '', btn: '', cls: '', slots: '' }, bump: 0 };
+    const card: Card = {
+      id,
+      group,
+      era: def.era,
+      root,
+      pips,
+      lv,
+      delta,
+      slots,
+      btn,
+      band,
+      bandPips,
+      star,
+      need,
+      shown: { pips: -1, delta: '', btn: '', cls: '', slots: '', band: '', need: '' },
+      bump: 0,
+    };
     onTap(btn, () => this.buy(card));
     return card;
   }
@@ -339,9 +388,11 @@ export class ShopPanel {
     }
   }
 
+  /** One level, and only while the panel is open: the player stands on a shop mat (a closing panel buys nothing). */
   private buy(card: Card): void {
     const { ctx } = this;
     ctx.audio.unlock();
+    if (!this.slide.open) return;
     if (!ctx.upgrades.buy(card.id)) {
       ctx.audio.play('full', { volume: 0.5 });
       return;
@@ -350,10 +401,50 @@ export class ShopPanel {
     this.dirty = true;
   }
 
+  /**
+   * The climb's band view of one card: pips for the band ending at the gate's level, the bands done on the star, and
+   * the badge ("Lv 23 · need 30", "Lv 30 ✓", "Not hired", "Lv 10 · era standard"). `need` is null with no gate ahead.
+   */
+  private refreshBand(c: Card, need: number | null): boolean {
+    const up = this.ctx.upgrades;
+    const def = up.def(c.id);
+    const stored = up.level(c.id);
+    const v = bandView(up.shownLevel(c.id), stored, base(def), !(def.display === 'crew' && stored <= 0), need);
+    const band = `${v.fill}|${v.bands}`;
+    if (band !== c.shown.band) {
+      c.shown.band = band;
+      for (let i = 0; i < BAND_PIPS; i++) c.bandPips[i]!.classList.toggle('on', i < v.fill);
+      c.star.textContent = v.bands > 0 ? `\u2605${v.bands}` : '';
+    }
+    const key = `${v.text}|${v.tone}`;
+    if (key !== c.shown.need) {
+      c.shown.need = key;
+      c.need.textContent = v.text;
+      c.need.className = v.tone ? `wl-need is-${v.tone}` : 'wl-need';
+    }
+    return v.tone === 'low';
+  }
+
   private refresh(): void {
     const up = this.ctx.upgrades;
     this.applyLayout();
-    const age = this.ctx.state.eras.age;
+    const { state } = this.ctx;
+    const age = state.eras.age;
+    const climb = climbOpen(state);
+    if (climb !== this.climb) {
+      // the Great Lodge: the authored pips (and "Lv 4/9") give way to the band view
+      this.climb = climb;
+      this.root.classList.toggle('is-climb', climb);
+      for (const c of this.cards) {
+        for (const p of c.pips) p.style.display = climb ? 'none' : '';
+        if (c.lv) c.lv.style.display = climb ? 'none' : '';
+        c.band.style.display = climb ? '' : 'none';
+        c.need.style.display = climb ? '' : 'none';
+      }
+    }
+    const next = age + 1;
+    const gateOn = climb && !!ERAS[next];
+    const tabNeed: Record<string, boolean> = { lumberjack: false, crew: false, sales: false, industry: false, finance: false };
     const tabHint: Record<string, boolean> = { lumberjack: false, crew: false, sales: false, industry: false, finance: false };
     for (const c of this.cards) {
       const id = c.id;
@@ -367,9 +458,17 @@ export class ShopPanel {
       if (c.shown.pips !== lvl) {
         c.shown.pips = lvl;
         for (let i = 0; i < c.pips.length; i++) c.pips[i]!.classList.toggle('on', i < lvl);
-        if (c.lv) c.lv.textContent = `Lv ${lvl}/${c.pips.length}`;
       }
-      const delta = isMax ? `${up.describe(id)} (max)` : `${up.describe(id)} → ${up.describe(id, lvl + 1)}`;
+      if (c.lv && !climb) {
+        const lv = `Lv ${lvl}/${up.maxLevel(id)}`;
+        if (c.lv.textContent !== lv) c.lv.textContent = lv;
+      }
+      if (climb) {
+        const inGate = gateOn && introEra(up.def(id)) <= age;
+        const below = this.refreshBand(c, inGate ? gateNeed(next) : null);
+        if (below && (c.era === undefined || industryEraShown(c.era, age))) tabNeed[c.group] = true;
+      }
+      const delta = shopDelta(up.describe(id), isMax ? null : up.describe(id, lvl + 1), climb);
       if (delta !== c.shown.delta) {
         c.shown.delta = delta;
         c.delta.textContent = delta;
@@ -415,7 +514,10 @@ export class ShopPanel {
       }
     }
     this.refreshPriorities();
-    for (const [g, el] of this.tabEls) el.classList.toggle('has-hint', !!tabHint[g] && g !== this.tab);
+    for (const [g, el] of this.tabEls) {
+      el.classList.toggle('has-hint', !!tabHint[g] && g !== this.tab);
+      el.classList.toggle('has-need', !!tabNeed[g] && g !== this.tab);
+    }
   }
 
   update(dt: number): void {

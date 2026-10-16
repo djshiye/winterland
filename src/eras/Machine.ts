@@ -214,10 +214,25 @@ export class Machine implements MachineRuntime {
     return { in: inn, out: this.output.count(kind) + fl.inFlightTo(this.output, kind) };
   }
 
+  /**
+   * A processor saved mid-cycle with a full hopper holds up to one cycle's inputs over the cap (snapshot counts `proc`):
+   * when every input is within [per, cap + per] and one is over its cap, that cycle resumes (inputs already swallowed).
+   */
   restore(w: { in: Partial<Record<ItemKind, number>>; out: number }): void {
     if (this.input) {
       this.input.clear();
-      for (const i of this.def.inputs) this.input.fill(i.kind, Math.min(inputCap(this.def, i.kind), Math.max(0, Math.floor(w.in[i.kind] ?? 0))));
+      const n = (k: ItemKind) => Math.max(0, Math.floor(w.in[k] ?? 0));
+      const ins = this.def.inputs;
+      const resume = this.def.kind === 'processor' && ins.some((i) => n(i.kind) > inputCap(this.def, i.kind)) && ins.every((i) => n(i.kind) >= i.per && n(i.kind) <= inputCap(this.def, i.kind) + i.per);
+      for (const i of ins) this.input.fill(i.kind, Math.min(inputCap(this.def, i.kind), n(i.kind) - (resume ? i.per : 0)));
+      if (resume) {
+        for (const k of Object.keys(this.proc) as ItemKind[]) delete this.proc[k];
+        for (const i of ins) this.proc[i.kind] = i.per;
+        this.swallowInputs();
+        this.cycle = this.cycleTime();
+        this.state = 'busy';
+        this.t = 0;
+      }
     }
     this.output.clear();
     this.output.fill(this.def.output, Math.min(OUTPUT_CAPACITY, Math.max(0, Math.floor(w.out || 0))));

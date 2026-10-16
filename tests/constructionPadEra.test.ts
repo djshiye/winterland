@@ -53,7 +53,7 @@ function makeCtx() {
         return z;
       },
     },
-    tweens: { killTweensOf: () => undefined, popIn: () => undefined, run: () => undefined, punchScale: () => undefined, delay: (_s: number, fn: () => void) => fn() },
+    tweens: { killTweensOf: () => undefined, popIn: () => undefined, run: () => ({}), punchScale: () => undefined, squash: () => undefined, delay: (_s: number, fn: () => void) => fn() },
     particles: { ring: () => undefined },
     audio: { play: () => undefined },
     items: { release: () => undefined },
