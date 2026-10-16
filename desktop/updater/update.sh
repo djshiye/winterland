@@ -99,8 +99,9 @@ $(ls -A "$leftover")
 EOF
       [ -z "$(ls -A "$leftover")" ] && rm -rf "$INSTALL/.winterland-update-new"
     fi
-    [ -x "$INSTALL/winterland" ] && [ -f "$INSTALL/resources/app.asar" ] ||
+    if ! { [ -x "$INSTALL/winterland" ] && [ -f "$INSTALL/resources/app.asar" ]; }; then
       fail "run this from your unzipped Winterland folder (the one with the 'winterland' program in it)."
+    fi
   fi
 
   printf '%s' "$CURRENT" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || CURRENT='0.0.0'
@@ -257,7 +258,9 @@ EOF
       mv -f "$top/Update Winterland.command" "$SCRIPT_DIR/Update Winterland.command" 2>/dev/null || true
     fi
   else
-    [ -x "$top/winterland" ] && [ -f "$top/resources/app.asar" ] || fail "the download isn't laid out as expected."
+    if ! { [ -x "$top/winterland" ] && [ -f "$top/resources/app.asar" ]; }; then
+      fail "the download isn't laid out as expected."
+    fi
     # Swap only the files the new version ships; anything else in this folder stays.
     local OLD="$STAGE/old" moved=() placed=() name ok=1
     mkdir "$OLD" || fail "couldn't write to $INSTALL."

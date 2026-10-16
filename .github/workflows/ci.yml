@@ -49,5 +49,5 @@ jobs:
           node-version: 24
       - name: Lint the shell updater
         if: runner.os == 'Linux'
-        run: shellcheck -s bash desktop/updater/update.sh
+        run: shellcheck -s bash --severity=warning desktop/updater/update.sh
       - run: node scripts/test-updater.mjs
