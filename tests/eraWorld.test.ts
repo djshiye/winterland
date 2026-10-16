@@ -10,7 +10,7 @@ import type { ConstructionPad } from '../src/stations/ConstructionPad';
 import { meetGate } from './gateHelpers';
 import { createGameState, REGION_SLOTS, type GameContext, type GameEvents, type GameState, type Item, type ItemKind, type ManageRequest, type ChooseRequest } from '../src/core/types';
 import { DEMOLISH_MIN, ERAS, MACHINES, MACHINE_IDS, MAX_ERA, machinesOfEra, type MachineId } from '../src/eras/data';
-import { DOCK_FRAME, DEPOT_FRAME, INPUT_CAPACITY, OUTPUT_CAPACITY, chooseOptions, costText, demolishCost, inputCap, machineFrame, machineStatRows, settlePaidSlots, slotPaid, slotTarget, toWorld, worldRect, type LRect } from '../src/eras/rules';
+import { DOCK_FRAME, DEPOT_FRAME, INPUT_CAPACITY, INPUT_CAPACITY_MAX, OUTPUT_CAPACITY, hopperSize, chooseOptions, costText, demolishCost, inputCap, machineFrame, machineStatRows, settlePaidSlots, slotPaid, slotTarget, toWorld, worldRect, type LRect } from '../src/eras/rules';
 
 vi.mock('../src/assets/pads', () => ({
   createPadTexture: () => ({ image: null, dispose: () => undefined }),
@@ -105,19 +105,29 @@ describe('rules', () => {
     expect(DOCK_FRAME.grid.cols * DOCK_FRAME.grid.rows * DOCK_FRAME.grid.layers).toBe(24);
   });
 
-  it('input caps: three cycles, an even share of the hopper, never below one cycle', () => {
+  it('input caps: an even share of the hopper, never below one cycle', () => {
     expect(INPUT_CAPACITY).toBe(8);
     expect(OUTPUT_CAPACITY).toBe(12);
-    expect(inputCap(MACHINES.kiln, 'stone')).toBe(6);
+    expect(inputCap(MACHINES.kiln, 'stone')).toBe(8);
     expect(inputCap(MACHINES.kiln, 'brick')).toBe(0);
-    expect(inputCap(MACHINES.steelMill, 'ore')).toBe(3);
+    expect(inputCap(MACHINES.steelMill, 'pigIron')).toBe(4);
     expect(inputCap(MACHINES.steelMill, 'coal')).toBe(4);
     for (const id of MACHINE_IDS) {
       const d = MACHINES[id];
-      const sum = d.inputs.reduce((s, i) => s + inputCap(d, i.kind), 0);
-      expect(sum, id).toBeLessThanOrEqual(INPUT_CAPACITY);
-      for (const i of d.inputs) expect(inputCap(d, i.kind), `${id} ${i.kind}`).toBeGreaterThanOrEqual(i.per);
+      for (const level of [0, 1, 5, 10]) {
+        const sum = d.inputs.reduce((s, i) => s + inputCap(d, i.kind, level), 0);
+        expect(sum, id).toBeLessThanOrEqual(hopperSize(level));
+        for (const i of d.inputs) expect(inputCap(d, i.kind, level), `${id} ${i.kind}`).toBeGreaterThanOrEqual(i.per);
+      }
     }
+  });
+
+  it('0.9.6: the hopper grows with the machine level, 8 at Lv 1 to 24 at Lv 10 (F3)', () => {
+    expect([0, 1, 4, 7, 10].map(hopperSize)).toEqual([8, 8, 13, 19, 24]);
+    expect(INPUT_CAPACITY_MAX).toBeGreaterThanOrEqual(24);
+    expect(inputCap(MACHINES.kiln, 'stone', 10)).toBe(24);
+    expect(inputCap(MACHINES.steelMill, 'coal', 10)).toBe(12);
+    for (const id of MACHINE_IDS) for (const i of MACHINES[id].inputs) expect(inputCap(MACHINES[id], i.kind, 10)).toBeGreaterThan(inputCap(MACHINES[id], i.kind, 1));
   });
 
   it('demolish price = 20 % of the cash price, at least the minimum', () => {
@@ -135,8 +145,8 @@ describe('rules', () => {
 
   it('stat rows show cycle at the current rigs and the hopper', () => {
     const rows = machineStatRows(MACHINES.kiln, 2, { input: { stone: 4 }, output: 3 });
-    expect(rows.find((r) => r.label === 'Cycle')!.value).toContain('1.2 s');
-    expect(rows.find((r) => r.label === 'Hopper')!.value).toContain('4/6 Stone');
+    expect(rows.find((r) => r.label === 'Cycle')!.value).toContain(`${(MACHINES.kiln.cycle / 2).toFixed(1)} s`);
+    expect(rows.find((r) => r.label === 'Hopper')!.value).toContain('4/8 Stone');
     expect(rows.find((r) => r.label === 'Output')!.value).toBe('3/12 Bricks');
   });
 
@@ -360,6 +370,27 @@ describe('unlock', () => {
 });
 
 describe('machines', () => {
+  it('0.9.6: building on the slot the player stands on steps them to the feed spot, clear of every machine (no shove over the fence)', () => {
+    const r = 0.6; // about PLAYER.radius
+    const hit = (x: number, z: number, b: { minX: number; maxX: number; minZ: number; maxZ: number }): boolean => x > b.minX - r && x < b.maxX + r && z > b.minZ - r && z < b.maxZ + r;
+    for (let n = 2; n <= MAX_ERA; n++) {
+      const w = makeWorld(n);
+      const region = w.world.region(n)!;
+      const ids = machinesOfEra(n);
+      for (let s = 0; s < REGION_SLOTS[n]!; s++) {
+        const slot = region.layout.slots[s]!;
+        w.ctx.player.position.set(slot.x, 0, slot.z); // standing on the slot's pad while it completes
+        expect(w.world.build(n, s, ids[s % ids.length]!)).toBe(true);
+        const m = region.machines[s]!;
+        const p = w.ctx.player.position;
+        expect(hit(p.x, p.z, m.body), `era ${n} slot ${s}`).toBe(false);
+        expect(Math.hypot(p.x - slot.x, p.z - slot.z), `era ${n} slot ${s}`).toBeLessThan(8);
+      }
+      // every feed spot stays clear of all the built machines
+      for (const m of region.machines) if (m) for (const o of region.machines) if (o) expect(hit(m.feedSpot.x, m.feedSpot.z, o.body), `era ${n} ${m.def.id}`).toBe(false);
+    }
+  });
+
   it('build(): false while locked, for a bad slot or another era; true builds with events and a collider', () => {
     const w = makeWorld(2);
     expect(w.world.build(3, 0, 'ironMine')).toBe(false);
@@ -380,9 +411,10 @@ describe('machines', () => {
     const w = makeWorld(2);
     w.world.build(2, 0, 'quarry');
     const m = w.world.region(2)!.machines[0]!;
-    run(w, 1.0);
+    const cyc = MACHINES.quarry.cycle;
+    run(w, cyc * 0.55);
     expect(m.output.count('stone')).toBe(0);
-    run(w, 1.0); // 1.8 s per cycle
+    run(w, cyc * 0.55); // one cycle
     expect(m.output.count('stone')).toBe(1);
     expect(m.working).toBe(true);
     run(w, 60);
@@ -392,7 +424,7 @@ describe('machines', () => {
     expect(w.of('material:made').length).toBe(OUTPUT_CAPACITY);
     // taking one restarts it
     m.output.take('stone');
-    run(w, 2.0);
+    run(w, cyc * 1.15);
     expect(m.output.count('stone')).toBe(OUTPUT_CAPACITY);
   });
 
@@ -401,7 +433,7 @@ describe('machines', () => {
     (w.ctx.upgrades as unknown as { value: (id: string) => number }).value = (id) => (id.endsWith('Rigs') ? 2 : 1);
     w.world.build(2, 0, 'quarry');
     const m = w.world.region(2)!.machines[0]!;
-    run(w, 0.95); // 0.9 s per cycle at ×2
+    run(w, MACHINES.quarry.cycle / 2 + 0.05); // half the cycle at ×2
     expect(m.output.count('stone')).toBe(1);
   });
 
@@ -412,16 +444,16 @@ describe('machines', () => {
     expect(m.input).not.toBeNull();
     run(w, 5);
     expect(m.output.count('brick')).toBe(0);
-    expect(m.wants('stone')).toBe(6);
+    expect(m.wants('stone')).toBe(8);
     expect(m.wants('brick')).toBe(0);
     m.input!.fill('stone', 6);
-    expect(m.wants('stone')).toBe(0);
+    expect(m.wants('stone')).toBe(2);
     run(w, 0.5);
     expect(m.input!.count('stone')).toBe(4); // two taken for the running cycle
     expect(m.working).toBe(true);
-    run(w, 2.2); // 2.4 s cycle
+    run(w, MACHINES.kiln.cycle - 0.2); // one cycle
     expect(m.output.count('brick')).toBe(1);
-    run(w, 5);
+    run(w, MACHINES.kiln.cycle * 2 + 0.6);
     expect(m.output.count('brick')).toBe(3);
     expect(m.input!.count('stone')).toBe(0);
     expect(m.working).toBe(false);
@@ -439,22 +471,22 @@ describe('machines', () => {
     const w2 = makeWorld(4);
     w2.world.build(4, 0, 'steamWorks');
     const sw = w2.world.region(4)!.machines[0]!;
-    sw.input!.fill('iron', 3);
+    sw.input!.fill('scrap', 3);
     run(w2, 6);
     expect(sw.output.count('gear')).toBe(0); // no coal
     sw.input!.fill('coal', 1);
-    run(w2, 3);
+    run(w2, 5);
     expect(sw.output.count('gear')).toBe(1);
-    expect(sw.input!.count('iron')).toBe(2);
+    expect(sw.input!.count('scrap')).toBe(2);
   });
 
   it('the hopper refuses kinds past their cap', () => {
     const w = makeWorld(5);
-    w.world.build(5, 0, 'steelMill'); // ore ×1 (cap 3), coal ×2 (cap 4)
+    w.world.build(5, 0, 'steelMill'); // pig iron ×1 (cap 4), coal ×2 (cap 4)
     const m = w.world.region(5)!.machines[0]!;
     const it = (k: ItemKind): Item => ({ id: 1, kind: k, value: 0, object: new THREE.Object3D() }) as Item;
-    for (let i = 0; i < 3; i++) m.input!.receive(it('ore'), m.input!.reserve(it('ore')));
-    expect(m.input!.canAccept('ore')).toBe(false);
+    for (let i = 0; i < 4; i++) m.input!.receive(it('pigIron'), m.input!.reserve(it('pigIron')));
+    expect(m.input!.canAccept('pigIron')).toBe(false);
     expect(m.input!.canAccept('coal')).toBe(true);
     expect(m.input!.canAccept('stone')).toBe(false);
     expect(m.output.canAccept('steel')).toBe(true);
@@ -672,7 +704,7 @@ describe('snapshot / restore', () => {
     w2.world.restore(big);
     const again = w2.world.snapshot();
     expect(again[2]!.slots[0]!.out).toBe(OUTPUT_CAPACITY);
-    expect(again[2]!.slots[1]!.in.stone).toBe(6);
+    expect(again[2]!.slots[1]!.in.stone).toBe(8);
     expect(again[2]!.dock.stone).toBe(24);
   });
 
@@ -682,17 +714,28 @@ describe('snapshot / restore', () => {
     const m = w.world.region(2)!.machines[1]!;
     m.input!.fill('stone', 4);
     run(w, 0.5); // cycle started: 2 stone taken
-    m.input!.fill('stone', 4); // refilled to the cap (6) during the cycle
+    m.input!.fill('stone', 6); // refilled to the cap (8) during the cycle
     const snap = w.world.snapshot();
-    expect(snap[2]!.slots[1]!.in.stone).toBe(8);
+    expect(snap[2]!.slots[1]!.in.stone).toBe(10);
     const w2 = makeWorld(2);
     w2.world.build(2, 1, 'kiln');
     w2.world.restore(snap);
     const m2 = w2.world.region(2)!.machines[1]!;
-    expect(m2.input!.count('stone')).toBe(6);
+    expect(m2.input!.count('stone')).toBe(8);
     expect(w2.world.snapshot()).toEqual(snap); // nothing lost, idempotent
     run(w2, MACHINES.kiln.cycle + 0.2); // Rigs 1
     expect(m2.output.count('brick')).toBe(MACHINES.kiln.batch);
+  });
+
+  it('0.9.6: a hopper saved with an input its recipe no longer uses hands it to the import dock', () => {
+    const w = makeWorld(5);
+    w.world.build(5, 0, 'steelMill');
+    const snap = w.world.snapshot();
+    snap[5]!.slots[0] = { in: { ore: 3, coal: 2 }, out: 0 }; // 0.9.5: ore + 2 coal → steel
+    w.world.restore(snap);
+    const r = w.world.region(5)!;
+    expect(r.machines[0]!.input!.count('coal')).toBe(2);
+    expect(r.dock.count('ore')).toBe(3);
   });
 
   it('dock goods that no longer fit on restore are credited at the sell quote', () => {

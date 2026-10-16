@@ -18,6 +18,8 @@ import type { Region } from './Region';
 /** Belt speed (m/s) at Belts value 1 (Survival's conveyors run 2.6). */
 export const ERA_BELT_SPEED = 2.2;
 const BELT = { width: 0.7, beltY: 0.5, spacing: 0.45 } as const;
+/** 0.9.6: how much higher a belt on each level (eras/belts.ts BELT_LEVELS) runs: raised ones pass over a head. */
+export const BELT_LIFT: readonly number[] = [0, 1.6, 2.6];
 /** Seconds between two re-plans. */
 const PLAN_EVERY = 0.5;
 
@@ -63,7 +65,7 @@ export class EraBelts {
         id: `conveyor:era${this.region.era}:${key}`,
         path: link.path,
         width: BELT.width,
-        beltY: BELT.beltY,
+        beltY: BELT.beltY + (BELT_LIFT[link.level] ?? 0),
         speed: this.speed(),
         spacing: BELT.spacing,
         from: from.output,

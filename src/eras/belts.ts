@@ -3,10 +3,13 @@
  * belt and the path it runs. No THREE, no GameContext; tested in tests/eraBelts.test.ts.
  *
  * Who gets a belt (planBelts): every built processor input is linked to the nearest built machine (another slot) that
- * makes that kind, at most one belt into each input and one belt out of each machine: as many belts as fit (a maximum
- * matching), shorter links preferred. Machines
- * at most one row apart only, and a belt never shares its stretch of lane or corridor with another belt. Whatever has
- * no belt is still carried by the crew.
+ * makes that kind, at most one belt into each input: first as many belts as fit with one belt out of each machine (a
+ * maximum matching, shorter links preferred), then (0.9.6, F3) the inputs still without one, from a producer that
+ * already feeds a belt (a splitter: two belts pull from one pile). Machines at most one row apart only. A belt never
+ * shares its stretch of lane or corridor with another belt on the same level: when the ground level is taken there,
+ * it runs on a raised level (an overhead conveyor, `level` 1 or 2), so nearly every input gets its belt in any build
+ * order.
+ * Whatever has no belt is still carried by the crew.
  *
  * The path (beltRoute): from just in front of the producer's output pile, along the producer row's BELT LANE (a line
  * in front of the machines' feed / take zones, toward the front yard), then, for a neighbouring row, down the column
@@ -33,6 +36,9 @@ export const CORRIDOR_OFFSET = 0.6;
 /** Belts closer than this (centre to centre) would touch. */
 const CLEAR = 0.9;
 
+/** 0.9.6: belt levels: 0 = on the ground (rollers at waist height), 1 and 2 = raised overhead (EraBelts BELT_LIFT). */
+export const BELT_LEVELS = 3;
+
 export interface BeltLink {
   /** Producer slot (its output pile feeds the belt). */
   from: number;
@@ -40,6 +46,8 @@ export interface BeltLink {
   to: number;
   kind: string;
   path: XZ[];
+  /** 0.9.6: 0 on the ground, 1 or 2 raised (where the lower lanes are already taken). */
+  level: number;
 }
 
 /** Row index of slot i (rows run away from the gate). */
@@ -58,24 +66,36 @@ function lanePoint(L: RegionLayout, i: number, u: number): XZ {
 
 /** The belt path from slot `a`'s output pile to slot `b`'s input hopper, or null when they are more than a row apart. */
 export function beltRoute(L: RegionLayout, a: number, b: number): XZ[] | null {
-  if (a === b || !L.slots[a] || !L.slots[b]) return null;
+  return beltRoutes(L, a, b)[0] ?? null;
+}
+
+/**
+ * Every way a belt can run from slot `a` to slot `b` (empty when they are more than a row apart): the straight lane
+ * run in one row; into the next row down the corridor nearest the middle of the trip first, then (0.9.6) the corridors
+ * nearest its start and its end, so a busy stretch of lane can be avoided.
+ */
+export function beltRoutes(L: RegionLayout, a: number, b: number): XZ[][] {
+  if (a === b || !L.slots[a] || !L.slots[b]) return [];
   const ra = rowOf(L, a);
   const rb = rowOf(L, b);
-  if (Math.abs(ra - rb) > 1) return null;
+  if (Math.abs(ra - rb) > 1) return [];
   const start = lanePoint(L, a, OUT_U);
   const end = lanePoint(L, b, IN_U);
-  if (ra === rb) return [start, end];
-  // the column boundary nearest the middle of the trip (first row is always full: its boundaries exist)
+  if (ra === rb) return [[start, end]];
+  // column boundaries of the first row (it is always full: its boundaries exist)
   const s0 = L.slots[0]!;
   const cols = L.slots.filter((s) => Math.abs(s.z - s0.z) < 0.01).length;
-  const mid = (start.x + end.x) / 2;
-  const k = Math.min(cols - 1, Math.max(1, Math.round((mid - (s0.x - L.cell / 2)) / L.cell)));
-  const xb = s0.x - L.cell / 2 + k * L.cell;
+  const boundary = (x: number): number => Math.min(cols - 1, Math.max(1, Math.round((x - (s0.x - L.cell / 2)) / L.cell)));
   // beside the boundary, on the MANAGE side (local +u, world +x for yaw 0): the cell left of the boundary has its +u
   // side there when +u points to +x, else the cell right of it does; the level pads sit on the other side
   const plusX = Math.cos(s0.yaw) > 0;
-  const xc = xb + (plusX ? -CORRIDOR_OFFSET : CORRIDOR_OFFSET);
-  return [start, { x: xc, z: start.z }, { x: xc, z: end.z }, end];
+  const out: XZ[][] = [];
+  for (const k of [boundary((start.x + end.x) / 2), boundary(start.x), boundary(end.x)]) {
+    const xc = s0.x - L.cell / 2 + k * L.cell + (plusX ? -CORRIDOR_OFFSET : CORRIDOR_OFFSET);
+    if (out.some((p) => Math.abs(p[1]!.x - xc) < 1e-6)) continue;
+    out.push([start, { x: xc, z: start.z }, { x: xc, z: end.z }, end]);
+  }
+  return out;
 }
 
 /** Built machines as planBelts sees them: slot → def (null = empty / under construction). */
@@ -115,63 +135,69 @@ const len = (p: readonly XZ[]): number => p.reduce((sum, q, i) => (i === 0 ? 0 :
 
 /** The belts a region should have now (see the file header). Deterministic: same machines, same belts. */
 export function planBelts(L: RegionLayout, machines: SlotMachines): BeltLink[] {
-  const cands: BeltLink[] = [];
+  // every processor input with its options: each producer of the kind × each route, shortest first
+  const inputs: { to: number; kind: string; opts: { from: number; path: XZ[]; len: number }[] }[] = [];
   machines.forEach((c, to) => {
     if (!c || c.kind !== 'processor') return;
     for (const inp of c.inputs) {
+      const opts: { from: number; path: XZ[]; len: number }[] = [];
       machines.forEach((p, from) => {
         if (!p || from === to || p.output !== inp.kind) return;
-        const path = beltRoute(L, from, to);
-        if (path) cands.push({ from, to, kind: inp.kind, path });
+        for (const path of beltRoutes(L, from, to)) opts.push({ from, path, len: len(path) });
       });
+      if (opts.length === 0) continue;
+      opts.sort((a, b) => a.len - b.len || a.from - b.from);
+      inputs.push({ to, kind: inp.kind, opts });
     }
   });
-  cands.sort((a, b) => len(a.path) - len(b.path) || a.from - b.from || a.to - b.to);
-  // as many belts as the machines allow (a maximum matching, shortest links tried first), then the shortest of the rest
-  const matched = new Set(maxMatching(cands));
-  const out: BeltLink[] = [];
-  const usedFrom = new Set<number>();
-  const usedIn = new Set<string>();
-  const segs: Seg[][] = [];
-  const take = (c: BeltLink): void => {
-    if (usedFrom.has(c.from) || usedIn.has(`${c.to}:${c.kind}`)) return;
-    const s = segments(c.path);
-    if (segs.some((t) => overlaps(s, t))) return;
-    out.push(c);
-    segs.push(s);
-    usedFrom.add(c.from);
-    usedIn.add(`${c.to}:${c.kind}`);
+  // a small exhaustive search (a region has at most a dozen inputs): the most belts, then the fewest splitters (two
+  // belts out of one pile), then the fewest raised belts, then the shortest; ties keep the first found (deterministic)
+  type Pick = { i: number; from: number; path: XZ[]; level: number; len: number };
+  const segs: Seg[][][] = Array.from({ length: BELT_LEVELS }, () => []);
+  const outs = new Map<number, number>();
+  const cur: Pick[] = [];
+  let best: Pick[] = [];
+  let bestKey: number[] = [-1];
+  let budget = 40_000;
+  const key = (p: readonly Pick[]): number[] => {
+    let splits = 0;
+    for (const n of outs.values()) splits += Math.max(0, n - 1);
+    return [p.length, -splits, -p.filter((x) => x.level > 0).length, -p.reduce((s, x) => s + x.len, 0)];
   };
-  for (const c of cands) if (matched.has(c)) take(c);
-  for (const c of cands) take(c);
-  return out;
-}
-
-/** Kuhn's augmenting paths over the candidates (one belt out per producer, one in per consumer input), in order. */
-function maxMatching(cands: readonly BeltLink[]): BeltLink[] {
-  const byIn = new Map<string, BeltLink[]>();
-  for (const c of cands) {
-    const k = `${c.to}:${c.kind}`;
-    const list = byIn.get(k) ?? [];
-    list.push(c);
-    byIn.set(k, list);
-  }
-  const ofFrom = new Map<number, BeltLink>();
-  const tryIn = (k: string, seen: Set<number>): boolean => {
-    for (const c of byIn.get(k)!) {
-      if (seen.has(c.from)) continue;
-      seen.add(c.from);
-      const held = ofFrom.get(c.from);
-      if (!held || tryIn(`${held.to}:${held.kind}`, seen)) {
-        ofFrom.set(c.from, c);
-        return true;
-      }
-    }
+  const better = (a: number[], b: number[]): boolean => {
+    for (let k = 0; k < a.length; k++) if (a[k] !== b[k]) return a[k]! > b[k]!;
     return false;
   };
-  for (const k of byIn.keys()) tryIn(k, new Set());
-  return [...ofFrom.values()];
+  const dfs = (i: number): void => {
+    if (budget-- <= 0) return;
+    if (cur.length + (inputs.length - i) < bestKey[0]!) return;
+    if (i === inputs.length) {
+      const k = key(cur);
+      if (better(k, bestKey)) {
+        bestKey = k;
+        best = [...cur];
+      }
+      return;
+    }
+    const inp = inputs[i]!;
+    for (let level = 0; level < BELT_LEVELS; level++) {
+      for (const o of inp.opts) {
+        const s = segments(o.path);
+        if (segs[level]!.some((t) => overlaps(s, t))) continue;
+        segs[level]!.push(s);
+        outs.set(o.from, (outs.get(o.from) ?? 0) + 1);
+        cur.push({ i, from: o.from, path: o.path, level, len: o.len });
+        dfs(i + 1);
+        cur.pop();
+        outs.set(o.from, outs.get(o.from)! - 1);
+        segs[level]!.pop();
+      }
+    }
+    dfs(i + 1); // this input without a belt (the crew carries it)
+  };
+  dfs(0);
+  return best.map((p) => ({ from: p.from, to: inputs[p.i]!.to, kind: inputs[p.i]!.kind, path: p.path, level: p.level }));
 }
 
 /** Stable key of a belt (rebuild only what changed). */
-export const beltKey = (b: Pick<BeltLink, 'from' | 'to' | 'kind'>): string => `${b.from}>${b.to}:${b.kind}`;
+export const beltKey = (b: Pick<BeltLink, 'from' | 'to' | 'kind'> & { level?: number }): string => `${b.from}>${b.to}:${b.kind}${b.level ? `^${b.level}` : ''}`;

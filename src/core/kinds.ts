@@ -49,6 +49,9 @@ export const MATERIAL_KINDS = [
   'graphite',
   'battery',
   'quantumCore',
+  // 0.9.6 (decision 15): eras 5 and 10 get a main resource of their own
+  'pigIron',
+  'dataShard',
 ] as const;
 export type MaterialKind = (typeof MATERIAL_KINDS)[number];
 

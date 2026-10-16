@@ -152,16 +152,29 @@ export const MAT_SIZE = { w: 2.2, d: 1.6 };
 
 export const kindLabel = (kind: ItemKind): string => (isMaterial(kind) ? MATERIALS[kind].label : kind);
 
-/** Input pile capacity (MACHINE_PILES.in). */
-export const INPUT_CAPACITY = MACHINE_PILES.in.cols * MACHINE_PILES.in.rows * MACHINE_PILES.in.layers;
+/** Input hopper size at Lv 0-1 (MACHINE_PILES.hopper.base); it grows with the machine's level (hopperSize). */
+export const INPUT_CAPACITY: number = MACHINE_PILES.hopper.base;
+/** Input hopper size at Lv 10: the whole input pile grid (MACHINE_PILES.in). */
+export const INPUT_CAPACITY_MAX = MACHINE_PILES.in.cols * MACHINE_PILES.in.rows * MACHINE_PILES.in.layers;
 /** Output pile capacity (MACHINE_PILES.out). */
 export const OUTPUT_CAPACITY = MACHINE_PILES.out.cols * MACHINE_PILES.out.rows * MACHINE_PILES.out.layers;
 
-/** How many units of `kind` the hopper of `def` holds at most: three cycles' worth, and an even share of the pile. */
-export function inputCap(def: MachineDef, kind: ItemKind): number {
+/** 0.9.6 (F3): hopper size of a machine type at `level` (its level pad): 8 at Lv 0-1 rising evenly to 24 at Lv 10. */
+export function hopperSize(level = 0): number {
+  const l = Math.min(10, Math.max(1, Math.floor(level)));
+  return Math.round(INPUT_CAPACITY + ((Math.min(INPUT_CAPACITY_MAX, MACHINE_PILES.hopper.max) - INPUT_CAPACITY) * (l - 1)) / 9);
+}
+
+/**
+ * How many units of `kind` the hopper of `def` holds at most at machine level `level`: an even share of the hopper
+ * (0.9.6: the whole hopper for a one-input machine, so a long walk from its supplier never starves it); never below
+ * one cycle.
+ */
+export function inputCap(def: MachineDef, kind: ItemKind, level = 0): number {
   const inp = def.inputs.find((i) => i.kind === kind);
   if (!inp) return 0;
-  return Math.max(inp.per, Math.min(inp.per * 3, Math.floor(INPUT_CAPACITY / def.inputs.length)));
+  const size = hopperSize(level);
+  return Math.max(inp.per, Math.floor(size / def.inputs.length));
 }
 
 /** Price to demolish a built machine (no refund): a share of its cash price, at least DEMOLISH_MIN. */
@@ -191,7 +204,7 @@ export function machineStatRows(def: MachineDef, rigs: number, have: { input: Pa
   if (level) rows.push({ label: 'Level', value: `${level.shown > 0 ? `LV ${level.shown}` : 'Base'} · ×${x(boost)} speed` });
   if (def.inputs.length > 0) {
     rows.push({ label: 'Needs', value: def.inputs.map((i) => `${i.per} ${kindLabel(i.kind)}`).join(' + ') });
-    rows.push({ label: 'Hopper', value: def.inputs.map((i) => `${have.input[i.kind] ?? 0}/${inputCap(def, i.kind)} ${kindLabel(i.kind)}`).join(', ') });
+    rows.push({ label: 'Hopper', value: def.inputs.map((i) => `${have.input[i.kind] ?? 0}/${inputCap(def, i.kind, level?.shown ?? 0)} ${kindLabel(i.kind)}`).join(', ') });
   }
   rows.push({ label: 'Output', value: `${have.output}/${OUTPUT_CAPACITY} ${kindLabel(def.output)}` });
   return rows;

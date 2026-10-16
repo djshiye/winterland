@@ -2,10 +2,11 @@
  * 0.9.0 era worker (one hauler of npc/EraCrew.ts) and its pure job logic.
  *
  * A worker repeats one trip at a time, picked greedily by `pickJob` (pure, tested in tests/eraCrew.test.ts):
- *   a) FEED: a processor wants an input kind that waits on a machine output pile or on the import dock -> carry up to
- *      the worker's capacity to that machine's feed spot and unload into machine.input;
+ *   a) FEED: a processor wants an input kind that waits on a machine output pile, the hand-node pile or the import
+ *      dock -> carry up to the worker's capacity to that machine's feed spot and unload into machine.input;
  *   b) SHIP: otherwise finished goods (a processor output nobody in the region uses) -> export depot (it sells on arrival);
- *   c) SURPLUS: otherwise raw material nobody uses, or any output pile that is completely full -> export depot;
+ *   c) SURPLUS: otherwise raw material nobody uses, or a completely full output pile of a kind no processor of the
+ *      region has room for (0.9.6, F3: feeding always comes before selling) -> export depot;
  *   d) idle in the front-yard band.
  * Peers never chase the same source pile or overfill the same hopper (`claim()`, like the porters). Machines are read
  * live: when the machine a trip was bound for is demolished the load goes to another processor that wants it, else to
@@ -82,10 +83,12 @@ export interface JobView {
   dockAccepts: (kind: ItemKind) => boolean;
   /** 0.9.5: the region market's cash pile (dollars, bundles, where a clerk stands to collect). Absent = none. */
   cash?: { value: number; bundles: number; spot: XZ };
+  /** 0.9.6: the hand-node pile (the player's harvest: landed units, kind, worker spot, full). Absent = none. */
+  node?: { kind: ItemKind; count: number; full: boolean; spot: XZ };
 }
 
-/** Where a load comes from: the import dock, a machine slot or (0.9.5, clerks) the market's cash pile. */
-export type JobSource = 'dock' | 'cash' | number;
+/** Where a load comes from: the import dock, a machine slot, (0.9.5, clerks) the market's cash pile or (0.9.6) the hand-node pile. */
+export type JobSource = 'dock' | 'cash' | 'node' | number;
 /**
  * Where it goes: the export depot, the import dock, a processor slot, (0.9.5) a construction site on a slot, or the
  * bank (clerks hand the market's cash in at the depot).
@@ -128,7 +131,7 @@ export interface Claims {
 export type Owed = ReadonlyMap<ItemKind, number>;
 const NO_OWED: Owed = new Map();
 export const NO_CLAIMS: Claims = { sources: new Map(), dests: new Map() };
-export const srcId = (from: JobSource, kind: ItemKind): string => `${from === 'dock' || from === 'cash' ? from : `m${from}`}:${kind}`;
+export const srcId = (from: JobSource, kind: ItemKind): string => `${typeof from === 'string' ? from : `m${from}`}:${kind}`;
 /** 0.9.5: a clerk walks to the market's cash pile once it holds this many dollars (era 1's cashier: 10). */
 export const BANK_MIN = 10;
 export const destId = (slot: number, kind: ItemKind, site = false): string => `${site ? 's' : 'm'}${slot}:${kind}`;
@@ -167,11 +170,22 @@ export function materialNeeds(state: GameState): Map<MaterialKind, number> {
   return out;
 }
 
-/** The region's stock of `kind`: every machine output pile plus the import dock (landed units). */
+/** The region's stock of `kind`: every machine output pile, the hand-node pile and the import dock (landed units). */
 export function stockOf(view: JobView, kind: ItemKind): number {
   let n = view.dock[kind] ?? 0;
   for (const m of view.machines) if (m.output === kind) n += m.outCount;
+  if (view.node?.kind === kind) n += view.node.count;
   return n;
+}
+
+/** 0.9.6 (F3): units of `kind` the region's processors still take (hopper room minus what peers already bring). */
+export function roomFor(view: JobView, kind: ItemKind, claims: Claims): number {
+  let room = 0;
+  for (const m of view.machines) {
+    if (m.extractor) continue;
+    for (const i of m.inputs) if (i.kind === kind) room += Math.max(0, i.room - (claims.dests.get(destId(m.slot, kind)) ?? 0));
+  }
+  return room;
 }
 
 /** True when some built processor of the region uses `kind` as an input. */
@@ -196,34 +210,57 @@ export function pickJob(view: JobView, capacity: number, claims: Claims, at: XZ,
   const sources: Source[] = [];
   for (const m of view.machines) sources.push({ from: m.slot, kind: m.output, count: m.outCount, pos: m.take });
   for (const [kind, count] of Object.entries(view.dock) as [ItemKind, number][]) sources.push({ from: 'dock', kind, count, pos: view.dockSpot });
+  if (view.node && view.node.count > 0) sources.push({ from: 'node', kind: view.node.kind, count: view.node.count, pos: view.node.spot });
   const avail = (s: Source): number => s.count - (claims.sources.get(srcId(s.from, s.kind)) ?? 0);
+  // 0.9.6 (F3): a full machine pile a processor still wants is fed, never shipped (shipper / clerk help with it)
+  const fullPile = (s: Source): boolean => typeof s.from === 'number' && !!view.machines.find((m) => m.slot === s.from)?.outFull;
 
   switch (role) {
     case 'feeder':
       return feedJob(view, sources, avail, capacity, claims, at, lenient, (s) => s.from !== 'dock');
     case 'porter':
-      return feedJob(view, sources, avail, capacity, claims, at, lenient, (s) => s.from === 'dock');
+      return feedJob(view, sources, avail, capacity, claims, at, lenient, (s) => s.from === 'dock') ?? feedJob(view, sources, avail, capacity, claims, at, lenient, fullPile);
     case 'shipper':
-      return shipJob(view, avail, capacity, at, lenient, owed, 'ship') ?? shipJob(view, avail, capacity, at, lenient, owed, 'surplus');
+      return shipJob(view, avail, capacity, claims, at, lenient, owed, 'ship') ?? shipJob(view, avail, capacity, claims, at, lenient, owed, 'surplus') ?? feedJob(view, sources, avail, capacity, claims, at, lenient, fullPile);
     case 'clerk':
       return (
         bankJob(view, capacity, claims) ??
-        shipJob(view, avail, capacity, at, lenient, owed, 'surplus', true) ??
-        shipJob(view, avail, capacity, at, lenient, owed, 'ship', true)
+        shipJob(view, avail, capacity, claims, at, lenient, owed, 'surplus', true) ??
+        shipJob(view, avail, capacity, claims, at, lenient, owed, 'ship', true)
       );
     case 'gatherer': {
+      // 0.9.6 (eras 1-4 #4): the hand-node pile first (processors, then the depot), then the extractors' piles
       const extractor = new Set(view.machines.filter((m) => m.extractor).map((m) => m.slot));
-      return stockJob(view, avail, capacity, claims, at, lenient) ?? feedJob(view, sources, avail, capacity, claims, at, lenient, (s) => typeof s.from === 'number' && extractor.has(s.from));
+      return (
+        feedJob(view, sources, avail, capacity, claims, at, lenient, (s) => s.from === 'node') ??
+        nodeShipJob(view, avail, capacity, claims, lenient, owed) ??
+        feedJob(view, sources, avail, capacity, claims, at, lenient, (s) => typeof s.from === 'number' && extractor.has(s.from)) ??
+        stockJob(view, avail, capacity, claims, at, lenient)
+      );
     }
     case 'foreman':
       return buildJob(view, sources, avail, capacity, claims, at);
     case 'hauler':
       return (
         feedJob(view, sources, avail, capacity, claims, at, lenient, () => true) ??
-        shipJob(view, avail, capacity, at, lenient, owed, 'ship') ??
-        shipJob(view, avail, capacity, at, lenient, owed, 'surplus')
+        shipJob(view, avail, capacity, claims, at, lenient, owed, 'ship') ??
+        shipJob(view, avail, capacity, claims, at, lenient, owed, 'surplus') ??
+        nodeShipJob(view, avail, capacity, claims, lenient, owed)
       );
   }
+}
+
+/**
+ * 0.9.6 gatherer: the hand-node pile to the depot once it is filling up (GATHER_AT, or full) and no processor of the
+ * region wants it, so the player's harvest never stalls on a full pile.
+ */
+function nodeShipJob(view: JobView, avail: (s: Source) => number, capacity: number, claims: Claims, lenient: boolean, owed: Owed): Job | null {
+  const n = view.node;
+  if (!n || !view.depotAccepts(n.kind) || roomFor(view, n.kind, claims) > 0) return null;
+  if (n.count < (lenient ? 1 : GATHER_AT) && !n.full) return null;
+  const excess = Math.max(0, stockOf(view, n.kind) - (owed.get(n.kind) ?? 0));
+  const take = Math.min(capacity, avail({ from: 'node', kind: n.kind, count: n.count, pos: n.spot }), excess);
+  return take >= 1 ? { type: 'surplus', item: n.kind, take, from: 'node', to: 'depot' } : null;
 }
 
 /** 0.9.5 clerk: bank the market's cash pile (era 1's cashier), one clerk at a time. */
@@ -262,7 +299,7 @@ function feedJob(view: JobView, sources: readonly Source[], avail: (s: Source) =
  * b) finished goods ('ship'), c) surplus: machine outputs bound for the depot. `fullest`: the clerk's order (the
  * fullest pile first, walking barely matters).
  */
-function shipJob(view: JobView, avail: (s: Source) => number, capacity: number, at: XZ, lenient: boolean, owed: Owed, type: 'ship' | 'surplus', fullest = false): Job | null {
+function shipJob(view: JobView, avail: (s: Source) => number, capacity: number, claims: Claims, at: XZ, lenient: boolean, owed: Owed, type: 'ship' | 'surplus', fullest = false): Job | null {
   let pick: Job | null = null;
   let top = -Infinity;
   for (const m of view.machines) {
@@ -271,8 +308,8 @@ function shipJob(view: JobView, avail: (s: Source) => number, capacity: number, 
     if (excess <= 0) continue;
     const used = usedInRegion(view.machines, m.output);
     const finished = !m.extractor && !used;
-    // ship: finished goods; surplus: raw nobody uses, or any pile with no free slot left
-    if (type === 'ship' ? !finished : finished || (used && !m.outFull)) continue;
+    // ship: finished goods; surplus: raw nobody uses, or a pile with no free slot left that no processor has room for
+    if (type === 'ship' ? !finished : finished || (used && (!m.outFull || roomFor(view, m.output, claims) > 0))) continue;
     const s: Source = { from: m.slot, kind: m.output, count: m.outCount, pos: m.take };
     const take = Math.min(capacity, avail(s), excess);
     if (take < (lenient || m.outFull ? 1 : Math.min(capacity, MIN_SHIP))) continue;
@@ -332,7 +369,10 @@ function buildJob(view: JobView, sources: readonly Source[], avail: (s: Source) 
   return best;
 }
 
-/** Where a load of `kind` should go when its planned destination is gone: another hungry processor, else depot / dock. */
+/**
+ * Where a load of `kind` should go when its planned destination is gone or full: another hungry processor, else the
+ * import dock when a processor of the region uses the kind (0.9.6), else the depot.
+ */
 export function fallbackDest(view: JobView, kind: ItemKind, claims: Claims, at: XZ, exclude: number | null, preferDock: boolean, owed: Owed = NO_OWED): JobDest | null {
   let best: number | null = null;
   let bestD = Infinity;
@@ -349,7 +389,8 @@ export function fallbackDest(view: JobView, kind: ItemKind, claims: Claims, at: 
   if (best !== null) return best;
   const owe = owed.get(kind) ?? 0;
   const held = owe > 0 && stockOf(view, kind) <= owe; // all of it is spoken for
-  if ((preferDock || held) && view.dockAccepts(kind)) return 'dock';
+  // 0.9.6 (F3): a load some processor here still uses waits on the import dock (the porters feed it on), never sold raw
+  if ((preferDock || held || usedInRegion(view.machines, kind)) && view.dockAccepts(kind)) return 'dock';
   if (!held && view.depotAccepts(kind)) return 'depot';
   return view.dockAccepts(kind) ? 'dock' : null;
 }
@@ -662,7 +703,9 @@ export class EraWorker {
     const sites = this.role === 'foreman' ? r.sites().map((x) => ({ slot: x.slot, kind: x.kind, room: x.room, spot: x.spot })) : [];
     const m = r.market;
     const cash = this.role === 'clerk' ? { value: m.cash.value, bundles: m.cash.pile.count('cash'), spot: m.clerkSpot } : undefined;
-    return { machines, sites, dock, cash, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
+    const nd = r.node;
+    const node = nd ? { kind: nd.yields, count: nd.pile.count(nd.yields), full: nd.pile.isFull(), spot: nd.pileSpot } : undefined;
+    return { machines, sites, dock, cash, node, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
   }
 
   private lookAtSlot(slot: number): XZ | null {
@@ -674,6 +717,7 @@ export class EraWorker {
     const r = this.region;
     if (from === 'dock') return { machine: null, holder: r.dock, spot: r.dockSpot, look: awayOrNull(r.dockSpot, r.layout.dock) };
     if (from === 'cash') return { machine: null, holder: r.market.cash.pile, spot: r.market.clerkSpot, look: r.market.cashSpot };
+    if (from === 'node') return { machine: null, holder: r.node?.pile ?? null, spot: r.node?.pileSpot ?? this.at, look: null };
     const m = r.machines[from] ?? null;
     return { machine: m, holder: m?.output ?? null, spot: m?.takeSpot ?? this.at, look: this.lookAtSlot(from) };
   }
