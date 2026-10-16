@@ -15,7 +15,9 @@ import { createGameState, REGION_SLOTS, type GameContext, type GameEvents } from
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
 /** Every real save captured from a released build: each must keep loading as the state grows. */
-const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json', 'save-v7-eras.json', 'save-v8-climb.json'];
+const FIXTURES = ['save-v1-town.json', 'save-v2-ridge.json', 'save-v3-market.json', 'save-v4-automation.json', 'save-v5-town-life.json', 'save-v6-events.json', 'save-v7-eras.json', 'save-v8-climb.json',
+  // 0.9.6: one save written by each of 0.9.1-0.9.5 (tests/saveSafety.test.ts covers their migration)
+  'save-v9-0.9.1-era3.json', 'save-v9-0.9.2-era5.json', 'save-v9-0.9.3-era7.json', 'save-v9-0.9.4-era10-mastery.json', 'save-v9-0.9.5-era4-lv10.json'];
 
 describe.each(FIXTURES)('%s', (name) => {
   it('loads every saved field and the world', () => {

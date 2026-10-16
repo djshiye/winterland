@@ -1888,6 +1888,14 @@ export const SAVE = {
   version: 1,
   /** Autosave cadence in simulation seconds (also saved when the tab is hidden or closed). */
   interval: 5,
+  /**
+   * 0.9.6 rolling backups (core/saveVault.ts): how many earlier autosaves are kept, and how often (simulation seconds)
+   * the one on disk is copied into that ring before being overwritten. The save a session started from is copied too.
+   */
+  backups: 3,
+  backupInterval: 600,
+  /** Copies of saves that could not be opened, kept for the player to export (oldest dropped first). */
+  unreadableKept: 3,
 } as const;
 
 export const OFFLINE = {

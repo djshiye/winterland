@@ -16,6 +16,8 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packager } from '@electron/packager';
+import { FuseState, flipFuses, getCurrentFuseWire } from '@electron/fuses';
+import { electronBinary, fuseConfig } from './fuses.mjs';
 import { updaterFiles } from './updater-files.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -61,6 +63,15 @@ for (const target of targets) {
     ignore: (p) => !keep(p.replace(/\\/g, '/')),
     win32metadata: { CompanyName: 'Winterland', ProductName: 'Winterland', FileDescription: 'Winterland' },
   });
+  // Lock the Electron binary down (scripts/fuses.mjs) before it is signed and zipped, then read the fuses back.
+  const executableName = platform === 'win32' ? 'Winterland' : 'winterland';
+  const bin = electronBinary(dir, platform, executableName);
+  await flipFuses(bin, fuseConfig(platform));
+  const wire = await getCurrentFuseWire(bin);
+  for (const [fuse, want] of Object.entries(fuseConfig(platform))) {
+    if (!/^\d+$/.test(fuse)) continue;
+    if ((wire[fuse] === FuseState.ENABLE) !== want) throw new Error(`fuse ${fuse} on ${target} did not flip to ${want}`);
+  }
   // "Update Winterland" (desktop/updater): click it to get the newest release from GitHub.
   for (const f of updaterFiles(platform, arch, pkg.version)) {
     const file = join(dir, f.path);
