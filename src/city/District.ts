@@ -24,7 +24,7 @@
  *
  * Draw calls: pavement 1, lamps 1 (+ bulbs 1, + night halos 1), every building 2 (+1 pivot), every pad ~3.
  */
-import { fadeManageSign } from '../fx/manageSign';
+import { faceCameraUpright, fadeManageSign, manageSignFoot } from '../fx/manageSign';
 import * as THREE from 'three';
 import { CITY_BUILDINGS, CITY_HAPPINESS_BONUS, DISTRICT_MATERIAL, ERA_NAMES, districtDef, era, type CityBuildingDef, type CityBuildingId } from '../eras/data';
 import type { ChooseOption, GameContext } from '../core/types';
@@ -34,7 +34,7 @@ import { SNOW, mixHex, palette } from '../render/palette';
 import { geo } from '../render/materials';
 import { createCityBuilding, createCityScaffold, type CityBuildingModel } from '../assets/cityBuildings';
 import { LotPad } from '../town/LotPad';
-import { createPadSign } from '../assets/pads';
+import { createManageSign, setManageSignName } from '../assets/pads';
 import { ConstructionPad } from '../stations/ConstructionPad';
 import type { ColliderHandle } from '../world/Colliders';
 import type { Zone } from '../items/Zones';
@@ -95,9 +95,6 @@ const SURFACE: readonly (Surface | null)[] = [
 ];
 
 const PER_FRAME = 2;
-/** The MANAGE label over a built lot's tile: big enough to read from the usual camera distance. */
-const SIGN_SCALE = 0.9;
-const SIGN_HEIGHT = 1.3;
 
 /**
  * Free a dropped construction site's own merged base geometry (each scaffold merges a fresh one). The shell's unit box
@@ -230,12 +227,11 @@ export class District {
     this.life?.update(dt);
     for (let i = 0; i < PER_FRAME && this.queue.length > 0; i++) this.ensureModel(this.queue.shift()!, true);
     const t = this.ctx.time.elapsed;
-    const cam = this.ctx.camera.quaternion;
     const player = this.ctx.player?.position;
     for (const L of this.lots) {
       L.lotPad?.update(dt);
       if (L.sign?.visible) {
-        L.sign.quaternion.copy(cam);
+        faceCameraUpright(L.sign, this.ctx.camera);
         fadeManageSign(L.sign, player);
       }
       L.model?.animate(t);
@@ -264,9 +260,9 @@ export class District {
       });
       L.lotPad = new LotPad(this.ctx, f.pad.x, f.pad.z, f.padSize);
       this.root.add(L.lotPad.object);
-      L.sign = createPadSign('MANAGE');
-      L.sign.scale.setScalar(SIGN_SCALE);
-      L.sign.position.set(f.pad.x, SIGN_HEIGHT, f.pad.z);
+      L.sign = createManageSign('');
+      const foot = manageSignFoot(f.zone, f);
+      L.sign.position.set(foot.x, 0, foot.z);
       L.sign.visible = false;
       this.root.add(L.sign);
       this.refresh(L, false);
@@ -288,7 +284,10 @@ export class District {
       }
       if (st.building === '') L.lotPad?.show(!animate);
       else L.lotPad?.hide();
-      if (L.sign) L.sign.visible = built;
+      if (L.sign) {
+        L.sign.visible = built;
+        if (built) setManageSignName(L.sign, CITY_BUILDINGS[st.building as CityBuildingId].label);
+      }
       const on = built || lotOpen(st);
       if (L.zone && L.zone.enabled !== on) {
         // a player already standing on the tile must not get the card the moment it re-enables

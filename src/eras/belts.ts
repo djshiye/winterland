@@ -29,8 +29,8 @@ export const BELT_LANE = MACHINE_NOMINAL.d / 2 + 2.2;
 const OUT_U = 1.5;
 const IN_U = -1.4;
 /**
- * A corridor belt runs this far beside the column boundary (the workers walk on the boundary itself), on the side of
- * the neighbouring machine's MANAGE zone, never over a machine's level pad (rules.ts levelPadLocal, on its −u side).
+ * A corridor belt runs this far beside the column boundary (the workers walk on the boundary itself), on the +u side
+ * of a machine, never over the next machine's level pad or MANAGE zone (rules.ts, both on its −u side since 0.9.9).
  */
 export const CORRIDOR_OFFSET = 0.6;
 /** Belts closer than this (centre to centre) would touch. */

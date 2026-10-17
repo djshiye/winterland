@@ -29,6 +29,7 @@ import { MATERIALS } from '../eras/data';
 import { motionScale } from '../fx/padJuice';
 import { registerGlow } from '../world/env/glow';
 import { wearTagLook } from '../ui/worldTag';
+import { MANAGE_BOARD_H, MANAGE_BOARD_W, MANAGE_POST_H, UPRIGHT } from '../fx/manageSign';
 
 export type PadIcon = PadDef['icon'];
 
@@ -2189,6 +2190,30 @@ export function padDim(model: THREE.Object3D, k: number): void {
 // Signs
 // ---------------------------------------------------------------------------
 
+/** The snow cap of a board whose top edge runs from (bx, by) `bw` px wide: soft bumps with a couple of drips. */
+function paintSnowCap(g: CanvasRenderingContext2D, bx: number, by: number, bw: number): void {
+  const seg = 34;
+  const n = Math.floor((bw - 40) / seg);
+  const x0 = bx + (bw - n * seg) / 2;
+  g.beginPath();
+  g.moveTo(x0, by + 8);
+  for (let i = 0; i < n; i++) {
+    const cx = x0 + i * seg + seg / 2;
+    g.quadraticCurveTo(cx, by - 14 - (i % 3 === 1 ? 4 : 0), x0 + (i + 1) * seg, by + 4);
+  }
+  for (let i = n; i > 0; i--) {
+    const x = x0 + i * seg;
+    const drip = i % 4 === 2 ? 9 : 0;
+    g.quadraticCurveTo(x - seg / 2, by + 12 + drip, x - seg, by + 9);
+  }
+  g.closePath();
+  const sg = g.createLinearGradient(0, by - 14, 0, by + 16);
+  sg.addColorStop(0, hex(PAD.snow));
+  sg.addColorStop(1, hex(PAD.snowShade));
+  g.fillStyle = sg;
+  g.fill();
+}
+
 /** A snow-capped wooden board (two planks, soft grain), brass-trimmed when `gold`. Fills the canvas width. */
 function paintBoard(g: CanvasRenderingContext2D, w: number, h: number, gold: boolean): { x: number; y: number; w: number; h: number } {
   const bx = 8;
@@ -2235,27 +2260,7 @@ function paintBoard(g: CanvasRenderingContext2D, w: number, h: number, gold: boo
       g.fill();
     }
   }
-  // the snow cap: soft bumps along the top edge with a couple of drips
-  const seg = 34;
-  const n = Math.floor((bw - 40) / seg);
-  const x0 = bx + (bw - n * seg) / 2;
-  g.beginPath();
-  g.moveTo(x0, by + 8);
-  for (let i = 0; i < n; i++) {
-    const cx = x0 + i * seg + seg / 2;
-    g.quadraticCurveTo(cx, by - 14 - (i % 3 === 1 ? 4 : 0), x0 + (i + 1) * seg, by + 4);
-  }
-  for (let i = n; i > 0; i--) {
-    const x = x0 + i * seg;
-    const drip = i % 4 === 2 ? 9 : 0;
-    g.quadraticCurveTo(x - seg / 2, by + 12 + drip, x - seg, by + 9);
-  }
-  g.closePath();
-  const sg = g.createLinearGradient(0, by - 14, 0, by + 16);
-  sg.addColorStop(0, hex(PAD.snow));
-  sg.addColorStop(1, hex(PAD.snowShade));
-  g.fillStyle = sg;
-  g.fill();
+  paintSnowCap(g, bx, by, bw);
   return { x: bx, y: by, w: bw, h: bh };
 }
 
@@ -2305,6 +2310,191 @@ export function createPadSign(label: string, gold = false): THREE.Mesh {
 /** Repaint a sign made by createPadSign with a new label (no-op when unchanged). */
 export function setPadSignLabel(sign: THREE.Mesh, label: string): void {
   signPainters.get(sign)?.(label);
+}
+
+/**
+ * [0.9.9] The MANAGE board of a built machine or building (Dino: "the manage boards are kinda small and in weird spots
+ * next to the buildings"). A cream card with a brass trim and a snow cap, a honey cog beside "MANAGE" and the building's
+ * own name under it, standing on a short wooden post. The origin is the post's foot: owners plant it on the ground
+ * just outside the manage tile on the building's side, so the board reads as the building's own sign.
+ * - One mesh, one draw call: the board and the post are two quads of one shared geometry over one texture (the post
+ *   samples a strip of wood painted under the board).
+ * - It stands upright (fx/manageSign.ts faceCameraUpright turns it to the camera around Y only), so the post really is
+ *   vertical and the board never leans into the wall behind it; the geometry is stretched by 1/cos(pitch) so it shows
+ *   at its nominal size on screen.
+ * - The texture is shared per name; every sign has its own material (the owners fade each one with the player's
+ *   distance), so disposeManageSign frees the material only.
+ */
+const MB_PX_W = 384;
+const MB_PX_H = 208;
+/** The board's rows of the canvas (the rest holds the post's wood strip). */
+const MB_BOARD_PX = 160;
+const MB_FONT = 52;
+const MB_NAME_FONT = 34;
+const MB_POST_W = 0.2;
+const manageTextures = new Map<string, THREE.CanvasTexture>();
+let manageGeo: THREE.BufferGeometry | null = null;
+
+function drawCog(g: CanvasRenderingContext2D, cx: number, cy: number, r: number): void {
+  const teeth = 8;
+  g.beginPath();
+  for (let i = 0; i < teeth * 2; i++) {
+    const a0 = (i / (teeth * 2)) * Math.PI * 2 - Math.PI / 2;
+    const a1 = ((i + 1) / (teeth * 2)) * Math.PI * 2 - Math.PI / 2;
+    const rr = i % 2 === 0 ? r : r * 0.74;
+    g.lineTo(cx + Math.cos(a0 + 0.06) * rr, cy + Math.sin(a0 + 0.06) * rr);
+    g.lineTo(cx + Math.cos(a1 - 0.06) * rr, cy + Math.sin(a1 - 0.06) * rr);
+  }
+  g.closePath();
+  g.fillStyle = hex(PAD.honey);
+  g.fill();
+  g.lineWidth = 3.5;
+  g.lineJoin = 'round';
+  g.strokeStyle = hex(PAD.ink);
+  g.stroke();
+  g.beginPath();
+  g.arc(cx, cy, r * 0.32, 0, Math.PI * 2);
+  g.fillStyle = hex(PAD.tag);
+  g.fill();
+  g.stroke();
+}
+
+function paintManageBoard(g: CanvasRenderingContext2D, name: string): void {
+  g.clearRect(0, 0, MB_PX_W, MB_PX_H);
+  const bx = 6;
+  const by = 16;
+  const bw = MB_PX_W - 12;
+  const bh = MB_BOARD_PX - by - 7;
+  roundedRectPath(g, bx, by + 4, bw, bh, 24);
+  g.fillStyle = 'rgba(60,35,22,0.3)';
+  g.fill();
+  roundedRectPath(g, bx, by, bw, bh, 24);
+  const bg = g.createLinearGradient(0, by, 0, by + bh);
+  bg.addColorStop(0, hex(mixHex(PAD.tag, 0xffffff, 0.45)));
+  bg.addColorStop(1, hex(mixHex(PAD.tag, PAD.tagEdge, 0.35)));
+  g.fillStyle = bg;
+  g.fill();
+  g.lineWidth = 7;
+  g.strokeStyle = hex(PAD.brass);
+  g.stroke();
+  roundedRectPath(g, bx + 8, by + 8, bw - 16, bh - 16, 17);
+  g.lineWidth = 2;
+  g.strokeStyle = rgba(PAD.tagEdge, 0.9);
+  g.stroke();
+  g.fillStyle = hex(PAD.brass);
+  for (const [x, y] of [
+    [bx + 17, by + 17],
+    [bx + bw - 17, by + 17],
+    [bx + 17, by + bh - 17],
+    [bx + bw - 17, by + bh - 17],
+  ] as const) {
+    g.beginPath();
+    g.arc(x, y, 4, 0, Math.PI * 2);
+    g.fill();
+  }
+  // "MANAGE" with a honey cog in front, centred as one group
+  g.font = `700 ${MB_FONT}px ${GAME_FONT}`;
+  g.textBaseline = 'middle';
+  g.textAlign = 'left';
+  const ty = by + bh * 0.37 + 2;
+  const cogR = 20;
+  const gap = 12;
+  const maxText = bw - 60 - cogR * 2 - gap;
+  const tw = Math.min(maxText, g.measureText('MANAGE').width);
+  const x0 = (MB_PX_W - (cogR * 2 + gap + tw)) / 2;
+  drawCog(g, x0 + cogR, ty, cogR);
+  g.fillStyle = hex(PAD.ink);
+  g.fillText('MANAGE', x0 + cogR * 2 + gap, ty, maxText);
+  // the building's name on a soft divider
+  const dy = by + bh * 0.63;
+  g.strokeStyle = rgba(PAD.tagEdge, 0.85);
+  g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(bx + 44, dy);
+  g.lineTo(bx + bw - 44, dy);
+  g.stroke();
+  g.font = `600 ${MB_NAME_FONT}px ${GAME_FONT}`;
+  g.textAlign = 'center';
+  g.fillStyle = hex(mixHex(PAD.ink, PAD.honeyDeep, 0.35));
+  g.fillText(name, MB_PX_W / 2, by + bh * 0.81, bw - 64);
+  paintSnowCap(g, bx, by, bw);
+  // the post's wood strip (sampled by the post quad), below the board rows
+  const pg = g.createLinearGradient(0, 0, 24, 0);
+  pg.addColorStop(0, hex(PAD.boardDark));
+  pg.addColorStop(0.35, hex(PAD.boardLight));
+  pg.addColorStop(0.7, hex(PAD.board));
+  pg.addColorStop(1, hex(PAD.boardDark));
+  g.fillStyle = pg;
+  g.fillRect(0, MB_BOARD_PX + 4, 24, MB_PX_H - MB_BOARD_PX - 4);
+}
+
+function manageTexture(name: string): THREE.CanvasTexture {
+  let t = manageTextures.get(name);
+  if (t) return t;
+  const { ctx: g, texture } = makeCanvasTexture(MB_PX_W, MB_PX_H);
+  paintManageBoard(g, name);
+  if (typeof document !== 'undefined' && document.fonts) {
+    void document.fonts
+      .load(`700 ${MB_FONT}px ${GAME_FONT}`)
+      .catch(() => undefined)
+      .then(() => {
+        paintManageBoard(g, name);
+        texture.needsUpdate = true;
+      });
+  }
+  manageTextures.set(name, texture);
+  t = texture;
+  return t;
+}
+
+function manageGeometry(): THREE.BufferGeometry {
+  if (manageGeo) return manageGeo;
+  const k = UPRIGHT;
+  const bh = MANAGE_BOARD_H;
+  const vBoard = 1 - MB_BOARD_PX / MB_PX_H;
+  const u = (px: number): number => px / MB_PX_W;
+  const v = (py: number): number => 1 - py / MB_PX_H;
+  const quad = (x0: number, x1: number, y0: number, y1: number, z: number, u0: number, u1: number, v0: number, v1: number): THREE.BufferGeometry => {
+    const q = new THREE.BufferGeometry();
+    q.setAttribute('position', new THREE.Float32BufferAttribute([x0, y0 * k, z, x1, y0 * k, z, x1, y1 * k, z, x0, y1 * k, z], 3));
+    q.setAttribute('uv', new THREE.Float32BufferAttribute([u0, v0, u1, v0, u1, v1, u0, v1], 2));
+    q.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
+    q.setIndex([0, 1, 2, 0, 2, 3]);
+    return q;
+  };
+  const post = quad(-MB_POST_W / 2, MB_POST_W / 2, 0, MANAGE_POST_H + 0.25, -0.01, u(2), u(22), v(MB_PX_H - 2), v(MB_BOARD_PX + 7));
+  const board = quad(-MANAGE_BOARD_W / 2, MANAGE_BOARD_W / 2, MANAGE_POST_H - 0.04, MANAGE_POST_H - 0.04 + bh, 0, 0, 1, vBoard, 1);
+  manageGeo = mergeGeometries([post, board])!;
+  post.dispose();
+  board.dispose();
+  return manageGeo;
+}
+
+/** A MANAGE board for the building called `name` (origin = the post's foot; see above). */
+export function createManageSign(name: string): THREE.Mesh {
+  // drawn over what stands in front of it: the board is a label, and turned to the camera its ends can reach into the
+  // wall it stands beside
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, map: manageTexture(name), transparent: true, depthWrite: false, depthTest: false });
+  const m = new THREE.Mesh(manageGeometry(), mat);
+  // lettering floor on the "MANAGE" line (on-screen metres, as wearTagLook measures the nominal plane)
+  wearTagLook(m, (MANAGE_BOARD_W * MB_FONT) / MB_PX_W, 1);
+  m.renderOrder = 4;
+  m.castShadow = false;
+  m.receiveShadow = false;
+  m.name = 'manageSign';
+  return m;
+}
+
+/** Show another building's name on a MANAGE board (a rebuilt lot); no-op when unchanged. */
+export function setManageSignName(sign: THREE.Mesh, name: string): void {
+  const mat = sign.material as THREE.MeshBasicMaterial;
+  const t = manageTexture(name);
+  if (mat.map !== t) mat.map = t;
+}
+
+/** Free a MANAGE board's own material (its texture is shared by name and kept). */
+export function disposeManageSign(sign: THREE.Mesh): void {
+  (sign.material as THREE.Material).dispose();
 }
 
 /** The cabin doormat's floating sign: a brass-trimmed board with a honey up-arrow and "UPGRADES". */
