@@ -15,6 +15,14 @@
 #
 # Options: --yes (don't ask before updating), --no-launch (don't start the game afterwards),
 #          --app PATH (macOS: the Winterland.app to update, instead of looking in the usual places).
+#
+# In-game updates (0.9.8, desktop/updater.cjs): when the player picks "Update now", the game downloads and checks the
+# zip itself, then runs a copy of this script with:
+#   --from-game      no terminal, no questions; waits (up to a minute) for the game to close; if anything goes wrong
+#                    it starts the old game again with --update-failed=<reason>, so the player just keeps playing.
+#   --zip PATH       use this already-downloaded zip instead of downloading it. It is still checked against the
+#                    SHA256SUMS.txt this script fetches itself, so the game's word is never taken for it.
+#   --install DIR    (Linux) the game folder to update, instead of the folder this script is in.
 # Plain bash 3.2 (the macOS default) on purpose.
 
 main() {
@@ -23,13 +31,18 @@ main() {
   local REPO='djshiye/winterland'
   local BUILT_VERSION='__WL_VERSION__'
   local TARGET='__WL_TARGET__'
-  local ASK=1 LAUNCH=1 APP_ARG=''
+  local ASK=1 LAUNCH=1 APP_ARG='' FROM_GAME=0 ZIP_ARG='' INSTALL_ARG=''
+  # What the step that can fail is doing (the reason an in-game update reports back): see `fail`.
+  local STEP=other
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --yes) ASK=0 ;;
       --no-launch) LAUNCH=0 ;;
       --app) shift; APP_ARG="${1:-}" ;;
+      --from-game) FROM_GAME=1; ASK=0 ;;
+      --zip) shift; ZIP_ARG="${1:-}" ;;
+      --install) shift; INSTALL_ARG="${1:-}" ;;
       *) ;;
     esac
     shift
@@ -39,7 +52,7 @@ main() {
   OS="$(uname -s)"
 
   # Double-clicked in a Linux file manager there is no terminal to show progress in, so open one.
-  if [ "$OS" = Linux ] && [ ! -t 1 ] && [ -z "${WL_UPDATER_IN_TERMINAL:-}" ] &&
+  if [ "$OS" = Linux ] && [ "$FROM_GAME" = 0 ] && [ ! -t 1 ] && [ -z "${WL_UPDATER_IN_TERMINAL:-}" ] &&
     { [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; }; then
     export WL_UPDATER_IN_TERMINAL=1
     local self term
@@ -56,11 +69,20 @@ main() {
   local B='' G='' R='' Y='' N=''
   if [ -t 1 ]; then B=$'\033[1m'; G=$'\033[32m'; R=$'\033[31m'; Y=$'\033[33m'; N=$'\033[0m'; fi
   say() { printf '%s\n' "$*"; }
-  pause() { if [ -t 0 ] && [ -t 1 ]; then printf '\nPress Enter to close this window. '; read -r _ || true; fi; }
+  pause() { if [ "$FROM_GAME" = 0 ] && [ -t 0 ] && [ -t 1 ]; then printf '\nPress Enter to close this window. '; read -r _ || true; fi; }
+  # Start the game (the new one after an update; the old one again when an in-game update stopped, with the reason).
+  start_game() {
+    if [ "$OS" = Darwin ]; then
+      [ -n "${APP:-}" ] && open "$APP" --args "$@"
+    elif [ -n "${INSTALL:-}" ] && [ -x "$INSTALL/winterland" ]; then
+      (cd "$INSTALL" && nohup ./winterland "$@" >/dev/null 2>&1 &)
+    fi
+  }
   fail() {
     say ""
     say "${R}${B}Update stopped:${N} $*"
     say "Your game and your save are exactly as they were."
+    [ "$FROM_GAME" = 1 ] && start_game "--update-failed=$STEP"
     pause
     exit 1
   }
@@ -75,6 +97,7 @@ main() {
 
   # Where the game lives, and which version it is.
   local SCRIPT_DIR CURRENT="$BUILT_VERSION" INSTALL='' APP=''
+  [ "$OS" = Darwin ] || [ -z "$INSTALL_ARG" ] || [ -d "$INSTALL_ARG" ] || fail "couldn't find the game folder $INSTALL_ARG."
   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)" || fail "couldn't find the folder this updater is in."
   if [ "$OS" = Darwin ]; then
     local candidate
@@ -89,6 +112,7 @@ main() {
     INSTALL="$(dirname "$APP")"
   else
     INSTALL="$SCRIPT_DIR"
+    [ -n "$INSTALL_ARG" ] && INSTALL="$(cd "$INSTALL_ARG" && pwd)"
     # A previous update that was cut off mid-swap (power loss): put back any old file that has no replacement yet.
     local leftover="$INSTALL/.winterland-update-new/old" name
     if [ -d "$leftover" ]; then
@@ -134,10 +158,12 @@ EOF
     fi
   }
 
+  STEP=offline
   fetch "https://github.com/$REPO/releases/latest/download/SHA256SUMS.txt" "$TMP/SHA256SUMS.txt" ||
     fail "couldn't reach GitHub. Check your internet connection and try again."
 
   # Exactly one line for this platform, in the strict "<64 hex>  Winterland-X.Y.Z-<target>.zip" form.
+  STEP=nodownload
   local line count
   count="$(grep -Ec "^[0-9a-f]{64}  Winterland-[0-9]+\.[0-9]+\.[0-9]+-$TARGET\.zip\$" "$TMP/SHA256SUMS.txt")"
   [ "$count" = 1 ] || fail "the latest release has no download for this computer ($TARGET)."
@@ -159,6 +185,8 @@ EOF
   }
 
   if ! newer "$LATEST" "$CURRENT"; then
+    STEP=current
+    [ "$FROM_GAME" = 1 ] && fail "this copy is already the newest ($CURRENT)."
     say ""
     say "${G}${B}You already have the newest Winterland ($CURRENT).${N} Nothing to do."
     pause
@@ -175,6 +203,7 @@ EOF
   fi
 
   # One updater at a time, and never while the game is running.
+  STEP=running
   LOCK="$INSTALL/.winterland-update-lock"
   if ! mkdir "$LOCK" 2>/dev/null; then
     local other
@@ -196,8 +225,12 @@ EOF
       return 1
     fi
   }
+  local waited=0
   while running; do
-    if [ -t 0 ]; then
+    if [ "$FROM_GAME" = 1 ] && [ "$waited" -lt 120 ]; then # the game is closing itself: give it up to a minute
+      sleep 0.5
+      waited=$((waited + 1))
+    elif [ -t 0 ]; then
       printf '\n%sWinterland is still open.%s Close the game (your progress saves), then press Enter. ' "$Y" "$N"
       read -r _ || fail "cancelled."
     else
@@ -206,10 +239,18 @@ EOF
   done
 
   say ""
-  say "Downloading $ZIP_NAME..."
-  fetch "https://github.com/$REPO/releases/download/v$LATEST/$ZIP_NAME" "$TMP/$ZIP_NAME" ||
-    fail "the download didn't finish. Check your internet connection and try again."
+  STEP=offline
+  if [ -n "$ZIP_ARG" ]; then
+    # The game's download: copied in first, so the file that is checked is the file that is unpacked.
+    [ "$(basename "$ZIP_ARG")" = "$ZIP_NAME" ] || { STEP=checksum; fail "the game downloaded a different version than the latest release."; }
+    cp "$ZIP_ARG" "$TMP/$ZIP_NAME" || fail "couldn't read the downloaded update."
+  else
+    say "Downloading $ZIP_NAME..."
+    fetch "https://github.com/$REPO/releases/download/v$LATEST/$ZIP_NAME" "$TMP/$ZIP_NAME" ||
+      fail "the download didn't finish. Check your internet connection and try again."
+  fi
 
+  STEP=checksum
   printf 'Checking the download is genuine (SHA-256)... '
   local GOT_SHA
   if command -v sha256sum >/dev/null 2>&1; then
@@ -225,6 +266,7 @@ EOF
 
   # Unpack next to the game (same disk, so the swap is a quick rename) and check it looks like Winterland.
   say "Installing..."
+  STEP=files
   STAGE="$INSTALL/.winterland-update-new"
   rm -rf "$STAGE" # anything left in it was put back above
   mkdir "$STAGE" || fail "couldn't write to $INSTALL."
@@ -237,6 +279,7 @@ EOF
       fail "couldn't unpack the download."
     fi
   else
+    STEP=unzip
     fail "please install 'unzip' (for example: sudo apt install unzip) and run the updater again."
   fi
   local tops top
@@ -288,11 +331,7 @@ EOF
 
   if [ "$LAUNCH" = 1 ]; then
     say "Starting the game..."
-    if [ "$OS" = Darwin ]; then
-      open "$APP"
-    else
-      (cd "$INSTALL" && nohup ./winterland >/dev/null 2>&1 &)
-    fi
+    start_game
   fi
   pause
   exit 0
