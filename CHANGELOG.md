@@ -4,16 +4,37 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
-## Unreleased
+## 0.9.9 (2026-10-17)
+
+A fairer economy from era 2 on, builders that actually build, roads that lead somewhere, and a round of polish.
 
 ### A fairer economy from era 2 on
 
 - **No more surprise millions.** Some goals for eras 4 to 10 showed up from era 2 and paid out those eras' rewards far too early. Each era's goals now wait for that era. Money you already got stays yours.
 - **Era 2 to 10 upgrades cost more, and more with every level.** Each level now costs 10 to 20 % more than the last, so the late levels of an era are worth saving up for instead of costing pocket change. Era 1 is unchanged, and every later era is a little longer than the one before.
 
+### Roads, rails and paths that make sense
+
+- **The Timber Ridge rail ends at a proper buffer stop** north of the Market Town instead of running through houses into open snow.
+- **Streets end in T-junctions,** the tricycle road gets stop lines where it meets the highway, and roads no longer run into fences or into nothing.
+- **Fingerposts at every junction** of the era trail point to the next and previous eras by name.
+- **Fences have gates where you need them,** era 7's pipes no longer cross its pads, and the era 3 and 4 tracks end at buffer stops.
+- **A roomier Market Town.** The walks between its exits are clear, and a new east gate leads straight to the city's west street.
+
+### Clearer signs and pads
+
+- **MANAGE boards.** Every MANAGE sign is now a cream board on a little wooden post with the building's own name on it, standing right beside its building. On era machines it sits on the corner nearest you.
+- **Frosty lantern pads stand out on pale snow,** with a deeper frost rim and a darker foot.
+- Era 7 has more snow drifts, so it reads as winter, not desert.
+- On the finale card at night, eras you haven't reached yet are easier to read.
+
 ### Fixes
 
 - **Builders build again.** Each era's builder (Master Mason, Pit Boss and friends) now brings materials to a machine as soon as you choose it, and also pays for what you picked so the house, shop or machine actually goes up. They always leave a safety cushion in your wallet, and they never choose what to build or pay for a new era: that stays your call.
+- **No more workers standing inside each other** at the era 1 yard drop-off. Porters and the foreman have their own spots.
+- **Updating is safer when the game is slow to close.** The updater now waits for the game to close properly, so you're never left with no game open.
+
+Your save carries over as it is.
 
 ## 0.9.8 (2026-10-17)
 
