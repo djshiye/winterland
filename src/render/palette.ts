@@ -133,13 +133,13 @@ const LOOKS: readonly EraLook[] = [
   // 3 Iron Age: rust ore, forge orange
   { day: day({}), night: night({ hemiGround: 0x704a40, sky: 0x241e42 }), grade: { day: grade(0xfffbf8, 0x0f0910, 1.07, 1.05, 0.22), night: grade(0xfff4ea, 0x140b15, 1.1, 1.04, 0.32) } },
   // 4 Steam Age: coal and brass, gas lamps
-  { day: day({}), night: night({ hemiGround: 0x644c44, hemiSky: 0x6674bc }), grade: { day: grade(0xfefcf8, 0x0e0a10, 1.0, 1.04, 0.24), night: grade(0xfcf4ec, 0x120d15, 1.04, 1.03, 0.34) } },
+  { day: day({ sun: 1.22, hemi: 0.6, hemiGround: 0x8a7f86 }), night: night({ hemiGround: 0x644c44, hemiSky: 0x6674bc }), grade: { day: grade(0xfefcf8, 0x0e0a10, 1.08, 1.07, 0.24), night: grade(0xfcf4ec, 0x120d15, 1.04, 1.03, 0.34) } },
   // 5 Industrial: iron pellets and coke, sodium lamps
-  { day: day({}), night: night({ hemiGround: 0x6a5040, sky: 0x221f40 }), grade: { day: grade(0xfffcf8, 0x0e0a10, 1.04, 1.05, 0.22), night: grade(0xfff8e8, 0x130d14, 1.08, 1.04, 0.32) } },
+  { day: day({ sun: 1.22, hemi: 0.6, hemiGround: 0x9a7c78 }), night: night({ hemiGround: 0x6a5040, sky: 0x221f40 }), grade: { day: grade(0xfffcf8, 0x0e0a10, 1.1, 1.07, 0.22), night: grade(0xfff8e8, 0x130d14, 1.08, 1.04, 0.32) } },
   // 6 Electric Age: copper and teal, mint bulbs
-  { day: day({}), night: night({ hemiGround: 0x565250, hemiSky: 0x5e7ec4, sky: 0x1a2446 }), grade: { day: grade(0xfcfefc, 0x0a0c11, 1.06, 1.03, 0.2), night: grade(0xfafaf6, 0x0d0f16, 1.08, 1.03, 0.3) } },
+  { day: day({ sun: 1.2, hemi: 0.62, hemiGround: 0x7f9a9a }), night: night({ hemiGround: 0x565250, hemiSky: 0x5e7ec4, sky: 0x1a2446 }), grade: { day: grade(0xfcfefc, 0x0a0c11, 1.1, 1.06, 0.2), night: grade(0xfafaf6, 0x0d0f16, 1.08, 1.03, 0.3) } },
   // 7 Oil: honey lanes, flare peach
-  { day: day({}), night: night({ hemiGround: 0x6c4e40 }), grade: { day: grade(0xfffcf6, 0x0f0a10, 1.06, 1.04, 0.22), night: grade(0xfff6e8, 0x130c14, 1.08, 1.03, 0.32) } },
+  { day: day({ sun: 1.22, hemi: 0.6, hemiGround: 0x9e8670 }), night: night({ hemiGround: 0x6c4e40 }), grade: { day: grade(0xfffcf6, 0x0f0a10, 1.12, 1.06, 0.22), night: grade(0xfff6e8, 0x130c14, 1.08, 1.03, 0.32) } },
   // 8 Computer: beige terrazzo, screen mint
   { day: day({}), night: night({ hemiGround: 0x56524e, hemiSky: 0x6678c2 }), grade: { day: grade(0xfefefc, 0x0b0b10, 1.02, 1.03, 0.18), night: grade(0xfafaf6, 0x0e0e15, 1.06, 1.02, 0.28) } },
   // 9 Nuclear: mint glaze, aqua pools
@@ -179,10 +179,10 @@ const FLOORS: readonly [yard: number, processing: number, light: number, board: 
   [0x9c7a5c, 0xc49a6c, 0xffb347, 0x9c7a5c], // packed earth, plank walkways; amber windows and lanterns
   [0xb9ab98, 0x8f8170, 0xffb347, 0xccd4de], // fieldstone flags and mortar; hearth glow in the kiln mouths
   [0x94604c, 0xc9906b, 0xff9233, 0xd0d8e2], // rust-ore gravel; forge orange
-  [0x7d7a78, 0xc77a45, 0xffbe55, 0xc5ced9], // cinder slate with warm specks; boiler doors, gas lamps
-  [0xb8613f, 0x8a6a5c, 0xffd166, 0xbac4d0], // herringbone brick, pellet-grey yard; sodium lamps
-  [0x5f8f86, 0x8fb0aa, 0x7ce8c8, 0xb4c0cc], // teal cobbles; mint bulbs on the wires
-  [0x5e5753, 0xe2ad3c, 0xffaa5a, 0xaebac6], // warm asphalt with honey lanes; flare peach
+  [0x7d7a78, 0xc77a45, 0xffbe55, 0xbdb3ad], // cinder slate with warm specks; boiler doors, gas lamps; smoky taupe board
+  [0xb8613f, 0x8a6a5c, 0xffd166, 0xc4aa9c], // herringbone brick, pellet-grey yard; sodium lamps; brick-dust board
+  [0x5f8f86, 0x8fb0aa, 0x7ce8c8, 0xa9c7bf], // teal cobbles; mint bulbs on the wires; mint-teal snow board
+  [0x7a6454, 0xe2ad3c, 0xffaa5a, 0xdcc4a0], // warm asphalt with honey lanes; flare peach; honey-caramel board
   [0xe2d6bd, 0xd8cdb4, 0x66e0a3, 0xc2ccd6], // beige terrazzo, sand; screen mint
   [0xa9c9bb, 0xcfe3d9, 0x70f5d9, 0xcbd6e0], // mint-glazed concrete; aqua pools
   [0xf3ead8, 0xe8a848, 0xffe082, 0xcad4e0], // cream hex panels with gold seams; sun-gold fusion glow
