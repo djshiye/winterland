@@ -223,8 +223,9 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
     f.disc(rng.range(0.4, 0.6), CRUDE, p.x + 0.1, 0.027, p.z, rng.range(0.55, 0.8), ry);
     f.disc(0.12, HONEY_L, p.x - 0.1, 0.029, p.z - 0.08, 0.6, ry);
   }
-  // snow banked on the fences and drifted in the open ground, so the era stays wintry at play zoom
-  snowDrifts(f, l, P, snowAvoid(l, P, keep), rng, paths);
+  // snow banked on the fences and drifted in the open ground, so the era stays wintry at play zoom (0.9.9: more and
+  // closer open-ground clusters than the other eras, so the honey-cream board never reads as desert sand)
+  snowDrifts(f, l, P, snowAvoid(l, P, keep), rng, paths, 40, 1.6);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

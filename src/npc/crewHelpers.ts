@@ -71,6 +71,11 @@ const CASHIER_HOME: XZ = { x: 7.0, z: -5.0 };
 const DOOR_LOOK: XZ = { x: 7.0, z: -6.4 };
 const DROP_POST: XZ = { x: -3.0, z: 1.4 };
 const DROP_LOOK: XZ = { x: -5.2, z: -0.4 };
+/**
+ * 0.9.9: porters load from the drop zone one row behind the log haulers (DROP_POST moved 0.9 m away from the pile along
+ * DROP_LOOK -> DROP_POST), so their lanes never land on a hauler's lane and the two crews no longer stand inside each other.
+ */
+const PORTER_DROP_POST: XZ = { x: -2.3, z: 1.97 };
 const WALKIN_POST: XZ = { x: -4.0, z: 8.6 };
 const WALKIN_LOOK: XZ = { x: -4.0, z: 9.9 };
 const TRUCK_POST: XZ = { x: 1.0, z: -18.8 };
@@ -163,6 +168,20 @@ const VARIANT: Record<CrewId, number> = { crateRunner: 0, cashier: 1, logHauler:
  */
 const LANE_STEP = [0, 0.8, -0.8, 1.6] as const;
 const POST_LOOK = new WeakMap<XZ, XZ>();
+/** `p` moved `step` metres along the line perpendicular to the direction p -> look. */
+function laneShift(p: XZ, look: XZ, step: number): XZ {
+  const dx = look.x - p.x;
+  const dz = look.z - p.z;
+  const len = Math.hypot(dx, dz) || 1;
+  return { x: p.x + (dz / len) * step, z: p.z - (dx / len) * step };
+}
+/** 0.9.9: where the 1st…4th log hauler and porter stand at the drop zone (tests check the two crews never overlap). */
+export function dropZoneStands(): { logHauler: XZ[]; porter: XZ[] } {
+  return {
+    logHauler: LANE_STEP.map((s) => laneShift(DROP_POST, DROP_LOOK, s)),
+    porter: LANE_STEP.map((s) => laneShift(PORTER_DROP_POST, DROP_LOOK, s)),
+  };
+}
 function registerPost(post: XZ, look: XZ): void {
   POST_LOOK.set(post, look);
 }
@@ -170,6 +189,7 @@ registerPost(BENCH_POST, BENCH_LOOK);
 registerPost(SE_POST, SE_LOOK);
 registerPost(CASHIER_HOME, DOOR_LOOK);
 registerPost(DROP_POST, DROP_LOOK);
+registerPost(PORTER_DROP_POST, DROP_LOOK);
 registerPost(WALKIN_POST, WALKIN_LOOK);
 registerPost(TRUCK_POST, TRUCK_LOOK);
 registerPost(PINE_HOME, PINE_HOME_LOOK);
@@ -289,10 +309,7 @@ export abstract class Helper {
   /** The post shifted along its lane line (unchanged for index 0 or an unregistered point). */
   protected lanePoint(p: XZ, look: XZ | null = POST_LOOK.get(p) ?? null): XZ {
     if (!look || this.laneStep === 0) return p;
-    const dx = look.x - p.x;
-    const dz = look.z - p.z;
-    const len = Math.hypot(dx, dz) || 1;
-    return { x: p.x + (dz / len) * this.laneStep, z: p.z - (dx / len) * this.laneStep };
+    return laneShift(p, look, this.laneStep);
   }
 
   placeAt(p: XZ, look: XZ | null, lane = true): void {
@@ -907,7 +924,7 @@ const SHARED_MIN_TAKE = 2;
 /** Seconds a porter whose shop / producer was demolished waits for another taker of its load before dropping it. */
 const ORPHAN_WAIT = 4;
 
-const DROP_STOP: Stop = { p: DROP_POST, leg: DROP_LEG };
+const DROP_STOP: Stop = { p: PORTER_DROP_POST, leg: DROP_LEG };
 const BENCH_STOP: Stop = { p: BENCH_POST, leg: BENCH_LEG };
 const HOME_STOP: Stop = { p: PORTER_HOME, leg: null };
 
@@ -1033,7 +1050,7 @@ export class Porter extends Helper {
     }
     const dz = this.level.dropZone.pile;
     sources.set('drop', { key: 'drop', holder: dz, stop: DROP_STOP, look: DROP_LOOK, lot: null });
-    sourceViews.push({ key: 'drop', kind: 'log', count: dz.count('log'), minTake: SHARED_MIN_TAKE, pos: DROP_POST, shared: true });
+    sourceViews.push({ key: 'drop', kind: 'log', count: dz.count('log'), minTake: SHARED_MIN_TAKE, pos: PORTER_DROP_POST, shared: true });
     const bench = this.level.processor?.output;
     if (bench) {
       sources.set('bench', { key: 'bench', holder: bench, stop: BENCH_STOP, look: BENCH_LOOK, lot: null });

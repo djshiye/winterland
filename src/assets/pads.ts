@@ -1316,7 +1316,7 @@ function paintHoney(g: CanvasRenderingContext2D, ratio: number): void {
 
 /** The look's face (gradient + decoration) with the honey fill and a soft shade under the snow rim, clipped. */
 function paintFace(g: CanvasRenderingContext2D, s: PadStyle, ratio: number): void {
-  const L = PAD.looks[s];
+  const L: PadLook = PAD.looks[s];
   g.save();
   facePath(g);
   g.clip();
@@ -1329,6 +1329,12 @@ function paintFace(g: CanvasRenderingContext2D, s: PadStyle, ratio: number): voi
   else if (s === 'plate') paintPlate(g, L);
   else paintLantern(g, L);
   paintHoney(g, ratio);
+  if (L.edge) {
+    facePath(g);
+    g.lineWidth = 34;
+    g.strokeStyle = rgba(L.side, L.edge);
+    g.stroke();
+  }
   facePath(g);
   g.lineWidth = 30;
   g.strokeStyle = 'rgba(90,55,40,0.13)';
@@ -2104,7 +2110,7 @@ function padBodyGeometry(side: number, s: PadStyle): THREE.BufferGeometry {
   const key = `${side.toFixed(3)}|${s}`;
   let g = bodyCache.get(key);
   if (!g) {
-    const L = PAD.looks[s];
+    const L: PadLook = PAD.looks[s];
     const r = ((CORNER + BORDER / 2) / SIZE) * side;
     const h = side / 2;
     const bev = Math.min(0.04, side * 0.018);
@@ -2120,7 +2126,7 @@ function padBodyGeometry(side: number, s: PadStyle): THREE.BufferGeometry {
     slab.translate(0, bev, 0);
     slab.deleteAttribute('uv');
     const top = new THREE.Color(L.side);
-    const foot = new THREE.Color(mixHex(L.side, PAD.ink, 0.25));
+    const foot = new THREE.Color(mixHex(L.side, PAD.ink, L.foot ?? 0.25));
     const c = new THREE.Color();
     colorize(slab, (y) => c.copy(foot).lerp(top, Math.min(1, y / SLAB_HEIGHT)));
     const merged = mergeGeometries([slab, snowRim(h, r, side)]);

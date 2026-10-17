@@ -110,14 +110,19 @@ const Q_ENTER: XZ = { x: Q.pad.x + 2.0, z: Q.pad.z };
 const Q_STAND: XZ = { x: Q.pad.x + 0.3, z: Q.pad.z + 0.7 };
 const Q_LOOK: XZ = { x: Q.x, z: Q.z };
 
-/** Drop zone pile post and what it faces (mirrors DROP_POST / DROP_LOOK in crewHelpers); the foreman stands 0.9 m off the log hauler. */
+/**
+ * Drop zone pile post and what it faces (mirrors DROP_POST / DROP_LOOK in crewHelpers). 0.9.9: the foreman stands in
+ * the porters' row (0.9 m behind the log haulers) at lane -1.6, clear of every hauler and porter lane.
+ */
 const DROP_POST: XZ = { x: -3.0, z: 1.4 };
 const DROP_LOOK: XZ = { x: -5.2, z: -0.4 };
-const DROP_STAND: XZ = (() => {
+export const DROP_STAND: XZ = (() => {
   const dx = DROP_LOOK.x - DROP_POST.x;
   const dz = DROP_LOOK.z - DROP_POST.z;
   const len = Math.hypot(dx, dz) || 1;
-  return { x: DROP_POST.x + (dz / len) * 0.9, z: DROP_POST.z - (dx / len) * 0.9 };
+  const back = 0.9;
+  const lane = -1.6;
+  return { x: DROP_POST.x - (dx / len) * back + (dz / len) * lane, z: DROP_POST.z - (dz / len) * back - (dx / len) * lane };
 })();
 
 /** A place the foreman can stand: its waypoint path from home (last point = the stand). */
