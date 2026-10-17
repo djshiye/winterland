@@ -6,7 +6,8 @@
  *   and 'city:changed' { population, rank }.
  *   0.9.0 climb (docs/EXPANSION.md §C): while the next era's gate is open the chip is the ONE next goal instead: a
  *   progress ring for the checklist, "ERA I · SURVIVAL  12/23 · S5/5" and "Next: Sharp Axe → Lv 10 ($42K)"
- *   (eras/gate.ts nextGoal, re-read 4× a second), "Frontier is for sale!" once ready. Tapping it opens the GateCard
+ *   (eras/gate.ts nextGoal, re-read 4× a second), "Frontier is for sale!" once ready. 0.9.10 (READINESS C2): while the
+ *   objective banner shows a goal the chip names that same goal (progression/guideGoal.ts), never a second one. Tapping it opens the GateCard
  *   ('gate:open'); it pulses on each 'gate:progress' that finished a row.
  *   0.9.7 (decision 4, F8): a gold "★ 63%" completion tag (core/completion.ts) always sits after the era name, re-read
  *   once a second. Era 10's gate is the final one ("Winterland Complete", eras/gate.ts FINAL_GATE); once it is met the
@@ -24,6 +25,7 @@ import { completion, completionTag, nextMissing } from '../core/completion';
 import { cityStanding, eraChipVisible, eraRoman, formatPopulation, IncomeTicker, rankName } from './agesLogic';
 import { cubicOut, h, onTap, shield } from './dom';
 import { hexCss } from './icons';
+import { chipGoalText, guideGoal, isExpandGoal } from '../progression/guideGoal';
 
 /** Seconds between next-goal reads (nextGoal prices the whole checklist). */
 const GOAL_EVERY = 0.25;
@@ -199,8 +201,13 @@ export class EraChip {
     }
     const goal = nextGoal(state, economy.money);
     let ready = c.ready || padPaid(state, n) > 0; // a part-paid pad stays on sale (grandfathered)
-    let text = goal ? (ready ? goal.text : `Next: ${goal.text}`) : '';
-    if (!goal && finished) {
+    // 0.9.10 (READINESS C2): the banner's goal when it shows one, so the chip and the banner never name two goals
+    const banner = this.done ? null : guideGoal(state);
+    // past the final gate only 100 % reads as ready; a mirrored hands-on step (feed a machine) never reads as "for sale"
+    if (finished || (banner && !isExpandGoal(banner))) ready = false;
+    const line = banner ? chipGoalText(banner) : goal?.text;
+    let text = line ? (ready ? line : `Next: ${line}`) : '';
+    if (!banner && !goal && finished) {
       const missing = this.done ? null : nextMissing(state);
       text = missing ? `Next: ${missing.label}` : `${FINAL_NAME}!`;
       ready = !missing;

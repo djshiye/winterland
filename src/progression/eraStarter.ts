@@ -9,8 +9,8 @@
  *   4. the import dock: where spare goods wait for the machines (done on stepping onto its give / take strip in front);
  *   5. the era rule: everything here to Lv 10 opens the next era (era 10: the 100 % award).
  *
- * Reading steps stay up READ_SECONDS; a walking step moves on by itself after WALK_SECONDS, so the banner can never
- * stick. Once finished the guide never returns for that era (flag `seen:starter<N>`,
+ * Reading steps stay up READ_SECONDS; a walking step moves on by itself after WALK_SECONDS and the node step after
+ * NODE_SECONDS (0.9.10), so the banner can never stick. Once finished the guide never returns for that era (flag `seen:starter<N>`,
  * kept across New Season), and an era whose first machine is already chosen never starts it (old saves). The node's
  * name, verb and resource come from the era data, so renames there follow automatically; RESOURCE_LINES is the one
  * hand-written line per era (era resources v2: iron pellets + coke, chips from silicon, rare earths + helium-3).
@@ -30,6 +30,8 @@ export const READ_SECONDS = 6;
 export const WALK_SECONDS = 20;
 /** Seconds at the node that count as "you've got it" even before anything is picked up. */
 export const NODE_LINGER = 5;
+/** 0.9.10: safety net for the node step too (the player never goes there): it moves on after this long. */
+export const NODE_SECONDS = 45;
 
 /** What each era runs on, finishing "<Region> runs on ...". */
 export const RESOURCE_LINES: Readonly<Record<number, string>> = {
@@ -54,6 +56,8 @@ export interface StarterStep {
   /** Width / depth of the spot's zone (metres). */
   w: number;
   d: number;
+  /** 0.9.10: the era chip's shorter wording of a reading or walking step (progression/guideGoal.ts); absent = the text itself. */
+  chip?: string;
 }
 
 export const starterFlag = (n: number): FlagId => `seen:starter${n}`;
@@ -71,7 +75,7 @@ export function starterSteps(n: number): StarterStep[] {
   const rawName = raw ? lower(raw.label) : 'its raw goods';
   const steps: StarterStep[] = [];
   const tag = (i: number, text: string): string => `${i}/${STARTER_STEPS} · ${text}`;
-  steps.push({ kind: 'read', text: tag(1, `${era.region} runs on ${RESOURCE_LINES[n] ?? rawName}`), spot: null, w: 0, d: 0 });
+  steps.push({ kind: 'read', text: tag(1, `${era.region} runs on ${RESOURCE_LINES[n] ?? rawName}`), spot: null, w: 0, d: 0, chip: `Explore ${era.region}` });
   steps.push({
     kind: 'node',
     text: tag(2, node ? `${node.verb} the ${node.name} for ${rawName}` : `Harvest ${rawName} by hand`),
@@ -79,7 +83,7 @@ export function starterSteps(n: number): StarterStep[] {
     w: 5,
     d: 5,
   });
-  steps.push({ kind: 'walk', text: tag(3, `The shop mat: hire ${lower(era.worker.plural)} and buy upgrades`), spot: L.shopMat, w: MAT_SIZE.w, d: MAT_SIZE.d });
+  steps.push({ kind: 'walk', text: tag(3, `The shop mat: hire ${lower(era.worker.plural)} and buy upgrades`), spot: L.shopMat, w: MAT_SIZE.w, d: MAT_SIZE.d, chip: 'Walk to the shop mat' });
   // the strip in front of the dock (its give + take zones), never the dock's solid body
   const front = worldRect(L.dock, L.facilityYaw, { u0: DOCK_FRAME.give.u0, u1: DOCK_FRAME.take.u1, v0: DOCK_FRAME.give.v0, v1: DOCK_FRAME.give.v1 });
   steps.push({
@@ -88,9 +92,10 @@ export function starterSteps(n: number): StarterStep[] {
     spot: { x: (front.minX + front.maxX) / 2, z: (front.minZ + front.maxZ) / 2 },
     w: front.maxX - front.minX,
     d: front.maxZ - front.minZ,
+    chip: 'Walk to the import dock',
   });
   const last = n >= 10 ? `Get everything in ${era.region} to Lv 10; the era chip then shows the last pieces for 100 %` : `Get everything in ${era.region} to Lv 10 to open the next era`;
-  steps.push({ kind: 'read', text: tag(5, last), spot: null, w: 0, d: 0 });
+  steps.push({ kind: 'read', text: tag(5, last), spot: null, w: 0, d: 0, chip: `Everything in ${era.region} to Lv 10` });
   return steps;
 }
 
@@ -139,6 +144,7 @@ export class EraStarter {
       const raw = ERA_NODES[n]?.yields as ItemKind | undefined;
       if (raw && s.carrying(raw) > 0) next = true;
       if (inside(s.player, cur) && this.t >= NODE_LINGER) next = true;
+      if (this.t >= NODE_SECONDS) next = true;
       if (!cur.spot) next = this.t >= READ_SECONDS;
     } else next = inside(s.player, cur) || !cur.spot || this.t >= WALK_SECONDS;
     if (next) {

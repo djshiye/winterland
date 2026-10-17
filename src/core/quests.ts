@@ -8,6 +8,7 @@
  * ones), so "Sell 60 chairs to the dog sleds" no longer sits above the era's own goals; and a reward is at least
  * QUEST_INCOME_SECONDS of the recent sales rate (core/incomeWindow.ts), fixed the moment the quest shows, so no
  * quest pays pocket change in a later era. Era 1 (age 1) is untouched.
+ * 0.9.10 (READINESS C7): a small "first trade" quest (trade1) next to the first investment.
  */
 import { AMENITY_IDS, GATE } from '../config';
 import { CITY_BUILDINGS, DISTRICTS, ERAS, ERA_NAMES, ERA_SCALE, REGIONS, unlockCash, type CityBuildingKind } from '../eras/data';
@@ -30,6 +31,8 @@ export interface QuestDef {
 }
 
 const flag = (b: boolean) => (b ? 1 : 0);
+/** 0.9.10: set on the first buy or sell at the market ('market:trade'), so a sale at a loss still counts. */
+export const TRADE_FLAG = 'seen:trade' as const;
 const townBuilt = (s: GameState, pred: (id: string) => boolean = () => true) =>
   s.town.lots.filter((l) => l.tier >= 0 && l.building !== '' && pred(l.building)).length;
 const amenitiesBuilt = (s: GameState) => AMENITY_IDS.filter((id) => s.town.amenities[id].tier >= 0).length;
@@ -104,6 +107,8 @@ function eraQuests(): QuestDef[] {
     { id: 'materials100', title: 'Make 100 era materials', target: 100, reward: 40000 * ERA_SCALE, progress: (s) => s.stats.materialsMade },
     { id: 'city1', title: 'Build in the city', target: 1, reward: 50000 * ERA_SCALE, progress: (s) => s.stats.cityBuilt },
     { id: 'invest1', title: 'Make an investment at the market', target: 1, reward: 30000 * ERA_SCALE, progress: (s) => flag(s.market.investments.length > 0 || s.stats.investEarned > 0) },
+    // 0.9.10 (READINESS C7): a small first trade, paid like Jack's tip (the era-2 floor below still applies)
+    { id: 'trade1', title: 'Buy or sell a good at the market', target: 1, reward: 5000, progress: (s) => flag(!!s.flags[TRADE_FLAG] || s.stats.tradeProfit > 0 || Object.keys(s.market.holdings).length > 0) },
     gate(3),
     reach(3),
     ...questTrio(3),
@@ -168,7 +173,7 @@ export function questEra(id: string): number {
   }
   if (id === 'machines6' || id === 'city12') return 3;
   if (id === 'city60') return 10;
-  if (['machine1', 'jack1', 'city1', 'invest1'].includes(id)) return 2;
+  if (['machine1', 'jack1', 'city1', 'invest1', 'trade1'].includes(id)) return 2;
   return 1;
 }
 
@@ -202,6 +207,9 @@ export class Quests {
   ) {
     events.on('sale', (e) => {
       if (e.buyer !== 'jack') this.income.add(e.amount);
+    });
+    events.on('market:trade', () => {
+      state.flags[TRADE_FLAG] = true;
     });
   }
 
