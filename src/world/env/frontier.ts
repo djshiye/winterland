@@ -27,6 +27,8 @@ import { Batch, vcMat } from '../../render/batch';
 import { GAME_FONT, geo, makeCanvasTexture, toonUnique } from '../../render/materials';
 import { blockedNewLand, instanced, occludesNewLand, Rng, type EnvPart, type Placement } from './common';
 import { romanNumeral } from './eras';
+import { buildEraOpen, buildEraWild, eraGround, eraKeepOut } from './eraGround';
+import { palette } from '../../render/palette';
 import { moundGeo, pineGeo, pineTallGeo, rockGeo } from './props';
 
 /** The slice of the game state the new land follows (the tests pass a plain object). */
@@ -483,6 +485,8 @@ function propFree(l: RegionLayout, x: number, z: number, rad: number): boolean {
   if (inZone(nodePatch(l), x, z, rad + 0.3)) return false;
   // 0.9.7: the harvest field's resource beds (world/env/plots.ts) keep their own ground
   if (inZone(plotPlaces(l.n).field, x, z, rad + 0.3)) return false;
+  // 0.9.8: landmarks an era's world module builds itself (world/env/eraGround.ts)
+  if (eraKeepOut(l.n, l).some((q) => inZone(q, x, z, rad + 0.3))) return false;
   return !regionPaths(l).some((q) => inZone(q, x, z, rad + 0.3));
 }
 
@@ -506,8 +510,10 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   const cz = (r.minZ + r.maxZ) / 2;
   const pal: Palette = { fence: e.colors.fence, dark: shade(e.colors.fence, 0.7), light: shade(e.colors.fence, 1.3), accent: e.colors.accent, trim: e.colors.trim };
 
-  // ---- ground tile (+ worn patches / ruts)
-  const lockedColor = mix(e.colors.ground, 0xf4f8ff, 0.5);
+  // ---- ground tile (+ worn patches / ruts); 0.9.8: the era's board colour (palette floor.board, world/env/eraGround.ts)
+  const mod = eraGround(n);
+  const boardColor = palette(n).floor.board;
+  const lockedColor = mix(boardColor, 0xf4f8ff, mod ? 0.62 : 0.5);
   const ground = toonUnique(lockedColor);
   const tile = new THREE.Mesh(geo.ground(W, D), ground);
   const gy = 0.014;
@@ -517,17 +523,17 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   tile.receiveShadow = true;
   group.add(tile);
   const decals = new Batch();
-  const nDecals = Math.round(16 * grow);
+  const nDecals = mod?.wild ? 0 : Math.round(16 * grow);
   for (let i = 0; i < nDecals; i++) {
     const s = rng.range(0.8, 2.2);
     const col = shade(e.colors.ground, rng.next() < 0.6 ? 0.94 : 1.04);
     decals.add(geo.circleGround(1, 10), col, rng.range(r.minX + 2, r.maxX - 2), gy + 0.004 + (i % 16) * 0.0004, rng.range(r.minZ + 2, r.maxZ - 2), { sx: s, sz: s * rng.range(0.6, 1.0), ry: rng.range(0, 3) });
   }
   const rutLen = 14;
-  for (const dx of [-0.9, 0.9]) decals.add(geo.box(0.4, 0.012, rutLen), shade(e.colors.ground, 0.78), l.gate.x + dx, gy + 0.008, l.gate.z + l.inward * (rutLen / 2 + 0.5));
+  if (!mod?.wild) for (const dx of [-0.9, 0.9]) decals.add(geo.box(0.4, 0.012, rutLen), shade(e.colors.ground, 0.78), l.gate.x + dx, gy + 0.008, l.gate.z + l.inward * (rutLen / 2 + 0.5));
   // a worn footpath from the market gate into the market
-  decals.add(geo.box(1.6, 0.012, 6), shade(e.colors.ground, 0.86), l.marketGate.x, gy + 0.008, l.marketGate.z + l.inward * 3.2);
-  const decalMesh = decals.mesh({ cast: false, receive: true });
+  if (!mod?.wild) decals.add(geo.box(1.6, 0.012, 6), shade(e.colors.ground, 0.86), l.marketGate.x, gy + 0.008, l.marketGate.z + l.inward * 3.2);
+  const decalMesh = decals.empty ? new THREE.Group() : decals.mesh({ cast: false, receive: true });
 
   // ---- 0.9.5 zones: a soft ground tint per zone and the paths between them (shown once the region is bought)
   const zb = new Batch();
@@ -544,10 +550,13 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
     if (w > 0 && d > 0) zb.add(geo.box(w, 0.01, d), c, (q.minX + q.maxX) / 2, gy + 0.001, (q.minZ + q.maxZ) / 2);
   }
   for (const q of regionPaths(l)) zb.add(geo.box(q.maxX - q.minX, 0.012, q.maxZ - q.minZ), shade(e.colors.ground, 0.8), (q.minX + q.maxX) / 2, gy + 0.003, (q.minZ + q.maxZ) / 2);
-  const zonesMesh = zb.mesh({ cast: false, receive: true });
+  // an era module lays its own zone floors and paths instead (built now, shown on unlock like the tints)
+  const zonesMesh: THREE.Object3D = (mod?.open ? buildEraOpen(n, l, plotPlaces(n)) : null) ?? zb.mesh({ cast: false, receive: true });
   zonesMesh.visible = false;
   group.add(zonesMesh);
   group.add(decalMesh);
+  const wild = buildEraWild(n, l);
+  if (wild) group.add(wild);
 
   // ---- fence with the gate gap, the gate arch
   const fb = new Batch();
@@ -667,15 +676,16 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
     }
   }
   for (const role of PROP_ROLES) {
+    if (mod?.wild) break; // the module dresses the region itself
     if (byRole[role].length) group.add(instanced(eraPropGeometry(n, role), vcMat(), byRole[role], { cast: role !== 'low', receive: true }));
   }
-  if (n === 6) {
+  if (n === 6 && !mod?.wild) {
     const wires = strungWires(byRole.tall);
     if (wires) group.add(new THREE.Mesh(wires, vcMat()));
   }
 
   root.add(group);
-  const reg: Region = { n, layout: l, group, unlocked: false, gateK: 0, colorK: 0, animating: false, leafL, leafR, ground, lock, survey, zones: zonesMesh, places: null, paintSign: paint, lockedColor, openColor: e.colors.ground };
+  const reg: Region = { n, layout: l, group, unlocked: false, gateK: 0, colorK: 0, animating: false, leafL, leafR, ground, lock, survey, zones: zonesMesh, places: null, paintSign: paint, lockedColor, openColor: boardColor };
   paint(true);
   void ctx;
   return reg;
