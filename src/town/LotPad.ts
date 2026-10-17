@@ -1,90 +1,18 @@
 /**
- * [T2 — town] The "BUILD" tile of an empty town lot: a chunky pad (same slab as the construction pads) showing a
- * little house with a plus and the word BUILD, with a floating sign. It only shows; Town owns the zone that opens
- * the build panel while the player stands on it.
+ * [T2 — town] The "BUILD" tile of an empty town lot: a chunky pad (same slab, snow rim and look as the construction
+ * pads, assets/pads.ts createBuildTexture) showing a little house with a plus, with a floating BUILD sign. It only
+ * shows; Town owns the zone that opens the build panel while the player stands on it. 0.9.8: it breathes slowly and
+ * gives the pads' felt thump when stepped on (fx/PadRing.ts PadFeel).
  */
 import * as THREE from 'three';
-import { COLORS, PALETTE } from '../config';
-import { createPadModel, createPadSign } from '../assets/pads';
+import { PALETTE, rect, type Rect } from '../config';
+import { createBuildTexture, createPadModel, createPadSign } from '../assets/pads';
 import type { GameContext } from '../core/types';
-import { GAME_FONT, makeCanvasTexture } from '../render/materials';
+import { PadFeel } from '../fx/PadRing';
 import { motionScale } from '../fx/padJuice';
 
-const SIZE = 256;
-const BORDER = 10;
-const CORNER = 36;
 const SIGN_HEIGHT = 1.7;
 const SIGN_SCALE = 0.72;
-
-const hex = (c: number): string => `#${new THREE.Color(c).getHexString()}`;
-
-function roundedRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
-  g.beginPath();
-  g.moveTo(x + r, y);
-  g.arcTo(x + w, y, x + w, y + h, r);
-  g.arcTo(x + w, y + h, x, y + h, r);
-  g.arcTo(x, y + h, x, y, r);
-  g.arcTo(x, y, x + w, y, r);
-  g.closePath();
-}
-
-function draw(g: CanvasRenderingContext2D, texture: THREE.CanvasTexture): void {
-  g.clearRect(0, 0, SIZE, SIZE);
-  const inset = BORDER / 2;
-  roundedRect(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
-  g.fillStyle = hex(COLORS.PAD_BG);
-  g.fill();
-  g.lineWidth = BORDER;
-  g.strokeStyle = hex(COLORS.PAD_BORDER);
-  g.stroke();
-
-  // a little house (roof, walls, door) in white …
-  g.save();
-  g.translate(118, 98);
-  g.fillStyle = '#ffffff';
-  g.strokeStyle = '#ffffff';
-  g.lineJoin = 'round';
-  g.beginPath();
-  g.moveTo(-58, 8);
-  g.lineTo(0, -48);
-  g.lineTo(58, 8);
-  g.lineTo(46, 8);
-  g.lineTo(46, 52);
-  g.lineTo(-46, 52);
-  g.lineTo(-46, 8);
-  g.closePath();
-  g.fill();
-  g.fillStyle = hex(COLORS.PAD_BG);
-  g.fillRect(-11, 20, 22, 32);
-  g.restore();
-  // … with a green plus badge
-  g.beginPath();
-  g.arc(184, 66, 30, 0, Math.PI * 2);
-  g.fillStyle = hex(PALETTE.cash);
-  g.fill();
-  g.lineWidth = 6;
-  g.strokeStyle = '#ffffff';
-  g.stroke();
-  g.lineCap = 'round';
-  g.lineWidth = 11;
-  g.beginPath();
-  g.moveTo(184, 50);
-  g.lineTo(184, 82);
-  g.moveTo(168, 66);
-  g.lineTo(200, 66);
-  g.stroke();
-
-  g.font = `700 54px ${GAME_FONT}`;
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.lineJoin = 'round';
-  g.lineWidth = 9;
-  g.strokeStyle = hex(COLORS.PAD_BG);
-  g.fillStyle = '#ffffff';
-  g.strokeText('BUILD', SIZE / 2, 206, SIZE - 50);
-  g.fillText('BUILD', SIZE / 2, 206, SIZE - 50);
-  texture.needsUpdate = true;
-}
 
 export class LotPad {
   /** Root at the tile's floor centre. */
@@ -92,6 +20,8 @@ export class LotPad {
   private shown = false;
   private readonly pulse = new THREE.Group();
   private readonly sign: THREE.Mesh;
+  private readonly feel: PadFeel;
+  private readonly area: Rect;
 
   constructor(
     readonly ctx: GameContext,
@@ -99,15 +29,10 @@ export class LotPad {
     z: number,
     size: number,
   ) {
-    const { ctx: g, texture } = makeCanvasTexture(SIZE, SIZE);
-    draw(g, texture);
-    if (typeof document !== 'undefined' && document.fonts) {
-      void document.fonts
-        .load(`700 54px ${GAME_FONT}`)
-        .catch(() => undefined)
-        .then(() => draw(g, texture));
-    }
-    this.pulse.add(createPadModel(size, texture));
+    const model = createPadModel(size, createBuildTexture());
+    this.pulse.add(model);
+    this.feel = new PadFeel(ctx, model, x);
+    this.area = rect(x, z, size, size);
     this.object.add(this.pulse);
     this.sign = createPadSign('BUILD', true);
     this.sign.scale.setScalar(SIGN_SCALE);
@@ -125,6 +50,7 @@ export class LotPad {
   show(instant = false): void {
     if (this.shown) return;
     this.shown = true;
+    this.feel.reset();
     const tw = this.ctx.tweens;
     tw.killTweensOf(this.object);
     this.object.scale.setScalar(1);
@@ -154,12 +80,11 @@ export class LotPad {
     });
   }
 
-  update(_dt: number): void {
+  update(dt: number): void {
     if (!this.shown) return;
     const t = this.ctx.time.elapsed;
     const m = motionScale(); // 0.9.7: calmer with Reduce motion, like the other pads
-    const s = 1 + 0.03 * m * Math.sin(t * 3 + this.object.position.x);
-    this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
+    this.feel.update(dt, t, this.pulse, true, true, this.ctx.zones.isPlayerIn(this.area));
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
     this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.object.position.x) * 0.05 * m;
   }
