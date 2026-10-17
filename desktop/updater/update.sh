@@ -18,8 +18,10 @@
 #
 # In-game updates (0.9.8, desktop/updater.cjs): when the player picks "Update now", the game downloads and checks the
 # zip itself, then runs a copy of this script with:
-#   --from-game      no terminal, no questions; waits (up to a minute) for the game to close; if anything goes wrong
+#   --from-game      no terminal, no questions; waits (up to 10 minutes) for the game to close; if anything goes wrong
 #                    it starts the old game again with --update-failed=<reason>, so the player just keeps playing.
+#                    That restart also waits for the old game to be gone first: started any sooner, the new copy would
+#                    hand over to the closing one and quit (one copy at a time), leaving the player with no game.
 #   --zip PATH       use this already-downloaded zip instead of downloading it. It is still checked against the
 #                    SHA256SUMS.txt this script fetches itself, so the game's word is never taken for it.
 #   --install DIR    (Linux) the game folder to update, instead of the folder this script is in.
@@ -34,6 +36,10 @@ main() {
   local ASK=1 LAUNCH=1 APP_ARG='' FROM_GAME=0 ZIP_ARG='' INSTALL_ARG=''
   # What the step that can fail is doing (the reason an in-game update reports back): see `fail`.
   local STEP=other
+  # In-game updates: how long, in half seconds, the script waits in all for the game to finish closing (10 minutes).
+  local CLOSE_WAIT=1200
+  # 0 when a failed in-game update must not restart the game (another update is running and will start it).
+  local RELAUNCH=1
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -78,11 +84,36 @@ main() {
       (cd "$INSTALL" && nohup ./winterland "$@" >/dev/null 2>&1 &)
     fi
   }
+  # True while this copy of the game is open (Linux: any process running this folder's 'winterland').
+  running() {
+    if [ "$OS" = Darwin ]; then
+      [ -n "${APP:-}" ] && pgrep -f "$APP/Contents/MacOS/Winterland" >/dev/null 2>&1
+    else
+      [ -n "${INSTALL:-}" ] || return 1
+      local pid
+      for pid in $(pgrep -x winterland 2>/dev/null); do
+        [ "$(readlink "/proc/$pid/exe" 2>/dev/null)" = "$INSTALL/winterland" ] && return 0
+      done
+      return 1
+    fi
+  }
+  # True once the game has closed; false if it is still open when the in-game wait (CLOSE_WAIT, shared) runs out.
+  wait_closed() {
+    while running; do
+      [ "$CLOSE_WAIT" -gt 0 ] || return 1
+      sleep 0.5
+      CLOSE_WAIT=$((CLOSE_WAIT - 1))
+    done
+    return 0
+  }
   fail() {
     say ""
     say "${R}${B}Update stopped:${N} $*"
     say "Your game and your save are exactly as they were."
-    [ "$FROM_GAME" = 1 ] && start_game "--update-failed=$STEP"
+    # Start the old game again once it has finished closing. If it never closes, it is still open: nothing to start.
+    if [ "$FROM_GAME" = 1 ] && [ "$RELAUNCH" = 1 ]; then
+      wait_closed && start_game "--update-failed=$STEP"
+    fi
     pause
     exit 1
   }
@@ -211,32 +242,22 @@ EOF
     if [ -d "$LOCK" ] && ! { [ -n "$other" ] && kill -0 "$other" 2>/dev/null; }; then
       rm -rf "$LOCK" # left behind by an updater that was killed
     fi
-    mkdir "$LOCK" 2>/dev/null || { LOCK=''; fail "another update is already running (or $INSTALL isn't writable)."; }
+    mkdir "$LOCK" 2>/dev/null || { LOCK=''; RELAUNCH=0; fail "another update is already running (or $INSTALL isn't writable)."; }
   fi
   echo $$ >"$LOCK/pid"
-  running() {
-    if [ "$OS" = Darwin ]; then
-      pgrep -f "$APP/Contents/MacOS/Winterland" >/dev/null 2>&1
-    else
-      local pid
-      for pid in $(pgrep -x winterland 2>/dev/null); do
-        [ "$(readlink "/proc/$pid/exe" 2>/dev/null)" = "$INSTALL/winterland" ] && return 0
-      done
-      return 1
-    fi
-  }
-  local waited=0
-  while running; do
-    if [ "$FROM_GAME" = 1 ] && [ "$waited" -lt 120 ]; then # the game is closing itself: give it up to a minute
-      sleep 0.5
-      waited=$((waited + 1))
-    elif [ -t 0 ]; then
-      printf '\n%sWinterland is still open.%s Close the game (your progress saves), then press Enter. ' "$Y" "$N"
-      read -r _ || fail "cancelled."
-    else
-      fail "close Winterland first, then run the updater again."
-    fi
-  done
+  if [ "$FROM_GAME" = 1 ]; then
+    # The game is closing itself; a slow close (a big save, a busy disk) just means a longer wait.
+    wait_closed || fail "Winterland didn't close in time, so nothing was changed."
+  else
+    while running; do
+      if [ -t 0 ]; then
+        printf '\n%sWinterland is still open.%s Close the game (your progress saves), then press Enter. ' "$Y" "$N"
+        read -r _ || fail "cancelled."
+      else
+        fail "close Winterland first, then run the updater again."
+      fi
+    done
+  fi
 
   say ""
   STEP=offline

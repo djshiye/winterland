@@ -16,8 +16,10 @@
 #
 # In-game updates (0.9.8, desktop/updater.cjs): when the player picks "Update now", the game downloads and checks the
 # zip itself, then runs a copy of this script (hidden) with:
-#   -FromGame      no questions; waits (up to a minute) for the game to close; if anything goes wrong it starts the old
-#                  game again with --update-failed=<reason>, so the player just keeps playing.
+#   -FromGame      no questions; waits (up to 10 minutes) for the game to close; if anything goes wrong it starts the
+#                  old game again with --update-failed=<reason>, so the player just keeps playing. That restart also
+#                  waits for the old game to be gone first: started any sooner, the new copy would hand over to the
+#                  closing one and quit (one copy at a time), leaving the player with no game.
 #   -Zip PATH      use this already-downloaded zip instead of downloading it. It is still checked against the
 #                  SHA256SUMS.txt this script fetches itself, so the game's word is never taken for it.
 #   -Install DIR   the Winterland folder to update, instead of the folder above this script.
@@ -27,6 +29,10 @@ param([switch]$Yes, [switch]$NoLaunch, [switch]$NoPause, [switch]$FromGame, [str
 if ($FromGame) { $Yes = $true; $NoPause = $true }
 # What the step that can fail is doing (the reason an in-game update reports back): see Stop-Update.
 $script:Step = 'other'
+# In-game updates: how long, in half seconds, the script waits in all for the game to finish closing (10 minutes).
+$script:CloseWait = 1200
+# $false when a failed in-game update must not restart the game (another update is running and will start it).
+$script:Relaunch = $true
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue' # the progress bar makes Invoke-WebRequest many times slower
@@ -47,11 +53,28 @@ function Start-Game([string[]]$GameArgs = @()) {
     else { Start-Process -FilePath $script:Exe -WorkingDirectory $script:Install }
   }
 }
+# True while this copy of the game is open.
+function Test-GameRunning {
+  if (-not $script:Exe) { return $false }
+  return [bool](Get-Process -Name 'Winterland' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $script:Exe })
+}
+# True once the game has closed; false if it is still open when the in-game wait ($script:CloseWait, shared) runs out.
+function Wait-GameClosed {
+  while (Test-GameRunning) {
+    if ($script:CloseWait -le 0) { return $false }
+    Start-Sleep -Milliseconds 500
+    $script:CloseWait--
+  }
+  return $true
+}
 function Stop-Update([string]$Why) {
   Say ''
   Say "Update stopped: $Why" 'Red'
   Say 'Your game and your save are exactly as they were.'
-  if ($FromGame) { try { Start-Game @("--update-failed=$($script:Step)") } catch { } }
+  # Start the old game again once it has finished closing. If it never closes, it is still open: nothing to start.
+  if ($FromGame -and $script:Relaunch) {
+    try { if (Wait-GameClosed) { Start-Game @("--update-failed=$($script:Step)") } } catch { }
+  }
   Pause-End
   exit 1
 }
@@ -137,14 +160,17 @@ try {
     }
   }
   try { New-Item -ItemType Directory -Path $Lock -ErrorAction Stop | Out-Null; $HaveLock = $true }
-  catch { Stop-Update "another update is already running (or $Install isn't writable)." }
+  catch { $script:Relaunch = $false; Stop-Update "another update is already running (or $Install isn't writable)." }
   Set-Content -LiteralPath (Join-Path $Lock 'pid') -Value $PID
 
-  $waited = 0
-  while (Get-Process -Name 'Winterland' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Exe }) {
-    if ($FromGame -and $waited -lt 120) { Start-Sleep -Milliseconds 500; $waited++; continue } # the game is closing itself
-    if ($NoPause) { Stop-Update 'close Winterland first, then run the updater again.' }
-    [void](Read-Host "`nWinterland is still open. Close the game (your progress saves), then press Enter")
+  if ($FromGame) {
+    # The game is closing itself; a slow close (a big save, a busy disk) just means a longer wait.
+    if (-not (Wait-GameClosed)) { Stop-Update "Winterland didn't close in time, so nothing was changed." }
+  } else {
+    while (Test-GameRunning) {
+      if ($NoPause) { Stop-Update 'close Winterland first, then run the updater again.' }
+      [void](Read-Host "`nWinterland is still open. Close the game (your progress saves), then press Enter")
+    }
   }
 
   Say ''
