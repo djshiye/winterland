@@ -15,7 +15,8 @@ import { eraSky, SKY } from '../src/render/palette';
 import { installSkyLight, SKY_LIGHT } from '../src/render/skyLight';
 import { placeSolids } from '../src/world/env/plots';
 import { greenSpots } from '../src/world/life/RegionLife';
-import { auroraFade } from '../src/world/sky/aurora';
+import { AURORA_WASH, auroraFade, auroraWash } from '../src/world/sky/aurora';
+import { cloudShadowComfort } from '../src/world/sky/Sky';
 import { MOTE_STYLES } from '../src/world/sky/motes';
 import { addChimney, nearestSources, resetSmoke, smokeFrom, SOURCE_TTL } from '../src/world/sky/smoke';
 import { NOON, snowiness, sunAt, weatherAt, type SunState } from '../src/world/sky/weather';
@@ -35,6 +36,20 @@ describe('northern lights (Validator note on PR #45)', () => {
     expect(auroraFade(0.35)).toBe(0); // dusk keeps its warm sky
     expect(auroraFade(0.6)).toBeGreaterThan(0);
     expect(auroraFade(1)).toBe(1);
+  });
+
+  it('keep a fainter wash in the warm-resource eras so embers and copper stay warm at night', () => {
+    for (const n of [3, 4, 5]) expect(auroraWash(n)).toBeLessThan(AURORA_WASH);
+    for (const n of [1, 2, 6, 10]) expect(auroraWash(n)).toBe(AURORA_WASH);
+  });
+});
+
+describe('cloud shadows follow Comfort (Validator note on PR #52)', () => {
+  it('are full on Full, halved on Calm, and off on Minimal or with Reduce motion', () => {
+    expect(cloudShadowComfort('full', false)).toBe(1);
+    expect(cloudShadowComfort('calm', false)).toBe(0.5);
+    expect(cloudShadowComfort('minimal', false)).toBe(0);
+    expect(cloudShadowComfort('full', true)).toBe(0);
   });
 });
 

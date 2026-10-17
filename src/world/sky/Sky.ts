@@ -10,13 +10,13 @@
  * - Each era's air (motes.ts), chimney smoke (smoke.ts), flocks of bullfinches by day (birds.ts) and the crews'
  *   families out on their greens (world/life/RegionLife.ts).
  *
- * Comfort (fx/comfort.ts): the Falling snow switch, Calm / Minimal effects (fewer motes and puffs, no birds on
- * Minimal), Reduce motion (everything drifts more slowly), and the Glow slider (the aurora and the glowing motes).
+ * Comfort (fx/comfort.ts): the Falling snow switch, Calm / Minimal effects (fewer motes and puffs, softer cloud
+ * shadows, no birds or cloud shadows on Minimal), Reduce motion (everything drifts more slowly), and the Glow slider (the aurora and the glowing motes).
  * Everything here is cosmetic: nothing is saved and nothing in the economy reads it.
  */
 import * as THREE from 'three';
 import type { GameContext } from '../../core/types';
-import { glowScale, particleScale, reducedMotion } from '../../fx/comfort';
+import { comfort, glowScale, particleScale, reducedMotion, type EffectsLevel } from '../../fx/comfort';
 import { SKY_LIGHT } from '../../render/skyLight';
 import { Rng } from '../env/common';
 import type { SnowfallPart } from '../env/snowfall';
@@ -30,6 +30,12 @@ import { sunAt, weatherAt, type SunState, type Weather } from './weather';
 /** Cloud shadow strength by day and under the moon. */
 const CLOUD_DAY = 0.3;
 const CLOUD_NIGHT = 0.16;
+/** Cloud shadows by comfort: they brighten and dim the whole view as they pass, so Calm halves them and Minimal or
+ * Reduce motion turns them off. */
+const CLOUD_COMFORT: Record<EffectsLevel, number> = { full: 1, calm: 0.5, minimal: 0 };
+export function cloudShadowComfort(effects: EffectsLevel, reduceMotion: boolean): number {
+  return reduceMotion ? 0 : (CLOUD_COMFORT[effects] ?? 1);
+}
 
 export class Sky {
   readonly group = new THREE.Group();
@@ -91,7 +97,7 @@ export class Sky {
     const c = SKY_LIGHT.cloud;
     c[0]! += wind * 0.6 * speed * dt;
     c[1]! += wind * 0.21 * speed * dt;
-    c[3] = (CLOUD_DAY + (CLOUD_NIGHT - CLOUD_DAY) * dark) * (0.35 + 0.65 * this.clouds);
+    c[3] = (CLOUD_DAY + (CLOUD_NIGHT - CLOUD_DAY) * dark) * (0.35 + 0.65 * this.clouds) * cloudShadowComfort(comfort().effects, reducedMotion());
     SKY_LIGHT.sky[0] = this.clouds;
 
     // the northern lights (stronger in the aurora event)
