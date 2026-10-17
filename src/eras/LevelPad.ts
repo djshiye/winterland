@@ -140,7 +140,7 @@ export class EraLevelPad implements ItemHolder {
     this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
     this.ring.update(dt, t, eager);
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
-    this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.at.z) * 0.06;
+    this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.at.z) * 0.06 * motionScale();
   }
 
   /** Remove for good (the machine went away): what was paid stays in state.padPaid for the next pad of this type. */
@@ -190,7 +190,7 @@ export class EraLevelPad implements ItemHolder {
     this.remaining = Math.max(0, this.remaining - s.value);
     this.writePaid();
     this.redraw();
-    if (this.remaining > 0) this.ctx.tweens.squash(this.model, 0.07 * motionScale(), 0.24);
+    if (this.remaining > 0) this.ctx.tweens.squash(this.model, 0.07, 0.24);
     this.ring.flash();
     this.ctx.events.emit('pad:paid', { id: this.upgradeId, remaining: this.remaining, cost: this.total, position: this.tmp.copy(this.object.position) });
     if (this.remaining <= 0) this.completeLevel();

@@ -285,7 +285,7 @@ export class ConstructionPad implements ItemHolder {
     this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
     this.ring.update(dt, t, eager && this.affordable());
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
-    this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.opts.x) * 0.05;
+    this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.opts.x) * 0.05 * motionScale();
   }
 
   // --- ItemHolder -----------------------------------------------------------
@@ -329,7 +329,7 @@ export class ConstructionPad implements ItemHolder {
     this.redraw();
     this.syncZones();
     if (this.shown) {
-      this.ctx.tweens.squash(this.model, 0.08 * motionScale(), 0.24);
+      this.ctx.tweens.squash(this.model, 0.08, 0.24);
       this.ring.flash();
     }
     this.ctx.events.emit('construction:paid', {
@@ -357,7 +357,7 @@ export class ConstructionPad implements ItemHolder {
     this.redraw();
     this.syncZones();
     if (this.shown) {
-      this.ctx.tweens.squash(this.model, 0.08 * motionScale(), 0.24);
+      this.ctx.tweens.squash(this.model, 0.08, 0.24);
       this.ring.flash();
     }
     this.ctx.events.emit('construction:paid', {
