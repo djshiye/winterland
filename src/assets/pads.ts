@@ -3,8 +3,9 @@
  * the hanging price tags and the floating sign boards.
  *
  * Look (DIRECTION D6, never the source ad's grey tile with a green fill or black BUILD tile):
- * - Three looks, `PadStyle` (palette.ts PAD.looks): a stitched snow QUILT (default), a wooden pressure PLATE and a
- *   frosted ice LANTERN; `?pads=plate` previews another one, `?gallery=pads` shows all three side by side.
+ * - Three looks, `PadStyle` (palette.ts PAD.looks): a stitched snow QUILT, a wooden pressure PLATE and a
+ *   frosted ice LANTERN, the default (DEFAULT_PAD_STYLE); `?pads=quilt` previews another one, `?gallery=pads` shows
+ *   all three side by side.
  * - createPadTexture / createConstructionTexture / createBuildTexture: 256 × 256 canvas faces in that look: the
  *   machine / shelter icon in warm ink on a round medallion, warm honey rising from the bottom as the pad is paid (its
  *   wavy surface sloshes a little with every bundle), a brass "LV n" rosette on level pads, a frost wash and padlock on
@@ -1067,9 +1068,11 @@ const fontHooked = new WeakSet<THREE.CanvasTexture>();
 // The three looks (0.9.8, DIRECTION D6)
 // ---------------------------------------------------------------------------
 
-/** Stitched snow quilt (default), wooden pressure plate, frosted ice lantern: Dino picks one. */
+/** Stitched snow quilt, wooden pressure plate, frosted ice lantern. */
 export type PadStyle = keyof typeof PAD.looks;
 export const PAD_STYLES: readonly PadStyle[] = ['quilt', 'plate', 'lantern'];
+/** Dino's pick (2026-10-17): the frosted ice lantern. */
+export const DEFAULT_PAD_STYLE: PadStyle = 'lantern';
 
 /** `?pads=plate` previews another look (gallery and screenshots); anything else is the default. */
 function readStyle(): PadStyle {
@@ -1079,7 +1082,7 @@ function readStyle(): PadStyle {
   } catch {
     /* no location */
   }
-  return 'quilt';
+  return DEFAULT_PAD_STYLE;
 }
 
 let style: PadStyle = readStyle();
