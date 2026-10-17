@@ -314,8 +314,6 @@ export class Level {
     this.trains = new TrainQueue(ctx, {
       counter: this.platformCounter,
       cash: this.platformCash,
-      // Read lazily: the sled queue is built later (workshop pad).
-      sledOnCrossing: () => this.sleds?.onCrossing ?? false,
     });
     this.quarters.offer();
   }

@@ -158,13 +158,14 @@ export function placeSolids(n: number): PlaceSolid[] {
   out.push({ what: 'green centre', r: box(g.x, g.z, 0.9, 0.9), h: 2.2 });
   const st = STYLE[n]!;
   for (const b of P.beds) out.push({ what: `bed ${bedKind(st, b.k)}`, r: b, h: BED_H[bedKind(st, b.k)] });
-  if (P.plan.field === 'pits') for (const r of fenceSides(P.field)) out.push({ what: 'hazard fence', r, h: FENCE_H });
+  if (P.plan.field === 'pits') for (const r of fenceSides(P.field, regionLayout(n).node.z)) out.push({ what: 'hazard fence', r, h: FENCE_H });
   return out;
 }
 
 /** Tallest part of each bed kind (pumpjack heads, tank tops, the clean room's roof vents), metres. */
 const BED_H: Record<BedKind, number> = { slabs: 1, pools: 1, heaps: 1, ridges: 1, crystals: 1, dunes: 1, vents: 1, outcrop: 1.5, jack: 2.5, tank: 2.6, cleanroom: 2.6, pit: 1.1, geode: 1.6, pad: 1.5 };
 const FENCE_H = 1.2;
+const FENCE_GAP = 3;
 
 function bedKind(st: PlotStyle, k: 0 | 1 | 2): BedKind {
   return k === 2 ? (st.special?.[0] ?? st.beds[2]) : k === 1 ? st.beds[2] : st.beds[0];
@@ -175,13 +176,16 @@ function bedColor(st: PlotStyle, k: 0 | 1 | 2): number {
 }
 
 /** The four thin sides of the hazard fence round a field (inset 0.3 from its edge). */
-function fenceSides(F: Rect): Rect[] {
+function fenceSides(F: Rect, gapZ: number): Rect[] {
   const a = { minX: F.minX + 0.3, maxX: F.maxX - 0.3, minZ: F.minZ + 0.3, maxZ: F.maxZ - 0.3 };
   const t = 0.1;
+  // 0.9.9: a 3 m gate gap in the west side, facing the hand node, so the field can be walked into
+  const g0 = Math.max(a.minZ + 0.5, Math.min(a.maxZ - 3.5, gapZ - FENCE_GAP / 2));
   return [
     { minX: a.minX, maxX: a.maxX, minZ: a.minZ - t, maxZ: a.minZ + t },
     { minX: a.minX, maxX: a.maxX, minZ: a.maxZ - t, maxZ: a.maxZ + t },
-    { minX: a.minX - t, maxX: a.minX + t, minZ: a.minZ, maxZ: a.maxZ },
+    { minX: a.minX - t, maxX: a.minX + t, minZ: a.minZ, maxZ: g0 },
+    { minX: a.minX - t, maxX: a.minX + t, minZ: g0 + FENCE_GAP, maxZ: a.maxZ },
     { minX: a.maxX - t, maxX: a.maxX + t, minZ: a.minZ, maxZ: a.maxZ },
   ];
 }
@@ -757,13 +761,14 @@ function buildStreet(body: Batch, st: PlotStyle, P: PlotPlaces, S: Rect, rng: Rn
 }
 
 /** The field's own dressing beyond its beds: the hazard fence, the crater bowl, the pipelines, the dune ripples. */
-function buildFieldDressing(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlaces, rng: Rng): void {
+function buildFieldDressing(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlaces, rng: Rng, nodeZ: number): void {
   const F = P.field;
   const cx = (F.minX + F.maxX) / 2;
   const cz = (F.minZ + F.maxZ) / 2;
   switch (P.plan.field) {
-    case 'pits':
-      for (const r of fenceSides(F)) {
+    case 'pits': {
+      const sides = fenceSides(F, nodeZ);
+      for (const r of sides) {
         const along = r.maxX - r.minX > r.maxZ - r.minZ;
         const len = along ? r.maxX - r.minX : r.maxZ - r.minZ;
         const mx = (r.minX + r.maxX) / 2;
@@ -775,9 +780,13 @@ function buildFieldDressing(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlac
           body.add(geo.boxBase(0.1, FENCE_H, 0.1), 0x8a8f92, x, 0, z);
         }
       }
+      // 0.9.9: two taller gate posts at the west gap
+      const gate = sides[3]!;
+      for (const z of [sides[2]!.maxZ, gate.minZ]) body.add(geo.boxBase(0.16, FENCE_H + 0.3, 0.16), 0xd9a441, gate.minX + 0.1, 0, z);
       // hazard signs on the fence's camera sides
       for (let x = F.minX + 4; x < F.maxX - 3; x += 9) body.add(geo.box(0.7, 0.5, 0.04), st.line, x, 0.85, F.maxZ - 0.22).add(geo.box(0.3, 0.3, 0.05), 0x3d3a39, x, 0.85, F.maxZ - 0.2);
       break;
+    }
     case 'crater': {
       const R = Math.min(F.maxX - F.minX, F.maxZ - F.minZ) / 2 - 1.8;
       body.add(geo.circleGround(R, 40), mix(st.beds[1], 0x8a8684, 0.55), cx, 0.02, cz);
@@ -787,12 +796,17 @@ function buildFieldDressing(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlac
       break;
     }
     case 'rigs': {
-      // a low pipeline from each pumpjack pad east to the tank farm
+      // a low pipeline per row of pumpjack pads, from the row's easternmost pad east to the tank farm
+      // (0.9.9: one pipe per row, so none runs through the neighbouring pads)
       const tanksX = Math.min(...P.beds.filter((b) => b.k === 1).map((b) => b.minX), F.maxX);
+      const rows = new Map<number, number>();
       for (const b of P.beds) {
         if (b.k !== 0) continue;
-        const z = (b.minZ + b.maxZ) / 2 + 0.9;
-        const x0 = b.maxX;
+        const key = Math.round(((b.minZ + b.maxZ) / 2) * 10);
+        rows.set(key, Math.max(rows.get(key) ?? -Infinity, b.maxX));
+      }
+      for (const [key, x0] of rows) {
+        const z = key / 10 + 0.9;
         if (tanksX - x0 > 0.3) body.add(geo.box(tanksX - x0, 0.14, 0.14), 0x8a8580, (x0 + tanksX) / 2, 0.2, z);
       }
       break;
@@ -914,7 +928,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
     bulbs.add(geo.sphere(0.17, 10, 8), 0xffffff, l.x, 2.82, l.z + L.inward * 0.38);
   }
   for (const b of P.beds) buildBed(body, glow, bedKind(st, b.k), bedColor(st, b.k), b, rng, !!st.glow?.includes(b.k));
-  buildFieldDressing(body, glow, st, P, rng);
+  buildFieldDressing(body, glow, st, P, rng, L.node.z);
   buildGreen(body, glow, st, P, e.colors.accent, e.colors.glow);
 
   const statics = body.mesh({ cast: true, receive: true });

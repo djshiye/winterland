@@ -58,6 +58,7 @@ export function era04Solids(l: RegionLayout): GroundSolid[] {
     { what: 'tank engine', r: around(s.engine, s.z, 1.7, 0.8), h: 2.7 },
     ...s.hoppers.map((x) => ({ what: 'coal hopper', r: around(x, s.z, 1.3, 0.75), h: 2.0 })),
     { what: 'buffer stop', r: around(s.x0 + 0.3, s.z, 0.4, 1.0), h: 1.2 },
+    { what: 'buffer stop', r: around(s.x1 - 0.3, s.z, 0.4, 1.0), h: 1.2 },
     { what: 'water crane', r: around(s.crane.x, s.crane.z, 0.6), h: 3.6 },
     { what: 'signal lamp', r: around(s.signal.x, s.signal.z, 0.3), h: 3.2 },
     ...pathPoles(l).map((p) => ({ what: 'gas lamp', r: around(p.x, p.z, 0.3), h: 3.3 })),
@@ -173,6 +174,10 @@ function siding(k: Kit, f: Kit, g: Kit, l: RegionLayout, kit: GroundKit): void {
   for (const dz of [-0.6, 0.6]) k.box(0.22, 0.9, 0.22, IRON, s.x0 + 0.3, 0, s.z + dz);
   k.box(0.3, 0.32, 1.7, BRICK, s.x0 + 0.3, 0.72, s.z).cap(0.3, 1.7, s.x0 + 0.3, 1.04, s.z);
   for (const dz of [-0.4, 0.4]) k.box(0.05, 0.2, 0.22, SNOW, s.x0 + 0.47, 0.78, s.z + dz);
+  // 0.9.9: a matching buffer stop at the east end of the siding
+  for (const dz of [-0.6, 0.6]) k.box(0.22, 0.9, 0.22, IRON, s.x1 - 0.3, 0, s.z + dz);
+  k.box(0.3, 0.32, 1.7, BRICK, s.x1 - 0.3, 0.72, s.z).cap(0.3, 1.7, s.x1 - 0.3, 1.04, s.z);
+  for (const dz of [-0.4, 0.4]) k.box(0.05, 0.2, 0.22, SNOW, s.x1 - 0.47, 0.78, s.z + dz);
   engine(k, g, s.engine, s.z);
   for (const x of s.hoppers) hopper(k, x, s.z);
   // the water crane: a brass-banded column with a swinging arm and a leather hose
