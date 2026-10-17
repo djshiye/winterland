@@ -170,7 +170,7 @@ export function hardCapStored(def: UpgradeDef): number | null {
 function bandPrice(def: UpgradeDef, A: number): number {
   const b = Math.floor(A / CLIMB.bandSize) + 1;
   const j = A % CLIMB.bandSize;
-  return CLIMB.weights[def.group] * CLIMB.unit * CLIMB.bandGrowth ** (b - 2) * (CLIMB.bandTilt[Math.min(b, CLIMB.bandTilt.length - 1)] ?? 1) * CLIMB.stepGrowth ** j;
+  return CLIMB.weights[def.group] * CLIMB.unit * CLIMB.bandGrowth ** (b - 2) * (CLIMB.bandTilt[Math.min(b, CLIMB.bandTilt.length - 1)] ?? 1) * (CLIMB.bandStep[Math.min(b, CLIMB.bandStep.length - 1)] ?? CLIMB.stepGrowth) ** j;
 }
 
 /**
