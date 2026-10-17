@@ -333,6 +333,9 @@ export class Game {
     const resources = resourcesNotice(migration);
     if (resources) notices.push(resources);
     for (const n of notices) ctx.hud.showNotice(n);
+    // 0.9.8: "What's new" after an update, then (desktop) the quiet check for a newer version
+    ctx.hud.updateCard.saveNow = () => this.save();
+    ctx.hud.updateCard.start({ savedBy: save?.game ?? null, hadSave: read.kind !== 'none', fresh });
   }
 
   /**

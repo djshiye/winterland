@@ -15,6 +15,10 @@
  * stack instead of swinging. setSeated(true) bends the legs forward and drops the body (courier /
  * driver). cheer(): little hop + arms up (customer happy after buying).
  *
+ * setWorking(true) blends in the model's role work loop (model.motion: shovel, flag, heave, gather, hammer, ledger,
+ * dust) while standing still; idle characters fidget now and then; model.tail (the player's scarf) swings behind.
+ * Reduced motion (fx/comfort) slows fidgets and damps the scarf.
+ *
  * Extra hooks for scripted poses (e.g. the player's axe swing): armRAngle / armLAngle (radians about X,
  * 0 = hanging, negative = forward/up, ±π = straight up), torsoLean and torsoTwist.
  */
@@ -26,11 +30,13 @@ import {
   createCustomerModel,
   createDriverModel,
   createPlayerModel,
-  createWorkerModel,
   type CharacterKind,
   type CharacterModel,
+  type WorkMotion,
 } from '../assets/characters';
+import { createWorkerModel } from '../assets/eraWorkers';
 import { damp } from '../core/math';
+import { reducedMotion } from '../fx/comfort';
 import { instanceAcrossScene } from './instancer';
 
 const CARRY_ARM = -1.15;
@@ -69,6 +75,9 @@ export class CharacterRig {
   private readonly legL: THREE.Group;
   private readonly legR: THREE.Group;
   private readonly hat: THREE.Object3D | null;
+  private readonly tool: THREE.Object3D | null;
+  private readonly tail: THREE.Object3D | null;
+  private readonly motion: WorkMotion;
   private readonly scale: number;
 
   private carrying = false;
@@ -79,6 +88,13 @@ export class CharacterRig {
   private phase = 0;
   private time = Math.random() * 10;
   private cheerT = -1;
+  /** 0.9.8: station work (the role motion on a loop) and the idle fidget (one motion now and then). */
+  private working = false;
+  private workBlend = 0;
+  private workPhase = Math.random();
+  private fidgetT = -1;
+  private fidgetWait = 3 + Math.random() * 6;
+  private readonly seed = Math.random() * 100;
 
   constructor(
     readonly model: CharacterModel,
@@ -96,6 +112,9 @@ export class CharacterRig {
     this.legL = model.legL;
     this.legR = model.legR;
     this.hat = model.hat;
+    this.tool = model.tool ?? null;
+    this.tail = model.tail ?? null;
+    this.motion = model.motion ?? 'none';
     this.scale = opts.scale ?? 1;
     this.root.scale.setScalar(this.scale);
     // the same part on every pawn (a boot, an arm) draws as ONE instanced mesh across the scene
@@ -120,6 +139,41 @@ export class CharacterRig {
   /** Little hop with both arms up. */
   cheer(): void {
     this.cheerT = 0;
+  }
+
+  /**
+   * 0.9.8: at a station (loading / unloading / serving): plays the role's work motion on a loop (CharacterModel.motion:
+   * scoop, wave, tap, write ...) while the hands are free, and a steady heave-and-bow while they carry.
+   */
+  setWorking(working: boolean): void {
+    this.working = working;
+  }
+
+  /** The role's work motion pose at cycle position `t` (0..1): arm angles and lean (radians), or null. */
+  private workPose(t: number): { r: number; l: number; lean: number; splay: number; nod: number } | null {
+    const TAU = Math.PI * 2;
+    const up = Math.max(0, Math.sin(t * TAU));
+    switch (this.motion) {
+      case 'shovel':
+        return { r: -0.5 - 0.9 * up, l: -0.45 - 0.8 * up, lean: 0.38 * (1 - up) + 0.05, splay: -0.12, nod: 0.15 };
+      case 'flag':
+        return { r: -2.7 + 0.35 * Math.sin(t * TAU * 2), l: 0.05, lean: -0.05, splay: 0.25, nod: -0.12 };
+      case 'heave':
+        return { r: -0.25 - 0.35 * up, l: -0.25 - 0.35 * up, lean: -0.12 * up, splay: 0.1, nod: -0.08 * up };
+      case 'gather':
+        return { r: -0.95 + 0.45 * up, l: -0.3, lean: 0.55 - 0.4 * up, splay: -0.05, nod: 0.25 };
+      case 'hammer': {
+        // raise slowly, strike fast
+        const k = t < 0.7 ? t / 0.7 : 1 - (t - 0.7) / 0.3;
+        return { r: -0.9 - 1.5 * k, l: -0.35, lean: 0.12 + 0.12 * (1 - k), splay: 0, nod: 0.18 };
+      }
+      case 'ledger':
+        return { r: -1.15, l: -1.0 + 0.1 * Math.sin(t * TAU * 6), lean: 0.06, splay: -0.18, nod: 0.3 };
+      case 'dust':
+        return { r: -1.05, l: -1.05, lean: 0.04, splay: -0.32 + 0.22 * Math.abs(Math.sin(t * TAU * 3)), nod: 0.06 };
+      case 'none':
+        return null;
+    }
   }
 
   /** Advance the procedural animation. `speed01`: 0 idle … 1 full run. */
@@ -187,14 +241,72 @@ export class CharacterRig {
       armL = lerp(armL, -Math.PI + wave, cheerW);
       armR = lerp(armR, -Math.PI - wave, cheerW);
     }
+    // splay outward at rest, tuck in while carrying
+    let splay = lerp(0.14 + 0.03 * breathe, -0.1, carry) + cheerW * 0.35;
+
+    // 0.9.8: station work and idle fidgets (gentler and rarer with Reduce motion)
+    const calm = reducedMotion();
+    const still = s < 0.06 && seat < 0.1;
+    this.workBlend = damp(this.workBlend, this.working && still ? 1 : 0, 8, dt);
+    let act = this.workBlend;
+    if (still && !this.working && this.carryBlend < 0.1 && this.motion !== 'none') {
+      if (this.fidgetT < 0) {
+        this.fidgetWait -= dt;
+        if (this.fidgetWait <= 0) this.fidgetT = 0;
+      }
+    } else if (this.fidgetT >= 0 && !still) {
+      this.fidgetT = -1;
+    }
+    if (this.fidgetT >= 0) {
+      this.fidgetT += dt;
+      const len = 2.4;
+      if (this.fidgetT >= len) {
+        this.fidgetT = -1;
+        this.fidgetWait = (calm ? 14 : 5) + Math.random() * 7;
+      } else {
+        act = Math.max(act, Math.min(1, Math.sin((this.fidgetT / len) * Math.PI) * 2.5));
+      }
+    }
+    if (act > 0.001) {
+      this.workPhase = (this.workPhase + dt * (calm ? 0.5 : 0.85)) % 1;
+      const amp = calm ? 0.55 : 1;
+      if (this.carryBlend > 0.5) {
+        // hands full: a steady heave-and-bow over the load
+        const bow = Math.max(0, Math.sin(this.workPhase * Math.PI * 4)) * 0.16 * amp;
+        this.torso.rotation.x += bow * act;
+        this.head.rotation.x += bow * 0.5 * act;
+      } else {
+        const pose = this.workPose(this.workPhase);
+        if (pose) {
+          const w = act * amp;
+          armR = lerp(armR, pose.r, w);
+          armL = lerp(armL, pose.l, w);
+          splay = lerp(splay, pose.splay, w);
+          this.torso.rotation.x += pose.lean * w;
+          this.head.rotation.x += pose.nod * w;
+        }
+      }
+    } else {
+      // idle: look around now and then
+      this.head.rotation.y = Math.sin(this.time * 0.45 + this.seed) * Math.sin(this.time * 0.21 + this.seed * 0.5) * 0.35 * (1 - Math.min(1, s * 4)) * (calm ? 0.4 : 1);
+    }
+    if (act > 0.001) this.head.rotation.y = damp(this.head.rotation.y, 0, 6, dt);
+
     if (this.armLAngle !== null) armL = this.armLAngle;
     if (this.armRAngle !== null) armR = this.armRAngle;
     this.armL.rotation.x = armL;
     this.armR.rotation.x = armR;
-    // splay outward at rest, tuck in while carrying
-    const splay = lerp(0.14 + 0.03 * breathe, -0.1, carry) + cheerW * 0.35;
     this.armL.rotation.z = -splay;
     this.armR.rotation.z = splay;
+
+    // the role tool rests in the hand; it is put away while the arms carry or the character rides
+    if (this.tool) this.tool.visible = this.carryBlend < 0.5 && seat < 0.5;
+    // the scarf tail swings with each step and flies out behind on the run
+    if (this.tail) {
+      const flutter = calm ? 0.3 : 1;
+      this.tail.rotation.x = 0.12 + 1.05 * s * (1 - seat) + Math.sin(this.time * 11 + this.seed) * 0.12 * s * flutter + hop * 0.6;
+      this.tail.rotation.z = sinP * 0.18 * a * flutter;
+    }
   }
 }
 
@@ -202,14 +314,15 @@ export type { CharacterKind };
 
 /**
  * Entry point for the player and NPC code: the animated rig for a character kind (the meshes come
- * from AssetFactory assets/characters.ts). `variant` varies shade / scarf / scale (±6%) across a crowd.
+ * from AssetFactory assets/characters.ts). `variant` varies shade / scarf / scale (±6%) across a crowd; `era` dresses a
+ * customer for its region (assets/characters.ts ERA_HATS).
  */
-export function createCharacterRig(kind: CharacterKind, variant = 0): CharacterRig {
+export function createCharacterRig(kind: CharacterKind, variant = 0, era = 1): CharacterRig {
   switch (kind) {
     case 'player':
       return new CharacterRig(createPlayerModel());
     case 'customer':
-      return new CharacterRig(createCustomerModel(variant), { scale: characterScale(variant) });
+      return new CharacterRig(createCustomerModel(variant, era), { scale: characterScale(variant) });
     case 'courier':
       return new CharacterRig(createCourierModel(), { scale: characterScale(variant + 101) });
     case 'driver':

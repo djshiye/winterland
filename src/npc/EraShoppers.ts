@@ -70,8 +70,8 @@ class Shopper {
   bubbleOn = false;
   bob = Math.random() * 10;
 
-  constructor(ctx: GameContext, id: string, variant: number) {
-    this.rig = createCharacterRig('customer', variant);
+  constructor(ctx: GameContext, id: string, variant: number, era: number) {
+    this.rig = createCharacterRig('customer', variant, era);
     this.group.add(this.rig.root);
     this.bubble = createSpeechBubble(1.05);
     this.bubble.sprite.visible = false;
@@ -153,7 +153,7 @@ export class EraShoppers {
     }
     const scale = buyerScale(this.stall.era, this.stall.boost());
     this.spawnTimer = randRange(TRADE_POST.shopGap[0], TRADE_POST.shopGap[1]) / scale.rate;
-    const c = this.pool.pop() ?? new Shopper(this.ctx, `npc:shopper${this.stall.era}:${this.created}`, this.created % VARIANTS);
+    const c = this.pool.pop() ?? new Shopper(this.ctx, `npc:shopper${this.stall.era}:${this.created}`, this.created % VARIANTS, this.stall.era);
     this.created++;
     const s = this.stall;
     c.mode = 'in';

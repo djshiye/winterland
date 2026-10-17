@@ -44,6 +44,10 @@ const NEAR2 = 20 * 20;
 
 type State = 'idle' | 'busy' | 'blocked';
 
+/** 0.9.8: seconds between stack puffs of a working machine, and how near the player it must be to puff. */
+const PUFF_EVERY = 0.9;
+const PUFF_RANGE = 40;
+
 /** A machine pile: refuses kinds past their cap (hopper) and swallows late arrivals once the machine is gone. */
 export class MachinePile extends Pile {
   /** Set by Machine.dispose(): items still flying in are released instead of landing in a detached pile. */
@@ -104,6 +108,8 @@ export class Machine implements MachineRuntime {
   /** Floating "MANAGE" label over the info zone (the info / demolish card opens there). */
   private readonly sign: THREE.Mesh;
   private dead = false;
+  /** Seconds until the next stack puff (0.9.8). */
+  private puffT = Math.random() * PUFF_EVERY;
   private readonly unfade: (() => void) | null;
 
   constructor(
@@ -236,8 +242,28 @@ export class Machine implements MachineRuntime {
     if (this.def.kind === 'extractor') this.updateExtractor(dt, cyc);
     else this.updateProcessor(dt, cyc);
     this.model.animate(dt, this.working);
+    this.puffVents(dt);
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
     fadeManageSign(this.sign, this.ctx.player?.position);
+  }
+
+  /**
+   * 0.9.8: soft steam / smoke puffs from the model's stack tops while it works, only near the player (the shared puff
+   * pool stays free for everything else) and comfort-scaled by the particle system.
+   */
+  private puffVents(dt: number): void {
+    const vents = this.model.vents;
+    if (!vents || vents.length === 0 || !this.working) return;
+    this.puffT -= dt;
+    if (this.puffT > 0) return;
+    this.puffT = PUFF_EVERY * (0.8 + Math.random() * 0.4);
+    const p = this.ctx.player?.position;
+    if (!p || (p.x - this.place.x) ** 2 + (p.z - this.place.z) ** 2 > PUFF_RANGE * PUFF_RANGE) return;
+    const v = vents[(Math.random() * vents.length) | 0]!;
+    const c = Math.cos(this.place.yaw);
+    const s = Math.sin(this.place.yaw);
+    this.tmp.set(this.place.x + v[0] * c + v[2] * s, v[1], this.place.z - v[0] * s + v[2] * c);
+    this.ctx.particles.puff(this.tmp, { color: this.model.ventColor ?? 0xf2ece6, count: 1, size: 0.6, life: 1.5 });
   }
 
   // ---- save -------------------------------------------------------------------------------------------------
