@@ -21,6 +21,15 @@ export const SKYLINE_MAX = 220;
 export const SKYLINE_AREA = { minX: 146, maxX: 300, minZ: -20, maxZ: 140 } as const;
 /** Towers keep x - z >= this (the diagonal behind the districts, which the camera looks along). */
 export const SKYLINE_DIAGONAL = 140;
+/**
+ * 0.9.7 (R5): in front of that diagonal, low-rise blocks join the districts to the towers so the city reads as one
+ * growing metropolis. They keep LOW_MIN_X clear of the districts (east edge x 142), stay north of LOW_MAX_Z (clear of
+ * road R2 and the era regions) and never stand taller than LOW_MAX_H, so their camera shadow (toward -X / -Z, 0.64 m
+ * per metre of height) never reaches a district lot.
+ */
+export const LOW_MIN_X = 148;
+export const LOW_MAX_Z = 124;
+export const LOW_MAX_H = 8;
 const CELL = 8.6;
 
 interface Slot {
@@ -34,6 +43,8 @@ interface Slot {
   roll: number;
   /** Tone 0..1 (picks the wall colour). */
   tone: number;
+  /** 0.9.7: a low-rise block in front of the diagonal (height ≤ LOW_MAX_H). */
+  low: boolean;
 }
 
 /** Deterministic tower slots (nearest to the city first). Pure: tests check the area and the diagonal. */
@@ -56,8 +67,9 @@ export function skylineSlots(max = SKYLINE_MAX): Slot[] {
       const pz = z + (rnd() - 0.5) * (CELL - d - 0.6);
       // the whole footprint stays inside the area and behind the diagonal
       if (px - w / 2 < A.minX || px + w / 2 > A.maxX || pz - d / 2 < A.minZ || pz + d / 2 > A.maxZ) continue;
-      if (px - w / 2 - (pz + d / 2) < SKYLINE_DIAGONAL) continue;
-      out.push({ x: px, z: pz, w, d, tall: 0, roll: rnd(), tone: rnd() });
+      const low = px - w / 2 - (pz + d / 2) < SKYLINE_DIAGONAL;
+      if (low && (px - w / 2 < LOW_MIN_X || pz + d / 2 > LOW_MAX_Z)) continue;
+      out.push({ x: px, z: pz, w, d, tall: 0, roll: rnd(), tone: rnd(), low });
     }
   }
   const ax = 160;
@@ -71,8 +83,9 @@ export function skylineSlots(max = SKYLINE_MAX): Slot[] {
   return out.slice(0, max);
 }
 
-/** Tower height (metres) of a slot at era `age` (2..10). */
-export function skylineHeight(tall: number, age: number): number {
+/** Tower height (metres) of a slot at era `age` (2..10); a low-rise block stays within LOW_MAX_H. */
+export function skylineHeight(tall: number, age: number, low = false): number {
+  if (low) return Math.min(LOW_MAX_H, 4.5 + 3.5 * tall);
   return (12 + 78 * tall ** 1.25) * (0.45 + 0.055 * Math.max(1, age));
 }
 
@@ -118,8 +131,9 @@ function towerMat(): THREE.MeshToonMaterial {
 }
 
 /** Wall tones, cool greys and glassy blues (older eras mix toward warm stone, see colorOf). */
-const TONES = [0x9aa6b8, 0x8794a8, 0xb4bfcc, 0x7a8aa0, 0xa7b4c4, 0x6f7f96];
-const WARM_TONES = [0xb9a58c, 0xa89480, 0xc4b49c, 0x9a8672];
+// 0.9.7: softer, warmer city tones (cream, sand, sage, dusty blue) so the metropolis stays cosy against the snow
+const TONES = [0xb8c2cc, 0xa9b6c2, 0xd2cbbd, 0x9fb1bd, 0xc6cdc0, 0xb3a796];
+const WARM_TONES = [0xc9b496, 0xb9a38a, 0xd4c3a6, 0xae9479];
 const _c = new THREE.Color();
 const _w = new THREE.Color();
 
@@ -135,6 +149,8 @@ export class Skyline {
   private readonly shafts: THREE.InstancedMesh;
   private readonly crowns: THREE.InstancedMesh;
   private readonly masts: THREE.InstancedMesh;
+  /** 0.9.7: a snow cap on every roof. */
+  private readonly caps: THREE.InstancedMesh;
   private count = -1;
   private age = 0;
   private readonly o = new THREE.Object3D();
@@ -145,8 +161,9 @@ export class Skyline {
     const mat = towerMat();
     this.shafts = this.make(geo.boxBase(1, 1, 1), mat, n);
     this.crowns = this.make(geo.boxBase(1, 1, 1), mat, n);
-    this.masts = this.make(geo.boxBase(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x5a6070 }), n);
-    this.group.add(this.shafts, this.crowns, this.masts);
+    this.masts = this.make(geo.boxBase(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x7a8090 }), n);
+    this.caps = this.make(geo.boxBase(1, 1, 1), toonUnique(0xf4f8ff), n);
+    this.group.add(this.shafts, this.crowns, this.masts, this.caps);
     this.group.visible = false;
   }
 
@@ -183,8 +200,8 @@ export class Skyline {
     };
     for (let i = 0; i < count; i++) {
       const t = this.slots[i]!;
-      const h = skylineHeight(t.tall, age);
-      const crown = t.roll > 0.35;
+      const h = skylineHeight(t.tall, age, t.low);
+      const crown = !t.low && t.roll > 0.35;
       const shaft = crown ? h * 0.82 : h;
       const c = colorOf(t.tone, age, _c);
       put(this.shafts, i, t.x, 0, t.z, t.w, shaft, t.d, c);
@@ -192,6 +209,7 @@ export class Skyline {
         put(this.crowns, crowns, t.x, shaft, t.z, t.w * 0.68, h - shaft, t.d * 0.68, c.multiplyScalar(0.92));
         crowns++;
       }
+      put(this.caps, i, t.x, h, t.z, crown ? t.w * 0.7 : t.w + 0.1, 0.25, crown ? t.d * 0.7 : t.d + 0.1);
       if (t.roll > 0.7 && h > 38) {
         put(this.masts, masts, t.x, h, t.z, 0.35, 6 + h * 0.12, 0.35);
         masts++;
@@ -200,7 +218,8 @@ export class Skyline {
     this.shafts.count = count;
     this.crowns.count = crowns;
     this.masts.count = masts;
-    for (const im of [this.shafts, this.crowns, this.masts]) {
+    this.caps.count = count;
+    for (const im of [this.shafts, this.crowns, this.masts, this.caps]) {
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
     }
