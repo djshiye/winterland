@@ -237,6 +237,36 @@ export const MACHINE_TONES = {
   10: { ground: 0xdae3ed, body: 0xf5f0e6, accent: 0xe8a848, trim: 0x526475, glow: 0xffe082 },
 } as const;
 
+/**
+ * 0.9.8 (machines, eras 1-5): the toy material shades the era 1-5 machines are painted in. Every era's set is built
+ * around its resource (R36): era 1 the log (timber and red lacquer instead of the ad's royal blue, D1), era 2 fieldstone
+ * and terracotta clay, era 3 rust ore and forged iron, era 4 red brick, brass and coal, era 5 iron pellets, coke and
+ * orange-painted steel. The darkest shade of each era is its trim warmed toward brown (V3: no near-black machines).
+ */
+export const MACHINE_SHADES = {
+  1: {
+    lacquer: 0xc84b31, lacquerD: 0x9c3826, lacquerL: 0xdc6a4c, timber: 0x8a5a3b, timberD: 0x5e3d26, plank: 0xc49a6c,
+    brass: 0xd9a441, brassL: 0xefc66a, iron: 0x6a5a50, ironL: 0x8d7f74, blade: 0xcdc7bd, cream: 0xf3e4c6, felt: 0x4f6b4a,
+  },
+  2: {
+    stone: 0xb3aca0, stoneL: 0xd2cbbe, stoneD: 0x8c857b, clay: 0xb85239, clayD: 0x8e4030, clayL: 0xd0704f,
+    timber: 0x8a5a3b, timberD: 0x5c4028, plank: 0xc49a6c, iron: 0x63564d, rope: 0xcbb08a, moss: 0x7d8a5a,
+  },
+  3: {
+    rust: 0xa65e46, rustD: 0x7e4634, ore: 0xb8613e, oreL: 0xd27a50, oreD: 0x8a4630, iron: 0x6e6259, ironD: 0x54493f,
+    ironL: 0x8f8276, slate: 0x6d7a7e, stone: 0x8c8076, timber: 0x8a5a3b, timberD: 0x5c4028, brass: 0xc79c4c,
+  },
+  4: {
+    brick: 0x9e4737, brickD: 0x7a3529, brickL: 0xb85c48, brass: 0xd49a35, brassL: 0xecbf62, iron: 0x6e635e,
+    ironD: 0x564b4a, ironL: 0x8a7e78, roof: 0x5e5052, coal: 0x4e4450, coalL: 0x6c6070, timber: 0x8a5a3b, cream: 0xefe2c8,
+  },
+  5: {
+    steel: 0x6c7a83, steelL: 0x8794a0, steelD: 0x4f5a62, orange: 0xe08a2b, orangeD: 0xb96a1e, brick: 0xb8613f,
+    brickD: 0x934a32, brass: 0xd4a64a, concrete: 0xb4b1aa, concreteD: 0x938f88, pellet: 0xa8523a, pelletL: 0xc66a48,
+    coke: 0x6a6266, cokeL: 0x8a8186,
+  },
+} as const;
+
 // ---------------------------------------------------------------------------
 // colour maths (hex in, hex out; sRGB values, no three needed)
 // ---------------------------------------------------------------------------
