@@ -6,6 +6,11 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 
 ## Unreleased
 
+### A fairer economy from era 2 on
+
+- **No more surprise millions.** Some goals for eras 4 to 10 showed up from era 2 and paid out those eras' rewards far too early. Each era's goals now wait for that era. Money you already got stays yours.
+- **Era 2 to 10 upgrades cost more, and more with every level.** Each level now costs 10 to 20 % more than the last, so the late levels of an era are worth saving up for instead of costing pocket change. Era 1 is unchanged, and every later era is a little longer than the one before.
+
 ### Fixes
 
 - **Builders build again.** Each era's builder (Master Mason, Pit Boss and friends) now brings materials to a machine as soon as you choose it, and also pays for what you picked so the house, shop or machine actually goes up. They always leave a safety cushion in your wallet, and they never choose what to build or pay for a new era: that stays your call.

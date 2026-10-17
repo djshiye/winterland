@@ -15,11 +15,11 @@
  * - Every batch: stats.materialsMade += batch, 'material:made'. snapshot() counts items in flight toward the piles and
  *   the inputs of the running cycle, so a save mid-cycle loses nothing.
  */
-import { fadeManageSign } from '../fx/manageSign';
+import { faceCameraUpright, fadeManageSign, manageSignFoot } from '../fx/manageSign';
 import * as THREE from 'three';
 import { TIMING, type Rect } from '../config';
 import { createMachineModel, type MachineModel } from '../assets/eraMachines';
-import { createPadSign } from '../assets/pads';
+import { createManageSign, disposeManageSign } from '../assets/pads';
 import { smoothstep } from '../core/math';
 import type { GameContext, Item, ItemKind } from '../core/types';
 import { Pile } from '../items/Pile';
@@ -32,8 +32,6 @@ import type { MachineRuntime } from './runtime';
 import { OUTPUT_CAPACITY, inputCap, levelPadLocal, machineFrame, toWorld, worldRect, type LRect, type MachineFrame } from './rules';
 
 /** The MANAGE label over the info zone: big enough to read from the usual camera distance. */
-const SIGN_SCALE = 0.9;
-const SIGN_HEIGHT = 1.3;
 
 /** Share of the cycle the inputs spend hopping to the door. */
 const F_DOOR = 0.4;
@@ -105,7 +103,7 @@ export class Machine implements MachineRuntime {
   private readonly tmp = new THREE.Vector3();
   private readonly zones: Zone[] = [];
   private readonly collider: ColliderHandle;
-  /** Floating "MANAGE" label over the info zone (the info / demolish card opens there). */
+  /** The "MANAGE" board on its post beside the info zone (the info / demolish card opens there). */
   private readonly sign: THREE.Mesh;
   private dead = false;
   /** Seconds until the next stack puff (0.9.8). */
@@ -176,9 +174,9 @@ export class Machine implements MachineRuntime {
     }
     const manage = w(f.manage);
     this.zones.push(ctx.zones.add({ id: `${id}:manage`, area: manage, marker: true, onEnter: hooks.onManage, onExit: hooks.onManageExit }));
-    this.sign = createPadSign('MANAGE');
-    this.sign.scale.setScalar(SIGN_SCALE);
-    this.sign.position.set((manage.minX + manage.maxX) / 2, SIGN_HEIGHT, (manage.minZ + manage.maxZ) / 2);
+    this.sign = createManageSign(def.label);
+    const foot = manageSignFoot(manage, place);
+    this.sign.position.set(foot.x, 0, foot.z);
     (parent ?? ctx.scene).add(this.sign);
     // 0.9.5: fades when it hides the player or its level pad (like the town and city buildings)
     this.unfade = ctx.occlusion?.addOccluder(model.root) ?? null;
@@ -243,7 +241,7 @@ export class Machine implements MachineRuntime {
     else this.updateProcessor(dt, cyc);
     this.model.animate(dt, this.working);
     this.puffVents(dt);
-    this.sign.quaternion.copy(this.ctx.camera.quaternion);
+    faceCameraUpright(this.sign, this.ctx.camera);
     fadeManageSign(this.sign, this.ctx.player?.position);
   }
 
@@ -323,9 +321,7 @@ export class Machine implements MachineRuntime {
     this.unfade?.();
     this.group.removeFromParent();
     this.sign.removeFromParent();
-    const mat = this.sign.material as THREE.MeshBasicMaterial;
-    mat.map?.dispose();
-    mat.dispose();
+    disposeManageSign(this.sign);
   }
 
   // ---- cycle ------------------------------------------------------------------------------------------------
