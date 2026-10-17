@@ -2,10 +2,10 @@
  * [B4] Settings: a gear button (next to the mute button) opening a small centred card with three tabs (the last one
  * is remembered in localStorage 'winterland:settingsTab'):
  * - Sound: Sound switch (same state as the mute button), Master / Effects volume sliders, Music switch + slider.
- * - Display: window mode (desktop app) or a Fullscreen switch (browser), Graphics High / Low (Low = no shadows, pixel
- *   ratio 1), Resolution slider, Frame rate Auto / 60 / 30, Show FPS (PerfOverlay), Day / night (ctx.dayNight).
+ * - Display: window mode (desktop app) or a Fullscreen switch (browser), Graphics Low / Medium / High (0.9.8 tiers,
+ *   render/Renderer.ts TIERS), Resolution slider, Frame rate Auto / 60 / 30, Show FPS (PerfOverlay), Day / night (ctx.dayNight).
  * - Comfort (fx/comfort, localStorage 'winterland:comfort'): Reduce motion, Effects Full / Calm / Minimal, Interface
- *   size 80-150 % (applied when the slider is let go, fitted to the window), Colour-blind friendly, and two quick
+ *   size 80-150 % (applied when the slider is let go, fitted to the window), Glow 0-100 % (0.9.8), Colour-blind friendly, and two quick
  *   buttons: "Make it calm" (all three at their gentlest) and "Defaults".
  * - Game: Hold to interact (pickups and payments need E / Space / a press held), Vibration (phone buzz and gamepad rumble, where either exists), a controls hint, Back up / Restore save (ui/saveTransfer),
  *   "Stats & trophies" (0.9.7: opens the stats page, ui/FinaleCard.ts; New Season lives only on that 100 % card) and
@@ -22,6 +22,7 @@ import { feedbackAvailable, hapticsEnabled, buzz, setHapticsEnabled } from '../f
 import { readFpsCap, FPS_CAPS, type FpsCap } from '../core/fps';
 import type { VolumeChannel } from '../fx/volume';
 import type { GameContext } from '../core/types';
+import type { Quality } from '../render/Renderer';
 import { desktop, toggleFullscreen, type WindowMode } from '../platform/desktop';
 import { backOut, h, onTap, shield, Slide } from './dom';
 import { ICON_CLOSE, ICON_GEAR } from './icons';
@@ -92,7 +93,6 @@ export class SettingsPanel {
   private readonly fileInput: HTMLInputElement;
   private readonly soundSwitch: HTMLButtonElement;
   private readonly musicSwitch: HTMLButtonElement;
-  private readonly gfxSwitch: HTMLButtonElement;
   private readonly fpsSwitch: HTMLButtonElement;
   private readonly daySwitch: HTMLButtonElement;
   private readonly holdSwitch: HTMLButtonElement;
@@ -326,16 +326,26 @@ export class SettingsPanel {
       });
       document.addEventListener('fullscreenchange', () => this.sync());
     }
-    // on = High; the hint tells what Low does
-    this.gfxSwitch = sw(pd, 'Graphics', 'Low turns off shadows for slower computers', () => {
-      ctx.audio.play('click');
-      try {
-        localStorage.setItem('winterland:autoQuality', 'manual');
-      } catch {
-        /* storage unavailable */
-      }
-      ctx.renderer.setQuality(ctx.renderer.quality === 'high' ? 'low' : 'high');
-    });
+    // 0.9.8: three tiers (render/Renderer.ts TIERS); the note says what each one does
+    seg<Quality>(
+      pd,
+      'Graphics',
+      [
+        { value: 'low', text: 'Low' },
+        { value: 'medium', text: 'Medium' },
+        { value: 'high', text: 'High' },
+      ],
+      () => ctx.renderer.quality,
+      (q) => {
+        try {
+          localStorage.setItem('winterland:autoQuality', 'manual');
+        } catch {
+          /* storage unavailable */
+        }
+        ctx.renderer.setQuality(q);
+      },
+    );
+    pd.appendChild(h('div', 'wl-controls-note wl-comfort-note', 'Low: no shadows or glow, for slower computers. High adds soft focus and the richest glow.'));
     slider(pd, 'Resolution', () => ctx.renderer.scale, (v) => ctx.renderer.setScale(v), { min: 50, step: 5 });
     seg<FpsCap>(
       pd,
@@ -391,6 +401,8 @@ export class SettingsPanel {
     this.refreshers.push(paintFitted);
     onComfortChange(paintFitted);
     window.addEventListener('resize', paintFitted);
+    // 0.9.8: how strongly lamps, windows and furnaces glow at night (fx/comfort glow)
+    slider(pc, 'Glow', () => comfort().glow, (v) => setComfort({ glow: v }), { min: 0, max: 100, step: 5 });
     this.cbSwitch = sw(pc, 'Colour-blind friendly', 'Blue and orange instead of green and red', () => {
       ctx.audio.play('click');
       setComfort({ colorBlind: !comfort().colorBlind });
@@ -400,7 +412,7 @@ export class SettingsPanel {
     calmest.type = 'button';
     onTap(calmest, () => {
       ctx.audio.play('click');
-      setComfort({ motion: true, effects: 'minimal' });
+      setComfort({ motion: true, effects: 'minimal', glow: 0.5 });
       this.sync();
     });
     const defaults = h('button', 'wl-btn wl-btn-grey', 'Defaults');
@@ -606,14 +618,13 @@ export class SettingsPanel {
 
   /** Re-read every switch, slider and segmented control (the HUD calls this when the mute button is pressed). */
   sync(): void {
-    const { audio, renderer } = this.ctx;
+    const { audio } = this.ctx;
     const set = (el: HTMLButtonElement, on: boolean): void => {
       el.classList.toggle('is-on', on);
       el.setAttribute('aria-checked', String(on));
     };
     set(this.soundSwitch, !audio.muted);
     set(this.musicSwitch, audio.musicOn);
-    set(this.gfxSwitch, renderer.quality === 'high');
     set(this.fpsSwitch, this.perf.enabled);
     set(this.daySwitch, this.ctx.dayNight.enabled);
     set(this.holdSwitch, this.ctx.input.holdToInteract);
@@ -621,8 +632,6 @@ export class SettingsPanel {
     set(this.cbSwitch, comfort().colorBlind);
     if (this.vibSwitch) set(this.vibSwitch, hapticsEnabled());
     if (this.fsSwitch) set(this.fsSwitch, !!document.fullscreenElement);
-    const name = this.gfxSwitch.parentElement?.querySelector('.wl-row-name');
-    if (name) name.textContent = renderer.quality === 'high' ? 'Graphics: High' : 'Graphics: Low';
     for (const r of this.refreshers) r();
   }
 

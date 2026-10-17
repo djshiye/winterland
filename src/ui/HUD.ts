@@ -19,7 +19,7 @@
  * - 0.9.3: CarryMeter, the bottom-left "3 / 8" pill of what the player is carrying out of how much they can carry.
  * - ShopPanel (opens on 'shop:open'), VillageBadge, SeasonBadge ("Season N · +X% prices" chip after a New Season), OfflineCard (showOfflineEarnings), FinaleCard ('finale:start').
  * - Wave 8: QuestPanel (3 active quests, collapsible), RushBanner (countdown), MoveHand (first-run drag hint),
- *   coinBurst() (gold coins flying into the money pill), AutoQuality (one-way drop to Low graphics on a slow device).
+ *   coinBurst() (gold coins flying into the money pill), AutoQuality (steps the graphics tier down on a slow device and back up when there is room).
  * - Wave 10b: InteractChip ("Hold to pick up / pay" above the player, from 'interact:prompt').
  * - 0.9.0 Ages: ManagePanel / ChoosePanel (info-demolish and build-chooser sheets), MapPanel (fast travel; Map button, key T),
  *   MarketPanel (Market button, key B), EraChip (current era / city rank, opens the map), IncomeFeed ("+$12.5K city" next to the
@@ -273,9 +273,10 @@ export class HUD {
     this.map = new MapPanel(ctx, layer);
     this.mapBtn = this.makeButton('wl-map-btn', 'Map (T)', ICON_MAP, () => this.map.toggle());
     this.marketBtn = this.makeButton('wl-market-btn', 'Market (B)', ICON_MARKET, () => this.toggleMarket());
-    this.autoQuality = new AutoQuality(ctx, () => {
+    this.autoQuality = new AutoQuality(ctx, (q, up) => {
       this.settings.sync();
-      this.toast('Switched to Low graphics for smoother play (Settings)', { small: true, duration: 4.5 });
+      const name = q === 'high' ? 'High' : q === 'medium' ? 'Medium' : 'Low';
+      this.toast(up ? `Graphics back up to ${name} (Settings)` : `Switched to ${name} graphics for smoother play (Settings)`, { small: true, duration: 4.5 });
     });
 
     // toast

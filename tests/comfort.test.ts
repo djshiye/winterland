@@ -16,6 +16,8 @@ import {
   steadyHighlights,
   UI_SCALE,
   uiScale,
+  clampGlow,
+  glowScale,
 } from '../src/fx/comfort';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -42,7 +44,7 @@ afterEach(() => {
 
 describe('parseComfort', () => {
   it('falls back to the defaults for missing, broken or hostile values', () => {
-    const d = { motion: false, effects: 'full', colorBlind: false, uiScale: 1 };
+    const d = { motion: false, effects: 'full', colorBlind: false, uiScale: 1, glow: 1 };
     for (const text of [null, '', 'not json', 'null', '[]', '42', '"x"', '{"__proto__":{"motion":true}}']) {
       expect(parseComfort(text)).toEqual(d);
     }
@@ -55,6 +57,7 @@ describe('parseComfort', () => {
       effects: 'calm',
       colorBlind: true,
       uiScale: 1,
+      glow: 1,
     });
   });
 
@@ -68,9 +71,9 @@ describe('parseComfort', () => {
 describe('setComfort', () => {
   it('remembers the choice and survives a restart', () => {
     setComfort({ effects: 'minimal', colorBlind: true });
-    expect(JSON.parse(store[COMFORT_KEY]!)).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1 });
+    expect(JSON.parse(store[COMFORT_KEY]!)).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1, glow: 1 });
     reloadComfort();
-    expect(comfort()).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1 });
+    expect(comfort()).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1, glow: 1 });
   });
 
   it('still applies for the session when storage is unavailable', () => {
@@ -177,5 +180,22 @@ describe('settings tabs', () => {
     expect(SETTINGS_TABS.map((t) => t.id)).toContain('comfort');
     store['winterland:settingsTab'] = 'comfort';
     expect(readSettingsTab()).toBe('comfort');
+  });
+});
+
+describe('glow (0.9.8)', () => {
+  it('clamps to 0-100 % on 5 % steps; junk and old settings without it are 100 %', () => {
+    expect(clampGlow(0.33)).toBe(0.35);
+    expect(clampGlow(-1)).toBe(0);
+    expect(clampGlow(3)).toBe(1);
+    for (const junk of [NaN, Infinity, '0.5', null, {}]) expect(clampGlow(junk)).toBe(1);
+    expect(parseComfort('{"glow":0.4}').glow).toBe(0.4);
+    expect(parseComfort('{"motion":true}').glow).toBe(1);
+  });
+
+  it('is remembered and read back by glowScale()', () => {
+    setComfort({ glow: 0.25 });
+    reloadComfort();
+    expect(glowScale()).toBe(0.25);
   });
 });

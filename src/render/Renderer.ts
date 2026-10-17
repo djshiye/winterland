@@ -1,11 +1,12 @@
 /**
  * [B1 — engine] WebGL renderer, scene, lights and shadows.
  *
- * - WebGLRenderer (antialias, sRGB output, neutral tone mapping so palette colours stay vibrant,
+ * - WebGLRenderer (antialias, sRGB output, neutral tone mapping so palette colours stay vibrant (the post stack applies the
+ *   same tone mapping itself),
  *   pixel ratio ≤ 2), canvas fills `container`.
  * - Scene background = PALETTE.sky; no fog needed (orthographic).
  * - Day/night (wave 8): `setDarkness(d)` blends background, hemisphere and sun colour / intensity between the day
- *   look (d = 0, exactly LIGHTING.* / PALETTE.sky), a warm dusk (d = 0.5) and a moonlit blue night (d = 1). The
+ *   look (d = 0, exactly LIGHTING.* / PALETTE.sky), a warm dusk (d = 0.5) and the era's warm night (d = 1). The
  *   sun keeps its position and shadow camera; only colour and intensity change. render() pulls the value from
  *   `darknessSource` (set by the Environment) so a paused debug render() follows the clock too.
  * - HemisphereLight (LIGHTING.hemi*) + one DirectionalLight "sun" (LIGHTING.sun*) with PCF (soft) shadows (PCFSoftShadowMap was removed in three r18x),
@@ -13,8 +14,15 @@
  * - setShadowFocus(p) moves the sun + its target so the shadow box stays centred on p, snapped to
  *   shadow-map texels to avoid shimmering while the camera glides.
  * - OrthographicCamera is created here; CameraRig owns its placement & frustum.
- * - setQuality('high' | 'low'): high = PCF shadows + pixel ratio ≤ 2; low = no shadows, pixel ratio 1 (slow computers).
- *   Persisted in localStorage 'winterland:quality' and applied at construction. `stats` = last frame's draw calls / triangles.
+ * - 0.9.8 quality tiers (DIRECTION V13), setQuality('low' | 'medium' | 'high'), persisted in localStorage
+ *   'winterland:quality' (0.9.7's 'high' / 'low' keep meaning the same) and applied at construction:
+ *     Low    no shadows, pixel ratio 1, drawn straight to the screen (no post);
+ *     Medium 1024² shadows, pixel ratio ≤ 1.5, post: outlines, bloom (3 levels), grade, vignette (render/PostFX.ts);
+ *     High   2048² shadows, pixel ratio ≤ 2, post as Medium with 4 bloom levels, 4× MSAA and a gentle depth of field.
+ *   `stats` = the last frame's draw calls / triangles: shadow pass, scene and post passes together.
+ * - 0.9.8 era looks: `eraSource` (set by the Environment) says which era the camera is in (1 outside the regions); its
+ *   palette look (render/palette.ts EraLook: a warm night and a day / night colour grade) crossfades in over
+ *   LOOK_FADE seconds. `glow` (the comfort Glow slider, 0..1) scales the bloom.
  * - setScale(s) (wave 10): render-resolution scale 0.5..1 in 0.05 steps, multiplies the pixel ratio (Low = 1 × scale).
  *   Persisted in localStorage 'winterland:scale' (default 1, invalid → 1) and applied at construction. The canvas CSS
  *   size stays the container size (setSize updateStyle), only the backing store shrinks, so it still fills the view.
@@ -22,11 +30,34 @@
 import * as THREE from 'three';
 import { LIGHTING, PALETTE } from '../config';
 import { hideInstanced, prepareInstances, prepareSharedInstances, restoreInstances } from './instancer';
+import { eraIndex, palette, type Grade, type NightLight } from './palette';
+import { PostFX, type PostFrame } from './PostFX';
 
-export type Quality = 'high' | 'low';
+export type Quality = 'low' | 'medium' | 'high';
+export const QUALITIES: readonly Quality[] = ['low', 'medium', 'high'];
+
+/** What each tier turns on (see the file header). */
+export const TIERS: Record<Quality, { shadows: number; maxRatio: number; post: boolean; samples: number; bloomLevels: number; dof: boolean }> = {
+  low: { shadows: 0, maxRatio: 1, post: false, samples: 0, bloomLevels: 0, dof: false },
+  medium: { shadows: 1024, maxRatio: 1.5, post: true, samples: 2, bloomLevels: 3, dof: false },
+  high: { shadows: LIGHTING.shadowMapSize, maxRatio: 2, post: true, samples: 4, bloomLevels: 4, dof: true },
+};
 
 const QUALITY_KEY = 'winterland:quality';
 const SCALE_KEY = 'winterland:scale';
+
+/** Seconds an era's look takes to fade in when the camera moves into it. */
+const LOOK_FADE = 1.6;
+/** Bloom by day / at night (× the Glow comfort setting). */
+const BLOOM_DAY = 0.45;
+const BLOOM_NIGHT = 1.15;
+/** Ink outline strength. */
+const OUTLINE = 0.7;
+
+/** A stored quality ('low' / 'medium' / 'high'); anything else is null. */
+export function parseQuality(v: unknown): Quality | null {
+  return QUALITIES.includes(v as Quality) ? (v as Quality) : null;
+}
 
 /** Clamp to 0.5..1 and round to 0.05; non-finite → 1. */
 export function normalizeScale(s: number): number {
@@ -34,34 +65,58 @@ export function normalizeScale(s: number): number {
   return Math.round(Math.max(0.5, Math.min(1, s)) * 20) / 20;
 }
 
-// Day / dusk / night looks (hex = sRGB). Day is the original LIGHTING / PALETTE look and stays untouched.
-const SKY = { day: PALETTE.sky, dusk: 0xf0967a, night: 0x131b45 };
-const HEMI_SKY = { day: LIGHTING.hemiSky, dusk: 0xffc4a6, night: 0x7a92e6 };
-const HEMI_GROUND = { day: LIGHTING.hemiGround, dusk: 0xc08294, night: 0x4a5aa0 };
-const SUN = { day: LIGHTING.sunColor, dusk: 0xff9c5e, night: 0xa4b8ff };
-const HEMI_I = { day: LIGHTING.hemiIntensity, dusk: 1.25, night: 1.3 };
-const SUN_I = { day: LIGHTING.sunIntensity, dusk: 1.9, night: 1.2 };
+// Day / dusk looks (hex = sRGB). Day is the original LIGHTING / PALETTE look and stays untouched; night comes from the
+// era's palette look.
+const SKY = { day: PALETTE.sky, dusk: 0xf0a08a };
+const HEMI_SKY = { day: LIGHTING.hemiSky, dusk: 0xffc8aa };
+const HEMI_GROUND = { day: LIGHTING.hemiGround, dusk: 0xc08a8c };
+const SUN = { day: LIGHTING.sunColor, dusk: 0xff9c5e };
+const HEMI_I = { day: LIGHTING.hemiIntensity, dusk: 1.25, night: 1.2 };
+const SUN_I = { day: LIGHTING.sunIntensity, dusk: 1.9, night: 1.0 };
 
-/** Three cached colours (day / dusk / night) for one lit property. */
-class Tri {
-  readonly day: THREE.Color;
-  readonly dusk: THREE.Color;
-  readonly night: THREE.Color;
-  constructor(c: { day: number; dusk: number; night: number }) {
-    this.day = new THREE.Color(c.day);
-    this.dusk = new THREE.Color(c.dusk);
-    this.night = new THREE.Color(c.night);
-  }
-  /** `out` = day … dusk (d 0…0.5) … night (d 1); exactly `day` at d = 0. */
-  blend(out: THREE.Color, d: number): void {
-    if (d <= 0) out.copy(this.day);
-    else if (d < 0.5) out.lerpColors(this.day, this.dusk, d * 2);
-    else out.lerpColors(this.dusk, this.night, (d - 0.5) * 2);
-  }
+const color = (hex: number): THREE.Color => new THREE.Color(hex);
+/** A grade colour in sRGB numbers (no linear conversion: the grade runs after the sRGB encode). */
+const raw = (hex: number, out = new THREE.Color()): THREE.Color => out.setHex(hex, THREE.LinearSRGBColorSpace);
+
+/** `out` = day … dusk (d 0…0.5) … night (d 1); exactly `day` at d = 0. */
+function tri(out: THREE.Color, day: THREE.Color, dusk: THREE.Color, night: THREE.Color, d: number): void {
+  if (d <= 0) out.copy(day);
+  else if (d < 0.5) out.lerpColors(day, dusk, d * 2);
+  else out.lerpColors(dusk, night, (d - 0.5) * 2);
 }
 
 const triNum = (t: { day: number; dusk: number; night: number }, d: number): number =>
   d <= 0 ? t.day : d < 0.5 ? t.day + (t.dusk - t.day) * d * 2 : t.dusk + (t.night - t.dusk) * (d - 0.5) * 2;
+
+/** Night light and grades of one era as three colours (cached per era). */
+interface LookColors {
+  night: Record<keyof NightLight, THREE.Color>;
+  day: GradeColors;
+  dark: GradeColors;
+}
+interface GradeColors {
+  tint: THREE.Color;
+  lift: THREE.Color;
+  saturation: number;
+  contrast: number;
+  vignette: number;
+}
+
+const lookCache = new Map<number, LookColors>();
+function lookColors(era: number): LookColors {
+  let l = lookCache.get(era);
+  if (!l) {
+    const p = palette(era).look;
+    const g = (x: Grade): GradeColors => ({ tint: raw(x.tint), lift: raw(x.lift), saturation: x.saturation, contrast: x.contrast, vignette: x.vignette });
+    l = {
+      night: { sky: color(p.night.sky), hemiSky: color(p.night.hemiSky), hemiGround: color(p.night.hemiGround), moon: color(p.night.moon) },
+      day: g(p.grade.day),
+      dark: g(p.grade.night),
+    };
+    lookCache.set(era, l);
+  }
+  return l;
+}
 
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -75,32 +130,58 @@ export class Renderer {
   /** Light-space basis (right / up) for texel snapping. */
   private readonly lightRight = new THREE.Vector3();
   private readonly lightUp = new THREE.Vector3();
-  private readonly texel: number;
+  private texel: number;
   private readonly snapped = new THREE.Vector3();
   private q: Quality = 'high';
+  private post: PostFX | null = null;
   /** Returns the current night amount (0 day … 1 night); the Environment sets it. Read once per render(). */
   darknessSource: (() => number) | null = null;
+  /** Returns the era (1..10) the camera is in; the Environment sets it. Read once per render(). */
+  eraSource: (() => number) | null = null;
+  /** Glow comfort setting 0..1: scales the bloom (fx/comfort.ts, wired by the Environment). */
+  glow = 1;
   private lastDark = -1;
   private readonly darkListeners: Array<(d: number) => void> = [];
-  private readonly triSky = new Tri(SKY);
-  private readonly triHemiSky = new Tri(HEMI_SKY);
-  private readonly triHemiGround = new Tri(HEMI_GROUND);
-  private readonly triSun = new Tri(SUN);
+  private readonly day = { sky: color(SKY.day), hemiSky: color(HEMI_SKY.day), hemiGround: color(HEMI_GROUND.day), sun: color(SUN.day) };
+  private readonly dusk = { sky: color(SKY.dusk), hemiSky: color(HEMI_SKY.dusk), hemiGround: color(HEMI_GROUND.dusk), sun: color(SUN.dusk) };
+  /** The blended era night (crossfading between two eras' looks). */
+  private readonly night = { sky: new THREE.Color(), hemiSky: new THREE.Color(), hemiGround: new THREE.Color(), moon: new THREE.Color() };
+  private eraFrom = 1;
+  private eraTo = 1;
+  /** Crossfade progress from eraFrom to eraTo (1 = done). */
+  private eraT = 1;
+  private lastLookAt = 0;
+  private lookDirty = true;
+  private readonly frame: PostFrame = {
+    bloom: 0,
+    outline: OUTLINE,
+    tint: new THREE.Color(1, 1, 1),
+    lift: new THREE.Color(0, 0, 0),
+    saturation: 1,
+    contrast: 1,
+    vignette: 0,
+    pixelRatio: 1,
+    focus: 70,
+  };
+  private readonly gradeA = { tint: new THREE.Color(), lift: new THREE.Color() };
+  private readonly gradeB = { tint: new THREE.Color(), lift: new THREE.Color() };
 
   constructor(readonly container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     try {
-      if (localStorage.getItem(QUALITY_KEY) === 'low') this.q = 'low';
+      this.q = parseQuality(localStorage.getItem(QUALITY_KEY)) ?? 'high';
       const raw = localStorage.getItem(SCALE_KEY);
       if (raw !== null && raw.trim() !== '') this.scale = normalizeScale(Number(raw));
     } catch {
       /* storage unavailable */
     }
+    // shadow, scene and post passes all count toward `stats` (reset once per frame in render())
+    this.renderer.info.autoReset = false;
     this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1;
-    this.renderer.shadowMap.enabled = this.q === 'high';
+    this.renderer.shadowMap.enabled = TIERS[this.q].shadows > 0;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.domElement = this.renderer.domElement;
     this.domElement.style.touchAction = 'none';
@@ -119,9 +200,10 @@ export class Renderer {
     this.hemi = new THREE.HemisphereLight(LIGHTING.hemiSky, LIGHTING.hemiGround, LIGHTING.hemiIntensity);
     this.sun = new THREE.DirectionalLight(LIGHTING.sunColor, LIGHTING.sunIntensity);
     this.sun.position.copy(this.sunOffset);
-    this.sun.castShadow = this.q === 'high';
+    this.sun.castShadow = TIERS[this.q].shadows > 0;
     const sh = this.sun.shadow;
-    sh.mapSize.set(LIGHTING.shadowMapSize, LIGHTING.shadowMapSize);
+    const size = TIERS[this.q].shadows || LIGHTING.shadowMapSize;
+    sh.mapSize.set(size, size);
     const e = LIGHTING.shadowExtent;
     Object.assign(sh.camera, { left: -e, right: e, top: e, bottom: -e, near: 1, far: this.sunOffset.length() * 2 + 40 });
     sh.camera.updateProjectionMatrix();
@@ -134,14 +216,21 @@ export class Renderer {
     const dir = this.sunOffset.clone().normalize();
     this.lightRight.set(0, 1, 0).cross(dir).normalize();
     this.lightUp.copy(dir).cross(this.lightRight).normalize();
-    this.texel = (2 * e) / LIGHTING.shadowMapSize;
+    this.texel = (2 * e) / size;
 
+    this.makePost();
+    this.applyLook(0);
     this.resize();
   }
 
   /** Current night amount applied to the lights (0 day … 1 night). */
   get darkness(): number {
     return Math.max(0, this.lastDark);
+  }
+
+  /** The era whose look is showing (the one fading in, while it fades). */
+  get era(): number {
+    return this.eraTo;
   }
 
   /** Be told whenever the night amount changes (glow materials, aurora). Called with the new value. */
@@ -151,20 +240,79 @@ export class Renderer {
   }
 
   /**
-   * Blend sky / hemisphere / sun from `d` (0 day … 1 night). No allocations; does nothing when `d` is unchanged.
-   * The sun's position and shadow camera are never touched.
+   * Blend sky / hemisphere / sun from `d` (0 day … 1 night). No allocations; does nothing when `d` and the era look are
+   * unchanged. The sun's position and shadow camera are never touched.
    */
   setDarkness(d: number): void {
     d = d < 0 ? 0 : d > 1 ? 1 : d;
-    if (d === this.lastDark) return;
+    if (d === this.lastDark && !this.lookDirty) return;
+    const changed = d !== this.lastDark;
     this.lastDark = d;
-    this.triSky.blend(this.scene.background as THREE.Color, d);
-    this.triHemiSky.blend(this.hemi.color, d);
-    this.triHemiGround.blend(this.hemi.groundColor, d);
-    this.triSun.blend(this.sun.color, d);
+    this.lookDirty = false;
+    const n = this.night;
+    tri(this.scene.background as THREE.Color, this.day.sky, this.dusk.sky, n.sky, d);
+    tri(this.hemi.color, this.day.hemiSky, this.dusk.hemiSky, n.hemiSky, d);
+    tri(this.hemi.groundColor, this.day.hemiGround, this.dusk.hemiGround, n.hemiGround, d);
+    tri(this.sun.color, this.day.sun, this.dusk.sun, n.moon, d);
     this.hemi.intensity = triNum(HEMI_I, d);
     this.sun.intensity = triNum(SUN_I, d);
-    for (const fn of this.darkListeners) fn(d);
+    this.blendGrade(d);
+    if (changed) for (const fn of this.darkListeners) fn(d);
+  }
+
+  /** Show era `era`'s look (1..10): fades in over LOOK_FADE seconds, or at once with `instant`. */
+  setEra(era: number, instant = false): void {
+    const n = eraIndex(era);
+    if (instant) {
+      this.eraFrom = this.eraTo = n;
+      this.eraT = 1;
+      this.applyLook(1);
+      return;
+    }
+    if (n === this.eraTo) return;
+    // fading back toward where we came from: continue from the current mix instead of jumping
+    if (n === this.eraFrom && this.eraT < 1) this.eraT = 1 - this.eraT;
+    else this.eraT = 0;
+    this.eraFrom = this.eraTo;
+    this.eraTo = n;
+    this.applyLook(this.eraT);
+  }
+
+  /** Blend the two eras' nights at crossfade `t` (smoothstep), then re-light. */
+  private applyLook(t: number): void {
+    const a = lookColors(this.eraFrom).night;
+    const b = lookColors(this.eraTo).night;
+    const k = t * t * (3 - 2 * t);
+    this.night.sky.lerpColors(a.sky, b.sky, k);
+    this.night.hemiSky.lerpColors(a.hemiSky, b.hemiSky, k);
+    this.night.hemiGround.lerpColors(a.hemiGround, b.hemiGround, k);
+    this.night.moon.lerpColors(a.moon, b.moon, k);
+    this.lookDirty = true;
+    if (this.lastDark >= 0) this.setDarkness(this.lastDark);
+  }
+
+  /** The post frame's grade for night amount `d` and the current era crossfade. */
+  private blendGrade(d: number): void {
+    const t = this.eraT * this.eraT * (3 - 2 * this.eraT);
+    const A = lookColors(this.eraFrom);
+    const B = lookColors(this.eraTo);
+    const f = this.frame;
+    const pick = (L: LookColors, out: { tint: THREE.Color; lift: THREE.Color }): { s: number; c: number; v: number } => {
+      out.tint.lerpColors(L.day.tint, L.dark.tint, d);
+      out.lift.lerpColors(L.day.lift, L.dark.lift, d);
+      return {
+        s: L.day.saturation + (L.dark.saturation - L.day.saturation) * d,
+        c: L.day.contrast + (L.dark.contrast - L.day.contrast) * d,
+        v: L.day.vignette + (L.dark.vignette - L.day.vignette) * d,
+      };
+    };
+    const a = pick(A, this.gradeA);
+    const b = pick(B, this.gradeB);
+    f.tint.lerpColors(this.gradeA.tint, this.gradeB.tint, t);
+    f.lift.lerpColors(this.gradeA.lift, this.gradeB.lift, t);
+    f.saturation = a.s + (b.s - a.s) * t;
+    f.contrast = a.c + (b.c - a.c) * t;
+    f.vignette = a.v + (b.v - a.v) * t;
   }
 
   /** Current graphics quality. */
@@ -172,13 +320,13 @@ export class Renderer {
     return this.q;
   }
 
-  /** Draw calls and triangles of the last render() (shadow pass included). */
+  /** Draw calls and triangles of the last render() (shadow pass, scene and post passes). */
   get stats(): { calls: number; triangles: number } {
     const r = this.renderer.info.render;
     return { calls: r.calls, triangles: r.triangles };
   }
 
-  /** Switch shadows / resolution; persists the choice. Materials recompile once on the next frame. */
+  /** Switch tier (shadows, resolution, post); persists the choice. Materials recompile once on the next frame. */
   setQuality(q: Quality): void {
     try {
       localStorage.setItem(QUALITY_KEY, q);
@@ -186,27 +334,44 @@ export class Renderer {
       /* storage unavailable */
     }
     if (q === this.q) return;
+    const before = TIERS[this.q];
     this.q = q;
-    const shadows = q === 'high';
+    const tier = TIERS[q];
+    const shadows = tier.shadows > 0;
+    const sh = this.sun.shadow;
+    if (sh.map && (!shadows || sh.mapSize.x !== tier.shadows)) {
+      // free the depth target; three recreates it at the new size when shadows are drawn
+      sh.map.dispose();
+      sh.map = null;
+    }
+    if (shadows) {
+      sh.mapSize.set(tier.shadows, tier.shadows);
+      this.texel = (2 * LIGHTING.shadowExtent) / tier.shadows;
+    }
     this.renderer.shadowMap.enabled = shadows;
     this.sun.castShadow = shadows;
-    if (!shadows && this.sun.shadow.map) {
-      // free the 2048² depth target; three recreates it when shadows come back
-      this.sun.shadow.map.dispose();
-      this.sun.shadow.map = null;
+    this.makePost();
+    if (shadows !== before.shadows > 0) {
+      // the shadow define is baked into each program, so every material has to be rebuilt once
+      const seen = new Set<THREE.Material>();
+      this.scene.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+        if (!m) return;
+        for (const mat of Array.isArray(m) ? m : [m]) {
+          if (seen.has(mat)) continue;
+          seen.add(mat);
+          mat.needsUpdate = true;
+        }
+      });
     }
-    // the shadow define is baked into each program, so every material has to be rebuilt once
-    const seen = new Set<THREE.Material>();
-    this.scene.traverse((o) => {
-      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
-      if (!m) return;
-      for (const mat of Array.isArray(m) ? m : [m]) {
-        if (seen.has(mat)) continue;
-        seen.add(mat);
-        mat.needsUpdate = true;
-      }
-    });
     this.resize();
+  }
+
+  /** (Re)build the post stack for the current tier. */
+  private makePost(): void {
+    this.post?.dispose();
+    const t = TIERS[this.q];
+    this.post = t.post ? new PostFX({ bloomLevels: t.bloomLevels, dof: t.dof, samples: t.samples }) : null;
   }
 
   /** Wave 10: render resolution scale 0.5..1 (persisted 'winterland:scale', default 1). Multiplies the pixel ratio. */
@@ -224,7 +389,7 @@ export class Renderer {
   }
 
   private pixelRatio(): number {
-    return (this.q === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 2)) * this.scale;
+    return Math.min(window.devicePixelRatio || 1, TIERS[this.q].maxRatio) * this.scale;
   }
 
   /** Canvas size in CSS pixels. */
@@ -252,18 +417,49 @@ export class Renderer {
   resize(): void {
     this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.setSize(this.width, this.height);
+    if (this.post) {
+      const v = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      this.post.setSize(v.x, v.y);
+    }
   }
 
   /** Draw repeated items / NPC parts instanced (render/instancer.ts). Off = every mesh draws itself (A/B checks). */
   instancing = true;
 
+  /** Advance the era crossfade by real time (so a paused debug render() never animates it). */
+  private stepLook(): void {
+    const now = performance.now();
+    const dt = this.lastLookAt ? Math.min(0.1, (now - this.lastLookAt) / 1000) : 0;
+    this.lastLookAt = now;
+    if (this.eraSource) this.setEra(this.eraSource());
+    if (this.eraT < 1) {
+      this.eraT = Math.min(1, this.eraT + dt / LOOK_FADE);
+      this.applyLook(this.eraT);
+    }
+  }
+
   render(): void {
+    this.renderer.info.reset();
+    this.stepLook();
     if (this.darknessSource) this.setDarkness(this.darknessSource());
     // repeated pile / stack items and NPC parts draw as one instanced mesh per kind (render/instancer.ts)
     try {
       if (this.instancing) prepareInstances(this.scene);
       else hideInstanced();
-      this.renderer.render(this.scene, this.camera);
+      const post = this.post;
+      if (post) {
+        this.renderer.setRenderTarget(post.scene);
+        this.renderer.render(this.scene, this.camera);
+        const f = this.frame;
+        const d = this.darkness;
+        f.bloom = (BLOOM_DAY + (BLOOM_NIGHT - BLOOM_DAY) * d) * Math.max(0, Math.min(1, this.glow));
+        f.pixelRatio = this.renderer.getPixelRatio();
+        f.focus = this.camera.position.distanceTo(this.sun.target.position);
+        post.render(this.renderer, this.camera, f);
+      } else {
+        this.renderer.setRenderTarget(null);
+        this.renderer.render(this.scene, this.camera);
+      }
     } finally {
       restoreInstances();
     }

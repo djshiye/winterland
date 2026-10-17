@@ -5,10 +5,12 @@
  * One entry per *material* (the toon() cache already shares them: shelters, ridge, village, cabin, lamps), so a
  * frame costs a handful of number writes and never traverses the scene. `updateGlow(d)` is driven from
  * Renderer.setDarkness (see Environment). At darkness 0 every value is restored exactly, so day is unchanged.
+ * 0.9.8: the comfort Glow setting (`setGlowStrength`, fx/comfort glow) scales the night boost and the halos; 0 keeps
+ * every light at its daytime look.
  */
 import * as THREE from 'three';
 import { CAMERA } from '../../config';
-import { makeCanvasTexture } from '../../render/materials';
+import { additiveKeepAlpha, makeCanvasTexture, markGlow } from '../../render/materials';
 import { steadyHighlights } from '../../fx/comfort';
 
 interface Entry {
@@ -23,6 +25,8 @@ let haloMat: THREE.MeshBasicMaterial | null = null;
 let bulbMat: THREE.MeshBasicMaterial | null = null;
 let last = -1;
 let twinkle = 0;
+/** Comfort Glow 0..1. */
+let strength = 1;
 
 /**
  * Register a (shared) emissive material: at night its emissiveIntensity becomes `base * boost`.
@@ -37,7 +41,7 @@ export function registerGlow<T extends THREE.MeshToonMaterial>(mat: T, boost = 2
 }
 
 function applyEntry(e: Entry, d: number): void {
-  e.mat.emissiveIntensity = d <= 0 ? e.base : e.base * (1 + (e.boost - 1) * d);
+  e.mat.emissiveIntensity = d <= 0 ? e.base : e.base * (1 + (e.boost - 1) * d * strength);
 }
 
 /** Set the night amount (0 day … 1 night) on every registered glow material and halo. Cheap; safe every frame. */
@@ -45,17 +49,27 @@ export function updateGlow(d: number): void {
   if (d === last) return;
   last = d;
   for (const e of entries) applyEntry(e, d);
-  if (haloMat) haloMat.opacity = Math.min(1, d * 1.15);
-  const on = d > 0.02;
+  if (haloMat) haloMat.opacity = Math.min(1, d * 1.15) * strength;
+  const on = d > 0.02 && strength > 0;
   for (const h of halos) h.visible = on;
   setBulbScale();
+}
+
+/** Comfort Glow (0..1): re-applies the current night amount at the new strength. */
+export function setGlowStrength(k: number): void {
+  const v = Math.max(0, Math.min(1, Number.isFinite(k) ? k : 1));
+  if (v === strength) return;
+  strength = v;
+  const d = last;
+  last = -1;
+  if (d >= 0) updateGlow(d);
 }
 
 function setBulbScale(): void {
   if (!bulbMat) return;
   // unlit, so "glowing" means: a little dimmer by day, brighter than the dark scene at night (tone mapping is off)
   const d = Math.max(0, last);
-  bulbMat.color.setScalar(0.84 + 0.3 * d + twinkle * (0.03 + 0.05 * d));
+  bulbMat.color.setScalar(0.84 + 0.3 * d * strength + twinkle * (0.03 + 0.05 * d));
 }
 
 /**
@@ -64,7 +78,7 @@ function setBulbScale(): void {
  */
 export function bulbMaterial(): THREE.MeshBasicMaterial {
   if (!bulbMat) {
-    bulbMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+    bulbMat = markGlow(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), 0.85);
     setBulbScale();
   }
   return bulbMat;
@@ -88,16 +102,17 @@ function haloMaterial(): THREE.MeshBasicMaterial {
     g.fillStyle = grad;
     g.fillRect(0, 0, 64, 64);
     texture.needsUpdate = true;
-    haloMat = new THREE.MeshBasicMaterial({
-      map: texture,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-      fog: false,
-    });
+    haloMat = additiveKeepAlpha(
+      new THREE.MeshBasicMaterial({
+        map: texture,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        toneMapped: false,
+        fog: false,
+      }),
+    );
   }
   return haloMat;
 }
