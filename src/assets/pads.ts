@@ -20,7 +20,7 @@
 import * as THREE from 'three';
 import { CAMERA, COLORS, PALETTE, type PadDef } from '../config';
 import { GAME_FONT, basic, geo, makeCanvasTexture, mesh, toon } from '../render/materials';
-import { TAG_H, TAG_W, paintWoodenTag, wearTagLook } from '../ui/worldTag';
+import { wearTagLook } from '../ui/worldTag';
 import { MATERIALS } from '../eras/data';
 
 export type PadIcon = PadDef['icon'];
@@ -1547,11 +1547,23 @@ const signPainters = new WeakMap<THREE.Mesh, (label: string) => void>();
 
 /** Floating label sign ("HARVESTER"): rounded dark plate, white border + bold text. Face it to the camera. */
 export function createPadSign(label: string, gold = false): THREE.Mesh {
-  // 0.9.8 (brief 14): a hanging wooden tag (ui/worldTag.ts)
-  const { ctx: g, texture } = makeCanvasTexture(TAG_W, TAG_H);
+  const w = 512;
+  const h = 128;
+  const { ctx: g, texture } = makeCanvasTexture(w, h);
   let text = label;
   const paint = (): void => {
-    paintWoodenTag(g, text, { gold, font: GAME_FONT });
+    g.clearRect(0, 0, w, h);
+    roundedRectPath(g, 5, 5, w - 10, h - 10, 36);
+    g.fillStyle = hex(COLORS.PAD_BG);
+    g.fill();
+    g.lineWidth = 8;
+    g.strokeStyle = gold ? hex(PALETTE.accent) : hex(COLORS.PAD_BORDER);
+    g.stroke();
+    g.font = `700 64px ${GAME_FONT}`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = '#ffffff';
+    g.fillText(text, w / 2, h / 2 + 4, w - 60);
     texture.needsUpdate = true;
   };
   paint();
@@ -1561,8 +1573,8 @@ export function createPadSign(label: string, gold = false): THREE.Mesh {
       .catch(() => undefined)
       .then(paint);
   }
-  const m = new THREE.Mesh(geo.plane(2.5, (2.5 * TAG_H) / TAG_W), basic(0xffffff, { map: texture, transparent: true, depthWrite: false }));
-  wearTagLook(m, (2.5 * TAG_H) / TAG_W);
+  const m = new THREE.Mesh(geo.plane(2.5, 0.625), basic(0xffffff, { map: texture, transparent: true, depthWrite: false }));
+  wearTagLook(m, 0.625); // 0.9.8 brief 14: soft distance fade + 13 px lettering floor
   m.renderOrder = 4;
   m.castShadow = false;
   m.receiveShadow = false;
@@ -1581,10 +1593,34 @@ export function setPadSignLabel(sign: THREE.Mesh, label: string): void {
 
 /** The cabin doormat's floating sign: green up-arrow + "UPGRADES" on a dark plate with a gold rim. */
 export function createShopSign(): THREE.Mesh {
-  // 0.9.8 (brief 14): a hanging wooden tag with a green up-arrow (ui/worldTag.ts)
-  const { ctx: g, texture } = makeCanvasTexture(TAG_W, TAG_H);
+  const w = 512;
+  const h = 160;
+  const { ctx: g, texture } = makeCanvasTexture(w, h);
   const paint = (): void => {
-    paintWoodenTag(g, 'UPGRADES', { gold: true, arrow: true, font: GAME_FONT });
+    g.clearRect(0, 0, w, h);
+    roundedRectPath(g, 5, 5, w - 10, h - 10, 40);
+    g.fillStyle = hex(COLORS.PAD_BG);
+    g.fill();
+    g.lineWidth = 9;
+    g.strokeStyle = hex(PALETTE.accent);
+    g.stroke();
+    // up arrow
+    g.save();
+    g.translate(86, 82);
+    g.beginPath();
+    poly(g, [[0, -46], [38, -4], [16, -4], [16, 44], [-16, 44], [-16, -4], [-38, -4]]);
+    g.fillStyle = hex(COLORS.PAD_FILL);
+    g.fill();
+    g.lineWidth = 7;
+    g.lineJoin = 'round';
+    g.strokeStyle = '#ffffff';
+    g.stroke();
+    g.restore();
+    g.font = `700 70px ${GAME_FONT}`;
+    g.textAlign = 'left';
+    g.textBaseline = 'middle';
+    g.fillStyle = '#ffffff';
+    g.fillText('UPGRADES', 148, h / 2 + 5, w - 170);
     texture.needsUpdate = true;
   };
   paint();
@@ -1594,8 +1630,8 @@ export function createShopSign(): THREE.Mesh {
       .catch(() => undefined)
       .then(paint);
   }
-  const m = new THREE.Mesh(geo.plane(2.6, (2.6 * TAG_H) / TAG_W), basic(0xffffff, { map: texture, transparent: true, depthWrite: false }));
-  wearTagLook(m, (2.6 * TAG_H) / TAG_W);
+  const m = new THREE.Mesh(geo.plane(2.6, 0.8125), basic(0xffffff, { map: texture, transparent: true, depthWrite: false }));
+  wearTagLook(m, 0.8125); // 0.9.8 brief 14
   m.renderOrder = 4;
   m.castShadow = false;
   m.receiveShadow = false;
