@@ -57,7 +57,7 @@ describe('the Great Lodge opens the new land', () => {
     s.village.greatLodge.tier = 0;
     s.village.level = VILLAGE.levels.length - 1;
     expect(landVisible(s)).toBe(true);
-    expect(ROADS.filter((r) => roadOpen(s, r.opensAt)).map((r) => r.id)).toEqual(['southAvenue', 'r1', 'cityLink', 'cityWest']);
+    expect(ROADS.filter((r) => roadOpen(s, r.opensAt)).map((r) => r.id)).toEqual(['southAvenue', 'r1', 'cityLink', 'townEast', 'cityWest']);
     expect(expansionOffered(s, 2)).toBe(false);
     expect(expansionPreview(s, 2)).toBe(true);
     expect(travelPoints(s).find((p) => p.id === 'region:2')!.open).toBe(false);

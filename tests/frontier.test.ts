@@ -36,7 +36,7 @@ describe('roadOpen', () => {
   it('matches the table: the first roads are open with the Great Lodge, the last one only from era 6', () => {
     const open = (lodge: boolean, age: number): string[] => ROADS.filter((r) => roadOpen(state(lodge, age), r.opensAt)).map((r) => r.id);
     expect(open(false, 1)).toEqual([]);
-    expect(open(true, 1)).toEqual(['southAvenue', 'r1', 'cityLink', 'cityWest']);
+    expect(open(true, 1)).toEqual(['southAvenue', 'r1', 'cityLink', 'townEast', 'cityWest']);
     expect(open(true, 3)).toContain('cityV1');
     expect(open(true, 3)).not.toContain('r2');
     expect(open(true, 6)).toContain('r2');
@@ -132,12 +132,13 @@ describe('the new land keeps off the old map', () => {
     for (const d of districts) for (const [name, o] of Object.entries(old)) expect(overlap(d.rect, o), `district ${d.n} vs ${name}`).toBe(false);
   });
 
-  it('lets only the two roads that leave the Market Town touch the old rects (and only the town)', () => {
+  it('lets only the three roads that leave the Market Town touch the old rects (and only the town)', () => {
     for (const r of ROADS) {
       const hits = Object.entries(old).filter(([, o]) => overlap(r.rect, o)).map(([name]) => name);
       if (r.id === 'southAvenue') expect(hits, r.id).toEqual(['town']);
       // 0.9.9: the Timber Ridge rail ends north of the town, so the avenue to the city no longer crosses it
-      else if (r.id === 'cityLink') expect(hits, r.id).toEqual(['town']);
+      // 0.9.9: the east gate's lane between the two east lots
+      else if (r.id === 'cityLink' || r.id === 'townEast') expect(hits, r.id).toEqual(['town']);
       else expect(hits, r.id).toEqual([]);
     }
   });
