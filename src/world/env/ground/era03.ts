@@ -16,7 +16,7 @@ import type { Rect } from '../../../config';
 import { blockedNewLand, occludesNewLand, type Rng } from '../common';
 import type { EraGroundModule, GroundKit } from '../eraGround';
 import { nodePatch, regionPaths } from '../frontier';
-import { clearOf, fenceDrifts, lantern, near, shade, slab, snowPatch } from './kit1to3';
+import { clearOf, fenceDrifts, lantern, near, shade, slab, snowPatch, snowVerge } from './kit1to3';
 
 const P3 = palette(3);
 /** Era 3's tones, all from its palette row (warm: never near-black, DIRECTION). */
@@ -220,7 +220,15 @@ export const era03: EraGroundModule = {
   open(k: GroundKit, l: RegionLayout, P, rng: Rng): void {
     const Z = l.zones;
     // ---- the yard band: rust-ore gravel
-    oreGravel(k, { minX: Z.yard.minX + 0.5, maxX: Z.yard.maxX - 0.2, minZ: Z.yard.minZ + 0.5, maxZ: Z.yard.maxZ }, rng);
+    const band: Rect = { minX: Z.yard.minX + 0.5, maxX: Z.yard.maxX - 0.2, minZ: Z.yard.minZ + 0.5, maxZ: Z.yard.maxZ };
+    oreGravel(k, band, rng);
+    // snow banked against the fence along the band (gates kept clear), and a few patches out on the gravel
+    const fenceZ = l.inward > 0 ? band.minZ + 0.35 : band.maxZ - 0.35;
+    const gateGaps = [l.gate, l.marketGate].map((g) => ({ minX: g.x - 2.6, maxX: g.x + 2.6, minZ: g.z - 3, maxZ: g.z + 3 }));
+    snowVerge(k, { minX: band.minX, maxX: band.maxX, minZ: fenceZ, maxZ: fenceZ }, rng, C.gravel, gateGaps, 0.0378);
+    for (let i = 0, n = Math.round(((band.maxX - band.minX) * (band.maxZ - band.minZ)) / 45); i < n; i++) {
+      snowPatch(k, rng.range(band.minX + 1, band.maxX - 1), rng.range(band.minZ + 1.2, band.maxZ - 1), rng.range(0.35, 0.75), rng, C.gravel, 0.0378);
+    }
     // ---- the processing floor: tamped ochre clay, each machine cell framed by timber sleepers
     const Y = P.yardPave;
     slab(k.floor, C.clay, (Y.minX + Y.maxX) / 2, (Y.minZ + Y.maxZ) / 2, Y.maxX - Y.minX, Y.maxZ - Y.minZ, 0.03, 0.016);
@@ -231,6 +239,16 @@ export const era03: EraGroundModule = {
     const z0 = Y.minZ + 0.5;
     for (let x = Y.minX; x <= Y.maxX + 0.01; x += l.cell) slab(k.floor, C.timber, Math.min(x, Y.maxX - 0.15), (Y.minZ + Y.maxZ) / 2, 0.3, Y.maxZ - Y.minZ - 0.2, 0.039, 0.006);
     for (let z = z0; z <= Y.maxZ + 0.01; z += l.rowPitch) slab(k.floor, C.timber, (Y.minX + Y.maxX) / 2, Math.min(z, Y.maxZ - 0.15), Y.maxX - Y.minX - 0.2, 0.3, 0.039, 0.006);
+    // ---- snow banked into the sleeper crossings, a few drifted pockets on the clay (flat, under every pad)
+    for (let x = Y.minX + l.cell; x < Y.maxX - 0.5; x += l.cell) {
+      for (let z = z0 + l.rowPitch; z < Y.maxZ - 0.5; z += l.rowPitch) {
+        if (rng.next() < 0.35) continue;
+        snowPatch(k, x + rng.range(-0.15, 0.15), z + rng.range(-0.15, 0.15), rng.range(0.35, 0.6), rng, C.clay, 0.0378);
+      }
+    }
+    for (let i = 0, n = Math.round(((Y.maxX - Y.minX) * (Y.maxZ - Y.minZ)) / 60); i < n; i++) {
+      snowPatch(k, rng.range(Y.minX + 0.8, Y.maxX - 0.8), rng.range(Y.minZ + 0.8, Y.maxZ - 0.8), rng.range(0.3, 0.55), rng, C.clay, 0.0365);
+    }
     // ---- the cart track between the machines and the field, a cart parked at its west end
     const paths = regionPaths(l);
     const track = paths[2]!;
@@ -248,6 +266,11 @@ export const era03: EraGroundModule = {
         k.solid.add(BOX(), C.timber, x, 0.06, z, alongX ? { sx: q.maxX - q.minX, sy: 0.1, sz: 0.14 } : { sx: 0.14, sy: 0.1, sz: q.maxZ - q.minZ });
       }
     }
+    // ---- snow verges: banked along the track, the gravel paths and the processing floor's edges
+    const verged = [track, paths[1]!, { minX: mg.x - 0.8, maxX: mg.x + 0.8, minZ: Math.min(mg.z, mg.z + l.inward * 6), maxZ: Math.max(mg.z, mg.z + l.inward * 6) }];
+    const noVerge = [...paths, Y, nodePatch(l), plotPlaces(l.n).field];
+    for (const q of verged) snowVerge(k, q, rng, P3.floor.board, noVerge.filter((s) => s !== q));
+    snowVerge(k, Y, rng, P3.floor.board, paths);
     // ---- forge-orange iron lanterns: at the gate, along the track, by the market walk
     const lc = { body: C.timber, dark: C.ironDark, light: C.light };
     lantern(k, l.gate.x - 2.6, l.gate.z + l.inward * 0.9, 'iron', lc);
