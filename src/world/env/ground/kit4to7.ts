@@ -277,9 +277,11 @@ function drift(k: Kit, rng: Rng, x: number, z: number, r: number, heap: boolean)
 
 /**
  * Snow that keeps every era wintry at play zoom (Validator, 0.9.8): drifts banked along the fences and gathered in the
- * open harvest ground. `wild` lays these, so the region reads snowy also while it is for sale.
+ * open harvest ground. `wild` lays these, so the region reads snowy also while it is for sale. `clusters`: how many
+ * drift clusters to gather in the open ground and `gap` the clear ground between them (a pale board that could read
+ * as sand asks for more, closer together).
  */
-export function snowDrifts(k: Kit, l: RegionLayout, P: PlotPlaces, avoid: readonly Rect[], rng: Rng, paths: readonly Rect[]): void {
+export function snowDrifts(k: Kit, l: RegionLayout, P: PlotPlaces, avoid: readonly Rect[], rng: Rng, paths: readonly Rect[], clusters = 16, gap = 4): void {
   const r = l.rect;
   const block = [...avoid, ...paths.map((q) => grown(q, 0.3))];
   const edge = (x: number, z: number, big = true): void => {
@@ -302,11 +304,11 @@ export function snowDrifts(k: Kit, l: RegionLayout, P: PlotPlaces, avoid: readon
   // drift clusters out in the open ground (harvest, market and the crew green's surroundings)
   const taken: { x: number; z: number; r: number }[] = [];
   const open: { x: number; z: number }[] = [];
-  for (let t = 0; t < 900 && open.length < 16; t++) {
+  for (let t = 0; t < 900 + clusters * 40 && open.length < clusters; t++) {
     const x = rng.range(r.minX + 3, r.maxX - 3);
     const z = rng.range(r.minZ + 3, r.maxZ - 3);
     if (inRect(l.zones.processing, x, z, 1) || inRect(l.zones.yard, x, z, 1) || hitAny(block, x, z, 1.8)) continue;
-    if (taken.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + 4)) continue;
+    if (taken.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + gap)) continue;
     taken.push({ x, z, r: 1.8 });
     open.push({ x, z });
   }
