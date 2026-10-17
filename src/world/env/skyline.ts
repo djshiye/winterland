@@ -120,7 +120,8 @@ function towerMat(): THREE.MeshToonMaterial {
           vec2 sc = floor(sw);
           float win = step(0.18, sf.x) * step(sf.x, 0.82) * step(0.22, sf.y) * step(sf.y, 0.8) * (1.0 - step(0.5, abs(vSkyN.y))) * step(3.0, vSkyP.y);
           float sh = fract(sin(dot(sc + vec2(sd * 0.713, sd * 1.37), vec2(12.9898, 78.233))) * 43758.5453);
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12, 0.16, 0.22), win * 0.85);
+          // 0.9.8 (10c): sky-blue glass by day (lighter toward each pane's top), not near-black holes
+          diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.4, 0.52, 0.64), vec3(0.66, 0.77, 0.86), sf.y), win * 0.8);
           totalEmissiveRadiance = emissive * vec3(1.0, 0.82, 0.5) * win * step(0.4, sh) * (0.6 + 0.8 * sh);`,
         );
     };
@@ -134,13 +135,17 @@ function towerMat(): THREE.MeshToonMaterial {
 // 0.9.7: softer, warmer city tones (cream, sand, sage, dusty blue) so the metropolis stays cosy against the snow
 const TONES = [0xb8c2cc, 0xa9b6c2, 0xd2cbbd, 0x9fb1bd, 0xc6cdc0, 0xb3a796];
 const WARM_TONES = [0xc9b496, 0xb9a38a, 0xd4c3a6, 0xae9479];
+/** 0.9.8 (10c): the late eras' pearl, cream, mint-glaze and champagne towers: the skyline climbs lighter era by era. */
+const LIGHT_TONES = [0xf2ece0, 0xe6eef0, 0xf5e8cc, 0xdcede6, 0xefe6d6, 0xf7efdf];
 const _c = new THREE.Color();
 const _w = new THREE.Color();
 
 function colorOf(tone: number, age: number, out: THREE.Color): THREE.Color {
   out.set(TONES[Math.floor(tone * TONES.length) % TONES.length]!);
   _w.set(WARM_TONES[Math.floor(tone * 7.3) % WARM_TONES.length]!);
-  return out.lerp(_w, Math.max(0, (6 - age) / 6) * 0.7);
+  out.lerp(_w, Math.max(0, (6 - age) / 6) * 0.7);
+  _w.set(LIGHT_TONES[Math.floor(tone * 11.7) % LIGHT_TONES.length]!);
+  return out.lerp(_w, Math.max(0, Math.min(1, (age - 6) / 4)) * 0.8);
 }
 
 export class Skyline {
