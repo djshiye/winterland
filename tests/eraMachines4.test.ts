@@ -23,15 +23,14 @@ function bounds(o: THREE.Object3D): THREE.Box3 {
   return new THREE.Box3().setFromObject(o, true);
 }
 
-describe('era 8–10 machine models', () => {
+describe('era 8–10 cash machine models', () => {
   it('covers the ten new machines and is in the gallery', () => {
-    expect(ERA4_MACHINE_IDS).toHaveLength(10);
-    expect(ERA4_MACHINE_IDS.filter((id) => ERA4_MACHINES[id].era === 8)).toHaveLength(4);
-    expect(ERA4_MACHINE_IDS.filter((id) => ERA4_MACHINES[id].era === 9)).toHaveLength(3);
-    expect(ERA4_MACHINE_IDS.filter((id) => ERA4_MACHINES[id].era === 10)).toHaveLength(3);
+    // 0.9.8: the production machines moved to assets/eraMachines6to10.ts; the three cash machines stay
+    expect(ERA4_MACHINE_IDS).toHaveLength(3);
+    for (const era of [8, 9, 10]) expect(ERA4_MACHINE_IDS.filter((id) => ERA4_MACHINES[id].era === era)).toHaveLength(1);
     for (const id of ERA4_MACHINE_IDS) expect(eraMachine4Catalog[id]).toBeTypeOf('function');
     expect(ASSET_CATALOG.eraMachines4).toBe(eraMachine4Catalog);
-    expect(meshes(eraMachine4Catalog.eras8to10!()).length).toBe(30);
+    expect(meshes(eraMachine4Catalog.eras8to10!()).length).toBe(9);
   });
 
   for (const id of ERA4_MACHINE_IDS) {
@@ -92,8 +91,8 @@ describe('era 8–10 machine models', () => {
   }
 
   it('builds distinct instances that share geometry', () => {
-    const a = createEraMachine4('quantumLab');
-    const b = createEraMachine4('quantumLab');
+    const a = createEraMachine4('quantumBank');
+    const b = createEraMachine4('quantumBank');
     expect(a.root).not.toBe(b.root);
     expect(meshes(a.root)[0]!.geometry).toBe(meshes(b.root)[0]!.geometry);
   });

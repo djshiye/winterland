@@ -26,6 +26,9 @@ import { Batch } from '../../render/batch';
 import { geo } from '../../render/materials';
 import { bulbMaterial } from './glow';
 import { Rng } from './common';
+import { mixHex, palette } from '../../render/palette';
+import { addChimney } from '../sky/smoke';
+import { eraOwnsFloor } from './eraGround';
 
 /** Tallest a hut gets (loft + pennant) and the tallest shopfront (sign included), metres. */
 export const HUT_MAX_H = 4.6;
@@ -66,7 +69,8 @@ const STYLE: readonly (PlotStyle | null)[] = [
   null,
   null,
   { hut: 'cabin', wall: 0x9a7350, roof: 0x7a5a48, shop: 0xc9b9a0, shopRoof: 0x8e6a52, street: 0xb7aea0, pave: 0xc3bcb0, line: 0xa69c8e, green: 'fire', beds: ['slabs', 0xbab4aa, 'pools', 0xc27a56], yard: 'cells' },
-  { hut: 'cottage', wall: 0xb3aa9c, roof: 0x6d7378, shop: 0xa8836a, shopRoof: 0x5f6870, street: 0xa89c92, pave: 0xb8afa6, line: 0x978b80, green: 'well', beds: ['heaps', 0xa65a3e, 'heaps', 0x7a6c64], yard: 'cells' },
+  // 3 ore + charcoal (0.9.8 10a): ochre-plaster cottages under iron-grey roofs, rust-brick shops, a rust-gravel street
+  { hut: 'cottage', wall: mixHex(palette(3).floor.processing, 0xffffff, 0.4), roof: mixHex(palette(3).accent, 0xffffff, 0.22), shop: palette(3).body, shopRoof: mixHex(palette(3).accent, 0xffffff, 0.22), street: mixHex(palette(3).floor.yard, palette(3).floor.board, 0.45), pave: 0xb8afa6, line: 0x978b80, green: 'well', beds: ['heaps', 0xa65a3e, 'heaps', 0x7a6c64], yard: 'cells' },
   { hut: 'row', wall: 0xa85a43, roof: 0x5e6266, shop: 0xb5664c, shopRoof: 0x585d61, street: 0x9c948d, pave: 0xaaa39c, line: 0x8a827b, green: 'brazier', beds: ['heaps', 0x9c8b7b, 'heaps', 0x675d58], yard: 'cells' },
   { hut: 'bunk', wall: 0x7d8c96, roof: 0xb4553a, shop: 0x8a98a2, shopRoof: 0xc0673e, street: 0x8d9095, pave: 0x9fa3a8, line: 0x7f8388, green: 'brazier', beds: ['ridges', 0xb4553a, 'heaps', 0x6f6460], glow: [1], yard: 'cells' },
   // 6 copper + quartz: patina-green deco arcades, flagstone yard, a grove of copper outcrops and quartz clumps
@@ -239,6 +243,19 @@ class Frame {
 // ---------------------------------------------------------------------------------------------------------------------
 // crew huts
 // ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * 0.9.8 (brief 16): the world position of a built hut's chimney mouth (the cabin / cottage / row / bunk huts have one,
+ * see buildHut), or null. World threads that move a chimney keep this in step so its smoke rises from the right spot.
+ */
+export function hutChimney(st: PlotStyle, h: HutPlace, out = new THREE.Vector3()): THREE.Vector3 | null {
+  if (st.hut !== 'cabin' && st.hut !== 'cottage' && st.hut !== 'row' && st.hut !== 'bunk') return null;
+  const lx = h.w / 2 - 0.7;
+  const lz = -h.d / 4;
+  const c = Math.cos(h.yaw);
+  const sn = Math.sin(h.yaw);
+  return out.set(h.x + lx * c + lz * sn, 0.22 + 2.1 + (st.hut === 'bunk' ? 1.25 : 1.6), h.z - lx * sn + lz * c);
+}
 
 /** One hut at `stage` (1..3) into `body` (solid) and `glow` (lit windows). Stage 0 draws the foundation only. */
 function buildHut(body: Batch, glow: Batch, st: PlotStyle, h: HutPlace, stage: number, accent: number): void {
@@ -874,6 +891,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   const body = new Batch();
   const glow = new Batch();
   const Y = P.yardPave;
+  // 0.9.8: an era with its own base board (world/env/eraGround.ts) lays its own processing floor and cell marks
+  if (!eraOwnsFloor(n)) {
   body.add(geo.box(Y.maxX - Y.minX, 0.02, Y.maxZ - Y.minZ), st.pave, (Y.minX + Y.maxX) / 2, 0.022, (Y.minZ + Y.maxZ) / 2);
   // machine cells (room grid): thin lines on the paving, one cell per slot
   {
@@ -885,6 +904,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
     }
   }
   buildYardPattern(body, glow, st, Y, rng);
+  }
   for (const S of P.streets) buildStreet(body, st, P, S, rng);
   P.shops.forEach((s, i) => buildShop(body, glow, st, s, i, e.colors.accent, goods));
   const bulbs = new Batch();
@@ -922,6 +942,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   ctx.occlusion?.addOccluder(huts); // fades when it hides the player
   let first = true;
   let timer = 0;
+  const chimneys: (() => void)[] = [];
 
   const rebuild = (): void => {
     for (const c of [...huts.children]) {
@@ -931,6 +952,12 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
     const hb = new Batch();
     const hg = new Batch();
     P.huts.forEach((h, i) => buildHut(hb, hg, st, h, stages[i]!, e.colors.accent));
+    // 0.9.8: built huts with a chimney smoke (world/sky/smoke.ts)
+    for (const off of chimneys.splice(0)) off();
+    P.huts.forEach((h, i) => {
+      const c = stages[i]! >= 1 ? hutChimney(st, h) : null;
+      if (c) chimneys.push(addChimney(c, h.role === 0 ? 0.45 : 0.38));
+    });
     const m = hb.mesh({ cast: true, receive: true });
     m.name = 'hutBodies';
     huts.add(m);

@@ -80,6 +80,7 @@ import { Business, type StaffSpot } from './Business';
 import { LotPad } from './LotPad';
 import { amenityFrame, amenityOffered, canChoose, canManage, choicesFor, demolishCost, grandMarketFrame, grandMarketOffered, lotFrame, lotOpen, manageRect, paidFraction, settlePaidAmenities, settlePaidGrandMarket, settlePaidLots, type AmenityFrame, type GrandMarketFrame, type LotFrame } from './rules';
 import type { ShopSpot } from './types';
+import { smokeFrom } from '../world/sky/smoke';
 
 const T = LAYOUT.town;
 const SMOKE_TICK = 0.24;
@@ -780,13 +781,13 @@ export class Town {
       if (this.smokeCursor < this.lots.length) {
         const c = this.lots[this.smokeCursor]!.business?.chimney;
         if (c) {
-          this.ctx.particles.puff(this.tmp.copy(c), { color: 0xffffff, count: 1, size: 0.45, life: 2.2 });
+          smokeFrom(c, 0.45);
           return;
         }
       } else if (this.smokeCursor >= nLA) {
         const c = this.market.chimneys[this.smokeCursor - nLA];
         if (c) {
-          this.ctx.particles.puff(this.tmp.copy(c), { color: 0xffffff, count: 1, size: 0.5, life: 2.4 });
+          smokeFrom(c, 0.55);
           return;
         }
       } else {

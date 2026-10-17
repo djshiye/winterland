@@ -15,11 +15,14 @@
  *   (two-tone freight-train horn), wave 8: quest (bright rising chime + coin ping), bell (rush hour: three
  *   service-bell dings), sparkle (VIP tip: glittering high arpeggio), saw (the furniture workshop's saw-whirr: a
  *   rising blade whine with a wood bite, ending in a knock), woof (a dog sled's cheerful two-bark "wuff wuff").
- * - Pads (fx/padJuice.ts): tick (a soft wood-and-glass tick per cash bundle into a pad; the JuiceDirector walks its
- *   pitch up a pentatonic ladder), padDone (a warm, low strummed major chord with a glassy top: a pad completes),
- *   ding (a tiny two-note "ding-ding": an era-gate row turns green). These are kept quiet and soft-edged (lowpassed,
- *   no sharp attacks) so hundreds of repeats never fatigue, and each has a per-sound cap on overlapping voices
- *   (VOICE_CAP), on top of the global MAX_VOICES.
+ * - Pads (fx/padJuice.ts; 0.9.8 brief 13 owns these): tick (the coin pour: a small coin settling onto felt per cash
+ *   bundle into a pad; the JuiceDirector walks its pitch up a pentatonic ladder), padStep (a soft felt thump: stepping
+ *   onto a pad, and under every completion), padDone (a warm, low strummed major chord with a glassy top: a pad
+ *   completes), padNote (a music-box bell, one pentatonic step higher per level bought, with a soft echo),
+ *   padCapstone (Lv 10: a slow-strummed major-ninth chord under a falling-snow bell arpeggio), ding (a tiny two-note
+ *   "ding-ding": an era-gate row turns green). These are kept quiet and soft-edged (lowpassed, no sharp attacks) so
+ *   hundreds of repeats never fatigue, and each has a per-sound cap on overlapping voices (VOICE_CAP), on top of the
+ *   global MAX_VOICES.
  * - combo: repeats of the same sound within ~0.35 s rise in pitch (semitone steps, capped at +12)
  *   — the classic stacking pickup feel. Rapid repeats are rate-limited per sound and the number of
  *   simultaneous voices is capped, so streams never clip.
@@ -75,6 +78,9 @@ export type SfxName =
   | 'bellToll'
   | 'tick'
   | 'padDone'
+  | 'padStep'
+  | 'padNote'
+  | 'padCapstone'
   | 'ding'
   // 0.9.5: a tool striking an era hand node (eras/HandNode.ts)
   | 'strike';
@@ -91,7 +97,7 @@ export interface PlayOptions {
 const STORAGE_KEY = 'winterland:muted';
 const MUSIC_KEY = 'winterland:music';
 /** SFX loud enough to dip the music under them. */
-const DUCKS = new Set<SfxName>(['fanfare', 'unlock', 'upgrade', 'cheer', 'crash', 'whistle']);
+const DUCKS = new Set<SfxName>(['fanfare', 'unlock', 'upgrade', 'cheer', 'crash', 'whistle', 'padCapstone']);
 const MASTER_GAIN = 0.5;
 const COMBO_WINDOW = 0.35;
 const COMBO_MAX = 12;
@@ -133,6 +139,9 @@ const MIN_GAP: Record<SfxName, number> = {
   bellToll: 0.8,
   tick: 0.055,
   padDone: 0.3,
+  padStep: 0.15,
+  padNote: 0.1,
+  padCapstone: 1.0,
   ding: 0.12,
   strike: 0.08,
 };
@@ -141,6 +150,9 @@ const MIN_GAP: Record<SfxName, number> = {
 const VOICE_CAP: Partial<Record<SfxName, { max: number; len: number }>> = {
   tick: { max: 3, len: 0.16 },
   padDone: { max: 2, len: 1.3 },
+  padStep: { max: 2, len: 0.2 },
+  padNote: { max: 3, len: 1.5 },
+  padCapstone: { max: 1, len: 2.8 },
   ding: { max: 3, len: 0.6 },
 };
 
@@ -719,12 +731,51 @@ export class AudioFX {
         break;
       }
       case 'tick':
-        // soft wood-and-glass tick: a short rounded knock, a faint glassy partial above it and a breath of grain
-        this.tone(t, 'sine', 620 * p, 560 * p, 0.07, 0.14 * v, 0.003);
-        this.tone(t, 'sine', 620 * 2.76 * p, 620 * 2.76 * p, 0.05, 0.025 * v, 0.002);
-        this.tone(t, 'triangle', 1240 * p, 1240 * p, 0.04, 0.03 * v, 0.003, 2600);
-        this.hiss(t, 'bandpass', 2200, 1800, 0.018, 0.025 * v, 0.002, 1.6);
+        // the coin pour: a small coin settling onto felt. A muffled bump, a rounded wood-and-glass knock, two soft
+        // metallic partials that ring a moment (lowpassed, never a sharp click) and a breath of cloth
+        this.tone(t, 'sine', 190 * p, 140 * p, 0.06, 0.07 * v, 0.004);
+        this.tone(t, 'sine', 620 * p, 560 * p, 0.07, 0.11 * v, 0.003);
+        this.tone(t + 0.004, 'sine', 1560 * p, 1540 * p, 0.12, 0.022 * v, 0.003, 3200);
+        this.tone(t + 0.004, 'sine', 1560 * 2.41 * p, 1560 * 2.41 * p, 0.07, 0.009 * v, 0.003, 4200);
+        this.hiss(t, 'bandpass', 2400, 1600, 0.022, 0.02 * v, 0.003, 1.4);
         break;
+      case 'padStep':
+        // soft felt thump: a low rounded "whump" with a muffled cloth breath, no click
+        this.tone(t, 'sine', 96 * p, 58 * p, 0.17, 0.24 * v, 0.006);
+        this.tone(t, 'triangle', 190 * p, 120 * p, 0.09, 0.05 * v, 0.006, 480);
+        this.hiss(t, 'lowpass', 700, 220, 0.1, 0.06 * v, 0.006, 0.7);
+        break;
+      case 'padNote': {
+        // music-box bell (C5 at pitch 1): a sine with a soft attack, a gentle octave and a glassy partial, then a quieter echo
+        const n = 523.25 * p;
+        for (const [at, g] of [[0, 1], [0.2, 0.42]] as const) {
+          this.tone(t + at, 'sine', n, n, 1.2, 0.075 * g * v, 0.012);
+          this.tone(t + at, 'sine', n * 2, n * 2, 0.5, 0.018 * g * v, 0.01);
+          this.tone(t + at, 'sine', n * 2.76, n * 2.76, 0.22, 0.008 * g * v, 0.008);
+        }
+        break;
+      }
+      case 'padCapstone': {
+        // Lv 10: a slow upward strum of C major-nine (C3 … D5) over a soft low root, then a falling-snow arpeggio of
+        // high bells and a hush of air; everything rounded and lowpassed so it feels like a warm sigh, not a fanfare
+        const chord = [130.81, 196, 261.63, 329.63, 392, 493.88, 587.33];
+        this.tone(t, 'sine', 65.41 * p, 65.41 * p, 2.2, 0.08 * v, 0.03);
+        for (let i = 0; i < chord.length; i++) {
+          const n = chord[i]! * p;
+          const at = t + i * 0.06;
+          this.tone(at, 'triangle', n, n, 2.0, 0.045 * v, 0.03, 1600);
+          this.tone(at, 'sine', n, n * 1.002, 1.9, 0.05 * v, 0.025);
+        }
+        const bells = [1046.5, 1318.5, 1568, 2093];
+        for (let i = 0; i < bells.length; i++) {
+          const n = bells[bells.length - 1 - i]! * p;
+          const at = t + 0.5 + i * 0.13;
+          this.tone(at, 'sine', n, n, 0.9, 0.03 * v, 0.008);
+          this.tone(at, 'sine', n * 2.76, n * 2.76, 0.25, 0.005 * v, 0.006);
+        }
+        this.hiss(t + 0.3, 'highpass', 5200, 7000, 1.2, 0.012 * v, 0.5, 0.6);
+        break;
+      }
       case 'padDone': {
         // warm chord: a low root + a gently strummed major triad (lowpassed triangles over sines), a glassy top note
         const chord = [261.63, 329.63, 392, 523.25];

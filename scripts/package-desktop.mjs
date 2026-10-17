@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { packager } from '@electron/packager';
 import { FuseState, flipFuses, getCurrentFuseWire } from '@electron/fuses';
 import { electronBinary, fuseConfig } from './fuses.mjs';
-import { updaterFiles } from './updater-files.mjs';
+import { inAppUpdaterFiles, updaterFiles } from './updater-files.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
@@ -42,7 +42,7 @@ mkdirSync(out, { recursive: true });
 const keep = (p) =>
   p === '' ||
   p === '/package.json' ||
-  (p.startsWith('/desktop') && !p.startsWith('/desktop/updater')) ||
+  (p.startsWith('/desktop') && p !== '/desktop/updater' && !p.startsWith('/desktop/updater/')) ||
   p.startsWith('/dist');
 
 for (const target of targets) {
@@ -72,9 +72,11 @@ for (const target of targets) {
     if (!/^\d+$/.test(fuse)) continue;
     if ((wire[fuse] === FuseState.ENABLE) !== want) throw new Error(`fuse ${fuse} on ${target} did not flip to ${want}`);
   }
-  // "Update Winterland" (desktop/updater): click it to get the newest release from GitHub.
-  for (const f of updaterFiles(platform, arch, pkg.version)) {
-    const file = join(dir, f.path);
+  // "Update Winterland" (desktop/updater): click it to get the newest release from GitHub. 0.9.8: a second copy goes
+  // into the app's resources, where the in-game updater (desktop/updater.cjs) finds it wherever the app was moved.
+  const resources = platform === 'darwin' ? join(dir, 'Winterland.app', 'Contents', 'Resources') : join(dir, 'resources');
+  for (const f of [...updaterFiles(platform, arch, pkg.version), ...inAppUpdaterFiles(platform, arch, pkg.version)]) {
+    const file = f.inApp ? join(resources, f.path) : join(dir, f.path);
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, f.content);
     chmodSync(file, f.mode);

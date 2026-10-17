@@ -26,14 +26,16 @@
  * little per landing, an affordable pad (everything still missing is in the wallet / arms) breathes a warm glow, and a
  * completion played from a landing bounces (squash-and-stretch) before popping out and emits 'pad:complete' kind
  * 'build' after onComplete(). Bounces shrink under reduced motion. Visual only: zones, intervals and amounts unchanged.
+ * 0.9.8 (brief 13): the requirement rows hang on a tag under the sign (assets/pads.ts hangPriceTag); PadFeel breathes
+ * the tile slowly while everything missing is affordable, dims it while nothing can be paid, thumps when stepped on.
  */
 import * as THREE from 'three';
-import { PALETTE, TIMING, rect } from '../config';
+import { PALETTE, TIMING, rect, type Rect } from '../config';
 import { Ease } from '../core/Tween';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 import type { Zone } from '../items/Zones';
-import { createConstructionTexture, createPadModel, createPadSign, setPadSignLabel, type ShelterIcon } from '../assets/pads';
-import { PadRing, playPadCelebrate } from '../fx/PadRing';
+import { createConstructionTexture, createPadModel, createPadSign, hangPriceTag, setPadSignLabel, type ShelterIcon } from '../assets/pads';
+import { PadFeel, PadRing, playPadCelebrate } from '../fx/PadRing';
 import { PAD_CASH_FLIGHT, motionScale } from '../fx/padJuice';
 
 export type ConstructionIcon = ShelterIcon;
@@ -102,6 +104,8 @@ export class ConstructionPad implements ItemHolder {
   private readonly model: THREE.Group;
   private readonly sign: THREE.Mesh;
   private readonly ring: PadRing;
+  private readonly feel: PadFeel;
+  private readonly area: Rect;
   private readonly tmpPos = new THREE.Vector3();
 
   constructor(
@@ -119,6 +123,8 @@ export class ConstructionPad implements ItemHolder {
     this.pulse.add(this.model);
     this.object.add(this.pulse);
     this.sign = createPadSign(this.target.label);
+    hangPriceTag(this.sign, this.texture);
+    this.feel = new PadFeel(ctx, this.model, opts.x);
     this.sign.scale.setScalar(SIGN_SCALE);
     this.sign.position.set(0, SIGN_HEIGHT, 0);
     this.object.add(this.sign);
@@ -130,6 +136,7 @@ export class ConstructionPad implements ItemHolder {
     ctx.addUpdatable(this);
     // the accept zone is the tile itself (was ×1.2): neighbouring village pads no longer overlap the street's lane
     const area = rect(opts.x, opts.z, opts.size, opts.size);
+    this.area = area;
     this.logZone = ctx.zones.addTransfer({
       id: `${this.id}:logs`,
       area,
@@ -191,6 +198,7 @@ export class ConstructionPad implements ItemHolder {
   show(instant = false): void {
     if (this.shown) return;
     this.shown = true;
+    this.feel.reset();
     this.syncZones();
     this.completeIfPaid();
     const tw = this.ctx.tweens;
@@ -280,10 +288,10 @@ export class ConstructionPad implements ItemHolder {
       ((this.logsLeft - this.pendingLogs > 0 && arms.count('log') > 0) ||
         (this.cashLeft - this.pendingCash > 0 && this.ctx.economy.money >= 5) ||
         (this.target.extra !== null && this.extraLeft - this.pendingExtra > 0 && arms.count(this.target.extra.kind) > 0));
-    const amp = (eager ? 0.05 : 0.02) * motionScale();
-    const s = 1 + amp * Math.sin(t * (eager ? 5.5 : 3));
-    this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
-    this.ring.update(dt, t, eager && this.affordable());
+    const afford = eager && this.affordable();
+    const paying = this.pendingLogs + this.pendingCash + this.pendingExtra > 0;
+    this.feel.update(dt, t, this.pulse, afford, eager || paying, this.ctx.zones.isPlayerIn(this.area));
+    this.ring.update(dt, t, afford);
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
     this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.opts.x) * 0.05 * motionScale();
   }

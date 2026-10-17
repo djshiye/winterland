@@ -82,16 +82,16 @@ const LEATHER = 0x7a4a2e;
 const LEATHER_D = 0x5e3822;
 const GOLD = 0xe8b341;
 const GOLD_D = 0xc9952e;
-const IRON_W = 0x4d4440;
+const IRON_W = 0x63564d; // 0.9.8: warmed (V3)
 const ROPE = 0xcbb08a;
 // era 3: forged iron (warm-tinted), terracotta brick, charcoal earth
 const IRON3 = 0x6a6058;
-const IRON3_D = 0x4a423d;
+const IRON3_D = 0x564c45;
 const IRON3_L = 0x857a70;
 const EARTH3 = 0x5e4c44;
 const TURF = 0x6e6b48;
 const TURF_D = 0x585636;
-const CHAR = 0x2e2a2a;
+const CHAR = 0x4a3f45; // 0.9.8: warm coal, never near-black (V3)
 const STONE3 = 0x7a6e66;
 const COPPER = 0xa8603a;
 const BRASS3 = 0xb08a3e;
@@ -99,7 +99,7 @@ const BRASS3_L = 0xcfa955;
 const WATER = 0x7aa6b8;
 // era 4: brick, polished brass, black iron (warm)
 const IRON4 = 0x6a605b;
-const IRON4_D = 0x4e4643;
+const IRON4_D = 0x5a504d;
 const IRON4_L = 0x857a73;
 const BRASS4 = 0xd49a35;
 const BRASS4_L = 0xe8bb5e;
@@ -117,7 +117,7 @@ const G_WARM = 0xffd070;
 const _c = new THREE.Color();
 const _w = new THREE.Color(0xffffff);
 /** Lighten (f > 0, towards white) or darken (f < 0) a colour. */
-function tint(c: number, f: number): number {
+export function tint(c: number, f: number): number {
   _c.setHex(c);
   if (f >= 0) _c.lerp(_w, f);
   else _c.multiplyScalar(1 + f);
@@ -129,7 +129,7 @@ function tint(c: number, f: number): number {
 // ---------------------------------------------------------------------------
 
 const geoCache = new Map<string, THREE.BufferGeometry>();
-function cached(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry {
+export function cached(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry {
   let g = geoCache.get(key);
   if (!g) {
     g = make();
@@ -139,30 +139,30 @@ function cached(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeom
 }
 
 /** Bevelled box with its bottom face at `y` (the guide wants ≥ 0.08 m bevels on the big shapes). */
-function rb(k: Kit, color: number, w: number, h: number, d: number, x: number, y: number, z: number, r = 0.08, o?: Rot): void {
+export function rb(k: Kit, color: number, w: number, h: number, d: number, x: number, y: number, z: number, r = 0.08, o?: Rot): void {
   const rr = Math.max(0.005, Math.min(r, Math.min(w, h, d) / 2 - 0.005));
   k.add(cached(`rb${w}|${h}|${d}|${rr.toFixed(3)}`, () => new RoundedBoxGeometry(w, h, d, 2, rr)), color, x, y + h / 2, z, o);
 }
 
 /** Rounded snow cap (bottom at `y`). */
-function cap(k: Kit, w: number, d: number, x: number, y: number, z: number, h = 0.12, o?: Rot): void {
+export function cap(k: Kit, w: number, d: number, x: number, y: number, z: number, h = 0.12, o?: Rot): void {
   rb(k, SNOW, w, h, d, x, y, z, 0.05, o);
 }
 
 /** Box centred at (x, y, z) (rotations pivot around the centre). */
-function boxC(k: Kit, color: number, w: number, h: number, d: number, x: number, y: number, z: number, o?: Rot): void {
+export function boxC(k: Kit, color: number, w: number, h: number, d: number, x: number, y: number, z: number, o?: Rot): void {
   k.box(color, w, h, d, x, y - h / 2, z, o);
 }
 
 /** The guide's 4.8 × 4.8 × 0.25 m bevelled plinth with snow drifts on the corners. */
-function plinth(k: Kit, color: number): void {
+export function plinth(k: Kit, color: number): void {
   rb(k, color, 4.8, 0.25, 4.8, 0, 0, 0, 0.1);
   rb(k, tint(color, 0.1), 4.5, 0.03, 4.5, 0, 0.24, 0, 0.01);
   for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) k.sph(SNOW, 0.36, sx * 2.02, 0.26, sz * 2.02, { sy: 0.38 });
 }
 
 /** Chimney: tapering stack, rim band, snow ring and a dark mouth. Top of the mouth at y + h + 0.05. */
-function chimney(k: Kit, color: number, rim: number, x: number, y: number, z: number, r: number, h: number): void {
+export function chimney(k: Kit, color: number, rim: number, x: number, y: number, z: number, r: number, h: number): void {
   k.cyl(color, r, h, x, y, z, 10, r * 0.86);
   k.cyl(rim, r * 0.96, 0.16, x, y + h - 0.12, z, 10);
   k.torus(SNOW, r * 0.78, 0.06, x, y + h + 0.04, z, { rx: Math.PI / 2 }, 12);
@@ -170,23 +170,23 @@ function chimney(k: Kit, color: number, rim: number, x: number, y: number, z: nu
 }
 
 /** Upper half of a torus (an arch) in the XY plane, centred at (x, y, z); `ry` turns it. */
-function arch(k: Kit, color: number, r: number, tube: number, x: number, y: number, z: number, ry = 0): void {
+export function arch(k: Kit, color: number, r: number, tube: number, x: number, y: number, z: number, ry = 0): void {
   k.add(cached(`ar${r}|${tube}`, () => new THREE.TorusGeometry(r, tube, 6, 14, Math.PI)), color, x, y, z, { ry });
 }
 
 /** Upper half disc facing +Z, centred at (x, y, z) (an arched window pane). */
-function halfDisc(k: Kit, color: number, r: number, x: number, y: number, z: number): void {
+export function halfDisc(k: Kit, color: number, r: number, x: number, y: number, z: number): void {
   k.add(cached(`hd${r}`, () => new THREE.CircleGeometry(r, 10, 0, Math.PI)), color, x, y, z);
 }
 
 /** Curved snow shell over a cylinder lying along X (radius r, vertical squash `sq`), centred at (x, yc, z). */
-function snowArc(k: Kit, r: number, len: number, x: number, yc: number, z: number, sq: number, spread = 0.95): void {
+export function snowArc(k: Kit, r: number, len: number, x: number, yc: number, z: number, sq: number, spread = 0.95): void {
   const g = cached(`sa${r}|${len}|${spread}`, () => new THREE.CylinderGeometry(r, r, len, 16, 1, true, Math.PI / 2 - spread, spread * 2));
   k.add(g, SNOW, x, yc, z, { rz: Math.PI / 2, sx: sq });
 }
 
 /** A heap of squashed lumps in the given colours. */
-function lumps(k: Kit, cols: readonly number[], cx: number, y0: number, cz: number, rad: number, n: number, seed: number, r = 0.17): void {
+export function lumps(k: Kit, cols: readonly number[], cx: number, y0: number, cz: number, rad: number, n: number, seed: number, r = 0.17): void {
   const rnd = seeded(seed);
   for (let i = 0; i < n; i++) {
     const a = rnd() * Math.PI * 2;
@@ -197,7 +197,7 @@ function lumps(k: Kit, cols: readonly number[], cx: number, y0: number, cz: numb
 }
 
 /** Little lantern hanging at (x, y, z): cap, glowing globe, base ring. */
-function lantern(b: Kit, g: Kit, color: number, x: number, y: number, z: number, r = 0.13): void {
+export function lantern(b: Kit, g: Kit, color: number, x: number, y: number, z: number, r = 0.13): void {
   b.cone(IRON_W, r * 1.15, r, x, y + r * 0.7, z, 8);
   g.sph(color, r, x, y, z);
   b.cyl(IRON_W, r * 0.9, 0.05, x, y - r - 0.02, z, 8);
@@ -660,7 +660,7 @@ const mintChute: Recipe = ({ body: b, glow: g, anim: a }) => {
 // ---------------------------------------------------------------------------
 
 /** One straight fence run (posts + two rails + snow on top) from (x0, z0) to (x1, z1). */
-function fenceRun(k: Kit, post: number, rail: number, x0: number, z0: number, x1: number, z1: number): void {
+export function fenceRun(k: Kit, post: number, rail: number, x0: number, z0: number, x1: number, z1: number): void {
   const len = Math.hypot(x1 - x0, z1 - z0);
   const n = Math.ceil(len / 0.55);
   const ry = -Math.atan2(z1 - z0, x1 - x0);
@@ -731,7 +731,7 @@ const scrapYard: Recipe = ({ body: b, glow: g, anim: a }) => {
     a.beam(IRON4, [-0.1, 0.05, 0], [1.75, 0.2, 0], 0.15);
     a.beam(IRON4_D, [0, -0.45, 0], [1.2, 0.17, 0], 0.08);
     rb(a, IRON4_D, 0.42, 0.34, 0.36, -0.45, -0.1, 0, 0.05);
-    a.beam(0x3b2d26, [1.65, 0.18, 0], [1.65, -1.05, 0], 0.03);
+    a.beam(IRON4_D, [1.65, 0.18, 0], [1.65, -1.05, 0], 0.03);
     a.cyl(BRASS4, 0.1, 0.08, 1.65, -1.12, 0, 8);
     a.cyl(IRON4_D, 0.22, 0.14, 1.65, -1.26, 0, 10);
     a.torus(BRASS4, 0.18, 0.06, 1.65, -1.5, 0, { ry: 0.6 }, 14);
@@ -969,8 +969,19 @@ export function createEraMachine2Model(id: EraMachine2Id): MachineModel {
     }
   };
   animate(0, false);
-  return { root, w: built.w, d: built.d, animate };
+  const v = VENTS[id];
+  return { root, w: built.w, d: built.d, animate, ...(v ? { vents: v.at, ventColor: v.color } : {}) };
 }
+
+/** 0.9.8: stack tops that puff while working (eras/Machine.ts). */
+const VENTS: Partial<Record<EraMachine2Id, { at: V3[]; color: number }>> = {
+  tileKiln: { at: [[-0.62, 3.85, -0.95], [0.62, 3.85, -0.95]], color: 0xf2ece6 },
+  charcoalClamp: { at: [[0, 3.0, -0.1]], color: 0xf2ece6 },
+  forge: { at: [[-0.85, 4.15, -1.25]], color: 0xf2ece6 },
+  railMill: { at: [[-1.6, 3.85, -1.85]], color: 0xf2ece6 },
+  boilerShop: { at: [[-1.35, 4.15, -1.65], [-0.7, 3.95, -1.65]], color: 0xffffff },
+  engineWorks: { at: [[-1.45, 4.7, -1.65]], color: 0xffffff },
+};
 
 // ---------------------------------------------------------------------------
 // gallery catalog (?gallery=eraMachines2, or one era's row: ?gallery=newEra3)

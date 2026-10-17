@@ -11,7 +11,6 @@
 import * as THREE from 'three';
 import { LAYOUT } from '../config';
 import type { GameContext } from '../core/types';
-import { buildAurora, type AuroraPart } from './env/aurora';
 import { buildBuildings } from './env/buildings';
 import { setGlowStrength, updateGlow } from './env/glow';
 import { Rng, type EnvPart } from './env/common';
@@ -27,6 +26,8 @@ import { buildRiver } from './env/river';
 import { buildRoads, highwayY } from './env/roads';
 import { buildTown, type TownPart } from './env/town';
 import { buildSnowfall, type SnowfallPart } from './env/snowfall';
+import { Sky } from './sky/Sky';
+import { resetSmoke, smokeFrom } from './sky/smoke';
 import { glowScale, onComfortChange, reducedMotion } from '../fx/comfort';
 import { regionAt } from '../eras/playerUpgrades';
 
@@ -56,7 +57,8 @@ export class Environment {
   private readonly parts: EnvPart[] = [];
   private readonly river: EnvPart;
   private readonly snowfall: SnowfallPart;
-  private readonly aurora: AuroraPart;
+  /** 0.9.8: sky, weather and life (world/sky/Sky.ts). */
+  private readonly sky: Sky;
   private readonly fences: ReturnType<typeof buildFences>;
   private readonly ground: ReturnType<typeof buildGround>;
   private readonly gate: GatePart;
@@ -78,6 +80,7 @@ export class Environment {
   constructor(readonly ctx: GameContext) {
     this.root.name = 'environment';
     resetEras();
+    resetSmoke();
     ctx.scene.add(this.root);
     const rng = new Rng(20260);
 
@@ -92,17 +95,18 @@ export class Environment {
     this.snowfall = buildSnowfall(ctx, rng);
     this.gate = buildGate(ctx);
     this.ridgeGate = buildRidgeGate();
-    this.aurora = buildAurora();
     this.town = buildTown(ctx, new Rng(9090));
+    this.sky = new Sky(ctx, this.snowfall);
     // 0.9.0: the old scatter is built exactly as before; whatever landed on the new land is pruned afterwards.
     pruneNewLand(decor.group);
     this.frontier = buildFrontier(ctx, this.town.group, roads.trikeTail);
     this.chimney = buildings.chimney;
 
-    for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, this.town, this.frontier, roads, mountains, decor, buildings, this.snowfall, this.aurora]) {
+    for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, this.town, this.frontier, roads, mountains, decor, buildings, this.snowfall]) {
       this.parts.push(p);
       this.root.add(p.group);
     }
+    this.root.add(this.sky.group);
     decor.stripItems.forEach((item, i) => {
       this.strip.push({ item, baseScale: item.object.scale.x, delay: 0.1 + i * 0.09, puffed: false });
     });
@@ -111,7 +115,6 @@ export class Environment {
     ctx.renderer.darknessSource = () => ctx.dayNight.darkness;
     ctx.renderer.onDarkness((d) => {
       updateGlow(d);
-      this.aurora.setDarkness(d);
     });
     // 0.9.8: each era's light and colour grade follows the camera (render/palette.ts looks; outside the regions = era 1)
     ctx.renderer.eraSource = () => {
@@ -172,17 +175,15 @@ export class Environment {
     this.frontier.update?.(dt);
     this.mountains.update?.(dt);
     this.eras.update(dt);
-    // Wave 13: world events (snowstorm: heavier snowfall; aurora: stronger curtains)
-    this.snowfall.setIntensity(this.ctx.worldEvents.snowfall);
-    this.aurora.setStrength(this.ctx.worldEvents.active === 'aurora' ? 1.8 : 1);
+    // 0.9.8: the sky runs the weather (snowfall amount, the snowstorm event), the northern lights (stronger in the
+    // aurora event), cloud shadows, the sun path, each era's air, chimney smoke and birds
+    this.sky.update(dt);
     this.snowfall.update?.(dt);
-    this.aurora.update?.(dt);
 
     this.smokeTimer -= dt;
     if (this.smokeTimer <= 0) {
-      this.smokeTimer = 0.75;
-      this.tmp.copy(this.chimney);
-      this.ctx.particles.puff(this.tmp, { color: 0xffffff, count: 1, size: 0.5, life: 2.2 });
+      this.smokeTimer = 5;
+      smokeFrom(this.chimney, 0.5);
     }
 
     if (this.expanding) this.stepExpansion(dt);

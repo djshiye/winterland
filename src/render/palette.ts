@@ -8,11 +8,13 @@
  *
  * Per era (1 Survival … 10 AI):
  * - the guide row of docs/art/guide.md (ground, fence, body, accent, trim, glow, coat);
- * - `floor`: the yard / processing floor colours of DIRECTION.md (each era's base board, so regions stop reading alike);
+ * - `floor`: the yard / processing floor colours of DIRECTION.md and the region's `board` (the ground the whole plot
+ *   stands on, world/env/eraGround.ts), each era's own base board so regions stop reading alike;
  * - `light`: the night lamp colour of the DIRECTION table;
- * - `look`: how the renderer lights and grades the era (render/Renderer.ts): a warm night (sky, hemisphere, moon,
- *   never a mauve wash) and a colour grade (tint, shadow lift, saturation, contrast, vignette) for day and night,
- *   each built around the era's main resource (R36);
+ * - `look`: how the renderer lights and grades the era (render/Renderer.ts): its daylight (sun and sky strength, the
+ *   sky and ground bounce colours: firm sun shadows, never a pale wash), a warm night (sky, hemisphere, moon, never a
+ *   mauve wash) and a colour grade (tint, shadow lift, saturation, contrast, vignette) for day and night, each built
+ *   around the era's main resource (R36);
  * - `city`: the district building colours (assets/cityBuildings.ts; era 1 has no district).
  * The machine files' extra material tones per era sit in MACHINE_TONES.
  */
@@ -41,7 +43,19 @@ export interface Grade {
   vignette: number;
 }
 
-/** How the renderer lights an era at night (day light is shared: config LIGHTING). */
+/**
+ * How the renderer lights an era by day (0.9.8 world threads; Validator note on PR #45: eras 2-10 read pale by day).
+ * `sun` / `hemi` multiply config LIGHTING's sun and hemisphere intensities: a weaker sky fill and a stronger sun give
+ * firm, readable shadows. The sky and ground bounce colours tint those shadows (plum-blue, never grey).
+ */
+export interface DayLight {
+  sun: number;
+  hemi: number;
+  hemiSky: number;
+  hemiGround: number;
+}
+
+/** How the renderer lights an era at night. */
 export interface NightLight {
   sky: number;
   hemiSky: number;
@@ -51,6 +65,7 @@ export interface NightLight {
 }
 
 export interface EraLook {
+  day: DayLight;
   night: NightLight;
   grade: { day: Grade; night: Grade };
 }
@@ -74,8 +89,8 @@ export interface EraPalette {
   trim: number;
   glow: number;
   coat: number;
-  /** Yard / processing floor (DIRECTION per-era table). */
-  floor: { yard: number; processing: number };
+  /** Yard / processing floor (DIRECTION per-era table) and the board the whole region stands on. */
+  floor: { yard: number; processing: number; board: number };
   /** Night lamp light. */
   light: number;
   look: EraLook;
@@ -93,6 +108,13 @@ export interface EraPalette {
  */
 const NIGHT: NightLight = { sky: 0x1a2250, hemiSky: 0x6476c4, hemiGround: 0x5a4248, moon: 0xaebcf0 };
 
+/**
+ * The shared daylight: the sun a touch stronger and the sky fill well down from config LIGHTING's (1.35 hemisphere
+ * washed every shadow out), with a cool periwinkle sky and a plum ground bounce so shadows read blue-violet on snow.
+ */
+const DAY: DayLight = { sun: 1.1, hemi: 0.72, hemiSky: 0xd4e2fa, hemiGround: 0x8f86a8 };
+
+const day = (patch: Partial<DayLight>): DayLight => ({ ...DAY, ...patch });
 const grade = (tint: number, lift: number, saturation: number, contrast: number, vignette: number): Grade => ({ tint, lift, saturation, contrast, vignette });
 const night = (patch: Partial<NightLight>): NightLight => ({ ...NIGHT, ...patch });
 
@@ -103,27 +125,27 @@ const night = (patch: Partial<NightLight>): NightLight => ({ ...NIGHT, ...patch 
  */
 const LOOKS: readonly EraLook[] = [
   // 0: unused (era numbers start at 1)
-  { night: NIGHT, grade: { day: grade(0xffffff, 0x000000, 1, 1, 0), night: grade(0xffffff, 0x000000, 1, 1, 0) } },
+  { day: DAY, night: NIGHT, grade: { day: grade(0xffffff, 0x000000, 1, 1, 0), night: grade(0xffffff, 0x000000, 1, 1, 0) } },
   // 1 Survival: the forest and the log, amber hearths
-  { night: night({}), grade: { day: grade(0xfffcfa, 0x0d0812, 1.06, 1.03, 0.2), night: grade(0xfff8ee, 0x110b18, 1.08, 1.02, 0.3) } },
+  { day: day({ hemi: 0.8 }), night: night({}), grade: { day: grade(0xfffcfa, 0x0d0812, 1.06, 1.03, 0.2), night: grade(0xfff8ee, 0x110b18, 1.08, 1.02, 0.3) } },
   // 2 Frontier: fieldstone and clay, kiln mouths
-  { night: night({ hemiGround: 0x644a4c }), grade: { day: grade(0xfffcfa, 0x0e0911, 1.05, 1.03, 0.2), night: grade(0xfff6ee, 0x120b16, 1.08, 1.02, 0.3) } },
+  { day: day({}), night: night({ hemiGround: 0x644a4c }), grade: { day: grade(0xfffcfa, 0x0e0911, 1.05, 1.03, 0.2), night: grade(0xfff6ee, 0x120b16, 1.08, 1.02, 0.3) } },
   // 3 Iron Age: rust ore, forge orange
-  { night: night({ hemiGround: 0x704a40, sky: 0x241e42 }), grade: { day: grade(0xfffbf8, 0x0f0910, 1.07, 1.05, 0.22), night: grade(0xfff4ea, 0x140b15, 1.1, 1.04, 0.32) } },
+  { day: day({}), night: night({ hemiGround: 0x704a40, sky: 0x241e42 }), grade: { day: grade(0xfffbf8, 0x0f0910, 1.07, 1.05, 0.22), night: grade(0xfff4ea, 0x140b15, 1.1, 1.04, 0.32) } },
   // 4 Steam Age: coal and brass, gas lamps
-  { night: night({ hemiGround: 0x644c44, hemiSky: 0x6674bc }), grade: { day: grade(0xfefcf8, 0x0e0a10, 1.0, 1.04, 0.24), night: grade(0xfcf4ec, 0x120d15, 1.04, 1.03, 0.34) } },
+  { day: day({}), night: night({ hemiGround: 0x644c44, hemiSky: 0x6674bc }), grade: { day: grade(0xfefcf8, 0x0e0a10, 1.0, 1.04, 0.24), night: grade(0xfcf4ec, 0x120d15, 1.04, 1.03, 0.34) } },
   // 5 Industrial: iron pellets and coke, sodium lamps
-  { night: night({ hemiGround: 0x6a5040, sky: 0x221f40 }), grade: { day: grade(0xfffcf8, 0x0e0a10, 1.04, 1.05, 0.22), night: grade(0xfff8e8, 0x130d14, 1.08, 1.04, 0.32) } },
+  { day: day({}), night: night({ hemiGround: 0x6a5040, sky: 0x221f40 }), grade: { day: grade(0xfffcf8, 0x0e0a10, 1.04, 1.05, 0.22), night: grade(0xfff8e8, 0x130d14, 1.08, 1.04, 0.32) } },
   // 6 Electric Age: copper and teal, mint bulbs
-  { night: night({ hemiGround: 0x565250, hemiSky: 0x5e7ec4, sky: 0x1a2446 }), grade: { day: grade(0xfcfefc, 0x0a0c11, 1.06, 1.03, 0.2), night: grade(0xfafaf6, 0x0d0f16, 1.08, 1.03, 0.3) } },
+  { day: day({}), night: night({ hemiGround: 0x565250, hemiSky: 0x5e7ec4, sky: 0x1a2446 }), grade: { day: grade(0xfcfefc, 0x0a0c11, 1.06, 1.03, 0.2), night: grade(0xfafaf6, 0x0d0f16, 1.08, 1.03, 0.3) } },
   // 7 Oil: honey lanes, flare peach
-  { night: night({ hemiGround: 0x6c4e40 }), grade: { day: grade(0xfffcf6, 0x0f0a10, 1.06, 1.04, 0.22), night: grade(0xfff6e8, 0x130c14, 1.08, 1.03, 0.32) } },
+  { day: day({}), night: night({ hemiGround: 0x6c4e40 }), grade: { day: grade(0xfffcf6, 0x0f0a10, 1.06, 1.04, 0.22), night: grade(0xfff6e8, 0x130c14, 1.08, 1.03, 0.32) } },
   // 8 Computer: beige terrazzo, screen mint
-  { night: night({ hemiGround: 0x56524e, hemiSky: 0x6678c2 }), grade: { day: grade(0xfefefc, 0x0b0b10, 1.02, 1.03, 0.18), night: grade(0xfafaf6, 0x0e0e15, 1.06, 1.02, 0.28) } },
+  { day: day({}), night: night({ hemiGround: 0x56524e, hemiSky: 0x6678c2 }), grade: { day: grade(0xfefefc, 0x0b0b10, 1.02, 1.03, 0.18), night: grade(0xfafaf6, 0x0e0e15, 1.06, 1.02, 0.28) } },
   // 9 Nuclear: mint glaze, aqua pools
-  { night: night({ hemiGround: 0x50564c, hemiSky: 0x5c84c4, sky: 0x18264a }), grade: { day: grade(0xfcfefc, 0x0a0d10, 1.04, 1.03, 0.18), night: grade(0xf8fcfa, 0x0d1014, 1.08, 1.02, 0.28) } },
+  { day: day({}), night: night({ hemiGround: 0x50564c, hemiSky: 0x5c84c4, sky: 0x18264a }), grade: { day: grade(0xfcfefc, 0x0a0d10, 1.04, 1.03, 0.18), night: grade(0xf8fcfa, 0x0d1014, 1.08, 1.02, 0.28) } },
   // 10 AI: cream hex and gold seams, fusion sun-gold
-  { night: night({ hemiGround: 0x6e5844, hemiSky: 0x6c74c0, sky: 0x221e44 }), grade: { day: grade(0xfffefa, 0x0d0b10, 1.04, 1.02, 0.16), night: grade(0xfff8ee, 0x110d15, 1.08, 1.02, 0.26) } },
+  { day: day({}), night: night({ hemiGround: 0x6e5844, hemiSky: 0x6c74c0, sky: 0x221e44 }), grade: { day: grade(0xfffefa, 0x0d0b10, 1.04, 1.02, 0.16), night: grade(0xfff8ee, 0x110d15, 1.08, 1.02, 0.26) } },
 ];
 
 // ---------------------------------------------------------------------------
@@ -147,19 +169,23 @@ const GUIDE: readonly Row[] = [
   [0xcad4e0, 0x8fa1b3, 0xf5f0e6, 0xe8a848, 0x526475, 0xffe082, 0x637a91],
 ];
 
-/** DIRECTION per-era floors (yard / processing) and night lights. Eras 5, 8 and 10 follow resources v2. */
-const FLOORS: readonly [yard: number, processing: number, light: number][] = [
-  [0, 0, 0],
-  [0x9c7a5c, 0xc49a6c, 0xffb347], // packed earth, plank walkways; amber windows and lanterns
-  [0xb9ab98, 0x8f8170, 0xffb347], // fieldstone flags and mortar; hearth glow in the kiln mouths
-  [0x94604c, 0xc9906b, 0xff9233], // rust-ore gravel; forge orange
-  [0x7d7a78, 0xc77a45, 0xffbe55], // cinder slate with warm specks; boiler doors, gas lamps
-  [0xb8613f, 0x8a6a5c, 0xffd166], // herringbone brick, pellet-grey yard; sodium lamps
-  [0x5f8f86, 0x8fb0aa, 0x7ce8c8], // teal cobbles; mint bulbs on the wires
-  [0x5e5753, 0xe2ad3c, 0xffaa5a], // warm asphalt with honey lanes; flare peach
-  [0xe2d6bd, 0xd8cdb4, 0x66e0a3], // beige terrazzo, sand; screen mint
-  [0xa9c9bb, 0xcfe3d9, 0x70f5d9], // mint-glazed concrete; aqua pools
-  [0xf3ead8, 0xe8a848, 0xffe082], // cream hex panels with gold seams; sun-gold fusion glow
+/**
+ * DIRECTION per-era floors (yard / processing), the region's board and night lights. Eras 5, 8 and 10 follow resources
+ * v2. The board is what the whole plot stands on (world/env/eraGround.ts); eras still on the guide's pale snow ground
+ * keep it until their world thread gives them their own.
+ */
+const FLOORS: readonly [yard: number, processing: number, light: number, board: number][] = [
+  [0, 0, 0, 0],
+  [0x9c7a5c, 0xc49a6c, 0xffb347, 0x9c7a5c], // packed earth, plank walkways; amber windows and lanterns
+  [0xb9ab98, 0x8f8170, 0xffb347, 0xd6c6ae], // fieldstone flags and mortar on clay-dusted earth; hearth glow in the kiln mouths
+  [0x94604c, 0xc9906b, 0xff9233, 0xcca38c], // rust-ore gravel on rust-tinted earth; forge orange
+  [0x7d7a78, 0xc77a45, 0xffbe55, 0xc5ced9], // cinder slate with warm specks; boiler doors, gas lamps
+  [0xb8613f, 0x8a6a5c, 0xffd166, 0xbac4d0], // herringbone brick, pellet-grey yard; sodium lamps
+  [0x5f8f86, 0x8fb0aa, 0x7ce8c8, 0xb4c0cc], // teal cobbles; mint bulbs on the wires
+  [0x5e5753, 0xe2ad3c, 0xffaa5a, 0xaebac6], // warm asphalt with honey lanes; flare peach
+  [0xe2d6bd, 0xd8cdb4, 0x66e0a3, 0xc2ccd6], // beige terrazzo, sand; screen mint
+  [0xa9c9bb, 0xcfe3d9, 0x70f5d9, 0xcbd6e0], // mint-glazed concrete; aqua pools
+  [0xf3ead8, 0xe8a848, 0xffe082, 0xcad4e0], // cream hex panels with gold seams; sun-gold fusion glow
 ];
 
 /** District building colours, eras 2..10 (assets/cityBuildings.ts adds its own storey heights). */
@@ -178,8 +204,8 @@ const CITY: readonly (CityStyle | null)[] = [
 ];
 
 const PALETTES: readonly EraPalette[] = GUIDE.map(([ground, fence, body, accent, trim, glow, coat], n) => {
-  const [yard, processing, light] = FLOORS[n]!;
-  return { n, ground, fence, body, accent, trim, glow, coat, floor: { yard, processing }, light, look: LOOKS[n]!, city: CITY[n] ?? null };
+  const [yard, processing, light, board] = FLOORS[n]!;
+  return { n, ground, fence, body, accent, trim, glow, coat, floor: { yard, processing, board }, light, look: LOOKS[n]!, city: CITY[n] ?? null };
 });
 
 /** Number of eras. */
@@ -237,6 +263,96 @@ export const MACHINE_TONES = {
   10: { ground: 0xdae3ed, body: 0xf5f0e6, accent: 0xe8a848, trim: 0x526475, glow: 0xffe082 },
 } as const;
 
+/**
+ * 0.9.8 (machines, eras 1-5): the toy material shades the era 1-5 machines are painted in. Every era's set is built
+ * around its resource (R36): era 1 the log (timber and red lacquer instead of the ad's royal blue, D1), era 2 fieldstone
+ * and terracotta clay, era 3 rust ore and forged iron, era 4 red brick, brass and coal, era 5 iron pellets, coke and
+ * orange-painted steel. The darkest shade of each era is its trim warmed toward brown (V3: no near-black machines).
+ */
+export const MACHINE_SHADES = {
+  1: {
+    lacquer: 0xc84b31, lacquerD: 0x9c3826, lacquerL: 0xdc6a4c, timber: 0x8a5a3b, timberD: 0x5e3d26, plank: 0xc49a6c,
+    brass: 0xd9a441, brassL: 0xefc66a, iron: 0x6a5a50, ironL: 0x8d7f74, blade: 0xcdc7bd, cream: 0xf3e4c6, felt: 0x4f6b4a,
+  },
+  2: {
+    stone: 0xb3aca0, stoneL: 0xd2cbbe, stoneD: 0x8c857b, clay: 0xb85239, clayD: 0x8e4030, clayL: 0xd0704f,
+    timber: 0x8a5a3b, timberD: 0x5c4028, plank: 0xc49a6c, iron: 0x63564d, rope: 0xcbb08a, moss: 0x7d8a5a,
+  },
+  3: {
+    rust: 0xa65e46, rustD: 0x7e4634, ore: 0xb8613e, oreL: 0xd27a50, oreD: 0x8a4630, iron: 0x6e6259, ironD: 0x54493f,
+    ironL: 0x8f8276, slate: 0x6d7a7e, stone: 0x8c8076, timber: 0x8a5a3b, timberD: 0x5c4028, brass: 0xc79c4c,
+  },
+  4: {
+    brick: 0x9e4737, brickD: 0x7a3529, brickL: 0xb85c48, brass: 0xd49a35, brassL: 0xecbf62, iron: 0x6e635e,
+    ironD: 0x564b4a, ironL: 0x8a7e78, roof: 0x5e5052, coal: 0x4e4450, coalL: 0x6c6070, timber: 0x8a5a3b, cream: 0xefe2c8,
+  },
+  5: {
+    steel: 0x6c7a83, steelL: 0x8794a0, steelD: 0x4f5a62, orange: 0xe08a2b, orangeD: 0xb96a1e, brick: 0xb8613f,
+    brickD: 0x934a32, brass: 0xd4a64a, concrete: 0xb4b1aa, concreteD: 0x938f88, pellet: 0xa8523a, pelletL: 0xc66a48,
+    coke: 0x6a6266, cokeL: 0x8a8186,
+  },
+} as const;
+
+// ---------------------------------------------------------------------------
+// pads (0.9.8 brief 13: assets/pads.ts, fx/PadRing.ts)
+// ---------------------------------------------------------------------------
+
+/** One pad look: the tile face, its stitching / grain, the slab side and the icon medallion. */
+export interface PadLook {
+  /** Tile face, light and shade (a soft vertical gradient). */
+  face: number;
+  faceShade: number;
+  /** Patches / planks / frost streaks drawn over the face. */
+  patch: readonly number[];
+  /** Stitches, grain lines, frost veins. */
+  line: number;
+  /** The slab's side under the snow rim. */
+  side: number;
+  /** The round medallion the icon sits on, and its rim. */
+  medal: number;
+  medalRim: number;
+}
+
+/**
+ * The pads (DIRECTION D6): never the ad's grey tile with a green fill. Three looks Dino picks from (quilt is the
+ * default), all sharing the honey fill, the cream price tag on twine and the wooden sign board.
+ */
+export const PAD = {
+  /** Warm honey: the fill on the tile and the ring, its light meniscus and its deep bottom. */
+  honey: 0xf2b644,
+  honeyLight: 0xffdc8a,
+  honeyDeep: 0xd98a2e,
+  /** Icon and text ink (warm brown, never black). */
+  ink: 0x4e3529,
+  /** Price tag card, its edge and the twine it hangs from. */
+  tag: 0xfff4de,
+  tagEdge: 0xdcb98a,
+  twine: 0xa87a4f,
+  /** Sign board planks (light, mid, dark) and the brass of a level pad's board. */
+  board: 0xa86d3e,
+  boardLight: 0xc58a55,
+  boardDark: 0x7a4a2a,
+  brass: 0xe8b84f,
+  /** Cash still to pay on the tag (deep pine), and a finished row's tick (sage). */
+  cashInk: 0x2f6b4a,
+  done: 0x5aa06e,
+  /** Snow rim: lit top and shaded underside. */
+  snow: SNOW,
+  snowShade: SNOW_SHADE,
+  /** The warm lamplight a pad face keeps at night (its own soft glow, scaled by the comfort Glow slider). */
+  night: 0xffe2b0,
+  /** A locked (preview) pad's frost wash. */
+  frost: 0xc9d6e6,
+  looks: {
+    // stitched snow quilt: cream linen with rose, sage and butter patches, cream stitching
+    quilt: { face: 0xf6ead6, faceShade: 0xe9d6bb, patch: [0xe8b4a8, 0xb9cfae, 0xf3d68e, 0xc9b8dc], line: 0xfff8ec, side: 0xc98d6c, medal: CREAM, medalRim: 0xd9a48c },
+    // wooden pressure plate: honey pine planks with darker grain and nail heads
+    plate: { face: 0xd59a5c, faceShade: 0xbf8048, patch: [0xdca468, 0xc98c50, 0xe2ad72], line: 0x9c6436, side: 0x8f5a33, medal: 0xfff1d6, medalRim: 0x9c6436 },
+    // ice lantern: frosted periwinkle glass with a warm candle heart
+    lantern: { face: 0xd6e4f7, faceShade: 0xb4c8e8, patch: [0xeef4fc, 0xc4d5ee, 0xffe3ad], line: 0xffffff, side: 0x93a9d0, medal: 0xfff2d2, medalRim: 0xf0c27a },
+  } satisfies Record<'quilt' | 'plate' | 'lantern', PadLook>,
+} as const;
+
 // ---------------------------------------------------------------------------
 // colour maths (hex in, hex out; sRGB values, no three needed)
 // ---------------------------------------------------------------------------
@@ -254,4 +370,72 @@ export function mixHex(a: number, b: number, t: number): number {
 /** Relative lightness 0..1 of a hex colour (Rec. 709 weights on sRGB values: enough to compare palette steps). */
 export function lightness(c: number): number {
   return (0.2126 * ch(c, 16) + 0.7152 * ch(c, 8) + 0.0722 * ch(c, 0)) / 255;
+}
+
+// ---------------------------------------------------------------------------
+// sky (0.9.8 brief 16: world/sky, render/skyLight.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * The sky's colours. The camera never sees the sky itself, so these are the colours of the light it throws: the sun
+ * through the day (a peach morning and a honey afternoon around the plain LIGHTING noon), the northern lights (a low
+ * green, a teal body, a violet crown) and the chimney smoke.
+ */
+export const SKY = {
+  sunMorning: 0xffe4c8,
+  sunEvening: 0xffd4a0,
+  hemiMorning: 0xdce2ff,
+  hemiEvening: 0xece4f0,
+  auroraLow: 0x48f0a8,
+  auroraBody: 0x34c8dc,
+  auroraCrown: 0xa070ff,
+  smoke: 0xe4e2ea,
+  smokeShade: 0x9a96a8,
+  smokeNight: 0x7a82a4,
+  /** Bullfinches: a plum-grey back, a rosy breast, dark wing tips. */
+  birdBack: 0x8c7f92,
+  birdBreast: 0xe0806a,
+  birdWing: 0x4a3e52,
+} as const;
+
+/** What drifts in an era's air (world/sky/motes.ts): forge sparks, steam, ash, fusion shimmer… */
+export type MoteKind = 'none' | 'dust' | 'sparks' | 'steam' | 'ash' | 'zaps' | 'shimmer' | 'pixels' | 'glow' | 'fusion';
+
+export interface EraSky {
+  motes: MoteKind;
+  /** Mote colour (sRGB hex). */
+  mote: number;
+  /** Mixed into the aurora's teal body at night (0 = classic northern lights). */
+  auroraTint: number;
+  auroraTintAmount: number;
+}
+
+/** One sky per era, each built around the era's main resource (R36). */
+const SKIES: readonly EraSky[] = [
+  { motes: 'none', mote: SNOW, auroraTint: SKY.auroraBody, auroraTintAmount: 0 },
+  // 1 Survival: the forest and the log: plain snow, classic green curtains
+  { motes: 'none', mote: SNOW, auroraTint: SKY.auroraBody, auroraTintAmount: 0 },
+  // 2 Frontier: clay and kilns: warm kiln dust drifting in the light
+  { motes: 'dust', mote: 0xe9c79a, auroraTint: 0xffb347, auroraTintAmount: 0.12 },
+  // 3 Iron Age: forge sparks rising
+  { motes: 'sparks', mote: 0xff9233, auroraTint: 0xff9233, auroraTintAmount: 0.18 },
+  // 4 Steam Age: soft steam wisps
+  { motes: 'steam', mote: 0xf6f2ec, auroraTint: 0xffbe55, auroraTintAmount: 0.1 },
+  // 5 Industrial: coke ash flecks and the odd sodium spark
+  { motes: 'ash', mote: 0xa89c94, auroraTint: 0xffd166, auroraTintAmount: 0.12 },
+  // 6 Electric Age: little mint zaps along the wires
+  { motes: 'zaps', mote: 0x7ce8c8, auroraTint: 0x7ce8c8, auroraTintAmount: 0.3 },
+  // 7 Oil: honey heat shimmer
+  { motes: 'shimmer', mote: 0xffc46a, auroraTint: 0xffaa5a, auroraTintAmount: 0.16 },
+  // 8 Computer: mint pixels drifting up like screen light
+  { motes: 'pixels', mote: 0x66e0a3, auroraTint: 0x66e0a3, auroraTintAmount: 0.3 },
+  // 9 Nuclear: aqua glow motes bobbing over the pools
+  { motes: 'glow', mote: 0x70f5d9, auroraTint: 0x70f5d9, auroraTintAmount: 0.35 },
+  // 10 AI: sun-gold fusion shimmer
+  { motes: 'fusion', mote: 0xffe082, auroraTint: 0xffe082, auroraTintAmount: 0.3 },
+];
+
+/** Era `era`'s sky (clamped like palette()). */
+export function eraSky(era: number): EraSky {
+  return SKIES[eraIndex(era)]!;
 }
