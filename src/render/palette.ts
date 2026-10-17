@@ -127,7 +127,7 @@ const LOOKS: readonly EraLook[] = [
   // 0: unused (era numbers start at 1)
   { day: DAY, night: NIGHT, grade: { day: grade(0xffffff, 0x000000, 1, 1, 0), night: grade(0xffffff, 0x000000, 1, 1, 0) } },
   // 1 Survival: the forest and the log, amber hearths
-  { day: day({}), night: night({}), grade: { day: grade(0xfffcfa, 0x0d0812, 1.06, 1.03, 0.2), night: grade(0xfff8ee, 0x110b18, 1.08, 1.02, 0.3) } },
+  { day: day({ hemi: 0.8 }), night: night({}), grade: { day: grade(0xfffcfa, 0x0d0812, 1.06, 1.03, 0.2), night: grade(0xfff8ee, 0x110b18, 1.08, 1.02, 0.3) } },
   // 2 Frontier: fieldstone and clay, kiln mouths
   { day: day({}), night: night({ hemiGround: 0x644a4c }), grade: { day: grade(0xfffcfa, 0x0e0911, 1.05, 1.03, 0.2), night: grade(0xfff6ee, 0x120b16, 1.08, 1.02, 0.3) } },
   // 3 Iron Age: rust ore, forge orange
@@ -177,8 +177,8 @@ const GUIDE: readonly Row[] = [
 const FLOORS: readonly [yard: number, processing: number, light: number, board: number][] = [
   [0, 0, 0, 0],
   [0x9c7a5c, 0xc49a6c, 0xffb347, 0x9c7a5c], // packed earth, plank walkways; amber windows and lanterns
-  [0xb9ab98, 0x8f8170, 0xffb347, 0xccd4de], // fieldstone flags and mortar; hearth glow in the kiln mouths
-  [0x94604c, 0xc9906b, 0xff9233, 0xd0d8e2], // rust-ore gravel; forge orange
+  [0xb9ab98, 0x8f8170, 0xffb347, 0xd6c6ae], // fieldstone flags and mortar on clay-dusted earth; hearth glow in the kiln mouths
+  [0x94604c, 0xc9906b, 0xff9233, 0xcca38c], // rust-ore gravel on rust-tinted earth; forge orange
   [0x7d7a78, 0xc77a45, 0xffbe55, 0xc5ced9], // cinder slate with warm specks; boiler doors, gas lamps
   [0xb8613f, 0x8a6a5c, 0xffd166, 0xbac4d0], // herringbone brick, pellet-grey yard; sodium lamps
   [0x5f8f86, 0x8fb0aa, 0x7ce8c8, 0xb4c0cc], // teal cobbles; mint bulbs on the wires
