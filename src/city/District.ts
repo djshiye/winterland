@@ -70,10 +70,10 @@ function lateSurface(n: number, tileSize: number): Surface {
   const p = palette(n);
   const c = p.city!;
   return {
-    street: mixHex(p.floor.yard, 0x8a8478, 0.42),
-    walk: mixHex(p.floor.processing, SNOW, 0.25),
+    street: mixHex(p.floor.yard, 0x8a8478, n === 10 ? 0.3 : 0.42),
+    walk: mixHex(n === 10 ? p.floor.yard : p.floor.processing, SNOW, 0.25),
     plot: mixHex(p.floor.yard, c.wall2, 0.25),
-    tile: n === 10 ? mixHex(p.floor.processing, p.floor.yard, 0.45) : mixHex(p.floor.yard, c.accent, 0.18),
+    tile: n === 10 ? mixHex(p.floor.yard, p.floor.processing, 0.28) : mixHex(p.floor.yard, c.accent, 0.18),
     pole: c.roof,
     bulb: mixHex(p.light, 0xffffff, 0.45),
     tileSize,

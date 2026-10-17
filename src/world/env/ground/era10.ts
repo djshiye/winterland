@@ -12,7 +12,7 @@ import { SNOW, mixHex, palette } from '../../../render/palette';
 import { plotPlaces } from '../../../eras/layout';
 import { regionPaths } from '../frontier';
 import { geo } from '../../../render/materials';
-import { beltSpots, cellMarks, flask, fusionHalo, geode, geodeTree, harvestFree, hexGold, inset, pathLamp, pathLampSpots, slab, FLOOR_Y } from './lateKit';
+import { beltSpots, greenBorder, cellMarks, flask, fusionHalo, geode, geodeTree, harvestFree, hexGold, inset, pathLamp, pathLampSpots, slab, FLOOR_Y } from './lateKit';
 
 const N = 10;
 
@@ -83,6 +83,7 @@ export const era10: EraGroundModule = {
       if (alongX) for (let x = q.minX + 1.5; x < q.maxX - 1; x += 3) k.glow.add(geo.circleGround(0.12, 8), p.light, x, FLOOR_Y + 0.008, (q.minZ + q.maxZ) / 2);
       else for (let z = q.minZ + 1.5; z < q.maxZ - 1; z += 3) k.glow.add(geo.circleGround(0.12, 8), p.light, (q.minX + q.maxX) / 2, FLOOR_Y + 0.008, z);
     }
+    greenBorder(k.solid, k.glow, N, P);
     for (const s of pathLampSpots(l, 10)) {
       pathLamp(k.solid, k.glow, N, s.x, s.z);
       k.lamps.push({ x: s.x, y: 1.66, z: s.z });

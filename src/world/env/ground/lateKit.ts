@@ -81,7 +81,9 @@ export function mintGlaze(body: Batch, glow: Batch | null, r: Rect, rng: Rng, y 
       body.add(geo.circleGround(1, 14), mixHex(base, p.floor.processing, 0.75), cx - sw * 0.12, y + 0.0068, cz - sd * 0.12, { sx: sw * 0.3, sz: sd * 0.24 });
     }
   }
-  if (glow) glow.add(geo.box(w - 0.6, 0.008, 0.22), p.glow, (r.minX + r.maxX) / 2, y + 0.006, r.maxZ - 0.35);
+  // a soft aqua drain channel along the far edge (lit only in its little grates, so it never reads as a laser line)
+  body.add(geo.box(w - 0.6, 0.008, 0.26), mixHex(p.glow, base, 0.55), (r.minX + r.maxX) / 2, y + 0.006, r.maxZ - 0.35);
+  if (glow) for (let x = r.minX + 2; x < r.maxX - 1; x += 6) glow.add(geo.box(0.5, 0.01, 0.18), p.glow, x, y + 0.009, r.maxZ - 0.35);
 }
 
 /**
@@ -94,7 +96,7 @@ export function hexGold(body: Batch, glow: Batch | null, r: Rect, rng: Rng, y = 
   const gold = p.floor.processing;
   const w = r.maxX - r.minX;
   const d = r.maxZ - r.minZ;
-  body.add(geo.box(w, 0.006, d), mixHex(gold, cream, 0.15), (r.minX + r.maxX) / 2, y, (r.minZ + r.maxZ) / 2);
+  body.add(geo.box(w, 0.006, d), mixHex(gold, cream, 0.3), (r.minX + r.maxX) / 2, y, (r.minZ + r.maxZ) / 2);
   const dx = Math.sqrt(3) * R;
   const dz = 1.5 * R;
   const tints = [cream, mixHex(cream, 0xffffff, 0.35), mixHex(cream, 0xf0d9b0, 0.4)];
@@ -103,8 +105,8 @@ export function hexGold(body: Batch, glow: Batch | null, r: Rect, rng: Rng, y = 
     let col = 0;
     for (let x = r.minX + R * 0.9 + (row % 2) * (dx / 2); x < r.maxX - R * 0.6; x += dx, col++) {
       const lit = glow && (row * 3 + col * 5) % 7 === 0;
-      body.add(geo.cylinder(R * 0.9, R * 0.9, 0.012, 6), tints[(row + col * 2) % 3]!, x, y + 0.006, z, { ry: Math.PI / 6 });
-      if (lit) glow.add(geo.cylinder(R * 0.32, R * 0.32, 0.01, 6), p.light, x, y + 0.014, z, { ry: Math.PI / 6 });
+      body.add(geo.cylinder(R * 0.95, R * 0.95, 0.012, 6), tints[(row + col * 2) % 3]!, x, y + 0.006, z);
+      if (lit) glow.add(geo.cylinder(R * 0.32, R * 0.32, 0.01, 6), p.light, x, y + 0.014, z);
     }
   }
   void rng;
@@ -188,13 +190,14 @@ export function boule(body: Batch, x: number, z: number, s: number, ry: number):
 /** Era 9: a cluster of rounded uranium crystals (soft lumps, no points) in a mint-glazed dish; they glow at night. */
 export function crystalCluster(body: Batch, glow: Batch, x: number, z: number, s: number, rng: Rng): void {
   const p = palette(9);
-  body.add(geo.cylinder(0.9 * s, 1.0 * s, 0.22 * s, 16), p.floor.yard, x, 0.11 * s, z);
+  body.add(geo.cylinder(0.9 * s, 1.0 * s, 0.22 * s, 16), mixHex(p.floor.processing, SNOW, 0.5), x, 0.11 * s, z);
+  body.add(geo.torus(0.88 * s, 0.07 * s, 6, 20), p.accent, x, 0.22 * s, z, { rx: Math.PI / 2 });
   const lumps = 4;
   for (let i = 0; i < lumps; i++) {
     const a = (i / lumps) * Math.PI * 2 + rng.range(0, 0.6);
     const r = i === 0 ? 0 : 0.42 * s;
     const h = (i === 0 ? 1.0 : rng.range(0.55, 0.75)) * s;
-    glow.add(geo.capsule(0.2 * s, h, 4, 8), mixHex(p.glow, 0xb8f07a, 0.35), x + Math.cos(a) * r, 0.22 * s + h * 0.55, z + Math.sin(a) * r, { rz: Math.cos(a) * (i ? 0.35 : 0), rx: -Math.sin(a) * (i ? 0.35 : 0) });
+    glow.add(geo.capsule(0.22 * s, h, 4, 8), mixHex(p.glow, 0xd8f56a, 0.55), x + Math.cos(a) * r, 0.22 * s + h * 0.55, z + Math.sin(a) * r, { rz: Math.cos(a) * (i ? 0.35 : 0), rx: -Math.sin(a) * (i ? 0.35 : 0) });
   }
   body.add(geo.sphere(0.32 * s, 10, 6), SNOW, x - 0.4 * s, 0.3 * s, z - 0.3 * s, { sy: 0.4 });
 }
@@ -353,4 +356,33 @@ export function inset(q: Rect, m: number): Rect | null {
 /** A flat plain slab over a rect (lawns, forecourts, paths). */
 export function slab(floor: Batch, q: Rect, color: number, y = FLOOR_Y): void {
   floor.add(geo.box(q.maxX - q.minX, 0.006, q.maxZ - q.minZ), color, (q.minX + q.maxX) / 2, y, (q.minZ + q.maxZ) / 2);
+}
+
+/**
+ * A border of low planters round the huts' green (0.9.7 plots.ts `green`), one every `step` metres, leaving its four
+ * entrances open: era 8 clipped box hedges, era 9 round mint shrubs, era 10 small glowing geode globes. Under 1 m, so
+ * they never hide a pad or a hut door.
+ */
+export function greenBorder(body: Batch, glow: Batch, n: number, P: PlotPlaces, step = 3.2): void {
+  const G = P.green;
+  const cx = (G.minX + G.maxX) / 2;
+  const cz = (G.minZ + G.maxZ) / 2;
+  const spots: { x: number; z: number }[] = [];
+  for (let x = G.minX + 1; x <= G.maxX - 1; x += step) if (Math.abs(x - cx) > 2.2) spots.push({ x, z: G.minZ + 0.6 }, { x, z: G.maxZ - 0.6 });
+  for (let z = G.minZ + 1 + step; z <= G.maxZ - 1 - step; z += step) if (Math.abs(z - cz) > 2.2) spots.push({ x: G.minX + 0.6, z }, { x: G.maxX - 0.6, z });
+  const p = palette(n);
+  for (const { x, z } of spots) {
+    if (n === 8) {
+      body.add(geo.boxBase(1.1, 0.35, 0.7), p.city!.wall, x, 0, z);
+      body.add(geo.sphere(0.5, 12, 8), 0x7fa889, x, 0.5, z, { sx: 1.05, sy: 0.6, sz: 0.65 });
+      body.add(geo.sphere(0.4, 10, 5), SNOW, x, 0.72, z, { sx: 1.1, sy: 0.3, sz: 0.6 });
+    } else if (n === 9) {
+      body.add(geo.sphere(0.5, 12, 8), 0x6aa892, x, 0.35, z, { sy: 0.8 });
+      body.add(geo.sphere(0.38, 10, 5), SNOW, x, 0.62, z, { sy: 0.35 });
+    } else {
+      body.add(geo.cylinder(0.32, 0.38, 0.22, 12), p.accent, x, 0.11, z);
+      body.add(geo.sphere(0.36, 12, 8), mixHex(0xb9a3e8, 0xffffff, 0.2), x, 0.5, z);
+      glow.add(geo.sphere(0.14, 8, 6), p.light, x, 0.52, z + 0.28);
+    }
+  }
 }

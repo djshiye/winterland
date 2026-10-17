@@ -9,7 +9,7 @@ import { SNOW, mixHex, palette } from '../../../render/palette';
 import { plotPlaces } from '../../../eras/layout';
 import { regionPaths } from '../frontier';
 import { geo } from '../../../render/materials';
-import { beltSpots, boule, cellMarks, cypress, dune, harvestFree, inset, pathLamp, pathLampSpots, slab, solarRow, terrazzo, FLOOR_Y } from './lateKit';
+import { beltSpots, greenBorder, boule, cellMarks, cypress, dune, harvestFree, inset, pathLamp, pathLampSpots, slab, solarRow, terrazzo, FLOOR_Y } from './lateKit';
 
 const N = 8;
 
@@ -20,11 +20,12 @@ export const era08: EraGroundModule = {
     const H = l.zones.harvest;
     const placed: { x: number; z: number; r: number }[] = [];
     // solar rows: a tidy array on the harvest ground, rows 3.4 m apart
-    for (let z = H.minZ + 3; z < H.maxZ - 2.5; z += 3.4) {
-      for (let x = H.minX + 6; x < H.maxX - 3; x += 7.2) {
-        if (!harvestFree(l, P, x, z, 3.1, placed)) continue;
-        placed.push({ x, z, r: 3.1 });
-        solarRow(k.solid, k.glow, x, z, 0.9);
+    for (let z = H.minZ + 3; z < H.maxZ - 2.5; z += 3.2) {
+      for (let x = l.rect.minX + 7.8; x < H.maxX - 3; x += 6.6) {
+        // a row is 6 m long: both of its ends must be free ground
+        if (![-2.6, 0, 2.6].every((dx) => harvestFree(l, P, x + dx, z, 1.2, placed))) continue;
+        for (const dx of [-2.6, 0, 2.6]) placed.push({ x: x + dx, z, r: 1.2 });
+        solarRow(k.solid, k.glow, x, z, 1);
       }
     }
     // boules in pairs along the field's west edge, dunes along the harvest's far edge
@@ -69,6 +70,7 @@ export const era08: EraGroundModule = {
         else k.floor.add(geo.box(0.14, 0.004, q.maxZ - q.minZ), p.accent, s < 0 ? q.minX + 0.07 : q.maxX - 0.07, FLOOR_Y + 0.006, (q.minZ + q.maxZ) / 2);
       }
     }
+    greenBorder(k.solid, k.glow, N, P);
     for (const s of pathLampSpots(l, 10)) {
       pathLamp(k.solid, k.glow, N, s.x, s.z);
       k.lamps.push({ x: s.x, y: 1.66, z: s.z });
