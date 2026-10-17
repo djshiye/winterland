@@ -49,7 +49,7 @@
  *
  * 0.9.0 Demolish: once the player reached era 2 (state.eras.age >= 2, rules.canManage) every BUILT lot gets a small manage
  * zone + MANAGE sign beyond its stations (rules.manageRect; created lazily, nothing exists in era 1; re-checked on
- * 'era:unlocked'). Entering it emits 'manage:open' (the ManagePanel card: jobs, what it makes, the price
+ * 'era:unlocked'). Stopping on it (0.9.10: not just walking across, rules.manageOpens) emits 'manage:open' (the ManagePanel card: jobs, what it makes, the price
  * rules.demolishCost); leaving emits 'manage:close'. Its onDemolish pays (economy.spend) and calls demolish(lot): the till's
  * cash goes to the player, the Business is torn down (colliders, zones, piles; Business.teardown, then drained once nothing
  * flies to it) and the lot is for sale again (building '', tier -1, a sale sign, a BUILD pad), 'town:demolished'.
@@ -78,7 +78,7 @@ import type { CashPile } from '../stations/CashPile';
 import type { Zone } from '../items/Zones';
 import { Business, type StaffSpot } from './Business';
 import { LotPad } from './LotPad';
-import { amenityFrame, amenityOffered, canChoose, canManage, choicesFor, demolishCost, grandMarketFrame, grandMarketOffered, lotFrame, lotOpen, manageRect, paidFraction, settlePaidAmenities, settlePaidGrandMarket, settlePaidLots, type AmenityFrame, type GrandMarketFrame, type LotFrame } from './rules';
+import { amenityFrame, amenityOffered, canChoose, canManage, choicesFor, demolishCost, grandMarketFrame, manageOpens, grandMarketOffered, lotFrame, lotOpen, manageRect, paidFraction, settlePaidAmenities, settlePaidGrandMarket, settlePaidLots, type AmenityFrame, type GrandMarketFrame, type LotFrame } from './rules';
 import type { ShopSpot } from './types';
 import { smokeFrom } from '../world/sky/smoke';
 
@@ -134,6 +134,9 @@ interface Lot {
   /** Era 2+: the demolish card's zone and its floating sign (created the first time the lot is manageable). */
   manage: Zone | null;
   manageSign: THREE.Mesh | null;
+  /** Seconds the player has been on the manage tile, and whether its card opened this visit (rules.manageOpens). */
+  manageIn: number;
+  manageShown: boolean;
 }
 
 export class Town {
@@ -180,7 +183,7 @@ export class Town {
         onEnter: () => ctx.events.emit('build:open', { lot: i }),
         onExit: () => ctx.events.emit('build:close', {}),
       });
-      this.lots.push({ index: i, frame, group, pos, buildPad, zone, pad: null, hint: null, look: 'none', model: null, scaffold: null, business: null, manage: null, manageSign: null });
+      this.lots.push({ index: i, frame, group, pos, buildPad, zone, pad: null, hint: null, look: 'none', model: null, scaffold: null, business: null, manage: null, manageSign: null, manageIn: 0, manageShown: false });
     });
 
     for (const id of AMENITY_IDS) this.amenities.push(this.makeAmenitySite(id));
@@ -659,8 +662,23 @@ export class Town {
       area,
       enabled: false,
       marker: true,
-      onEnter: () => this.openManage(L),
-      onExit: () => ctx.events.emit('manage:close', { key: this.manageKey(L.index) }),
+      // 0.9.10: the card waits until the player stops on the tile (or stays a moment): walking past never opens it
+      onEnter: () => {
+        L.manageIn = 0;
+        L.manageShown = false;
+      },
+      onStay: (dt) => {
+        L.manageIn += dt;
+        if (L.manageShown) return;
+        const v = ctx.player?.velocity;
+        if (!manageOpens(L.manageIn, v ? Math.hypot(v.x, v.z) : 0)) return;
+        L.manageShown = true;
+        this.openManage(L);
+      },
+      onExit: () => {
+        L.manageShown = false;
+        ctx.events.emit('manage:close', { key: this.manageKey(L.index) });
+      },
     });
     const sign = createManageSign(L.business?.def.label ?? '');
     const foot = manageSignFoot(area, L.frame);

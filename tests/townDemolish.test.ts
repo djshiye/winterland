@@ -4,8 +4,8 @@
  */
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { AMENITY_IDS, BUSINESSES, LAYOUT, TOWN, inflate, type BusinessId, type Rect } from '../src/config';
-import { DEMOLISH_MIN, DEMOLISH_SHARE } from '../src/eras/data';
+import { AMENITY_IDS, BUSINESSES, EVENTS, LAYOUT, PLAYER, TOWN, inflate, type BusinessId, type Rect, type XZ } from '../src/config';
+import { DEMOLISH_MIN, DEMOLISH_SHARE, ROADS } from '../src/eras/data';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
 import { villagePopulation, villageLevelFor } from '../src/core/demand';
@@ -13,7 +13,7 @@ import { createGameState, type GameContext, type GameEvents, type Item, type Ite
 import { Townsfolk } from '../src/npc/Townsfolk';
 import { Town } from '../src/town/Town';
 import { BENCHES, SNOWMAN, STALLS } from '../src/town/spots';
-import { amenityFrame, canManage, demolishCost, layoutFor, lotFrame, manageLocal, manageRect, queueSpotOf, worldRect } from '../src/town/rules';
+import { MANAGE_DWELL, MANAGE_STILL_SPEED, amenityFrame, canManage, demolishCost, layoutFor, lotFrame, manageLocal, manageOpens, manageRect, queueSpotOf, worldRect } from '../src/town/rules';
 import { SQUARE_LAMPS } from '../src/world/env/town';
 
 const T = LAYOUT.town;
@@ -136,14 +136,95 @@ describe('manage zone geometry', () => {
 });
 
 
+describe('0.9.10: crossing the square never opens a manage card (walking-line probe)', () => {
+  const road = (id: string): Rect => ROADS.find((r) => r.id === id)!.rect as Rect;
+  const ne = road('cityLink');
+  const east = road('townEast');
+  const mouth = T.walk[0]!; // the corridor from the village street into the square
+  // Where a player leaves the corridor (across its width) and where they enter the north-east road or the east gate.
+  const starts = [0, 0.25, 0.5, 0.75, 1].map((k) => ({ x: mouth.maxX - 0.4, z: mouth.minZ + k * (mouth.maxZ - mouth.minZ) }));
+  const ends = [
+    ...[0.1, 0.3, 0.5, 0.7, 0.9].map((k) => ({ x: ne.minX + 1.2, z: ne.minZ + k * (ne.maxZ - ne.minZ), to: 'NE road' })),
+    ...[0.1, 0.3, 0.5, 0.7, 0.9].map((k) => ({ x: east.minX + 1.2, z: east.minZ + k * (east.maxZ - east.minZ), to: 'east gate' })),
+  ];
+  /**
+   * Walks a player takes: straight from the corridor to the exit; along the corridor's line into the square to any
+   * turning point, then straight (or at the keyboard's 45 degrees) to the exit; and the shortest way round the north
+   * side of the bandstand, along the north shops (it brushes lots 1 and 4's tiles).
+   */
+  const routes: { name: string; pts: XZ[] }[] = [];
+  for (const s of starts) {
+    for (const e of ends) {
+      routes.push({ name: `straight to the ${e.to}`, pts: [s, e] });
+      for (let t = T.square.minX; t <= T.square.maxX - 0.5; t += 0.25) {
+        const turn = { x: t, z: s.z };
+        routes.push({ name: `east to x ${t}, then to the ${e.to}`, pts: [s, turn, e] });
+        const k = e.x - t;
+        routes.push({ name: `east to x ${t}, then 45 degrees`, pts: [s, turn, { x: e.x, z: s.z + Math.sign(e.z - s.z) * k }] });
+      }
+      routes.push({ name: `north of the bandstand to the ${e.to}`, pts: [s, { x: 21.04, z: 23.29 }, { x: 27.51, z: 22.26 }, e] });
+    }
+  }
+
+  /** Longest unbroken stay (s) in each manage tile along `pts` at `speed` m/s, sampled every frame. */
+  function stays(pts: XZ[], speed: number): number[] {
+    const tiles = T.lots.map((_, i) => manageRect(i));
+    const run = tiles.map(() => 0);
+    const best = tiles.map(() => 0);
+    const step = speed / 60;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i]!;
+      const b = pts[i + 1]!;
+      const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / step));
+      for (let k = 0; k < n; k++) {
+        const x = a.x + ((b.x - a.x) * k) / n;
+        const z = a.z + ((b.z - a.z) * k) / n;
+        tiles.forEach((r, j) => {
+          run[j] = inRect(r, x, z) ? run[j]! + 1 / 60 : 0;
+          best[j] = Math.max(best[j]!, run[j]!);
+        });
+      }
+    }
+    return best;
+  }
+
+  it('the probe really crosses lot 6\'s tile (the one that popped up)', () => {
+    const lot6 = routes.filter((r) => stays(r.pts, PLAYER.speed)[6]! > 0);
+    expect(lot6.length).toBeGreaterThan(10);
+  });
+
+  it('no walk to the north-east road or the east gate stays on any tile long enough to open its card', () => {
+    // the slowest walk is a snowstorm on the first boots (x 0.6); the stick held, so never "standing still"
+    for (const speed of [PLAYER.speed * EVENTS.kinds.snowstorm.walkSpeedMult, PLAYER.speed]) {
+      expect(speed).toBeGreaterThan(MANAGE_STILL_SPEED);
+      for (const r of routes) {
+        stays(r.pts, speed).forEach((t, lot) => expect(manageOpens(t, speed), `${r.name} @ ${speed.toFixed(1)} m/s, lot ${lot} for ${t.toFixed(2)} s`).toBe(false));
+      }
+    }
+  });
+
+  it('even along a tile\'s longest line at the slowest walk the stay is shorter than the dwell', () => {
+    for (let i = 0; i < T.lots.length; i++) {
+      const r = manageRect(i);
+      expect(Math.hypot(r.maxX - r.minX, r.maxZ - r.minZ) / (PLAYER.speed * EVENTS.kinds.snowstorm.walkSpeedMult)).toBeLessThan(MANAGE_DWELL);
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------------------------------------------
 // Town with a fake context (no WebGL: a canvas stub is enough for the pad textures)
 // ---------------------------------------------------------------------------------------------------------------
 interface FakeZone {
-  opts: { id: string; area: Rect; enabled?: boolean; onEnter?: () => void; onExit?: () => void };
+  opts: { id: string; area: Rect; enabled?: boolean; onEnter?: () => void; onExit?: () => void; onStay?: (dt: number) => void };
   enabled: boolean;
   removed: boolean;
   setEnabled(on: boolean): void;
+}
+
+/** The player steps onto a zone and stands there for a frame (the fake player has no velocity: standing still). */
+function stepOn(z: FakeZone): void {
+  z.opts.onEnter?.();
+  z.opts.onStay?.(1 / 60);
 }
 
 function makeTown(age: number, money = 100000) {
@@ -210,13 +291,32 @@ describe('Town demolish (fake context)', () => {
     expect(mz.map((z) => z.opts.id).sort()).toEqual(['town:lot0:manage', 'town:lot1:manage']);
     expect(mz.every((z) => z.enabled)).toBe(true);
     // the manage card
-    mz.find((z) => z.opts.id === 'town:lot1:manage')!.opts.onEnter!();
+    stepOn(mz.find((z) => z.opts.id === 'town:lot1:manage')!);
     const open = w.log.find((l) => l.type === 'manage:open')!.payload as GameEvents['manage:open'];
     expect(open.key).toBe('town:1');
     expect(open.title).toBe('Bakery');
     expect(open.subtitle).toBe('Market Town');
     expect(open.demolishCost).toBe(demolishCost('bakery'));
     expect(open.stats!.length).toBeGreaterThan(1);
+  });
+
+  it('0.9.10: walking across a manage tile does not open its card; stopping on it does', () => {
+    const w = makeTown(2);
+    w.town.debugBuild(6, 'bakery');
+    const z = w.zones.find((q) => q.opts.id === 'town:lot6:manage')!;
+    const player = w.ctx.player as unknown as { velocity?: THREE.Vector3 };
+    player.velocity = new THREE.Vector3(PLAYER.speed, 0, 0);
+    z.opts.onEnter!();
+    for (let t = 0; t < 0.15; t += 1 / 60) z.opts.onStay!(1 / 60); // a full-speed step across the 0.8 m tile
+    z.opts.onExit!();
+    expect(w.log.some((l) => l.type === 'manage:open')).toBe(false);
+    z.opts.onEnter!();
+    z.opts.onStay!(1 / 60);
+    player.velocity.set(0.4, 0, 0); // let go of the stick on the tile
+    z.opts.onStay!(1 / 60);
+    expect(w.log.filter((l) => l.type === 'manage:open')).toHaveLength(1);
+    z.opts.onStay!(1 / 60);
+    expect(w.log.filter((l) => l.type === 'manage:open')).toHaveLength(1); // once per visit
   });
 
   it('a lot built at era 2 gets its zone as it completes; an era-1 restore with age 2 has it at once', () => {
@@ -240,7 +340,7 @@ describe('Town demolish (fake context)', () => {
     const boxesBefore = [...w.boxes.values()].filter((t) => t.startsWith('town:1')).length;
     expect(boxesBefore).toBeGreaterThan(0);
 
-    w.town.business(1) && w.zones.find((z) => z.opts.id === 'town:lot1:manage')!.opts.onEnter!();
+    w.town.business(1) && stepOn(w.zones.find((z) => z.opts.id === 'town:lot1:manage')!);
     const open = [...w.log].reverse().find((l) => l.type === 'manage:open')!.payload as GameEvents['manage:open'];
     const money = w.economy.money;
     expect(open.onDemolish()).toBe(true);
@@ -270,7 +370,7 @@ describe('Town demolish (fake context)', () => {
   it('cannot demolish without the money, nor before era 2', () => {
     const w = makeTown(2, 0);
     w.town.debugBuild(1, 'farm');
-    w.zones.find((z) => z.opts.id === 'town:lot1:manage')!.opts.onEnter!();
+    stepOn(w.zones.find((z) => z.opts.id === 'town:lot1:manage')!);
     const open = w.log.find((l) => l.type === 'manage:open')!.payload as GameEvents['manage:open'];
     expect(open.onDemolish()).toBe(false);
     expect(w.town.business(1)).not.toBeNull();

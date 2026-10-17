@@ -98,6 +98,20 @@ export function manageLocal(lot: number): LRect {
   return { u0: r[0], u1: r[1], v0: r[2], v1: r[3] };
 }
 
+/**
+ * 0.9.10: a manage card opens once the player stops on the tile (slower than MANAGE_STILL_SPEED m/s) or has stayed on it
+ * MANAGE_DWELL s; walking across it does not. Lot 6's tile sits where the walks from the corridor to the north-east
+ * road and to the east gate cross (so do lots 1 and 4's on the shortest way to that road), and a full-speed step across
+ * a 0.8 m tile takes ~0.13 s.
+ */
+export const MANAGE_STILL_SPEED = 1.5;
+export const MANAGE_DWELL = 0.45;
+
+/** True when a player `inFor` seconds on a manage tile, moving at `speed` m/s, gets its card. */
+export function manageOpens(inFor: number, speed: number): boolean {
+  return speed <= MANAGE_STILL_SPEED || inFor >= MANAGE_DWELL;
+}
+
 /** World rect of lot `lot`'s manage zone. */
 export function manageRect(lot: number): Rect {
   const l = manageLocal(lot);
