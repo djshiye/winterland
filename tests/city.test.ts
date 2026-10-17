@@ -5,7 +5,8 @@
 import { describe, expect, it } from 'vitest';
 import { CITY_BUILDINGS, CITY_HAPPINESS_BONUS, CITY_RANKS, DEMOLISH_MIN, DEMOLISH_SHARE, DISTRICTS, cityBuildingsOfEra, districtDef, type CityBuildingId } from '../src/eras/data';
 import { createGameState, type GameState } from '../src/core/types';
-import { SKYLINE_AREA, SKYLINE_DIAGONAL, SKYLINE_MAX, skylineSlots } from '../src/world/env/skyline';
+import { LOW_MAX_H, LOW_MAX_Z, SKYLINE_AREA, SKYLINE_DIAGONAL, SKYLINE_MAX, skylineHeight, skylineSlots } from '../src/world/env/skyline';
+import { CAMERA } from '../src/config';
 import {
   canChoose,
   chooseOptions,
@@ -252,8 +253,28 @@ describe('skyline', () => {
       expect(t.x + t.w / 2).toBeLessThanOrEqual(SKYLINE_AREA.maxX);
       expect(t.z - t.d / 2).toBeGreaterThanOrEqual(SKYLINE_AREA.minZ);
       expect(t.z + t.d / 2).toBeLessThanOrEqual(SKYLINE_AREA.maxZ);
-      expect(t.x - t.w / 2 - (t.z + t.d / 2)).toBeGreaterThanOrEqual(SKYLINE_DIAGONAL);
+      if (t.low) {
+        // 0.9.7 low-rise blocks: in front of the diagonal, but short enough and far enough east that their camera
+        // shadow (toward -X / -Z) never reaches a district, and clear of R2 and the regions to the south
+        const h = skylineHeight(t.tall, 10, true);
+        expect(h).toBeLessThanOrEqual(LOW_MAX_H);
+        const reach = h / Math.tan((CAMERA.pitchDeg * Math.PI) / 180) / Math.SQRT2;
+        for (const d of dist) expect(t.x - t.w / 2 - reach).toBeGreaterThan(d!.rect.maxX);
+        expect(t.z + t.d / 2).toBeLessThanOrEqual(LOW_MAX_Z);
+      } else {
+        expect(t.x - t.w / 2 - (t.z + t.d / 2)).toBeGreaterThanOrEqual(SKYLINE_DIAGONAL);
+      }
       for (const d of dist) expect(t.x - t.w / 2).toBeGreaterThan(d!.rect.maxX);
     }
+  });
+
+  it('0.9.7: low-rise blocks join the districts to the towers and come first as the city grows (R5)', () => {
+    const slots = skylineSlots();
+    expect(slots.filter((t) => t.low).length).toBeGreaterThan(20);
+    expect(slots.filter((t) => !t.low).length).toBeGreaterThan(100);
+    // a small city's first buildings are mostly the low ring next to the districts
+    const first = slots.slice(0, 30);
+    expect(first.filter((t) => t.low).length).toBeGreaterThan(5);
+    for (const t of slots) expect(skylineHeight(t.tall, 10, t.low)).toBeGreaterThan(t.low ? 4 : 12);
   });
 });

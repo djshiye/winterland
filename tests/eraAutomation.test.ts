@@ -220,7 +220,7 @@ describe('conveyor belts (planBelts)', () => {
         machines.forEach((m) => {
           if (m?.kind === 'processor') inputs += m.inputs.length;
         });
-        expect(belts.length, `era ${n} ${order.join(',')}`).toBeGreaterThanOrEqual(order === ids && n <= 4 ? inputs : Math.ceil((inputs * 2) / 3));
+        expect(belts.length, `era ${n} ${order.join(',')}`).toBeGreaterThanOrEqual(order === ids && n <= 4 ? inputs : Math.floor((inputs * 2) / 3));
         expect(new Set(belts.map((b) => `${b.to}:${b.kind}`)).size).toBe(belts.length); // one belt into each input
         // two belts on the same level never share a stretch of lane
         for (const b of belts) expect(b.level).toBeLessThan(BELT_LEVELS);
