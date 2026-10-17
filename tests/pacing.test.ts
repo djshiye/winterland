@@ -1,6 +1,6 @@
 /**
- * Pacing of the ten-era climb (docs/EXPANSION.md §E) through the pure model core/pacing.ts: every era takes 60–180
- * model minutes (0.9.5 'literal' gate: each era's own upgrades to Lv 10), each longer than the last, and the era-1 climb about 80 (0.9.6), prices never go down, the settlement anchors fit the city, Jack never
+ * Pacing of the ten-era climb (docs/EXPANSION.md §E) through the pure model core/pacing.ts: every era takes 60–240
+ * model minutes (0.9.5 'literal' gate: each era's own upgrades to Lv 10; 0.9.9: the live curves in tests/livePacing.test.ts set the era lengths), and the era-1 climb about 80 (0.9.6), prices never go down, the settlement anchors fit the city, Jack never
  * pays a full price and no effect passes its hard cap. The buyer walks: one purchase at a time, each at least
  * PACING.walkPerBuy seconds (upgrades are hands-on, bought standing on pads and shop mats). The era economy ×10 and the
  * retuned CITY_RANKS ride along.
@@ -58,20 +58,21 @@ describe('pacing model', () => {
     expect(run.eras[0]!.gateSteps).toBe(102);
   });
 
-  it('every era takes 60–180 model minutes', () => {
+  // 0.9.9: era prices are tuned on the live game's measured income (tests/livePacing.test.ts, each era 110-170 min and
+  // longer than the last); this model under-reads era 3's start income (era 3: 204 model minutes, 125 live), so
+  // it only keeps sanity bounds here
+  it('every era takes 60–240 model minutes', () => {
     for (const e of run.eras.slice(1)) {
       expect(e.minutes, `era ${e.n}`).toBeGreaterThanOrEqual(60);
-      expect(e.minutes, `era ${e.n}`).toBeLessThanOrEqual(180);
+      expect(e.minutes, `era ${e.n}`).toBeLessThanOrEqual(240);
     }
   });
 
-  it('every era runs longer than the one before it (era 2 about 80–100 min, era 10 about 150–175)', () => {
+  it('era 2 takes about 100–130 model minutes and era 10 runs longer than era 2', () => {
     const eras = run.eras.slice(1);
-    for (let i = 1; i < eras.length; i++) expect(eras[i]!.minutes, `era ${eras[i]!.n}`).toBeGreaterThan(eras[i - 1]!.minutes);
-    expect(eras[0]!.minutes).toBeGreaterThanOrEqual(80);
-    expect(eras[0]!.minutes).toBeLessThanOrEqual(100);
-    expect(eras.at(-1)!.minutes).toBeGreaterThanOrEqual(150);
-    expect(eras.at(-1)!.minutes).toBeLessThanOrEqual(175);
+    expect(eras[0]!.minutes).toBeGreaterThanOrEqual(100);
+    expect(eras[0]!.minutes).toBeLessThanOrEqual(130);
+    expect(eras.at(-1)!.minutes).toBeGreaterThan(eras[0]!.minutes);
   });
 
   it('buys by walking: one purchase at a time, never faster than one per walkPerBuy seconds', () => {
@@ -90,7 +91,7 @@ describe('pacing model', () => {
     for (const survivalLateRate of [1200, 2000]) {
       for (const e of runPacing({ survivalLateRate }).eras.slice(1)) {
         expect(e.minutes).toBeGreaterThanOrEqual(60);
-        expect(e.minutes).toBeLessThanOrEqual(200);
+        expect(e.minutes).toBeLessThanOrEqual(260);
       }
     }
   });

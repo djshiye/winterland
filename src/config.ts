@@ -1285,8 +1285,17 @@ export const CLIMB = {
    * with the pacing model (bisection per era; re-solved in 0.9.6 after the Trade/Fine merge and the authored Lv 10s, again on the 0.9.6 era chains, and for bands 5-10 on
    * the 0.9.7 era resources v2, whose era 5 sells at its own era's prices now; and for every band on the 0.9.7 plots,
    * whose regions hold 7, 7, 7, 7, 7, 7, 8, 8, 9 machines, so each era earns more and its prices rise to keep its length).
+   * 0.9.9: re-solved with bandStep on the LIVE income curves (tests/fixtures/econ-curve.json, tests/livePacing.test.ts):
+   * era 2 119 live minutes, +5 an era, era 10 160, waiting for money about 70-78 % of each era; never below 0.9.8's tilt.
    */
-  bandTilt: [1, 1, 2.16, 6.27, 6.64, 6.63, 6.5, 4.29, 3.59, 3.27, 3.11] as readonly number[],
+  bandTilt: [1, 1, 2.16, 12.07, 6.99, 7.62, 7.8, 4.46, 3.98, 3.59, 3.59] as readonly number[],
+  /**
+   * 0.9.9 (Dino: "each era's stuff needs to be SIGNIFICANTLY more expensive"): per-band price growth from one level to
+   * the next (index = band; stepGrowth for bands not listed), sized from each era's live income growth Lv 0 → Lv 10
+   * (scripts measured with every pile banked), so the late levels of an era cost as much more as the era earns more
+   * and money never piles up near the gate. Was 1.08 everywhere (Lv 10 cost 2× Lv 1 while era 2 earned 100× more).
+   */
+  bandStep: [1.08, 1.08, 1.2, 1.1, 1.15, 1.15, 1.1, 1.15, 1.15, 1.15, 1.15] as readonly number[],
   legacyStep: 1.01,
   weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
   /**

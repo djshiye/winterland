@@ -126,7 +126,11 @@ function eraQuests(): QuestDef[] {
   });
   // the new land, pad and machines stay hidden until the Great Lodge: no era quest shows before it (era 1 reads as 0.8.0)
   const open = (s: GameState): boolean => climbOpen(s) || s.eras.age >= 2;
-  return out.map((d) => (d.unlocked ? d : { ...d, unlocked: open }));
+  // 0.9.9: a later era's goal waits for its era. "Make 2,500 era materials" counts every era's materials, so from era 2
+  // it paid era 4-10 rewards (about 740M) long before those eras, more than era 2 and 3 cost to finish (Dino: "a
+  // million every couple of minutes")
+  const inEra = (d: QuestDef) => (s: GameState): boolean => open(s) && s.eras.age >= questEra(d.id);
+  return out.map((d) => (d.unlocked ? d : { ...d, unlocked: questEra(d.id) <= 2 ? open : inEra(d) }));
 }
 
 /** Built city buildings of `kind` in district n. */

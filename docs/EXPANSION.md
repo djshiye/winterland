@@ -126,6 +126,7 @@ id with introEra ≥ 2 (taxOffice, broker, Rigs/Crew/Trade, all 0.10 ids):
 - The authored cost tables of the era-2+ ids are dropped. They were unreleased and badly out of scale: `taxOffice` stored 8 costs $330M today.
 - Their authored `values` stay.
 - Costs rise strictly at every step: the in-band step is ×1.08; at a band edge, j = 9 → 0 gives 2.0 → 2.6; the legacy branch also rises.
+- 0.9.9: the in-band step is per band (`CLIMB.bandStep`: era 2 ×1.2, eras 3 and 6 ×1.1, the rest ×1.15), sized from each era's live income growth Lv 0 → 10 (`npm run econ-curve`, `tests/livePacing.test.ts`), so an era's late levels are never pocket change.
 
 **Gate cost per band** (my script; full 0.10 id set):
 
