@@ -112,7 +112,7 @@ export class FinaleCard {
       ctx.audio.play('click');
       this.slide.open = false;
     });
-    this.again = h('button', 'wl-btn wl-btn-gold wl-finale-new', 'Start a new season');
+    this.again = h('button', 'wl-btn wl-btn-gold is-b-pine wl-finale-new', 'Start a new season');
     this.again.type = 'button';
     this.again.title = 'Prices go up for good, everything else starts over';
     onTap(this.again, () => {
