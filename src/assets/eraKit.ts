@@ -13,11 +13,12 @@
 import * as THREE from 'three';
 import { Batch } from '../render/batch';
 import { toonUnique } from '../render/materials';
+import { SNOW as PALETTE_SNOW, SNOW_SHADE } from '../render/palette';
 import { registerGlow } from '../world/env/glow';
 
-/** Snow colours (match config COLORS.SNOW_WHITE / PALETTE.snowShade). */
-export const SNOW = 0xeef5fc;
-export const SNOW_SH = 0xd9e6f2;
+/** Snow colours (render/palette.ts). */
+export const SNOW = PALETTE_SNOW;
+export const SNOW_SH = SNOW_SHADE;
 
 // ---------------------------------------------------------------------------
 // shared glow material

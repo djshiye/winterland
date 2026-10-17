@@ -1,4 +1,7 @@
-/** [B4] AutoQuality: one-way drop to Low after 8 s under 40 fps, skipping warm-up, hidden tab, manual / noauto / webdriver. */
+/**
+ * [B4] AutoQuality: 0.9.8 steps one tier down after 8 s under 40 fps and back up after 20 s at ~60 fps (never into a
+ * tier it left for being slow), skipping warm-up, hidden tab, manual / noauto / webdriver.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutoQuality } from '../src/ui/AutoQuality';
 
@@ -8,12 +11,12 @@ let search = '';
 let webdriver = false;
 const doc = { hidden: false, addEventListener: () => undefined };
 
-function setup(quality: 'high' | 'low' = 'high') {
-  const setQuality = vi.fn();
+function setup(quality: 'high' | 'medium' | 'low' = 'high') {
+  const renderer = { quality: quality as string, setQuality: vi.fn((q: string) => void (renderer.quality = q)) };
   const notify = vi.fn();
-  const ctx = { renderer: { quality, setQuality } } as never;
+  const ctx = { renderer } as never;
   const aq = new AutoQuality(ctx, notify);
-  return { aq, setQuality, notify };
+  return { aq, setQuality: renderer.setQuality, notify, renderer };
 }
 
 /** Run frames of `ms` each for `seconds` of real time. */
@@ -54,26 +57,53 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('AutoQuality', () => {
-  it('switches to Low once after 8 s under 40 fps (after the 5 s warm-up)', () => {
+  it('steps down one tier after 8 s under 40 fps (after the 5 s warm-up), then again', () => {
     const { aq, setQuality, notify } = setup();
     run(aq, 5, 50); // warm-up
     run(aq, 7, 50); // 20 fps, not long enough yet
     expect(setQuality).not.toHaveBeenCalled();
     run(aq, 2, 50);
-    expect(setQuality).toHaveBeenCalledWith('low');
-    expect(notify).toHaveBeenCalledTimes(1);
-    expect(store['winterland:autoQuality']).toBe('low');
+    expect(setQuality).toHaveBeenLastCalledWith('medium');
+    expect(notify).toHaveBeenLastCalledWith('medium', false);
+    expect(store['winterland:autoQuality']).toBe('medium');
+    run(aq, 3, 50); // settling after the change: not judged yet
+    expect(setQuality).toHaveBeenCalledTimes(1);
+    run(aq, 10, 50);
+    expect(setQuality).toHaveBeenLastCalledWith('low');
     run(aq, 30, 50);
-    expect(setQuality).toHaveBeenCalledTimes(1); // one shot
+    expect(setQuality).toHaveBeenCalledTimes(2); // nothing below Low
   });
 
-  it('does not fire at 60 fps, and a good bucket restarts the streak', () => {
-    const { aq, setQuality } = setup();
+  it('steps back up after 20 s of smooth frames, but never into a tier it left for being slow', () => {
+    const { aq, setQuality, renderer } = setup('low');
     run(aq, 5.5, 16);
-    run(aq, 30, 16);
+    run(aq, 21, 16);
+    expect(setQuality).toHaveBeenLastCalledWith('medium');
+    expect(renderer.quality).toBe('medium');
+    run(aq, 25, 16);
+    expect(setQuality).toHaveBeenLastCalledWith('high');
+    run(aq, 13, 50); // too slow on High
+    expect(setQuality).toHaveBeenLastCalledWith('medium');
+    run(aq, 60, 16); // smooth again: stays on Medium
+    expect(renderer.quality).toBe('medium');
+    expect(setQuality).toHaveBeenCalledTimes(3);
+  });
+
+  it('judges against the Frame rate setting (a 30 fps cap is not slow)', () => {
+    store['winterland:fps'] = '30';
+    const { aq, setQuality } = setup();
+    run(aq, 5.5, 34);
+    run(aq, 30, 34);
+    expect(setQuality).not.toHaveBeenCalled();
+  });
+
+  it('does not change at a steady in-between rate, and a good bucket restarts the streak', () => {
+    const { aq, setQuality } = setup();
+    run(aq, 5.5, 20); // 50 fps: neither slow nor smooth enough to step up
+    run(aq, 40, 20);
     expect(setQuality).not.toHaveBeenCalled();
     run(aq, 6, 50);
-    run(aq, 1, 16);
+    run(aq, 1, 20);
     run(aq, 6, 50);
     expect(setQuality).not.toHaveBeenCalled();
   });
@@ -104,19 +134,25 @@ describe('AutoQuality', () => {
     ['?noauto', () => (search = '?fresh&noauto')],
     ['webdriver', () => (webdriver = true)],
     ['manual choice', () => (store['winterland:autoQuality'] = 'manual')],
-    ['already decided', () => (store['winterland:autoQuality'] = 'low')],
     ['hand-set quality from before', () => (store['winterland:quality'] = 'high')],
   ])('never runs with %s', (_name, arrange) => {
     arrange();
     const { aq, setQuality } = setup();
     run(aq, 40, 50);
+    run(aq, 40, 16);
     expect(setQuality).not.toHaveBeenCalled();
   });
 
-  it('never runs when already on Low, and yields if the player picks quality meanwhile', () => {
-    const low = setup('low');
-    run(low.aq, 40, 50);
-    expect(low.setQuality).not.toHaveBeenCalled();
+  it("keeps running after its own earlier choice (0.9.7's one-way 'low' included)", () => {
+    store['winterland:autoQuality'] = 'low';
+    store['winterland:quality'] = 'low';
+    const { aq, setQuality } = setup('low');
+    run(aq, 5.5, 16);
+    run(aq, 21, 16);
+    expect(setQuality).toHaveBeenLastCalledWith('medium');
+  });
+
+  it('yields if the player picks quality meanwhile', () => {
     const { aq, setQuality } = setup();
     run(aq, 9, 50);
     store['winterland:autoQuality'] = 'manual';
