@@ -44,7 +44,7 @@ afterEach(() => {
 
 describe('parseComfort', () => {
   it('falls back to the defaults for missing, broken or hostile values', () => {
-    const d = { motion: false, effects: 'full', colorBlind: false, uiScale: 1, glow: 1 };
+    const d = { motion: false, effects: 'full', colorBlind: false, uiScale: 1, glow: 1, snow: true };
     for (const text of [null, '', 'not json', 'null', '[]', '42', '"x"', '{"__proto__":{"motion":true}}']) {
       expect(parseComfort(text)).toEqual(d);
     }
@@ -58,6 +58,7 @@ describe('parseComfort', () => {
       colorBlind: true,
       uiScale: 1,
       glow: 1,
+      snow: true,
     });
   });
 
@@ -71,9 +72,9 @@ describe('parseComfort', () => {
 describe('setComfort', () => {
   it('remembers the choice and survives a restart', () => {
     setComfort({ effects: 'minimal', colorBlind: true });
-    expect(JSON.parse(store[COMFORT_KEY]!)).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1, glow: 1 });
+    expect(JSON.parse(store[COMFORT_KEY]!)).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1, glow: 1, snow: true });
     reloadComfort();
-    expect(comfort()).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1, glow: 1 });
+    expect(comfort()).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1, glow: 1, snow: true });
   });
 
   it('still applies for the session when storage is unavailable', () => {
@@ -127,6 +128,16 @@ describe('effect multipliers', () => {
     expect(snowScale()).toBe(0.5);
     expect(steadyHighlights()).toBe(true);
     for (const t of [0, 0.3, 0.6, 1]) expect(backOut(t)).toBeCloseTo(cubicOut(t));
+  });
+
+  it('Falling snow off stops the snow altogether (0.9.8), and survives a restart', () => {
+    setComfort({ snow: false });
+    expect(snowScale()).toBe(0);
+    reloadComfort();
+    expect(comfort().snow).toBe(false);
+    setComfort({ snow: true });
+    expect(snowScale()).toBe(1);
+    expect(parseComfort('{"snow":"no"}').snow).toBe(true);
   });
 });
 

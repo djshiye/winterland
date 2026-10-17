@@ -15,6 +15,7 @@
  *   centre toast stops at TOAST_UI_MAX (`--wl-ui-toast`).
  * - glow (0.9.8, Glow): 0..1, how strongly lamps, windows and furnaces bloom and brighten at night (render/PostFX.ts
  *   bloom, world/env/glow.ts night boost and halos). 0 keeps every light at its plain daytime look.
+ * - snow (0.9.8, Falling snow): false stops the falling snow (and the snowstorm's flakes) altogether.
  * <html> also gets `wl-reduce-motion` and `wl-calm` so CSS can follow. Every storage / DOM access is guarded.
  */
 
@@ -30,6 +31,8 @@ export interface ComfortSettings {
   uiScale: number;
   /** Glow, 0..1 (1 = as designed). */
   glow: number;
+  /** Falling snow on (default) or off. */
+  snow: boolean;
 }
 
 /** Interface size limits and step (the Settings slider shows them as 80-150 %). */
@@ -78,7 +81,7 @@ function systemReducedMotion(): boolean {
 }
 
 export function defaultComfort(): ComfortSettings {
-  return { motion: systemReducedMotion(), effects: 'full', colorBlind: false, uiScale: 1, glow: 1 };
+  return { motion: systemReducedMotion(), effects: 'full', colorBlind: false, uiScale: 1, glow: 1, snow: true };
 }
 
 /**
@@ -102,6 +105,7 @@ export function parseComfort(text: string | null): ComfortSettings {
     colorBlind: typeof r.colorBlind === 'boolean' ? r.colorBlind : d.colorBlind,
     uiScale: r.uiScale === undefined ? d.uiScale : clampUiScale(r.uiScale),
     glow: r.glow === undefined ? d.glow : clampGlow(r.glow),
+    snow: typeof r.snow === 'boolean' ? r.snow : d.snow,
   };
 }
 
@@ -213,8 +217,9 @@ export function shakeScale(): number {
   return state.motion ? 0 : SHAKE[state.effects];
 }
 
-/** Multiplier for the falling snow (fewer flakes drifting past with reduced motion). */
+/** Multiplier for the falling snow (fewer flakes drifting past with reduced motion, none with Falling snow off). */
 export function snowScale(): number {
+  if (!state.snow) return 0;
   return state.motion ? 0.5 : 1;
 }
 

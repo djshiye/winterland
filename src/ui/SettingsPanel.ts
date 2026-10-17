@@ -5,7 +5,7 @@
  * - Display: window mode (desktop app) or a Fullscreen switch (browser), Graphics Low / Medium / High (0.9.8 tiers,
  *   render/Renderer.ts TIERS), Resolution slider, Frame rate Auto / 60 / 30, Show FPS (PerfOverlay), Day / night (ctx.dayNight).
  * - Comfort (fx/comfort, localStorage 'winterland:comfort'): Reduce motion, Effects Full / Calm / Minimal, Interface
- *   size 80-150 % (applied when the slider is let go, fitted to the window), Glow 0-100 % (0.9.8), Colour-blind friendly, and two quick
+ *   size 80-150 % (applied when the slider is let go, fitted to the window), Glow 0-100 % (0.9.8), Falling snow (0.9.8), Colour-blind friendly, and two quick
  *   buttons: "Make it calm" (all three at their gentlest) and "Defaults".
  * - Game: Hold to interact (pickups and payments need E / Space / a press held), Vibration (phone buzz and gamepad rumble, where either exists), a controls hint, Back up / Restore save (ui/saveTransfer),
  *   "Stats & trophies" (0.9.7: opens the stats page, ui/FinaleCard.ts; New Season lives only on that 100 % card) and
@@ -96,6 +96,7 @@ export class SettingsPanel {
   private readonly holdSwitch: HTMLButtonElement;
   private readonly motionSwitch: HTMLButtonElement;
   private readonly cbSwitch: HTMLButtonElement;
+  private readonly snowSwitch: HTMLButtonElement;
   private readonly vibSwitch: HTMLButtonElement | null = null;
   private readonly fsSwitch: HTMLButtonElement | null = null;
   /** Sliders and segmented controls re-read their value in sync(). */
@@ -397,6 +398,11 @@ export class SettingsPanel {
     window.addEventListener('resize', paintFitted);
     // 0.9.8: how strongly lamps, windows and furnaces glow at night (fx/comfort glow)
     slider(pc, 'Glow', () => comfort().glow, (v) => setComfort({ glow: v }), { min: 0, max: 100, step: 5 });
+    // 0.9.8: the falling snow can be switched off (fx/comfort snow; world/env/snowfall.ts)
+    this.snowSwitch = sw(pc, 'Falling snow', 'Gentle snowflakes drifting down', () => {
+      ctx.audio.play('click');
+      setComfort({ snow: !comfort().snow });
+    });
     this.cbSwitch = sw(pc, 'Colour-blind friendly', 'Blue and orange instead of green and red', () => {
       ctx.audio.play('click');
       setComfort({ colorBlind: !comfort().colorBlind });
@@ -592,6 +598,7 @@ export class SettingsPanel {
     set(this.holdSwitch, this.ctx.input.holdToInteract);
     set(this.motionSwitch, comfort().motion);
     set(this.cbSwitch, comfort().colorBlind);
+    set(this.snowSwitch, comfort().snow);
     if (this.vibSwitch) set(this.vibSwitch, hapticsEnabled());
     if (this.fsSwitch) set(this.fsSwitch, !!document.fullscreenElement);
     for (const r of this.refreshers) r();

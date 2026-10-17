@@ -255,3 +255,71 @@ export function mixHex(a: number, b: number, t: number): number {
 export function lightness(c: number): number {
   return (0.2126 * ch(c, 16) + 0.7152 * ch(c, 8) + 0.0722 * ch(c, 0)) / 255;
 }
+
+// ---------------------------------------------------------------------------
+// sky (0.9.8 brief 16: world/sky, render/skyLight.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * The sky's colours. The camera never sees the sky itself, so these are the colours of the light it throws: the sun
+ * through the day (a peach morning and a honey afternoon around the plain LIGHTING noon), the northern lights (a low
+ * green, a teal body, a violet crown) and the chimney smoke.
+ */
+export const SKY = {
+  sunMorning: 0xffe4c8,
+  sunEvening: 0xffd4a0,
+  hemiMorning: 0xdce2ff,
+  hemiEvening: 0xece4f0,
+  auroraLow: 0x48f0a8,
+  auroraBody: 0x34c8dc,
+  auroraCrown: 0xa070ff,
+  smoke: 0xe4e2ea,
+  smokeShade: 0x9a96a8,
+  smokeNight: 0x7a82a4,
+  /** Bullfinches: a plum-grey back, a rosy breast, dark wing tips. */
+  birdBack: 0x8c7f92,
+  birdBreast: 0xe0806a,
+  birdWing: 0x4a3e52,
+} as const;
+
+/** What drifts in an era's air (world/sky/motes.ts): forge sparks, steam, ash, fusion shimmer… */
+export type MoteKind = 'none' | 'dust' | 'sparks' | 'steam' | 'ash' | 'zaps' | 'shimmer' | 'pixels' | 'glow' | 'fusion';
+
+export interface EraSky {
+  motes: MoteKind;
+  /** Mote colour (sRGB hex). */
+  mote: number;
+  /** Mixed into the aurora's teal body at night (0 = classic northern lights). */
+  auroraTint: number;
+  auroraTintAmount: number;
+}
+
+/** One sky per era, each built around the era's main resource (R36). */
+const SKIES: readonly EraSky[] = [
+  { motes: 'none', mote: SNOW, auroraTint: SKY.auroraBody, auroraTintAmount: 0 },
+  // 1 Survival: the forest and the log: plain snow, classic green curtains
+  { motes: 'none', mote: SNOW, auroraTint: SKY.auroraBody, auroraTintAmount: 0 },
+  // 2 Frontier: clay and kilns: warm kiln dust drifting in the light
+  { motes: 'dust', mote: 0xe9c79a, auroraTint: 0xffb347, auroraTintAmount: 0.12 },
+  // 3 Iron Age: forge sparks rising
+  { motes: 'sparks', mote: 0xff9233, auroraTint: 0xff9233, auroraTintAmount: 0.18 },
+  // 4 Steam Age: soft steam wisps
+  { motes: 'steam', mote: 0xf6f2ec, auroraTint: 0xffbe55, auroraTintAmount: 0.1 },
+  // 5 Industrial: coke ash flecks and the odd sodium spark
+  { motes: 'ash', mote: 0xa89c94, auroraTint: 0xffd166, auroraTintAmount: 0.12 },
+  // 6 Electric Age: little mint zaps along the wires
+  { motes: 'zaps', mote: 0x7ce8c8, auroraTint: 0x7ce8c8, auroraTintAmount: 0.3 },
+  // 7 Oil: honey heat shimmer
+  { motes: 'shimmer', mote: 0xffc46a, auroraTint: 0xffaa5a, auroraTintAmount: 0.16 },
+  // 8 Computer: mint pixels drifting up like screen light
+  { motes: 'pixels', mote: 0x66e0a3, auroraTint: 0x66e0a3, auroraTintAmount: 0.3 },
+  // 9 Nuclear: aqua glow motes bobbing over the pools
+  { motes: 'glow', mote: 0x70f5d9, auroraTint: 0x70f5d9, auroraTintAmount: 0.35 },
+  // 10 AI: sun-gold fusion shimmer
+  { motes: 'fusion', mote: 0xffe082, auroraTint: 0xffe082, auroraTintAmount: 0.3 },
+];
+
+/** Era `era`'s sky (clamped like palette()). */
+export function eraSky(era: number): EraSky {
+  return SKIES[eraIndex(era)]!;
+}
