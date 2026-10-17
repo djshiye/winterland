@@ -30,7 +30,7 @@ import { CITY_BUILDINGS, CITY_HAPPINESS_BONUS, DISTRICT_MATERIAL, ERA_NAMES, dis
 import type { ChooseOption, GameContext } from '../core/types';
 import { climbMult, settledCityTotals } from '../core/demand';
 import { Batch } from '../render/batch';
-import { SNOW } from '../render/palette';
+import { SNOW, mixHex, palette } from '../render/palette';
 import { geo } from '../render/materials';
 import { createCityBuilding, createCityScaffold, type CityBuildingModel } from '../assets/cityBuildings';
 import { LotPad } from '../town/LotPad';
@@ -59,7 +59,28 @@ import {
 } from './rules';
 
 /** Pavement per era: street, sidewalk (lanes + ring), plot, tile accent, lamp pole, lamp bulb. */
-const SURFACE: readonly ({ street: number; walk: number; plot: number; tile: number; pole: number; bulb: number; tileSize: number } | null)[] = [
+type Surface = { street: number; walk: number; plot: number; tile: number; pole: number; bulb: number; tileSize: number };
+
+/**
+ * 0.9.8 (10c): the late districts pave in their era's own base board (render/palette.ts floors), so the city reads as
+ * the same place as the era's plot: silicon-beige terrazzo with teal poles (8), mint glaze (9), cream with gold
+ * seams (10). Lighter era by era, warm, never grey slush.
+ */
+function lateSurface(n: number, tileSize: number): Surface {
+  const p = palette(n);
+  const c = p.city!;
+  return {
+    street: mixHex(p.floor.yard, 0x8a8478, 0.42),
+    walk: mixHex(p.floor.processing, SNOW, 0.25),
+    plot: mixHex(p.floor.yard, c.wall2, 0.25),
+    tile: n === 10 ? mixHex(p.floor.processing, p.floor.yard, 0.45) : mixHex(p.floor.yard, c.accent, 0.18),
+    pole: c.roof,
+    bulb: mixHex(p.light, 0xffffff, 0.45),
+    tileSize,
+  };
+}
+
+const SURFACE: readonly (Surface | null)[] = [
   null,
   null,
   { street: 0x8d8478, walk: 0xb9b2a6, plot: 0xa39a8c, tile: 0x9f978a, pole: 0x6b4a33, bulb: 0xffc860, tileSize: 0.9 },
@@ -67,12 +88,11 @@ const SURFACE: readonly ({ street: number; walk: number; plot: number; tile: num
   { street: 0x6f6a66, walk: 0x9c9690, plot: 0x85807b, tile: 0x8c8782, pole: 0x383d40, bulb: 0xffd070, tileSize: 1.3 },
   { street: 0x55575c, walk: 0x9a9da3, plot: 0x7d8086, tile: 0x8a8d93, pole: 0x34383d, bulb: 0xffd890, tileSize: 1.5 },
   { street: 0x5a5d62, walk: 0xa8aaa6, plot: 0x82868a, tile: 0x9a9c98, pole: 0x2b3b39, bulb: 0xffe0a0, tileSize: 1.6 },
-  { street: 0x4a4c52, walk: 0xa3a5a8, plot: 0x7a7d83, tile: 0x93959a, pole: 0x6b7480, bulb: 0xfff0c8, tileSize: 1.8 },
-  { street: 0x9a9ea5, walk: 0xc4c8cd, plot: 0xaeb3ba, tile: 0xc2bfb4, pole: 0x7c858e, bulb: 0xe2f8ea, tileSize: 2.0 },
-  { street: 0x8f989c, walk: 0xc0c9cc, plot: 0xa6b0b4, tile: 0xb3bdc0, pole: 0x6f828a, bulb: 0xd8fbef, tileSize: 2.0 },
-  { street: 0xbfc8d2, walk: 0xe2dccd, plot: 0xc9d1da, tile: 0xd9d2c0, pole: 0x526475, bulb: 0xffe7a8, tileSize: 2.2 },
+  { street: 0x5c5650, walk: 0xb3aa9c, plot: 0x8a8278, tile: 0xa69d8e, pole: 0x6a5a4e, bulb: 0xfff0c8, tileSize: 1.8 },
+  lateSurface(8, 2.0),
+  lateSurface(9, 2.0),
+  lateSurface(10, 2.2),
 ];
-
 
 const PER_FRAME = 2;
 /** The MANAGE label over a built lot's tile: big enough to read from the usual camera distance. */

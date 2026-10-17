@@ -162,19 +162,23 @@ const FLOORS: readonly [yard: number, processing: number, light: number][] = [
   [0xf3ead8, 0xe8a848, 0xffe082], // cream hex panels with gold seams; sun-gold fusion glow
 ];
 
-/** District building colours, eras 2..10 (assets/cityBuildings.ts adds its own storey heights). */
+/**
+ * District building colours, eras 2..10 (assets/cityBuildings.ts adds its own storey heights). 0.9.8 (10c): read in
+ * era order the city climbs taller AND lighter: warm brick and iron (2-5), cream deco (6), honey sandstone (7), then
+ * silicon beige with teal glass (8), mint-glazed white (9) and cream with gold seams (10). No near-black trims.
+ */
 const CITY: readonly (CityStyle | null)[] = [
   null,
   null,
   { wall: 0xb85239, wall2: 0x9a4430, roof: 0x5c4028, trim: 0xe9dfcc, accent: 0xd9a441, tint: 0xffb347 },
-  { wall: 0x8a5442, wall2: 0x5e3a2c, roof: 0x3d3a3a, trim: 0x2f3538, accent: 0x7a8087, tint: 0xffb347 },
-  { wall: 0xa5703f, wall2: 0x7d5330, roof: 0x4a3a2c, trim: 0x383d40, accent: 0xd49a35, tint: 0xffc05a },
-  { wall: 0x93453a, wall2: 0x6f3a2f, roof: 0x333c42, trim: 0x525c63, accent: 0xe08a2b, tint: 0xffcf70 },
-  { wall: 0xe3d8bc, wall2: 0xbfb08a, roof: 0x2b3b39, trim: 0xd97f38, accent: 0x4c6b68, tint: 0xffe08a },
-  { wall: 0xb0a594, wall2: 0x8a8070, roof: 0x36383a, trim: 0xd99b26, accent: 0xc44536, tint: 0xffe6b0 },
-  { wall: 0xe6dec8, wall2: 0x8fb3b0, roof: 0x4a5259, trim: 0xf5f0e6, accent: 0x45858c, tint: 0xd8f5e4 },
-  { wall: 0xdce3e6, wall2: 0x9fb8b4, roof: 0x3d5259, trim: 0xf5f0e6, accent: 0x4ea885, tint: 0xd2fbef },
-  { wall: 0xf5f0e6, wall2: 0xcdc3ae, roof: 0x526475, trim: 0xe8a848, accent: 0xe8a848, tint: 0xffe7a8 },
+  { wall: 0x8a5442, wall2: 0x6a4434, roof: 0x5a4a44, trim: 0x4e4846, accent: 0x8a9096, tint: 0xffb347 },
+  { wall: 0xa5703f, wall2: 0x7d5330, roof: 0x4a3a2c, trim: 0x4a4644, accent: 0xd49a35, tint: 0xffc05a },
+  { wall: 0x93453a, wall2: 0x6f3a2f, roof: 0x4d555c, trim: 0x5c666d, accent: 0xe08a2b, tint: 0xffcf70 },
+  { wall: 0xe3d8bc, wall2: 0xbfb08a, roof: 0x3f5a56, trim: 0xd97f38, accent: 0x4c6b68, tint: 0xffe08a },
+  { wall: 0xd6c4a2, wall2: 0xb39d7a, roof: 0x6a5a4e, trim: 0xd99b26, accent: 0xc44536, tint: 0xffe6b0 },
+  { wall: 0xf0e8d6, wall2: 0xa9cfcb, roof: 0x5d8f94, trim: 0xfaf6ec, accent: 0x45858c, tint: 0xd8f5e4 },
+  { wall: 0xeef4f0, wall2: 0xbfe0d3, roof: 0x5a8f86, trim: 0xfbfdfb, accent: 0x4ea885, tint: 0xd2fbef },
+  { wall: 0xfbf4e6, wall2: 0xf0dfb8, roof: 0xe0b860, trim: 0xe8a848, accent: 0xf2c46a, tint: 0xffe7a8 },
 ];
 
 const PALETTES: readonly EraPalette[] = GUIDE.map(([ground, fence, body, accent, trim, glow, coat], n) => {
