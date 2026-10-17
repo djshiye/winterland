@@ -1,8 +1,14 @@
-/** Gentle snowfall: one Points object of flakes that wrap around the camera target. */
+/**
+ * Gentle snowfall: one Points object of flakes that wrap around the camera target.
+ * 0.9.8 (brief 16): the calm weather (world/sky/weather.ts) sets how much falls, from a few flakes to steady snow; the
+ * snowstorm event still blows a storm; Falling snow off in Comfort hides it entirely; at night the flakes take the
+ * moonlight's blue instead of glaring white.
+ */
 import * as THREE from 'three';
 import { makeCanvasTexture } from '../../render/materials';
 import type { GameContext } from '../../core/types';
 import { snowScale } from '../../fx/comfort';
+import { SNOW_SHADE } from '../../render/palette';
 import { Rng, type EnvPart } from './common';
 
 const COUNT = 520;
@@ -10,8 +16,13 @@ const SPAN = 72;
 const HEIGHT = 18;
 
 export interface SnowfallPart extends EnvPart {
-  /** Wave 13: 1 normal; the snowstorm event raises it (more flakes via the draw range, and they fall faster). */
+  /**
+   * Wave 13: 1 normal; the snowstorm event raises it (more flakes via the draw range, and they fall faster).
+   * 0.9.8: the weather lowers it toward a few flakes (0 = none).
+   */
   setIntensity(k: number): void;
+  /** 0.9.8: how dark it is (0 day … 1 night): the flakes turn moonlit blue. */
+  setDarkness(d: number): void;
 }
 
 const MAX_COUNT = 1560; // 3x the calm count (EVENTS snowstorm snowfall: 3)
@@ -61,19 +72,29 @@ export function buildSnowfall(ctx: GameContext, rng: Rng): SnowfallPart {
   let t = 0;
   let target = 1;
   let intensity = 1; // eased toward `target`
+  const day = new THREE.Color(0xffffff);
+  const night = new THREE.Color(SNOW_SHADE);
   return {
     group,
     setIntensity(k: number): void {
-      target = Math.min(MAX_COUNT / COUNT, Math.max(1, Number.isFinite(k) ? k : 1));
+      target = Math.min(MAX_COUNT / COUNT, Math.max(0, Number.isFinite(k) ? k : 1));
+    },
+    setDarkness(d: number): void {
+      mat.color.copy(day).lerp(night, Math.min(1, Math.max(0, d)));
     },
     update(dt: number): void {
       t += dt;
-      intensity += (target - intensity) * Math.min(1, dt * 1.5);
+      intensity += (target - intensity) * Math.min(1, dt * 0.6);
       if (Math.abs(target - intensity) < 0.005) intensity = target;
-      geometry.setDrawRange(0, Math.round(COUNT * intensity * snowScale())); // comfort: half the flakes with Reduce motion
-      const fall = 1 + (intensity - 1) * 0.4; // a storm also falls harder,
-      const wind = 0.12 + (intensity - 1) * 0.9; // blows sideways
-      mat.size = 5 + (intensity - 1) * 1.8; // and its flakes read bigger
+      // comfort: half the flakes with Reduce motion, none with Falling snow off
+      const shown = Math.round(COUNT * intensity * snowScale());
+      geometry.setDrawRange(0, shown);
+      points.visible = shown > 0;
+      if (!points.visible) return;
+      const storm = Math.max(0, intensity - 1);
+      const fall = 1 + storm * 0.4; // a storm also falls harder,
+      const wind = 0.12 + storm * 0.9; // blows sideways
+      mat.size = 5 + storm * 1.8; // and its flakes read bigger
       const cx = ctx.cameraRig.target.x;
       const cz = ctx.cameraRig.target.z;
       const half = SPAN / 2;

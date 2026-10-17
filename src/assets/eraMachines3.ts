@@ -24,22 +24,16 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { vcMat } from '../render/batch';
 import { MACHINE_TONES, SNOW } from '../render/palette';
-import { Kit, eraGlowMaterial, hcyl, lattice, wheel, type Rot, type V3 } from './eraKit';
+import { Kit, eraGlowMaterial, hcyl, wheel, type Rot, type V3 } from './eraKit';
 import type { MachineModel } from './eraMachines';
 
-/** The new machine ids of eras 5–7, in era order (extractor, processor, premium, cash). */
-export const ERA5_7_MACHINE_IDS = [
-  'rollingMill', 'plowWorks', 'bankVault',
-  'quartzPit', 'bulbWorks', 'radioWorks', 'tillLine',
-  'gasWell', 'cracker', 'snowmobileWorks', 'driveThruVault',
-] as const;
+/** The machine ids of this file, in era order. 0.9.8: the era 6-7 production machines moved to assets/eraMachines6to10.ts. */
+export const ERA5_7_MACHINE_IDS = ['rollingMill', 'plowWorks', 'bankVault', 'tillLine', 'driveThruVault'] as const;
 export type Era5to7MachineId = (typeof ERA5_7_MACHINE_IDS)[number];
 
 /** Era of each new machine. */
 export const ERA5_7_MACHINE_ERA: Record<Era5to7MachineId, 5 | 6 | 7> = {
-  rollingMill: 5, plowWorks: 5, bankVault: 5,
-  quartzPit: 6, bulbWorks: 6, radioWorks: 6, tillLine: 6,
-  gasWell: 7, cracker: 7, snowmobileWorks: 7, driveThruVault: 7,
+  rollingMill: 5, plowWorks: 5, bankVault: 5, tillLine: 6, driveThruVault: 7,
 };
 
 // ---------------------------------------------------------------------------
@@ -333,152 +327,6 @@ const bankVault: Recipe = ({ body: b, glow: g, pivot: p }) => {
 // era 6 — Electric: enamel teal, copper windings, cream enamel, soft mint glow
 // ---------------------------------------------------------------------------
 
-/** quartzPit: snowy gravel pit full of soft-glowing quartz, a shaker screen bouncing on posts, a floodlight pole. */
-const quartzPit: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  plinth(b, 4.8, 4.8, E.ground, E.fence);
-  const P = 0.25;
-  // round pit: raised gravel rim, dark floor, snowy lip
-  b.lathe(E.gravel, [[1.5, 0], [2.15, 0], [2.18, 0.3], [2.0, 0.48], [1.7, 0.44], [1.5, 0.1]], 0, P, -0.1, 24);
-  b.cyl(0x6f6a62, 1.55, 0.1, 0, P, -0.1, 20);
-  b.torus(SNOW, 1.95, 0.12, 0, P + 0.46, -0.1, { rx: Math.PI / 2 }, 28);
-  // quartz clusters in the pit: pale pink crystals in the body, soft mint ones glowing
-  const clusters: [number, number, number][] = [[-0.9, 0.5, 0.3], [0.8, 0.7, -0.2], [-0.2, -1.1, 0.5], [1.1, -0.7, 1.1], [-1.1, -0.5, 2.0]];
-  for (const [x, z, s] of clusters) {
-    g.cone(E.glow, 0.11, 0.5, x, P + 0.08, z, 6, { rz: 0.25 * Math.sin(s * 3), rx: 0.2 });
-    b.cone(E.quartz, 0.09, 0.38, x + 0.16, P + 0.08, z + 0.08, 6, { rz: -0.4 });
-    b.cone(E.quartz, 0.08, 0.3, x - 0.14, P + 0.08, z - 0.06, 6, { rx: -0.35 });
-  }
-  // shaker frame: four cream guide posts (the screen bounces on them) and a copper chute to the front door
-  const SX = 1.2;
-  const SZ = 0.82;
-  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
-    b.cyl(E.trim, 0.09, 2.45, 0.1 + sx * SX, P + 0.1, -0.5 + sz * SZ, 8);
-    b.cyl(E.cream, 0.12, 0.1, 0.1 + sx * SX, P + 2.55, -0.5 + sz * SZ, 8);
-  }
-  b.box(E.accent, 0.9, 0.08, 1.5, 0.1, P + 0.75, 0.75, { rx: 0.38 });
-  for (const s of [-1, 1]) b.box(E.accent, 0.06, 0.24, 1.5, 0.1 + s * 0.45, P + 0.82, 0.75, { rx: 0.38 });
-  // electric vibrator motor with copper windings and a crimson feed pipe (right)
-  rbox(b, E.body, 0.9, 0.6, 0.9, 1.7, P, 0.9);
-  for (let i = 0; i < 3; i++) b.torus(E.accent, 0.3, 0.08, 1.7, P + 0.8 + i * 0.16, 0.9, { rx: Math.PI / 2 });
-  b.cyl(E.cream, 0.32, 0.14, 1.7, P + 1.22, 0.9, 12);
-  snowDisc(b, 0.28, 1.7, P + 1.36, 0.9);
-  b.beam(E.crimson, [1.7, P + 1.0, 0.6], [1.3, P + 1.8, -0.5], 0.1);
-  // crown: power pole with cream insulators and a warm floodlight, cable down to the motor
-  b.cyl(0x6d5a48, 0.12, 4.6, -1.85, P, -1.85, 8, 0.09);
-  rbox(b, E.trim, 1.2, 0.12, 0.14, -1.85, P + 4.2, -1.85, undefined, 0.04);
-  for (const x of [-2.3, -1.4]) b.cyl(E.cream, 0.07, 0.18, x, P + 4.32, -1.85, 8);
-  b.beam(E.trim, [-1.85, P + 3.9, -1.75], [-1.3, P + 3.7, -1.2], 0.06);
-  rbox(b, E.trim, 0.36, 0.28, 0.24, -1.3, P + 3.5, -1.2, { rx: 0.35 }, 0.05);
-  g.box(G_WARM, 0.28, 0.2, 0.05, -1.3, P + 3.5, -1.04, { rx: 0.35 });
-  snowCap(b, 1.1, 0.26, -1.85, P + 4.32, -1.85);
-  b.beam(0x2b2b2b, [-1.4, P + 4.35, -1.85], [1.7, P + 1.3, 0.9], 0.025);
-  // vibrating screen deck (bobs up and down): teal enamel tray, cream rails, mesh bars and quartz on it
-  rbox(p, E.body, 2.3, 0.16, 1.5, 0, -0.08, 0, undefined, 0.06);
-  for (const s of [-1, 1]) rbox(p, E.cream, 2.3, 0.22, 0.1, 0, 0.0, s * 0.72, undefined, 0.04);
-  for (let i = 0; i < 7; i++) p.box(E.trim, 0.05, 0.05, 1.36, -0.96 + i * 0.32, 0.08, 0);
-  for (const [x, z] of [[-0.6, -0.2], [0.1, 0.35], [0.7, -0.3]] as const) {
-    p.cone(E.quartz, 0.1, 0.36, x, 0.08, z, 6, { rz: 0.3 });
-    p.cone(E.quartz, 0.08, 0.28, x + 0.13, 0.08, z + 0.05, 6, { rx: -0.3 });
-  }
-  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) p.torus(E.accent, 0.15, 0.04, sx * SX, 0, sz * SZ, { rx: Math.PI / 2 }, 10);
-  return { at: [0.1, P + 1.8, -0.5], axis: 'y', mode: 'bob', speed: 0.85, amp: 0.36 };
-};
-
-/** bulbWorks: round glass oven under a copper dome, a test bench of glowing bulbs, and a bulb carousel on top. */
-const bulbWorks: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  plinth(b, 4.8, 4.6, E.ground, E.fence);
-  const P = 0.25;
-  // enamel base with a copper kick strip
-  rbox(b, E.body, 4.3, 0.5, 3.7, 0, P, -0.4);
-  b.box(E.accent, 4.32, 0.08, 3.72, 0, P + 0.06, -0.4);
-  const B = P + 0.5;
-  // core: cream oven drum with teal bands, copper dome, annealing window
-  b.cyl(E.cream, 1.25, 1.6, -0.6, B, -0.8, 20, 1.18);
-  for (const y of [0.2, 1.4]) b.torus(E.body, 1.24 - y * 0.04, 0.07, -0.6, B + y, -0.8, { rx: Math.PI / 2 }, 24);
-  b.dome(E.accent, 1.24, -0.6, B + 1.6, -0.8, { sy: 0.58 });
-  b.dome(SNOW, 1.02, -0.6, B + 1.66, -0.8, { sy: 0.5 });
-  rbox(b, E.trim, 0.9, 0.7, 0.14, -0.6, B + 0.45, 0.38, undefined, 0.05);
-  g.box(G_FIRE, 0.72, 0.52, 0.06, -0.6, B + 0.54, 0.44);
-  // vacuum stack (copper chimney) with a crimson pipe into the drum
-  chimney(b, E.accent, E.body, 1.45, B, -1.6, 0.3, 2.9);
-  b.beam(E.crimson, [1.25, B + 1.8, -1.45], [0.4, B + 1.2, -0.95], 0.12);
-  // test bench of glowing bulbs (front right)
-  rbox(b, E.creamD, 1.6, 0.55, 0.9, 1.2, B, 0.75);
-  b.box(E.accent, 1.64, 0.06, 0.94, 1.2, B + 0.5, 0.75);
-  for (let i = 0; i < 4; i++) {
-    const x = 0.66 + i * 0.36;
-    b.cyl(E.accent, 0.07, 0.12, x, B + 0.56, 0.75, 8);
-    g.sph(i % 2 ? G_WARM : E.glow, 0.13, x, B + 0.8, 0.75);
-  }
-  // transformer with copper windings (front left)
-  rbox(b, E.trim, 0.9, 0.95, 0.75, -1.65, B, 0.85);
-  for (let i = 0; i < 5; i++) b.box(E.body, 0.04, 0.8, 0.8, -2.1 + 0.0 * i, B + 0.06, 0.85 - 0.3 + i * 0.15);
-  for (let i = 0; i < 3; i++) b.torus(E.accent, 0.2, 0.07, -1.65, B + 1.05 + i * 0.13, 0.85, { rx: Math.PI / 2 }, 12);
-  for (const x of [-1.9, -1.4]) b.cyl(E.cream, 0.06, 0.3, x, B + 0.95, 0.65, 8);
-  // brass post up through the dome for the carousel
-  b.cyl(E.honey, 0.12, 0.6, -0.6, B + 2.25, -0.8, 10);
-  // carousel (spins around Y): hub, six arms, cream glass bulbs on copper sockets
-  p.cyl(E.trim, 0.26, 0.16, 0, -0.08, 0, 12);
-  p.dome(E.honey, 0.2, 0, 0.08, 0);
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    const x = Math.cos(a) * 0.85;
-    const z = Math.sin(a) * 0.85;
-    p.beam(E.accent, [0, 0, 0], [x, 0, z], 0.06);
-    p.cyl(E.accent, 0.08, 0.12, x, 0.0, z, 8);
-    p.sph(i % 2 ? E.cream : 0xfff4dc, 0.16, x, 0.26, z, { sy: 1.15 });
-  }
-  return { at: [-0.6, B + 2.85, -0.8], axis: 'y', mode: 'spin', speed: 0.3 };
-};
-
-/** radioWorks: streamline teal hall with copper speed lines, a big tuning dial, and a turning dipole on the mast. */
-const radioWorks: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  plinth(b, 5.0, 4.8, E.ground, E.fence);
-  const P = 0.25;
-  rbox(b, E.creamD, 4.6, 0.22, 3.9, 0, P, -0.45);
-  b.box(E.accent, 4.62, 0.05, 3.92, 0, P + 0.04, -0.45);
-  const B = P + 0.22;
-  // streamline hall: box wing on the right, rounded drum on the left
-  rbox(b, E.body, 3.0, 2.2, 2.7, 0.45, B, -0.95, undefined, 0.15);
-  b.cyl(E.body, 1.35, 2.2, -1.05, B, -0.95, 24);
-  for (const y of [0.85, 1.1]) {
-    b.box(E.accent, 3.02, 0.07, 2.72, 0.45, B + y, -0.95);
-    b.cyl(E.accent, 1.37, 0.07, -1.05, B + y, -0.95, 24);
-  }
-  rbox(b, E.cream, 3.06, 0.24, 2.76, 0.45, B + 2.2, -0.95, undefined, 0.06);
-  b.cyl(E.cream, 1.4, 0.24, -1.05, B + 2.2, -0.95, 24);
-  snowCap(b, 2.9, 2.6, 0.6, B + 2.44, -0.95);
-  snowDisc(b, 1.32, -1.05, B + 2.44, -0.95);
-  // ribbon window on the drum, tuning dial and door on the wing
-  g.box(E.glow, 1.3, 0.32, 0.06, -1.05, B + 1.4, 0.41);
-  b.box(E.cream, 1.4, 0.06, 0.08, -1.05, B + 1.36, 0.42);
-  b.box(E.cream, 1.4, 0.06, 0.08, -1.05, B + 1.74, 0.42);
-  b.torus(E.accent, 0.42, 0.07, 1.1, B + 1.55, 0.42);
-  g.cyl(G_WARM, 0.36, 0.05, 1.1, B + 1.55 - 0.025, 0.42, 16, 0.36, { rx: Math.PI / 2 });
-  b.box(E.crimson, 0.05, 0.3, 0.04, 1.1, B + 1.42, 0.46, { rz: 0.5 });
-  rbox(b, E.trim, 0.85, 1.25, 0.12, 0.05, B, 0.42, undefined, 0.05);
-  g.box(G_WARM, 0.6, 0.35, 0.05, 0.05, B + 0.75, 0.48);
-  b.box(E.accent, 0.95, 0.08, 0.16, 0.05, B + 1.25, 0.44);
-  // gramophone horn on the roof (pointing out to the yard)
-  b.cyl(E.trim, 0.12, 0.5, 1.4, B + 2.44, -1.2, 8);
-  b.cone(E.accent, 0.42, 0.75, 1.4, B + 3.15, -0.95, 14, { rx: -Math.PI / 2 });
-  b.cyl(E.honey, 0.1, 0.12, 1.4, B + 3.11, -1.4, 8, 0.1, { rx: Math.PI / 2 });
-  // crown: lattice mast on the drum, beacon above the turning array
-  lattice(b, E.accent, -1.05, -0.95, B + 2.5, 1.9, 0.7, 0.24, 4, 0.08);
-  b.cyl(E.trim, 0.06, 0.6, -1.05, B + 4.5, -0.95, 8);
-  g.sph(G_FIRE, 0.12, -1.05, B + 5.18, -0.95);
-  // rotating dipole array (spins around Y): crossbar, two dipoles with copper balls
-  p.cyl(E.trim, 0.14, 0.18, 0, -0.09, 0, 10);
-  p.beam(E.cream, [-0.95, 0, 0], [0.95, 0, 0], 0.08);
-  for (const s of [-1, 1]) {
-    p.beam(E.honey, [s * 0.85, -0.35, 0], [s * 0.85, 0.35, 0], 0.05);
-    p.sph(E.accent, 0.08, s * 0.85, 0.38, 0);
-    p.sph(E.accent, 0.08, s * 0.85, -0.38, 0);
-  }
-  p.beam(E.cream, [0, 0, -0.4], [0, 0, 0.4], 0.06);
-  return { at: [-1.05, B + 4.55, -0.95], axis: 'y', mode: 'spin', speed: 0.18 };
-};
-
 /** tillLine: marble counter with three brass cash registers whose price flags pop up and down. */
 const tillLine: Recipe = ({ body: b, glow: g, pivot: p }) => {
   plinth(b, 4.6, 4.4, E.ground, E.fence);
@@ -526,168 +374,6 @@ const tillLine: Recipe = ({ body: b, glow: g, pivot: p }) => {
 // ---------------------------------------------------------------------------
 // era 7 — Oil: hazard honey-yellow, crimson pipes, charcoal trim, peach-orange glow
 // ---------------------------------------------------------------------------
-
-/** gasWell: wellhead valve tree in a hi-vis cage, a honey separator tank, a cosy hut, and a breathing flare. */
-const gasWell: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  plinth(b, 4.6, 4.6, O.ground, O.fence);
-  const P = 0.25;
-  rbox(b, O.concrete, 4.1, 0.2, 4.1, 0, P, 0);
-  const W = P + 0.2;
-  // wellhead "christmas tree": flange stack, crimson valve wheels, side outlets
-  const wx = -0.4;
-  const wz = -0.1;
-  b.cyl(O.trim, 0.4, 0.2, wx, W, wz, 12);
-  b.cyl(O.body, 0.26, 1.7, wx, W + 0.2, wz, 12);
-  for (const y of [0.55, 1.05, 1.55]) b.cyl(O.trim, 0.34, 0.1, wx, W + y, wz, 12);
-  for (const y of [0.8, 1.3]) {
-    hcyl(b, O.body, 0.13, 0.9, wx, W + y, wz, 'x', 10);
-    for (const s of [-1, 1]) wheel(b, 'x', O.accent, O.trim, wx + s * 0.48, W + y, wz, 0.18, 0.04, 4);
-  }
-  b.dome(O.accent, 0.28, wx, W + 1.9, wz);
-  g.sph(G_WARM, 0.1, wx, W + 1.15, wz + 0.3);
-  // hi-vis cage: four striped posts and two rails
-  const cx = 1.0;
-  const cz = 0.9;
-  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
-    const x = wx + sx * cx;
-    const z = wz + sz * cz;
-    for (let i = 0; i < 4; i++) b.cyl(i % 2 ? O.trim : O.body, 0.07, 0.3, x, W + i * 0.3, z, 8);
-  }
-  for (const y of [0.6, 1.15]) {
-    for (const sz of [-1, 1]) b.beam(O.body, [wx - cx, W + y, wz + sz * cz], [wx + cx, W + y, wz + sz * cz], 0.07);
-    for (const sx of [-1, 1]) b.beam(O.body, [wx + sx * cx, W + y, wz - cz], [wx + sx * cx, W + y, wz + cz], 0.07);
-  }
-  // separator tank on saddles (back right) with crimson bands and a snow ridge
-  for (const x of [0.5, 1.6]) rbox(b, O.trim, 0.3, 0.6, 0.9, x, W, -1.4, undefined, 0.05);
-  hcyl(b, O.body, 0.58, 1.6, 1.05, W + 1.1, -1.4, 'x', 18);
-  for (const s of [-1, 1]) b.sph(O.body, 0.58, 1.05 + s * 0.8, W + 1.1, -1.4, { sx: 0.45 });
-  for (const x of [0.6, 1.5]) b.torus(O.accent, 0.6, 0.05, x, W + 1.1, -1.4, { ry: Math.PI / 2 });
-  rbox(b, SNOW, 1.8, 0.14, 0.5, 1.05, W + 1.64, -1.4, undefined, 0.06);
-  b.beam(O.accent, [wx + 0.45, W + 1.3, wz], [0.5, W + 1.3, -1.1], 0.12);
-  b.beam(O.accent, [0.5, W + 1.3, -1.1], [0.5, W + 1.1, -1.4], 0.12);
-  // cosy control hut (front right)
-  rbox(b, O.body, 1.1, 1.15, 0.95, 1.55, W, 0.95);
-  pane(b, g, G_WARM, O.trim, 1.55, W + 0.5, 1.43, 0.55, 0.38);
-  rbox(b, O.accent, 1.3, 0.14, 1.15, 1.55, W + 1.15, 0.95, undefined, 0.05);
-  snowCap(b, 1.2, 1.05, 1.55, W + 1.29, 0.95);
-  b.cyl(O.trim, 0.06, 0.3, 1.9, W + 1.3, 0.75, 6);
-  // crown: flare stack with honey bands, guy wires and a wide tip cup
-  const fx = -1.7;
-  const fz = -1.7;
-  b.cyl(O.trim, 0.36, 0.3, fx, W, fz, 10);
-  b.cyl(O.steel, 0.17, 3.7, fx, W + 0.3, fz, 10, 0.15);
-  for (const y of [1.0, 2.0, 3.0]) b.cyl(O.body, 0.19, 0.16, fx, W + y, fz, 10);
-  b.cyl(O.accent, 0.15, 0.32, fx, W + 4.0, fz, 12, 0.3);
-  for (const [dx, dz] of [[1.4, 0.2], [0.2, 1.4]] as const) b.beam(0x2b2b2b, [fx, W + 3.4, fz], [fx + dx, W, fz + dz], 0.025);
-  // flare flame (breathes up and down out of the tip cup)
-  p.sph(O.glow, 0.26, 0, 0.0, 0, { sy: 1.7 });
-  p.sph(0xffd28a, 0.16, 0, -0.08, 0.12, { sy: 1.4 });
-  p.cone(O.glow, 0.16, 0.36, 0, 0.36, 0, 8);
-  return { at: [fx, W + 4.38, fz], axis: 'y', mode: 'bob', speed: 0.6, amp: 0.36, glow: true };
-};
-
-/** cracker: banded reactor with a spinning mixer drive on top, a tall fractionator tower and crimson pipework. */
-const cracker: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  plinth(b, 5.0, 4.8, O.ground, O.fence);
-  const P = 0.25;
-  rbox(b, O.concrete, 4.5, 0.3, 3.9, 0, P, -0.4);
-  b.box(O.trim, 4.52, 0.08, 3.92, 0, P + 0.04, -0.4);
-  const F = P + 0.3;
-  // reactor: honey drum with crimson bands, dome, snow, sight glass
-  const rx = -0.95;
-  const rz = -0.6;
-  b.cyl(O.body, 1.05, 2.5, rx, F, rz, 20, 1.0);
-  for (const y of [0.4, 1.3, 2.2]) b.torus(O.accent, 1.04 - y * 0.02, 0.07, rx, F + y, rz, { rx: Math.PI / 2 }, 24);
-  b.dome(O.bodyL, 1.0, rx, F + 2.5, rz, { sy: 0.4 });
-  b.dome(SNOW, 0.86, rx, F + 2.55, rz, { sy: 0.36 });
-  hcyl(b, O.trim, 0.26, 0.2, rx, F + 0.95, rz + 1.02, 'z', 14);
-  g.cyl(G_FIRE, 0.2, 0.06, rx, F + 0.95 - 0.03, rz + 1.12, 14, 0.2, { rx: Math.PI / 2 });
-  // round walkway ring with railing posts around the dome
-  b.torus(O.trim, 1.18, 0.06, rx, F + 2.45, rz, { rx: Math.PI / 2 }, 24);
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    b.cyl(O.body, 0.035, 0.4, rx + Math.cos(a) * 1.18, F + 2.45, rz + Math.sin(a) * 1.18, 6);
-  }
-  b.torus(O.body, 1.18, 0.035, rx, F + 2.85, rz, { rx: Math.PI / 2 }, 24);
-  // fractionator tower (crown): tray bands, platform, ladder, floodlight
-  const tx = 1.35;
-  const tz = -1.25;
-  b.cyl(O.bodyD, 0.62, 4.3, tx, F, tz, 16, 0.55);
-  for (let y = 0.6; y < 4.2; y += 0.75) b.torus(O.accent, 0.62 - (y / 4.3) * 0.07, 0.06, tx, F + y, tz, { rx: Math.PI / 2 }, 20);
-  b.dome(O.bodyL, 0.55, tx, F + 4.3, tz, { sy: 0.5 });
-  b.dome(SNOW, 0.46, tx, F + 4.36, tz, { sy: 0.42 });
-  for (const s of [-1, 1]) b.beam(O.trim, [tx + s * 0.18, F, tz + 0.66], [tx + s * 0.18, F + 3.6, tz + 0.6], 0.05);
-  for (let y = 0.3; y < 3.6; y += 0.3) b.box(O.trim, 0.36, 0.04, 0.04, tx, F + y, tz + 0.65);
-  b.beam(O.trim, [tx, F + 4.0, tz + 0.55], [tx, F + 4.1, tz + 0.9], 0.06);
-  rbox(b, O.trim, 0.3, 0.2, 0.24, tx, F + 3.95, tz + 0.95, { rx: 0.4 }, 0.04);
-  g.box(G_WARM, 0.22, 0.14, 0.05, tx, F + 3.97, tz + 1.08, { rx: 0.4 });
-  // crimson pipe bridge between reactor and tower, on a little truss
-  b.beam(O.accent, [rx + 0.6, F + 2.2, rz - 0.6], [tx - 0.5, F + 2.9, tz], 0.16);
-  b.beam(O.accent, [rx + 0.9, F + 1.2, rz - 0.3], [tx - 0.55, F + 1.5, tz + 0.2], 0.14);
-  b.beam(O.trim, [0.3, F, -1.0], [0.3, F + 2.55, -1.0], 0.1);
-  // heat exchanger coil on saddles (front right)
-  for (const x of [0.45, 1.55]) rbox(b, O.trim, 0.2, 0.45, 0.6, x, F, 0.95, undefined, 0.04);
-  for (let i = 0; i < 4; i++) b.torus(O.accent, 0.36, 0.08, 0.6 + i * 0.27, F + 0.8, 0.95, { ry: Math.PI / 2 }, 14);
-  hcyl(b, O.body, 0.12, 1.5, 1.0, F + 0.8, 0.95, 'x', 10);
-  // front hatch
-  rbox(b, O.trim, 0.8, 0.95, 0.12, rx, F, 0.42, undefined, 0.05);
-  g.box(G_WARM, 0.55, 0.12, 0.05, rx, F + 0.75, 0.49);
-  // mixer drive (spins around Y): gearbox, three crimson paddle arms
-  rbox(p, O.trim, 0.4, 0.3, 0.4, 0, -0.05, 0, undefined, 0.06);
-  p.cyl(O.bodyL, 0.12, 0.3, 0, 0.25, 0, 10);
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2;
-    const x = Math.cos(a) * 0.72;
-    const z = Math.sin(a) * 0.72;
-    p.beam(O.trim, [0, 0.1, 0], [x, 0.1, z], 0.08);
-    rbox(p, O.accent, 0.32, 0.22, 0.1, x, 0.0, z, { ry: -a + Math.PI / 2 }, 0.04);
-  }
-  return { at: [rx, F + 2.98, rz], axis: 'y', mode: 'spin', speed: 0.32 };
-};
-
-/** snowmobileWorks: honey hangar with a crimson gable roof and a showroom turntable carrying a cute snowmobile. */
-const snowmobileWorks: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  plinth(b, 5.0, 4.8, O.ground, O.fence);
-  const P = 0.25;
-  // hangar: honey walls, crimson stripe, charcoal plinth band
-  rbox(b, O.trim, 4.3, 0.3, 2.5, 0, P, -1.1);
-  taper(b, O.body, 4.2, 1.9, 2.4, 0, P + 0.3, -1.1, 0.03);
-  b.box(O.accent, 4.16, 0.16, 2.36, 0, P + 1.55, -1.1);
-  b.gable(0, -1.1, P + 2.2, 4.2, 2.4, 0.75, O.accent, O.accent, O.body, 0.16);
-  // front: roll-up door half open onto a warm paint shop, side window
-  rbox(b, O.trim, 1.9, 1.6, 0.14, 0.55, P + 0.3, 0.14, undefined, 0.04);
-  for (let i = 0; i < 3; i++) b.box(i % 2 ? O.bodyD : O.cream, 1.66, 0.2, 0.06, 0.55, P + 1.22 + i * 0.2, 0.23);
-  g.box(G_WARM, 1.66, 0.88, 0.05, 0.55, P + 0.34, 0.2);
-  pane(b, g, G_WARM, O.trim, -1.35, P + 0.95, 0.12, 0.7, 0.5);
-  // crown: fume stack behind the roof
-  chimney(b, O.trim, O.body, -1.75, P, -2.0, 0.26, 4.4);
-  // showroom turntable base (front centre) and two spotlights on poles
-  b.cyl(O.trim, 1.0, 0.12, 0, P, 1.3, 24);
-  b.torus(O.accent, 0.98, 0.04, 0, P + 0.12, 1.3, { rx: Math.PI / 2 }, 24);
-  for (const s of [-1, 1]) {
-    b.cyl(O.trim, 0.06, 1.7, s * 2.15, P, 1.9, 8);
-    rbox(b, O.trim, 0.26, 0.22, 0.3, s * 2.15, P + 1.7, 1.8, { ry: s * 0.6 }, 0.05);
-    g.box(G_WARM, 0.2, 0.16, 0.05, s * 2.0, P + 1.73, 1.7, { ry: s * 0.6 });
-    snowCap(b, 0.26, 0.3, s * 2.15, P + 1.92, 1.8);
-  }
-  // turntable top and the snowmobile (spins around Y)
-  p.cyl(O.cream, 0.94, 0.08, 0, 0, 0, 24);
-  const y = 0.08;
-  for (const s of [-1, 1]) {
-    rbox(p, O.steel, 1.4, 0.05, 0.14, 0.05, y + 0.02, s * 0.3, undefined, 0.02);
-    p.box(O.steel, 0.2, 0.05, 0.14, 0.78, y + 0.1, s * 0.3, { rz: 0.6 });
-    p.beam(O.trim, [0.3, y + 0.05, s * 0.3], [0.3, y + 0.32, s * 0.2], 0.05);
-  }
-  rbox(p, O.trim, 0.7, 0.26, 0.42, -0.35, y + 0.1, 0, undefined, 0.06);
-  rbox(p, O.accent, 1.05, 0.34, 0.56, 0.05, y + 0.3, 0, undefined, 0.12);
-  rbox(p, O.accent, 0.5, 0.26, 0.5, 0.55, y + 0.26, 0, { rz: -0.35 }, 0.1);
-  rbox(p, O.trim, 0.5, 0.14, 0.4, -0.25, y + 0.62, 0, undefined, 0.06);
-  p.box(0xbfe0e8, 0.06, 0.24, 0.42, 0.32, y + 0.72, 0, { rz: -0.4 });
-  p.beam(O.trim, [0.2, y + 0.64, -0.26], [0.2, y + 0.64, 0.26], 0.04);
-  p.sph(O.cream, 0.08, 0.84, y + 0.42, 0);
-  p.box(O.body, 0.9, 0.05, 0.58, 0.05, y + 0.48, 0);
-  return { at: [0, P + 0.12, 1.3], axis: 'y', mode: 'spin', speed: 0.16 };
-};
 
 /** driveThruVault: honey teller kiosk under a crimson-trimmed canopy; a tube capsule zips up and down to the lane. */
 const driveThruVault: Recipe = ({ body: b, glow: g, pivot: p }) => {
@@ -744,7 +430,7 @@ const driveThruVault: Recipe = ({ body: b, glow: g, pivot: p }) => {
 };
 
 const RECIPES: Record<Era5to7MachineId, Recipe> = {
-  rollingMill, plowWorks, bankVault, quartzPit, bulbWorks, radioWorks, tillLine, gasWell, cracker, snowmobileWorks, driveThruVault,
+  rollingMill, plowWorks, bankVault, tillLine, driveThruVault,
 };
 
 // ---------------------------------------------------------------------------
@@ -821,8 +507,15 @@ export function createEra5to7MachineModel(id: Era5to7MachineId): MachineModel {
         break;
     }
   };
-  return { root, w: built.w, d: built.d, animate };
+  const v = VENTS[id];
+  return { root, w: built.w, d: built.d, animate, ...(v ? { vents: v, ventColor: 0xf2ece6 } : {}) };
 }
+
+/** 0.9.8 (era 5): stack tops that puff while working (eras/Machine.ts). */
+const VENTS: Partial<Record<Era5to7MachineId, V3[]>> = {
+  rollingMill: [[1.55, 5.4, -1.75]],
+  plowWorks: [[-1.6, 5.1, -1.9]],
+};
 
 // ---------------------------------------------------------------------------
 // gallery catalog (?gallery=eraMachines3, or one era sheet: ?gallery=era5new)

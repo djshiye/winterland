@@ -1,6 +1,6 @@
 /**
- * 1.0 expansion: the NEW machines of eras 8, 9 and 10 (docs/art/era-08..10.json on art/ages-spec), as standalone
- * builders. Nothing in the game uses them yet: the era wiring picks them up later through `createEraMachine4(id)`.
+ * 1.0 expansion: the era 8, 9 and 10 cash machines (ATM network, atomic vault, quantum bank). Since 0.9.8 the
+ * production machines of those eras live in assets/eraMachines6to10.ts.
  *
  * Art rules (docs/art/guide.md, the ARGON chat guide, whose palettes override guide.json):
  * - Era palettes are the guide's: 8 Computer Age = retro beige + teal + pewter, mint glow; 9 Nuclear = cream ceramic
@@ -18,23 +18,14 @@ import { MACHINE_TONES } from '../render/palette';
 import { SNOW, SNOW_SH, Kit, eraGlowMaterial, hcyl, wheel, type V3 } from './eraKit';
 import type { MachineModel } from './eraMachines';
 
-export type Era4MachineId =
-  | 'goldPanner' | 'boardShop' | 'pcAssembly' | 'atmNetwork'
-  | 'graphitePit' | 'batteryPlant' | 'atomicVault'
-  | 'quantumLab' | 'quantumBank' | 'heliumSkimmer';
+/** 0.9.8: only the era 8-10 cash machines stay here; the production machines moved to assets/eraMachines6to10.ts. */
+export type Era4MachineId = 'atmNetwork' | 'atomicVault' | 'quantumBank';
 
 /** Era and role of every machine in this file (roles as in the art spec). */
 export const ERA4_MACHINES: Record<Era4MachineId, { era: 8 | 9 | 10; role: 'extractor' | 'processor' | 'premium' | 'cash' }> = {
-  goldPanner: { era: 8, role: 'extractor' },
-  boardShop: { era: 8, role: 'processor' },
-  pcAssembly: { era: 8, role: 'premium' },
   atmNetwork: { era: 8, role: 'cash' },
-  graphitePit: { era: 9, role: 'extractor' },
-  batteryPlant: { era: 9, role: 'premium' },
   atomicVault: { era: 9, role: 'cash' },
-  quantumLab: { era: 10, role: 'premium' },
   quantumBank: { era: 10, role: 'cash' },
-  heliumSkimmer: { era: 10, role: 'extractor' },
 };
 export const ERA4_MACHINE_IDS = Object.keys(ERA4_MACHINES) as Era4MachineId[];
 
@@ -58,8 +49,6 @@ const GOLD = 0xe8b341;
 const GOLD_L = 0xf2cd6a;
 const GOLD_D = 0xb8862e;
 const HONEY = 0xe0a83a; // hazard stripes: honey, never safety neon
-const GRAPHITE = 0x3b3a3e;
-const PCB = 0x2f6f4e;
 const BRASS = 0xc39a52;
 
 interface Pal {
@@ -96,7 +85,6 @@ const E10 = tones(10);
 
 // secondary glow tints (multiplied into the shared emissive material)
 const G_AMBER = 0xffc070;
-const G_PEACH = 0xffb27a;
 const G_GOLD = 0xffd56b;
 
 // ---------------------------------------------------------------------------
@@ -156,163 +144,6 @@ function pane(b: Kit, g: Kit, frame: number, glow: number, x: number, y: number,
 // era 8 — Computer Age: retro beige plastics, brushed pewter, teal, mint glow
 // ---------------------------------------------------------------------------
 
-/** goldPanner: a terraced sluice where a big spiral panning bowl spins out gold flecks. */
-const goldPanner: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  const c = E8;
-  plinth(b, c.ground);
-  // back terrace with a beige control hut and a water tank
-  b.box(c.bodyD, 4.5, 0.5, 1.4, 0, P, -1.55);
-  b.box(SNOW, 4.4, 0.12, 1.3, 0, P + 0.5, -1.55);
-  const tY = P + 0.5;
-  b.cyl(c.body, 0.55, 1.6, -1.55, tY, -1.6, 14, 0.5);
-  for (const y of [0.35, 1.15]) b.cyl(c.accent, 0.57, 0.12, -1.55, tY + y, -1.6, 14);
-  b.dome(c.trimL, 0.52, -1.55, tY + 1.6, -1.6);
-  b.sph(SNOW, 0.42, -1.55, tY + 1.86, -1.6, { sy: 0.4 });
-  b.box(c.body, 1.3, 1.2, 1.1, 1.5, tY, -1.6);
-  b.box(c.accent, 1.34, 0.12, 1.14, 1.5, tY + 0.8, -1.6);
-  pane(b, g, c.trim, c.glow, 1.5, tY + 0.35, -1.05, 0.7, 0.36);
-  roof(b, c.trim, 1.3, 1.1, 1.5, tY + 1.2, -1.6);
-  // floodlamp mast on the hut (the crown)
-  b.beam(c.trim, [1.85, tY + 1.45, -1.8], [1.85, 3.9, -1.8], 0.12);
-  b.box(c.trimL, 0.5, 0.3, 0.36, 1.85, 3.85, -1.75, { rx: 0.35 });
-  g.sph(c.glow, 0.15, 1.85, 3.95, -1.55);
-  // water feed: tank → pipe → sluice
-  b.beam(c.accent, [-1.55, tY + 0.3, -1.05], [-1.0, P + 1.45, -0.6], 0.18);
-  // sluice table on pewter legs, sloping into the bowl
-  for (const [x, z] of [[-1.15, -0.85], [-0.45, -0.85], [-1.15, -0.25], [-0.45, -0.25]] as const) b.beam(c.trimL, [x, P, z], [x, P + 1.2, z], 0.1);
-  b.box(c.trim, 0.8, 0.12, 1.4, -0.8, P + 1.2, -0.45, { rx: -0.25 });
-  b.box(0x8fd0cf, 0.6, 0.04, 1.3, -0.8, P + 1.31, -0.45, { rx: -0.25 });
-  // panning basin: a pewter bowl on a beige drum
-  b.cyl(c.body, 1.1, 0.7, 0, P, 0.25, 18, 1.05);
-  b.cyl(c.accent, 1.12, 0.12, 0, P + 0.2, 0.25, 18);
-  b.lathe(c.trim, [[0.0, 0], [0.9, 0.08], [1.15, 0.38], [1.2, 0.42]], 0, P + 0.7, 0.25, 18);
-  b.torus(GOLD_D, 1.18, 0.06, 0, P + 1.12, 0.25, { rx: Math.PI / 2 }, 22);
-  // gold collection hopper (right) with a pile of nuggets that catches the light
-  b.box(GOLD_D, 0.9, 0.55, 0.8, 1.75, P, 0.15);
-  b.box(GOLD, 1.0, 0.1, 0.9, 1.75, P + 0.55, 0.15);
-  for (const [x, z] of [[1.6, 0.05], [1.85, 0.25], [1.75, -0.05], [1.95, 0.0]] as const) b.sph(GOLD_L, 0.12, x, P + 0.7, z, { sy: 0.7 });
-  g.sph(G_GOLD, 0.1, 1.72, P + 0.78, 0.18);
-  b.beam(c.trimL, [1.1, P + 1.0, 0.2], [1.5, P + 0.65, 0.15], 0.1);
-  // the spinning pan: shallow beige dish with spiral riffles and gold flecks
-  p.lathe(c.body, [[0.0, 0], [0.75, 0.04], [0.98, 0.22], [1.0, 0.26]], 0, 0, 0, 18);
-  p.cone(c.trimL, 0.18, 0.3, 0, 0.02, 0, 10);
-  for (let arm = 0; arm < 3; arm++) {
-    for (let i = 0; i < 5; i++) {
-      const r = 0.25 + i * 0.15;
-      const a = arm * ((Math.PI * 2) / 3) + i * 0.45;
-      p.box(c.accent, 0.2, 0.07, 0.06, Math.cos(a) * r, 0.06 + r * 0.12, Math.sin(a) * r, { ry: -a + Math.PI / 2 });
-    }
-  }
-  for (let i = 0; i < 6; i++) {
-    const a = i * 1.1 + 0.4;
-    const r = 0.35 + (i % 3) * 0.18;
-    p.sph(GOLD_L, 0.06, Math.cos(a) * r, 0.1 + r * 0.1, Math.sin(a) * r);
-  }
-  return { at: [0, P + 0.78, 0.25], axis: 'y', mode: 'spin', speed: 0.5 };
-};
-
-/** boardShop: a two-tier beige hall, a warm solder tunnel and a pick-and-place head bobbing over the belt. */
-const boardShop: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  const c = E8;
-  plinth(b, c.ground);
-  // hall: lower tier and a stepped-back upper tier
-  b.box(c.body, 4.2, 1.6, 2.4, 0, P, -1.0);
-  b.box(c.trim, 4.24, 0.14, 2.44, 0, P, -1.0);
-  b.box(c.accent, 4.24, 0.16, 2.44, 0, P + 1.05, -1.0);
-  for (const x of [-1.4, -0.45, 0.5, 1.45]) pane(b, g, c.trim, c.glow, x, P + 0.45, 0.2, 0.6, 0.42);
-  roof(b, c.trim, 4.2, 2.4, 0, P + 1.6, -1.0);
-  const uY = P + 1.86;
-  b.box(c.body, 2.4, 0.9, 1.7, 0.75, uY, -1.25);
-  b.box(c.accent, 2.44, 0.12, 1.74, 0.75, uY + 0.55, -1.25);
-  pane(b, g, c.trim, c.glow, 0.75, uY + 0.2, -0.4, 1.4, 0.26);
-  roof(b, c.trim, 2.4, 1.7, 0.75, uY + 0.9, -1.25);
-  // nitrogen dewar on the lower roof, scrubber stack on the upper (the crown)
-  b.cyl(c.trimL, 0.36, 1.2, -1.35, uY, -1.3, 14, 0.36);
-  b.dome(c.trimL, 0.36, -1.35, uY + 1.2, -1.3);
-  b.cyl(c.accent, 0.38, 0.1, -1.35, uY + 0.8, -1.3, 14);
-  b.sph(SNOW, 0.3, -1.35, uY + 1.5, -1.3, { sy: 0.35 });
-  const sY = uY + 1.16;
-  b.cyl(c.accent, 0.26, 1.5, 1.5, sY, -1.6, 12, 0.22);
-  b.cyl(c.trim, 0.3, 0.14, 1.5, sY + 1.4, -1.6, 12);
-  b.cyl(SNOW, 0.2, 0.08, 1.5, sY + 1.54, -1.6, 12);
-  // wave-solder chamber with a warm tunnel mouth
-  b.box(c.trim, 1.9, 0.85, 0.85, -1.05, P, 0.62);
-  b.box(c.accent, 1.94, 0.1, 0.89, -1.05, P + 0.85, 0.62);
-  b.box(SNOW, 1.8, 0.12, 0.75, -1.05, P + 0.95, 0.62);
-  g.box(G_PEACH, 0.9, 0.34, 0.05, -1.05, P + 0.22, 1.06);
-  // conveyor carrying green boards out to the right
-  b.box(c.trimL, 2.2, 0.42, 0.62, 1.05, P, 0.72);
-  b.box(c.accent, 2.24, 0.06, 0.5, 1.05, P + 0.42, 0.72);
-  for (const x of [0.3, 1.0, 1.7]) {
-    b.box(PCB, 0.4, 0.05, 0.34, x, P + 0.48, 0.72);
-    b.box(GOLD, 0.1, 0.04, 0.08, x - 0.08, P + 0.53, 0.72);
-  }
-  // gantry frame over the belt
-  for (const x of [0.25, 1.85]) b.beam(c.accent, [x, P + 0.42, 0.72], [x, P + 2.25, 0.72], 0.14);
-  b.box(c.trim, 1.8, 0.18, 0.24, 1.05, P + 2.18, 0.72);
-  g.sph(c.glow, 0.11, 1.85, P + 2.42, 0.72);
-  // pick-and-place head: carriage, nozzle and a held chip
-  p.box(c.body, 0.5, 0.42, 0.42, 0, -0.21, 0);
-  p.box(c.accent, 0.54, 0.08, 0.46, 0, 0.0, 0);
-  p.beam(c.trimL, [0, 0.0, 0], [0, 0.55, 0], 0.08);
-  p.cone(c.trim, 0.12, 0.22, 0, -0.43, 0, 8, { rx: Math.PI });
-  p.box(PCB, 0.2, 0.05, 0.2, 0, -0.5, 0);
-  return { at: [1.05, P + 1.45, 0.72], axis: 'y', mode: 'slide', speed: 1.1, amp: 0.38 };
-};
-
-/** pcAssembly: a modular assembly bay; a burn-in carousel of little beige PCs turns out front. */
-const pcAssembly: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  const c = E8;
-  plinth(b, c.ground);
-  b.box(c.body, 4.3, 2.2, 1.8, 0, P, -1.38);
-  b.box(c.trim, 4.34, 0.14, 1.84, 0, P, -1.38);
-  b.box(c.accent, 4.34, 0.16, 1.84, 0, P + 1.75, -1.38);
-  // test-screen bank: a 3 × 2 wall of soft mint monitors
-  for (let r = 0; r < 2; r++) for (let i = 0; i < 3; i++) pane(b, g, c.trim, c.glow, 0.45 + i * 0.6, P + 0.6 + r * 0.55, -0.47, 0.44, 0.34);
-  // big door on the left of the facade
-  b.box(c.trim, 1.2, 1.35, 0.06, -1.3, P, -0.46);
-  b.box(c.accent, 1.06, 1.22, 0.05, -1.3, P, -0.43);
-  roof(b, c.trim, 4.3, 1.8, 0, P + 2.2, -1.38);
-  const rY = P + 2.46;
-  // HVAC cube with a fan grille, antenna mast with an amber status lamp (the crown)
-  b.box(c.trim, 1.2, 0.85, 1.1, -1.2, rY, -1.35);
-  b.box(c.trimL, 1.24, 0.1, 1.14, -1.2, rY + 0.5, -1.35);
-  b.cyl(c.accent, 0.4, 0.06, -1.2, rY + 0.85, -1.35, 16);
-  b.torus(c.trimL, 0.4, 0.05, -1.2, rY + 0.92, -1.35, { rx: Math.PI / 2 }, 16);
-  for (let i = 0; i < 4; i++) b.box(c.trim, 0.72, 0.03, 0.06, -1.2, rY + 0.93, -1.35, { ry: (i * Math.PI) / 4 });
-  b.beam(c.trimL, [1.4, rY, -1.7], [1.4, rY + 1.9, -1.7], 0.1);
-  for (const y of [0.7, 1.3]) b.beam(c.trimL, [1.15, rY + y, -1.7], [1.65, rY + y, -1.7], 0.06);
-  b.box(c.body, 0.5, 0.36, 0.36, 0.6, rY, -1.6);
-  b.box(SNOW, 0.46, 0.1, 0.32, 0.6, rY + 0.36, -1.6);
-  g.sph(G_AMBER, 0.13, 1.4, rY + 2.0, -1.7);
-  // packaging conveyor (front right) with boxed computers
-  b.box(c.trimL, 2.0, 0.5, 0.7, 1.05, P, 0.55);
-  b.box(c.accent, 2.04, 0.06, 0.58, 1.05, P + 0.5, 0.55);
-  for (const x of [0.5, 1.3]) {
-    b.box(0xcbb894, 0.46, 0.4, 0.42, x, P + 0.56, 0.55);
-    b.box(c.accent, 0.48, 0.07, 0.44, x, P + 0.72, 0.55);
-  }
-  b.box(c.body, 0.4, 0.95, 0.4, 2.05, P, 0.55);
-  g.box(c.glow, 0.26, 0.18, 0.05, 2.05, P + 0.65, 0.77);
-  // carousel base (static)
-  b.cyl(c.trim, 0.88, 0.22, -1.1, P, 0.38, 20);
-  b.cyl(c.accent, 0.9, 0.06, -1.1, P + 0.16, 0.38, 20);
-  // burn-in carousel: two round shelves of tiny CRT computers around a pewter column
-  p.cyl(c.trimL, 0.14, 1.55, 0, 0, 0, 10);
-  for (const [y, n, off] of [[0.0, 5, 0], [0.75, 5, 0.6]] as const) {
-    p.cyl(c.body, 0.85, 0.08, 0, y, 0, 20);
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 + off;
-      const x = Math.sin(a) * 0.6;
-      const z = Math.cos(a) * 0.6;
-      p.box(0xeee4cc, 0.32, 0.28, 0.28, x, y + 0.08, z, { ry: a });
-      p.box(0x9fe0c0, 0.22, 0.17, 0.03, x + Math.sin(a) * 0.15, y + 0.15, z + Math.cos(a) * 0.15, { ry: a });
-    }
-  }
-  p.cyl(c.accent, 0.3, 0.12, 0, 1.55, 0, 12);
-  return { at: [-1.1, P + 0.22, 0.38], axis: 'y', mode: 'spin', speed: 0.33 };
-};
-
 /** atmNetwork: a cozy cash kiosk with two satellite ATMs; a big gold coin sign turns on the roof. */
 const atmNetwork: Recipe = ({ body: b, glow: g, pivot: p }) => {
   const c = E8;
@@ -356,107 +187,6 @@ const atmNetwork: Recipe = ({ body: b, glow: g, pivot: p }) => {
 // ---------------------------------------------------------------------------
 // era 9 — Nuclear Power: cream ceramic, sea green, slate, soft teal glow
 // ---------------------------------------------------------------------------
-
-/** graphitePit: a reinforced pit of graphite blocks; a diamond wire saw rises and falls on a gantry. */
-const graphitePit: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  const c = E9;
-  plinth(b, c.ground);
-  // reinforced basin: cream rim walls round a dark graphite floor
-  b.box(GRAPHITE, 3.0, 0.04, 2.2, 0, P, -0.1);
-  for (const [x, z, w, d] of [[0, -1.3, 3.4, 0.25], [-1.6, -0.1, 0.25, 2.6], [1.6, -0.1, 0.25, 2.6]] as const) {
-    b.box(c.body, w, 0.45, d, x, P, z);
-    b.box(SNOW, w, 0.1, d, x, P + 0.45, z);
-  }
-  // graphite blocks, stepped
-  for (const [x, z, h] of [[-0.9, -0.7, 0.5], [-0.3, -0.75, 0.4], [0.35, -0.7, 0.55], [0.95, -0.65, 0.35], [-0.6, 0.0, 0.3], [0.6, 0.05, 0.28]] as const) {
-    b.box(GRAPHITE, 0.52, h, 0.5, x, P + 0.04, z);
-    b.box(0x55545a, 0.44, 0.03, 0.42, x, P + 0.04 + h, z);
-  }
-  // portal gantry spanning the pit
-  for (const x of [-1.6, 1.6]) {
-    b.box(c.trim, 0.3, 2.5, 0.3, x, P + 0.45, -0.25);
-    b.box(c.accent, 0.34, 0.14, 0.34, x, P + 1.2, -0.25);
-  }
-  b.box(c.trim, 3.6, 0.3, 0.4, 0, P + 2.95, -0.25);
-  b.box(c.accent, 3.64, 0.08, 0.44, 0, P + 3.1, -0.25);
-  b.box(SNOW, 3.5, 0.12, 0.36, 0, P + 3.25, -0.25);
-  // honey hazard railing along the front of the pit, and a soft laser guide line
-  for (const x of [-1.3, -0.45, 0.45, 1.3]) b.beam(c.trimL, [x, P, 0.95], [x, P + 0.75, 0.95], 0.07);
-  stripes(b, 0, P + 0.62, 0.95, 2.7, 0.14, c.trim);
-  g.box(c.glow, 2.4, 0.05, 0.05, 0, P + 0.32, 0.85);
-  // dust cyclone on legs (back left), with a duct to the gantry (the crown)
-  const cx = -1.75;
-  const cz = -1.75;
-  for (const [dx, dz] of [[-0.3, -0.3], [0.3, -0.3], [0.3, 0.3], [-0.3, 0.3]] as const) b.beam(c.trim, [cx + dx, P, cz + dz], [cx + dx * 0.8, P + 1.0, cz + dz * 0.8], 0.08);
-  b.cone(c.accent, 0.45, 0.6, cx, P + 0.7, cz, 14, { rx: Math.PI });
-  b.cyl(c.body, 0.45, 1.3, cx, P + 1.3, cz, 14);
-  b.cyl(c.accent, 0.47, 0.1, cx, P + 1.7, cz, 14);
-  b.cyl(c.trim, 0.2, 0.8, cx, P + 2.6, cz, 10);
-  b.sph(SNOW, 0.36, cx, P + 2.6, cz, { sy: 0.35 });
-  b.beam(c.trimL, [cx + 0.3, P + 2.2, cz + 0.3], [-1.45, P + 2.95, -0.25], 0.14);
-  g.sph(c.glow, 0.13, cx, P + 3.5, cz);
-  // graphite stack cradle (back right)
-  b.box(c.trim, 1.2, 0.2, 0.9, 1.75, P + 0.45, -1.85);
-  for (let i = 0; i < 3; i++) b.box(GRAPHITE, 0.95, 0.18, 0.7, 1.75, P + 0.65 + i * 0.19, -1.85);
-  b.box(SNOW, 0.9, 0.1, 0.66, 1.75, P + 1.22, -1.85);
-  // the saw: carriage, two arms and a taut diamond wire between pulley wheels
-  p.box(c.body, 0.8, 0.45, 0.55, 0, -0.1, 0);
-  p.box(c.accent, 0.84, 0.1, 0.59, 0, 0.2, 0);
-  for (const x of [-0.75, 0.75]) p.beam(c.trimL, [x * 0.5, -0.1, 0], [x, -1.2, 0], 0.1);
-  for (const x of [-0.75, 0.75]) wheel(p, 'z', c.trim, c.trimL, x, -1.25, 0, 0.16, 0.04, 4);
-  p.beam(GOLD_D, [-0.75, -1.4, 0], [0.75, -1.4, 0], 0.035);
-  return { at: [0, P + 2.55, -0.25], axis: 'y', mode: 'slide', speed: 0.7, amp: 0.4 };
-};
-
-/** batteryPlant: a cream cell hall with glowing charging racks; a loading arm swings a fat battery cell. */
-const batteryPlant: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  const c = E9;
-  plinth(b, c.ground);
-  // hall
-  b.box(c.body, 3.5, 2.0, 2.0, -0.45, P, -1.25);
-  b.box(c.trim, 3.54, 0.14, 2.04, -0.45, P, -1.25);
-  b.box(c.accent, 3.54, 0.16, 2.04, -0.45, P + 1.5, -1.25);
-  pane(b, g, c.trim, c.glow, 0.55, P + 0.7, -0.25, 1.0, 0.45);
-  roof(b, c.trim, 3.5, 2.0, -0.45, P + 2.0, -1.25);
-  // two giant battery cells on the roof (the crown): sea-green jackets, cream bands, brass caps
-  const rY = P + 2.26;
-  for (const x of [-1.4, -0.35]) {
-    b.cyl(c.accent, 0.42, 1.5, x, rY, -1.35, 16);
-    b.cyl(c.body, 0.43, 0.22, x, rY + 0.95, -1.35, 16);
-    b.cyl(BRASS, 0.18, 0.18, x, rY + 1.5, -1.35, 12);
-    b.sph(SNOW, 0.34, x, rY + 1.52, -1.35, { sy: 0.3 });
-  }
-  b.box(c.body, 0.42, 0.12, 0.15, -0.88, rY + 0.98, -1.35);
-  // substation transformer (back right) with fins and ceramic insulators, busway to the roof
-  b.box(c.trim, 1.0, 1.4, 0.95, 1.75, P, -1.55);
-  for (let i = 0; i < 4; i++) b.box(c.trimL, 0.06, 1.1, 1.0, 1.32 + i * 0.29, P + 0.15, -1.55);
-  b.box(SNOW, 0.9, 0.12, 0.85, 1.75, P + 1.4, -1.55);
-  for (const z of [-1.85, -1.55, -1.25]) {
-    for (let i = 0; i < 3; i++) b.cyl(c.body, 0.1, 0.08, 1.85, P + 1.52 + i * 0.12, z, 8);
-    b.sph(BRASS, 0.07, 1.85, P + 1.9, z);
-  }
-  b.beam(c.accent, [1.85, P + 1.9, -1.25], [1.3, P + 2.05, -0.9], 0.16);
-  g.sph(c.glow, 0.12, 1.3, P + 1.55, -1.05);
-  // charging racks (front left) with six softly glowing cells
-  b.box(c.trim, 2.1, 1.25, 0.8, -1.0, P, 0.45);
-  b.box(c.accent, 2.14, 0.1, 0.84, -1.0, P + 1.25, 0.45);
-  b.box(SNOW, 2.0, 0.12, 0.74, -1.0, P + 1.35, 0.45);
-  for (let r = 0; r < 2; r++) for (let i = 0; i < 3; i++) pane(b, g, c.trimL, c.glow, -1.65 + i * 0.65, P + 0.25 + r * 0.5, 0.86, 0.38, 0.28);
-  // armature post (front right)
-  b.cyl(c.trim, 0.3, 0.2, 0.75, P, 0.45, 12);
-  b.cyl(c.body, 0.16, 2.1, 0.75, P + 0.2, 0.45, 10);
-  b.cyl(c.accent, 0.2, 0.12, 0.75, P + 1.2, 0.45, 10);
-  // the swinging armature: an arm, a cable and a fat battery cell in a claw
-  p.cyl(c.trim, 0.22, 0.2, 0, -0.05, 0, 12);
-  p.beam(c.body, [0, 0.05, 0], [-1.15, 0.15, 0], 0.18);
-  p.beam(c.accent, [-0.4, 0.05, 0], [-0.4, 0.35, 0], 0.08);
-  p.beam(c.trimL, [-1.15, 0.1, 0], [-1.15, -0.45, 0], 0.05);
-  p.box(c.trim, 0.42, 0.08, 0.3, -1.15, -0.53, 0);
-  p.cyl(c.accent, 0.17, 0.5, -1.15, -1.05, 0, 12);
-  p.cyl(c.body, 0.175, 0.1, -1.15, -0.75, 0, 12);
-  p.cyl(BRASS, 0.07, 0.07, -1.15, -0.55, 0, 8);
-  return { at: [0.75, P + 2.32, 0.45], axis: 'y', mode: 'swing', speed: 0.42, amp: 0.75 };
-};
 
 /** atomicVault: a cream bunker with a round blast door; its big brass wheel handle turns. */
 const atomicVault: Recipe = ({ body: b, glow: g, pivot: p }) => {
@@ -507,97 +237,6 @@ const atomicVault: Recipe = ({ body: b, glow: g, pivot: p }) => {
 // era 10 — AI Era: warm cream ceramic, sun gold, slate blue, gold glow
 // ---------------------------------------------------------------------------
 
-/** quantumLab: a tiered ceramic cryostat like a gold chandelier; a tilted harmonic ring spins over it. */
-const quantumLab: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  const c = E10;
-  plinth(b, c.ground);
-  b.box(c.trim, 3.8, 0.35, 3.0, 0, P, -0.85);
-  b.box(c.trimL, 3.84, 0.06, 3.04, 0, P + 0.3, -0.85);
-  const y0 = P + 0.35;
-  // cryostat: stacked ceramic tiers with gold filigree rings, a dome on top
-  b.lathe(c.body, [[1.15, 0], [1.15, 0.7], [0.98, 0.78], [0.98, 1.4], [0.8, 1.5], [0.8, 2.05], [0.6, 2.15], [0.6, 2.5], [0.0, 2.5]], 0, y0, -0.9, 20);
-  for (const [y, r] of [[0.72, 1.07], [1.45, 0.9], [2.1, 0.7]] as const) b.torus(c.accent, r, 0.07, 0, y0 + y, -0.9, { rx: Math.PI / 2 }, 24);
-  for (let i = 0; i < 10; i++) {
-    const a = (i / 10) * Math.PI * 2;
-    b.box(GOLD_L, 0.05, 0.5, 0.05, Math.cos(a) * 0.99, y0 + 0.78, -0.9 + Math.sin(a) * 0.99);
-  }
-  b.dome(c.body, 0.6, 0, y0 + 2.5, -0.9);
-  b.sph(SNOW, 0.5, 0, y0 + 2.88, -0.9, { sy: 0.4 });
-  b.cyl(c.trim, 0.08, 0.6, 0, y0 + 3.0, -0.9, 8);
-  // entanglement core window on the front of the middle tier
-  b.torus(c.accent, 0.36, 0.06, 0, y0 + 1.1, 0.06, undefined, 18);
-  g.sph(c.glow, 0.32, 0, y0 + 1.1, -0.02);
-  // waveguide pillars with gold beacons
-  for (const x of [-1.65, 1.65]) {
-    b.cyl(c.trim, 0.2, 0.2, x, y0, -1.9, 10);
-    b.cyl(c.accent, 0.12, 2.3, x, y0 + 0.2, -1.9, 10);
-    b.torus(c.trimL, 0.16, 0.04, x, y0 + 1.4, -1.9, { rx: Math.PI / 2 }, 12);
-    g.sph(c.glow, 0.15, x, y0 + 2.6, -1.9);
-  }
-  // laser interferometer bay (front right) with a warm laser line
-  b.box(c.body, 1.6, 0.55, 0.8, 1.35, P, 0.75);
-  b.box(c.accent, 1.64, 0.08, 0.84, 1.35, P + 0.55, 0.75);
-  g.box(G_GOLD, 1.3, 0.05, 0.08, 1.35, P + 0.66, 0.75);
-  b.box(c.trim, 0.2, 0.25, 0.2, 0.65, P + 0.63, 0.75);
-  b.box(c.trim, 0.2, 0.25, 0.2, 2.05, P + 0.63, 0.75);
-  // little operator console (front left)
-  b.box(c.trim, 0.9, 0.75, 0.55, -1.5, P, 0.8);
-  b.box(c.body, 0.94, 0.08, 0.6, -1.5, P + 0.75, 0.8, { rx: 0.25 });
-  g.box(c.glow, 0.6, 0.03, 0.34, -1.5, P + 0.81, 0.82, { rx: 0.25 });
-  // the harmonic ring: gold, tilted, carrying three cream orbs
-  p.torus(c.accent, 1.0, 0.08, 0, 0, 0, { rx: Math.PI / 2 + 0.38 }, 28);
-  p.torus(GOLD_L, 0.82, 0.03, 0, 0, 0, { rx: Math.PI / 2 + 0.38 }, 24);
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2;
-    const x = Math.cos(a);
-    const z0 = Math.sin(a);
-    p.sph(c.body, 0.14, x, -z0 * Math.sin(0.38), z0 * Math.cos(0.38));
-  }
-  return { at: [0, y0 + 3.75, -0.9], axis: 'y', mode: 'spin', speed: 0.42 };
-};
-
-/**
- * heliumSkimmer (0.9.7 era resources v2): a cream ceramic
- * dome hood with gold bands over a pale shimmering frost vent, a soft peach glow leaking from under the hood, a rack of
- * cryo flasks beside it; a gold collector ring turns slowly over the dome.
- */
-const heliumSkimmer: Recipe = ({ body: b, glow: g, pivot: p }) => {
-  const c = E10;
-  plinth(b, c.ground);
-  // the vent: a frosted crater ring with a pale shimmer inside
-  b.cyl(0xe6edf4, 1.45, 0.16, 0, P, -0.6, 18, 1.55);
-  b.torus(0xd2dce6, 1.3, 0.14, 0, P + 0.16, -0.6, { rx: Math.PI / 2 }, 22);
-  g.cyl(G_PEACH, 1.05, 0.04, 0, P + 0.14, -0.6, 18);
-  // hood: a cream dome on four slate legs, two gold bands, a peach glow skirt under its rim
-  for (const [x, z] of [[-1.05, -1.65], [1.05, -1.65], [-1.05, 0.45], [1.05, 0.45]] as const) b.beam(c.trim, [x, P, z], [x * 0.85, P + 1.1, -0.6 + (z + 0.6) * 0.85], 0.14);
-  b.cyl(c.body, 1.3, 0.35, 0, P + 1.0, -0.6, 18, 1.25);
-  b.dome(c.body, 1.25, 0, P + 1.35, -0.6);
-  for (const [y, r] of [[1.1, 1.31], [1.85, 1.08]] as const) b.torus(c.accent, r, 0.07, 0, P + y, -0.6, { rx: Math.PI / 2 }, 24);
-  g.torus(G_PEACH, 1.22, 0.05, 0, P + 0.98, -0.6, { rx: Math.PI / 2 }, 24);
-  b.sph(SNOW, 0.95, 0, P + 2.2, -0.6, { sy: 0.32 });
-  // crown: a slate mast with a gold beacon, the ring turns round it
-  b.cyl(c.trim, 0.12, 1.3, 0, P + 2.45, -0.6, 10);
-  g.sph(c.glow, 0.18, 0, P + 3.85, -0.6);
-  // filling pipe down to a rack of cream cryo flasks (front right, beside the output pallet)
-  b.beam(c.trimL, [0.9, P + 1.3, -0.1], [1.75, P + 0.9, 0.35], 0.12);
-  b.box(c.trim, 1.3, 0.12, 0.7, 1.55, P, 0.25);
-  for (const x of [1.15, 1.55, 1.95]) {
-    b.cyl(c.body, 0.16, 0.5, x, P + 0.12, 0.25, 10);
-    b.cyl(c.accent, 0.17, 0.06, x, P + 0.42, 0.25, 10);
-    g.sph(G_PEACH, 0.07, x, P + 0.32, 0.4);
-  }
-  // little control post (front left)
-  b.box(c.trim, 0.5, 0.9, 0.4, -1.6, P, 0.35);
-  pane(b, g, c.trimL, c.glow, -1.6, P + 0.62, 0.56, 0.3, 0.2);
-  // the collector ring: gold, with three cream catch-cups
-  p.torus(c.accent, 1.0, 0.08, 0, 0, 0, { rx: Math.PI / 2 }, 28);
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2;
-    p.sph(c.body, 0.16, Math.cos(a), 0, Math.sin(a));
-  }
-  return { at: [0, P + 3.0, -0.6], axis: 'y', mode: 'spin', speed: 0.35 };
-};
-
 /** quantumBank: an arched cream ledger hall with gold columns; holographic coin rings swirl above the funnel. */
 const quantumBank: Recipe = ({ body: b, glow: g, pivot: p }) => {
   const c = E10;
@@ -645,8 +284,7 @@ const quantumBank: Recipe = ({ body: b, glow: g, pivot: p }) => {
 };
 
 const RECIPES: Record<Era4MachineId, Recipe> = {
-  goldPanner, boardShop, pcAssembly, atmNetwork, graphitePit, batteryPlant, atomicVault, quantumLab, quantumBank,
-  heliumSkimmer,
+  atmNetwork, atomicVault, quantumBank,
 };
 
 // ---------------------------------------------------------------------------

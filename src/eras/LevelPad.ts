@@ -10,11 +10,12 @@
  * standing still (walking across pays nothing), a short rest after each level so a held stand never chain-buys.
  * Progress lives in state.padPaid['pad:<machineId>'] (one pad per type, so it is never shared), restored on load; if
  * the machine carrying the pad is demolished, the next one of its type gets the pad with the same progress.
+ * 0.9.8 (brief 13): the price hangs on a tag under the brass-trimmed board; PadFeel breathes, dims and thumps.
  */
 import * as THREE from 'three';
 import { PALETTE, TIMING, rect } from '../config';
-import { createPadModel, createPadSign, createPadTexture, formatCost, setPadSignLabel } from '../assets/pads';
-import { PadRing, playPadCelebrate } from '../fx/PadRing';
+import { createPadModel, createPadSign, createPadTexture, disposePriceTag, formatCost, hangPriceTag, setPadSignLabel } from '../assets/pads';
+import { PadFeel, PadRing, playPadCelebrate } from '../fx/PadRing';
 import { PAD_CASH_FLIGHT, motionScale } from '../fx/padJuice';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot, UpgradeId } from '../core/types';
 import type { Zone } from '../items/Zones';
@@ -51,6 +52,7 @@ export class EraLevelPad implements ItemHolder {
   private readonly model: THREE.Group;
   private readonly sign: THREE.Mesh;
   private readonly ring: PadRing;
+  private readonly feel: PadFeel;
   private readonly tmp = new THREE.Vector3();
 
   constructor(
@@ -71,6 +73,8 @@ export class EraLevelPad implements ItemHolder {
     this.pulse.add(this.model);
     this.object.add(this.pulse);
     this.sign = createPadSign(label, true);
+    hangPriceTag(this.sign, this.texture);
+    this.feel = new PadFeel(ctx, this.model, at.x);
     this.sign.scale.setScalar(SIGN_SCALE);
     this.sign.position.set(0, SIGN_HEIGHT, 0);
     this.object.add(this.sign);
@@ -134,10 +138,10 @@ export class EraLevelPad implements ItemHolder {
       this.arm();
     }
     const t = this.ctx.time.elapsed;
-    const eager = this.remaining > 0 && this.ctx.economy.money >= this.remaining;
-    const amp = (eager ? 0.045 : 0.018) * motionScale();
-    const s = 1 + amp * Math.sin(t * (eager ? 5.5 : 3) + this.at.x);
-    this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
+    const money = this.ctx.economy.money;
+    const eager = this.remaining > 0 && money >= this.remaining;
+    const canPay = this.pending > 0 || (this.remaining - this.pending > 0 && money >= 5);
+    this.feel.update(dt, t, this.pulse, eager, canPay, this.ctx.zones.isPlayerIn(this.zone.area));
     this.ring.update(dt, t, eager);
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
     this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.at.z) * 0.06 * motionScale();
@@ -154,6 +158,7 @@ export class EraLevelPad implements ItemHolder {
     this.ctx.tweens.killTweensOf(this.model);
     this.object.removeFromParent();
     this.texture.dispose();
+    disposePriceTag(this.sign);
     const mat = this.sign.material as THREE.MeshBasicMaterial;
     mat.map?.dispose();
     mat.dispose();
@@ -244,6 +249,7 @@ export class EraLevelPad implements ItemHolder {
   private appear(instant: boolean): void {
     this.shown = true;
     this.zone.setEnabled(true);
+    this.feel.reset();
     const tw = this.ctx.tweens;
     tw.killTweensOf(this.object);
     this.object.scale.setScalar(1);

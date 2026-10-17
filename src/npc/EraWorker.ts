@@ -544,6 +544,9 @@ export class EraWorker {
   /** Where the worker stands (or is walking to): paths start here. */
   private at: XZ;
   private disposing = false;
+  /** 0.9.8: stack size last frame and seconds of work motion left (goods changed hands at a station). */
+  private handled = 0;
+  private workT = 0;
   private gone = false;
   private readonly home: XZ;
   /** 1.0: the era's city district (normal walking speed inside it). */
@@ -670,6 +673,11 @@ export class EraWorker {
     this.timer -= dt;
     this.think(dt);
     this.step(dt);
+    // 0.9.8: handing goods on or off at a station plays the role's work motion
+    if (this.stack.size !== this.handled) this.workT = 0.8;
+    this.handled = this.stack.size;
+    this.workT -= dt;
+    this.rig.setWorking(this.workT > 0 && !this.moving);
     this.rig.setCarrying(this.stack.size > 0);
     this.rig.animate(dt, this.speed / PLAYER.speed);
     this.stack.update(dt, this.velocity);

@@ -5,6 +5,8 @@
 # If docs/releases/<tag>.md exists, it opens the release notes (GitHub's generated list of changes follows it).
 # Every zip carries "Update Winterland" (desktop/updater), and the release publishes SHA256SUMS.txt, which the
 # updater checks each download against before it installs anything.
+# 0.9.8: the release also publishes RELEASE-NOTES.md, this version's entry from CHANGELOG.md (listed in SHA256SUMS.txt
+# too); the in-game update card (desktop/updater.cjs) shows it under "What's new" before the player picks.
 name: Release
 
 on:
@@ -83,7 +85,11 @@ jobs:
             case "$z" in Winterland-"${TAG#v}"-*.zip) ;; *) echo "$z doesn't match $TAG (bump package.json)"; exit 1 ;; esac
             unzip -Z1 "$z" | grep -Ec '(^|[/\\])Update Winterland\.(sh|command|cmd)$' > /dev/null || { echo "$z has no updater"; exit 1; }
           done
-          sha256sum *.zip > SHA256SUMS.txt
+          # This version's CHANGELOG.md entry (heading "## X.Y.Z (date)") for the in-game update card.
+          awk -v h="## ${TAG#v} " 'index($0, h) == 1 { on = 1; next } /^## / { on = 0 } on' ../CHANGELOG.md > RELEASE-NOTES.md
+          extra=()
+          if grep -q '[^[:space:]]' RELEASE-NOTES.md; then extra=(dist-zips/RELEASE-NOTES.md); else rm RELEASE-NOTES.md; fi
+          sha256sum *.zip ${extra[@]+RELEASE-NOTES.md} > SHA256SUMS.txt
           cat SHA256SUMS.txt
           cd ..
-          gh release create "$TAG" dist-zips/*.zip dist-zips/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Winterland $TAG" --generate-notes "${notes[@]}"
+          gh release create "$TAG" dist-zips/*.zip dist-zips/SHA256SUMS.txt "${extra[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Winterland $TAG" --generate-notes "${notes[@]}"
