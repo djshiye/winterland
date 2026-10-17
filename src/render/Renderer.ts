@@ -5,8 +5,9 @@
  *   same tone mapping itself),
  *   pixel ratio ≤ 2), canvas fills `container`.
  * - Scene background = PALETTE.sky; no fog needed (orthographic).
- * - Day/night (wave 8): `setDarkness(d)` blends background, hemisphere and sun colour / intensity between the day
- *   look (d = 0, exactly LIGHTING.* / PALETTE.sky), a warm dusk (d = 0.5) and the era's warm night (d = 1). The
+ * - Day/night (wave 8): `setDarkness(d)` blends background, hemisphere and sun colour / intensity between the era's
+ *   daylight (d = 0: PALETTE.sky, LIGHTING.* scaled and tinted by the era's palette `look.day`), a warm dusk (d = 0.5)
+ *   and the era's warm night (d = 1). The
  *   sun keeps its position and shadow camera; only colour and intensity change. render() pulls the value from
  *   `darknessSource` (set by the Environment) so a paused debug render() follows the clock too.
  * - HemisphereLight (LIGHTING.hemi*) + one DirectionalLight "sun" (LIGHTING.sun*) with PCF (soft) shadows (PCFSoftShadowMap was removed in three r18x),
@@ -21,7 +22,7 @@
  *     High   2048² shadows, pixel ratio ≤ 2, post as Medium with 4 bloom levels, 4× MSAA and a gentle depth of field.
  *   `stats` = the last frame's draw calls / triangles: shadow pass, scene and post passes together.
  * - 0.9.8 era looks: `eraSource` (set by the Environment) says which era the camera is in (1 outside the regions); its
- *   palette look (render/palette.ts EraLook: a warm night and a day / night colour grade) crossfades in over
+ *   palette look (render/palette.ts EraLook: its daylight, a warm night and a day / night colour grade) crossfades in over
  *   LOOK_FADE seconds. `glow` (the comfort Glow slider, 0..1) scales the bloom.
  * - setScale(s) (wave 10): render-resolution scale 0.5..1 in 0.05 steps, multiplies the pixel ratio (Low = 1 × scale).
  *   Persisted in localStorage 'winterland:scale' (default 1, invalid → 1) and applied at construction. The canvas CSS
@@ -30,7 +31,7 @@
 import * as THREE from 'three';
 import { LIGHTING, PALETTE } from '../config';
 import { hideInstanced, prepareInstances, prepareSharedInstances, restoreInstances } from './instancer';
-import { eraIndex, palette, type Grade, type NightLight } from './palette';
+import { eraIndex, palette, type DayLight, type Grade, type NightLight } from './palette';
 import { PostFX, type PostFrame } from './PostFX';
 
 export type Quality = 'low' | 'medium' | 'high';
@@ -65,8 +66,8 @@ export function normalizeScale(s: number): number {
   return Math.round(Math.max(0.5, Math.min(1, s)) * 20) / 20;
 }
 
-// Day / dusk looks (hex = sRGB). Day is the original LIGHTING / PALETTE look and stays untouched; night comes from the
-// era's palette look.
+// Day / dusk looks (hex = sRGB). Day is LIGHTING / PALETTE scaled and tinted by the era's palette `look.day`; night
+// comes from the era's palette look.
 const SKY = { day: PALETTE.sky, dusk: 0xf0a08a };
 const HEMI_SKY = { day: LIGHTING.hemiSky, dusk: 0xffc8aa };
 const HEMI_GROUND = { day: LIGHTING.hemiGround, dusk: 0xc08a8c };
@@ -88,10 +89,11 @@ function tri(out: THREE.Color, day: THREE.Color, dusk: THREE.Color, night: THREE
 const triNum = (t: { day: number; dusk: number; night: number }, d: number): number =>
   d <= 0 ? t.day : d < 0.5 ? t.day + (t.dusk - t.day) * d * 2 : t.dusk + (t.night - t.dusk) * (d - 0.5) * 2;
 
-/** Night light and grades of one era as three colours (cached per era). */
+/** Daylight, night light and grades of one era as colours (cached per era). */
 interface LookColors {
+  day: { hemiSky: THREE.Color; hemiGround: THREE.Color; sun: number; hemi: number };
   night: Record<keyof NightLight, THREE.Color>;
-  day: GradeColors;
+  bright: GradeColors;
   dark: GradeColors;
 }
 interface GradeColors {
@@ -108,9 +110,11 @@ function lookColors(era: number): LookColors {
   if (!l) {
     const p = palette(era).look;
     const g = (x: Grade): GradeColors => ({ tint: raw(x.tint), lift: raw(x.lift), saturation: x.saturation, contrast: x.contrast, vignette: x.vignette });
+    const dl: DayLight = p.day;
     l = {
+      day: { hemiSky: color(dl.hemiSky), hemiGround: color(dl.hemiGround), sun: LIGHTING.sunIntensity * dl.sun, hemi: LIGHTING.hemiIntensity * dl.hemi },
       night: { sky: color(p.night.sky), hemiSky: color(p.night.hemiSky), hemiGround: color(p.night.hemiGround), moon: color(p.night.moon) },
-      day: g(p.grade.day),
+      bright: g(p.grade.day),
       dark: g(p.grade.night),
     };
     lookCache.set(era, l);
@@ -144,6 +148,9 @@ export class Renderer {
   private readonly darkListeners: Array<(d: number) => void> = [];
   private readonly day = { sky: color(SKY.day), hemiSky: color(HEMI_SKY.day), hemiGround: color(HEMI_GROUND.day), sun: color(SUN.day) };
   private readonly dusk = { sky: color(SKY.dusk), hemiSky: color(HEMI_SKY.dusk), hemiGround: color(HEMI_GROUND.dusk), sun: color(SUN.dusk) };
+  /** The blended era daylight intensities (crossfading between two eras' looks; colours live in `day`). */
+  private readonly hemiI: { day: number; dusk: number; night: number } = { ...HEMI_I };
+  private readonly sunI: { day: number; dusk: number; night: number } = { ...SUN_I };
   /** The blended era night (crossfading between two eras' looks). */
   private readonly night = { sky: new THREE.Color(), hemiSky: new THREE.Color(), hemiGround: new THREE.Color(), moon: new THREE.Color() };
   private eraFrom = 1;
@@ -254,8 +261,8 @@ export class Renderer {
     tri(this.hemi.color, this.day.hemiSky, this.dusk.hemiSky, n.hemiSky, d);
     tri(this.hemi.groundColor, this.day.hemiGround, this.dusk.hemiGround, n.hemiGround, d);
     tri(this.sun.color, this.day.sun, this.dusk.sun, n.moon, d);
-    this.hemi.intensity = triNum(HEMI_I, d);
-    this.sun.intensity = triNum(SUN_I, d);
+    this.hemi.intensity = triNum(this.hemiI, d);
+    this.sun.intensity = triNum(this.sunI, d);
     this.blendGrade(d);
     if (changed) for (const fn of this.darkListeners) fn(d);
   }
@@ -278,11 +285,17 @@ export class Renderer {
     this.applyLook(this.eraT);
   }
 
-  /** Blend the two eras' nights at crossfade `t` (smoothstep), then re-light. */
+  /** Blend the two eras' daylights and nights at crossfade `t` (smoothstep), then re-light. */
   private applyLook(t: number): void {
-    const a = lookColors(this.eraFrom).night;
-    const b = lookColors(this.eraTo).night;
+    const A = lookColors(this.eraFrom);
+    const B = lookColors(this.eraTo);
     const k = t * t * (3 - 2 * t);
+    this.day.hemiSky.lerpColors(A.day.hemiSky, B.day.hemiSky, k);
+    this.day.hemiGround.lerpColors(A.day.hemiGround, B.day.hemiGround, k);
+    this.hemiI.day = A.day.hemi + (B.day.hemi - A.day.hemi) * k;
+    this.sunI.day = A.day.sun + (B.day.sun - A.day.sun) * k;
+    const a = A.night;
+    const b = B.night;
     this.night.sky.lerpColors(a.sky, b.sky, k);
     this.night.hemiSky.lerpColors(a.hemiSky, b.hemiSky, k);
     this.night.hemiGround.lerpColors(a.hemiGround, b.hemiGround, k);
@@ -298,12 +311,12 @@ export class Renderer {
     const B = lookColors(this.eraTo);
     const f = this.frame;
     const pick = (L: LookColors, out: { tint: THREE.Color; lift: THREE.Color }): { s: number; c: number; v: number } => {
-      out.tint.lerpColors(L.day.tint, L.dark.tint, d);
-      out.lift.lerpColors(L.day.lift, L.dark.lift, d);
+      out.tint.lerpColors(L.bright.tint, L.dark.tint, d);
+      out.lift.lerpColors(L.bright.lift, L.dark.lift, d);
       return {
-        s: L.day.saturation + (L.dark.saturation - L.day.saturation) * d,
-        c: L.day.contrast + (L.dark.contrast - L.day.contrast) * d,
-        v: L.day.vignette + (L.dark.vignette - L.day.vignette) * d,
+        s: L.bright.saturation + (L.dark.saturation - L.bright.saturation) * d,
+        c: L.bright.contrast + (L.dark.contrast - L.bright.contrast) * d,
+        v: L.bright.vignette + (L.dark.vignette - L.bright.vignette) * d,
       };
     };
     const a = pick(A, this.gradeA);

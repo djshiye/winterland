@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { PALETTE } from '../config';
 import { Batch, vcMat } from '../render/batch';
 import { geo } from '../render/materials';
+import { eraPropOverride } from '../world/env/eraGround';
 
 export type PropRole = 'tall' | 'mid' | 'low';
 export const PROP_ROLES: readonly PropRole[] = ['tall', 'mid', 'low'];
@@ -485,9 +486,10 @@ export function eraPropGeometry(n: number, role: PropRole): THREE.BufferGeometry
   const key = `${n}:${role}`;
   let g = cache.get(key);
   if (!g) {
-    const def = BUILDERS[n]?.[role];
-    if (!def) throw new Error(`no frontier prop ${key}`);
-    g = def.make();
+    // 0.9.8: an era's world module may replace its 0.9.0 prop (world/env/eraGround.ts)
+    const make = eraPropOverride(n, role) ?? BUILDERS[n]?.[role]?.make;
+    if (!make) throw new Error(`no frontier prop ${key}`);
+    g = make();
     cache.set(key, g);
   }
   return g;
