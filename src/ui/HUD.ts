@@ -62,6 +62,7 @@ import { SeasonBadge } from './SeasonBadge';
 import { SettingsPanel } from './SettingsPanel';
 import { ShopPanel } from './ShopPanel';
 import { VillageBadge } from './VillageBadge';
+import { finaleQuiet } from '../core/quiet';
 import { formatMoney } from './format';
 // 0.9.7: dom's backOut settles without overshoot under Reduce motion (it used to be a local copy that ignored it)
 import { backOut, cubicOut } from './dom';
@@ -186,6 +187,8 @@ export class HUD {
   private hasVillage = false;
   private hasSeason = false;
   private readonly toastQueue: Array<{ title: string; sub: string; dur: number; at: number; small: boolean }> = [];
+  /** 0.9.7: toasts asked for during the ending's hush (core/quiet.ts), shown once the Winterland Complete card closes. */
+  private readonly toastHeld: Array<{ title: string; opts?: { sub?: string; duration?: number; small?: boolean } }> = [];
 
   // --- guide ---
   private readonly arrow: THREE.Group;
@@ -605,6 +608,10 @@ export class HUD {
 
   /** Centred celebration text that pops in and fades out. Toasts arriving right after another one queue up. */
   toast(title: string, opts?: { sub?: string; duration?: number; small?: boolean }): void {
+    if (finaleQuiet()) {
+      if (this.toastHeld.length < 3) this.toastHeld.push({ title, opts });
+      return;
+    }
     const t = { title, sub: opts?.sub ?? '', dur: opts?.duration ?? 2.2, at: this.ctx.time.elapsed, small: opts?.small ?? false };
     // a toast that arrives while another is still fresh waits its turn instead of wiping it (briefly: queued
     // toasts expire TOAST_STALE s after they were asked for, so a burst never drips out for many seconds)
@@ -819,6 +826,10 @@ export class HUD {
   }
 
   private updateToast(dt: number): void {
+    if (this.toastHeld.length > 0 && !finaleQuiet()) {
+      const held = this.toastHeld.shift()!;
+      this.toast(held.title, held.opts);
+    }
     if (!this.toastActive) return;
     this.toastAge += dt;
     const a = this.toastAge;

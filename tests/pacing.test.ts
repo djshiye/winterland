@@ -11,9 +11,10 @@ import { Console } from 'node:console';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CLIMB, UPGRADES, type UpgradeDef } from '../src/config';
 import { settlementAnchors, machineStaff } from '../src/core/demand';
-import { hardCapStored, LEVEL_CAP, maxStored, stepCost, valueAt } from '../src/core/ladder';
+import { hardCapStored, LEGACY_LEVEL_CAP, maxStored, stepCost, valueAt } from '../src/core/ladder';
 import { PACING, pacingIncome, pacingStart, runPacing, type PacingResult } from '../src/core/pacing';
 import { QUEST_DEFS } from '../src/core/quests';
+import { FINAL_GATE, gateNeed, settlementNeed } from '../src/eras/gate';
 import { CITY_BUILDINGS, CITY_RANKS, DISTRICTS, ERA_SCALE, MATERIALS, MAX_ERA, REGIONS, unlockCash } from '../src/eras/data';
 
 const DEFS = Object.values(UPGRADES) as UpgradeDef[];
@@ -176,7 +177,9 @@ describe('era economy ×10 (R11) and city ranks (R13)', () => {
     expect(CITY_RANKS.map((r) => r.minEra)).toEqual([1, 2, 5, 8, 10]);
   });
 
-  it('LEVEL_CAP is the finale level', () => {
-    expect(LEVEL_CAP).toBe(100);
+  it('the finale is Lv 10 (0.9.7: the final gate is era 10 own things at Lv 10 + Settlement 50; Lv 100 is legacy only)', () => {
+    expect(gateNeed(FINAL_GATE)).toBe(10);
+    expect(settlementNeed(FINAL_GATE)).toBe(50);
+    expect(LEGACY_LEVEL_CAP).toBe(100);
   });
 });

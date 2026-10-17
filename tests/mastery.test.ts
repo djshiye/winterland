@@ -6,16 +6,16 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { CLIMB, ECONOMY, GATE, QUARTERS, SETTLEMENT, UPGRADES, VILLAGE } from '../src/config';
-import { climbMult, founderScarf, masteryOf, masteryTotal, renownAt, renownMult, salePrice } from '../src/core/demand';
+import { climbMult, founderScarf, masteryOf, renownAt, renownMult, salePrice } from '../src/core/demand';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
-import { hardCapStored, masteryMult, masteryPoints, maxStored, valueAt } from '../src/core/ladder';
+import { hardCapStored, maxStored, valueAt } from '../src/core/ladder';
+import { legacyMastery, legacyMasteryMult, legacyMasteryPoints } from '../src/core/refund';
 import { Market, ORDER_MAX_UNITS } from '../src/core/Market';
 import { mergeState, sanitizeState } from '../src/core/Save';
 import { createGameState, type GameContext, type GameEvents, type GameState, type MaterialKind, type PadId, type UpgradeId } from '../src/core/types';
 import { Upgrades } from '../src/core/Upgrades';
 import { CITY_BUILDINGS, MARKET, MATERIALS, type CityBuildingId } from '../src/eras/data';
-import { masteryLine, masteryTag } from '../src/ui/agesLogic';
 import { settlementPerks } from '../src/ui/EraCard';
 import { meetGate } from './gateHelpers';
 
@@ -61,7 +61,7 @@ const make = (state: GameState, money: number) => {
   return { events, economy, upgrades, ctx };
 };
 
-describe('Mastery', () => {
+describe('Mastery (0.9.7: removed from play; only old saves are paid for it, core/refund.ts)', () => {
   it('is 1 before the climb: no authored level reaches a cap, and nothing past the tables can be bought', () => {
     const s = allBuilt(createGameState());
     s.village.revealed = true;
@@ -69,65 +69,64 @@ describe('Mastery', () => {
     const { upgrades } = make(s, 1e15);
     for (let pass = 0; pass < 20; pass++) for (const id of IDS) upgrades.buy(id);
     for (const id of IDS) if (UPGRADES[id].era === undefined && !UPGRADES[id].requires?.era) expect(s.upgrades[id], id).toBe(maxStored(UPGRADES[id], false));
-    expect(masteryTotal(s)).toBe(0);
+    expect(legacyMasteryPoints(s)).toBe(0);
     expect(masteryOf(s)).toBe(1);
     expect(climbMult(s)).toBe(1);
   });
 
-  it('counts one point per level bought at a hard cap, summed over every upgrade', () => {
-    const s = lodge();
-    const hc = hardCapStored(UPGRADES.carry)!;
-    s.upgrades.carry = hc + 11;
-    expect(masteryTotal(s)).toBe(11);
-    s.upgrades.dog = hardCapStored(UPGRADES.dog)! + 4;
-    expect(masteryTotal(s)).toBe(15);
-    expect(masteryOf(s)).toBeCloseTo(masteryMult(15), 12);
-    // the carry count itself stays at its cap
-    expect(valueAt(UPGRADES.carry, s.upgrades.carry)).toBe(50);
-    // at the finale every capped id pays its levels past the cap; uncapped ids (sales, taxOffice) none
-    const f = finale();
-    let want = 0;
-    for (const id of IDS) want += masteryPoints(UPGRADES[id], f.upgrades[id]);
-    expect(masteryTotal(f)).toBe(want);
-    expect(want).toBeGreaterThan(500);
-    expect(masteryOf(f)).toBeGreaterThan(1.5);
-    expect(masteryOf(f)).toBeLessThan(2.1); // 0.9.5: + every era's crew roles, belts and machine levels
+  it('every upgrade bought to Lv 10 in every era earns no Mastery: the climb pays Renown only', () => {
+    const s = lodge(10);
+    const { upgrades } = make(s, 1e18);
+    allBuilt(s);
+    for (let pass = 0; pass < 12; pass++) for (const id of IDS) upgrades.buy(id);
+    for (const id of IDS) expect(s.upgrades[id], id).toBeLessThanOrEqual(10);
+    expect(legacyMasteryPoints(s)).toBe(0);
+    expect(climbMult(s)).toBeCloseTo(renownMult(s), 12);
+    // even a hand-edited save past the caps gets no live bonus: only the refund migration reads those levels
+    s.upgrades.carry = hardCapStored(UPGRADES.carry)! + 40;
+    expect(climbMult(s)).toBeCloseTo(renownMult(s), 12);
   });
 
-  it('multiplies Survival sales (salePrice), exports and orders (Market) and city income alike', () => {
+  it('the refund still counts an old save\'s points: one per level bought at a hard cap', () => {
+    const s = lodge();
+    s.upgrades.carry = hardCapStored(UPGRADES.carry)! + 11;
+    expect(legacyMasteryPoints(s)).toBe(11);
+    s.upgrades.dog = hardCapStored(UPGRADES.dog)! + 4;
+    expect(legacyMasteryPoints(s)).toBe(15);
+    expect(legacyMastery(s)).toBeCloseTo(legacyMasteryMult(15), 12);
+    expect(valueAt(UPGRADES.carry, s.upgrades.carry)).toBe(50);
+    const f = finale();
+    expect(legacyMasteryPoints(f)).toBeGreaterThan(500);
+    expect(legacyMastery(f)).toBeGreaterThan(1.5);
+    expect(legacyMastery(f)).toBeLessThan(2.1);
+  });
+
+  it("a kept bonus (MASTERY_KEEP 'multiplier') multiplies Survival sales, exports and orders alike; Jack pays none", () => {
     const s = lodge(3);
     const before = { sale: salePrice(s, 'plank', ECONOMY.plankPrice, 400) };
     const m0 = make(s, 0);
     const market = new Market(m0.ctx, { rng: () => 0.5 });
     const exp0 = market.exportPrice('iron', 20);
     const ord0 = market.orderCost('iron', 20);
-    s.upgrades.carry = hardCapStored(UPGRADES.carry)! + 40;
-    const k = masteryMult(40);
+    const jack0 = market.jackOffer('iron');
+    const k = 1.3;
+    s.legacy.masteryMult = k;
     expect(climbMult(s)).toBeCloseTo(renownMult(s) * k, 12);
     expect(salePrice(s, 'plank', ECONOMY.plankPrice, 400) / before.sale).toBeCloseTo(k, 2);
     expect(market.exportPrice('iron', 20) / exp0).toBeCloseTo(k, 3);
     expect(market.orderCost('iron', 20) / ord0).toBeCloseTo(k, 3);
-    // Jack pays no Mastery (share × unit value only)
-    s.upgrades.carry = 0;
-    const jack0 = market.jackOffer('iron');
-    s.upgrades.carry = hardCapStored(UPGRADES.carry)! + 40;
     expect(market.jackOffer('iron')).toBe(jack0);
   });
 
-  it('multiplies city income (City.incomeRate)', () => {
+  it('a kept bonus multiplies city income (City.incomeRate)', () => {
     const s = lodge(2);
     const home = Object.values(CITY_BUILDINGS).find((d) => d.era === 2 && d.kind === 'home')!.id as CityBuildingId;
     for (let i = 0; i < 3; i++) Object.assign(s.city.districts[2]!.lots[i]!, { building: home, tier: 0, cash: 0, extra: 0 });
     const city = new City(cityCtx(s));
     const r0 = city.incomeRate;
     expect(r0).toBeGreaterThan(0);
-    s.upgrades.dog = hardCapStored(UPGRADES.dog)! + 30;
-    expect(city.incomeRate / r0).toBeCloseTo(masteryMult(30), 9);
-  });
-
-  it('reads "✦ Mastery 340 · +41% on every sale" and the chip tag', () => {
-    expect(masteryLine(340, masteryMult(340))).toBe(`✦ Mastery 340 · +${Math.round((masteryMult(340) - 1) * 100)}% on every sale`);
-    expect(masteryTag(25, masteryMult(25))).toBe('✦ 25 · +12%');
+    s.legacy.masteryMult = 1.25;
+    expect(city.incomeRate / r0).toBeCloseTo(1.25, 9);
   });
 });
 

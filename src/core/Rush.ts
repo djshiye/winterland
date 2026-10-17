@@ -4,6 +4,7 @@
  * divide their spawn gaps by it). Transient: a reload starts between rushes.
  */
 import { RUSH } from '../config';
+import { finaleQuiet } from './quiet';
 import type { EventBus } from './EventBus';
 import type { GameEvents, GameState } from './types';
 
@@ -42,6 +43,11 @@ export class RushHours {
   }
 
   update(dt: number): void {
+    // 0.9.7: no rush during the ending (core/quiet.ts); one running ends now
+    if (finaleQuiet()) {
+      if (this.left > 0) this.left = dt;
+      else return;
+    }
     if (this.left > 0) {
       this.left -= dt;
       if (this.left <= 0) {

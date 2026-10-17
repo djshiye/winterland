@@ -11,18 +11,17 @@
  * while the panel is visible, because 'money:changed' fires for every cash bundle.
  *
  * 0.9.0 climb (docs/EXPANSION.md R5, §C), only once the Great Lodge opens it (below it every card is 0.8.0's):
- * - band pips: 10 pips for the band the next era's gate asks (Lv need − 10 .. need) plus a band star with the bands
- *   done, instead of the authored pips; a badge "Lv 23 · need 30", a gold "Lv 30 ✓" at the gate's level, "Not hired"
- *   for a crew, "Lv 10 · era standard" (with its tooltip) for an era upgrade that arrived at its offset;
+ * - band pips: 10 pips for Lv 0 .. 10 instead of the authored pips; a badge "Lv 7 · need 10", a gold "Lv 10 ✓" at
+ *   the gate's level, "Not hired" for a crew;
  * - a gold dot on a tab while any of its upgrades is below the gate's level (the green "can buy" dot wins).
  */
 import { PRIORITIES, QUARTERS, UPGRADES, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
-import { authoredMax, base, introEra, valueAt } from '../core/ladder';
+import { authoredMax, valueAt } from '../core/ladder';
 import type { GameContext } from '../core/types';
-import { ERAS, ERA_NAMES } from '../eras/data';
+import { ERAS } from '../eras/data';
 import { regionLayout } from '../eras/layout';
-import { climbOpen, gateNeed, inGate as inGateOf } from '../eras/gate';
+import { climbOpen, gateNeed, hasGate, inGate as inGateOf } from '../eras/gate';
 import { BAND_PIPS, bandView, eraCrewDelta, eraRoman, industryEraNote, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
@@ -43,10 +42,9 @@ interface Card {
   /** "N helpers" tag on crew cards (the bunkhouse allows several of one role). */
   slots: HTMLSpanElement | null;
   btn: HTMLButtonElement;
-  /** 0.9.0 climb: the band pips (10 + the star) and the level / need badge. */
+  /** 0.9.0 climb: the band pips (10) and the level / need badge. */
   band: HTMLSpanElement;
   bandPips: HTMLSpanElement[];
-  star: HTMLSpanElement;
   need: HTMLSpanElement;
   /** Last written values, to skip redundant DOM writes. */
   shown: { pips: number; delta: string; btn: string; cls: string; slots: string; band: string; need: string };
@@ -347,7 +345,7 @@ export class ShopPanel {
     }
     const lv = compact ? h('span', 'wl-lv') : null;
     if (lv) pipRow.appendChild(lv);
-    // the climb's band view (hidden until the Great Lodge): 10 pips, the band star, the level / need badge
+    // the climb's band view (hidden until the Great Lodge): 10 pips and the level / need badge
     const band = h('span', 'wl-band');
     const bandPips: HTMLSpanElement[] = [];
     for (let i = 0; i < BAND_PIPS; i++) {
@@ -355,15 +353,11 @@ export class ShopPanel {
       band.appendChild(p);
       bandPips.push(p);
     }
-    const star = h('span', 'wl-bstar');
-    band.appendChild(star);
     band.style.display = 'none';
     pipRow.appendChild(band);
     const need = h('span', 'wl-need');
     need.style.display = 'none';
     pipRow.appendChild(need);
-    const e = introEra(def);
-    if (e >= 2 && base(def) > 0) need.title = `${ERA_NAMES[e] ?? 'Era'} gear arrives at Lv ${base(def)}, the level everything needs to open the ${ERA_NAMES[e] ?? 'next era'}.`;
     const slots = group === 'crew' && id in QUARTERS.crew ? h('span', 'wl-slots') : null;
     if (slots) pipRow.appendChild(slots);
     mid.appendChild(pipRow);
@@ -386,7 +380,6 @@ export class ShopPanel {
       btn,
       band,
       bandPips,
-      star,
       need,
       shown: { pips: -1, delta: '', btn: '', cls: '', slots: '', band: '', need: '' },
       bump: 0,
@@ -468,20 +461,19 @@ export class ShopPanel {
   }
 
   /**
-   * The climb's band view of one card: pips for the band ending at the gate's level, the bands done on the star, and
-   * the badge ("Lv 23 · need 30", "Lv 30 ✓", "Not hired", "Lv 10 · era standard"). `need` is null with no gate ahead.
+   * The climb's band view of one card: pips for the band ending at the gate's level and
+   * the badge ("Lv 7 · need 10", "Lv 10 ✓", "Not hired"). `need` is null with no gate ahead.
    */
   private refreshBand(c: Card, need: number | null): boolean {
     const up = this.ctx.upgrades;
     const def = up.def(c.id);
     const stored = up.level(c.id);
     const idle = (def.display === 'crew' || def.display === 'belt') && stored <= 0;
-    const v = bandView(up.shownLevel(c.id), stored, base(def), !idle, need, def.display === 'belt' ? 'Not built' : 'Not hired');
-    const band = `${v.fill}|${v.bands}`;
+    const v = bandView(up.shownLevel(c.id), !idle, need, def.display === 'belt' ? 'Not built' : 'Not hired');
+    const band = `${v.fill}`;
     if (band !== c.shown.band) {
       c.shown.band = band;
       for (let i = 0; i < BAND_PIPS; i++) c.bandPips[i]!.classList.toggle('on', i < v.fill);
-      c.star.textContent = v.bands > 0 ? `\u2605${v.bands}` : '';
     }
     const key = `${v.text}|${v.tone}`;
     if (key !== c.shown.need) {
@@ -510,7 +502,7 @@ export class ShopPanel {
       }
     }
     const next = age + 1;
-    const gateOn = climb && !!ERAS[next];
+    const gateOn = climb && hasGate(next); // 0.9.7: era 10's cards badge the final gate too
     const tabNeed: Record<string, boolean> = { lumberjack: false, crew: false, sales: false, industry: false, finance: false };
     const tabHint: Record<string, boolean> = { lumberjack: false, crew: false, sales: false, industry: false, finance: false };
     for (const c of this.cards) {
@@ -566,8 +558,7 @@ export class ShopPanel {
         btnHtml = `<span class="wl-lock">${ICON_LOCK}</span><span class="wl-req">${req}</span>`;
         cls = 'is-lock';
       } else if (isMax) {
-        // the era cap reads differently from the final level: the next era's expansion lifts it
-        btnHtml = up.atEraCap(id) ? '<small>Era</small>MAX' : 'MAX';
+        btnHtml = 'MAX';
         cls = 'is-max';
       } else if (req) {
         btnHtml = `<span class="wl-lock">${ICON_LOCK}</span><span class="wl-req">${req}</span>`;
