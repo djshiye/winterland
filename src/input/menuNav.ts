@@ -11,7 +11,8 @@
  * - With focus inside a menu: the arrow keys move it to the nearest control in that direction (a slider keeps
  *   Left / Right for itself), Tab / Shift+Tab cycle inside the menu (focus never escapes to the page behind it).
  *   Those keys are taken in the capture phase, so they never also walk the player.
- * - 0.9.8: a focused scroll box (`.wl-scrollbox`, the changelog) takes Up / Down to scroll until it reaches its end.
+ * - 0.9.8: a focused scroll box (`.wl-scrollbox`, the changelog) takes Up / Down to scroll until it reaches its end;
+ *   with the focus on a control that has nothing further that way, Up / Down scroll the menu's scroll box too.
  * - Accessibility: an open modal gets role="dialog" + aria-modal and the label of its title; the objective banner
  *   and toasts are polite live regions, so screen readers announce the next goal.
  * The pure picking rule (`nextInDirection`) is tested in tests/menuNav.test.ts.
@@ -157,7 +158,15 @@ export class MenuNav {
     }
     const boxes = items.map((el) => el.getBoundingClientRect());
     const i = nextInDirection(boxes[at]!, boxes.filter((_, k) => k !== at), dir);
-    if (i < 0) return true; // at the edge: stay put (still handled, so the player doesn't walk)
+    if (i < 0) {
+      // at the edge: a scroll box in the menu (the changelog) takes Up / Down, so the arrows read on from the button
+      if (dir === 'up' || dir === 'down') {
+        const box = m.querySelector<HTMLElement>('.wl-scrollbox');
+        const step = box ? scrollStep(box.scrollTop, box.scrollHeight, box.clientHeight, dir) : 0;
+        if (box && step !== 0) box.scrollTop += step;
+      }
+      return true; // still handled, so the player doesn't walk
+    }
     this.focus(items.filter((_, k) => k !== at)[i]!);
     return true;
   }
