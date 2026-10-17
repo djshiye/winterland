@@ -318,8 +318,8 @@ export interface PadLook {
 }
 
 /**
- * The pads (DIRECTION D6): never the ad's grey tile with a green fill. Three looks Dino picks from (quilt is the
- * default), all sharing the honey fill, the cream price tag on twine and the wooden sign board.
+ * The pads (DIRECTION D6): never the ad's grey tile with a green fill. Three looks; Dino picked the lantern as the
+ * default; all sharing the honey fill, the cream price tag on twine and the wooden sign board.
  */
 export const PAD = {
   /** Warm honey: the fill on the tile and the ring, its light meniscus and its deep bottom. */
