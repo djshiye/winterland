@@ -13,9 +13,9 @@
  *
  *   node scripts/test-updater.mjs
  */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { inAppUpdaterFiles, updaterFiles } from './updater-files.mjs';
@@ -73,6 +73,22 @@ function zipFolder(parent, name, zip) {
   if (r.status !== 0) throw new Error(`zip failed: ${r.stderr}`);
 }
 
+/**
+ * (Linux) The old game still closing for `seconds` while the updater starts: a copy of bash renamed 'winterland' runs
+ * from the game folder (so it looks like the game to the updater), then puts the fake game back and exits. A game
+ * started while it is still there would be bash, not the fake game, and would note nothing.
+ */
+function closingGame(install, seconds) {
+  const game = join(install, 'winterland');
+  const fake = join(install, '.fake-game');
+  copyFileSync(game, fake);
+  rmSync(game);
+  copyFileSync('/bin/bash', game);
+  chmodSync(game, 0o755);
+  const child = spawn(game, ['-c', `sleep ${seconds}; mv -f '${fake}' '${game}'; exit 0`], { detached: true, stdio: 'ignore' });
+  child.unref();
+}
+
 /** One scenario in a fresh temp folder. `sums` edits SHA256SUMS.txt; `before` can tamper with the install. */
 function scenario(title, { latest = NEW, sums = (s) => s, before = () => {}, inGame = null } = {}) {
   console.log(`\n${title}`);
@@ -117,6 +133,7 @@ function scenario(title, { latest = NEW, sums = (s) => s, before = () => {}, inG
     }
 
     let r;
+    const began = Date.now();
     if (OS === 'win32') {
       const harness = join(root, 'harness.ps1');
       writeFileSync(harness, `param($Updater, $Server, $Log)
@@ -177,6 +194,7 @@ cp "$f" "$out"
     const urls = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [];
     return {
       r,
+      seconds: (Date.now() - began) / 1000,
       output,
       gameNow,
       leftovers,
@@ -267,6 +285,21 @@ show(s);
 s = scenario('In-game update with a zip for another version', { inGame: { zipName: `Winterland-9.9.9-${TARGET}.zip` } });
 check(s.r.status !== 0 && s.gameNow === `game ${OLD}`, 'refuses it and changes nothing');
 show(s);
+
+// The game takes a while to close after "Update now" (0.9.9): the script waits for it, and when an update stops it
+// starts the old game again only once the closing one is gone (a copy started sooner would quit at once, leaving none).
+if (OS === 'linux') {
+  s = scenario('In-game update while the game is slow to close', { inGame: {}, before: ({ install }) => closingGame(install, 3) });
+  check(s.r.status === 0 && s.seconds >= 2.5, 'waits for the game to close');
+  check(s.gameNow === `game ${NEW}` && s.saveKept && s.leftovers.length === 0, 'then updates, save untouched');
+  check(s.started === 'started', 'starts the new version');
+  show(s);
+
+  s = scenario('In-game update that stops while the game is still closing', { latest: OLD, inGame: {}, before: ({ install }) => closingGame(install, 3) });
+  check(s.r.status !== 0 && s.gameNow === `game ${OLD}`, 'stops and changes nothing');
+  check(s.started === 'started --update-failed=current', 'reopens the old game with the reason once the closing one is gone');
+  show(s);
+}
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nall updater checks passed');
 process.exit(failures ? 1 : 0);
