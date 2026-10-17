@@ -12,6 +12,7 @@ import { BREATH_SWELL, CAPSTONE_LEVEL, LEVEL_NOTES, PENTATONIC, isCapstone, leve
 import { PadFeel, PadRing } from '../src/fx/PadRing';
 import { setComfort } from '../src/fx/comfort';
 import { COLORS } from '../src/config';
+import { DEFAULT_PAD_STYLE, padStyle } from '../src/assets/pads';
 import { PAD, lightness } from '../src/render/palette';
 
 const src = (p: string): string => readFileSync(resolve(__dirname, '..', p), 'utf8').replace(/\r\n/g, '\n');
@@ -120,6 +121,11 @@ describe('ring glow', () => {
 });
 
 describe('pad look', () => {
+  it("is Dino's pick, the frosted lantern, unless ?pads= previews another", () => {
+    expect(DEFAULT_PAD_STYLE).toBe('lantern');
+    expect(padStyle()).toBe('lantern');
+  });
+
   it('is no longer the source ad: no grey tile, no green fill', () => {
     expect(COLORS.PAD_FILL).toBe(PAD.honey);
     expect(COLORS.PAD_FILL).not.toBe(0x2ecc71);
