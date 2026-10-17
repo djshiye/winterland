@@ -274,6 +274,7 @@ export const MACHINE_PILES = {
  * processor, F3) and so make more per second; this pace keeps each era's pacing-model length (tests/pacing.test.ts)
  * where 0.9.5 had it. Solved with the pacing model; the economy re-tune may move it. 0.9.7: era 5 at 1.3, since its
  * pellets and coke sell at era-5 prices (the old coke ovens made era-4 coal); config CLIMB.bandTilt re-solved with it.
+ * 0.9.7 plots: the pace stays; the extra slots' income is balanced by CLIMB.bandTilt (each era's own prices).
  */
 export const ERA_PACE: readonly number[] = [1, 1, 1.16, 2.1, 1.66, 1.3, 2.38, 1, 1.7, 1.07, 0.86];
 
@@ -315,9 +316,9 @@ export const MACHINES: Record<MachineId, MachineDef> = {
   gasWell: machine('gasWell', 7, 'extractor', 'Gas Well', 'A wellhead fills gas bottles', [], 'gas', 1, 1.8, 0.1, undefined, 'wellhead tree with a flare'),
   cracker: machine('cracker', 7, 'processor', 'Cracker', 'Crude + gas → fuel', [{ kind: 'crude', per: 1 }, { kind: 'gas', per: 1 }], 'fuel', 1, 2.6, 0.2, { kind: 'crude', count: 12 }, 'catalytic cracking tower'),
   snowmobileWorks: machine('snowmobileWorks', 7, 'processor', 'Snowmobile Works', 'Plastic + fuel → a snowmobile', [{ kind: 'plastic', per: 1 }, { kind: 'fuel', per: 1 }], 'snowmobile', 1, 3.4, 0.28, { kind: 'plastic', count: 6 }, 'assembly line with a test track'),
-  sandPit: machine('sandPit', 8, 'extractor', 'Sand Pit', 'Dredges pure quartz sand into silicon', [], 'silicon', 1, 1.8, 0.1, undefined, 'conveyor dredge + crystal grower'),
+  sandPit: machine('sandPit', 8, 'extractor', 'Sand Pit', 'Dredges pure quartz sand into silicon', [], 'silicon', 1, 1.5, 0.1, undefined, 'conveyor dredge + crystal grower'),
   chipFab: machine('chipFab', 8, 'processor', 'Chip Fab', '2 silicon → two microchips', [{ kind: 'silicon', per: 2 }], 'chip', 2, 2.8, 0.18, { kind: 'silicon', count: 12 }, 'white clean-room block with air vents'),
-  uraniumMine: machine('uraniumMine', 9, 'extractor', 'Uranium Mine', 'Robotic diggers in lead-lined suits', [], 'uranium', 1, 1.8, 0.1, undefined, 'shielded headframe, hazard stripes'),
+  uraniumMine: machine('uraniumMine', 9, 'extractor', 'Uranium Mine', 'Robotic diggers in lead-lined suits', [], 'uranium', 1, 1.4, 0.1, undefined, 'shielded headframe, hazard stripes'),
   enricher: machine('enricher', 9, 'processor', 'Enrichment Plant', '2 uranium → a fuel rod', [{ kind: 'uranium', per: 2 }], 'fuelRod', 1, 2.6, 0.18, { kind: 'uranium', count: 12 }, 'centrifuge cascade hall'),
   reactor: machine('reactor', 9, 'processor', 'Reactor', 'A fuel rod → 3 power cells', [{ kind: 'fuelRod', per: 1 }], 'power', 3, 3.2, 0.25, { kind: 'fuelRod', count: 6 }, 'cooling tower + containment dome'),
   // 0.9.7: era 10 runs on rare earth + helium-3, fused into fusion cells (era resources v2). The fusion plant became
@@ -378,15 +379,15 @@ export interface RegionLayoutDef {
 export const REGIONS: readonly (RegionLayoutDef | null)[] = [
   null,
   null,
-  { n: 2, rect: R(-24, 40, 66, 114), gate: 'north', slots: 6, room: 8 }, // 64 × 48
-  { n: 3, rect: R(-98, -30, 66, 118), gate: 'north', slots: 6, room: 8 }, // 68 × 52
-  { n: 4, rect: R(-176, -104, 66, 122), gate: 'north', slots: 6, room: 8 }, // 72 × 56
-  { n: 5, rect: R(-178, -100, 132, 192), gate: 'north', slots: 6, room: 8 }, // 78 × 60
-  { n: 6, rect: R(-94, -10, 132, 196), gate: 'north', slots: 6, room: 8 }, // 84 × 64
-  { n: 7, rect: R(-4, 86, 132, 200), gate: 'north', slots: 6, room: 8 }, // 90 × 68
-  { n: 8, rect: R(92, 188, 132, 204), gate: 'north', slots: 7, room: 9 }, // 96 × 72
-  { n: 9, rect: R(90, 192, 218, 294), gate: 'north', slots: 7, room: 9 }, // 102 × 76
-  { n: 10, rect: R(-24, 84, 218, 298), gate: 'north', slots: 8, room: 10 }, // 108 × 80
+  { n: 2, rect: R(-24, 40, 66, 114), gate: 'north', slots: 7, room: 8 }, // 64 × 48
+  { n: 3, rect: R(-98, -30, 66, 118), gate: 'north', slots: 7, room: 8 }, // 68 × 52
+  { n: 4, rect: R(-176, -104, 66, 122), gate: 'north', slots: 7, room: 8 }, // 72 × 56
+  { n: 5, rect: R(-178, -100, 132, 192), gate: 'north', slots: 7, room: 8 }, // 78 × 60
+  { n: 6, rect: R(-94, -10, 132, 196), gate: 'north', slots: 7, room: 8 }, // 84 × 64
+  { n: 7, rect: R(-4, 86, 132, 200), gate: 'north', slots: 7, room: 8 }, // 90 × 68
+  { n: 8, rect: R(92, 188, 132, 204), gate: 'north', slots: 8, room: 9 }, // 96 × 72
+  { n: 9, rect: R(90, 192, 218, 294), gate: 'north', slots: 8, room: 9 }, // 102 × 76
+  { n: 10, rect: R(-24, 84, 218, 298), gate: 'north', slots: 9, room: 10 }, // 108 × 80
 ];
 export function regionDef(n: number): RegionLayoutDef {
   const r = REGIONS[n];
