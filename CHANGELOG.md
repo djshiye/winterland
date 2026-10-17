@@ -4,9 +4,32 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
-## Unreleased
+## 0.9.8 (2026-10-17)
 
-Release notes for the next version collect here. When a release is cut, rename this heading to `## x.y.z (date)`.
+The big cozy makeover: every era, machine, worker, menu and sky has a new hand-made look, every era has its own music, and the game can now tell you when an update is out.
+
+### A whole new look
+
+- **Warmer everywhere.** New soft lighting, colours and snow make every era feel like a little snow globe, by day and by night.
+- **Every era has its own world.** Each era's ground, paths and landmarks are built around its resource: packed earth and fieldstone in the early eras, brick and copper in the middle, a sand-snow silicon campus, mint-glazed pools and cream hex panels with gold seams at the end. Era 3's rusty yard now has snow banks to rest the eye.
+- **A lighter, cozier city.** Districts climb taller and lighter era by era, windows show sky-blue glass by day, and the far skyline turns pearl and cream in the late eras.
+- **New machines.** All machines in all ten eras were remade with chunky, toy-like detail and gentle working animations.
+- **New characters.** Everyone shares one cute round body with a real face. You wear a red knit hat and a long striped scarf. Every crew role has its own hat colour and tool, and each era dresses for its resource.
+- **Sky and weather.** Softer snowfall, a reworked aurora, clouds, stars and little bits of life around the world.
+- **Upgrade pads.** Pads look, sound and feel more satisfying to step on, with new glow and juice on every upgrade.
+
+### Menus and moments
+
+- **One cozy style for every menu.** Cream cards, gold and pine buttons, rounded numbers and a softer night version that fades in after dark. Icons share one warm outline.
+- **Era postcards.** Opening a new era shows a postcard of its region. It closes by itself, and Esc or B closes it sooner.
+- **A prettier ending.** The 100% card gets a honey prize ribbon and a new toy trophy.
+- **Readable signs.** Signs in the world fade softly with distance and never get too small to read.
+
+### Music and ambience
+
+- **A theme for every era.** Ten cozy tunes built around each era's resource, from the familiar Cabin Hearth in era 1 to Golden Halo in the AI Era. Each one has a quieter, sparser night version.
+- **Every place has its own sounds.** Pine wind and chickadees, kiln roar, boiler hum, server fans, water lapping, street murmur and sleigh bells in the city. Music and sounds crossfade as you walk through a gate.
+- **New Ambience volume slider** in Settings, under Music volume. Calm and Minimal effects settings thin the ambient sounds out.
 
 ### Updates inside the game
 
@@ -14,6 +37,8 @@ Release notes for the next version collect here. When a release is cut, rename t
 - **One click to update.** The game downloads the new version, checks it's genuine against the release checksum, closes, updates and opens again. Your save is never touched, and if anything goes wrong you're back in your game as it was.
 - Updates reach you once Winterland's downloads are public (planned with 1.0). Until then the check quietly finds nothing and you keep playing.
 - **What's new.** The first time you open the game after an update, it shows everything that changed since your last version. Settings › Game › *What's new* opens it any time.
+
+No save, price or pacing changes. Your save carries over as it is.
 
 ## 0.9.7 (2026-10-17)
 
