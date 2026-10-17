@@ -11,8 +11,9 @@
  * Measured on the market square with 48 people: +10 draw calls at High (shadows on), +5 at Low; ≈ 1900 triangles per
  * person across both passes (≈ 950 each).
  *
- * Look: the same chunky "pawn" as assets/characters.ts npcBody (capsule r 0.3 × 0.75, skin head r 0.22, mitten hands,
- * stubby boots, hip pivot at CHARACTER_HIP_Y), scaled 0.72 for kids.
+ * Look: the same toy body as assets/characters.ts buildPawn (lathe "bean" torso NPC_BODY_R × NPC_BODY_H, round head
+ * NPC_HEAD_R with the shared addFace eyes, glints and cheeks, mittens with thumbs, round boots, beanie with pompom),
+ * scaled 0.72 for kids. Coat and trim colours come from the CLOTH palette (no blue pawns).
  *
  * Colour: the parts are vertex-coloured (Batch) with one extra per-vertex `role` (0 = fixed colour, 1 = coat, 2 = trim)
  * and two per-instance colours (iCoat, iTrim) picked up by a patched toon material, so a coat, a scarf, a hat and a pair
@@ -29,8 +30,9 @@
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CAMERA, COLORS, LAYOUT, PALETTE, TOWN } from '../config';
-import { CHARACTER_HIP_Y } from '../assets/characters';
+import { CAMERA, LAYOUT, TOWN } from '../config';
+import { CHARACTER_HIP_Y, CLOTH, MAT, NPC_BODY_H, NPC_BODY_R, NPC_HEAD_R, SKIN_TONES, addFace, beanRadius } from '../assets/characters';
+import { CREAM } from '../render/palette';
 import { Batch, type PartOpts } from '../render/batch';
 import { additiveKeepAlpha, geo, toonUnique } from '../render/materials';
 import { registerGlow } from '../world/env/glow';
@@ -44,30 +46,21 @@ export const KID_SCALE = 0.72;
 // Looks
 // ---------------------------------------------------------------------------
 
-/** Cosy coats (distinct from the light-blue customers, the blue player and the orange / green crew). */
+/** Cosy coats (assets/characters.ts CLOTH: warm and clear, never the ad's blue; distinct from the player's pine green). */
 export const COAT_COLORS: readonly number[] = [
-  0xd9473f, // brick red
-  0x2f9e8f, // teal
-  0xf2a93b, // mustard
-  0x7a4fb5, // plum
-  0x3f9d5c, // pine green
-  0xe86f9a, // rose
-  0xefe4d2, // cream
-  0xe8793a, // pumpkin
-  0x8a5a36, // cocoa
-  0x5a6fc8, // periwinkle
+  CLOTH.brick,
+  CLOTH.teal,
+  CLOTH.mustard,
+  CLOTH.plum,
+  CLOTH.berry,
+  CLOTH.rose,
+  CLOTH.cream,
+  CLOTH.pumpkin,
+  CLOTH.cocoa,
+  CLOTH.heather,
 ];
 /** Scarf / hat / mitten colours. */
-export const TRIM_COLORS: readonly number[] = [
-  COLORS.PLAYER_TRIM,
-  COLORS.COURIER_YELLOW,
-  PALETTE.truckRed,
-  0x9be0c8, // mint
-  PALETTE.playerPants,
-  COLORS.SAW_GLOW,
-  0xf6b6cc, // pink
-  0xcfe0f2, // ice
-];
+export const TRIM_COLORS: readonly number[] = [CLOTH.cream, CLOTH.mustard, CLOTH.brick, CLOTH.mint, CLOTH.oat, CLOTH.pumpkin, CLOTH.blush, CLOTH.teal];
 /** Goods colours shown in a buyer's basket. */
 export const GOODS_COLORS: Record<string, number> = {
   bread: 0xe9b25f,
@@ -138,6 +131,16 @@ class PartBuilder {
     return this;
   }
 
+  /** Every mesh under `group` (built the usual way with toon colours), at its transform, as fixed-colour parts. */
+  addGroup(role: Role, group: THREE.Object3D): this {
+    group.updateMatrixWorld(true);
+    group.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) this.b[role].addMatrix(m.geometry, (m.material as THREE.MeshToonMaterial).color, m.matrixWorld);
+    });
+    return this;
+  }
+
   build(): THREE.BufferGeometry {
     const parts: THREE.BufferGeometry[] = [];
     this.b.forEach((batch, role) => {
@@ -153,60 +156,76 @@ class PartBuilder {
   }
 }
 
-const SKIN = COLORS.PLAYER_SKIN;
-const BOOT = 0x3a2c28;
+const SKIN = SKIN_TONES[0]!;
+const BOOT = MAT.boot;
 const BASE_Y = 0.12;
-const BODY_R = 0.3;
-const BODY_H = 0.75;
+const BODY_R = NPC_BODY_R;
+const BODY_H = NPC_BODY_H;
 const TOP_Y = BASE_Y + BODY_H;
-const HEAD_R = 0.22;
+const HEAD_R = NPC_HEAD_R;
 /** Local (hip-pivot) heights. */
-const SCARF_Y = TOP_Y - 0.02 - HIP;
-const HEAD_Y = TOP_Y + HEAD_R * 0.6 - HIP;
-const SHOULDER_Y = TOP_Y - 0.14 - HIP;
-const SHOULDER_X = BODY_R + 0.03;
+const SCARF_Y = TOP_Y - 0.06 - HIP;
+const HEAD_Y = TOP_Y + HEAD_R * 0.62 - HIP;
+const SHOULDER_Y = TOP_Y - 0.15 - HIP;
+const SHOULDER_X = BODY_R * 0.9 + 0.045;
 const ARM_REACH = 0.33;
 
-// Low-poly primitives (Batch copies them): ≈ 950 triangles per person per pass.
+// Low-poly primitives (Batch copies them): ≈ 1100 triangles per person per pass.
 const SPH = (r: number, w: number, h: number): THREE.BufferGeometry => new THREE.SphereGeometry(r, w, h);
+
+/** The bean torso of assets/characters.ts at crowd detail (origin at the hem centre). */
+function beanLathe(): THREE.BufferGeometry {
+  const pts: THREE.Vector2[] = [];
+  for (let i = 0; i <= 12; i++) {
+    const f = i / 12;
+    pts.push(new THREE.Vector2(i === 0 || i === 12 ? 0 : BODY_R * beanRadius(f), BODY_H * f));
+  }
+  pts.splice(1, 0, new THREE.Vector2(BODY_R * 0.8, 0));
+  return new THREE.LatheGeometry(pts, 12);
+}
 
 function torsoGeometry(): THREE.BufferGeometry {
   const p = new PartBuilder();
-  p.add(1, new THREE.CapsuleGeometry(BODY_R, BODY_H - BODY_R * 2, 3, 10), 0xffffff, 0, BASE_Y + BODY_H / 2 - HIP, 0);
-  // chunky scarf + a short tail down the front-left
-  p.add(2, new THREE.TorusGeometry(0.265, 0.062, 5, 12), 0xffffff, 0, SCARF_Y, 0, { rx: Math.PI / 2 });
-  p.add(2, geo.box(0.1, 0.24, 0.07), 0xffffff, 0.12, SCARF_Y - 0.13, 0.25, { rz: 0.12 });
+  p.add(1, beanLathe(), 0xffffff, 0, BASE_Y - HIP, 0);
+  // chunky scarf + a short tail down the front-right
+  p.add(2, new THREE.TorusGeometry(BODY_R * 0.78, 0.07, 5, 12), 0xffffff, 0, SCARF_Y, 0, { rx: Math.PI / 2 });
+  p.add(2, geo.box(0.11, 0.24, 0.05), 0xffffff, 0.1, SCARF_Y - 0.13, BODY_R * 0.8, { rx: 0.22, rz: -0.1 });
   return p.build();
 }
 
 function headGeometry(): THREE.BufferGeometry {
   const p = new PartBuilder();
-  p.add(0, SPH(HEAD_R, 12, 8), SKIN, 0, 0, 0);
-  const ex = HEAD_R * 0.32;
-  const ez = Math.sqrt(HEAD_R * HEAD_R - ex * ex) - 0.012;
-  for (const sx of [-ex, ex]) p.add(0, SPH(0.036, 5, 4), PALETTE.rubber, sx, 0.0, ez, { sy: 1.3, sz: 0.7 });
+  p.add(0, SPH(HEAD_R, 14, 10), SKIN, 0, 0, 0, { sx: 1.04, sy: 0.97 });
+  // the face of every toy (eyes with a light catch, rosy cheeks, a smile)
+  const face = new THREE.Group();
+  addFace(face, HEAD_R, { expr: 'smile' });
+  p.addGroup(0, face);
   return p.build();
 }
 
 function hatGeometry(): THREE.BufferGeometry {
   const p = new PartBuilder();
-  // beanie dome + cuff + pompom, in head space (hat height scales it from the head centre)
-  p.add(2, new THREE.SphereGeometry(0.255, 12, 5, 0, Math.PI * 2, 0, 1.95), 0xffffff, 0, 0.07, 0, { sy: 0.82 });
-  p.add(1, new THREE.TorusGeometry(0.232, 0.05, 4, 12), 0xffffff, 0, 0.1, 0, { rx: Math.PI / 2 });
-  p.add(0, SPH(0.075, 6, 4), 0xffffff, 0, 0.3, 0);
+  const R = HEAD_R;
+  // beanie dome + ribbed cuff + pompom, in head space (hat height scales it from the head centre)
+  p.add(2, new THREE.SphereGeometry(R * 1.05, 12, 6, 0, Math.PI * 2, 0, 1.72), 0xffffff, 0, R * 0.32, 0, { sy: 0.88 });
+  p.add(1, new THREE.TorusGeometry(R * 0.98, R * 0.17, 5, 14), 0xffffff, 0, R * 0.36, 0, { rx: Math.PI / 2 });
+  p.add(0, new THREE.IcosahedronGeometry(R * 0.3, 1), CREAM, 0, R * 1.3, 0);
+  // hair over the ears
+  for (const sx of [-1, 1]) p.add(0, SPH(R * 0.3, 6, 4), MAT.hairBrown, sx * R * 0.9, R * 0.02, -R * 0.12, { sx: 0.5, sz: 0.95 });
   return p.build();
 }
 
 function armGeometry(): THREE.BufferGeometry {
   const p = new PartBuilder();
-  p.add(1, new THREE.CapsuleGeometry(0.085, 0.17, 2, 6), 0xffffff, 0, -0.17 / 2 - 0.085 * 0.8, 0);
-  p.add(2, SPH(0.1, 6, 4), 0xffffff, 0, -ARM_REACH, 0);
+  p.add(1, new THREE.CapsuleGeometry(0.085, 0.15, 2, 6), 0xffffff, 0, -0.15 / 2 - 0.085 * 0.8, 0);
+  p.add(2, SPH(0.098, 7, 5), 0xffffff, 0, -ARM_REACH, 0, { sy: 1.06, sz: 0.92 });
+  p.add(2, SPH(0.042, 5, 4), 0xffffff, 0, -ARM_REACH + 0.035, 0.075);
   return p.build();
 }
 
 function bootGeometry(): THREE.BufferGeometry {
   const p = new PartBuilder();
-  p.add(0, geo.box(0.22, 0.2, 0.32), BOOT, 0, -0.15, 0.05);
+  p.add(0, SPH(0.125, 8, 6), BOOT, 0, -0.155, 0.04, { sx: 0.95, sy: 0.74, sz: 1.3 });
   return p.build();
 }
 
