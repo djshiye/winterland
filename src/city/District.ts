@@ -30,6 +30,7 @@ import { CITY_BUILDINGS, CITY_HAPPINESS_BONUS, DISTRICT_MATERIAL, ERA_NAMES, dis
 import type { ChooseOption, GameContext } from '../core/types';
 import { climbMult, settledCityTotals } from '../core/demand';
 import { Batch } from '../render/batch';
+import { SNOW } from '../render/palette';
 import { geo } from '../render/materials';
 import { createCityBuilding, createCityScaffold, type CityBuildingModel } from '../assets/cityBuildings';
 import { LotPad } from '../town/LotPad';
@@ -72,7 +73,7 @@ const SURFACE: readonly ({ street: number; walk: number; plot: number; tile: num
   { street: 0xbfc8d2, walk: 0xe2dccd, plot: 0xc9d1da, tile: 0xd9d2c0, pole: 0x526475, bulb: 0xffe7a8, tileSize: 2.2 },
 ];
 
-const SNOW = 0xf4f8ff;
+
 const PER_FRAME = 2;
 /** The MANAGE label over a built lot's tile: big enough to read from the usual camera distance. */
 const SIGN_SCALE = 0.9;

@@ -19,6 +19,7 @@
  */
 import * as THREE from 'three';
 import { Batch, vcMat } from '../render/batch';
+import { SNOW, palette } from '../render/palette';
 import { geo, toon, toonUnique } from '../render/materials';
 import { registerGlow } from '../world/env/glow';
 import { CITY_BUILDINGS, CITY_BUILDING_IDS, type CityBuildingDef, type CityBuildingId } from '../eras/data';
@@ -39,7 +40,7 @@ export interface CityBuildingModel {
 // palette
 // ---------------------------------------------------------------------------
 
-const SNOW = 0xf4f8ff;
+
 const SNOW_SH = 0xd7e4f2;
 const LEAF = 0x2f7d52;
 const LEAF_D = 0x256243;
@@ -74,19 +75,15 @@ interface Style {
   cellW: number;
 }
 
-const STYLES: readonly (Style | null)[] = [
-  null,
-  null,
-  { wall: 0xb85239, wall2: 0x9a4430, roof: 0x5c4028, trim: 0xe9dfcc, accent: 0xd9a441, tint: 0xffb347, floorH: 2.2, cellW: 1.5 },
-  { wall: 0x8a5442, wall2: 0x5e3a2c, roof: 0x3d3a3a, trim: 0x2f3538, accent: 0x7a8087, tint: 0xffb347, floorH: 2.5, cellW: 1.6 },
-  { wall: 0xa5703f, wall2: 0x7d5330, roof: 0x4a3a2c, trim: 0x383d40, accent: 0xd49a35, tint: 0xffc05a, floorH: 2.6, cellW: 1.7 },
-  { wall: 0x93453a, wall2: 0x6f3a2f, roof: 0x333c42, trim: 0x525c63, accent: 0xe08a2b, tint: 0xffcf70, floorH: 2.8, cellW: 1.8 },
-  { wall: 0xe3d8bc, wall2: 0xbfb08a, roof: 0x2b3b39, trim: 0xd97f38, accent: 0x4c6b68, tint: 0xffe08a, floorH: 3.0, cellW: 1.9 },
-  { wall: 0xb0a594, wall2: 0x8a8070, roof: 0x36383a, trim: 0xd99b26, accent: 0xc44536, tint: 0xffe6b0, floorH: 3.2, cellW: 2.0 },
-  { wall: 0xe6dec8, wall2: 0x8fb3b0, roof: 0x4a5259, trim: 0xf5f0e6, accent: 0x45858c, tint: 0xd8f5e4, floorH: 3.2, cellW: 2.0 },
-  { wall: 0xdce3e6, wall2: 0x9fb8b4, roof: 0x3d5259, trim: 0xf5f0e6, accent: 0x4ea885, tint: 0xd2fbef, floorH: 3.4, cellW: 2.1 },
-  { wall: 0xf5f0e6, wall2: 0xcdc3ae, roof: 0x526475, trim: 0xe8a848, accent: 0xe8a848, tint: 0xffe7a8, floorH: 3.4, cellW: 2.2 },
+/** Storey height and window cell width per era (the colours come from render/palette.ts). */
+const STOREYS: readonly (readonly [floorH: number, cellW: number])[] = [
+  [0, 0], [0, 0], [2.2, 1.5], [2.5, 1.6], [2.6, 1.7], [2.8, 1.8], [3.0, 1.9], [3.2, 2.0], [3.2, 2.0], [3.4, 2.1], [3.4, 2.2],
 ];
+
+const STYLES: readonly (Style | null)[] = STOREYS.map(([floorH, cellW], n) => {
+  const c = n >= 2 ? palette(n).city : null;
+  return c ? { ...c, floorH, cellW } : null;
+});
 const styleOf = (n: number): Style => STYLES[n]!;
 
 // ---------------------------------------------------------------------------

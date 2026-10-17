@@ -6,6 +6,7 @@
  * stays fully readable. It exists only while it is dark (`visible = false` by day -> zero draw calls).
  */
 import * as THREE from 'three';
+import { additiveKeepAlpha } from '../../render/materials';
 import type { EnvPart } from './common';
 
 const VERT = /* glsl */ `
@@ -89,16 +90,18 @@ export function buildAurora(): AuroraPart {
     const k = Math.min(1, Math.max(0, (dark - 0.35) / 0.5));
     uniforms.uDark.value = k * k * (3 - 2 * k) * 1.1 * strength;
   };
-  const mat = new THREE.ShaderMaterial({
-    uniforms,
-    vertexShader: VERT,
-    fragmentShader: FRAG,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    fog: false,
-  });
+  // additive light that leaves the glow mask alone (render/materials.ts)
+  const mat = additiveKeepAlpha(
+    new THREE.ShaderMaterial({
+      uniforms,
+      vertexShader: VERT,
+      fragmentShader: FRAG,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+    }),
+  );
   // NDC quad over the top 55% of the screen (the shader positions it directly).
   const geom = new THREE.PlaneGeometry(2, 0.55 * 2).translate(0, 1 - 0.55, 0);
   const mesh = new THREE.Mesh(geom, mat);
