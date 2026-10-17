@@ -143,6 +143,15 @@ export function buildRoads(): EnvPart & { trikeTail: THREE.Object3D } {
   for (const [a, b] of flatSpans) {
     for (const dz of [-HW / 2 + 0.25, HW / 2 - 0.25]) hw.add(edgeLine, 0xd7e0ea, (a + b) / 2, TOP + 0.015, HZ + dz, { sx: b - a });
   }
+  // 0.9.9: where the tricycle road crosses the highway, stop bars and give-way triangles on the tricycle road (it
+  // used to run under the asphalt with nothing to say it was a junction)
+  for (const s of [-1, 1]) {
+    const z = HZ + s * (HW / 2 + 0.55);
+    hw.add(new THREE.BoxGeometry(roadW - 0.5, 0.03, 0.26), PALETTE.roadLine, (tr.minX + tr.maxX) / 2, 0.03, z);
+    for (const dx of [-1.1, 0, 1.1]) {
+      hw.add(new THREE.ConeGeometry(0.3, 0.03, 3).rotateY(s < 0 ? Math.PI : 0), 0xffffff, (tr.minX + tr.maxX) / 2 + dx, 0.03, z + s * 0.75, { sz: 1.4 });
+    }
+  }
   group.add(hw.mesh({ cast: true }));
 
   // ---- tunnel spur ------------------------------------------------------------------

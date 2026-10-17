@@ -13,7 +13,7 @@ import { Batch, vcMat } from '../render/batch';
 import { toon } from '../render/materials';
 import { buildHalos, registerGlow, type HaloSpot } from '../world/env/glow';
 import { instanced, Rng, W, type Placement } from '../world/env/common';
-import { rockGeo } from '../world/env/props';
+import { pineGeo, rockGeo } from '../world/env/props';
 import { bushGeo } from './ridge';
 
 const R = LAYOUT.ridge;
@@ -86,10 +86,10 @@ export function buildRidgeScenery(): RidgeScenery {
   flat(g, pw + 0.2, 0.14, (P.minX + P.maxX) / 2, P.minZ - 0.04, 0.1, PALETTE.fenceDark, 0.08);
   flat(g, pw + 0.2, 0.14, (P.minX + P.maxX) / 2, P.maxZ + 0.04, 0.1, PALETTE.fenceDark, 0.08);
 
-  // rail bed + two rails (the line leaves the map along Z; north of the spur it is inside the rock)
+  // rail bed + two rails, from the tunnel in the spur to the buffer stop at the end of the line (0.9.9: a terminus)
   const rx = R.rail.x;
   const zA = W.spur.maxZ - 0.2;
-  const zB = R.rail.exitZ;
+  const zB = R.rail.endZ + 0.35;
   flat(g, 3.3, zB - zA, rx, (zA + zB) / 2, 0.07, 0xcfd9e5, 0.07);
   flat(g, 3.0, zB - zA, rx, (zA + zB) / 2, 0.082, PATH_SNOW, 0.01);
   for (const s of [-1, 1]) {
@@ -122,6 +122,13 @@ export function buildRidgeScenery(): RidgeScenery {
   for (const [dz, y, n] of [[0.0, 0.14, 3], [0.0, 0.34, 2]] as const) {
     for (let i = 0; i < n; i++) body.add(lg, i % 2 ? PALETTE.plank : PALETTE.bark, 30.1, y + 0.06, P.minZ + 0.3 + dz + (i - (n - 1) / 2) * 0.23 + 0.25);
   }
+  // buffer stop at the end of the line (0.9.9): the stopped locomotive's nose rests just short of it
+  const bz = R.rail.endZ;
+  for (const s of [-1, 1]) body.add(new THREE.BoxGeometry(0.22, 0.9, 0.22), 0x6e5238, rx + s * 0.72, 0.45, bz + 0.12);
+  body.add(new THREE.BoxGeometry(2.0, 0.36, 0.3), 0xd0453a, rx, 0.75, bz);
+  for (const s of [-0.55, 0, 0.55]) body.add(new THREE.BoxGeometry(0.22, 0.3, 0.04), 0xffffff, rx + s, 0.75, bz - 0.16);
+  body.add(new THREE.BoxGeometry(2.1, 0.06, 0.4), PALETTE.snow, rx, 0.96, bz);
+
   // snow-capped signboard at the south end
   body.add(new THREE.BoxGeometry(0.09, 1.0, 0.09), PALETTE.fenceDark, P.minX + 0.2, 0.5, P.maxZ - 0.1);
   body.add(new THREE.BoxGeometry(0.9, 0.38, 0.08), PALETTE.plank, P.minX + 0.2, 1.0, P.maxZ - 0.1);
@@ -141,6 +148,21 @@ export function buildRidgeScenery(): RidgeScenery {
   props.add(propsMesh);
   props.add(glow.mesh({ cast: false, receive: false, material: registerGlow(toon(0xffd978, { emissive: 0xffb347, emissiveIntensity: 0.8 })) }));
   props.add(buildHalos(halos, { size: 1.7, pool: 4.2 }));
+
+  // 0.9.9: the dog sleds come out of a pine copse east of the ridge (they used to pop up on the open snow): the trees
+  // stand over both sled rows east of where the teams appear and leave (sledLane.spawnX / exitX), so the camera, which
+  // looks from +X/+Z, sees the teams trot out from behind them
+  const copse: Placement[] = [];
+  const crng = new Rng(7731);
+  const sx0 = Math.max(R.sledLane.spawnX, R.sledLane.exitX) + 2.2;
+  for (let i = 0; i < 26; i++) {
+    const x = sx0 + crng.range(0, 11) + (i % 3) * 0.6;
+    const z = crng.range(3.2, 12.6); // north of the city (its first district starts at z 14)
+    if (copse.some((q) => Math.hypot(q.x - x, q.z - z) < 1.9)) continue;
+    const k = crng.range(0.8, 1.25);
+    copse.push({ x, z, ry: crng.range(0, Math.PI * 2), sx: k, sy: k * crng.range(0.9, 1.15), sz: k });
+  }
+  props.add(instanced(pineGeo(), vcMat(), copse, { cast: true }));
 
   // rocks + bushes (explicit spots: they frame the paths, the quarters and the forest edge)
   const rng = new Rng(4417);

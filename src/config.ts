@@ -626,8 +626,12 @@ export const LAYOUT = {
     forest: { minX: 22, maxX: 31.4, minZ: -16.6, maxZ: -3.2 } as Rect,
     /** Pine logs land here from the feller (pile; player / pine hauler pick up from `zone`). */
     deck: { x: 19.6, z: -5.6, grid: { cols: 3, rows: 4, layers: 4, spacing: LOG_GRID_SPACING } as PileGrid, zone: rect(19.6, -3.9, 2.6, 1.4) },
-    /** Freight line along the east edge, trains run along Z (arrive from −Z, leave toward +Z). */
-    rail: { x: 33.6, spawnZ: -60, exitZ: 60, stopZ: -0.8 },
+    /**
+     * Freight line along the east edge, a terminus: trains come out of the tunnel (arrive from −Z), stop with the
+     * flatcars beside the platform, then back out the way they came. 0.9.9: the line ends at a buffer stop at `endZ`
+     * just north of the sled trail (it used to run on through the Market Town and stop dead by R1).
+     */
+    rail: { x: 33.6, spawnZ: -60, stopZ: -0.8, endZ: 6.85 },
     platform: {
       x: 31.4,
       z: 0.2,

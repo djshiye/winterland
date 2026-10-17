@@ -406,12 +406,16 @@ export const ROADS: readonly { id: string; rect: ERect; opensAt: number }[] = [
   { id: 'westLink', rect: R(-184, -180, 62, 132), opensAt: 5 }, // the trail's turn from IV down to V
   { id: 'r2', rect: R(-184, 198, 128, 132), opensAt: 5 },
   { id: 'eastLink', rect: R(194, 198, 128, 218), opensAt: 9 }, // the trail's turn from VIII down to IX
-  { id: 'r3', rect: R(-28, 198, 214, 218), opensAt: 9 },
-  // city (east): the avenue from the town to the districts, then the grid streets (the north-south ones run on to R2)
+  { id: 'r3', rect: R(-12, 198, 214, 218), opensAt: 9 }, // 0.9.9: ends past era X's gate, not 36 m on in the snow
+  // city (east): the avenue from the town to the districts, then the grid streets (the north-south ones run on to R2 and
+  // 0.9.9: end there in a T-junction, 0.6 m onto it, instead of running across it into regions VII and VIII's fences)
   { id: 'cityLink', rect: R(32, 44, 19, 23), opensAt: 2 },
-  { id: 'cityWest', rect: R(40, 44, 14, 132), opensAt: 2 },
-  { id: 'cityV1', rect: R(74, 78, 14, 132), opensAt: 4 },
-  { id: 'cityV2', rect: R(108, 112, 14, 132), opensAt: 7 },
+  // 0.9.9: a second, wider way out of the Market Town's east side, between the two east lots, straight on from the
+  // corridor mouth's walk across the square to the city's west street
+  { id: 'townEast', rect: R(32, 40, 27.8, 32.6), opensAt: 2 },
+  { id: 'cityWest', rect: R(40, 44, 14, 128.6), opensAt: 2 },
+  { id: 'cityV1', rect: R(74, 78, 14, 128.6), opensAt: 4 },
+  { id: 'cityV2', rect: R(108, 112, 14, 128.6), opensAt: 7 },
   { id: 'cityH1', rect: R(40, 142, 42, 46), opensAt: 3 },
   { id: 'cityH2', rect: R(40, 142, 74, 78), opensAt: 6 },
 ];
