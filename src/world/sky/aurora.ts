@@ -18,6 +18,13 @@ import { SKY_LIGHT } from '../../render/skyLight';
 /** Peak strength on a plain night, and the wash between the ribbons. */
 export const AURORA_NIGHT = 0.85;
 export const AURORA_WASH = 0.15;
+/** The warm-resource eras (3 Iron Age, 4 Steam Age, 5 Industrial) keep a fainter wash, so their ember and copper tones stay warm
+ * at night instead of turning teal-grey. The ribbons still pass over them. */
+const WARM_ERAS = new Set([3, 4, 5]);
+export const AURORA_WASH_WARM = 0.06;
+export function auroraWash(era: number): number {
+  return WARM_ERAS.has(era) ? AURORA_WASH_WARM : AURORA_WASH;
+}
 
 /** Night amount (0 … 1) → how much aurora shows (0 until well after dusk). */
 export function auroraFade(dark: number): number {
@@ -34,6 +41,7 @@ function put(out: Float32Array, c: THREE.Color): void {
 
 export class AuroraLight {
   private time = 0;
+  private wash = AURORA_WASH;
   private readonly low = new THREE.Color(SKY.auroraLow);
   private readonly crown = new THREE.Color(SKY.auroraCrown);
   private readonly classic = new THREE.Color(SKY.auroraBody);
@@ -54,7 +62,9 @@ export class AuroraLight {
   update(dt: number, dark: number, strength: number, glow: number, speed: number, era: number): void {
     const k = auroraFade(dark) * AURORA_NIGHT * strength * (0.35 + 0.65 * glow);
     SKY_LIGHT.sky[2] = k;
-    SKY_LIGHT.sky[3] = AURORA_WASH;
+    // eased, so walking between eras blends it
+    this.wash += (auroraWash(era) - this.wash) * Math.min(1, dt * 0.8);
+    SKY_LIGHT.sky[3] = this.wash;
     if (k <= 0) return;
     this.time += dt * speed;
     SKY_LIGHT.sky[1] = this.time;
