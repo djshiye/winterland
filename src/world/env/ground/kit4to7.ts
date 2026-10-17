@@ -7,10 +7,13 @@
 import * as THREE from 'three';
 import { Batch } from '../../../render/batch';
 import { geo } from '../../../render/materials';
-import { SNOW } from '../../../render/palette';
+import { SNOW, SNOW_SHADE } from '../../../render/palette';
 import type { Rect } from '../../../config';
 import type { PlotPlaces, RegionLayout } from '../../../eras/layout';
 import type { Rng } from '../common';
+import { hutFootprint, shopFootprint } from '../plots';
+import { nodePatch } from '../frontier';
+import { marketPlaces } from '../../../eras/market';
 
 const Y = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
@@ -232,4 +235,98 @@ export function harvestSpots(l: RegionLayout, P: PlotPlaces, avoid: readonly Rec
     out.push({ x, z });
   }
   return out;
+}
+
+/** The market's counters, vault, cash pile, shopper queue and the yard stops: kept clear of drifts with room to walk. */
+function marketKeep(l: RegionLayout): Rect[] {
+  const M = marketPlaces(l);
+  const pts = [M.vaultPad, M.cash, M.vault, M.dock, M.stall, l.depot, l.dock, l.jack, l.shopMat, l.cashSpot, l.marketGate, l.gate];
+  return [
+    ...pts.map((q) => around(q.x, q.z, 3)),
+    { minX: M.front.x - 10, maxX: M.front.x + 1.6, minZ: M.front.z - 1.8, maxZ: M.front.z + 1.8 },
+  ];
+}
+
+/** Ground a snow drift must never cover: plot paving, beds, huts, shops, the green, the node patch and the front yard. */
+export function snowAvoid(l: RegionLayout, P: PlotPlaces, keep: readonly Rect[]): Rect[] {
+  return [
+    grown(P.yardPave, 0.4), grown(P.field, 0.6), grown(P.green, 0.4), grown(nodePatch(l), 0.8), grown(yardBand(l), 1.2),
+    ...P.streets.map((r) => grown(r, 0.4)), ...marketKeep(l),
+    ...P.huts.map((h) => grown(hutFootprint(h, true), 0.5)), ...P.shops.map((sh) => grown(shopFootprint(sh), 0.5)),
+    ...keep,
+  ];
+}
+
+/** One soft drift: a cool shaded rim under a snow-white top (flat, on the floor batch), sometimes a low heaped crest. */
+function drift(k: Kit, rng: Rng, x: number, z: number, r: number, heap: boolean): void {
+  const ry = rng.range(0, Math.PI);
+  const sz = rng.range(0.55, 0.85);
+  k.disc(r * 1.12, SNOW_SHADE, x, 0.04, z, sz, ry);
+  k.disc(r, SNOW, x + 0.08, 0.046, z - 0.06, sz * 0.92, ry);
+  if (heap) k.lump(r * 0.5, SNOW, x, 0.02, z, 1.25, 0.32, 0.9 * sz, ry);
+}
+
+/**
+ * Snow that keeps every era wintry at play zoom (Validator, 0.9.8): drifts banked along the fences and gathered in the
+ * open harvest ground. `wild` lays these, so the region reads snowy also while it is for sale.
+ */
+export function snowDrifts(k: Kit, l: RegionLayout, P: PlotPlaces, avoid: readonly Rect[], rng: Rng, paths: readonly Rect[]): void {
+  const r = l.rect;
+  const block = [...avoid, ...paths.map((q) => grown(q, 0.3))];
+  const edge = (x: number, z: number, big = true): void => {
+    const rad = big ? rng.range(1.0, 1.8) : rng.range(0.55, 0.95);
+    if (hitAny(block, x, z, rad * 0.6) || Math.abs(x - l.gate.x) < 4) return;
+    drift(k, rng, x, z, rad, rng.next() < 0.35);
+  };
+  for (let x = r.minX + 1.2; x < r.maxX - 0.8; x += rng.range(1.3, 2.2)) {
+    edge(x, r.minZ + rng.range(0.8, 1.2));
+    edge(x, r.maxZ - rng.range(0.8, 1.2));
+    if (rng.next() < 0.5) edge(x + 0.7, r.minZ + rng.range(2.2, 2.8), false);
+    if (rng.next() < 0.5) edge(x + 0.7, r.maxZ - rng.range(2.2, 2.8), false);
+  }
+  for (let z = r.minZ + 1.2; z < r.maxZ - 0.8; z += rng.range(1.3, 2.2)) {
+    edge(r.minX + rng.range(0.8, 1.2), z);
+    edge(r.maxX - rng.range(0.8, 1.2), z);
+    if (rng.next() < 0.5) edge(r.minX + rng.range(2.2, 2.8), z + 0.7, false);
+    if (rng.next() < 0.5) edge(r.maxX - rng.range(2.2, 2.8), z + 0.7, false);
+  }
+  // drift clusters out in the open ground (harvest, market and the crew green's surroundings)
+  const taken: { x: number; z: number; r: number }[] = [];
+  const open: { x: number; z: number }[] = [];
+  for (let t = 0; t < 900 && open.length < 16; t++) {
+    const x = rng.range(r.minX + 3, r.maxX - 3);
+    const z = rng.range(r.minZ + 3, r.maxZ - 3);
+    if (inRect(l.zones.processing, x, z, 1) || inRect(l.zones.yard, x, z, 1) || hitAny(block, x, z, 1.8)) continue;
+    if (taken.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + 4)) continue;
+    taken.push({ x, z, r: 1.8 });
+    open.push({ x, z });
+  }
+  for (const c of open) {
+    for (let i = 0; i < 4; i++) drift(k, rng, c.x + rng.range(-1.1, 1.1), c.z + rng.range(-0.8, 0.8), rng.range(0.7, 1.3), i === 0);
+  }
+}
+
+/** Snowy verges: broken white banks along both long edges of the inner paths (the yard path stays clear for the depot). */
+export function snowVerges(k: Kit, l: RegionLayout, paths: readonly Rect[], avoid: readonly Rect[], rng: Rng): void {
+  const yard = l.zones.yard;
+  for (const q of paths) {
+    if (q.minZ < yard.maxZ && q.maxZ > yard.minZ && q.maxX - q.minX > q.maxZ - q.minZ) continue;
+    const along = q.maxX - q.minX > q.maxZ - q.minZ;
+    const [a0, a1] = along ? [q.minX, q.maxX] : [q.minZ, q.maxZ];
+    for (const side of [-1, 1]) {
+      for (let t = a0 + 0.6; t < a1 - 0.6; ) {
+        const len = rng.range(1.2, 3.2);
+        const mid = Math.min(t + len / 2, a1 - 0.6);
+        const w = rng.range(0.32, 0.5);
+        const off = side < 0 ? (along ? q.minZ : q.minX) - w / 2 - 0.02 : (along ? q.maxZ : q.maxX) + w / 2 + 0.02;
+        const [x, z] = along ? [mid, off] : [off, mid];
+        if (!hitAny(avoid, x, z, 0.3)) {
+          if (along) k.tile(len, w, SNOW, x, 0.042, z);
+          else k.tile(w, len, SNOW, x, 0.042, z);
+          if (rng.next() < 0.3) k.disc(w * 1.4, SNOW, x, 0.044, z, 0.6, along ? 0 : Math.PI / 2);
+        }
+        t += len + rng.range(0.4, 1.6);
+      }
+    }
+  }
 }

@@ -26,7 +26,7 @@ import { Rng } from '../common';
 import { pineGeo, pineTallGeo } from '../props';
 import { nodePatch, regionPaths } from '../frontier';
 import type { EraGroundModule, GroundKit } from '../eraGround';
-import { around, beltSpots, cablePoints, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip } from './kit4to7';
+import { around, beltSpots, cablePoints, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
 
 const T = MACHINE_TONES[6];
 const P6 = palette(6);
@@ -241,6 +241,8 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
     for (let j = 0; j < 3; j++) k.lump(0.17, j % 2 ? COPPER_L : COPPER, p.x + rng.range(-0.55, 0.55), 0.2, p.z + rng.range(-0.4, 0.4), 1, 0.8, 1, rng.range(0, 3));
     k.lump(0.3, SNOW, p.x - 0.1, 0.3, p.z, 1.2, 0.35, 0.9, ry);
   }
+  // snow banked on the fences and drifted in the open ground, so the era stays wintry at play zoom
+  snowDrifts(f, l, P, snowAvoid(l, P, keep), rng, paths);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -299,6 +301,8 @@ function open(kit: GroundKit, l: RegionLayout, P: PlotPlaces, rng: Rng): void {
   // the tower wakes up: its arcs
   const { tower: tp } = coilTowerPlace(l);
   kit.extra.push(arcs(tp.x, tp.z, new Rng(616)));
+  // broken snowy verges along the inner paths
+  snowVerges(f, l, regionPaths(l), snowAvoid(l, P, keepOut(l)), rng);
 }
 
 /** All bolts in one mesh; onBeforeRender picks the drawn one (drawRange) and fades it (comfort-aware). */

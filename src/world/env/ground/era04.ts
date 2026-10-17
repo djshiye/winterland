@@ -21,7 +21,7 @@ import { Rng } from '../common';
 import { pineGeo, pineTallGeo } from '../props';
 import { nodePatch, regionPaths } from '../frontier';
 import type { EraGroundModule, GroundKit } from '../eraGround';
-import { around, beltSpots, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip } from './kit4to7';
+import { around, beltSpots, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
 
 const T = MACHINE_TONES[4];
 const P4 = palette(4);
@@ -229,6 +229,8 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
     f.tile(len, 0.34, COAL, x, 0.025, z, ry).tile(len * 0.7, 0.14, COAL_L, x + 0.2, 0.027, z + 0.24, ry);
     for (let j = 0; j < 3; j++) f.tile(0.12, 0.12, BRASS_L, x + rng.range(-len / 2, len / 2) * 0.8, 0.029, z + rng.range(-0.1, 0.1), rng.range(0, 3));
   }
+  // snow banked on the fences and drifted in the open ground, so the era stays wintry at play zoom
+  snowDrifts(f, l, P, snowAvoid(l, P, keep), rng, paths);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -283,6 +285,8 @@ function open(kit: GroundKit, l: RegionLayout, P: PlotPlaces, rng: Rng): void {
     k.cone(0.34, 0.3, IRON, p.x, 3.38, p.z, 4, Math.PI / 4).cone(0.2, 0.14, SNOW, p.x, 3.5, p.z, 4, Math.PI / 4);
     kit.lamps.push({ x: p.x, y: 3.1, z: p.z });
   }
+  // broken snowy verges along the inner paths
+  snowVerges(f, l, regionPaths(l), snowAvoid(l, P, keepOut(l)), rng);
 }
 
 export const era04: EraGroundModule = {
