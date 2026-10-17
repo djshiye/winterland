@@ -4,9 +4,12 @@
  * Feature-detected (phones only: desktop browsers and iOS Safari have no vibrate), every call wrapped in try/catch,
  * behind the Settings "Vibration" switch (localStorage 'winterland:haptics', default on). Module-level state
  * so the Settings panel and the JuiceDirector share it without a context slot.
+ * 0.9.7: the same pulses rumble a connected gamepad (input/Gamepad.ts rumble), behind the same switch; the switch
+ * shows wherever either can happen.
  */
 import type * as THREE from 'three';
 import type { GameContext } from '../core/types';
+import { gamepadApiAvailable, rumble } from '../input/Gamepad';
 
 const KEY = 'winterland:haptics';
 
@@ -39,9 +42,19 @@ export function setHapticsEnabled(on: boolean): void {
   }
 }
 
-/** One pulse of `ms` milliseconds; silently does nothing when unsupported / switched off / refused. */
+/** True where a phone can vibrate or a gamepad could rumble (the Settings "Vibration" switch shows then). */
+export function feedbackAvailable(): boolean {
+  return hapticsAvailable() || gamepadApiAvailable();
+}
+
+/**
+ * One pulse of `ms` milliseconds (phone vibration and gamepad rumble, longer pulses rumble harder); silently does
+ * nothing when unsupported / switched off / refused.
+ */
 export function buzz(ms: number): void {
-  if (!enabled || !hapticsAvailable()) return;
+  if (!enabled) return;
+  rumble(Math.max(ms, 30), Math.min(1, 0.25 + ms / 50));
+  if (!hapticsAvailable()) return;
   try {
     navigator.vibrate(ms);
   } catch {
@@ -55,7 +68,7 @@ export class Haptics {
   private lastPad = -10;
 
   constructor(ctx: GameContext) {
-    if (!hapticsAvailable()) return;
+    if (!feedbackAvailable()) return;
     const ev = ctx.events;
     ev.on('pad:unlocked', () => buzz(30));
     ev.on('upgrade:bought', () => buzz(22));

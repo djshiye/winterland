@@ -23,6 +23,7 @@ import type { GameContext } from '../core/types';
 import { Batch, vcMat } from '../render/batch';
 import { geo, toon } from '../render/materials';
 import type { CashPile } from './CashPile';
+import { steadyHighlights } from '../fx/comfort';
 
 export interface CashTubesOptions {
   piles: () => readonly CashPile[];
@@ -208,7 +209,7 @@ export class CashTubes {
 
     // tower lamp pulse
     this.pulse = Math.max(0, this.pulse - dt * 5);
-    this.tower.lampMaterial.emissiveIntensity = 0.4 + 1.6 * this.pulse;
+    this.tower.lampMaterial.emissiveIntensity = 0.4 + (steadyHighlights() ? 0.4 : 1.6) * this.pulse; // 0.9.7: no bright flash when calm
     this.sparkleClock -= dt;
   }
 

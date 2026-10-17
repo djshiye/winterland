@@ -39,6 +39,7 @@ import { Machine } from './Machine';
 import { RegionMarket } from './RegionMarket';
 import type { RegionRuntime, SiteRuntime } from './runtime';
 import { DEPOT_FRAME, DOCK_FRAME, LEVEL_PAD_SIZE, MAT_SIZE, chooseOptions, demolishCost, machineStatRows, slotKey, slotTarget, slotTitle, slotUntouched, toWorld, worldRect } from './rules';
+import { motionScale } from '../fx/padJuice';
 
 const SIGN_HEIGHT = 2.0;
 /** 0.9.6 (F6): the "counters full" hint floats this high over the export depot … */
@@ -211,7 +212,7 @@ export class Region implements RegionRuntime {
     this.belts.update(dt);
     if (this.sign.visible) {
       this.sign.quaternion.copy(ctx.camera.quaternion);
-      this.sign.position.y = SIGN_HEIGHT + Math.sin(ctx.time.elapsed * 2) * 0.05;
+      this.sign.position.y = SIGN_HEIGHT + Math.sin(ctx.time.elapsed * 2) * 0.05 * motionScale();
     }
     this.node?.update(dt);
     this.crew.update(dt);
@@ -241,7 +242,7 @@ export class Region implements RegionRuntime {
     }
     if (s.visible) {
       s.quaternion.copy(this.ctx.camera.quaternion);
-      s.position.y = FULL_SIGN_HEIGHT + Math.sin(this.ctx.time.elapsed * 2) * 0.05;
+      s.position.y = FULL_SIGN_HEIGHT + Math.sin(this.ctx.time.elapsed * 2) * 0.05 * motionScale();
     }
   }
 

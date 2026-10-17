@@ -7,8 +7,10 @@ import { SAVE } from './config';
 import { Game, RECOVERED_FLAG } from './game/Game';
 import { freshRequested } from './core/Save';
 import { pushBackup } from './core/saveVault';
+import { afterPaint, hideSplash } from './ui/splash';
 
 function showFatal(message: string): void {
+  hideSplash();
   const el = document.createElement('div');
   el.className = 'fatal';
   el.textContent = message;
@@ -66,23 +68,29 @@ if (!app || !hud) {
   showFatal('Winterland needs WebGL. Try a recent Chrome, Firefox or Safari.');
 } else if (new URLSearchParams(location.search).has('gallery')) {
   // Asset review page: every AssetFactory model on one screen (loaded on demand, not part of the game).
+  hideSplash();
   import('./debug/Gallery')
     .then(({ Gallery }) => new Gallery(app).start())
     .catch((err: unknown) => showFatal(`Gallery failed: ${err instanceof Error ? err.message : String(err)}`));
 } else {
-  try {
-    const game = new Game(app, hud);
-    game.start();
-    // Started fine: the next crash (e.g. after another bad save in this tab) may recover again.
+  // 0.9.7: let the loading splash paint before the long world build, and fade it once the first frame is drawn
+  void afterPaint().then(() => {
     try {
-      sessionStorage.removeItem(RECOVERY_FLAG);
-    } catch {
-      // no sessionStorage
+      const game = new Game(app, hud);
+      game.start();
+      requestAnimationFrame(() => requestAnimationFrame(hideSplash));
+      setTimeout(hideSplash, 1500); // a hidden tab draws no frames
+      // Started fine: the next crash (e.g. after another bad save in this tab) may recover again.
+      try {
+        sessionStorage.removeItem(RECOVERY_FLAG);
+      } catch {
+        // no sessionStorage
+      }
+    } catch (err) {
+      console.error(err);
+      if (!recoverFromBadSave()) {
+        showFatal(`Winterland crashed while starting: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
-  } catch (err) {
-    console.error(err);
-    if (!recoverFromBadSave()) {
-      showFatal(`Winterland crashed while starting: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
+  });
 }

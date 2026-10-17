@@ -26,10 +26,15 @@
  *   is true when the setting is off, or while E / Space is down, or while the joystick pointer is down with its
  *   knob still inside the dead zone (a drag that walked you onto a pad does NOT count; pinch is zoom, never a
  *   hold), unless `interactOverride` (debug / bot) is non-null, which wins. Zones with kind 'take' / 'pay' read it.
+ * - 0.9.7 menus and gamepad: `nav` (input/menuNav.ts) moves keyboard focus through the HUD's menus; a gamepad
+ *   (input/Gamepad.ts, polled in update()) walks with the left stick (keyboard first, then the pad, then the touch
+ *   stick), holds A to interact, and drives `nav` and the shortcuts ('escape', 'map', 'market', zoom).
  */
 import * as THREE from 'three';
 import './joystick.css';
 import { readHoldToInteract, writeHoldToInteract } from '../core/interact';
+import { BTN, dirOf, PadReader, PadRepeat, type PadFrame } from './Gamepad';
+import { MenuNav, markLiveRegions } from './menuNav';
 
 const FULL_RADIUS = 55;
 const DEAD_ZONE = 0.08;
@@ -46,7 +51,7 @@ const KEY_MAP: Record<string, 'up' | 'down' | 'left' | 'right'> = {
   ArrowRight: 'right',
 };
 
-export type Shortcut = 'escape' | 'mute' | 'fullscreen' | 'zoomIn' | 'zoomOut';
+export type Shortcut = 'escape' | 'mute' | 'fullscreen' | 'zoomIn' | 'zoomOut' | 'map' | 'market' | 'menu';
 
 const WHEEL_STEP = 0.1;
 /** Total zoom delta for a pinch that changes the finger distance by 100% of its starting value. */
@@ -152,6 +157,13 @@ export class Input {
   private readonly holdKeys = new Set<string>();
   /** Raw knob magnitude of the joystick pointer, 0..1 before the dead zone is removed. */
   private stickRaw = 0;
+  /** 0.9.7: keyboard / gamepad focus through the HUD's menus. */
+  readonly nav = new MenuNav();
+  private readonly pad = new PadReader();
+  private readonly padRepeat = new PadRepeat();
+  /** The pad's walking vector (screen space, y up), zero while it drives a menu. */
+  private readonly padMove = new THREE.Vector2();
+  private livesMarked = false;
   get keyHeld(): boolean {
     return this.holdKeys.size > 0;
   }
@@ -227,6 +239,7 @@ export class Input {
 
   /** Resolve the current intent into `move`. Call once per frame. */
   update(): void {
+    this.readPad();
     if (this.override) {
       this.move.copy(this.override);
     } else {
@@ -236,6 +249,8 @@ export class Input {
       if (kx !== 0 || ky !== 0) {
         const len = Math.hypot(kx, ky);
         this.move.set(kx / len, ky / len);
+      } else if (this.padMove.lengthSq() > 0) {
+        this.move.copy(this.padMove);
       } else {
         this.move.copy(this.stick);
       }
@@ -244,7 +259,66 @@ export class Input {
     if (!this.enabled) this.move.set(0, 0);
   }
 
+  /** Menu focus housekeeping (Game calls it every rendered frame, with the real frame time). */
+  updateMenus(dt: number): void {
+    if (!this.livesMarked) {
+      markLiveRegions();
+      this.livesMarked = document.querySelector('.wl-objective') !== null;
+    }
+    this.nav.update(dt);
+  }
+
   // --- internals --------------------------------------------------------------
+  /** Poll the gamepad: walking, hold-to-interact on A, menus and shortcuts. */
+  private readPad(): void {
+    const f = this.pad.read();
+    this.padMove.set(0, 0);
+    if (!f) {
+      this.holdKeys.delete('PadA');
+      return;
+    }
+    if (f.pressed.size > 0) this.fireGesture();
+    this.padFrame(f, typeof performance !== 'undefined' ? performance.now() / 1000 : 0);
+  }
+
+  private padFrame(f: PadFrame, now: number): void {
+    const nav = this.nav;
+    const menu = nav.current();
+    // a modal (or a sheet the player stepped into) owns the stick; the D-pad steps into any open menu
+    const driving = nav.modalOpen || nav.focusInMenu;
+    const dpadDir = dirOf(f.dpad.x, f.dpad.y);
+    const dir = dpadDir ?? (driving ? dirOf(f.stick.x, f.stick.y) : null);
+    if (menu && (driving || dpadDir)) {
+      if (this.padRepeat.step(dir, now) && dir) {
+        if (!((dir === 'left' || dir === 'right') && nav.nudgeSlider(dir === 'right' ? 1 : -1))) nav.move(dir);
+      }
+    } else {
+      this.padRepeat.step(null, now);
+      // walk: the stick, else the D-pad (screen y is down on a pad, up in `move`)
+      const x = f.stick.x !== 0 || f.stick.y !== 0 ? f.stick.x : f.dpad.x;
+      const y = f.stick.x !== 0 || f.stick.y !== 0 ? f.stick.y : f.dpad.y;
+      this.padMove.set(x, -y);
+      if (this.padMove.lengthSq() > 1) this.padMove.normalize();
+    }
+    // A: press the focused menu button, else hold to pick up and pay
+    if (f.pressed.has(BTN.a) && nav.activate()) {
+      this.holdKeys.delete('PadA');
+    } else if (f.held.has(BTN.a) && !nav.focusInMenu) {
+      this.holdKeys.add('PadA');
+    } else {
+      this.holdKeys.delete('PadA');
+    }
+    if (f.pressed.has(BTN.b) && menu) this.shortcutCb?.('escape');
+    // Start: closes the open menu, else opens Settings (never just folds the quest card like Esc)
+    if (f.pressed.has(BTN.start)) this.shortcutCb?.(menu ? 'escape' : 'menu');
+    if (!nav.modalOpen) {
+      if (f.pressed.has(BTN.y) || f.pressed.has(BTN.back)) this.shortcutCb?.('map');
+      if (f.pressed.has(BTN.x)) this.shortcutCb?.('market');
+      if (f.pressed.has(BTN.lb)) this.shortcutCb?.('zoomOut');
+      if (f.pressed.has(BTN.rb)) this.shortcutCb?.('zoomIn');
+    }
+  }
+
   private fireGesture(): void {
     if (this.gestureFired) {
       // later gestures: re-run every registered callback (cheap idempotent unlock)

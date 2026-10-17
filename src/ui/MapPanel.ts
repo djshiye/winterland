@@ -22,6 +22,10 @@ import { eraTrail, travelPoints, type TravelPoint } from '../eras/layout';
 import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { eraRoman, groupTravelPoints, travelNote } from './agesLogic';
 import { hexCss, ICON_CLOSE, ICON_HOUSE, ICON_LOCK, ICON_PIN, shadeCss } from './icons';
+import { readableOn } from './contrast';
+
+/** The map's dark city-block colour (district rects and badges). */
+const BLOCK = 0x4a5672;
 import './ages.css';
 
 /** World rectangle the SVG shows: the old map plus every region, road and district (0.9.5: computed, 4 m margin). */
@@ -194,7 +198,7 @@ export class MapPanel {
       const cz = (d.rect.minZ + d.rect.maxZ) / 2;
       out.push(
         `<g ${open && tp ? `data-tp="${tp.id}" class="is-open"` : ''}>` +
-          `<rect ${rectAttrs(d.rect)} rx="2.5" fill="#4a5672" stroke="${hexCss(e.colors.accent)}" stroke-width="1.1" ${open ? '' : 'opacity="0.35" stroke-dasharray="3 2"'}/>` +
+          `<rect ${rectAttrs(d.rect)} rx="2.5" fill="#4a5672" stroke="${hexCss(readableOn(e.colors.accent, BLOCK))}" stroke-width="1.1" ${open ? '' : 'opacity="0.35" stroke-dasharray="3 2"'}/>` +
           `<text class="wl-map-dname" x="${cx}" y="${cz + 2}" ${d.name.length > 9 ? 'textLength="26" lengthAdjust="spacingAndGlyphs"' : ''} ${open ? '' : 'opacity="0.6"'}>${d.name}</text></g>`,
       );
     }
@@ -254,9 +258,11 @@ export class MapPanel {
     const badge = h('div', 'wl-map-badge', p.kind === 'district' ? ICON_HOUSE : p.era >= 2 ? eraRoman(p.era) : ICON_PIN);
     if (e && p.kind === 'district') {
       // a city block: dark like the map's blocks, ringed in the era's colour
+      // 0.9.7 (contrast check): the ring and house are lightened just enough to read on the dark block
+      const ring = hexCss(readableOn(e.colors.accent, BLOCK));
       badge.style.background = '#4a5672';
-      badge.style.color = hexCss(e.colors.accent);
-      badge.style.boxShadow = `inset 0 0 0 2px ${hexCss(e.colors.accent)}`;
+      badge.style.color = ring;
+      badge.style.boxShadow = `inset 0 0 0 2px ${ring}`;
     } else if (e) {
       badge.style.background = hexCss(e.colors.accent);
       badge.style.color = '#fff';

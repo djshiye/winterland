@@ -45,10 +45,13 @@ import { MATERIAL_KINDS } from '../core/kinds';
 import { article, formatMoney } from '../ui/format';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
 import { grandMarketOffered } from '../town/rules';
+import { usingGamepad } from '../input/Gamepad';
+import { EraStarter, starterFlag } from './eraStarter';
 
-/** " (hold E)" with a keyboard, " (hold)" on touch, for the guide's pickup / payment hints. */
+/** " (hold A)" with a gamepad (0.9.7), " (hold E)" with a keyboard, " (hold)" on touch, for the guide's pickup / payment hints. */
 function holdHint(): string {
   try {
+    if (usingGamepad()) return ' (hold A)';
     return window.matchMedia('(pointer: coarse)').matches ? ' (hold)' : ' (hold E)';
   } catch {
     return ' (hold E)';
@@ -147,6 +150,8 @@ export class Progression {
 
   // guide
   private guideAcc = 0;
+  /** 0.9.7: the five-step guide of a newly opened era region (eraStarter.ts). */
+  private readonly starter = new EraStarter();
   private objective: string | null = null;
   private objectiveSince = -10;
   private readonly guidePoint = new THREE.Vector3();
@@ -937,6 +942,30 @@ export class Progression {
     return true;
   }
 
+  /** 0.9.7: the starter guide of the region the player stands in, while it runs (eraStarter.ts). */
+  private starterGuide(here: number): boolean {
+    const s = this.ctx.state;
+    const p = this.ctx.player.object.position;
+    const step = this.starter.update(
+      GUIDE_INTERVAL,
+      {
+        here,
+        age: s.eras.age,
+        started: s.eras.regions[here]?.slots.some((slot) => slot.machine !== '') ?? true,
+        flags: s.flags,
+        player: { x: p.x, z: p.z },
+        carrying: (kind) => this.ctx.player.arms.count(kind),
+      },
+      (n) => {
+        s.flags[starterFlag(n)] = true;
+      },
+    );
+    if (!step) return false;
+    if (step.spot) this.setGoal(step.text, rect(step.spot.x, step.spot.z, step.w, step.d), this.tmpPoint.set(step.spot.x, 0, step.spot.z));
+    else this.setGoal(step.text, null);
+    return true;
+  }
+
   private evaluateGuide(): void {
     const ctx = this.ctx;
     const L = this.level;
@@ -954,7 +983,9 @@ export class Progression {
 
     // 0.9.6 (guide by location): inside an era region its own guide runs first, and Survival's chores (cash piles,
     // logs, the cabin) never drag the arrow back to the yard mid-climb. Quiet when the region has nothing to ask.
-    if (this.regionHere() >= 2) {
+    const here = this.regionHere();
+    if (here >= 2) {
+      if (this.starterGuide(here)) return;
       if (this.eraGoodsInHand() || this.eraGuide() || this.climbGuide()) return;
       this.setGoal(null, null);
       return;
