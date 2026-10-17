@@ -1,11 +1,11 @@
 /**
  * Volume settings, pure helpers shared by AudioFX and the Settings panel (no WebAudio here, so they are unit-testable).
- * Three channels, each 0..1, persisted in localStorage ('winterland:vol:master' etc., default 1). The master mute and
- * the music switch stay separate booleans ('winterland:muted', 'winterland:music').
+ * Four channels (0.9.8 adds ambience), each 0..1, persisted in localStorage ('winterland:vol:master' etc., default 1).
+ * The master mute and the music switch stay separate booleans ('winterland:muted', 'winterland:music').
  */
-export type VolumeChannel = 'master' | 'sfx' | 'music';
+export type VolumeChannel = 'master' | 'sfx' | 'music' | 'ambience';
 
-export const VOLUME_CHANNELS: readonly VolumeChannel[] = ['master', 'sfx', 'music'];
+export const VOLUME_CHANNELS: readonly VolumeChannel[] = ['master', 'sfx', 'music', 'ambience'];
 
 export const volumeKey = (ch: VolumeChannel): string => `winterland:vol:${ch}`;
 

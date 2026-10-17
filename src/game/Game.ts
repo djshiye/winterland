@@ -60,6 +60,7 @@ import { ZoneSystem } from '../items/Zones';
 import { Particles } from '../fx/Particles';
 import { AudioFX } from '../fx/Audio';
 import { JuiceDirector } from '../fx/JuiceDirector';
+import { Soundscape } from '../fx/soundscape';
 import { Fireworks } from '../fx/Fireworks';
 import { HUD } from '../ui/HUD';
 import { readFpsCap, writeFpsCap, type FpsCap } from '../core/fps';
@@ -273,6 +274,7 @@ export class Game {
     ctx.occlusion = new OcclusionFade(ctx); // 0.9.3: before the Level, whose buildings and pads register with it
     this.juice = new JuiceDirector(ctx);
     new Fireworks(ctx); // wave 9: era-up fireworks (self-registers as an updatable)
+    new Soundscape(ctx); // 0.9.8: era music and ambient beds follow the player (self-registers as an updatable)
     this.level = new Level(ctx);
     if (save) this.level.restoreWorld(save.world);
     new GateTracker(ctx); // 0.9.0 climb: computed 'gate:progress' (seeded from the loaded world, so a load is silent)

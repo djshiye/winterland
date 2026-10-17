@@ -1,34 +1,40 @@
 /**
- * [B4] Procedural background music: a cosy winter loop synthesized with WebAudio (no audio files).
+ * [B4] Procedural background music, synthesised with WebAudio (no audio files).
  *
- * - 8 bars of 4/4 at 78 BPM in C major (C Am F G | C Em F G): soft triangle pads, a light sine bass on beats 1 and 3
- *   and a bell-pluck melody on the pentatonic scale through a small feedback echo. Every loop the melody is lightly
- *   mutated (neighbour steps, dropped notes, passing notes, timing jitter) so it never feels canned.
- * - Lookahead scheduler on the AudioContext clock: a single 100 ms timer schedules every note due in the next 0.6 s
- *   at exact audio times, so the timer's jitter never reaches the sound. Few voices (≈ 12 nodes per bar), no convolution.
- * - Wave 8: setNight(on) softens the mix (-20 %, darker pad) over ~2 s for night ambience.
- * - Wave 10: setVolume(v) takes the 0..1 music slider value and applies the perceptual curve (volumeGain) itself. The
- *   volume is folded into the resting level (musicRestLevel: LEVEL * night factor * volumeGain) so setNight() and
- *   dip() both respect it; the first dusk never resets the slider.
- * - Everything routes through one level node (`duck`) -> `fade` -> the destination handed in by AudioFX (its master gain,
- *   so the master mute silences music too). duck() dips the level ~40 % for ~0.4 s under loud SFX.
+ * 0.9.8 [17]: one cozy theme per era (fx/music/themes.ts), played by fx/music/ThemePlayer.ts with sampled-in-code
+ * instruments (fx/music/instruments.ts) and a soft generated reverb (fx/music/reverb.ts). Era 1 keeps the 0.9.x tune.
+ * - setEra(n) crossfades to era n's theme: the old one fades away over ~3 s with its lowpass closing (walking out of
+ *   the room) while the new one comes in from its intro. fx/soundscape.ts decides the era from where the player walks.
+ * - Lookahead scheduler on the AudioContext clock: one 100 ms timer queues every note due in the next 0.6 s at exact
+ *   audio times, so the timer's jitter never reaches the sound.
+ * - setNight(on): a softer mix (-20 %), the rhythm layers drop out, the melody thins and the pads darken, over ~2 s.
+ * - setVolume(v) takes the 0..1 music slider value and applies the perceptual curve (volumeGain) itself. The volume is
+ *   folded into the resting level (musicRestLevel: LEVEL * night factor * volumeGain) so setNight() and dip() both
+ *   respect it.
+ * - Everything routes through one level node (`duck`) -> `fade` -> the destination handed in by the caller (AudioFX's
+ *   master gain, so the master mute silences music too). dip() lowers the level ~40 % for ~0.4 s under loud SFX.
  * - AudioFX owns the on/off decisions (unlocked, music switch, mute, tab visible) and calls start()/stop().
+ * - scheduleUntil(t) is public so scripts/music-preview.mjs can render a theme on an OfflineAudioContext.
  */
+import { SampleBank } from './music/bank';
+import type { InstrumentId } from './music/instruments';
+import { makeReverb } from './music/reverb';
+import { ThemePlayer } from './music/ThemePlayer';
+import { THEMES, themeFor, type Theme } from './music/themes';
 import { clampVolume, volumeGain } from './volume';
 
-const BPM = 78;
-const BEAT = 60 / BPM;
-const EIGHTH = BEAT / 2;
-const BAR = BEAT * 4;
-const BARS = 8;
 const LOOKAHEAD = 0.6;
 const TICK_MS = 100;
 const LEVEL = 0.5;
 const DUCK_TO = 0.6;
-/** Night ambience: level factor and pad lowpass (Hz) while it is night. */
+/** Night: level factor while it is night. */
 const NIGHT_LEVEL = 0.8;
-const PAD_DAY = 1300;
-const PAD_NIGHT = 800;
+/** Era crossfade: the old theme fades over OUT s; the new one starts IN_AT s later and swells over IN s. */
+const XFADE_OUT = 3;
+const XFADE_IN_AT = 1.2;
+const XFADE_IN = 3;
+/** Reverb return level. */
+const VERB_RETURN = 0.55;
 
 /**
  * Resting level of the `duck` node: LEVEL, a bit lower at night, times the music volume. `vol` is the 0..1 slider
@@ -37,46 +43,34 @@ const PAD_NIGHT = 800;
 export const musicRestLevel = (night: boolean, vol: number): number =>
   LEVEL * (night ? NIGHT_LEVEL : 1) * volumeGain(vol);
 
-const mtof = (m: number): number => 440 * Math.pow(2, (m - 69) / 12);
-
-/** Pad voicings (close, around C4) and bass roots per bar: C Am F G | C Em F G. */
-const PADS: number[][] = [
-  [60, 64, 67], [60, 64, 69], [60, 65, 69], [59, 62, 67],
-  [60, 64, 67], [59, 64, 67], [60, 65, 69], [59, 62, 67],
-];
-const BASS = [48, 45, 41, 43, 48, 40, 41, 43];
-
-/** The tune: one MIDI note per eighth (0 = rest), 8 slots per bar. */
-const MELODY: number[][] = [
-  [76, 0, 79, 0, 76, 0, 74, 0],
-  [72, 0, 76, 0, 81, 0, 79, 0],
-  [76, 0, 81, 0, 79, 0, 76, 0],
-  [74, 0, 79, 0, 74, 0, 0, 79],
-  [79, 0, 76, 0, 79, 0, 84, 0],
-  [79, 0, 76, 0, 74, 0, 76, 0],
-  [81, 0, 79, 0, 76, 0, 72, 0],
-  [74, 0, 76, 0, 74, 0, 0, 0],
-];
-
-/** C major pentatonic across the melody's range, for neighbour / passing notes. */
-const PENTA = [67, 69, 72, 74, 76, 79, 81, 84, 86];
+/** Every instrument a theme plays (for warming the sample bank ahead of time). */
+export function themeInstruments(t: Theme): InstrumentId[] {
+  const ids: (InstrumentId | undefined)[] = [t.lead, t.nightLead, t.counter, t.bass.inst, t.arp?.inst, t.stab?.inst];
+  for (const k of Object.keys(t.perc ?? {})) ids.push(k as InstrumentId);
+  return ids.filter((x): x is InstrumentId => !!x);
+}
 
 export class Music {
   private readonly duck: GainNode;
   private readonly fade: GainNode;
-  private readonly pad: BiquadFilterNode;
-  private readonly echoIn: GainNode;
+  private readonly mix: GainNode;
+  private readonly verbIn: AudioNode;
+  private readonly bank: SampleBank;
+  private current: ThemePlayer | null = null;
+  private readonly fading: { p: ThemePlayer; until: number }[] = [];
+  private era = 1;
   private timer = 0;
   private running = false;
-  private next = 0;
-  private step = 0;
-  private tune: number[][] = MELODY;
   private night = false;
-  /** Music slider value 0..1 (volumeGain is applied in restLevel()). */
+  /** Music slider value 0..1 (volumeGain is applied in restLevel). */
   private vol = 1;
+  private warmed = false;
+
+  /** Section of the arrangement a new theme starts from (0 = its intro; scripts/music-preview.mjs uses 1). */
+  startForm = 0;
 
   constructor(
-    private readonly ac: AudioContext,
+    private readonly ac: BaseAudioContext,
     dest: AudioNode,
   ) {
     this.fade = ac.createGain();
@@ -85,29 +79,20 @@ export class Music {
     this.duck = ac.createGain();
     this.duck.gain.value = this.restLevel;
     this.duck.connect(this.fade);
-
-    this.pad = ac.createBiquadFilter();
-    this.pad.type = 'lowpass';
-    this.pad.frequency.value = PAD_DAY;
-    this.pad.connect(this.duck);
-
-    // melody echo: dotted eighth, 35 % feedback, darkened each repeat
-    const delay = ac.createDelay(1);
-    delay.delayTime.value = EIGHTH * 1.5;
-    const fb = ac.createGain();
-    fb.gain.value = 0.35;
-    const tone = ac.createBiquadFilter();
-    tone.type = 'lowpass';
-    tone.frequency.value = 2400;
-    const wet = ac.createGain();
-    wet.gain.value = 0.4;
-    this.echoIn = ac.createGain();
-    this.echoIn.connect(delay);
-    delay.connect(tone);
-    tone.connect(fb);
-    fb.connect(delay);
-    tone.connect(wet);
-    wet.connect(this.duck);
+    this.mix = ac.createGain();
+    this.mix.connect(this.duck);
+    const verb = makeReverb(ac, 2.6, 2.3);
+    if (verb) {
+      const ret = ac.createGain();
+      ret.gain.value = VERB_RETURN;
+      verb.connect(ret);
+      ret.connect(this.mix);
+      this.verbIn = verb;
+    } else {
+      // no convolver: the wet sends just go nowhere
+      this.verbIn = ac.createGain();
+    }
+    this.bank = new SampleBank(ac);
   }
 
   /** Current resting level of `duck`: day/night level times the music volume. */
@@ -119,6 +104,11 @@ export class Music {
     return this.running;
   }
 
+  /** The era whose theme is playing (or will play on start). */
+  get currentEra(): number {
+    return this.era;
+  }
+
   /** Begin (or resume at the next bar line). Safe to call repeatedly. */
   start(): void {
     if (this.running) return;
@@ -126,9 +116,16 @@ export class Music {
     const now = this.ac.currentTime;
     this.fade.gain.cancelScheduledValues(now);
     this.fade.gain.setTargetAtTime(1, now, 0.6);
-    this.step = Math.ceil(this.step / 8) * 8 % (BARS * 8);
-    this.next = now + 0.15;
-    this.timer = window.setInterval(() => this.tick(), TICK_MS);
+    if (!this.current) this.current = this.player(this.era, now + 0.15, 0.1);
+    else this.current.resync(now + 0.15);
+    if (!this.warmed) {
+      // render every theme's instruments in idle moments, the current era first, so era changes never stall a frame
+      this.warmed = true;
+      const ids = themeInstruments(themeFor(this.era));
+      for (const t of THEMES) ids.push(...themeInstruments(t));
+      this.bank.warm(ids);
+    }
+    if (typeof window !== 'undefined') this.timer = window.setInterval(() => this.tick(), TICK_MS);
     this.tick();
   }
 
@@ -136,7 +133,7 @@ export class Music {
   stop(): void {
     if (!this.running) return;
     this.running = false;
-    window.clearInterval(this.timer);
+    if (typeof window !== 'undefined') window.clearInterval(this.timer);
     const now = this.ac.currentTime;
     this.fade.gain.cancelScheduledValues(now);
     this.fade.gain.setTargetAtTime(0, now, 0.08);
@@ -160,152 +157,68 @@ export class Music {
     g.setTargetAtTime(this.restLevel, now, 0.05);
   }
 
-  /** Night ambience: a slow crossfade (~2 s) to a softer, duller mix (-20 % level, darker pad) and back. */
+  /** Night: a slow crossfade (~2 s) to a softer, sparser, darker mix and back. */
   setNight(on: boolean): void {
     this.night = on;
     const now = this.ac.currentTime;
     const g = this.duck.gain;
     g.cancelScheduledValues(now);
     g.setTargetAtTime(this.restLevel, now, 0.7);
-    const f = this.pad.frequency;
-    f.cancelScheduledValues(now);
-    f.setTargetAtTime(on ? PAD_NIGHT : PAD_DAY, now, 0.7);
+    this.current?.setNight(on, now);
+  }
+
+  /** Crossfade to era n's theme (1..10). Before start() it only picks the theme. */
+  setEra(n: number): void {
+    const era = Math.max(1, Math.min(10, Math.round(n) || 1));
+    if (era === this.era) return;
+    this.era = era;
+    const now = this.ac.currentTime;
+    const old = this.current;
+    if (!this.running) {
+      old?.dispose();
+      this.current = null;
+      return;
+    }
+    if (old) {
+      old.fadeOut(now, XFADE_OUT);
+      this.fading.push({ p: old, until: now + XFADE_OUT + 4 });
+    }
+    this.current = this.player(era, now + XFADE_IN_AT, XFADE_IN);
+    this.tick();
+  }
+
+  /** Queue everything due before audio time t (the real-time timer does this; offline renders call it directly). */
+  scheduleUntil(t: number): void {
+    if (!this.current) this.current = this.player(this.era, Math.max(0.05, this.ac.currentTime), 0.1);
+    this.current.scheduleUntil(t);
+    for (const f of this.fading) f.p.scheduleUntil(t);
+  }
+
+  private player(era: number, at: number, fadeIn: number): ThemePlayer {
+    const p = new ThemePlayer(this.ac, this.bank, themeFor(era), this.mix, this.verbIn);
+    p.begin(at, this.startForm);
+    p.fadeIn(at, fadeIn);
+    if (this.night) p.setNight(true, at);
+    return p;
   }
 
   private tick(): void {
     try {
       const ac = this.ac;
-      if (ac.state !== 'running') return;
+      if (ac.state !== 'running' || !this.current) return;
       const now = ac.currentTime;
-      if (this.next < now) {
-        // fell behind (tab throttled, context was suspended): rejoin at the next bar line
-        this.step = Math.ceil((this.step + 1) / 8) * 8 % (BARS * 8);
-        this.next = now + 0.1;
-      }
-      while (this.next < now + LOOKAHEAD) {
-        this.schedule(this.step, this.next);
-        this.next += EIGHTH;
-        this.step = (this.step + 1) % (BARS * 8);
+      // fell behind (tab throttled, context was suspended): rejoin at the next bar line
+      for (const p of [this.current, ...this.fading.map((f) => f.p)]) if (p.cursor < now) p.resync(now + 0.1);
+      this.scheduleUntil(now + LOOKAHEAD);
+      for (let i = this.fading.length - 1; i >= 0; i--) {
+        const f = this.fading[i]!;
+        if (now > f.until) {
+          f.p.dispose();
+          this.fading.splice(i, 1);
+        }
       }
     } catch {
       /* music must never break the game */
     }
-  }
-
-  private schedule(step: number, t: number): void {
-    const bar = (step / 8) | 0;
-    const slot = step % 8;
-    if (step === 0) this.tune = this.variation();
-    if (slot === 0) this.bar(bar, t);
-    if (slot === 0 || slot === 4) this.bass(BASS[bar]!, t, slot === 0 ? 0.16 : 0.1);
-    const n = this.tune[bar]![slot]!;
-    if (n) this.bell(n, t + (Math.random() - 0.5) * 0.012, 0.07 + Math.random() * 0.025);
-  }
-
-  /** A fresh take on the tune: neighbour steps, dropped notes, passing notes. */
-  private variation(): number[][] {
-    return MELODY.map((bar, b) =>
-      bar.map((n, i) => {
-        if (b === BARS - 1 && i >= 4) return 0; // keep the cadence breathing
-        if (n) {
-          const r = Math.random();
-          if (r < 0.1) return 0;
-          if (r < 0.28) {
-            const k = PENTA.indexOf(n);
-            return k < 0 ? n : PENTA[Math.max(0, Math.min(PENTA.length - 1, k + (Math.random() < 0.5 ? -1 : 1)))]!;
-          }
-          return n;
-        }
-        // rest on an off-eighth: sometimes a quiet passing note
-        if (i % 2 === 1 && i < 7 && Math.random() < 0.14) {
-          const prev = bar[i - 1] || bar[i + 1] || 76;
-          const k = PENTA.indexOf(prev);
-          return k < 0 ? 0 : PENTA[Math.max(0, Math.min(PENTA.length - 1, k + (Math.random() < 0.6 ? 1 : -1)))]!;
-        }
-        return 0;
-      }),
-    );
-  }
-
-  /** Soft pad chord for the whole bar. */
-  private bar(bar: number, t: number): void {
-    const ac = this.ac;
-    const end = t + BAR + 0.5;
-    for (const m of PADS[bar]!) {
-      const osc = ac.createOscillator();
-      osc.type = 'triangle';
-      osc.frequency.value = mtof(m);
-      osc.detune.value = (Math.random() - 0.5) * 8;
-      const g = ac.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(0.03, t + 0.7);
-      g.gain.setValueAtTime(0.03, t + BAR - 0.1);
-      g.gain.linearRampToValueAtTime(0.0001, end);
-      osc.connect(g);
-      g.connect(this.pad);
-      osc.start(t);
-      osc.stop(end + 0.02);
-      this.release(osc, g);
-    }
-  }
-
-  private bass(m: number, t: number, vol: number): void {
-    const ac = this.ac;
-    const osc = ac.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.value = mtof(m);
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.03);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + BEAT * 1.9);
-    osc.connect(g);
-    g.connect(this.duck);
-    osc.start(t);
-    osc.stop(t + BEAT * 1.9 + 0.02);
-    this.release(osc, g);
-  }
-
-  /** Bell-pluck: a sine with an inharmonic overtone, quick attack, soft decay; part of it feeds the echo. */
-  private bell(m: number, t: number, vol: number): void {
-    const ac = this.ac;
-    const f = mtof(m);
-    const dur = 1.1;
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.006);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    g.connect(this.duck);
-    g.connect(this.echoIn);
-    const a = ac.createOscillator();
-    a.type = 'sine';
-    a.frequency.value = f;
-    a.connect(g);
-    const o = ac.createOscillator();
-    o.type = 'sine';
-    o.frequency.value = f * 2.76;
-    const og = ac.createGain();
-    og.gain.setValueAtTime(0.0001, t);
-    og.gain.linearRampToValueAtTime(0.22, t + 0.004);
-    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-    o.connect(og);
-    og.connect(g);
-    a.start(t);
-    a.stop(t + dur + 0.02);
-    o.start(t);
-    o.stop(t + 0.3);
-    this.release(a, g);
-    this.release(o, og);
-  }
-
-  private release(src: AudioScheduledSourceNode, ...nodes: AudioNode[]): void {
-    src.onended = () => {
-      for (const n of nodes) {
-        try {
-          n.disconnect();
-        } catch {
-          /* already disconnected */
-        }
-      }
-    };
   }
 }
