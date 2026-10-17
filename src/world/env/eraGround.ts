@@ -40,6 +40,8 @@ export class GroundKit {
   readonly glow = new Batch();
   /** Night halo + ground pool per lamp (world/env/glow.ts buildHalos). */
   readonly lamps: HaloSpot[] = [];
+  /** Objects a module builds itself (an animated arc, a flame), added as they are. They animate in onBeforeRender, so the kit needs no update hook. */
+  readonly extra: THREE.Object3D[] = [];
   private readonly kinds = new Map<string, { geometry: () => THREE.BufferGeometry; cast: boolean; items: Placement[] }>();
 
   /** Place one instance of a shared geometry (one draw call per kind, whatever the count). */
@@ -76,6 +78,7 @@ export class GroundKit {
       m.name = `${name}:${kind}`;
       g.add(m);
     }
+    for (const o of this.extra) g.add(o);
     if (this.lamps.length) g.add(buildHalos(this.lamps, { size: 1.8, pool: 4.6 }));
     return g;
   }
