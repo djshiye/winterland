@@ -4,6 +4,13 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
+## Unreleased
+
+### A fairer economy from era 2 on
+
+- **No more surprise millions.** Some goals for eras 4 to 10 showed up from era 2 and paid out those eras' rewards far too early. Each era's goals now wait for that era. Money you already got stays yours.
+- **Era 2 to 10 upgrades cost more, and more with every level.** Each level now costs 10 to 20 % more than the last, so the late levels of an era are worth saving up for instead of costing pocket change. Era 1 is unchanged, and every later era is a little longer than the one before.
+
 ## 0.9.8 (2026-10-17)
 
 The big cozy makeover: every era, machine, worker, menu and sky has a new hand-made look, every era has its own music, and the game can now tell you when an update is out.
