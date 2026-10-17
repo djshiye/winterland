@@ -1369,7 +1369,7 @@
   width: 46px;
   height: 46px;
   border-radius: 12px;
-  background: color-mix(in oklab, var(--wl-era) 16%, var(--wl-card));
+  background: color-mix(in oklab, var(--wl-era) 16%, var(--wl-tile));
   padding: 4px;
   box-sizing: border-box;
   box-shadow: inset 0 -2px 0 var(--wl-line);
@@ -2573,5 +2573,23 @@
 @media (max-width: 640px) {
   .wl-hud.has-contract:not(.quests-open) .wl-objective {
     margin-top: 36px;
+  }
+}
+
+/* 0.9.8: narrow phones with every HUD button out (eras 2+): a smaller money pill so "$155,456" never runs under the
+   stats button */
+@media (max-width: 420px) {
+  .wl-money {
+    height: 40px;
+    gap: 6px;
+    padding: 0 12px 0 5px;
+  }
+  .wl-money-icon {
+    width: 30px;
+    height: 30px;
+  }
+  .wl-money-value {
+    font-size: 22px;
+    letter-spacing: 0;
   }
 }

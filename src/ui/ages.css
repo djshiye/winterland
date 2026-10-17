@@ -357,7 +357,7 @@
   box-sizing: border-box;
   padding: 4px;
   border-radius: 12px;
-  background: var(--wl-card);
+  background: var(--wl-tile);
 }
 
 .wl-manage-icon svg {
@@ -1155,7 +1155,7 @@ button.wl-gate-more {
   width: 40px;
   height: 40px;
   border-radius: 11px;
-  background: var(--wl-card);
+  background: var(--wl-tile);
   padding: 4px;
   box-sizing: border-box;
 }

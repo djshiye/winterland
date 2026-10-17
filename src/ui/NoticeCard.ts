@@ -8,6 +8,7 @@
 import type { GameContext } from '../core/types';
 import { backOut, h, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
+import { ICON_INK } from './iconKit';
 import { ICON_COIN, ICON_STAR } from './icons';
 import './notice.css';
 
@@ -30,7 +31,7 @@ export interface Notice {
   buttons?: NoticeButton[];
 }
 
-const ICON_SHIELD = `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4l16 6v12c0 10-7 18-16 22C15 40 8 32 8 22V10z" fill="#7fc8ff" stroke="#fff" stroke-width="3"/><path d="M16 24l6 6 11-12" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const ICON_SHIELD = `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4l16 6v12c0 10-7 18-16 22C15 40 8 32 8 22V10z" fill="#7fc8ff" stroke="${ICON_INK}" stroke-width="3"/><path d="M16 24l6 6 11-12" fill="none" stroke="${ICON_INK}" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 export class NoticeCard {
   private readonly backdrop: HTMLDivElement;

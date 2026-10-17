@@ -18,6 +18,8 @@
   /* rows and list items sitting on a card: paper by day, a lifted plum at night */
   --wl-row: color-mix(in oklab, color-mix(in oklab, var(--wl-cream-c), #fff 70%), color-mix(in oklab, var(--wl-night-c), var(--wl-cream-c) 11%) var(--wl-np));
   /* a pressed-in well: bar tracks, quiet rows, off switches */
+  /* icon tiles stay light at night (the icons' ink outlines need a pale ground), just a little dimmer */
+  --wl-tile: color-mix(in oklab, var(--wl-cream-c), var(--wl-night-c) calc(var(--wl-n) * 24%));
   --wl-well: color-mix(in oklab, color-mix(in oklab, var(--wl-cream-c), var(--wl-ink-c) 11%), color-mix(in oklab, var(--wl-night-c), #000 28%) var(--wl-np));
   /* the card's honey-biscuit rim */
   --wl-rim: color-mix(in oklab, color-mix(in oklab, var(--wl-cream-c), var(--wl-gold-c) 34%), color-mix(in oklab, var(--wl-night-c), var(--wl-gold-c) 30%) var(--wl-np));
