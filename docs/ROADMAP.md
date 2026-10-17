@@ -134,7 +134,6 @@ Still open from 0.9.0 (small):
 - The south avenue passes between the two south Market Town lots through a 1.2 m gap when both are built
   (walkable; the lots are era-1 layout, so they stay).
 - The old tricycle road runs under region 2 to z 70; the region's ground covers it (era-1 layout, so it stays).
-- New Season while age ≥ 2 still follows the 0.8.0 rule; it moves to the 100 % card in 0.9.7 (decision 5).
 - A by-hand end-to-end pass through the debug API (fresh game → Great Lodge → gate → region 2 → machines → depot →
   Jack → market → district → demolish → map) before the release tag.
 

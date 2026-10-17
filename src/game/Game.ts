@@ -68,6 +68,8 @@ import { Contracts } from '../core/Contracts';
 import { Market } from '../core/Market';
 import { travelPoints } from '../eras/layout';
 import { GateTracker } from '../eras/GateTracker';
+import { CompletionTracker } from '../progression/CompletionTracker';
+import { completion, type Completion } from '../core/completion';
 import { climbOpen, eraGate, type EraGate } from '../eras/gate';
 import { base, introEra } from '../core/ladder';
 import { cityPopulation, settlementLevel } from '../core/demand';
@@ -158,6 +160,12 @@ export interface DebugApi {
   climb(): void;
   /** Era n's gate checklist (default: the next era). */
   gate(n?: number): EraGate;
+  /** 0.9.7: this season's completion (core/completion.ts). */
+  completion(): Completion;
+  /** 0.9.7: play the 100 % finale now (trophy, fireworks, the Winterland Complete card). */
+  finishGame(): void;
+  /** 0.9.7: open the stats page. */
+  openStats(): void;
   /** Every upgrade of the eras reached to shown level `shown` (crews hired), for free. */
   setAllUpgrades(shown: number): void;
   /** Best settlement level `L` (era 1: up to 5; from era 2 up to SETTLEMENT.max; needs Winterland to show). */
@@ -186,6 +194,7 @@ export class Game {
   private pendingRemovals = new Set<Updatable>();
   private readonly juice: JuiceDirector;
   private readonly level: Level;
+  private readonly completion: CompletionTracker;
   private running = false;
   private paused = false;
   private lastTime = 0;
@@ -267,6 +276,7 @@ export class Game {
     this.level = new Level(ctx);
     if (save) this.level.restoreWorld(save.world);
     new GateTracker(ctx); // 0.9.0 climb: computed 'gate:progress' (seeded from the loaded world, so a load is silent)
+    this.completion = new CompletionTracker(ctx); // 0.9.7: the 100 % award, era dates and the plaza trophy
     this.sales = new SalesMeter(ctx, save?.salesRate ?? 0);
     ctx.market.setSalesRate(() => this.sales.rate); // 0.9.6: investment caps follow the factories' income
 
@@ -644,6 +654,10 @@ export class Game {
         if (!climbOpen(ctx.state)) v.debugBuild(-1, 0);
       },
       gate: (n?: number) => eraGate(ctx.state, n ?? ctx.state.eras.age + 1),
+      completion: () => completion(ctx.state),
+      /** 0.9.7: play the 100 % finale now, whatever the completion says (screenshots, tests). */
+      finishGame: () => this.completion.finish(),
+      openStats: () => ctx.events.emit('stats:open', {}),
       setAllUpgrades: (shown: number) => {
         const age = Math.max(1, ctx.state.eras.age);
         for (const id of ctx.upgrades.ids) {

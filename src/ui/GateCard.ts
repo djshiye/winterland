@@ -15,7 +15,9 @@
  *   (its line: "Reach Settlement 12") in place of Go: the settlement line below is the way there.
  * - The settlement line, one clear line while it is short: "Settlement 7/10 · Build a home in Brickside (+40) →
  *   Settlement 8" with Go to the district (settlement rises freely since 0.9.6, so homes always count).
- * - Once a level has passed a hard cap, the Mastery line under the bar: "Mastery 340 · +41 % on every sale".
+ * - 0.9.7 (decision 4): a Completion section with the five parts of the 100 % award (core/completion.ts) as small bars,
+ *   "★ 63% of Winterland". Era 10's card is the final gate ("Winterland Complete", eras/gate.ts FINAL_GATE): once it is
+ *   met, the card keeps the completion bars and the next missing piece with its Go.
  *
  * Read-only by design: upgrades are hands-on (stand on a pad, step on a shop mat). The card never buys anything.
  *
@@ -25,17 +27,17 @@
 import { LAYOUT, PADS, UPGRADES, type PadIdConst } from '../config';
 import type { GameContext, UpgradeId } from '../core/types';
 import { ERAS } from '../eras/data';
-import { masteryTotal } from '../core/demand';
-import { masteryMult } from '../core/ladder';
-import { climbOpen, eraGate, eraMatOf, gateGroups, gateRuleText, openRows, padPaid, padTarget, prereqTarget, settlementGoal, waitsForSettlement, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
+import { completion, completionTag, nextMissing, type CompletionItem } from '../core/completion';
+import { climbOpen, eraGate, eraMatOf, FINAL_GATE, FINAL_NAME, gateGroups, gateRuleText, hasGate, openRows, padPaid, padTarget, prereqTarget, settlementGoal, waitsForSettlement, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
 import { machinePadTarget } from '../eras/rules';
 import { regionLayout, travelPoints } from '../eras/layout';
-import { eraRoman, expansionCostText, gateRowLine, masteryLine } from './agesLogic';
+import { eraRoman, expansionCostText, gateRowLine } from './agesLogic';
 import { h, onTap } from './dom';
 import { hexCss, ICON_CLOSE, ICON_HOUSE, ICON_LOCK, upgradeIcon } from './icons';
 import { Sheet } from './sheet';
 import './build.css';
 import './ages.css';
+import './ending.css';
 
 /** Open rows on show at once. */
 export const GATE_TOP = 5;
@@ -114,7 +116,10 @@ export class GateCard {
   private readonly moreEl: HTMLButtonElement;
   private readonly listEl: HTMLDivElement;
   private readonly settle: RowSlot;
-  private readonly masteryEl: HTMLDivElement;
+  /** 0.9.7: the five parts of the 100 % award. */
+  private readonly completionEl: HTMLDivElement;
+  /** The next missing piece once the final gate is met (null otherwise). */
+  private missing: CompletionItem | null = null;
   private dirty = true;
   private acc = REFRESH_EVERY;
   private gate: EraGate | null = null;
@@ -152,14 +157,23 @@ export class GateCard {
     this.ruleEl = h('div', 'wl-gate-rule');
     this.nextEl = h('div', 'wl-gate-next');
     this.groupsEl = h('div', 'wl-gate-groups');
-    this.masteryEl = h('div', 'wl-gate-mastery');
-    sum.append(bar, this.ruleEl, this.nextEl, this.groupsEl, this.masteryEl);
+    this.completionEl = h('div', 'wl-gate-completion');
+    sum.append(bar, this.ruleEl, this.nextEl, this.groupsEl, this.completionEl);
     list.appendChild(sum);
 
     this.ready = h('div', 'wl-gate-ready');
     this.readyText = h('div', 'wl-gate-ready-text');
     this.readyGo = this.button('wl-gate-go', 'Go');
-    onTap(this.readyGo, () => this.go(`region:${this.gate?.n ?? 0}`));
+    onTap(this.readyGo, () => {
+      // the final gate has no pad: Go takes the player to the next missing piece, or opens the stats page at 100 %
+      if (this.gate?.n !== FINAL_GATE) this.go(`region:${this.gate?.n ?? 0}`);
+      else if (this.missing?.target) this.go(this.missing.target);
+      else if (!this.missing) {
+        ctx.audio.play('click');
+        this.close();
+        ctx.events.emit('stats:open', {});
+      }
+    });
     this.ready.append(this.readyText, this.readyGo);
     list.appendChild(this.ready);
 
@@ -190,6 +204,8 @@ export class GateCard {
       this.dirty = true;
       this.acc = REFRESH_EVERY; // a finished row leaves the list at once
     });
+    ev.on('quest:done', mark);
+    ev.on('built', mark);
     ev.on('era:unlocked', () => {
       this.dirty = true;
       this.acc = REFRESH_EVERY;
@@ -201,10 +217,10 @@ export class GateCard {
     return this.sheet.visible;
   }
 
-  /** Show the next era's checklist (nothing to show before the Great Lodge or after the last era). */
+  /** Show the next era's checklist, or era 10's final one (nothing to show before the Great Lodge). */
   open(): void {
     const s = this.ctx.state;
-    if (!climbOpen(s) || !ERAS[s.eras.age + 1]) return;
+    if (!climbOpen(s) || !hasGate(s.eras.age + 1)) return;
     this.dirty = true;
     this.acc = REFRESH_EVERY;
     this.expanded = false;
@@ -297,14 +313,16 @@ export class GateCard {
     const s = ctx.state;
     const n = s.eras.age + 1;
     const era = ERAS[n];
-    if (!era || !climbOpen(s)) {
+    const final = n === FINAL_GATE;
+    if (!hasGate(n) || !climbOpen(s)) {
       this.close();
       return;
     }
     const g = eraGate(s, n);
     this.gate = g;
-    this.sheet.root.style.setProperty('--era-accent', hexCss(era.colors.accent));
-    this.text(this.titleEl, `ERA ${eraRoman(n)} · ${era.name.toUpperCase()}`);
+    const accent = era ?? ERAS[n - 1]!;
+    this.sheet.root.style.setProperty('--era-accent', hexCss(accent.colors.accent));
+    this.text(this.titleEl, era ? `ERA ${eraRoman(n)} · ${era.name.toUpperCase()}` : `\u2605 ${FINAL_NAME.toUpperCase()}`);
     const owner = ERAS[n - 1]?.region ?? 'Survival';
     const settled = g.settlement.level >= g.settlementNeed;
     const st = settled ? `Settlement ${g.settlement.level} ✓` : `Settlement ${g.settlement.level}/${g.settlementNeed}`;
@@ -313,12 +331,26 @@ export class GateCard {
     const k = (g.ok + (g.settlement.level >= g.settlementNeed ? 1 : 0)) / (g.total + 1);
     const w = `${(k * 100).toFixed(1)}%`;
     if (this.barFill.style.width !== w) this.barFill.style.width = w;
-    this.text(this.nextEl, g.ready ? 'Every upgrade is ready!' : `Then the ${expansionCostText(n).replace(/^Expansion/, 'expansion')}`);
+    const c = completion(s);
+    this.missing = final && g.ready ? nextMissing(s) : null;
+    if (final) this.text(this.nextEl, g.ready ? 'Every upgrade is at Lv 10!' : `Then ${FINAL_NAME}: the last pieces for 100 %`);
+    else this.text(this.nextEl, g.ready ? 'Every upgrade is ready!' : `Then the ${expansionCostText(n).replace(/^Expansion/, 'expansion')}`);
 
     // a pad with something already paid in stays on sale (grandfathered), whatever the checklist says
-    const offered = g.ready || padPaid(s, n) > 0;
+    const offered = g.ready || (!final && padPaid(s, n) > 0);
     this.show(this.ready, offered);
-    if (offered) this.text(this.readyText, `<b>${era.region} is for sale!</b><span>${expansionCostText(n)}</span>`);
+    if (offered && era) this.text(this.readyText, `<b>${era.region} is for sale!</b><span>${expansionCostText(n)}</span>`);
+    else if (offered) {
+      const done = c.complete || !!s.flags.complete;
+      this.text(this.readyText, done ? `<b>${FINAL_NAME}!</b><span>Every era, every build, every quest. See your stats.</span>` : `<b>${accent.region} is done!</b><span>Next: ${this.missing?.label ?? 'the last pieces'}</span>`);
+      this.text(this.readyGo, done ? 'Stats' : 'Go');
+      this.show(this.readyGo, done || (!!this.missing?.target && goTarget(ctx, this.missing.target) !== null));
+    }
+    if (!final) {
+      this.text(this.readyGo, 'Go');
+      this.show(this.readyGo, true);
+    }
+    this.renderCompletion(c);
 
     this.text(
       this.groupsEl,
@@ -338,9 +370,15 @@ export class GateCard {
     this.text(this.moreEl, this.expanded ? 'Show fewer' : `+${more} more · Show all`);
     this.renderSettlement(g);
 
-    const points = masteryTotal(s);
-    this.show(this.masteryEl, points > 0);
-    if (points > 0) this.text(this.masteryEl, masteryLine(points, masteryMult(points)));
+  }
+
+  /** "★ 63% of Winterland" and one small bar per part of the award (Upgrades, Builds, Quests, Settlement, Eras). */
+  private renderCompletion(c: ReturnType<typeof completion>): void {
+    const pct = this.ctx.state.flags.complete ? 100 : c.pct;
+    const bars = c.parts
+      .map((p) => `<span class="wl-gate-grp${p.done >= p.total ? ' is-done' : ''}"><b>${p.label}</b> ${Math.floor(p.frac * 100)}%<i style="width:${(p.frac * 100).toFixed(0)}%"></i></span>`)
+      .join('');
+    this.text(this.completionEl, `<div class="wl-gate-completion-head">${completionTag(pct)} of Winterland</div><div class="wl-gate-groups">${bars}</div>`);
   }
 
   private renderRow(slot: RowSlot, row: GateRow | null): void {

@@ -16,7 +16,7 @@ import type * as THREE from 'three';
 import { CLIMB, GATE, QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
 import { ERA_NAMES, ERAS } from '../eras/data';
 import { climbOpen } from '../eras/gate';
-import { atEraCap, capStored, introEra, maxStored, shown, stepCost, valueAt } from './ladder';
+import { capStored, introEra, maxStored, shown, stepCost, valueAt } from './ladder';
 import { settlementLevel } from './demand';
 import type { Economy } from './Economy';
 import { article } from '../ui/format';
@@ -61,11 +61,6 @@ export class Upgrades {
    */
   maxLevel(id: UpgradeId): number {
     return capStored(UPGRADES[id], climbOpen(this.state), this.state.eras.age);
-  }
-
-  /** Stopped by the era cap (buying the next era's expansion lifts it), not by the final level. */
-  atEraCap(id: UpgradeId): boolean {
-    return climbOpen(this.state) && atEraCap(UPGRADES[id], this.level(id), this.state.eras.age);
   }
 
   /** The level the player sees (stored + the id's era offset, docs/EXPANSION.md R4). */
