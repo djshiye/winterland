@@ -195,9 +195,11 @@ describe('planPath', () => {
       const row0 = L.slots.filter((s) => Math.abs(s.z - L.slots[0]!.z) < 0.01);
       const multiRow = L.slots.some((s) => Math.abs(s.z - L.slots[0]!.z) > 0.01);
       if (!multiRow) return;
-      // step-out, corridor top, corridor bottom, ...: the corridor legs share one x on a cell boundary
-      expect(path[1]!.x).toBeCloseTo(path[2]!.x, 6);
-      for (const s of row0) expect(Math.abs(path[1]!.x - s.x)).toBeGreaterThan(L.cell / 2 - 0.01);
+      // step-out, corridor top, corridor bottom, ...: the corridor leg runs along one x on a cell boundary (when the
+      // spot already stands on that boundary, the step-out and the corridor top are one point)
+      const i = path.findIndex((p, k) => k < path.length - 2 && Math.abs(p.x - path[k + 1]!.x) < 1e-6 && Math.abs(p.z - path[k + 1]!.z) > 1);
+      expect(i, `era ${n}: no corridor leg`).toBeGreaterThanOrEqual(0);
+      for (const s of row0) expect(Math.abs(path[i]!.x - s.x)).toBeGreaterThan(L.cell / 2 - 0.01);
     });
   }
 
