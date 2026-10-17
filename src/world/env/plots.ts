@@ -27,6 +27,7 @@ import { geo } from '../../render/materials';
 import { bulbMaterial } from './glow';
 import { Rng } from './common';
 import { mixHex, palette } from '../../render/palette';
+import { addChimney } from '../sky/smoke';
 import { eraOwnsFloor } from './eraGround';
 
 /** Tallest a hut gets (loft + pennant) and the tallest shopfront (sign included), metres. */
@@ -242,6 +243,19 @@ class Frame {
 // ---------------------------------------------------------------------------------------------------------------------
 // crew huts
 // ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * 0.9.8 (brief 16): the world position of a built hut's chimney mouth (the cabin / cottage / row / bunk huts have one,
+ * see buildHut), or null. World threads that move a chimney keep this in step so its smoke rises from the right spot.
+ */
+export function hutChimney(st: PlotStyle, h: HutPlace, out = new THREE.Vector3()): THREE.Vector3 | null {
+  if (st.hut !== 'cabin' && st.hut !== 'cottage' && st.hut !== 'row' && st.hut !== 'bunk') return null;
+  const lx = h.w / 2 - 0.7;
+  const lz = -h.d / 4;
+  const c = Math.cos(h.yaw);
+  const sn = Math.sin(h.yaw);
+  return out.set(h.x + lx * c + lz * sn, 0.22 + 2.1 + (st.hut === 'bunk' ? 1.25 : 1.6), h.z - lx * sn + lz * c);
+}
 
 /** One hut at `stage` (1..3) into `body` (solid) and `glow` (lit windows). Stage 0 draws the foundation only. */
 function buildHut(body: Batch, glow: Batch, st: PlotStyle, h: HutPlace, stage: number, accent: number): void {
@@ -928,6 +942,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   ctx.occlusion?.addOccluder(huts); // fades when it hides the player
   let first = true;
   let timer = 0;
+  const chimneys: (() => void)[] = [];
 
   const rebuild = (): void => {
     for (const c of [...huts.children]) {
@@ -937,6 +952,12 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
     const hb = new Batch();
     const hg = new Batch();
     P.huts.forEach((h, i) => buildHut(hb, hg, st, h, stages[i]!, e.colors.accent));
+    // 0.9.8: built huts with a chimney smoke (world/sky/smoke.ts)
+    for (const off of chimneys.splice(0)) off();
+    P.huts.forEach((h, i) => {
+      const c = stages[i]! >= 1 ? hutChimney(st, h) : null;
+      if (c) chimneys.push(addChimney(c, h.role === 0 ? 0.45 : 0.38));
+    });
     const m = hb.mesh({ cast: true, receive: true });
     m.name = 'hutBodies';
     huts.add(m);
