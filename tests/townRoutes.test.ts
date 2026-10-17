@@ -49,7 +49,7 @@ function worldWith(filter: (tag: string) => boolean = () => true, extra: (w: Col
 
 const isLot = (tag: string): boolean => /^town:\d/.test(tag);
 const HOME: XZ = { x: 18.2, z: 28.4 };
-const DROP: XZ = { x: -3.0, z: 1.4 };
+const DROP: XZ = { x: -2.3, z: 1.97 }; // the porters' drop-zone post (crewHelpers PORTER_DROP_POST)
 const BENCH: XZ = { x: 5.95, z: 0.85 };
 const CABIN: XZ = { x: 7.0, z: -5.0 };
 const YARD_STOPS: Stop[] = [
