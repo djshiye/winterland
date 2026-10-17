@@ -1,7 +1,8 @@
 /**
- * [B4] New Season (prestige) confirmation block, shared by the finale card and the settings panel: what the next
- * season gives (permanent price bonus, starting money), what it costs (everything except the season count resets),
- * and Cancel / Start buttons. Pressing Start emits 'season:new' exactly once (the Game writes the next season's save
+ * [B4] New Season (prestige) confirmation block, on the 100 % card (ui/FinaleCard.ts; 0.9.7 decision 5: offered only
+ * there, once the season is complete): what the next season gives (permanent price bonus, starting money), exactly
+ * what resets and what stays (SEASON_RESETS / SEASON_KEEPS, checked against core/Save.ts newSeasonSave by
+ * tests/completion.test.ts; CODE_AUDIT P1-8), and Cancel / Start buttons. Pressing Start emits 'season:new' exactly once (the Game writes the next season's save
  * and reloads the page, which is asynchronous, so a double tap must not emit twice). Never one-tap: this block is
  * always shown behind an explicit "Start a new season" button.
  */
@@ -9,6 +10,29 @@ import { PRESTIGE } from '../config';
 import type { GameContext } from '../core/types';
 import { h, onTap } from './dom';
 import { formatMoney } from './format';
+import './ending.css';
+
+/** Everything a New Season starts over (core/Save.ts newSeasonSave keeps none of it). */
+export const SEASON_RESETS: readonly string[] = [
+  'your money',
+  'the mill, its machines and every upgrade',
+  'the village, the Great Lodge and the bunkhouse',
+  'the Market Town and the Grand Market',
+  'all ten eras: their land, machines and crews',
+  'every city district',
+  'market holdings and investments',
+  'quests and contracts',
+  "this season's stats and completion",
+];
+
+/** What a New Season keeps. */
+export const SEASON_KEEPS: readonly string[] = [
+  'your trophies',
+  "every finished season's stats",
+  'the season count and its price bonus',
+  'your settings and the hints you have seen',
+  'a copy of this season under Settings, Earlier saves',
+];
 
 /** "+25%" style price bonus after `season` seasons (0 = the first run). */
 export function seasonBonusPct(season: number): number {
@@ -58,7 +82,8 @@ export class SeasonConfirm {
     this.text.innerHTML =
       `All sale prices <b>+${seasonBonusPct(next)}%</b> for good (each season adds +${seasonBonusPct(1)}%) and you start ` +
       `with <b>${formatMoney(PRESTIGE.startMoneyPerSeason * next)}</b>.` +
-      `<small>Everything else starts over: your mill, village, crew and upgrades. Only the season count stays.</small>`;
+      `<div class="wl-season-lists"><div class="wl-season-list is-reset"><b>Starts over</b><ul>${SEASON_RESETS.map((t) => `<li>${t}</li>`).join('')}</ul></div>` +
+      `<div class="wl-season-list is-keep"><b>You keep</b><ul>${SEASON_KEEPS.map((t) => `<li>${t}</li>`).join('')}</ul></div></div>`;
     this.go.textContent = 'Start';
   }
 }

@@ -8,27 +8,32 @@
  *   progress ring for the checklist, "ERA I · SURVIVAL  12/23 · S5/5" and "Next: Sharp Axe → Lv 10 ($42K)"
  *   (eras/gate.ts nextGoal, re-read 4× a second), "Frontier is for sale!" once ready. Tapping it opens the GateCard
  *   ('gate:open'); it pulses on each 'gate:progress' that finished a row.
- *   Once a level has passed its hard cap, a small Mastery tag "✦ 340 · +41%" sits after the era name (desktop; the
- *   GateCard shows the full line on every screen). Re-read on 'upgrade:bought' only.
+ *   0.9.7 (decision 4, F8): a gold "★ 63%" completion tag (core/completion.ts) always sits after the era name, re-read
+ *   once a second. Era 10's gate is the final one ("Winterland Complete", eras/gate.ts FINAL_GATE); once it is met the
+ *   line names the next missing piece ("Next: Build on an empty lot in Metropolis Core", completion nextMissing), so the
+ *   chip never goes blank. At 100 % it reads "Winterland Complete!" and opens the stats page ('stats:open').
  * - IncomeFeed: aggregates 'income' events (rent, business, interest, trade, Jack) into one "+$12.5K city" line every
  *   few seconds next to the money pill (never one line per event). Pure aggregation lives in agesLogic.IncomeTicker.
  * Both animate on simulation time from update(dt).
  */
 import type { GameContext } from '../core/types';
 import { CITY_RANKS, ERAS } from '../eras/data';
-import { climbOpen, gateCount, gateNote, nextGoal, padPaid } from '../eras/gate';
-import { cityPopulation, masteryTotal, settlementLevel, settlementName } from '../core/demand';
-import { masteryMult } from '../core/ladder';
-import { cityStanding, eraChipVisible, eraRoman, formatPopulation, IncomeTicker, masteryTag, rankName } from './agesLogic';
+import { climbOpen, FINAL_NAME, gateCount, gateNote, hasGate, nextGoal, padPaid } from '../eras/gate';
+import { cityPopulation, settlementLevel, settlementName } from '../core/demand';
+import { completion, completionTag, nextMissing } from '../core/completion';
+import { cityStanding, eraChipVisible, eraRoman, formatPopulation, IncomeTicker, rankName } from './agesLogic';
 import { cubicOut, h, onTap, shield } from './dom';
 import { hexCss } from './icons';
 
 /** Seconds between next-goal reads (nextGoal prices the whole checklist). */
 const GOAL_EVERY = 0.25;
+/** Seconds between completion reads (core/completion.ts walks ~600 items). */
+const PCT_EVERY = 1;
 /** Circumference of the progress ring (r = 9 in a 24-unit box). */
 const RING = 2 * Math.PI * 9;
 const ICON_RING = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="wl-ring-bg" cx="12" cy="12" r="9"/><circle class="wl-ring-fg" cx="12" cy="12" r="9" stroke-dasharray="${RING.toFixed(2)}" stroke-dashoffset="${RING.toFixed(2)}"/></svg>`;
 import './ages.css';
+import './ending.css';
 
 export class EraChip {
   private readonly root: HTMLButtonElement;
@@ -38,9 +43,12 @@ export class EraChip {
   private readonly ring: HTMLElement;
   private readonly ringFg: SVGCircleElement;
   private readonly countEl: HTMLSpanElement;
-  private readonly masteryEl: HTMLSpanElement;
-  private masteryDirty = true;
-  private lastMastery = '';
+  private readonly pctEl: HTMLSpanElement;
+  private pctAcc = PCT_EVERY;
+  private lastPct = '';
+  private pct = 0;
+  /** This season is at 100 %: tapping opens the stats page. */
+  private done = false;
   private shown = false;
   /** The next era's gate is on show (climb open, an era left to reach). */
   private gating = false;
@@ -73,8 +81,8 @@ export class EraChip {
     const top = h('span', 'wl-erachip-top');
     this.eraEl = h('span', 'wl-erachip-era');
     this.countEl = h('span', 'wl-erachip-count');
-    this.masteryEl = h('span', 'wl-erachip-mastery');
-    top.append(this.eraEl, this.countEl, this.masteryEl);
+    this.pctEl = h('span', 'wl-erachip-pct');
+    top.append(this.eraEl, this.countEl, this.pctEl);
     this.cityEl = h('span', 'wl-erachip-city');
     text.append(top, this.cityEl);
     this.root.append(this.dot, this.ring, text);
@@ -83,15 +91,17 @@ export class EraChip {
     onTap(this.root, () => {
       ctx.audio.unlock();
       ctx.audio.play('click');
-      if (this.gating) ctx.events.emit('gate:open', {});
+      if (this.done) ctx.events.emit('stats:open', {});
+      else if (this.gating) ctx.events.emit('gate:open', {});
       else ctx.events.emit('map:open', {});
     });
     ctx.events.on('gate:progress', (e) => {
       this.goalAcc = GOAL_EVERY; // re-read the goal at once
       if (e.gained > 0 || e.readyNow) this.pulse = 1;
     });
-    ctx.events.on('upgrade:bought', () => {
-      this.masteryDirty = true;
+    ctx.events.on('complete:start', () => {
+      this.pctAcc = PCT_EVERY;
+      this.goalAcc = GOAL_EVERY;
     });
     ctx.events.on('city:changed', (e) => {
       this.population = e.population;
@@ -113,7 +123,7 @@ export class EraChip {
       this.root.style.display = show ? '' : 'none';
     }
     if (!show) return;
-    const gating = climbOpen(state) && !!ERAS[age + 1];
+    const gating = climbOpen(state) && hasGate(age + 1);
     if (gating !== this.gating) {
       this.gating = gating;
       this.root.classList.toggle('is-gate', gating);
@@ -135,13 +145,18 @@ export class EraChip {
       this.lastEra = era;
       this.eraEl.textContent = era;
     }
-    if (this.masteryDirty) {
-      this.masteryDirty = false;
-      const points = masteryTotal(state);
-      const tag = points > 0 ? masteryTag(points, masteryMult(points)) : '';
-      if (tag !== this.lastMastery) {
-        this.lastMastery = tag;
-        this.masteryEl.textContent = tag;
+    this.pctAcc += dt;
+    if (this.pctAcc >= PCT_EVERY) {
+      this.pctAcc = 0;
+      const c = completion(state);
+      this.done = c.complete || !!state.flags.complete;
+      this.pct = this.done ? 100 : c.pct;
+      const tag = completionTag(this.done ? 100 : c.pct);
+      if (tag !== this.lastPct) {
+        this.lastPct = tag;
+        this.pctEl.textContent = tag;
+        this.pctEl.title = `${c.pct}% of Winterland complete`;
+        this.root.classList.toggle('is-complete', this.done);
       }
     }
     if (age !== this.lastAge) {
@@ -166,27 +181,36 @@ export class EraChip {
     }
   }
 
-  /** The gate count, the ring and the single next goal (or "<Region> is for sale!"). */
+  /**
+   * The gate count, the ring and the single next goal (or "<Region> is for sale!"). 0.9.7: past the final gate the ring
+   * shows the completion and the line the next missing piece, then "Winterland Complete!".
+   */
   private updateGoal(n: number): void {
     const { state, economy } = this.ctx;
     const c = gateCount(state, n);
-    this.setText(this.countEl, 'lastCount', gateNote({ ok: c.ok, total: c.total, settlement: { level: c.settlement }, settlementNeed: c.settlementNeed }));
-    const k = c.total > 0 ? (c.ok + (c.settlement >= c.settlementNeed ? 1 : 0)) / (c.total + 1) : 0;
+    const finished = !ERAS[n] && c.ready; // the final gate is met: completion takes over
+    this.setText(this.countEl, 'lastCount', finished ? '' : gateNote({ ok: c.ok, total: c.total, settlement: { level: c.settlement }, settlementNeed: c.settlementNeed }));
+    const k = finished ? this.pct / 100 : c.total > 0 ? (c.ok + (c.settlement >= c.settlementNeed ? 1 : 0)) / (c.total + 1) : 0;
     const ring = Math.round(k * 200);
     if (ring !== this.lastRing) {
       this.lastRing = ring;
       this.ringFg.setAttribute('stroke-dashoffset', (RING * (1 - k)).toFixed(2));
     }
     const goal = nextGoal(state, economy.money);
-    const ready = c.ready || padPaid(state, n) > 0; // a part-paid pad stays on sale (grandfathered)
-    const text = goal ? (ready ? goal.text : `Next: ${goal.text}`) : '';
+    let ready = c.ready || padPaid(state, n) > 0; // a part-paid pad stays on sale (grandfathered)
+    let text = goal ? (ready ? goal.text : `Next: ${goal.text}`) : '';
+    if (!goal && finished) {
+      const missing = this.done ? null : nextMissing(state);
+      text = missing ? `Next: ${missing.label}` : `${FINAL_NAME}!`;
+      ready = !missing;
+    }
     if (text !== this.lastCity) {
       this.lastCity = text;
       this.cityEl.textContent = text;
       this.root.classList.toggle('is-ready', ready);
     }
     // the visible count and goal name the button (a fixed aria-label would hide them from screen readers)
-    const label = `Era checklist: ${this.lastCount}${text ? `. ${text}` : ''}`;
+    const label = `${this.done ? 'Your stats' : 'Era checklist'}: ${this.lastPct}${this.lastCount ? ` ${this.lastCount}` : ''}${text ? `. ${text}` : ''}`;
     if (label !== this.lastLabel) {
       this.lastLabel = label;
       this.root.setAttribute('aria-label', label);

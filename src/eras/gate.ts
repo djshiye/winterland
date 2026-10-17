@@ -10,6 +10,8 @@
  *   stay at 10). Unbuilt machines and unhired crews count too (R7): a row that cannot be bought yet says why
  *   ('prereq'), an unhired crew shows no level (null, "Not hired").
  * - settlement: level ≥ 5·(n − 1).
+ * 0.9.7: one more gate after the last era, FINAL_GATE (n = 11), "Winterland Complete": era 10's own things at Lv 10 and
+ * Settlement 50. It has no pad to buy; meeting it (with the rest of core/completion.ts) is the game's ending.
  * eraGate() is the full checklist for the UI; gateMet() is the cheap yes/no layout.expansionOffered asks every frame.
  */
 import { GATE, UPGRADES, type UpgradeDef } from '../config';
@@ -17,7 +19,7 @@ import { base, introEra, shown, stepCost } from '../core/ladder';
 import { upgradeRequirement } from '../core/Upgrades';
 import type { GameState, UpgradeId } from '../core/types';
 import { cityPopulation, settlementLevel, settlementPop } from '../core/demand';
-import { CITY_BUILDINGS, DISTRICTS, ERAS } from './data';
+import { CITY_BUILDINGS, DISTRICTS, ERAS, MAX_ERA } from './data';
 import { formatMoney } from '../ui/format';
 
 /** The slice of the game state `climbOpen` reads (the frontier tests pass a plain object). */
@@ -31,6 +33,17 @@ export interface ClimbState {
  */
 export function climbOpen(s: ClimbState): boolean {
   return s.village.greatLodge.tier >= 0;
+}
+
+/** 0.9.7: the last gate, "Winterland Complete" (era 10's own things at Lv 10 + Settlement 50; no pad, no region). */
+export const FINAL_GATE = MAX_ERA + 1;
+
+/** The finishing goal's name, on the gate card, the era chip and the quest. */
+export const FINAL_NAME = 'Winterland Complete';
+
+/** Gate n exists: an era to buy (2..10) or the final gate. */
+export function hasGate(n: number): boolean {
+  return !!ERAS[n] || n === FINAL_GATE;
 }
 
 /** Where a row's level is bought: the shop panel, the machine's level pad, or the era region's shop mat (Industry). */
@@ -108,9 +121,9 @@ export function inGate(id: UpgradeId, n: number): boolean {
 /** Stored level that reaches the gate's shown need (offset or literal mode). */
 const storedNeed = (def: UpgradeDef, n: number): number => gateNeed(n) - base(def);
 
-/** Rows in era n's gate (0 past the last era). */
+/** Rows in era n's gate (0 past the final gate). */
 export function gateSize(n: number): number {
-  return ERAS[n] ? gateIds(n).length : 0;
+  return hasGate(n) ? gateIds(n).length : 0;
 }
 
 /** Anything paid into era n's expansion pad yet (dollars + material units). > 0 keeps the pad offered (grandfathered). */
@@ -129,17 +142,17 @@ export interface GateCount {
 }
 
 export function gateCount(s: GameState, n: number): GateCount {
-  const ids = ERAS[n] ? gateIds(n) : [];
+  const ids = hasGate(n) ? gateIds(n) : [];
   let ok = 0;
   for (const id of ids) if (s.upgrades[id] >= storedNeed(UPGRADES[id], n)) ok++;
   const settlement = settlementLevel(s);
   const need = settlementNeed(n);
-  return { ok, total: ids.length, settlement, settlementNeed: need, ready: !!ERAS[n] && ok === ids.length && settlement >= need };
+  return { ok, total: ids.length, settlement, settlementNeed: need, ready: hasGate(n) && ok === ids.length && settlement >= need };
 }
 
 /** Cheap form of eraGate(s, n).ready for per-frame readers (no prices, no row objects). */
 export function gateMet(s: GameState, n: number): boolean {
-  if (!ERAS[n]) return false;
+  if (!hasGate(n)) return false;
   if (settlementLevel(s) < settlementNeed(n)) return false;
   for (const id of gateIds(n)) if (s.upgrades[id] < storedNeed(UPGRADES[id], n)) return false;
   return true;
@@ -185,9 +198,9 @@ function rowOf(s: GameState, id: UpgradeId, n: number): GateRow {
   return row;
 }
 
-/** Era n's full checklist (n = 2..10; rows are empty for an era that does not exist). */
+/** Era n's full checklist (n = 2..10, or FINAL_GATE; rows are empty for a gate that does not exist). */
 export function eraGate(s: GameState, n: number): EraGate {
-  const rows = ERAS[n] ? gateIds(n).map((id) => rowOf(s, id, n)) : [];
+  const rows = hasGate(n) ? gateIds(n).map((id) => rowOf(s, id, n)) : [];
   const ok = rows.filter((r) => r.state === 'ok').length;
   const level = settlementLevel(s);
   const need = settlementNeed(n);
@@ -200,7 +213,7 @@ export function eraGate(s: GameState, n: number): EraGate {
     ok,
     total: rows.length,
     settlement: { level, need, cityPop: cityPopulation(s), nextPop: s.village.level < 5 ? null : settlementPop(level + 1) },
-    ready: !!ERAS[n] && ok === rows.length && level >= need,
+    ready: hasGate(n) && ok === rows.length && level >= need,
     padCash: unlock?.cash ?? 0,
     padExtra: { kind: unlock?.extra.kind ?? '', count: unlock?.extra.count ?? 0 },
   };
@@ -297,15 +310,16 @@ function settlementPrereq(r: GateRow): boolean {
 
 /**
  * The single next goal of the climb (docs/EXPANSION.md §C, ADHD-friendly: one line, one action), or null before the
- * Great Lodge and after the last era. Priority (0.9.6, F7): something to build first (an unbuilt machine) → the
+ * Great Lodge and once the final gate is met (0.9.7: core/completion.ts nextMissing takes over from there). Priority (0.9.6, F7): something to build first (an unbuilt machine) → the
  * cheapest affordable row → the settlement step ("Build a home in Glass Heights", never a bare "Reach Settlement 37")
  * → saving for the cheapest row ("$12K to go") → the expansion pad. `money` is the player's cash (Economy).
  */
 export function nextGoal(s: GameState, money: number): NextGoal | null {
   const n = s.eras.age + 1;
-  if (!climbOpen(s) || !ERAS[n]) return null;
+  if (!climbOpen(s) || !hasGate(n)) return null;
+  const era = ERAS[n];
   // something already paid into the pad keeps it on sale (grandfathered, layout.expansionOffered): point there
-  if (padPaid(s, n) > 0) return { text: `${ERAS[n]!.region} is for sale!`, action: { kind: 'go', target: `region:${n}` } };
+  if (era && padPaid(s, n) > 0) return { text: `${era.region} is for sale!`, action: { kind: 'go', target: `region:${n}` } };
   const g = eraGate(s, n);
   const open = g.rows.filter((r) => r.state !== 'ok');
   const prereq = open.find((r) => r.state === 'prereq' && !settlementPrereq(r));
@@ -325,7 +339,7 @@ export function nextGoal(s: GameState, money: number): NextGoal | null {
   if (cheapest) {
     return { text: `${rowText(cheapest)}: ${formatMoney(next(cheapest) - money)} to go`, hint: `Save up: ${rowText(cheapest)}`, action: buyAction(cheapest) };
   }
-  return { text: `${ERAS[n]!.region} is for sale!`, action: { kind: 'go', target: `region:${n}` } };
+  return era ? { text: `${era.region} is for sale!`, action: { kind: 'go', target: `region:${n}` } } : null;
 }
 
 /** Who owns era n − 1's things in the rule line: "Survival's" for era 2, then the region ("Granite Hollow's"). */
@@ -340,6 +354,7 @@ function ownerOf(n: number): string {
  * the last era.
  */
 export function gateRuleText(n: number): string {
+  if (n === FINAL_GATE) return `Raise ${ownerOf(n)} machines, crew and upgrades to Lv ${gateNeed(n)} and grow to Settlement ${settlementNeed(n)} for ${FINAL_NAME}.`;
   const e = ERAS[n];
   if (!e) return '';
   return `Raise ${ownerOf(n)} machines, crew and upgrades to Lv ${gateNeed(n)} and grow to Settlement ${settlementNeed(n)}, then buy ${e.region}.`;
@@ -347,6 +362,7 @@ export function gateRuleText(n: number): string {
 
 /** The short form for the era card after an expansion: "Next: Granite Hollow's things to Lv 10, then Iron Ridge." */
 export function gateRuleShort(n: number): string {
+  if (n === FINAL_GATE) return `Next: ${ownerOf(n)} things to Lv ${gateNeed(n)}, then ${FINAL_NAME}`;
   const e = ERAS[n];
   return e ? `Next: ${ownerOf(n)} things to Lv ${gateNeed(n)}, then ${e.region}` : '';
 }

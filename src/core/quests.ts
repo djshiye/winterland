@@ -13,7 +13,7 @@ import { AMENITY_IDS, GATE } from '../config';
 import { CITY_BUILDINGS, DISTRICTS, ERAS, ERA_NAMES, ERA_SCALE, REGIONS, unlockCash, type CityBuildingKind } from '../eras/data';
 import { IncomeWindow, sig2Money } from './incomeWindow';
 import { settlementLevel, townHappiness } from './demand';
-import { climbOpen, gateCount, gateNeed, gateSize } from '../eras/gate';
+import { climbOpen, FINAL_GATE, FINAL_NAME, gateCount, gateNeed, gateSize } from '../eras/gate';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
 import type { GameEvents, GameState } from './types';
@@ -115,6 +115,15 @@ function eraQuests(): QuestDef[] {
     out.push({ id: `materials${n}`, title: `Make ${(n * 250).toLocaleString('en-US')} era materials`, target: n * 250, reward: Math.round(unlockCash(n) * 0.05), progress: (s) => s.stats.materialsMade });
   }
   out.push({ id: 'city60', title: 'Build 60 city buildings', target: 60, reward: Math.round(unlockCash(10) * 0.2), progress: (s) => s.stats.cityBuilt });
+  // 0.9.7: the last goal, the final gate (era 10's own things at Lv 10; the 100 % award, core/completion.ts, counts it)
+  out.push({
+    id: `gate${FINAL_GATE}`,
+    title: `${FINAL_NAME}: all ${ERA_NAMES[FINAL_GATE - 1]} upgrades Lv ${gateNeed(FINAL_GATE)}`,
+    target: gateSize(FINAL_GATE),
+    reward: Math.round((unlockCash(10) * 0.1) / 1000) * 1000,
+    unlocked: (s) => s.eras.age >= FINAL_GATE - 1,
+    progress: (s) => gateCount(s, FINAL_GATE).ok,
+  });
   // the new land, pad and machines stay hidden until the Great Lodge: no era quest shows before it (era 1 reads as 0.8.0)
   const open = (s: GameState): boolean => climbOpen(s) || s.eras.age >= 2;
   return out.map((d) => (d.unlocked ? d : { ...d, unlocked: open }));

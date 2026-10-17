@@ -1253,17 +1253,15 @@ export function price3(v: number): number {
 }
 
 /**
- * The ten-era climb (docs/EXPANSION.md §A): upgrade ladders to shown level `levelCap` (core/ladder.ts). Past an
+ * The ten-era climb (docs/EXPANSION.md §A): every upgrade of every era tops out at Lv 10 (core/ladder.ts). Past an
  * upgrade's authored max, the price of the step from shown level A to A + 1 is
  *   F(group, A) = weights[group] · unit · bandGrowth^(band − 2) · bandTilt[band] · stepGrowth^(A mod 10), band = floor(A / 10) + 1
  * and a Survival id also never drops below its last authored price × legacyStep per level (0.9.6: 1.01, the lowest
  * that keeps every price strictly rising after price3; the five Survival price upgrades also gain +0.5 a level past
- * their tables, core/ladder.ts, so the post-Lodge climb takes about 80 model minutes, CODE_AUDIT P1-9). Mastery: every level bought at an effect's hard cap is a point;
- * multiplier 1 + masteryScale · log2(1 + points / masteryPoints) on sales, exports and city income (core/demand.ts
- * climbMult; 1 before the climb, where no level can reach a cap).
+ * their tables, core/ladder.ts, so the post-Lodge climb takes about 80 model minutes, CODE_AUDIT P1-9). 0.9.7: Mastery (a bonus for levels
+ * past a hard cap) is gone: no level for sale reaches a cap. Old saves were paid for it once (core/refund.ts).
  */
 export const CLIMB = {
-  levelCap: 100,
   /** Era economy (R11): expansion pads, machines, material values, city prices and income × this (eras/data.ts). */
   eraScale: ERA_SCALE,
   /** Levels per band: era n's gate needs every owned upgrade at shown level bandSize · (n − 1). */
@@ -1288,8 +1286,6 @@ export const CLIMB = {
   bandTilt: [1, 1, 2.16, 6.27, 6.64, 6.63, 6.5, 4.29, 3.59, 3.27, 3.11] as readonly number[],
   legacyStep: 1.01,
   weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
-  masteryScale: 0.12,
-  masteryPoints: 25,
   /**
    * Crew work multiplier clamps past the authored tables (Upgrades.crewStats): walk ×min(v, walkMax), capacity
    * ×min(v, capMax) (Survival crews draw carried meshes, era crews are instanced), cadence ÷min(v, cadenceMax).

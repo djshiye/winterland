@@ -73,7 +73,8 @@ describe('the checklist helpers', () => {
       expect([c.ok, c.total, c.settlement, c.settlementNeed, c.ready]).toEqual([g.ok, g.total, g.settlement.level, g.settlementNeed, g.ready]);
       expect(gateSize(2)).toBe(g.total);
     }
-    expect(gateSize(11)).toBe(0);
+    expect(gateSize(11)).toBeGreaterThan(0); // 0.9.7: the final gate
+    expect(gateSize(12)).toBe(0);
   });
 
   it('nextGoal: "$X to go" carries a steady hint for the guide banner', () => {
@@ -220,23 +221,19 @@ describe("GateTracker ('gate:progress')", () => {
 });
 
 describe('the shop band view (R5)', () => {
-  it('ten pips for the band that ends at the gate level, the bands done on the star', () => {
-    expect(bandView(9, 9, 0, true, 10)).toEqual({ fill: 9, bands: 0, text: 'Lv 9 · need 10', tone: 'low' });
-    expect(bandView(10, 10, 0, true, 10)).toEqual({ fill: 10, bands: 1, text: 'Lv 10 ✓', tone: 'ok' });
-    expect(bandView(14, 14, 0, true, 10)).toMatchObject({ fill: 10, tone: 'ok' });
-    expect(bandView(23, 13, 10, true, 30)).toEqual({ fill: 3, bands: 2, text: 'Lv 23 · need 30', tone: 'low' });
-    expect(bandView(4, 4, 0, true, 30).fill).toBe(0); // lagging two bands: an empty bar, the badge says why
-    for (let s = 0; s <= 100; s++) expect(bandView(s, s, 0, true, null).fill).toBeLessThanOrEqual(BAND_PIPS);
+  it('ten pips for the band that ends at the gate level (0.9.7: no band star)', () => {
+    expect(bandView(9, true, 10)).toEqual({ fill: 9, text: 'Lv 9 · need 10', tone: 'low' });
+    expect(bandView(10, true, 10)).toEqual({ fill: 10, text: 'Lv 10 ✓', tone: 'ok' });
+    expect(bandView(14, true, 10)).toMatchObject({ fill: 10, tone: 'ok' });
+    expect(bandView(4, true, 30).fill).toBe(0); // lagging two bands: an empty bar, the badge says why
+    for (let s = 0; s <= 100; s++) expect(bandView(s, true, null).fill).toBeLessThanOrEqual(BAND_PIPS);
   });
 
-  it('"Not hired" for a crew at 0, "era standard" for an era upgrade that arrived at its offset', () => {
-    expect(bandView(0, 0, 0, false, 10).text).toBe('Not hired · need 10');
-    expect(bandView(10, 0, 10, false, null).text).toBe('Not hired');
-    expect(bandView(10, 0, 10, true, null)).toMatchObject({ text: 'Lv 10 · era standard', tone: '' });
-    // on arrival inside the next gate it still reads "era standard", and stays 'low' (the tab's gold dot)
-    expect(bandView(10, 0, 10, true, 20)).toEqual({ fill: 0, bands: 1, text: 'Lv 10 · era standard', tone: 'low' });
-    expect(bandView(11, 1, 10, true, 20).text).toBe('Lv 11 · need 20');
-    expect(bandView(47, 47, 0, true, null)).toEqual({ fill: 7, bands: 4, text: 'Lv 47', tone: '' });
+  it('"Not hired" for a crew at 0; never "era standard" (0.9.7: the offset climb is gone)', () => {
+    expect(bandView(0, false, 10).text).toBe('Not hired · need 10');
+    expect(bandView(10, false, null).text).toBe('Not hired');
+    expect(bandView(10, true, null)).toEqual({ fill: 10, text: 'Lv 10', tone: '' });
+    for (let s = 0; s <= 10; s++) expect(bandView(s, true, 10).text).not.toMatch(/era standard/);
   });
 
   it('gateRowLine uses the unit of the place the row is bought (R6)', () => {

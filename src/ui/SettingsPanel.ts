@@ -5,9 +5,11 @@
  * - Display: window mode (desktop app) or a Fullscreen switch (browser), Graphics High / Low (Low = no shadows, pixel
  *   ratio 1), Resolution slider, Frame rate Auto / 60 / 30, Show FPS (PerfOverlay), Day / night (ctx.dayNight).
  * - Comfort (fx/comfort, localStorage 'winterland:comfort'): Reduce motion, Effects Full / Calm / Minimal, Interface
- *   size 80-150 % (applied when the slider is let go), Colour-blind friendly, and two quick buttons: "Make it calm" (all three at their gentlest) and "Defaults".
+ *   size 80-150 % (applied when the slider is let go, fitted to the window), Colour-blind friendly, and two quick
+ *   buttons: "Make it calm" (all three at their gentlest) and "Defaults".
  * - Game: Hold to interact (pickups and payments need E / Space / a press held), Vibration (phone buzz and gamepad rumble, where either exists), a controls hint, Back up / Restore save (ui/saveTransfer),
- *   "Start a new season" (after the finale) and "Reset progress"; both, and Restore, sit behind in-page confirmations
+ *   "Stats & trophies" (0.9.7: opens the stats page, ui/FinaleCard.ts; New Season lives only on that 100 % card) and
+ *   "Reset progress"; Reset and Restore sit behind in-page confirmations
  *   (no window.confirm) that replace the tabs. Confirming a reset emits 'game:reset'; the main session wipes the save
  *   and reloads. Picking a graphics quality by hand writes localStorage 'winterland:autoQuality' = 'manual' so the
  *   automatic drop to Low never overrides the player.
@@ -23,7 +25,6 @@ import { desktop, toggleFullscreen, type WindowMode } from '../platform/desktop'
 import { backOut, h, onTap, shield, Slide } from './dom';
 import { ICON_CLOSE, ICON_GEAR } from './icons';
 import type { PerfOverlay } from './PerfOverlay';
-import { SeasonConfirm } from './SeasonConfirm';
 import { EarlierSaves } from './EarlierSaves';
 import { GAME_VERSION } from '../core/version';
 import './notice.css';
@@ -87,8 +88,6 @@ export class SettingsPanel {
   private readonly earlier: EarlierSaves;
   private readonly saveMsg: HTMLDivElement;
   private readonly fileInput: HTMLInputElement;
-  private readonly season: SeasonConfirm;
-  private readonly seasonBtn: HTMLButtonElement;
   private readonly soundSwitch: HTMLButtonElement;
   private readonly musicSwitch: HTMLButtonElement;
   private readonly gfxSwitch: HTMLButtonElement;
@@ -478,14 +477,14 @@ export class SettingsPanel {
     pg.appendChild(this.saveMsg);
 
     // prestige: only after the finale (open() shows / hides it, the flag can flip mid-session)
-    this.seasonBtn = h('button', 'wl-btn wl-btn-gold', 'Start a new season');
-    this.seasonBtn.type = 'button';
-    this.seasonBtn.style.display = 'none';
-    onTap(this.seasonBtn, () => {
+    const statsBtn = h('button', 'wl-btn wl-btn-gold wl-stats-open', 'Stats &amp; trophies');
+    statsBtn.type = 'button';
+    onTap(statsBtn, () => {
       ctx.audio.play('click');
-      this.showSeason(true);
+      this.close();
+      ctx.events.emit('stats:open', {});
     });
-    pg.appendChild(this.seasonBtn);
+    pg.appendChild(statsBtn);
     const reset = h('button', 'wl-btn wl-btn-danger', 'Reset progress');
     reset.type = 'button';
     onTap(reset, () => {
@@ -557,12 +556,10 @@ export class SettingsPanel {
     rbuttons.append(rcancel, rgo);
     this.restoreView.appendChild(rbuttons);
 
-    this.season = new SeasonConfirm(ctx, () => this.showSeason(false));
-    this.season.el.style.display = 'none';
     this.earlier = new EarlierSaves(ctx, () => this.view('main'));
     this.earlier.el.style.display = 'none';
 
-    this.card.append(x, title, this.body, this.confirm, this.restoreView, this.season.el, this.earlier.el, this.fileInput);
+    this.card.append(x, title, this.body, this.confirm, this.restoreView, this.earlier.el, this.fileInput);
     this.backdrop.appendChild(this.card);
     layer.appendChild(this.backdrop);
     this.showTab();
@@ -648,7 +645,6 @@ export class SettingsPanel {
 
   open(): void {
     this.sync();
-    this.seasonBtn.style.display = this.ctx.state.flags.finale ? '' : 'none';
     this.setSaveMsg('', false);
     this.pendingFile = null;
     this.showConfirm(false);
@@ -663,23 +659,16 @@ export class SettingsPanel {
   }
 
   /** Show one view: the tabbed body, or one of the confirmations that replace it. */
-  private view(v: 'main' | 'reset' | 'season' | 'restore' | 'earlier'): void {
+  private view(v: 'main' | 'reset' | 'restore' | 'earlier'): void {
     this.earlier.el.style.display = v === 'earlier' ? '' : 'none';
     this.body.style.display = v === 'main' ? '' : 'none';
     this.confirm.style.display = v === 'reset' ? '' : 'none';
-    this.season.el.style.display = v === 'season' ? '' : 'none';
     this.restoreView.style.display = v === 'restore' ? '' : 'none';
   }
 
   /** For tests: show the confirmation view. */
   showConfirm(on: boolean): void {
     this.view(on ? 'reset' : 'main');
-  }
-
-  /** The New Season confirmation view (replaces the tabs; Cancel returns to them). */
-  showSeason(on: boolean): void {
-    if (on) this.season.refresh();
-    this.view(on ? 'season' : 'main');
   }
 
   /** The "Replace your current mill with this save?" view. */
