@@ -24,6 +24,7 @@ import { readSeenVersion, readUpdatePrefs, writeSeenVersion, writeUpdatePrefs } 
 import { GAME_VERSION, isNewerVersion } from '../core/version';
 import { desktop, type UpdateBridge, type UpdateFailCode, type UpdateInfo } from '../platform/desktop';
 import { backOut, h, onTap, shield, Slide } from './dom';
+import { ICON_INK } from './iconKit';
 import './update.css';
 
 export type UpdateView = 'available' | 'downloading' | 'installing' | 'error' | 'current' | 'changelog';
@@ -50,15 +51,15 @@ export const FAIL_TEXT: Record<UpdateFailCode, string> = {
 };
 
 const ICON_GIFT =
-  '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="9" y="26" width="46" height="30" rx="6" fill="#ff8a8a" stroke="#fff" stroke-width="3"/>' +
-  '<rect x="6" y="18" width="52" height="12" rx="5" fill="#ff6b6b" stroke="#fff" stroke-width="3"/><path d="M28 18h8v38h-8z" fill="#ffd84a"/>' +
-  '<path d="M32 18c-6-10-17-9-15-2 1 4 9 3 15 2zM32 18c6-10 17-9 15-2-1 4-9 3-15 2z" fill="#ffd84a" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>';
+  '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="9" y="26" width="46" height="30" rx="6" fill="#ff8a8a" stroke="' + ICON_INK + '" stroke-width="3"/>' +
+  '<rect x="6" y="18" width="52" height="12" rx="5" fill="#ff6b6b" stroke="' + ICON_INK + '" stroke-width="3"/><path d="M28 18h8v38h-8z" fill="#ffd84a"/>' +
+  '<path d="M32 18c-6-10-17-9-15-2 1 4 9 3 15 2zM32 18c6-10 17-9 15-2-1 4-9 3-15 2z" fill="#ffd84a" stroke="' + ICON_INK + '" stroke-width="2.5" stroke-linejoin="round"/></svg>';
 const ICON_SCROLL =
-  '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M16 10h32a6 6 0 0 1 6 6v34a6 6 0 0 1-6 6H18a6 6 0 0 1-6-6V14" fill="#fff6dc" stroke="#fff" stroke-width="3"/>' +
+  '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M16 10h32a6 6 0 0 1 6 6v34a6 6 0 0 1-6 6H18a6 6 0 0 1-6-6V14" fill="#fff6dc" stroke="' + ICON_INK + '" stroke-width="3"/>' +
   '<path d="M12 14a4 4 0 1 1 8 0v4h-8z" fill="#ffd84a"/><path d="M22 24h22M22 32h22M22 40h14" stroke="#c99a52" stroke-width="3.5" stroke-linecap="round"/>' +
   '<path d="M44 44l2 4 4 .6-3 3 .8 4.4-3.8-2-3.8 2 .8-4.4-3-3 4-.6z" fill="#ffd84a"/></svg>';
 const ICON_SNOW =
-  '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="#7fc8ff" stroke="#fff" stroke-width="3"/>' +
+  '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="#7fc8ff" stroke="' + ICON_INK + '" stroke-width="3"/>' +
   '<path d="M32 14v36M16.4 23l31.2 18M16.4 41l31.2-18" stroke="#fff" stroke-width="4" stroke-linecap="round"/></svg>';
 
 const MB = 1024 * 1024;
@@ -256,7 +257,7 @@ export class UpdateCard {
     this.bar = null;
     this.barText = null;
     this.card.appendChild(h('div', 'wl-notice-icon wl-update-icon', icon));
-    const t = h('div', 'wl-card-title wl-outline');
+    const t = h('div', 'wl-card-title wl-title');
     t.id = 'wl-update-title';
     t.textContent = title;
     this.card.appendChild(t);

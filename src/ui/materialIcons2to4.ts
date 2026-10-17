@@ -1,8 +1,10 @@
 /**
  * [items builder] 0.9.5: inline SVG icons for the new era 2-4 materials. Same style as ui/materialIcons.ts (48x48
- * viewBox, #1f2b46 outline, round caps); spread into its MATERIAL_ICONS.
+ * viewBox, warm ink outline (ui/iconKit.ts), round caps); spread into its MATERIAL_ICONS.
  */
-const OUT = '#1f2b46';
+import { ICON_INK } from './iconKit';
+
+const OUT = ICON_INK;
 const svg = (inner: string): string => `<svg viewBox="0 0 48 48" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 const g = (inner: string, w = 2.5): string => `<g stroke="${OUT}" stroke-width="${w}">${inner}</g>`;
 

@@ -30,7 +30,7 @@ export class OfflineCard {
 
     this.card = h('div', 'wl-card wl-offline');
     this.card.appendChild(h('div', 'wl-offline-coin', ICON_COIN));
-    this.card.appendChild(h('div', 'wl-card-title wl-outline', 'Welcome back!'));
+    this.card.appendChild(h('div', 'wl-card-title wl-title', 'Welcome back!'));
     this.sub = h('div', 'wl-offline-sub');
     this.card.appendChild(this.sub);
     this.card.appendChild(h('div', 'wl-offline-label', 'your mill earned'));

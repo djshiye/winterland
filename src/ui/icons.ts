@@ -1,11 +1,13 @@
 /** [B4] Inline SVG icons (no image files). All use a 48x48 viewBox unless noted. */
 import { ERA_ROLES, type BusinessId, type UpgradeIdConst } from '../config';
 import { ERAS, MACHINES, MACHINE_IDS, MATERIALS, MATERIAL_KINDS } from '../eras/data';
+import { ICON_INK, kitIcon } from './iconKit';
+import { CREAM } from '../render/palette';
 
 const svg = (inner: string, vb = '0 0 48 48'): string =>
   `<svg viewBox="${vb}" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 
-const OUT = '#1f2b46';
+const OUT = ICON_INK;
 
 /** 0.9.0: era / finance upgrades may be missing here: upgradeIcon() falls back to a generic icon. */
 const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
@@ -109,7 +111,7 @@ const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
     <g stroke="${OUT}" stroke-width="2.5">
       <rect x="6" y="22" width="36" height="16" rx="5" fill="#3fa7ff"/>
       <circle cx="24" cy="18" r="9" fill="#e8eef7"/><circle cx="24" cy="18" r="3" fill="#7d8aa3"/>
-      <rect x="4" y="38" width="40" height="6" rx="3" fill="#2a3652"/>
+      <rect x="4" y="38" width="40" height="6" rx="3" fill="${OUT}"/>
     </g>`),
   processor: svg(`
     <g stroke="${OUT}" stroke-width="2.5">
@@ -147,7 +149,7 @@ const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
       <rect x="6" y="14" width="20" height="8" rx="4" fill="#b87a45"/>
       <path d="M27 24h8l7 6v8H27z" fill="#e8553e"/>
       <path d="M31 27h4l4 4h-8z" fill="#cdeeff" stroke-width="1.5"/>
-      <circle cx="13" cy="38" r="5" fill="#2a3652"/><circle cx="35" cy="38" r="5" fill="#2a3652"/>
+      <circle cx="13" cy="38" r="5" fill="${OUT}"/><circle cx="35" cy="38" r="5" fill="${OUT}"/>
     </g>`),
   // wave 7: a pine toppling over a round saw blade
   treeFeller: svg(`
@@ -180,7 +182,7 @@ const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
       <path d="M10 3l6 8h-3l5 7H2l5-7H4z" fill="#2e9c48" stroke-width="2.2"/>
       <path d="M2 36h38l-3 5H5z" fill="#8f5530"/>
       <path d="M40 34l6-11" stroke-width="3.5"/>
-      <circle cx="14" cy="43" r="4.8" fill="#2a3652"/><circle cx="30" cy="43" r="4.8" fill="#2a3652"/>
+      <circle cx="14" cy="43" r="4.8" fill="${OUT}"/><circle cx="30" cy="43" r="4.8" fill="${OUT}"/>
     </g>`),
   // wave 9: a two-wheeled hand barrow carrying a wheat sack and a log, with a teal handle
   porter: svg(`
@@ -191,7 +193,7 @@ const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
       <rect x="25" y="21" width="17" height="9" rx="4.5" fill="#a8693a"/><circle cx="42" cy="25.5" r="4.5" fill="#f3d9a4"/><circle cx="42" cy="25.5" r="1.8" fill="#d9aa66"/>
       <rect x="6" y="30" width="30" height="6" rx="3" fill="#8f5530"/>
       <path d="M36 33H46" stroke="#2f8f83" stroke-width="4"/>
-      <circle cx="21" cy="40" r="6" fill="#2a3652"/><circle cx="21" cy="40" r="2" fill="#e0a526" stroke-width="1.6"/>
+      <circle cx="21" cy="40" r="6" fill="${OUT}"/><circle cx="21" cy="40" r="2" fill="#e0a526" stroke-width="1.6"/>
     </g>`),
   // sled loader: a wooden chair riding on a small sled with curled runners
   sledLoader: svg(`
@@ -228,7 +230,7 @@ const UPGRADE_ICONS: Partial<Record<UpgradeIdConst, string>> = {
       <path d="M24 10c11 0 18 7 18 16 0 9-8 15-18 15S6 35 6 26c0-9 7-16 18-16z" fill="none"/>
       <circle cx="16.5" cy="24" r="2.6" fill="#8bd3ff" stroke-width="1.8"/><circle cx="31.5" cy="24" r="2.6" fill="#8bd3ff" stroke-width="1.8"/>
       <circle cx="16.5" cy="24" r="1" fill="#1f2b46" stroke="none"/><circle cx="31.5" cy="24" r="1" fill="#1f2b46" stroke="none"/>
-      <path d="M20.5 30.5h7l-3.5 4z" fill="#2a3652" stroke-width="1.8"/>
+      <path d="M20.5 30.5h7l-3.5 4z" fill="${OUT}" stroke-width="1.8"/>
       <path d="M24 34.5v2.5M20 37c1.6 1.4 2.8 1.6 4 0 1.2 1.6 2.4 1.4 4 0" fill="none" stroke-width="1.8"/>
       <path d="M22 38c0 4 1 6 2 6s2-2 2-6z" fill="#ff8f9c" stroke-width="1.8"/>
       <path d="M12 38.5c8 3 16 3 24 0l1.5 4.5c-9 3.5-18 3.5-27 0z" fill="#e8553e"/>
@@ -294,7 +296,7 @@ function rigsIcon(accent: number): string {
     <g stroke="${OUT}" stroke-width="2.5">
       <path d="${GEAR_PATH}" fill="${hexCss(accent)}"/>
       <circle cx="24" cy="24" r="12" fill="${shadeCss(accent, 0.35)}"/>
-      <circle cx="24" cy="24" r="6" fill="#2a3652"/>
+      <circle cx="24" cy="24" r="6" fill="${OUT}"/>
     </g>`);
 }
 
@@ -317,8 +319,8 @@ function beltsIcon(accent: number): string {
       <rect x="9" y="12" width="16" height="13" rx="2" fill="#d9aa66"/>
       <path d="M9 18.5h16" stroke="#a8693a" stroke-width="2" fill="none"/>
       <rect x="3" y="26" width="42" height="9" rx="4.5" fill="${hexCss(accent)}"/>
-      <circle cx="10" cy="30.5" r="2.6" fill="#2a3652"/><circle cx="19" cy="30.5" r="2.6" fill="#2a3652"/>
-      <circle cx="28" cy="30.5" r="2.6" fill="#2a3652"/><circle cx="37" cy="30.5" r="2.6" fill="#2a3652"/>
+      <circle cx="10" cy="30.5" r="2.6" fill="${OUT}"/><circle cx="19" cy="30.5" r="2.6" fill="${OUT}"/>
+      <circle cx="28" cy="30.5" r="2.6" fill="${OUT}"/><circle cx="37" cy="30.5" r="2.6" fill="${OUT}"/>
       <path d="M8 35v8M40 35v8" stroke-width="3.2"/>
     </g>`);
 }
@@ -455,18 +457,18 @@ UPGRADE_ICONS.broker = svg(`
 
 /** HUD "Map" button: a folded map with a pin (white on the dark button). */
 export const ICON_MAP = svg(`
-  <g stroke="#fff" stroke-width="3" fill="none">
-    <path d="M6 12l12-5 12 5 12-5v29l-12 5-12-5-12 5z" fill="rgba(255,255,255,0.22)"/>
+  <g stroke="currentColor" stroke-width="3" fill="none">
+    <path d="M6 12l12-5 12 5 12-5v29l-12 5-12-5-12 5z" fill="currentColor" fill-opacity="0.14"/>
     <path d="M18 7v29M30 12v29"/>
   </g>
   <circle cx="34" cy="17" r="5.2" fill="#ffd84a" stroke="${OUT}" stroke-width="2"/>`);
 
 /** HUD "Market" button: rising chart bars with a coin. */
 export const ICON_MARKET = svg(`
-  <g stroke="#fff" stroke-width="2.6" stroke-linejoin="round">
-    <rect x="6" y="28" width="8" height="14" rx="2" fill="rgba(255,255,255,0.3)"/>
-    <rect x="18" y="20" width="8" height="22" rx="2" fill="rgba(255,255,255,0.3)"/>
-    <rect x="30" y="12" width="8" height="30" rx="2" fill="rgba(255,255,255,0.3)"/>
+  <g stroke="currentColor" stroke-width="2.6" stroke-linejoin="round">
+    <rect x="6" y="28" width="8" height="14" rx="2" fill="currentColor" fill-opacity="0.16"/>
+    <rect x="18" y="20" width="8" height="22" rx="2" fill="currentColor" fill-opacity="0.16"/>
+    <rect x="30" y="12" width="8" height="30" rx="2" fill="currentColor" fill-opacity="0.16"/>
   </g>
   <circle cx="35" cy="9" r="6.5" fill="#ffd84a" stroke="${OUT}" stroke-width="2"/>`);
 
@@ -483,7 +485,7 @@ export const ICON_HAMMER = svg(`
   </g>`);
 
 export function upgradeIcon(id: UpgradeIdConst): string {
-  return UPGRADE_ICONS[id] ?? UPGRADE_ICONS.carry!;
+  return kitIcon(UPGRADE_ICONS[id] ?? UPGRADE_ICONS.carry!);
 }
 
 export const ICON_LOCK = svg(
@@ -492,11 +494,11 @@ export const ICON_LOCK = svg(
    <circle cx="24" cy="31" r="3.2" fill="${OUT}"/>`,
 );
 
-export const ICON_CLOSE = svg(`<path d="M12 12l24 24M36 12L12 36" stroke="#fff" stroke-width="7"/>`);
+export const ICON_CLOSE = svg(`<path d="M13 13l22 22M35 13L13 35" stroke="${hexCss(CREAM)}" stroke-width="7"/>`);
 
 export const ICON_GEAR = svg(
-  `<path fill="#fff" d="M24 4l3.2 4.4 5.4-1.2 1.6 5.3 5.4 1.4-.9 5.5L43 22.7l-3.8 4 2.2 5.2-4.8 2.8-.3 5.6-5.5-.4L27.4 44l-5-2.6-5 2.6-2.8-4.9-5.5.4-.3-5.6L4 31.9l2.2-5.2-3.8-4 3.9-3.3-.9-5.5 5.4-1.4 1.6-5.3 5.4 1.2z" transform="translate(0 -1) scale(.98) translate(.5 .5)"/>
-   <circle cx="24" cy="24" r="7" fill="#2a3652"/>`,
+  `<path fill="currentColor" d="M24 4l3.2 4.4 5.4-1.2 1.6 5.3 5.4 1.4-.9 5.5L43 22.7l-3.8 4 2.2 5.2-4.8 2.8-.3 5.6-5.5-.4L27.4 44l-5-2.6-5 2.6-2.8-4.9-5.5.4-.3-5.6L4 31.9l2.2-5.2-3.8-4 3.9-3.3-.9-5.5 5.4-1.4 1.6-5.3 5.4 1.2z" transform="translate(0 -1) scale(.98) translate(.5 .5)"/>
+   <circle cx="24" cy="24" r="7" style="fill:var(--wl-card)"/>`,
 );
 
 export const ICON_HOUSE = svg(
@@ -586,7 +588,7 @@ const BUILDING_ICONS: Record<BusinessId, string> = {
 };
 
 export function buildingIcon(id: BusinessId): string {
-  return BUILDING_ICONS[id];
+  return kitIcon(BUILDING_ICONS[id]);
 }
 
 export const ICON_LOG = svg(

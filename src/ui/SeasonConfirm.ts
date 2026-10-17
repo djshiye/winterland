@@ -50,7 +50,7 @@ export class SeasonConfirm {
     onCancel: () => void,
   ) {
     this.el = h('div', 'wl-season-confirm');
-    this.el.appendChild(h('div', 'wl-season-head wl-outline'));
+    this.el.appendChild(h('div', 'wl-season-head wl-title'));
     this.text = h('div', 'wl-confirm-text wl-season-text');
     this.el.appendChild(this.text);
     const row = h('div', 'wl-btn-row');

@@ -32,7 +32,7 @@ export class ManagePanel {
     this.iconEl = h('div', 'wl-manage-icon');
     head.appendChild(this.iconEl);
     const titles = h('div', 'wl-build-titles');
-    this.titleEl = h('div', 'wl-build-title wl-outline');
+    this.titleEl = h('div', 'wl-build-title wl-title');
     this.subEl = h('div', 'wl-build-sub');
     titles.append(this.titleEl, this.subEl);
     head.appendChild(titles);

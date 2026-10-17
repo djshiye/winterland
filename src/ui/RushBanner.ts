@@ -7,6 +7,7 @@
 import type { GameContext } from '../core/types';
 import { steadyHighlights } from '../fx/comfort';
 import { backOut, h } from './dom';
+import { ICON_INK } from './iconKit';
 
 export class RushBanner {
   private readonly root: HTMLDivElement;
@@ -72,7 +73,7 @@ export class RushBanner {
 }
 
 const BELL = `<svg viewBox="0 0 48 48" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M10 33c3-3 4-7 4-13a10 10 0 0 1 20 0c0 6 1 10 4 13z" fill="#ffd84a" stroke="#7a3b0c" stroke-width="3"/>
-  <circle cx="24" cy="38" r="4" fill="#e8a21c" stroke="#7a3b0c" stroke-width="2.5"/>
-  <path d="M24 6v4" stroke="#7a3b0c" stroke-width="3"/>
+  <path d="M10 33c3-3 4-7 4-13a10 10 0 0 1 20 0c0 6 1 10 4 13z" fill="#ffd84a" stroke="${ICON_INK}" stroke-width="3"/>
+  <circle cx="24" cy="38" r="4" fill="#e8a21c" stroke="${ICON_INK}" stroke-width="2.5"/>
+  <path d="M24 6v4" stroke="${ICON_INK}" stroke-width="3"/>
 </svg>`;

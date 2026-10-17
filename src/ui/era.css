@@ -8,15 +8,17 @@
   box-sizing: border-box;
   padding: 8px 14px 10px;
   text-align: center;
-  border-radius: 22px;
-  background: linear-gradient(#4f4a7a, #2d2a52);
-  border: 3px solid #fff;
-  box-shadow: 0 5px 0 rgba(20, 20, 50, 0.5), 0 10px 24px rgba(20, 20, 50, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  background: linear-gradient(var(--wl-card-hi), var(--wl-card));
+  border: 3px solid var(--wl-rim);
+  box-shadow: var(--wl-drop-big), var(--wl-gloss);
   transform: translate(-50%, 18px) scale(0.7);
   transform-origin: 50% 100%;
   opacity: 0;
   pointer-events: none;
   will-change: transform, opacity;
+  border-top: 6px solid var(--wl-era, var(--wl-gold));
+  color: var(--wl-ink);
 }
 
 .wl-era-stars {
@@ -27,7 +29,7 @@
   display: flex;
   align-items: flex-end;
   gap: 2px;
-  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 2px 0 var(--wl-shade-soft));
 }
 
 .wl-era-stars i {
@@ -50,31 +52,24 @@
 
 .wl-era-num {
   margin-top: 8px;
-  font-size: 14px;
+  font-size: 12px;
   letter-spacing: 0.18em;
-  color: #bfe8ff;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+  color: var(--wl-ink-soft);
+  text-shadow: none;
 }
 
 .wl-era-name {
-  font-size: clamp(26px, 8vw, 36px);
+  font-size: clamp(24px, 7vw, 32px);
   line-height: 1.05;
-  color: #ffd84a;
-  --wl-outline: #7a3b0c;
-  text-shadow:
-    -2px -2px 0 var(--wl-outline), 2px -2px 0 var(--wl-outline),
-    -2px 2px 0 var(--wl-outline), 2px 2px 0 var(--wl-outline),
-    0 -2px 0 var(--wl-outline), 0 2px 0 var(--wl-outline),
-    -2px 0 0 var(--wl-outline), 2px 0 0 var(--wl-outline),
-    0 4px 0 rgba(60, 25, 5, 0.55);
+  color: var(--wl-gold-text);
+  letter-spacing: 0.2px;
 }
 
 .wl-era-tag {
   margin-top: 3px;
   font-size: 14px;
-  color: #fff;
-  opacity: 0.9;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+  color: var(--wl-ink-soft);
+  text-shadow: none;
 }
 
 .wl-era-tag:empty {
@@ -93,11 +88,11 @@
   padding: 2px 9px 3px;
   font-size: 13px;
   line-height: 1.2;
-  color: #fff;
+  color: var(--wl-ink);
   border-radius: 11px;
-  background: rgba(255, 255, 255, 0.16);
-  border: 2px solid rgba(255, 255, 255, 0.45);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+  background: var(--wl-row);
+  border: 0;
+  box-shadow: 0 2px 0 var(--wl-line);
 }
 
 /* a panel (shop / build) owns the screen: the card steps aside */
@@ -143,7 +138,7 @@
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #ffd84a;
+  color: var(--wl-gold-text);
   margin-right: 5px;
   vertical-align: 1px;
 }
