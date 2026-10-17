@@ -190,8 +190,9 @@
   color: var(--wl-good-text);
 }
 
+/* not reached yet: quiet by day, lifted at night so the rows read as "not yet" on the plum card, not as missing */
 .wl-era-row.is-locked {
-  opacity: 0.4;
+  opacity: calc(0.4 + var(--wl-n) * 0.26);
 }
 
 .wl-finale-trophies {
