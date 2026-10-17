@@ -1153,7 +1153,7 @@ export class Townsfolk {
     if (scatter) {
       const inTown = townOpen && Math.random() < 0.6;
       if (inTown) this.randomSquarePoint(tmpXZ, a);
-      else this.randomStreetPoint(tmpXZ);
+      else this.randomStreetPoint(tmpXZ, a);
       a.x = tmpXZ.x;
       a.z = tmpXZ.z;
       a.yaw = Math.random() * 6.28;
@@ -1186,9 +1186,13 @@ export class Townsfolk {
     a.path.clear();
   }
 
-  private randomStreetPoint(out: XZ): void {
-    out.x = randRange(STROLL_STREET_X[0], STROLL_STREET_X[1]);
-    out.z = randRange(STROLL_STREET_Z[0], STROLL_STREET_Z[1]);
+  /** A place on the village street to stroll to (or meet at), 0.9.10: clear of other people when one can be found. */
+  private randomStreetPoint(out: XZ, self: Agent | null = null, other: Agent | null = null): void {
+    for (let i = 0; i < 12; i++) {
+      out.x = randRange(STROLL_STREET_X[0], STROLL_STREET_X[1]);
+      out.z = randRange(STROLL_STREET_Z[0], STROLL_STREET_Z[1]);
+      if (!this.nearSomeone(out.x, out.z, self, other)) return;
+    }
   }
 
   /** A free place in the square to stroll to (or meet at): clear of the solids, queues, porters and other people. */
@@ -1527,7 +1531,7 @@ export class Townsfolk {
     const inSquare = here === 'square' || here === 'lane';
     const wantTown = townOpen && (inSquare ? Math.random() < 0.8 : Math.random() < 0.3);
     if (wantTown) this.randomSquarePoint(tmpXZ, a);
-    else this.randomStreetPoint(tmpXZ);
+    else this.randomStreetPoint(tmpXZ, a);
     a.act = 'stroll';
     a.mode = 'walk';
     this.goTo(a, tmpXZ.x, tmpXZ.z);
@@ -1603,7 +1607,8 @@ export class Townsfolk {
     for (const b of this.live) {
       if (b === a || b.kind !== 'wanderer' || b.partner || b.fading) continue;
       if (b.mode !== 'walk' && b.mode !== 'idle') continue;
-      if (b.act === 'leave' || b.act === 'sit' || b.act === 'carol' || b.act === 'pond' || b.act === 'cafe' || b.p!.kid !== a.p!.kid) continue;
+      // (0.9.10: nor a kid playing in the snowman park: called away from its spot inside the fence, it cut across it)
+      if (b.act === 'leave' || b.act === 'sit' || b.act === 'carol' || b.act === 'pond' || b.act === 'cafe' || b.act === 'park' || b.p!.kid !== a.p!.kid) continue;
       const d = (b.x - a.x) ** 2 + (b.z - a.z) ** 2;
       if (d < bd && Math.random() < 0.7) {
         bd = d;
@@ -1623,14 +1628,13 @@ export class Townsfolk {
     // café sitter or a tree singer stood inside them)
     for (let tries = 0; tries < 6; tries++) {
       if (inSquare) this.randomSquarePoint(tmpXZ, a, b);
-      else this.randomStreetPoint(tmpXZ);
+      else this.randomStreetPoint(tmpXZ, a, b);
       mx = tmpXZ.x;
       mz = tmpXZ.z;
       // line them up along the street (x) / randomly in the square
       const ang = zoneOf(mx, mz) === 'street' ? 0 : Math.random() * Math.PI;
       ox = Math.cos(ang) * 0.42;
       oz = Math.sin(ang) * 0.42;
-      if (!inSquare) break;
       if (!this.standTaken(mx - ox, mz - oz, a, b) && !this.standTaken(mx + ox, mz + oz, a, b)) break;
     }
     this.freeSpots(b);
