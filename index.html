@@ -7,8 +7,90 @@
     <meta name="description" content="Winterland — a juicy isometric arcade-idle lumber mill." />
     <title>Winterland</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%B2%3C/text%3E%3C/svg%3E" />
+    <style>
+      /* 0.9.7 loading splash: painted before the game's code arrives (src/ui/splash.ts fades it out once the first
+         frame is drawn). Only opacity breathes, so it is calm with Reduce motion too; it holds still under the
+         system's reduce-motion setting. */
+      #wl-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: radial-gradient(ellipse at 50% 40%, #f4f9fe 0%, #dcecf9 55%, #c3dcf1 100%);
+        color: #2a3652;
+        font-family: 'Fredoka', 'Nunito', 'Arial Rounded MT Bold', system-ui, sans-serif;
+        transition: opacity 0.45s ease-out;
+      }
+      #wl-splash.is-done {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #wl-splash svg {
+        width: 92px;
+        height: 92px;
+        filter: drop-shadow(0 6px 10px rgba(42, 54, 82, 0.18));
+      }
+      #wl-splash .wl-splash-title {
+        font-size: 40px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+      #wl-splash .wl-splash-sub {
+        font-size: 17px;
+        font-weight: 600;
+        color: #4f6188;
+      }
+      #wl-splash .wl-splash-dots {
+        display: flex;
+        gap: 10px;
+        margin-top: 4px;
+      }
+      #wl-splash .wl-splash-dots i {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #7fb2e0;
+        animation: wl-splash-breathe 1.4s ease-in-out infinite;
+      }
+      #wl-splash .wl-splash-dots i:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      #wl-splash .wl-splash-dots i:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      @keyframes wl-splash-breathe {
+        0%,
+        100% {
+          opacity: 0.3;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #wl-splash,
+        #wl-splash .wl-splash-dots i {
+          animation: none;
+          transition: none;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="wl-splash" role="status" aria-live="polite">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="52" r="46" fill="#ffffff" opacity="0.7" />
+        <path d="M50 12 L72 44 H61 L78 66 H58 V80 H42 V66 H22 L39 44 H28 Z" fill="#3f8f5a" stroke="#ffffff" stroke-width="4" stroke-linejoin="round" />
+        <path d="M50 12 L61 28 L54 26 L50 32 L46 26 L39 28 Z" fill="#ffffff" />
+      </svg>
+      <div class="wl-splash-title">Winterland</div>
+      <div class="wl-splash-sub">Warming up the mill…</div>
+      <div class="wl-splash-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+    </div>
     <div id="app"></div>
     <div id="hud"></div>
     <script type="module" src="/src/main.ts"></script>

@@ -138,8 +138,14 @@ export class FinaleCard {
     for (const el of [this.eras, this.trophies, this.life]) vis(el, page);
     vis(this.actions, true);
     this.again.style.display = this.seasonOffered ? '' : 'none';
+    const backFromConfirm = !on && this.season.el.contains(document.activeElement);
+    const intoConfirm = on && this.card.contains(document.activeElement) && !this.season.el.contains(document.activeElement);
     this.season.el.style.display = on ? '' : 'none';
     this.title.textContent = on ? 'A new season?' : TITLES[v];
+    // back from the confirm (Cancel, Esc or B): keyboard / gamepad focus lands on Close, not on New Season again
+    if (backFromConfirm) this.primary.focus();
+    // ... and into it on "Not yet", so a second press of A / Enter never starts the season by accident
+    if (intoConfirm) this.season.el.querySelector<HTMLButtonElement>('.wl-btn-grey')?.focus();
   }
 
   /** Show the card after the celebration delay (seconds, simulation time). */
@@ -150,6 +156,18 @@ export class FinaleCard {
 
   get isOpen(): boolean {
     return this.slide.open;
+  }
+
+  /** True while the New Season confirm replaces the stats (Esc / gamepad B then act as its Cancel). */
+  get seasonShown(): boolean {
+    return this.season.el.style.display !== 'none';
+  }
+
+  /** Close the card, as its Close button does (Esc / gamepad B, via HUD.escape). */
+  close(): void {
+    if (!this.slide.open) return;
+    this.ctx.audio.play('click');
+    this.slide.open = false;
   }
 
   /** The variant on show (tests). */
