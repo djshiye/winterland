@@ -13,8 +13,20 @@
 #
 # Options: -Yes (don't ask before updating), -NoLaunch (don't start the game afterwards), -NoPause (don't wait for a
 # key at the end).
+#
+# In-game updates (0.9.8, desktop/updater.cjs): when the player picks "Update now", the game downloads and checks the
+# zip itself, then runs a copy of this script (hidden) with:
+#   -FromGame      no questions; waits (up to a minute) for the game to close; if anything goes wrong it starts the old
+#                  game again with --update-failed=<reason>, so the player just keeps playing.
+#   -Zip PATH      use this already-downloaded zip instead of downloading it. It is still checked against the
+#                  SHA256SUMS.txt this script fetches itself, so the game's word is never taken for it.
+#   -Install DIR   the Winterland folder to update, instead of the folder above this script.
 
-param([switch]$Yes, [switch]$NoLaunch, [switch]$NoPause)
+param([switch]$Yes, [switch]$NoLaunch, [switch]$NoPause, [switch]$FromGame, [string]$Zip = '', [string]$Install = '')
+
+if ($FromGame) { $Yes = $true; $NoPause = $true }
+# What the step that can fail is doing (the reason an in-game update reports back): see Stop-Update.
+$script:Step = 'other'
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue' # the progress bar makes Invoke-WebRequest many times slower
@@ -29,10 +41,17 @@ function Say([string]$Text, [string]$Color = '') {
 function Pause-End {
   if (-not $NoPause) { [void](Read-Host "`nPress Enter to close this window") }
 }
+function Start-Game([string[]]$GameArgs = @()) {
+  if ($script:Exe -and (Test-Path -LiteralPath $script:Exe)) {
+    if ($GameArgs.Count -gt 0) { Start-Process -FilePath $script:Exe -WorkingDirectory $script:Install -ArgumentList $GameArgs }
+    else { Start-Process -FilePath $script:Exe -WorkingDirectory $script:Install }
+  }
+}
 function Stop-Update([string]$Why) {
   Say ''
   Say "Update stopped: $Why" 'Red'
   Say 'Your game and your save are exactly as they were.'
+  if ($FromGame) { try { Start-Game @("--update-failed=$($script:Step)") } catch { } }
   Pause-End
   exit 1
 }
@@ -50,7 +69,10 @@ try {
   [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 } catch { }
 
-$Install = Split-Path -Parent $PSScriptRoot
+if ($Install) {
+  if (-not (Test-Path -LiteralPath $Install -PathType Container)) { Stop-Update "couldn't find the game folder $Install." }
+  $Install = (Resolve-Path -LiteralPath $Install).ProviderPath
+} else { $Install = Split-Path -Parent $PSScriptRoot }
 $Exe = Join-Path $Install 'Winterland.exe'
 $Stage = Join-Path $Install '.winterland-update-new'
 $Old = Join-Path $Stage 'old'
@@ -76,10 +98,12 @@ $Lock = Join-Path $Install '.winterland-update-lock'
 $HaveLock = $false
 $KeepStage = $false
 try {
+  $script:Step = 'offline'
   $Sums = Join-Path $Tmp 'SHA256SUMS.txt'
   try { Get-Https "https://github.com/$Repo/releases/latest/download/SHA256SUMS.txt" $Sums }
   catch { Stop-Update "couldn't reach GitHub. Check your internet connection and try again." }
 
+  $script:Step = 'nodownload'
   # Exactly one line for this platform, in the strict "<64 hex>  Winterland-X.Y.Z-<target>.zip" form.
   $pattern = '^([0-9a-f]{64})  (Winterland-(\d+\.\d+\.\d+)-' + [regex]::Escape($Target) + '\.zip)$'
   $lines = @(Get-Content -LiteralPath $Sums | Where-Object { $_ -cmatch $pattern })
@@ -90,6 +114,8 @@ try {
   $Latest = $Matches[3]
 
   if ([version]$Latest -le [version]$Current) {
+    $script:Step = 'current'
+    if ($FromGame) { Stop-Update "this copy is already the newest ($Current)." }
     Say ''
     Say "You already have the newest Winterland ($Current). Nothing to do." 'Green'
     Pause-End
@@ -103,6 +129,7 @@ try {
   if (-not $Yes) { [void](Read-Host "`nPress Enter to update, or close this window to keep $Current") }
 
   # One updater at a time, and never while the game is running.
+  $script:Step = 'running'
   if (Test-Path -LiteralPath $Lock) {
     $other = Get-Content -LiteralPath (Join-Path $Lock 'pid') -ErrorAction SilentlyContinue
     if (-not ($other -and (Get-Process -Id $other -ErrorAction SilentlyContinue))) {
@@ -113,17 +140,28 @@ try {
   catch { Stop-Update "another update is already running (or $Install isn't writable)." }
   Set-Content -LiteralPath (Join-Path $Lock 'pid') -Value $PID
 
+  $waited = 0
   while (Get-Process -Name 'Winterland' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Exe }) {
+    if ($FromGame -and $waited -lt 120) { Start-Sleep -Milliseconds 500; $waited++; continue } # the game is closing itself
     if ($NoPause) { Stop-Update 'close Winterland first, then run the updater again.' }
     [void](Read-Host "`nWinterland is still open. Close the game (your progress saves), then press Enter")
   }
 
   Say ''
-  Say "Downloading $ZipName..."
+  $script:Step = 'offline'
+  $Given = $Zip
   $Zip = Join-Path $Tmp $ZipName
-  try { Get-Https "https://github.com/$Repo/releases/download/v$Latest/$ZipName" $Zip }
-  catch { Stop-Update "the download didn't finish. Check your internet connection and try again." }
+  if ($Given) {
+    # The game's download: copied in first, so the file that is checked is the file that is unpacked.
+    if ((Split-Path -Leaf $Given) -cne $ZipName) { $script:Step = 'checksum'; Stop-Update 'the game downloaded a different version than the latest release.' }
+    try { Copy-Item -LiteralPath $Given -Destination $Zip } catch { Stop-Update "couldn't read the downloaded update." }
+  } else {
+    Say "Downloading $ZipName..."
+    try { Get-Https "https://github.com/$Repo/releases/download/v$Latest/$ZipName" $Zip }
+    catch { Stop-Update "the download didn't finish. Check your internet connection and try again." }
+  }
 
+  $script:Step = 'checksum'
   Write-Host 'Checking the download is genuine (SHA-256)... ' -NoNewline
   # Plain .NET rather than Get-FileHash / Expand-Archive: those live in modules that some setups fail to load.
   $hasher = [Security.Cryptography.SHA256]::Create()
@@ -138,6 +176,7 @@ try {
 
   # Unpack next to the game (same disk, so the swap is a quick rename) and check it looks like Winterland.
   Say 'Installing...'
+  $script:Step = 'files'
   if (Test-Path -LiteralPath $Stage) { Remove-Item -LiteralPath $Stage -Recurse -Force } # leftovers were put back above
   $Unpacked = Join-Path $Stage 'unpacked'
   try {
@@ -183,7 +222,7 @@ try {
   Say "Done! Winterland is now $Latest. Your save was not touched." 'Green'
   if (-not $NoLaunch) {
     Say 'Starting the game...'
-    Start-Process -FilePath $Exe -WorkingDirectory $Install
+    Start-Game
   }
   Pause-End
   exit 0

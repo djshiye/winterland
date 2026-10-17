@@ -1,0 +1,189 @@
+/* 0.9.8 in-game updater (ui/UpdateCard.ts): the update card and the "What's new" changelog. The same night-blue card
+   as the notices, a cream "page" for the notes so long text reads calmly, gold for headings. */
+
+.wl-card.wl-update {
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  padding-top: 34px;
+  width: min(460px, 100%);
+  max-height: min(640px, 100%);
+}
+
+.wl-update-icon {
+  flex: none;
+}
+
+.wl-update .wl-card-title {
+  font-size: 26px;
+}
+
+.wl-update-sub {
+  font-size: 16px;
+}
+
+.wl-notice-line.wl-update-small {
+  margin-top: 4px;
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.wl-update-whatsnew {
+  margin: 2px 4px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffd84a;
+  text-align: left;
+}
+
+/* the notes / changelog "page": scrolls by itself, the buttons stay in view */
+.wl-update-notes {
+  flex: 1 1 auto;
+  min-height: 90px;
+  max-height: 44vh;
+  margin: 0 0 12px;
+  padding: 12px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 18px;
+  background: #fff8ec;
+  color: #3b2d26;
+  font-weight: 500;
+  text-align: left;
+  box-shadow: inset 0 2px 6px rgba(59, 45, 38, 0.18);
+  scroll-behavior: smooth;
+  touch-action: pan-y;
+}
+
+.wl-update[data-view='changelog'] .wl-update-notes {
+  max-height: 52vh;
+}
+
+.wl-reduce-motion .wl-update-notes {
+  scroll-behavior: auto;
+}
+
+.wl-update-notes:focus-visible {
+  outline: 3px solid #ffd84a;
+  outline-offset: 3px;
+}
+
+.wl-cl-entry + .wl-cl-entry {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px dashed rgba(59, 45, 38, 0.18);
+}
+
+.wl-cl-version {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #2d4c3b;
+}
+
+.wl-cl-version small {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.6;
+}
+
+.wl-cl-head {
+  margin: 10px 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #b0661a;
+}
+
+.wl-cl-p {
+  margin: 0 0 8px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.wl-cl-list {
+  margin: 0 0 6px;
+  padding-left: 20px;
+  font-size: 14.5px;
+  line-height: 1.4;
+}
+
+.wl-cl-list li {
+  margin-bottom: 5px;
+}
+
+.wl-update-notes b {
+  font-weight: 700;
+  color: #2d4c3b;
+}
+
+.wl-cl-list li::marker {
+  color: #e0a020;
+}
+
+.wl-update-notes code {
+  padding: 0 4px;
+  border-radius: 5px;
+  background: rgba(59, 45, 38, 0.08);
+  font-size: 0.92em;
+}
+
+/* download progress */
+.wl-update-bar {
+  height: 18px;
+  margin: 6px 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 3px solid #fff;
+  overflow: hidden;
+}
+
+.wl-update-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(#9be07a, #4cb04a);
+  /* no transition: the main process sends progress about 8 times a second, which already reads smooth */
+}
+
+.wl-update .wl-notice-buttons {
+  flex: none;
+  margin-top: 6px;
+}
+
+.wl-update .wl-btn:focus-visible {
+  outline: 3px solid #ffd84a;
+  outline-offset: 3px;
+}
+
+/* short windows (800 x 450): smaller icon and title, the page takes what is left */
+@media (max-height: 520px) {
+  .wl-card.wl-update {
+    padding-top: 26px;
+  }
+
+  .wl-update .wl-card-title {
+    font-size: 22px;
+    margin-bottom: 6px;
+  }
+
+  .wl-update-notes,
+  .wl-update[data-view='changelog'] .wl-update-notes {
+    max-height: 40vh;
+  }
+}
+
+/* Settings › Game: the updates rows */
+.wl-updates {
+  margin: 4px 0 12px;
+}
+
+.wl-updates .wl-row {
+  margin-bottom: 10px;
+}

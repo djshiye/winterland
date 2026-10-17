@@ -9,7 +9,8 @@
  *   buttons: "Make it calm" (all three at their gentlest) and "Defaults".
  * - Game: Hold to interact (pickups and payments need E / Space / a press held), Vibration (phone buzz and gamepad rumble, where either exists), a controls hint, Back up / Restore save (ui/saveTransfer),
  *   "Stats & trophies" (0.9.7: opens the stats page, ui/FinaleCard.ts; New Season lives only on that 100 % card) and
- *   "Reset progress"; Reset and Restore sit behind in-page confirmations
+ *   "Reset progress", 0.9.8 "Check for updates" (desktop) with Check now, and What's new (the changelog);
+ *   Reset and Restore sit behind in-page confirmations
  *   (no window.confirm) that replace the tabs. Confirming a reset emits 'game:reset'; the main session wipes the save
  *   and reloads. Picking a graphics quality by hand writes localStorage 'winterland:autoQuality' = 'manual' so the
  *   automatic drop to Low never overrides the player.
@@ -27,6 +28,7 @@ import { ICON_CLOSE, ICON_GEAR } from './icons';
 import type { PerfOverlay } from './PerfOverlay';
 import { EarlierSaves } from './EarlierSaves';
 import { GAME_VERSION } from '../core/version';
+import { readUpdatePrefs, writeUpdatePrefs } from '../core/updatePrefs';
 import './notice.css';
 import { exportSave, importSave, validateSaveText } from './saveTransfer';
 import './comfort.css';
@@ -105,6 +107,10 @@ export class SettingsPanel {
   private windowMode: WindowMode = 'windowed';
   private pendingFile: File | null = null;
   private resetting = false;
+
+  /** 0.9.8 Settings › Game › Check now / What's new (the HUD opens the update card). */
+  onCheckUpdates: (() => void) | null = null;
+  onWhatsNew: (() => void) | null = null;
 
   /** Called when the sound state changes from inside the panel (the HUD syncs the mute button). */
   onSoundChanged: (() => void) | null = null;
@@ -502,6 +508,38 @@ export class SettingsPanel {
       });
       pg.insertBefore(quit, pg.firstChild);
     }
+    // 0.9.8 updates (ui/UpdateCard.ts): the automatic check (desktop app only) and the changelog (everywhere)
+    const upd = h('div', 'wl-updates');
+    if (desktop()?.updates) {
+      const autoSw = sw(upd, 'Check for updates', 'When the game starts it asks GitHub if a new version is out. Nothing else is sent.', () => {
+        ctx.audio.play('click');
+        writeUpdatePrefs({ auto: !readUpdatePrefs().auto });
+      });
+      this.refreshers.push(() => {
+        const on = readUpdatePrefs().auto;
+        autoSw.classList.toggle('is-on', on);
+        autoSw.setAttribute('aria-checked', String(on));
+      });
+    }
+    const updRow = h('div', 'wl-btn-row wl-save-row');
+    if (desktop()?.updates) {
+      const checkBtn = h('button', 'wl-btn wl-btn-grey', 'Check now');
+      checkBtn.type = 'button';
+      onTap(checkBtn, () => {
+        ctx.audio.play('click');
+        this.onCheckUpdates?.();
+      });
+      updRow.appendChild(checkBtn);
+    }
+    const newsBtn = h('button', 'wl-btn wl-btn-grey', "What's new");
+    newsBtn.type = 'button';
+    onTap(newsBtn, () => {
+      ctx.audio.play('click');
+      this.onWhatsNew?.();
+    });
+    updRow.appendChild(newsBtn);
+    upd.appendChild(updRow);
+    pg.insertBefore(upd, statsBtn);
     const version = h('div', 'wl-version');
     version.textContent = `Winterland ${desktop()?.version || GAME_VERSION}`;
     pg.appendChild(version);

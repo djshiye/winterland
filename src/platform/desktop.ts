@@ -11,8 +11,40 @@
  * - `onWindowMode(cb)`: fires whenever the mode changes, including from F11 / Alt+Enter handled in the main process.
  *   Returns an unsubscribe.
  * - `quit()` (0.9.6): close the app (Settings → Save & quit; the game writes its save first). Absent in older shells.
+ * - `updates` (0.9.8, desktop/updater.cjs): the in-game updater. The page never reaches the network itself; the main
+ *   process checks GitHub, downloads and verifies the zip, and hands over to the "Update Winterland" script.
  */
 export type WindowMode = 'windowed' | 'fullscreen';
+
+/** Why an update stopped (desktop/update-core.cjs FAIL_CODES). */
+export type UpdateFailCode = 'offline' | 'norelease' | 'nodownload' | 'current' | 'running' | 'checksum' | 'files' | 'unzip' | 'cancelled' | 'other';
+
+export interface UpdateInfo {
+  /** A packaged release on a computer the releases ship for (false in a development run). */
+  supported: boolean;
+  /** This copy can update itself (its updater script is there and its folder is writable). */
+  canInstall: boolean;
+  current: string;
+  /** An in-game update that stopped and started this version again, with why (said once). */
+  failed: UpdateFailCode | null;
+}
+
+export type UpdateCheck =
+  | { status: 'available'; version: string; notes: string | null }
+  | { status: 'none'; version: string }
+  | { status: 'error'; code: UpdateFailCode };
+
+export interface UpdateBridge {
+  info(): Promise<UpdateInfo | null>;
+  check(): Promise<UpdateCheck>;
+  download(): Promise<{ ok: boolean; code?: UpdateFailCode }>;
+  cancel(): void;
+  /** Starts the updater script and closes the game (write the save first). */
+  install(): Promise<{ ok: boolean; code?: UpdateFailCode }>;
+  /** The latest release page, in the player's browser. */
+  openPage(): void;
+  onProgress(cb: (p: { got: number; total: number }) => void): () => void;
+}
 
 export interface DesktopBridge {
   readonly version: string;
@@ -20,6 +52,7 @@ export interface DesktopBridge {
   setWindowMode(mode: WindowMode): void;
   onWindowMode(cb: (mode: WindowMode) => void): () => void;
   quit?(): void;
+  updates?: UpdateBridge;
 }
 
 /** The bridge when running inside the desktop app, else null. */
