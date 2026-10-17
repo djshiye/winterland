@@ -25,7 +25,7 @@
  * bright flat colour. Era colours come from render/palette.ts.
  */
 import * as THREE from 'three';
-import { ERA_ROLES } from '../config';
+import { CAMERA, ERA_ROLES } from '../config';
 import { CharacterRig } from '../render/characters';
 import { bake, vcMat } from '../render/batch';
 import { geo, mesh, toon } from '../render/materials';
@@ -42,12 +42,17 @@ import {
   NPC_HEAD_R as R,
   PORTER_VARIANT,
   SKIN_TONES,
+  VIP_VARIANT_BASE,
   WORKER_ROLES,
   beanRadius,
   beanie,
   belt,
   buildPawn,
   characterScale,
+  createCourierModel,
+  createCustomerModel,
+  createDriverModel,
+  createPlayerModel,
   flatCap,
   fringe,
   hardHat,
@@ -663,6 +668,38 @@ eraWorkerCatalog['all crews'] = () => {
     row.position.z = (n - 5.5) * 1.25;
     g.add(row);
   }
+  return g;
+};
+
+/**
+ * The release-notes group photo (--query "gallery=cast&zoom=2.1"): the player up front, the village folk and a VIP
+ * either side, the courier and both drivers behind, and three rows of crews (eras 1, 5 and 10) at the back, packed
+ * close so the characters fill the frame.
+ */
+eraWorkerCatalog['cast'] = () => {
+  const g = new THREE.Group();
+  // laid out in screen terms (x right, z toward the camera), then turned to the camera's yaw so the rows run level
+  g.rotation.y = THREE.MathUtils.degToRad(CAMERA.yawDeg);
+  const put = (o: THREE.Object3D, x: number, z: number, yaw = 0): void => {
+    o.position.set(x, 0, z);
+    o.rotation.y = yaw;
+    g.add(o);
+  };
+  put(createPlayerModel().root, 0, 1.2);
+  put(createCustomerModel(0).root, -1.0, 0.9, 0.25);
+  put(createCustomerModel(1).root, 1.0, 0.9, -0.25);
+  put(createCustomerModel(2).root, -2.0, 0.5, 0.35);
+  put(createCustomerModel(VIP_VARIANT_BASE).root, 2.0, 0.5, -0.35);
+  put(createCourierModel().root, -1.4, -0.2);
+  put(createDriverModel(0).root, 0, -0.1);
+  put(createDriverModel(1).root, 1.4, -0.2);
+  [1, 5, 10].forEach((era, k) => {
+    const row = crewRow(era);
+    row.scale.setScalar(0.9);
+    row.position.z = -1.2 - k * 1.0;
+    row.position.x = k % 2 === 0 ? 0 : 0.45;
+    g.add(row);
+  });
   return g;
 };
 
