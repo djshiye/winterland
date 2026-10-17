@@ -14,10 +14,15 @@
  *   (no window.confirm) that replace the tabs. Confirming a reset emits 'game:reset'; the main session wipes the save
  *   and reloads. Picking a graphics quality by hand writes localStorage 'winterland:autoQuality' = 'manual' so the
  *   automatic drop to Low never overrides the player.
+ * 0.9.10: the card is a real dialog (ui/dialog.ts: role="dialog", aria-modal, labelled by its title, Tab stays inside,
+ * focus goes back where it was on close); Comfort › "Pause when a menu is open" (fx/comfort menuPause, game/Game.ts);
+ * Game › Credits (ui/CreditsCard.ts) replaces the tabs like the confirmations do.
  * Sliders run on 'input' (live) and are not shielded: the row stops pointerdown / touchstart instead.
  * On short screens (<= 520 px tall) the switches sit in two columns so the card fits 800x450.
  */
 import { comfort, defaultComfort, onComfortChange, setComfort, uiScale, uiScaleFitted, UI_SCALE, type EffectsLevel } from '../fx/comfort';
+import { CreditsCard } from './CreditsCard';
+import { FocusReturn, markDialog, trapTab } from './dialog';
 import { feedbackAvailable, hapticsEnabled, buzz, setHapticsEnabled } from '../fx/Haptics';
 import { readFpsCap, FPS_CAPS, type FpsCap } from '../core/fps';
 import type { VolumeChannel } from '../fx/volume';
@@ -99,6 +104,10 @@ export class SettingsPanel {
   private readonly motionSwitch: HTMLButtonElement;
   private readonly cbSwitch: HTMLButtonElement;
   private readonly snowSwitch: HTMLButtonElement;
+  private readonly pauseSwitch: HTMLButtonElement;
+  private readonly credits: CreditsCard;
+  private readonly creditsBtn: HTMLButtonElement;
+  private readonly focusBack = new FocusReturn();
   private readonly vibSwitch: HTMLButtonElement | null = null;
   private readonly fsSwitch: HTMLButtonElement | null = null;
   /** Sliders and segmented controls re-read their value in sync(). */
@@ -141,6 +150,9 @@ export class SettingsPanel {
 
     this.card = h('div', 'wl-card wl-settings');
     const title = h('div', 'wl-card-title wl-title', 'Settings');
+    // the backdrop is the dialog (input/menuNav.ts labels whichever .wl-modal is open; this one is labelled already)
+    markDialog(this.backdrop, title, 'wl-settings-title');
+    trapTab(this.backdrop);
     const x = h('button', 'wl-card-x', ICON_CLOSE);
     x.type = 'button';
     x.setAttribute('aria-label', 'Close settings');
@@ -410,9 +422,14 @@ export class SettingsPanel {
       ctx.audio.play('click');
       setComfort({ snow: !comfort().snow });
     });
-    this.cbSwitch = sw(pc, 'Colour-blind friendly', 'Blue and orange instead of green and red', () => {
+    this.cbSwitch = sw(pc, 'Colour-blind friendly', 'Blue and orange instead of green and red, on pads and signs too', () => {
       ctx.audio.play('click');
       setComfort({ colorBlind: !comfort().colorBlind });
+    });
+    // 0.9.10 (D9): the world waits while a menu is open (game/Game.ts); off by default
+    this.pauseSwitch = sw(pc, 'Pause when a menu is open', 'The world waits while Settings, the shop or a card is open', () => {
+      ctx.audio.play('click');
+      setComfort({ menuPause: !comfort().menuPause });
     });
     const presets = h('div', 'wl-btn-row wl-comfort-presets');
     const calmest = h('button', 'wl-btn wl-btn-green', 'Make it calm');
@@ -452,7 +469,7 @@ export class SettingsPanel {
     const list = h('div', 'wl-controls-list');
     for (const [keys, what] of CONTROLS) list.appendChild(h('div', 'wl-controls-item', `<b>${keys}</b> ${what}`));
     controls.appendChild(list);
-    controls.appendChild(h('div', 'wl-controls-note', 'Drop-offs and cash collection are automatic.'));
+    controls.appendChild(h('div', 'wl-controls-note', 'Drop-offs happen on their own. Walk over cash to bank it.'));
     pg.appendChild(controls);
 
     const saveRow = h('div', 'wl-btn-row wl-save-row');
@@ -559,6 +576,15 @@ export class SettingsPanel {
     updRow.appendChild(newsBtn);
     upd.appendChild(updRow);
     pg.insertBefore(upd, statsBtn);
+    // 0.9.10 (H2): who made the game and what it is built with
+    this.creditsBtn = h('button', 'wl-btn wl-btn-grey', 'Credits');
+    this.creditsBtn.type = 'button';
+    onTap(this.creditsBtn, () => {
+      ctx.audio.play('click');
+      this.view('credits');
+      this.credits.back.focus({ preventScroll: true });
+    });
+    updRow.appendChild(this.creditsBtn);
     const version = h('div', 'wl-version');
     version.textContent = `Winterland ${desktop()?.version || GAME_VERSION}`;
     pg.appendChild(version);
@@ -615,8 +641,13 @@ export class SettingsPanel {
 
     this.earlier = new EarlierSaves(ctx, () => this.view('main'));
     this.earlier.el.style.display = 'none';
+    this.credits = new CreditsCard(ctx, () => {
+      this.view('main');
+      this.creditsBtn.focus({ preventScroll: true });
+    });
+    this.credits.el.style.display = 'none';
 
-    this.card.append(x, title, this.body, this.confirm, this.restoreView, this.earlier.el, this.fileInput);
+    this.card.append(x, title, this.body, this.confirm, this.restoreView, this.earlier.el, this.credits.el, this.fileInput);
     this.backdrop.appendChild(this.card);
     layer.appendChild(this.backdrop);
     this.showTab();
@@ -638,6 +669,7 @@ export class SettingsPanel {
     set(this.motionSwitch, comfort().motion);
     set(this.cbSwitch, comfort().colorBlind);
     set(this.snowSwitch, comfort().snow);
+    set(this.pauseSwitch, comfort().menuPause);
     if (this.vibSwitch) set(this.vibSwitch, hapticsEnabled());
     if (this.fsSwitch) set(this.fsSwitch, !!document.fullscreenElement);
     for (const r of this.refreshers) r();
@@ -703,19 +735,24 @@ export class SettingsPanel {
     this.setSaveMsg('', false);
     this.pendingFile = null;
     this.showConfirm(false);
+    if (!this.slide.open) this.focusBack.take();
     this.slide.open = true;
     this.backdrop.style.display = 'flex';
+    // focus the open tab at once (a mouse opener shows no ring; menuNav would only catch up a frame later)
+    this.tabEls.get(this.tab)?.focus({ preventScroll: true });
   }
 
   close(): void {
+    if (this.slide.open) this.focusBack.give(this.backdrop);
     this.slide.open = false;
     // closed before the first update() ran: nothing to animate, hide now (update() early-returns at k === 0)
     if (this.slide.k === 0) this.backdrop.style.display = 'none';
   }
 
   /** Show one view: the tabbed body, or one of the confirmations that replace it. */
-  private view(v: 'main' | 'reset' | 'restore' | 'earlier'): void {
+  private view(v: 'main' | 'reset' | 'restore' | 'earlier' | 'credits'): void {
     this.earlier.el.style.display = v === 'earlier' ? '' : 'none';
+    this.credits.el.style.display = v === 'credits' ? '' : 'none';
     this.body.style.display = v === 'main' ? '' : 'none';
     this.confirm.style.display = v === 'reset' ? '' : 'none';
     this.restoreView.style.display = v === 'restore' ? '' : 'none';
