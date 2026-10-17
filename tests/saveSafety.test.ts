@@ -325,5 +325,8 @@ describe('release workflow token', () => {
     expect(yml.indexOf('contents: write')).toBeGreaterThan(yml.indexOf('  publish:'));
     const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     expect(ci).toMatch(/^permissions:\n  contents: read$/m);
+    const updater = readFileSync(new URL('../.github/workflows/updater.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+    expect(updater).toMatch(/^permissions:\n  contents: read$/m);
+    expect(updater).not.toContain('contents: write');
   });
 });

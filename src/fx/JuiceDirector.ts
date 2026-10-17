@@ -15,14 +15,17 @@
  *   already wears a persistent MAX badge (CarryStack), so it only gets the sound.
  * - pad:paid / construction:paid (cash) → a soft 'tick' whose pitch climbs a pentatonic ladder while the player keeps
  *   paying the same pad (fx/padJuice.ts TickLadder, ±3 % jitter, at most one per TICK_GAP per pad);
- *   pad:complete (any pad, the shop mat) → a warm 'padDone' chord and a cozy snow-sparkle pop (pooled particles;
- *   skipped / shrunk under reduced motion); pad:unlocked → 'unlock', confetti, ring, shake, toast.
+ *   pad:complete (any pad, the shop mat) → a soft felt 'padStep' thump under a warm 'padDone' chord, a puff of snow
+ *   and one sparkle (0.9.8 brief 13: calm, no confetti burst); a level bought on a pad also rings its 'padNote' bell,
+ *   one pentatonic step higher per level, and Lv 10 rings the 'padCapstone' chord instead (padJuice levelNotePitch /
+ *   isCapstone) with a gold ring; pad:unlocked → 'unlock', confetti, ring, shake, toast.
  * - built → 'build', puff + ring.
  * - intro:crash → 'crash' + 'splash', splash particles, big shake.
  *
  * Full-game events:
- * - upgrade:bought → 'upgrade', sparkles at the pad / machine (or around the player for shop buys), "LV n!"
- *   (crew level 1 is the hire: 'helper:hired' does the cheer + "HIRED!").
+ * - upgrade:bought → 'upgrade', sparkles around the player (shop buys), "LV n!" (crew level 1 is the hire:
+ *   'helper:hired' does the cheer + "HIRED!"). A level bought on a pad (the event carries the pad's position) keeps only
+ *   the "LV n!" text: its pad:complete plays the sound and the sparkle.
  * - construction:paid → light wood 'thunk' (logs) / the pad 'tick' ladder (cash), throttled.
  * - shelter:built → pop + dust ring + chime + "+N villagers".
  * - village:revealed / reveal → whoosh / soft chime + toast. village:levelUp → fanfare, confetti, toast with perks.
@@ -48,7 +51,7 @@
 import * as THREE from 'three';
 import { AMENITIES, LAYOUT, PADS, PALETTE, QUARTERS, SETTLEMENT, UPGRADES, VILLAGE } from '../config';
 import { townHappiness } from '../core/demand';
-import type { GameContext, ItemHolder } from '../core/types';
+import type { GameContext, ItemHolder, UpgradeId } from '../core/types';
 import { contractClock, contractItem } from '../core/Contracts';
 import { formatMoney } from '../ui/format';
 import { expansionCostText } from '../ui/agesLogic';
@@ -57,7 +60,7 @@ import { ERA_NODES } from '../assets/eraNodes';
 import { regionLayout } from '../eras/layout';
 import { FINAL_GATE, FINAL_NAME } from '../eras/gate';
 import { Haptics } from './Haptics';
-import { TickLadder, burstCount, motionScale, pitchJitter } from './padJuice';
+import { TickLadder, burstCount, isCapstone, levelNotePitch, motionScale, pitchJitter } from './padJuice';
 
 /** 0.9.5: strike pitch per era hand node (heavier tools lower: slag hammer, oil auger; crystals higher). */
 const NODE_PITCH: Record<number, number> = { 2: 0.9, 3: 1.0, 4: 0.85, 5: 0.75, 6: 1.1, 7: 0.8, 8: 1.25, 9: 1.3, 10: 1.4 };
@@ -66,8 +69,6 @@ const WOOD_CHIPS = [PALETTE.bark, PALETTE.barkDark, PALETTE.woodEnd, PALETTE.woo
 const SNOW = [0xffffff, 0xeaf4ff, 0xd4e6fa];
 const SAWDUST = [PALETTE.woodEnd, PALETTE.woodRing, 0xf6e3bd];
 const CASH_COLORS = [0x46c35f, 0x5ee07a, 0xffd84a, 0xffffff];
-/** The completion pop: snow, frost and a touch of candle gold. */
-const SNOW_SPARKLE = [0xffffff, 0xeaf4ff, 0xd4e6fa, 0xfff1c4];
 /** Minimum seconds between two audible pad ticks of the same pad (bundles land ~20 per second). */
 const TICK_GAP = 0.07;
 /** Firework shell colours: [main, inner]. */
@@ -194,17 +195,19 @@ export class JuiceDirector {
     });
 
     ev.on('pad:complete', (e) => {
-      ctx.audio.play('padDone', { pitch: pitchJitter(), volume: 0.85 });
-      const at = this.tmp.copy(e.position).setY(e.position.y + 0.35);
-      const n = burstCount(16);
-      if (n > 0) {
-        ctx.particles.burst(at, { colors: SNOW_SPARKLE, count: n, speed: 3.4, size: 0.13, spread: 1.15, life: 0.85, gravity: 5, shape: 'sphere' });
+      const lv = this.padLevel(e.id, e.kind);
+      ctx.audio.play('padStep', { pitch: 0.85 * pitchJitter(), volume: 0.7 });
+      if (lv && isCapstone(lv.level, lv.max)) {
+        ctx.audio.play('padCapstone', { volume: 0.8 });
+      } else {
+        ctx.audio.play('padDone', { pitch: pitchJitter(), volume: 0.85 });
+        if (lv) ctx.audio.play('padNote', { pitch: levelNotePitch(lv.level), volume: 0.9 });
       }
-      ctx.particles.sparkle(this.tmp2.copy(at).setY(at.y + 0.5), 0xffffff);
-      if (motionScale() >= 1) {
-        ctx.particles.sparkle(this.tmp2.setY(at.y + 1.1), 0xfff1c4);
-        ctx.particles.ring(e.position, { color: 0xffffff, radius: 2.2, life: 0.5 });
-      }
+      // a puff of snow and one sparkle (the snow follows the effects level; Reduce motion keeps it small)
+      const at = this.tmp.copy(e.position).setY(e.position.y + 0.25);
+      ctx.particles.puff(at, { color: 0xffffff, count: motionScale() < 1 ? 3 : 7, size: 0.7, life: 0.9 });
+      ctx.particles.sparkle(this.tmp2.copy(at).setY(at.y + 0.9), 0xfff1c4);
+      if (lv && isCapstone(lv.level, lv.max) && motionScale() >= 1) ctx.particles.ring(e.position, { color: PALETTE.accent, radius: 2.6, life: 0.7 });
     });
 
     ev.on('pad:unlocked', (e) => {
@@ -234,11 +237,14 @@ export class JuiceDirector {
     ev.on('upgrade:bought', (e) => {
       const crewHire = UPGRADES[e.id].group === 'crew' && e.level === 1;
       const at = e.position ? this.tmp2.copy(e.position) : this.playerSpot(this.tmp2);
-      ctx.audio.play('upgrade');
-      ctx.particles.sparkle(this.tmp.copy(at).setY(at.y + 0.6), 0xfff1a8);
-      ctx.particles.sparkle(this.tmp.copy(at).setY(at.y + 1.6), 0xffffff);
-      ctx.particles.sparkle(this.tmp.copy(at).setY(at.y + 2.4), 0xffe066);
-      ctx.particles.ring(at, { color: 0xffe066, radius: 2.4, life: 0.55 });
+      if (!e.position) {
+        // a pad's level (position set) gets its sound and sparkle from pad:complete
+        ctx.audio.play('upgrade');
+        ctx.particles.sparkle(this.tmp.copy(at).setY(at.y + 0.6), 0xfff1a8);
+        ctx.particles.sparkle(this.tmp.copy(at).setY(at.y + 1.6), 0xffffff);
+        ctx.particles.sparkle(this.tmp.copy(at).setY(at.y + 2.4), 0xffe066);
+        ctx.particles.ring(at, { color: 0xffe066, radius: 2.4, life: 0.55 });
+      }
       if (crewHire) return; // 'helper:hired' says HIRED! when the new worker walks out
       // one numbering everywhere (the pads, the shop, the era checklist): the shown level
       ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 2.6), `LV ${ctx.upgrades.shownLevel(e.id)}!`, { color: '#ffd84a', size: 32, duration: 1.2, rise: 1.6 });
@@ -607,6 +613,14 @@ export class JuiceDirector {
     if (now - t.last < TICK_GAP) return;
     t.last = now;
     this.ctx.audio.play('tick', { pitch: t.ladder.next(now, Math.random()), volume });
+  }
+
+  /** The level a pad's completion just bought ('pad:<upgradeId>' level pads), or null (unlocks, builds, the shop mat). */
+  private padLevel(id: string, kind: string): { level: number; max: boolean } | null {
+    if (kind !== 'level' || !id.startsWith('pad:')) return null;
+    const up = id.slice(4) as UpgradeId;
+    if (!(up in UPGRADES)) return null;
+    return { level: this.ctx.upgrades.shownLevel(up), max: this.ctx.upgrades.isMax(up) };
   }
 
   /** Where shop purchases and other "no position" effects go: just above the player. */

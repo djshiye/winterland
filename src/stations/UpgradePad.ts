@@ -26,6 +26,8 @@
  * each bundle lands (the bundles arc in with a gentle squash, the tile squashes a little), an affordable pad breathes a
  * warm glow, completion plays a squash-and-stretch hump and emits 'pad:complete' (the JuiceDirector's sparkle pop,
  * chime and haptics). Every bounce is scaled down under reduced motion. Visual only: drain rate and costs unchanged.
+ * 0.9.8 (brief 13): the price hangs on a tag under the sign (assets/pads.ts hangPriceTag), and PadFeel breathes the
+ * tile slowly while affordable, dims it while nothing can be paid and gives a felt thump when the player steps on.
  *
  * State is the truth (restore): the constructor reads state.padsVisible / unlocked / padPaid['pad:<id>'] and the
  * level-pad reveal flag and appears at once, silently. Live play writes padPaid on every reserve / receive (value
@@ -37,8 +39,8 @@ import { Ease } from '../core/Tween';
 import { climbOpen } from '../eras/gate';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot, UpgradeId } from '../core/types';
 import type { Zone } from '../items/Zones';
-import { createPadModel, createPadSign, createPadTexture, formatCost, setPadSignLabel } from '../assets/pads';
-import { PadRing, playPadCelebrate } from '../fx/PadRing';
+import { createPadModel, createPadSign, createPadTexture, formatCost, hangPriceTag, setPadSignLabel } from '../assets/pads';
+import { PadFeel, PadRing, playPadCelebrate } from '../fx/PadRing';
 import { PAD_CASH_FLIGHT, motionScale } from '../fx/padJuice';
 
 interface PadSlot extends Slot {
@@ -80,6 +82,7 @@ export class UpgradePad implements ItemHolder {
   private readonly model: THREE.Group;
   private readonly sign: THREE.Mesh;
   private readonly ring: PadRing;
+  private readonly feel: PadFeel;
   private readonly tmpPos = new THREE.Vector3();
 
   constructor(
@@ -99,8 +102,10 @@ export class UpgradePad implements ItemHolder {
     this.pulse.add(this.model);
     this.object.add(this.pulse);
     this.sign = createPadSign(def.label);
+    hangPriceTag(this.sign, this.texture);
     this.sign.position.set(0, SIGN_HEIGHT, 0);
     this.object.add(this.sign);
+    this.feel = new PadFeel(ctx, this.model, def.x);
     this.object.position.set(def.x, 0, def.z);
     this.object.visible = false;
     ctx.scene.add(this.object);
@@ -201,10 +206,10 @@ export class UpgradePad implements ItemHolder {
     const t = this.ctx.time.elapsed;
     // debug / restore: the level changed behind our back
     if (this.mode === 'level' && this.upgradeId && this.ctx.upgrades.level(this.upgradeId) !== this.armedLevel) this.syncLevel();
-    const eager = this.remaining > 0 && this.ctx.economy.money >= this.remaining;
-    const amp = (eager ? 0.045 : 0.018) * motionScale();
-    const s = 1 + amp * Math.sin(t * (eager ? 5.5 : 3));
-    this.pulse.scale.set(s, 1 + (s - 1) * 0.5, s);
+    const money = this.ctx.economy.money;
+    const eager = this.remaining > 0 && money >= this.remaining;
+    const canPay = this.pending > 0 || (this.remaining - this.pending > 0 && money >= 5);
+    this.feel.update(dt, t, this.pulse, eager, canPay, this.ctx.zones.isPlayerIn(this.zone.area));
     this.ring.update(dt, t, eager);
     // billboard the sign (plane faces +Z locally) and bob it a little
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
@@ -321,6 +326,7 @@ export class UpgradePad implements ItemHolder {
   private appear(instant: boolean): void {
     this.shown = true;
     this.zone.setEnabled(true);
+    this.feel.reset();
     if (this.mode === 'unlock') this.ctx.state.padsVisible[this.def.id] = true;
     const tw = this.ctx.tweens;
     tw.killTweensOf(this.object);
