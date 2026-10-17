@@ -13,6 +13,8 @@
  *   alpha and the mask is simply ignored.
  */
 import * as THREE from 'three';
+// 0.9.8 sky light (cloud shadows, northern lights on the snow): patches the lit shaders before anything compiles
+import './skyLight';
 
 THREE.ShaderChunk.gradientmap_pars_fragment = THREE.ShaderChunk.gradientmap_pars_fragment.replace(
   'return vec3( texture2D( gradientMap, coord ).r );',
