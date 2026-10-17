@@ -148,6 +148,7 @@ export class Region implements RegionRuntime {
       area: rect(L.shopMat.x, L.shopMat.z, MAT_SIZE.w, MAT_SIZE.d),
       onEnter: () => {
         this.sign.visible = false;
+        ctx.audio.play('padStep', { volume: 0.7 });
         ctx.events.emit('shop:open', { tab: 'crew', era });
       },
       onExit: () => {

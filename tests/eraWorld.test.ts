@@ -19,6 +19,10 @@ vi.mock('../src/assets/pads', () => ({
   createPadModel: () => new THREE.Group(),
   createPadSign: () => new THREE.Mesh(),
   setPadSignLabel: () => undefined,
+  hangPriceTag: () => new THREE.Mesh(),
+  disposePriceTag: () => undefined,
+  padDim: () => undefined,
+  createBuildTexture: () => ({ image: null }),
   createMatModel: () => new THREE.Group(),
   createShopSign: () => new THREE.Mesh(),
 }));
