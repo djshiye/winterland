@@ -312,6 +312,10 @@ export interface PadLook {
   line: number;
   /** The slab's side under the snow rim. */
   side: number;
+  /** How far the slab's foot darkens toward the ink (0..1; default 0.25): a contact shade on pale ground. */
+  foot?: number;
+  /** Strength (0..1) of a band of the side colour painted round the face's edge, just inside the snow rim. */
+  edge?: number;
   /** The round medallion the icon sits on, and its rim. */
   medal: number;
   medalRim: number;
@@ -352,8 +356,9 @@ export const PAD = {
     quilt: { face: 0xf6ead6, faceShade: 0xe9d6bb, patch: [0xe8b4a8, 0xb9cfae, 0xf3d68e, 0xc9b8dc], line: 0xfff8ec, side: 0xc98d6c, medal: CREAM, medalRim: 0xd9a48c },
     // wooden pressure plate: honey pine planks with darker grain and nail heads
     plate: { face: 0xd59a5c, faceShade: 0xbf8048, patch: [0xdca468, 0xc98c50, 0xe2ad72], line: 0x9c6436, side: 0x8f5a33, medal: 0xfff1d6, medalRim: 0x9c6436 },
-    // ice lantern: frosted periwinkle glass with a warm candle heart
-    lantern: { face: 0xd6e4f7, faceShade: 0xb4c8e8, patch: [0xeef4fc, 0xc4d5ee, 0xffe3ad], line: 0xffffff, side: 0x93a9d0, medal: 0xfff2d2, medalRim: 0xf0c27a },
+    // ice lantern: frosted periwinkle glass with a warm candle heart. 0.9.9: a deeper periwinkle side, a darker foot and
+    // a frosty blue band inside the snow rim, so the palest look still stands off the snow-pale ground (village tent pads, eras 8-10)
+    lantern: { face: 0xd6e4f7, faceShade: 0xa7bde6, patch: [0xeef4fc, 0xc4d5ee, 0xffe3ad], line: 0xffffff, side: 0x7690c4, foot: 0.42, edge: 0.65, medal: 0xfff2d2, medalRim: 0xf0c27a },
   } satisfies Record<'quilt' | 'plate' | 'lantern', PadLook>,
 } as const;
 
