@@ -68,6 +68,7 @@ import { formatMoney } from './format';
 import { backOut, cubicOut } from './dom';
 import { reducedMotion, steadyHighlights } from '../fx/comfort';
 import { ICON_MAP, ICON_MARKET } from './icons';
+import { escapeTarget } from './escapeOrder';
 import './hud.css';
 
 export interface FloatTextOptions {
@@ -439,17 +440,57 @@ export class HUD {
 
   /** Esc: close the topmost thing (settings, map, a sheet, the era card), else fold the quest card, else open Settings. */
   private escape(): void {
-    if (this.settings.isOpen) this.settings.close();
-    else if (this.map.visible) this.map.close();
-    else if (this.market.visible) this.market.close();
-    else if (this.gate.visible) this.gate.close();
-    else if (this.choose.visible) this.choose.close();
-    else if (this.manage.visible) this.manage.close();
-    else if (this.shop.visible) this.shop.close();
-    else if (this.build.visible) this.build.close();
-    else if (this.ageCard.visible) this.ageCard.close();
-    else if (!this.quests.isCollapsed && !this.quests.isAllDone) this.quests.setCollapsed(true);
-    else this.settings.open();
+    const target = escapeTarget({
+      seasonConfirm: this.finale.isOpen && this.finale.seasonShown,
+      finale: this.finale.isOpen,
+      settings: this.settings.isOpen,
+      map: this.map.visible,
+      market: this.market.visible,
+      gate: this.gate.visible,
+      choose: this.choose.visible,
+      manage: this.manage.visible,
+      shop: this.shop.visible,
+      build: this.build.visible,
+      ageCard: this.ageCard.visible,
+    });
+    switch (target) {
+      case 'seasonConfirm':
+        this.finale.showSeason(false);
+        break;
+      case 'finale':
+        this.finale.close();
+        break;
+      case 'settings':
+        this.settings.close();
+        break;
+      case 'map':
+        this.map.close();
+        break;
+      case 'market':
+        this.market.close();
+        break;
+      case 'gate':
+        this.gate.close();
+        break;
+      case 'choose':
+        this.choose.close();
+        break;
+      case 'manage':
+        this.manage.close();
+        break;
+      case 'shop':
+        this.shop.close();
+        break;
+      case 'build':
+        this.build.close();
+        break;
+      case 'ageCard':
+        this.ageCard.close();
+        break;
+      default:
+        if (!this.quests.isCollapsed && !this.quests.isAllDone) this.quests.setCollapsed(true);
+        else this.settings.open();
+    }
   }
 
   private static buildArrow(): THREE.Group {

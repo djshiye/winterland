@@ -1,6 +1,9 @@
 /** 0.9.7 comfort and controls: menu navigation picking, the gamepad's dead zone / directions / repeat, rumble. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { nextInDirection, tabIndexAfter, type NavBox } from '../src/input/menuNav';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { ESCAPE_ORDER, escapeTarget } from '../src/ui/escapeOrder';
 import { BTN, deadZone, dirOf, PadReader, PadRepeat, REPEAT_DELAY, REPEAT_EVERY, rumble } from '../src/input/Gamepad';
 
 const box = (x: number, y: number, w = 100, h = 40): NavBox => ({ left: x, top: y, right: x + w, bottom: y + h });
@@ -93,5 +96,33 @@ describe('gamepad', () => {
     vi.stubGlobal('navigator', { getGamepads: () => [pad] });
     rumble(40, 0.5);
     expect(playEffect).toHaveBeenCalledWith('dual-rumble', expect.objectContaining({ duration: 40 }));
+  });
+});
+
+describe('Esc / gamepad B close the topmost menu (0.9.7 + the ending cards)', () => {
+  it('closes the finale / stats card before anything else, so B never opens Settings behind it', () => {
+    expect(ESCAPE_ORDER[0]).toBe('seasonConfirm');
+    expect(ESCAPE_ORDER[1]).toBe('finale');
+    expect(escapeTarget({ finale: true, settings: true, map: true })).toBe('finale');
+    expect(escapeTarget({ finale: true })).toBe('finale');
+  });
+
+  it('with the New Season confirm showing, Esc / B go back to the stats (its Cancel), never start or close', () => {
+    expect(escapeTarget({ seasonConfirm: true, finale: true })).toBe('seasonConfirm');
+  });
+
+  it('keeps the old order for the other menus, and returns null with nothing open', () => {
+    expect(escapeTarget({ settings: true, map: true })).toBe('settings');
+    expect(escapeTarget({ map: true, shop: true })).toBe('map');
+    expect(escapeTarget({ shop: true, build: true, ageCard: true })).toBe('shop');
+    expect(escapeTarget({ ageCard: true })).toBe('ageCard');
+    expect(escapeTarget({})).toBeNull();
+  });
+
+  it('HUD.escape asks escapeTarget and handles every target', () => {
+    const hud = readFileSync(resolve(__dirname, '../src/ui/HUD.ts'), 'utf8').replace(/\r\n/g, '\n');
+    const body = hud.slice(hud.indexOf('  private escape(): void {'), hud.indexOf('  private static buildArrow'));
+    expect(body).toContain('escapeTarget({');
+    for (const k of ESCAPE_ORDER) expect(body).toContain(`case '${k}':`);
   });
 });
