@@ -28,8 +28,9 @@
 
   /* ---- text ---- */
   --wl-ink: color-mix(in oklab, var(--wl-ink-c), var(--wl-cream-c) var(--wl-np));
-  --wl-ink-soft: color-mix(in oklab, color-mix(in oklab, var(--wl-ink-c), var(--wl-cream-c) 38%), color-mix(in oklab, var(--wl-cream-c), var(--wl-night-c) 30%) var(--wl-np));
-  --wl-ink-faint: color-mix(in oklab, color-mix(in oklab, var(--wl-ink-c), var(--wl-cream-c) 58%), color-mix(in oklab, var(--wl-cream-c), var(--wl-night-c) 50%) var(--wl-np));
+  /* day mixes keep 12-13 px text at AA on cards and rows: soft ~5.1:1, faint ~4.6:1 */
+  --wl-ink-soft: color-mix(in oklab, color-mix(in oklab, var(--wl-ink-c), var(--wl-cream-c) 32%), color-mix(in oklab, var(--wl-cream-c), var(--wl-night-c) 30%) var(--wl-np));
+  --wl-ink-faint: color-mix(in oklab, color-mix(in oklab, var(--wl-ink-c), var(--wl-cream-c) 36%), color-mix(in oklab, var(--wl-cream-c), var(--wl-night-c) 50%) var(--wl-np));
   /* the outline of chunky text drawn straight over the world (toasts, floating "+$12") */
   --wl-outline: var(--wl-ink-c);
 

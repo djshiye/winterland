@@ -685,9 +685,14 @@ export class HUD {
     return this.finale;
   }
 
+  /** 0.9.8: centre toasts wait while the finale hush or the era postcard is on screen (they never land on a card). */
+  private get toastHush(): boolean {
+    return finaleQuiet() || this.ageCard.visible;
+  }
+
   /** Centred celebration text that pops in and fades out. Toasts arriving right after another one queue up. */
   toast(title: string, opts?: { sub?: string; duration?: number; small?: boolean }): void {
-    if (finaleQuiet()) {
+    if (this.toastHush) {
       if (this.toastHeld.length < 3) this.toastHeld.push({ title, opts });
       return;
     }
@@ -913,7 +918,7 @@ export class HUD {
   }
 
   private updateToast(dt: number): void {
-    if (this.toastHeld.length > 0 && !finaleQuiet()) {
+    if (this.toastHeld.length > 0 && !this.toastHush) {
       const held = this.toastHeld.shift()!;
       this.toast(held.title, held.opts);
     }
