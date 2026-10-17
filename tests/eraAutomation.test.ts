@@ -188,8 +188,11 @@ describe('machine level upgrades', () => {
       expect(-p.u - half, `era ${n}`).toBeGreaterThan(MACHINE_NOMINAL.w / 2); // off the machine
       expect(-p.u + half, `era ${n}`).toBeLessThan(L.cell / 2); // inside the cell
       expect(Math.abs(p.v) + half).toBeLessThanOrEqual(MACHINE_NOMINAL.d / 2 + 0.01);
-      // the MANAGE zone is on the other side
-      expect(machineFrame(MACHINE_NOMINAL.w, MACHINE_NOMINAL.d).manage.u0).toBeGreaterThan(0);
+      // 0.9.9: the MANAGE zone shares its side (the camera's), behind it toward the machine's back, never on it
+      const m = machineFrame(MACHINE_NOMINAL.w, MACHINE_NOMINAL.d).manage;
+      expect(m.u1).toBeLessThan(-MACHINE_NOMINAL.w / 2);
+      expect(-m.u0, `era ${n}`).toBeLessThan(L.cell / 2);
+      expect(m.v1).toBeLessThan(p.v - half);
     }
   });
 });
@@ -262,9 +265,12 @@ describe('conveyor belts (planBelts)', () => {
       const frame = machineFrame(MACHINE_NOMINAL.w, MACHINE_NOMINAL.d);
       expect(BELT_LANE - 0.35).toBeGreaterThan(frame.feed.v1);
       expect(BELT_LANE + 0.35).toBeLessThan(L.rowPitch / 2);
-      // a corridor belt on the MANAGE side of the boundary, clear of the next machine's level pad
+      // a corridor belt on the +u side of the boundary (clear of that machine's body), clear of the next machine's
+      // level pad and MANAGE zone on the other side
       const pad = levelPadLocal(MACHINE_NOMINAL.w, MACHINE_NOMINAL.d);
-      expect(L.cell / 2 - CORRIDOR_OFFSET - 0.35).toBeGreaterThanOrEqual(frame.manage.u1 - 0.01);
+      expect(L.cell / 2 - CORRIDOR_OFFSET - 0.35).toBeGreaterThan(MACHINE_NOMINAL.w / 2);
+      expect(L.cell / 2 - CORRIDOR_OFFSET + 0.35).toBeLessThan(L.cell + frame.manage.u0);
+      expect(L.cell / 2 - CORRIDOR_OFFSET + 0.35).toBeLessThan(L.cell + pad.u - LEVEL_PAD_SIZE / 2);
       expect(L.cell / 2 + CORRIDOR_OFFSET + 0.35).toBeLessThan(L.cell + pad.u - LEVEL_PAD_SIZE / 2 + L.cell / 2);
     }
   });

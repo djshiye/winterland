@@ -75,7 +75,9 @@ export function machineFrame(w: number, d: number): MachineFrame {
     outPile: { u: PILE_OUT_U, v: pv },
     feed: { u0: -PILE_U - 0.9, u1: -PILE_U + 0.9, v0: front + 0.2, v1: front + 1.8 },
     take: { u0: PILE_OUT_U - 1.0, u1: PILE_OUT_U + 1.0, v0: front + 0.2, v1: front + 1.8 },
-    manage: { u0: w / 2 + 0.4, u1: w / 2 + 1.4, v0: -0.6, v1: 0.6 },
+    // 0.9.9: on the level pad's side, at the back corner (the corner nearest the camera, which sits toward +X/+Z while
+    // machines face the gate, north): the MANAGE board stands in plain sight instead of behind the machine
+    manage: { u0: -w / 2 - 1.4, u1: -w / 2 - 0.4, v0: -d / 2, v1: -d / 2 + 1.2 },
     feedSpot: { u: -PILE_U, v: pv + 0.75 },
     takeSpot: { u: PILE_OUT_U, v: pv + 0.75 },
     door: { u: 0, v: front, y: 1.0 },
