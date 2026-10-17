@@ -7,7 +7,8 @@
  *   label sits under each one.
  * - `?gallery` shows everything; `?gallery=<domain>` (e.g. items, machines) or `?gallery=<asset>` /
  *   `?gallery=<domain>/<asset>` focuses a subset. `&spin` turns every asset slowly; `&zoom=<k>`
- *   multiplies the auto-fit zoom. Mouse: drag = pan, wheel = zoom.
+ *   multiplies the auto-fit zoom. Mouse: drag = pan, wheel = zoom. 0.9.8: `&era=<n>` shows that era's light and grade,
+ *   `&night` lights it at full night (glows on), so art can be checked day and night.
  * - A catalog object (or any child) may set `userData.galleryAnimate = (dt) => …`; it runs every frame,
  *   so machines show their moving part (e.g. ?gallery=eraMachines2).
  * - Installs window.__WINTERLAND__ with pause / resume / simulate(seconds) / state() / render() so
@@ -21,6 +22,7 @@ import type { DebugApi } from '../game/Game';
 import { CameraRig } from '../render/CameraRig';
 import { GAME_FONT, basic, geo, makeCanvasTexture, mesh, toon } from '../render/materials';
 import { Renderer } from '../render/Renderer';
+import { updateGlow } from '../world/env/glow';
 
 interface Cell {
   domain: string;
@@ -58,6 +60,12 @@ export class Gallery {
     const zoomMul = Number(params.get('zoom')) || 1;
 
     this.renderer = new Renderer(this.app);
+    const era = Number(params.get('era'));
+    if (era >= 1) this.renderer.setEra(era, true);
+    if (params.has('night')) {
+      this.renderer.onDarkness((d) => updateGlow(d));
+      this.renderer.setDarkness(1);
+    }
     this.rig = new CameraRig(this.renderer.camera);
     const scene = this.renderer.scene;
 

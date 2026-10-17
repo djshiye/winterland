@@ -821,8 +821,15 @@ export function createEra5to7MachineModel(id: Era5to7MachineId): MachineModel {
         break;
     }
   };
-  return { root, w: built.w, d: built.d, animate };
+  const v = VENTS[id];
+  return { root, w: built.w, d: built.d, animate, ...(v ? { vents: v, ventColor: 0xf2ece6 } : {}) };
 }
+
+/** 0.9.8 (era 5): stack tops that puff while working (eras/Machine.ts). */
+const VENTS: Partial<Record<Era5to7MachineId, V3[]>> = {
+  rollingMill: [[1.55, 5.4, -1.75]],
+  plowWorks: [[-1.6, 5.1, -1.9]],
+};
 
 // ---------------------------------------------------------------------------
 // gallery catalog (?gallery=eraMachines3, or one era sheet: ?gallery=era5new)
