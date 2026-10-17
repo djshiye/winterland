@@ -22,11 +22,12 @@ import * as THREE from 'three';
 import { CREW, LAYOUT, PLAYER, PRIORITIES, type Rect, type TownPriority, type WoodPriority, type XZ } from '../config';
 import { approach, dampAngle, yawFromDir } from '../core/math';
 import type { CrewRole } from '../core/crew';
-import { PORTER_VARIANT } from '../assets/characters';
+import { PORTER_VARIANT, characterScale } from '../assets/characters';
+import { createWorkerModel } from '../assets/eraWorkers';
 import { LOT_COUNT, type GameContext, type Item, type ItemHolder, type ItemKind, type Slot } from '../core/types';
 import { CarryStack } from '../items/CarryStack';
 import { transferOne } from '../items/transfer';
-import { createCharacterRig, type CharacterRig } from '../render/characters';
+import { CharacterRig } from '../render/characters';
 import type { Level } from '../level/Level';
 import type { CashPile } from '../stations/CashPile';
 import type { Business } from '../town/Business';
@@ -230,6 +231,9 @@ export abstract class Helper {
   /** Walk-out delay: invisible and frozen until it runs out, then `onRelease` fires (staggered arrivals). */
   hold = 0;
   private disposing = false;
+  /** 0.9.8: stack size last frame and seconds of work motion left (goods changed hands at a station). */
+  private handled = 0;
+  private workT = 0;
   private gone = false;
   onRelease: (() => void) | null = null;
   /** Metres along the lane line (perpendicular to the post's look direction) this helper stands off the post. */
@@ -242,8 +246,8 @@ export abstract class Helper {
     readonly index: number,
     accepts: readonly ItemKind[],
   ) {
-    // porters have their own model (variant >= PORTER_VARIANT, the index only varies the build); the rest cycle 0..2
-    this.rig = createCharacterRig('worker', id === 'porter' ? PORTER_VARIANT + index : (VARIANT[id] + index) % 3);
+    // 0.9.8: each crew wears its role kit (assets/characters.ts CREW_ROLE_KIT); the index varies skin, hair and face
+    this.rig = new CharacterRig(createWorkerModel(index + VARIANT[id], id), { scale: characterScale(VARIANT[id] + index + 307) });
     this.laneStep = LANE_STEP[Math.min(index, LANE_STEP.length - 1)]!;
     this.group.add(this.rig.root);
     this.group.name = index === 0 ? `crew:${id}` : `crew:${id}:${index}`;
@@ -331,6 +335,11 @@ export abstract class Helper {
     this.timer -= dt;
     this.think(dt);
     this.step(dt);
+    // 0.9.8: handing goods on or off at a station plays the role's work motion
+    if (this.stack.size !== this.handled) this.workT = 0.8;
+    this.handled = this.stack.size;
+    this.workT -= dt;
+    this.rig.setWorking(this.workT > 0 && !this.moving);
     this.rig.setCarrying(this.stack.size > 0);
     this.rig.animate(dt, this.speed / PLAYER.speed);
     this.stack.update(dt, this.velocity);

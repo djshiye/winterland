@@ -21,7 +21,7 @@ import { Rng } from '../common';
 import { pineGeo, pineTallGeo } from '../props';
 import { nodePatch, regionPaths } from '../frontier';
 import type { EraGroundModule, GroundKit } from '../eraGround';
-import { around, beltSpots, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
+import { around, beltSpots, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, sightKeep, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
 
 const T = MACHINE_TONES[4];
 const P4 = palette(4);
@@ -213,7 +213,7 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
   });
 
   // the harvest zone: coal seams in the snow, coal heaps, scrap piles, a steam main
-  const avoid = [nodePatch(l), ...keep, ...paths, ...spots.map((s) => around(s.x, s.z, 1.6))];
+  const avoid = [nodePatch(l), ...keep, ...paths, ...spots.map((s) => around(s.x, s.z, 1.6)), ...sightKeep(l, 3)];
   const taken: { x: number; z: number; r: number }[] = [];
   for (const p of harvestSpots(l, P, avoid, rng, 1, 2.2, taken)) kit.put('steamPipe', steamPipeGeo, { x: p.x, z: p.z });
   for (const p of harvestSpots(l, P, avoid, rng, 4, 1.4, taken)) kit.put('coalHeap', coalHeapGeo, { x: p.x, z: p.z, ry: rng.range(0, 6.28), sx: rng.range(0.85, 1.1) });

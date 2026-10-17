@@ -25,7 +25,7 @@ import { Rng } from '../common';
 import { pineGeo, pineTallGeo } from '../props';
 import { nodePatch, regionPaths } from '../frontier';
 import type { EraGroundModule, GroundKit } from '../eraGround';
-import { around, beltSpots, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
+import { around, beltSpots, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, sightKeep, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
 
 const T = MACHINE_TONES[7];
 const P7 = palette(7);
@@ -213,7 +213,7 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
   });
 
   // the harvest zone: barrel racks, pumpjacks, amber crude seeps in the snow
-  const avoid = [nodePatch(l), ...keep, ...paths, ...spots.map((s) => around(s.x, s.z, 1.6))];
+  const avoid = [nodePatch(l), ...keep, ...paths, ...spots.map((s) => around(s.x, s.z, 1.6)), ...sightKeep(l, 3)];
   const taken: { x: number; z: number; r: number }[] = [];
   for (const p of harvestSpots(l, P, avoid, rng, 2, 1.7, taken)) kit.put('pumpjack', pumpjackGeo, { x: p.x, z: p.z, ry: rng.pick([0, Math.PI]) });
   for (const p of harvestSpots(l, P, avoid, rng, 4, 1.2, taken)) kit.put('barrels', barrelsGeo, { x: p.x, z: p.z, ry: rng.range(-0.4, 0.4) });
