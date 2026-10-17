@@ -30,6 +30,18 @@ export function slab(b: Batch, color: number, x: number, z: number, w: number, d
   b.add(BOX(), color, x, top - h / 2, z, { sx: w, sy: h, sz: d, ry });
 }
 
+/** How far toward −X / −Z a solid of height h hides the ground from the isometric camera (pitch 48°). */
+export const camReach = (h: number): number => h / Math.tan((48 * Math.PI) / 180) / Math.SQRT2;
+
+/**
+ * True when a piece of radius r and height h at (x, z) stays off rect q and its camera shadow (the ground it hides
+ * toward −X / −Z) misses q too: q grown by the reach on its +X / +Z sides.
+ */
+export function clearOf(q: Rect, x: number, z: number, r: number, h: number, m = 0.4): boolean {
+  const reach = camReach(h);
+  return !(x > q.minX - r - m && x < q.maxX + reach + r + m && z > q.minZ - r - m && z < q.maxZ + reach + r + m);
+}
+
 /** True when (x, z) lies within `m` of rect q. */
 export const near = (q: Rect, x: number, z: number, m = 0): boolean => x > q.minX - m && x < q.maxX + m && z > q.minZ - m && z < q.maxZ + m;
 
@@ -144,14 +156,14 @@ export function lantern(k: GroundKit, x: number, z: number, style: 'stone' | 'ir
     s.add(BOX(), shade(c.body, 0.9), x, 0.12, z, { sx: 0.62, sy: 0.24, sz: 0.62 });
     s.add(geo.cylinder(0.13, 0.16, 0.7, 8), c.body, x, 0.59, z);
     s.add(BOX(), c.body, x, 0.98, z, { sx: 0.56, sy: 0.08, sz: 0.56 });
-    k.glow.add(BOX(), c.light, x, 1.18, z, { sx: 0.38, sy: 0.32, sz: 0.38 });
+    k.glow.add(BOX(), c.light, x, 1.18, z, { sx: 0.44, sy: 0.34, sz: 0.44 });
     s.add(geo.cone(0.5, 0.28, 4), shade(c.body, 0.85), x, 1.48, z, { ry: Math.PI / 4 });
     s.add(geo.cone(0.38, 0.16, 4), SNOW, x, 1.6, z, { ry: Math.PI / 4 });
     k.lamps.push({ x, y: 1.2, z, size: 1.5, pool: 4.2 });
   } else if (style === 'iron') {
     s.add(geo.cylinder(0.06, 0.08, 1.6, 6), c.dark, x, 0.8, z);
     s.add(BOX(), c.dark, x, 1.62, z, { sx: 0.42, sy: 0.05, sz: 0.42 });
-    k.glow.add(BOX(), c.light, x, 1.8, z, { sx: 0.3, sy: 0.32, sz: 0.3 });
+    k.glow.add(BOX(), c.light, x, 1.8, z, { sx: 0.34, sy: 0.34, sz: 0.34 });
     for (const [dx, dz] of [[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]] as const) s.add(BOX(), c.dark, x + dx, 1.8, z + dz, { sx: 0.04, sy: 0.36, sz: 0.04 });
     s.add(geo.cone(0.3, 0.2, 4), c.dark, x, 2.06, z, { ry: Math.PI / 4 });
     s.add(geo.cone(0.22, 0.1, 4), SNOW, x, 2.13, z, { ry: Math.PI / 4 });
