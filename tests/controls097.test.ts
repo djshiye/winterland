@@ -101,8 +101,10 @@ describe('gamepad', () => {
 
 describe('Esc / gamepad B close the topmost menu (0.9.7 + the ending cards)', () => {
   it('closes the finale / stats card before anything else, so B never opens Settings behind it', () => {
-    expect(ESCAPE_ORDER[0]).toBe('seasonConfirm');
-    expect(ESCAPE_ORDER[1]).toBe('finale');
+    // (0.9.8: only the update card / changelog sits above it)
+    expect(ESCAPE_ORDER[0]).toBe('update');
+    expect(ESCAPE_ORDER[1]).toBe('seasonConfirm');
+    expect(ESCAPE_ORDER[2]).toBe('finale');
     expect(escapeTarget({ finale: true, settings: true, map: true })).toBe('finale');
     expect(escapeTarget({ finale: true })).toBe('finale');
   });

@@ -25,12 +25,16 @@
  *   the real browser); every permission request (camera, microphone, notifications...) is denied;
  * - a crashed page reloads once, then explains itself instead of showing a blank window;
  * - packaging (scripts/package-desktop.mjs) turns off Electron's Node-as-a-program switches with fuses.
+ *
+ * 0.9.8: the in-game updater (desktop/updater.cjs) is the only part of the app that reaches the network, from this
+ * main process; the page itself stays offline.
  */
 const fs = require('node:fs');
 const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, screen, session, shell } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { CSP, distFile, fullscreenOptions, isAppUrl, isFullscreenKey } = require('./window-options.cjs');
+const { registerUpdater } = require('./updater.cjs');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const DEFAULT_SIZE = { width: 1280, height: 800 };
@@ -248,6 +252,8 @@ ipcMain.on('desktop:quit', (event) => {
   if (!isAppUrl(event.senderFrame?.url ?? '')) return;
   app.quit();
 });
+// 0.9.8 in-game updater (desktop/updater.cjs): 'update:*' channels; nothing is contacted until the page asks.
+registerUpdater();
 
 app.whenReady().then(() => {
   // No menu bar in the game window; macOS keeps just the app menu (Hide, Quit), View > Enter Full Screen and the
