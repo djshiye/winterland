@@ -27,6 +27,7 @@ import { basic } from '../render/materials';
 import type { FlightOptions } from './FlightSystem';
 import type { CashStack } from './CashStack';
 import { transferCash, transferOne } from './transfer';
+import { steadyHighlights } from '../fx/comfort';
 
 export interface ZoneOptions {
   id: string;
@@ -352,7 +353,8 @@ export class ZoneSystem {
 
   private animateMarker(z: Zone, inside: boolean, dt: number): void {
     z.markerLevel = damp(z.markerLevel, inside ? 1 : 0, 14, dt);
-    const pulse = inside ? 0.12 * Math.sin(this.ctx.time.elapsed * 9) : 0;
+    // 0.9.7: the marker glows steady with calmer effects / Reduce motion (it used to flicker at 9 rad/s)
+    const pulse = inside && !steadyHighlights() ? 0.12 * Math.sin(this.ctx.time.elapsed * 9) : 0;
     z.markerMaterial!.opacity = MARKER_IDLE_OPACITY + z.markerLevel * (0.62 - MARKER_IDLE_OPACITY) + pulse * z.markerLevel;
   }
 }

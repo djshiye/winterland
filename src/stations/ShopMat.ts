@@ -65,7 +65,7 @@ export class ShopMat {
     ctx.events.on('upgrade:bought', () => {
       if (!this.on || !this.shown) return;
       this.ring.flash();
-      ctx.tweens.squash(this.object, 0.12 * motionScale(), 0.42);
+      ctx.tweens.squash(this.object, 0.12, 0.42);
       ctx.events.emit('pad:complete', { id: 'shop:mat', kind: 'level', position: this.object.position.clone() });
     });
     if (ctx.state.flags.shopRevealed) this.show(true);

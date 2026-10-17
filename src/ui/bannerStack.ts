@@ -11,9 +11,12 @@
  * Toasts follow through two CSS variables on the layer: --wl-banner-bottom (wide: the big centre toast starts below the
  *   column) and --wl-pill-stack (phones: the small bottom toast sits above the pills).
  *
+ * 0.9.7: everything is laid out in the banners' own px (screen px ÷ the Interface size, fx/comfort uiScale).
  * Pure layout in `freeSpan` / `centreIn` (tests/bannerStack.test.ts); BannerStack does the DOM reads and writes,
  * a few times a second (HUD.update), touching only `left`, `max-width` and the computed `top` / `bottom`.
  */
+
+import { uiScale } from '../fx/comfort';
 
 export interface Box {
   left: number;
@@ -77,9 +80,12 @@ export class BannerStack {
     this.acc += dt;
     if (this.acc < INTERVAL) return;
     this.acc = 0;
-    const width = this.layer.clientWidth;
-    if (width <= 0) return;
-    const phone = width <= PHONE_MAX;
+    const screenW = this.layer.clientWidth;
+    if (screenW <= 0) return;
+    const phone = screenW <= PHONE_MAX;
+    // 0.9.7: the banners are zoomed by the Interface size (ui/comfort.css), so lay out in their own (unzoomed) px
+    const k = uiScale();
+    const width = screenW / k;
     if (phone !== this.phone) {
       // a resize across the breakpoint: back to the stylesheet's spots before laying out the other way
       for (const el of [this.objective, this.rush, this.event]) {
@@ -93,17 +99,18 @@ export class BannerStack {
       this.layer.style.removeProperty('--wl-pill-stack');
     }
     if (phone) this.layoutPhone();
-    else this.layoutWide(width);
+    else this.layoutWide(width, screenW);
   }
 
-  private layoutWide(width: number): void {
+  private layoutWide(width: number, screenW: number): void {
+    const k = screenW / width;
     const obstacles: Box[] = [];
     for (const child of Array.from(this.layer.children) as HTMLElement[]) {
       if (IGNORE.test(child.className) || !shown(child)) continue;
       const r = child.getBoundingClientRect();
       // full-screen sheets and modals are not something to dodge
-      if (r.width < 2 || r.height < 2 || r.width > width * 0.6) continue;
-      obstacles.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+      if (r.width < 2 || r.height < 2 || r.width > screenW * 0.6) continue;
+      obstacles.push({ left: r.left / k, top: r.top / k, right: r.right / k, bottom: r.bottom / k });
     }
     const margin = 12;
     // the column starts where the stylesheet puts the objective (top only: its transform is the fade-in tween)
@@ -132,7 +139,7 @@ export class BannerStack {
   }
 
   private layoutPhone(): void {
-    const height = this.layer.clientHeight;
+    const height = this.layer.clientHeight / uiScale();
     // the rush pill keeps its stylesheet spot; the event goes right above it while both show
     let stackTop = Infinity;
     if (shown(this.rush)) stackTop = this.rush.offsetTop;

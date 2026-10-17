@@ -1,10 +1,11 @@
 /**
  * Wave 10b: the "Hold to pick up" / "Hold to pay" chip. A small pill above the player (the followed player always sits
  * at the screen centre, so a fixed spot over their head is enough: bottom 50% + 70 px) that shows while 'interact:prompt' says the player stands in a gated
- * zone with something to take or pay. Fine pointers get a keycap `E`, touch gets a press icon. It fades / scales in 150 ms
+ * zone with something to take or pay. Fine pointers get a keycap `E` (`A` with a gamepad, 0.9.7), touch gets a press icon. It fades / scales in 150 ms
  * from update(dt) (simulation time) and never shows while a modal (settings / shop / build) is open. pointer-events: none.
  */
 import type { GameContext } from '../core/types';
+import { usingGamepad } from '../input/Gamepad';
 import { h } from './dom';
 
 const FADE = 0.15;
@@ -60,6 +61,9 @@ export class InteractChip {
   }
 
   private paintText(): void {
+    // 0.9.7: the keycap says A while the player plays with a gamepad
+    const key = this.el.querySelector('.wl-chip-key');
+    if (key) key.textContent = usingGamepad() ? 'A' : 'E';
     this.text.textContent = this.kind === 'pay' ? 'Hold to pay' : 'Hold to pick up';
   }
 
