@@ -14,6 +14,27 @@ contextBridge.exposeInMainWorld('winterlandDesktop', {
   quit: () => {
     ipcRenderer.send('desktop:quit');
   },
+  // 0.9.8 in-game updater (desktop/updater.cjs); the main process checks every request comes from the game page.
+  updates: {
+    info: () => ipcRenderer.invoke('update:info'),
+    check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
+    cancel: () => {
+      ipcRenderer.send('update:cancel');
+    },
+    install: () => ipcRenderer.invoke('update:install'),
+    openPage: () => {
+      ipcRenderer.send('update:openPage');
+    },
+    onProgress: (cb) => {
+      if (typeof cb !== 'function') return () => {};
+      const listener = (_event, p) => cb({ got: Number(p?.got) || 0, total: Number(p?.total) || 0 });
+      ipcRenderer.on('update:progress', listener);
+      return () => {
+        ipcRenderer.removeListener('update:progress', listener);
+      };
+    },
+  },
   onWindowMode: (cb) => {
     if (typeof cb !== 'function') return () => {};
     const listener = (_event, mode) => cb(mode);

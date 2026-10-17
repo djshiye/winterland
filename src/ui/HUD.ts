@@ -71,6 +71,7 @@ import { ICON_MAP, ICON_MARKET } from './icons';
 import { escapeTarget } from './escapeOrder';
 import { installTheme, NightTone, setEraAccent } from './theme';
 import './tokens.css';
+import { UpdateCard } from './UpdateCard';
 import './hud.css';
 import { ICON_INK } from './iconKit';
 import { CREAM, GOLD } from '../render/palette';
@@ -158,6 +159,7 @@ export class HUD {
   private readonly village: VillageBadge;
   private readonly seasonBadge: SeasonBadge;
   private readonly finale: FinaleCard;
+  private readonly updates: UpdateCard;
   private readonly quests: QuestPanel;
   private readonly rushBanner: RushBanner;
   /** Wave 13: the delivery contract card under the quests. */
@@ -325,6 +327,20 @@ export class HUD {
     this.offline = new OfflineCard(ctx, layer);
     this.notices = new NoticeCard(ctx, layer); // 0.9.6 save notices (after the offline card, so it sits above it)
     this.finale = new FinaleCard(ctx, layer);
+    // 0.9.8 the update card and the changelog (last, so it sits above the others; it waits until they are closed)
+    this.updates = new UpdateCard(ctx, layer);
+    this.updates.busy = () =>
+      this.anyModalOpen ||
+      this.finale.isOpen ||
+      Array.from(layer.querySelectorAll<HTMLElement>('.wl-modal')).some((el) => !el.classList.contains('wl-update-modal') && el.style.display !== 'none');
+    this.settings.onCheckUpdates = () => {
+      this.settings.close();
+      this.updates.checkNow();
+    };
+    this.settings.onWhatsNew = () => {
+      this.settings.close();
+      this.updates.showWhatsNew();
+    };
 
     this.chip = new InteractChip(ctx, layer, () => this.anyModalOpen);
 
@@ -454,6 +470,7 @@ export class HUD {
   /** Esc: close the topmost thing (settings, map, a sheet, the era card), else fold the quest card, else open Settings. */
   private escape(): void {
     const target = escapeTarget({
+      update: this.updates.isOpen,
       seasonConfirm: this.finale.isOpen && this.finale.seasonShown,
       finale: this.finale.isOpen,
       settings: this.settings.isOpen,
@@ -467,6 +484,9 @@ export class HUD {
       ageCard: this.ageCard.visible,
     });
     switch (target) {
+      case 'update':
+        this.updates.escape();
+        break;
       case 'seasonConfirm':
         this.finale.showSeason(false);
         break;
@@ -600,6 +620,11 @@ export class HUD {
     this.notices.show(n);
   }
 
+  /** 0.9.8: the update card and changelog (Game starts it after the save notices; tests). */
+  get updateCard(): UpdateCard {
+    return this.updates;
+  }
+
   /** Notice card (tests / debug). */
   get noticeCard(): NoticeCard {
     return this.notices;
@@ -716,6 +741,7 @@ export class HUD {
     this.offline.update(dt);
     this.notices.update(dt);
     this.finale.update(dt);
+    this.updates.update(dt);
     this.quests.update(dt);
     this.rushBanner.update(dt);
     this.contractCard.update(dt);
