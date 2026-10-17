@@ -9,14 +9,16 @@ import { SNOW, mixHex, palette } from '../../../render/palette';
 import { plotPlaces } from '../../../eras/layout';
 import { regionPaths } from '../frontier';
 import { geo } from '../../../render/materials';
-import { beltSpots, greenBorder, boule, cellMarks, cypress, dune, harvestFree, inset, pathLamp, pathLampSpots, slab, solarRow, terrazzo, FLOOR_Y } from './lateKit';
+import { beltSpots, greenBorder, boule, cellMarks, cypress, dune, harvestFree, inset, pathLamp, pathLampSpots, slab, solarRow, terrazzo, FLOOR_Y, beltSnow, harvestDrifts, snowVerge } from './lateKit';
 
 const N = 8;
 
 export const era08: EraGroundModule = {
   wild(k, l, rng) {
     const P = plotPlaces(N);
-    for (const t of beltSpots(l, 4.6, rng)) cypress(k.solid, t.x, t.z, t.s, rng);
+    const belt = beltSpots(l, 4.6, rng);
+    for (const t of belt) cypress(k.solid, t.x, t.z, t.s, rng);
+    beltSnow(k.solid, belt, rng);
     const H = l.zones.harvest;
     const placed: { x: number; z: number; r: number }[] = [];
     // solar rows: a tidy array on the harvest ground, rows 3.4 m apart
@@ -42,6 +44,8 @@ export const era08: EraGroundModule = {
       placed.push({ x, z: farZ, r: 2.0 });
       dune(k.solid, x, farZ, rng.range(0.7, 1.0), rng.range(-0.3, 0.3));
     }
+    // snow drifts in the gaps, so the harvest ground stays a snowfield between the props
+    harvestDrifts(k.solid, l, P, rng, placed, 12);
   },
 
   open(k, l, P, rng) {
@@ -70,6 +74,8 @@ export const era08: EraGroundModule = {
         else k.floor.add(geo.box(0.14, 0.004, q.maxZ - q.minZ), p.accent, s < 0 ? q.minX + 0.07 : q.maxX - 0.07, FLOOR_Y + 0.006, (q.minZ + q.maxZ) / 2);
       }
     }
+    // every floor sits in the snow: white verges with soft drifts heaped along them
+    for (const q of [inset(Z.yard, 0.6), inset(Z.processing, 0.6), inset(Z.market, 0.8), inset(Z.huts, 0.8)]) if (q) snowVerge(k.solid, l, q, rng);
     greenBorder(k.solid, k.glow, N, P);
     for (const s of pathLampSpots(l, 10)) {
       pathLamp(k.solid, k.glow, N, s.x, s.z);

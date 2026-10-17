@@ -86,6 +86,11 @@ export class Batch {
     return this.parts.length === 0;
   }
 
+  /** Bounds of every part added so far, in the batch's coordinates (placement guards in tests read these; nothing is consumed). */
+  bounds(): THREE.Box3[] {
+    return this.parts.map((p) => new THREE.Box3().setFromBufferAttribute(p.getAttribute('position') as THREE.BufferAttribute));
+  }
+
   /** Merge into a single geometry (the batch is consumed). */
   geometry(flat = false): THREE.BufferGeometry {
     const merged = mergeGeometries(this.parts, false);

@@ -183,9 +183,9 @@ const FLOORS: readonly [yard: number, processing: number, light: number, board: 
   [0xb8613f, 0x8a6a5c, 0xffd166, 0xbac4d0], // herringbone brick, pellet-grey yard; sodium lamps
   [0x5f8f86, 0x8fb0aa, 0x7ce8c8, 0xb4c0cc], // teal cobbles; mint bulbs on the wires
   [0x5e5753, 0xe2ad3c, 0xffaa5a, 0xaebac6], // warm asphalt with honey lanes; flare peach
-  [0xe6d4b0, 0xd2bf98, 0x66e0a3, 0xd9cbb0], // beige terrazzo, sand; screen mint; a warm sand-snow board
-  [0x9ccbb6, 0xc8e6d8, 0x70f5d9, 0xb9d6cb], // mint-glazed concrete; aqua pools; a mint-snow board
-  [0xf3ead8, 0xe8a848, 0xffe082, 0xd4cde6], // cream hex panels with gold seams; sun-gold fusion glow; a lilac-snow board
+  [0xe6d4b0, 0xd2bf98, 0x66e0a3, 0xece4d6], // beige terrazzo, sand; screen mint; a warm sand-snow board
+  [0x9ccbb6, 0xc8e6d8, 0x70f5d9, 0xdcece5], // mint-glazed concrete; aqua pools; a mint-snow board
+  [0xf3ead8, 0xe8a848, 0xffe082, 0xe6e1f0], // cream hex panels with gold seams; sun-gold fusion glow; a lilac-snow board
 ];
 
 /**

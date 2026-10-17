@@ -9,14 +9,16 @@ import { SNOW, mixHex, palette } from '../../../render/palette';
 import { plotPlaces } from '../../../eras/layout';
 import { regionPaths } from '../frontier';
 import { geo } from '../../../render/materials';
-import { aquaPool, beltSpots, greenBorder, cask, cellMarks, crystalCluster, harvestFree, inset, mintGlaze, mintPine, pathLamp, pathLampSpots, slab, FLOOR_Y } from './lateKit';
+import { aquaPool, beltSpots, greenBorder, cask, cellMarks, crystalCluster, harvestFree, inset, mintGlaze, mintPine, pathLamp, pathLampSpots, slab, FLOOR_Y, beltSnow, harvestDrifts, snowVerge } from './lateKit';
 
 const N = 9;
 
 export const era09: EraGroundModule = {
   wild(k, l, rng) {
     const P = plotPlaces(N);
-    for (const t of beltSpots(l, 4.2, rng)) mintPine(k.solid, t.x, t.z, t.s, rng);
+    const belt = beltSpots(l, 4.2, rng);
+    for (const t of belt) mintPine(k.solid, t.x, t.z, t.s, rng);
+    beltSnow(k.solid, belt, rng);
     const H = l.zones.harvest;
     const placed: { x: number; z: number; r: number }[] = [];
     // a line of cooling pools down the middle of the harvest ground
@@ -46,6 +48,8 @@ export const era09: EraGroundModule = {
       cask(k.solid, x + 0.8, z + 0.2, 0.8);
       cask(k.solid, x + 0.3, z + 0.8, 0.85);
     }
+    // snow drifts in the gaps, so the harvest ground stays a snowfield between the props
+    harvestDrifts(k.solid, l, P, rng, placed, 12);
   },
 
   open(k, l, P, rng) {
@@ -68,6 +72,8 @@ export const era09: EraGroundModule = {
         else k.floor.add(geo.box(0.16, 0.004, q.maxZ - q.minZ), p.accent, s < 0 ? q.minX + 0.08 : q.maxX - 0.08, FLOOR_Y + 0.006, (q.minZ + q.maxZ) / 2);
       }
     }
+    // every floor sits in the snow: white verges with soft drifts heaped along them
+    for (const q of [inset(Z.yard, 0.6), inset(Z.processing, 0.6), inset(Z.market, 0.8), inset(Z.huts, 0.8)]) if (q) snowVerge(k.solid, l, q, rng);
     greenBorder(k.solid, k.glow, N, P);
     for (const s of pathLampSpots(l, 10)) {
       pathLamp(k.solid, k.glow, N, s.x, s.z);

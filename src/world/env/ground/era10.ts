@@ -12,7 +12,7 @@ import { SNOW, mixHex, palette } from '../../../render/palette';
 import { plotPlaces } from '../../../eras/layout';
 import { regionPaths } from '../frontier';
 import { geo } from '../../../render/materials';
-import { beltSpots, greenBorder, cellMarks, flask, fusionHalo, geode, geodeTree, harvestFree, hexGold, inset, pathLamp, pathLampSpots, slab, FLOOR_Y } from './lateKit';
+import { beltSpots, greenBorder, cellMarks, flask, fusionHalo, geode, geodeTree, harvestFree, hexGold, inset, pathLamp, pathLampSpots, slab, FLOOR_Y, beltSnow, harvestDrifts, snowVerge } from './lateKit';
 
 const N = 10;
 
@@ -35,7 +35,9 @@ export const era10: EraGroundModule = {
 
   wild(k, l, rng) {
     const P = plotPlaces(N);
-    for (const t of beltSpots(l, 4.8, rng)) geodeTree(k.solid, k.glow, t.x, t.z, t.s, rng);
+    const belt = beltSpots(l, 4.8, rng);
+    for (const t of belt) geodeTree(k.solid, k.glow, t.x, t.z, t.s, rng);
+    beltSnow(k.solid, belt, rng);
     const H = l.zones.harvest;
     const h = haloSpot(l);
     const placed: { x: number; z: number; r: number }[] = [{ x: h.x, z: h.z, r: 3.2 }];
@@ -58,6 +60,8 @@ export const era10: EraGroundModule = {
       placed.push({ x, z, r: 1.3 });
       for (let i = -1; i <= 1; i++) flask(k.solid, k.glow, x + i * 0.85, z, 0.8);
     }
+    // snow drifts in the gaps, so the harvest ground stays a snowfield between the props
+    harvestDrifts(k.solid, l, P, rng, placed, 12);
   },
 
   open(k, l, P, rng) {
@@ -83,6 +87,8 @@ export const era10: EraGroundModule = {
       if (alongX) for (let x = q.minX + 1.5; x < q.maxX - 1; x += 3) k.glow.add(geo.circleGround(0.12, 8), p.light, x, FLOOR_Y + 0.008, (q.minZ + q.maxZ) / 2);
       else for (let z = q.minZ + 1.5; z < q.maxZ - 1; z += 3) k.glow.add(geo.circleGround(0.12, 8), p.light, (q.minX + q.maxX) / 2, FLOOR_Y + 0.008, z);
     }
+    // every floor sits in the snow: white verges with soft drifts heaped along them
+    for (const q of [inset(Z.yard, 0.6), inset(Z.processing, 0.6), inset(Z.market, 0.8), inset(Z.huts, 0.8)]) if (q) snowVerge(k.solid, l, q, rng);
     greenBorder(k.solid, k.glow, N, P);
     for (const s of pathLampSpots(l, 10)) {
       pathLamp(k.solid, k.glow, N, s.x, s.z);

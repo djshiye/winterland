@@ -8,7 +8,9 @@
  * Style (DIRECTION "snow-globe toy diorama"): rounded, chunky, a fat snow cap on top, no spikes, no near-black.
  */
 import * as THREE from 'three';
-import type { Rect } from '../../../config';
+import { CAMERA, type Rect } from '../../../config';
+import { DOCK_BODY, STALL_BODY, marketPlaces } from '../../../eras/market';
+import { worldRect } from '../../../eras/rules';
 import { geo } from '../../../render/materials';
 import type { Batch } from '../../../render/batch';
 import { SNOW, mixHex, palette } from '../../../render/palette';
@@ -289,6 +291,39 @@ function frontSpots(l: RegionLayout): { x: number; z: number; r: number }[] {
   ];
 }
 
+const sq = (x: number, z: number, h: number): Rect => ({ minX: x - h, maxX: x + h, minZ: z - h, maxZ: z + h });
+const overlaps = (a: Rect, b: Rect): boolean => a.minX < b.maxX && b.minX < a.maxX && a.minZ < b.maxZ && b.minZ < a.maxZ;
+const seeCache = new WeakMap<RegionLayout, Rect[]>();
+
+/** What the player must see and reach outside the machine grid: the front-yard spots, the market counters, the vault and cash, the expansion pad and the hand node. */
+function mustSee(l: RegionLayout): Rect[] {
+  let out = seeCache.get(l);
+  if (out) return out;
+  const M = marketPlaces(l);
+  out = [
+    ...(['depot', 'dock', 'jack', 'shopMat', 'cashSpot'] as const).map((k) => sq(l[k].x, l[k].z, 1.6)),
+    sq(l.expansionPad.x, l.expansionPad.z, l.padSize / 2),
+    sq(M.vaultPad.x, M.vaultPad.z, 0.8),
+    sq(M.cash.x, M.cash.z, 1),
+    worldRect(M.dock, M.yaw, DOCK_BODY),
+    worldRect(M.stall, M.yaw, STALL_BODY),
+    nodePatch(l),
+  ];
+  seeCache.set(l, out);
+  return out;
+}
+
+/**
+ * True when a piece with footprint `r` and height `h` neither stands on nor (above 0.6 m) hides from the isometric
+ * camera anything the player must see or reach (the camera looks toward -X/-Z, so a tall piece hides the ground
+ * behind it in that direction). The same rule tests/eraGround.test.ts guards.
+ */
+export function clearOfFront(l: RegionLayout, r: Rect, h: number): boolean {
+  const reach = h > 0.6 ? h / Math.tan((CAMERA.pitchDeg * Math.PI) / 180) / Math.SQRT2 : 0;
+  const shadow = { minX: r.minX - reach, maxX: r.maxX, minZ: r.minZ - reach, maxZ: r.maxZ };
+  return mustSee(l).every((s) => !overlaps(shadow, s));
+}
+
 /**
  * The tree belt: spots along the region's west strip and its gate (north) strip, the two edges the camera looks
  * toward (-X / -Z), so a tree there never hides a pad, the player or a counter. `step` metres apart, clear of the
@@ -298,7 +333,7 @@ export function beltSpots(l: RegionLayout, step: number, rng: Rng): { x: number;
   const r = l.rect;
   const out: { x: number; z: number; s: number }[] = [];
   const clear = frontSpots(l);
-  const ok = (x: number, z: number): boolean => clear.every((c) => Math.hypot(c.x - x, c.z - z) > c.r);
+  const ok = (x: number, z: number): boolean => clear.every((c) => Math.hypot(c.x - x, c.z - z) > c.r) && clearOfFront(l, sq(x, z, 1.4), 3.8);
   const edge = l.gate.side === 'north' ? r.minZ + 1.7 : r.maxZ - 1.7;
   for (let z = r.minZ + 2.2; z < r.maxZ - 1.5; z += step) {
     const x = r.minX + 1.7 + rng.range(-0.15, 0.15);
@@ -336,7 +371,7 @@ export function pathLampSpots(l: RegionLayout, step: number): { x: number; z: nu
     else for (let z = q.minZ + step / 2; z < q.maxZ - 1; z += step) out.push({ x: q.maxX + 0.4, z });
   }
   const clear = frontSpots(l);
-  return out.filter((p) => clear.every((c) => Math.hypot(c.x - p.x, c.z - p.z) > c.r - 1) && !inRect(nodePatch(l), p.x, p.z, 0.5) && !l.slots.some((s) => Math.abs(s.x - p.x) < l.cell / 2 && Math.abs(s.z - p.z) < l.rowPitch / 2));
+  return out.filter((p) => clear.every((c) => Math.hypot(c.x - p.x, c.z - p.z) > c.r - 1) && clearOfFront(l, sq(p.x, p.z, 0.45), 2.3) && !inRect(nodePatch(l), p.x, p.z, 0.5) && !l.slots.some((s) => Math.abs(s.x - p.x) < l.cell / 2 && Math.abs(s.z - p.z) < l.rowPitch / 2));
 }
 
 /** The machine grid marks on a processing floor (one cell per slot of the room grid, as plots.ts drew them). */
@@ -385,4 +420,69 @@ export function greenBorder(body: Batch, glow: Batch, n: number, P: PlotPlaces, 
       glow.add(geo.sphere(0.14, 8, 6), p.light, x, 0.52, z + 0.28);
     }
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// snow (Validator 0.9.8: snow stays visible at play zoom in every era, the floors sit in it rather than replacing it)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** A soft, low snow drift: a flattened mound `s` metres across (under 0.25 m tall, so it never hides a pad). */
+export function snowDrift(body: Batch, x: number, z: number, s: number, ry: number): void {
+  body.add(geo.sphere(0.5, 12, 6), SNOW, x, 0, z, { sx: 1.5 * s, sy: 0.32 * s, sz: 0.85 * s, ry });
+  body.add(geo.sphere(0.5, 10, 5), 0xffffff, x + 0.25 * s, 0.03, z - 0.1 * s, { sx: 0.8 * s, sy: 0.3 * s, sz: 0.5 * s, ry });
+}
+
+/**
+ * A snowy verge round a floor rect: a white lip `m` metres wide just outside it and soft drifts heaped along the lip,
+ * heavier in the corners, so each floor reads as laid into the snow. Keep `m` inside the zone's inset margin.
+ */
+export function snowVerge(body: Batch, l: RegionLayout, r: Rect, rng: Rng, m = 0.45, every = 2.4): void {
+  const y = FLOOR_Y + 0.002;
+  const w = r.maxX - r.minX;
+  const d = r.maxZ - r.minZ;
+  const cx = (r.minX + r.maxX) / 2;
+  const cz = (r.minZ + r.maxZ) / 2;
+  body.add(geo.box(w + 2 * m, 0.008, m), SNOW, cx, y, r.minZ - m / 2);
+  body.add(geo.box(w + 2 * m, 0.008, m), SNOW, cx, y, r.maxZ + m / 2);
+  body.add(geo.box(m, 0.008, d), SNOW, r.minX - m / 2, y, cz);
+  body.add(geo.box(m, 0.008, d), SNOW, r.maxX + m / 2, y, cz);
+  const lump = (x: number, z: number, along: number, ry: number): void => {
+    const s = rng.range(0.42, 0.62);
+    const half = Math.max(along * s * 1.1, m * 0.53);
+    if (!clearOfFront(l, sq(x, z, half), 0.2)) return;
+    body.add(geo.sphere(0.5, 10, 5), SNOW, x, 0, z, { sx: along * s * 2.2, sy: 0.3 * s, sz: m * 1.05, ry });
+  };
+  for (let x = r.minX + rng.range(0.6, 1.6); x < r.maxX - 0.6; x += every * rng.range(0.7, 1.4)) {
+    if (rng.next() < 0.6) lump(x, r.minZ - m / 2, rng.range(0.8, 1.3), 0);
+    if (rng.next() < 0.6) lump(x + rng.range(-0.5, 0.5), r.maxZ + m / 2, rng.range(0.8, 1.3), 0);
+  }
+  for (let z = r.minZ + rng.range(0.6, 1.6); z < r.maxZ - 0.6; z += every * rng.range(0.7, 1.4)) {
+    if (rng.next() < 0.6) lump(r.minX - m / 2, z, rng.range(0.8, 1.3), Math.PI / 2);
+    if (rng.next() < 0.6) lump(r.maxX + m / 2, z + rng.range(-0.5, 0.5), rng.range(0.8, 1.3), Math.PI / 2);
+  }
+  for (const [x, z] of [[r.minX, r.minZ], [r.maxX, r.minZ], [r.minX, r.maxZ], [r.maxX, r.maxZ]] as const) {
+    const px = x + (x < cx ? -m / 2 : m / 2);
+    const pz = z + (z < cz ? -m / 2 : m / 2);
+    if (clearOfFront(l, sq(px, pz, m * 1.2), 0.1)) body.add(geo.sphere(0.5, 12, 6), SNOW, px, 0, pz, { sx: m * 2.4, sy: 0.18, sz: m * 2.4 });
+  }
+}
+
+/** Scatter `count` drifts over the free harvest ground (after the era's props, so they fill the gaps between them). */
+export function harvestDrifts(body: Batch, l: RegionLayout, P: PlotPlaces, rng: Rng, placed: { x: number; z: number; r: number }[], count: number): void {
+  const H = l.zones.harvest;
+  let made = 0;
+  for (let t = 0; t < count * 8 && made < count; t++) {
+    const x = rng.range(H.minX + 4, H.maxX - 2);
+    const z = rng.range(H.minZ + 2, H.maxZ - 2);
+    const s = rng.range(0.9, 1.6);
+    if (!harvestFree(l, P, x, z, 0.8 * s, placed)) continue;
+    placed.push({ x, z, r: 0.8 * s });
+    snowDrift(body, x, z, s, rng.range(-0.6, 0.6));
+    made++;
+  }
+}
+
+/** Snow banked round the tree belt's feet (one soft mound per tree, a little to the east, where the plough left it). */
+export function beltSnow(body: Batch, spots: readonly { x: number; z: number; s: number }[], rng: Rng): void {
+  for (const t of spots) snowDrift(body, t.x + 0.5, t.z + rng.range(-0.3, 0.3), 1.1 * t.s, rng.range(-0.4, 0.4));
 }
