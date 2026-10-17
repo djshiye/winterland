@@ -7,7 +7,8 @@
  *   label sits under each one.
  * - `?gallery` shows everything; `?gallery=<domain>` (e.g. items, machines) or `?gallery=<asset>` /
  *   `?gallery=<domain>/<asset>` focuses a subset. `&spin` turns every asset slowly; `&zoom=<k>`
- *   multiplies the auto-fit zoom. Mouse: drag = pan, wheel = zoom.
+ *   multiplies the auto-fit zoom; `&portrait` swaps the iso view for a low three-quarter close-up (characters' faces).
+ *   Mouse: drag = pan, wheel = zoom.
  * - A catalog object (or any child) may set `userData.galleryAnimate = (dt) => …`; it runs every frame,
  *   so machines show their moving part (e.g. ?gallery=eraMachines2).
  * - Installs window.__WINTERLAND__ with pause / resume / simulate(seconds) / state() / render() so
@@ -45,6 +46,8 @@ export class Gallery {
   /** Per-frame hooks from catalog entries (`userData.galleryAnimate(dt)`), so animated parts move. */
   private readonly animators: ((dt: number) => void)[] = [];
   private spin = false;
+  /** `&portrait`: a low three-quarter close-up camera (faces and outfits) instead of the game's iso view. */
+  private portrait = false;
   private fitZoom = 1;
   private count = 0;
   private readonly layout = new THREE.Group();
@@ -55,6 +58,7 @@ export class Gallery {
     const params = new URLSearchParams(location.search);
     const focus = (params.get('gallery') ?? '').trim();
     this.spin = params.has('spin');
+    this.portrait = params.has('portrait');
     const zoomMul = Number(params.get('zoom')) || 1;
 
     this.renderer = new Renderer(this.app);
@@ -251,6 +255,13 @@ export class Gallery {
     if (this.spin) for (const o of this.spinning) o.rotation.y += dt * 0.6;
     for (const f of this.animators) f(dt);
     this.rig.update(0);
+    if (this.portrait) {
+      const cam = this.renderer.camera;
+      const look = this.rig.target.clone().setY(0.75);
+      cam.position.copy(look).addScaledVector(new THREE.Vector3(Math.SQRT1_2, 0.36, Math.SQRT1_2).normalize(), 60);
+      cam.lookAt(look);
+      cam.updateMatrixWorld();
+    }
     this.renderer.setShadowFocus(this.rig.target);
   }
 
