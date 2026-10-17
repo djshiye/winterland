@@ -124,7 +124,7 @@ describe('the new land keeps off the old map', () => {
     customerPath: { ...LAYOUT.customers.path, maxZ: 42 },
     // 0.9.5: the era-1 lanes that run south off the old map (as drawn once the new land shows)
     trikeRoad: { ...LAYOUT.tricycles.road, maxZ: TRIKE_ROAD_END_Z },
-    rail: { minX: LAYOUT.ridge.rail.x - 1.8, maxX: LAYOUT.ridge.rail.x + 1.8, minZ: -31, maxZ: LAYOUT.ridge.rail.exitZ + 0.8 },
+    rail: { minX: LAYOUT.ridge.rail.x - 1.8, maxX: LAYOUT.ridge.rail.x + 1.8, minZ: -31, maxZ: LAYOUT.ridge.rail.endZ + 0.8 },
   };
 
   it('puts no region or district on any old rect', () => {
@@ -136,20 +136,21 @@ describe('the new land keeps off the old map', () => {
     for (const r of ROADS) {
       const hits = Object.entries(old).filter(([, o]) => overlap(r.rect, o)).map(([name]) => name);
       if (r.id === 'southAvenue') expect(hits, r.id).toEqual(['town']);
-      // the avenue to the city has always crossed the Timber Ridge rail at a level crossing
-      else if (r.id === 'cityLink') expect(hits, r.id).toEqual(['town', 'rail']);
+      // 0.9.9: the Timber Ridge rail ends north of the town, so the avenue to the city no longer crosses it
+      else if (r.id === 'cityLink') expect(hits, r.id).toEqual(['town']);
       else expect(hits, r.id).toEqual([]);
     }
   });
 
-  it('ends the era-1 lanes cleanly at the new land: the trike road on R1, the rail at a buffer stop before it, the river in its pond', () => {
+  it('ends the era-1 lanes cleanly: the trike road on R1, the rail at a buffer stop north of the town, the river in its pond', () => {
     const r1 = ROADS.find((r) => r.id === 'r1')!.rect;
     const tr = LAYOUT.tricycles.road;
     expect(TRIKE_ROAD_END_Z).toBe(r1.minZ);
     expect(tr.minX >= r1.minX && tr.maxX <= r1.maxX).toBe(true);
     // the trikes leave the map before the road ends, so none drives onto the hidden tail
     expect(LAYOUT.tricycles.exitZ).toBeLessThan(TRIKE_ROAD_END_Z);
-    expect(LAYOUT.ridge.rail.exitZ + 0.8).toBeLessThan(r1.minZ);
+    // the rail is a terminus north of the Market Town and the sled trail: nothing runs through the town any more
+    expect(LAYOUT.ridge.rail.endZ + 0.8).toBeLessThan(LAYOUT.town.area.minZ);
     // the river ends inside its pond, north of R1; the pond covers the whole channel width
     expect(RIVER_END_Z).toBeGreaterThan(RIVER_POND.minZ);
     expect(RIVER_END_Z).toBeLessThan(RIVER_POND.maxZ);

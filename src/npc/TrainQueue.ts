@@ -3,7 +3,8 @@
  * rail (LAYOUT.ridge.rail, +Z), stop with the flatcars beside the platform (stopZ), load pine logs from the
  * platform counter one by one (items/transfer.ts: the logs visibly fly onto the flatcars), pay
  * salePrice(state, 'pine', ECONOMY.pinePrice, want) into the platform cash pile, emit 'sale' {buyer: 'train',
- * kind: 'log'}, honk and leave toward exitZ. stats.logsSold counts the logs.
+ * kind: 'log'}, honk and back out into the tunnel (0.9.9: the line is a terminus, LAYOUT.ridge.rail.endZ). stats.logsSold
+ * counts the logs.
  *
  * - Demand (trainGap between trains, trainWant for the order) is read live from DEMAND at spawn, never cached.
  * - One train at a time. With an empty counter the train waits patiently (bubble "n/want").
@@ -17,7 +18,6 @@ import { demandOf, salePrice } from '../core/demand';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
 import { transferOne } from '../items/transfer';
 import { createSpeechBubble, type SpeechBubble } from '../assets/shop';
-import { SLED_HALF_WIDTH, SLED_RETURN_Z } from '../assets/sled';
 import { createTrain, TRAIN_AXLE_RADIUS, TRAIN_CARGO_CAPACITY, type TrainModel } from '../assets/train';
 import type { CashPile } from '../stations/CashPile';
 import type { Counter } from '../stations/Counter';
@@ -25,11 +25,6 @@ import type { Counter } from '../stations/Counter';
 export interface TrainQueueOptions {
   counter: Counter;
   cash: CashPile;
-  /**
-   * True while a dog sled is committed to the rail crossing (SledQueue.onCrossing). A paid train waits at the
-   * platform until it is false before pulling out: the leaving train sweeps both sled rows. Optional.
-   */
-  sledOnCrossing?: () => boolean;
 }
 
 const DRIVE_SPEED = 14;
@@ -38,12 +33,6 @@ const DECEL = 7;
 /** Seconds the first train takes to show up after the ridge opens. */
 const FIRST_TRAIN_DELAY = 3;
 const PAID_HOLD = 0.5; // 0.9.3: was 0.9
-/**
- * A leaving train sweeps the sled rows until its tail (3.8 m behind the origin) has cleared the return line
- * (SLED_RETURN_Z) plus the sled's half width.
- */
-const TAIL = 3.8;
-const SWEEP_END_Z = SLED_RETURN_Z + SLED_HALF_WIDTH + TAIL;
 
 type Mode = 'idle' | 'arrive' | 'load' | 'paid' | 'leave';
 
@@ -146,11 +135,11 @@ export class TrainQueue {
   }
 
   /**
-   * True while the train may be inside a dog sled row: paid (about to pull out) or leaving until its tail has cleared
-   * the return line. SledQueue stops short of the rail while this is true (unless it is already committed).
+   * True while the train may be inside a dog sled row. 0.9.9: never: the line ends at its buffer stop north of the sled
+   * trail and the trains back out north, so SledQueue's crossing guard always finds the rail clear.
    */
   get sweeping(): boolean {
-    return this.mode === 'paid' || (this.mode === 'leave' && this.z < SWEEP_END_Z);
+    return false;
   }
 
   /** Logs sitting on the train (landed or in flight, not yet paid; 'paid' is excluded because the sale already landed in the cash pile). The save adds them to the platform pile. */
@@ -174,14 +163,14 @@ export class TrainQueue {
       case 'paid':
         this.holdTimer -= dt;
         this.driveTo(LAYOUT.ridge.rail.stopZ, dt); // keeps the speed at zero
-        if (this.holdTimer <= 0 && !this.opts.sledOnCrossing?.()) this.mode = 'leave';
+        if (this.holdTimer <= 0) this.mode = 'leave';
         break;
       case 'leave': {
         const prev = this.speed;
         this.speed = approach(this.speed, DRIVE_SPEED * 1.2, ACCEL * 1.3 * dt);
         this.accelNow = (this.speed - prev) / dt;
-        this.z += this.speed * dt;
-        if (this.z >= LAYOUT.ridge.rail.exitZ) {
+        this.z -= this.speed * dt; // backs out into the tunnel
+        if (this.z <= LAYOUT.ridge.rail.spawnZ) {
           this.despawn();
           return;
         }

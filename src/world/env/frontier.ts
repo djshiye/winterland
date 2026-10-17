@@ -30,6 +30,7 @@ import { romanNumeral } from './eras';
 import { buildEraOpen, buildEraWild, eraGround, eraKeepOut } from './eraGround';
 import { palette } from '../../render/palette';
 import { moundGeo, pineGeo, pineTallGeo, rockGeo } from './props';
+import { buildWayfinding } from './wayfinding';
 
 /** The slice of the game state the new land follows (the tests pass a plain object). */
 export interface LandState {
@@ -467,7 +468,7 @@ export function regionPaths(l: RegionLayout): Rect[] {
   const zLo = Math.min(yardIn, l.inward > 0 ? l.rect.maxZ - 1 : l.rect.minZ + 1);
   const zHi = Math.max(yardIn, l.inward > 0 ? l.rect.maxZ - 1 : l.rect.minZ + 1);
   return [
-    { minX: l.rect.minX + 1, maxX: split + 4, minZ: yardIn - h, maxZ: yardIn + h },
+    { minX: l.rect.minX + 1, maxX: split + h, minZ: yardIn - h, maxZ: yardIn + h },
     { minX: split - h, maxX: split + h, minZ: zLo, maxZ: zHi },
     { minX: l.rect.minX + 1, maxX: split, minZ: procOut - h, maxZ: procOut + h },
   ];
@@ -718,8 +719,8 @@ function carveTownGap(ctx: GameContext, town: THREE.Object3D, road: string): voi
 
 /**
  * The seams between era 1 and the new land, shown only with the new land: the frozen pond the river ends in (it used
- * to stop dead in the snow), the snow over its channel past the pond, and a buffer stop where the Timber Ridge rail
- * ends by R1.
+ * to stop dead in the snow) and the snow over its channel past the pond. (0.9.9: the Timber Ridge rail ends at its own
+ * buffer stop north of the Market Town, assets/ridgeScenery.ts.)
  */
 function buildSeams(): THREE.Group {
   const group = new THREE.Group();
@@ -751,14 +752,6 @@ function buildSeams(): THREE.Group {
     const s = rng.range(0.25, 0.5);
     b.add(geo.box(s, s * 0.6, s), rng.next() < 0.5 ? PALETTE.rock : 0xe9eff7, pcx + Math.cos(a) * (rx + 0.35), s * 0.25, pcz + Math.sin(a) * (rz + 0.35), { ry: rng.range(0, 3) });
   }
-
-  // ---- buffer stop at the end of the Timber Ridge rail (the trains leave the map there)
-  const rail = LAYOUT.ridge.rail;
-  const bz = rail.exitZ + 0.4;
-  for (const s of [-1, 1]) b.add(geo.box(0.22, 0.9, 0.22), 0x6e5238, rail.x + s * 0.72, 0.45, bz);
-  b.add(geo.box(2.0, 0.36, 0.3), 0xd0453a, rail.x, 0.75, bz);
-  for (const s of [-0.55, 0, 0.55]) b.add(geo.box(0.22, 0.3, 0.04), 0xffffff, rail.x + s, 0.75, bz - 0.16);
-  b.add(geo.box(2.1, 0.06, 0.4), PALETTE.snow, rail.x, 0.96, bz);
 
   group.add(b.mesh({ cast: true, receive: true }));
   return group;
@@ -847,6 +840,8 @@ export function buildFrontier(ctx: GameContext, town: THREE.Object3D, trikeTail?
   for (let n = 2; n < REGIONS.length; n++) if (REGIONS[n]) regions.push(buildRegion(ctx, n, group));
   group.add(buildFarScatter());
   group.add(buildSeams());
+  const way = buildWayfinding();
+  group.add(way.group);
 
   const pending = new Set<Region>();
   const view = (hint: number): LandState => ({ village: ctx.state.village, eras: { age: Math.max(ctx.state.eras.age, hint) } });
@@ -891,6 +886,7 @@ export function buildFrontier(ctx: GameContext, town: THREE.Object3D, trikeTail?
         carveTownGap(ctx, town, road.id);
       }
     }
+    way.refresh((id) => roads.some((r) => r.id === id && r.open.visible));
     for (const reg of regions) if (!reg.unlocked && s.eras.age >= reg.n) unlock(reg, first);
     first = false;
   };

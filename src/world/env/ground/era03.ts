@@ -145,6 +145,13 @@ function cartTrack(k: GroundKit, q: Rect, rng: Rng): void {
     const z = alongX ? cz : q.minZ + t;
     k.solid.add(BOX(), shade(C.timber, rng.range(0.92, 1.06)), x, 0.05, z, alongX ? { sx: 0.24, sy: 0.06, sz: 1.5 } : { sx: 1.5, sy: 0.06, sz: 0.24 });
   }
+  // 0.9.9: a buffer stop at the track's start (west for the era's cart track): two dark posts, a red beam with white stripes, a snow cap
+  const bx = alongX ? q.minX + 0.12 : cx;
+  const bz = alongX ? cz : q.minZ + 0.12;
+  for (const s of [-0.45, 0.45]) k.solid.add(BOX(), C.ironDark, alongX ? bx : cx + s, 0.3, alongX ? cz + s : bz, { sx: 0.16, sy: 0.6, sz: 0.16 });
+  k.solid.add(BOX(), 0xd0453a, bx, 0.52, bz, alongX ? { sx: 0.2, sy: 0.24, sz: 1.2 } : { sx: 1.2, sy: 0.24, sz: 0.2 });
+  for (const s of [-0.36, 0, 0.36]) k.solid.add(BOX(), 0xffffff, alongX ? bx + 0.11 : cx + s, 0.52, alongX ? cz + s : bz + 0.11, alongX ? { sx: 0.03, sy: 0.2, sz: 0.14 } : { sx: 0.14, sy: 0.2, sz: 0.03 });
+  k.solid.add(BOX(), SNOW, bx, 0.68, bz, alongX ? { sx: 0.26, sy: 0.05, sz: 1.3 } : { sx: 1.3, sy: 0.05, sz: 0.26 });
   for (const s of [-0.45, 0.45]) k.solid.add(BOX(), C.iron, alongX ? cx : cx + s, 0.11, alongX ? cz + s : cz, alongX ? { sx: len - 0.3, sy: 0.07, sz: 0.08 } : { sx: 0.08, sy: 0.07, sz: len - 0.3 });
 }
 
