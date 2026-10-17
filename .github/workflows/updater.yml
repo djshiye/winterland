@@ -1,0 +1,48 @@
+# "Update Winterland" and the in-game updater on Linux, macOS and Windows. Runs only when updater code changes, because
+# macOS and Windows runners cost several times the Linux minutes.
+name: Updater
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'scripts/test-updater.mjs'
+      - 'scripts/updater-files.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - 'scripts/test-updater.mjs'
+      - 'scripts/updater-files.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: updater-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # "Update Winterland" (desktop/updater): the real updater against a fake GitHub release, on each system it ships for.
+  updater:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Lint the shell updater
+        if: runner.os == 'Linux'
+        run: shellcheck -s bash --severity=warning desktop/updater/update.sh
+      - run: node scripts/test-updater.mjs

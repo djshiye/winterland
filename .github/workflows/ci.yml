@@ -1,12 +1,22 @@
-# Every push and pull request: type-check, unit tests (save compatibility), production build, and a headless
-# bot run that must reach the processor (catches crashes and broken progression), the draw-call gate, plus the
-# desktop updater on Linux, macOS and Windows.
+# Every push and pull request that changes more than docs or images: type-check, unit tests (save compatibility),
+# production build, a headless bot run that must reach the processor (catches crashes and broken progression) and the
+# draw-call gate. The desktop updater runs in updater.yml, only when its files change.
 name: CI
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '**/*.png'
+      - '**/*.jpg'
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '**/*.png'
+      - '**/*.jpg'
 
 # CI only reads the repo (no token write access for tests, bots or pull requests from forks).
 permissions:
@@ -61,23 +71,3 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Draw-call gate (night, Low / Medium / High)
         run: node scripts/perf-scenario.mjs --frames 2 --tiers low,medium,high --gate 950
-
-  # "Update Winterland" (desktop/updater): the real updater against a fake GitHub release, on each system it ships for.
-  updater:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Lint the shell updater
-        if: runner.os == 'Linux'
-        run: shellcheck -s bash --severity=warning desktop/updater/update.sh
-      - run: node scripts/test-updater.mjs
