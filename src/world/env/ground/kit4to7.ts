@@ -194,7 +194,7 @@ export function yardBand(l: RegionLayout): Rect {
 /** Lamp / pole spots: on the processing side of the yard path, on the machine-cell boundaries, clear of the gate. */
 export function pathPoles(l: RegionLayout): { x: number; z: number }[] {
   const Y = l.zones.yard;
-  const z = (l.inward > 0 ? Y.maxZ : Y.minZ) + l.inward * 1.65;
+  const z = (l.inward > 0 ? Y.maxZ : Y.minZ) + l.inward * 1.5;
   const out: { x: number; z: number }[] = [];
   for (let k = -4; k <= 4; k++) {
     const x = l.gate.x + (k + 0.5) * l.cell;
@@ -216,7 +216,7 @@ export function beltSpots(l: RegionLayout, paths: readonly Rect[], keep: readonl
   const out: { x: number; z: number }[] = [];
   for (let z = r.minZ + 2.4; z < r.maxZ - 1.8; z += step) {
     const x = r.minX + inset;
-    if (hitAny(paths, x, z, 1.4) || hitAny(keep, x, z, 1.2)) continue;
+    if (hitAny(paths, x, z, 1.4) || hitAny(keep, x, z, 1.2) || hitAny(sightKeep(l, 6.5), x, z, 1.4)) continue;
     out.push({ x, z });
   }
   return out;
@@ -245,6 +245,15 @@ function marketKeep(l: RegionLayout): Rect[] {
     ...pts.map((q) => around(q.x, q.z, 3)),
     { minX: M.front.x - 10, maxX: M.front.x + 1.6, minZ: M.front.z - 1.8, maxZ: M.front.z + 1.8 },
   ];
+}
+
+/**
+ * R22 for dressing: where a piece up to h metres tall may not stand, because its camera shadow (swept toward −X/−Z)
+ * would cover the hand node, a counter, the cash pile or a yard stop. Each target grows toward +X/+Z by the reach.
+ */
+export function sightKeep(l: RegionLayout, h: number): Rect[] {
+  const reach = h * 0.66 + 0.3;
+  return [nodePatch(l), ...marketKeep(l)].map((t) => ({ minX: t.minX - 0.6, maxX: t.maxX + reach + 0.6, minZ: t.minZ - 0.6, maxZ: t.maxZ + reach + 0.6 }));
 }
 
 /** Ground a snow drift must never cover: plot paving, beds, huts, shops, the green, the node patch and the front yard. */

@@ -14,10 +14,9 @@
  * Every model this file makes is also listed in `jackCatalog` (shown by the ?gallery page: --query gallery=jack).
  */
 import * as THREE from 'three';
-import { COLORS, PALETTE } from '../config';
 import { Batch, bake } from '../render/batch';
 import { GAME_FONT, basic, geo, makeCanvasTexture, mesh, toon } from '../render/materials';
-import { CHARACTER_ARM_REACH, CHARACTER_HIP_Y, type CharacterModel } from './characters';
+import { BASE_Y, CHARACTER_HIP_Y, NPC_BODY_H, NPC_BODY_R, NPC_HEAD_R, SKIN_TONES, beanRadius, buildPawn, type CharacterModel } from './characters';
 
 // ---------------------------------------------------------------------------
 // Palette
@@ -200,12 +199,9 @@ export function createJackCartModel(): JackCartModel {
 // ---------------------------------------------------------------------------
 
 const HIP = CHARACTER_HIP_Y;
-const BASE_Y = 0.12;
-const BODY_R = 0.31;
-const BODY_H = 0.78;
-const HEAD_R = 0.22;
-const ARM_R = 0.085;
-const ARM_LEN = 0.17;
+const BODY_R = NPC_BODY_R + 0.01;
+const BODY_H = NPC_BODY_H + 0.04;
+const HEAD_R = NPC_HEAD_R;
 
 function torusRing(major: number, tube: number, color: number, y: number): THREE.Mesh {
   const t = mesh(geo.torus(major, tube, 8, 22), toon(color));
@@ -216,11 +212,12 @@ function torusRing(major: number, tube: number, color: number, y: number): THREE
 
 /** Patched coat parts in torso-local space: a belt with a gold buckle, a scarf and four mismatched patches. */
 function coatExtras(g: THREE.Group, topY: number): void {
-  g.add(torusRing(BODY_R + 0.01, 0.05, WOOD_D, BASE_Y + 0.38 - HIP)); // belt
+  const beltF = 0.42;
+  g.add(torusRing(BODY_R * beanRadius(beltF) + 0.01, 0.05, WOOD_D, BASE_Y + BODY_H * beltF - HIP)); // belt
   const buckle = mesh(geo.box(0.12, 0.1, 0.05), toon(GOLD));
-  buckle.position.set(0, BASE_Y + 0.38 - HIP, BODY_R + 0.04);
+  buckle.position.set(0, BASE_Y + BODY_H * beltF - HIP, BODY_R * beanRadius(beltF) + 0.04);
   g.add(buckle);
-  g.add(torusRing(0.27, 0.06, RED, topY - 0.03 - HIP)); // scarf
+  g.add(torusRing(BODY_R * 0.78, 0.07, RED, topY - 0.06 - HIP)); // scarf
   const patches: Array<[number, number, number, number]> = [
     [0.15, 0.2, YELLOW, 0.1],
     [-0.14, 0.55, CREAM, -0.2],
@@ -229,7 +226,8 @@ function coatExtras(g: THREE.Group, topY: number): void {
   ];
   for (const [x, yy, c, rz] of patches) {
     const p = mesh(geo.box(0.13, 0.13, 0.04), toon(c));
-    const z = Math.sqrt(Math.max(0.0, BODY_R * BODY_R - x * x)) + 0.005;
+    const rr = BODY_R * beanRadius(yy / BODY_H);
+    const z = Math.sqrt(Math.max(0.0, rr * rr - x * x)) + 0.005;
     p.position.set(x, BASE_Y + yy - HIP, z);
     p.rotation.set(0, Math.atan2(x, z), rz);
     g.add(p);
@@ -238,124 +236,53 @@ function coatExtras(g: THREE.Group, topY: number): void {
 
 /** Head parts in head-local space: nose, a big curly ginger moustache, a mustard top hat with a red band. */
 function headExtras(g: THREE.Group): void {
-  const nose = mesh(geo.sphere(0.05, 8, 6), toon(0xe59a7e));
-  nose.position.set(0, -0.015, HEAD_R - 0.005);
+  const nose = mesh(geo.sphere(0.06, 8, 6), toon(0xe59a7e));
+  nose.position.set(0, -0.06, HEAD_R - 0.005);
   g.add(nose);
   const must = toon(GINGER);
   for (const sx of [-1, 1]) {
     const m = mesh(geo.sphere(0.12, 10, 8), must);
     m.scale.set(1.45, 0.55, 0.8);
-    m.position.set(sx * 0.12, -0.085, HEAD_R - 0.03);
+    m.position.set(sx * 0.12, -0.12, HEAD_R - 0.035);
     m.rotation.z = -sx * 0.35;
     const curl = mesh(geo.sphere(0.035, 6, 5), must);
-    curl.position.set(sx * 0.27, -0.02, HEAD_R - 0.07);
+    curl.position.set(sx * 0.27, -0.06, HEAD_R - 0.08);
     g.add(m, curl);
   }
   const hat = toon(YELLOW);
-  const brim = mesh(geo.cylinder(0.3, 0.3, 0.04, 20), hat);
-  brim.position.y = 0.15;
-  const crown = mesh(geo.cylinder(0.185, 0.2, 0.3, 20), hat);
+  const brim = mesh(geo.cylinder(0.36, 0.36, 0.045, 20), hat);
+  brim.position.y = 0.13;
+  const crown = mesh(geo.cylinder(0.22, 0.24, 0.34, 20), hat);
   crown.position.y = 0.32;
-  const band = mesh(geo.cylinder(0.205, 0.205, 0.07, 20), toon(RED));
-  band.position.y = 0.2;
-  const flower = mesh(geo.sphere(0.05, 7, 5), toon(CREAM));
-  flower.position.set(0.17, 0.22, 0.1);
+  const band = mesh(geo.cylinder(0.245, 0.245, 0.08, 20), toon(RED));
+  band.position.y = 0.19;
+  const flower = mesh(geo.sphere(0.06, 7, 5), toon(CREAM));
+  flower.position.set(0.2, 0.21, 0.12);
   g.add(brim, crown, band, flower);
 }
 
-/** Jack: a CharacterModel with the same pivot structure as assets/characters.ts, ready for `new CharacterRig(model)`. */
+/**
+ * Jack: the shared toy body of assets/characters.ts (0.9.8: bean coat, face with a grin and rosy cheeks) in his patched
+ * teal coat, ready for `new CharacterRig(model)`.
+ */
 export function createJackModel(): CharacterModel {
-  const root = new THREE.Group();
-  const body = new THREE.Group();
-  body.position.y = HIP;
-  const squash = new THREE.Group();
-  body.add(squash);
-
-  const topY = BASE_Y + BODY_H;
-  const coat = toon(COAT);
-
-  const torsoG = new THREE.Group();
-  const torso = mesh(geo.capsule(BODY_R, BODY_H - BODY_R * 2, 6, 14), coat);
-  torso.position.y = BASE_Y + BODY_H / 2 - HIP;
-  torsoG.add(torso);
-  coatExtras(torsoG, topY);
-  squash.add(bake(torsoG, { name: 'torso' }));
-
-  const headY = topY + HEAD_R * 0.6;
-  const head = new THREE.Group();
-  head.position.y = headY - HIP;
-  const headG = new THREE.Group();
-  headG.add(mesh(geo.sphere(HEAD_R, 18, 14), toon(COLORS.PLAYER_SKIN)));
-  const eyeMat = toon(PALETTE.rubber);
-  const ex = HEAD_R * 0.32;
-  const ez = Math.sqrt(HEAD_R * HEAD_R - ex * ex) - 0.012;
-  for (const sx of [-ex, ex]) {
-    const eye = mesh(geo.sphere(0.036, 8, 6), eyeMat);
-    eye.scale.set(1, 1.3, 0.7);
-    eye.position.set(sx, 0.04, ez);
-    headG.add(eye);
-  }
-  headExtras(headG);
-  head.add(bake(headG, { name: 'head' }));
-  squash.add(head);
-
-  const shoulder = topY - 0.14 - HIP;
-  const arms: THREE.Group[] = [];
-  for (const side of [-1, 1]) {
-    const arm = new THREE.Group();
-    arm.position.set(side * (BODY_R + 0.03), shoulder, 0);
-    const ag = new THREE.Group();
-    const a = mesh(geo.capsule(ARM_R, ARM_LEN, 4, 10), toon(side < 0 ? COAT_D : COAT));
-    a.position.y = -ARM_LEN / 2 - ARM_R * 0.8;
-    const h = mesh(geo.sphere(0.1, 10, 8), toon(CREAM));
-    h.position.y = -CHARACTER_ARM_REACH;
-    ag.add(a, h);
-    arm.add(bake(ag, { name: 'arm' }));
-    squash.add(arm);
-    arms.push(arm);
-  }
-  const armL = arms[0]!;
-  const armR = arms[1]!;
-  const handR = new THREE.Object3D();
-  handR.position.y = -CHARACTER_ARM_REACH;
-  armR.add(handR);
-
-  const bootMat = toon(WOOD_D);
-  const legs: THREE.Group[] = [];
-  for (const side of [-1, 1]) {
-    const leg = new THREE.Group();
-    leg.position.set(side * BODY_R * 0.5, HIP, 0);
-    const lg = new THREE.Group();
-    const boot = mesh(geo.box(0.22, 0.2, 0.32), bootMat);
-    boot.position.set(0, -0.15, 0.05);
-    lg.add(boot);
-    leg.add(bake(lg, { name: 'boot' }));
-    root.add(leg);
-    legs.push(leg);
-  }
-
-  const carryPivot = new THREE.Object3D();
-  carryPivot.position.set(0, 0.5 - HIP, 0.4);
-  const backPivot = new THREE.Object3D();
-  backPivot.position.set(0, 0.5 - HIP, -(BODY_R + 0.07));
-  body.add(carryPivot, backPivot);
-  root.add(body);
-
-  return {
-    root,
-    body,
-    squash,
-    head,
-    hat: null,
-    armL,
-    armR,
-    handR,
-    carryPivot,
-    backPivot,
-    legL: legs[0]!,
-    legR: legs[1]!,
-    height: headY + 0.5,
-  };
+  const m = buildPawn({
+    bodyColor: COAT,
+    armColor: COAT_D,
+    cuff: CREAM,
+    bodyR: BODY_R,
+    bodyH: BODY_H,
+    headR: HEAD_R,
+    skin: SKIN_TONES[0]!,
+    hand: CREAM,
+    boot: WOOD_D,
+    carryZ: 0.4,
+    face: { expr: 'grin', brows: GINGER },
+    torsoExtras: coatExtras,
+    headExtras,
+  });
+  m.height = m.headY + 0.5;
+  return m;
 }
 
 /** Gallery entries: the cart alone, Jack alone and the two together. */

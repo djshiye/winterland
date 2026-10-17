@@ -26,7 +26,7 @@ import { Rng } from '../common';
 import { pineGeo, pineTallGeo } from '../props';
 import { nodePatch, regionPaths } from '../frontier';
 import type { EraGroundModule, GroundKit } from '../eraGround';
-import { around, beltSpots, cablePoints, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
+import { around, beltSpots, cablePoints, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, sightKeep, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
 
 const T = MACHINE_TONES[6];
 const P6 = palette(6);
@@ -229,7 +229,7 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
   if (last) for (const s of [-1, 1]) k.cable([last.x + 1.15 * s, 5.53, last.z], [tp.x - 1.2, 7.6, tp.z + s * 0.9], 0.6, 0.05, COPPER_D, 8);
 
   // the harvest zone: transformers, cable drums and copper outcrops (clear of the field, the node and the belt)
-  const avoid = [nodePatch(l), ...keep, ...paths, ...spots.map((s) => around(s.x, s.z, 1.6))];
+  const avoid = [nodePatch(l), ...keep, ...paths, ...spots.map((s) => around(s.x, s.z, 1.6)), ...sightKeep(l, 3)];
   const taken: { x: number; z: number; r: number }[] = [];
   for (const p of harvestSpots(l, P, avoid, rng, 3, 1.1, taken)) kit.put('transformer', transformerGeo, { x: p.x, z: p.z, ry: rng.pick([0, Math.PI / 2]) });
   for (const p of harvestSpots(l, P, avoid, rng, 4, 0.9, taken)) kit.put('cableDrum', cableDrumGeo, { x: p.x, z: p.z, ry: rng.range(-0.5, 0.5) });
