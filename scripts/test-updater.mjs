@@ -8,6 +8,9 @@
  * Invoke-WebRequest (Windows). The updater itself is unmodified. Nothing outside a temp folder is touched; HOME and
  * APPDATA point into it, and a fake save there must come out byte for byte the same.
  *
+ * 0.9.8: also the in-game route (desktop/updater.cjs): the app's own copy of the script, run from a temp folder with
+ * the zip the game already downloaded (--from-game --zip --install / --app; Windows -FromGame -Zip -Install).
+ *
  *   node scripts/test-updater.mjs
  */
 import { spawnSync } from 'node:child_process';
@@ -15,7 +18,7 @@ import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { updaterFiles } from './updater-files.mjs';
+import { inAppUpdaterFiles, updaterFiles } from './updater-files.mjs';
 
 const OS = process.platform; // linux | darwin | win32
 const ARCH = 'x64';
@@ -52,7 +55,8 @@ function gameFiles(version) {
   } else {
     const exe = OS === 'win32' ? 'Winterland.exe' : 'winterland';
     files.push(
-      { path: exe, content: OS === 'win32' ? 'MZ' : '#!/bin/sh\nexit 0\n', mode: 0o755 },
+      // (Linux: the fake game notes how it was started, to check an in-game update that stops reopens it)
+      { path: exe, content: OS === 'win32' ? 'MZ' : '#!/bin/sh\necho "started $*" > "$(dirname "$0")/started.txt"\n', mode: 0o755 },
       { path: 'resources/app.asar', content: `game ${version}`, mode: 0o644 },
       { path: 'LICENSE', content: `license ${version}`, mode: 0o644 },
     );
@@ -70,7 +74,7 @@ function zipFolder(parent, name, zip) {
 }
 
 /** One scenario in a fresh temp folder. `sums` edits SHA256SUMS.txt; `before` can tamper with the install. */
-function scenario(title, { latest = NEW, sums = (s) => s, before = () => {} } = {}) {
+function scenario(title, { latest = NEW, sums = (s) => s, before = () => {}, inGame = null } = {}) {
   console.log(`\n${title}`);
   const root = mkdtempSync(join(tmpdir(), 'wl-updater-test-'));
   try {
@@ -101,6 +105,17 @@ function scenario(title, { latest = NEW, sums = (s) => s, before = () => {} } = 
     writeFileSync(join(server, 'SHA256SUMS.txt'), sums(lines.join('\n') + '\n'));
     before({ install });
 
+    // In-game: the app's copy of the script in a folder of its own, next to the zip the game downloaded.
+    let runner = null;
+    let given = null;
+    if (inGame) {
+      runner = join(root, 'ingame');
+      const copy = inAppUpdaterFiles(OS, ARCH, OLD)[0];
+      put(join(runner, OS === 'win32' ? 'update.ps1' : 'update.sh'), copy.content, 0o700);
+      given = join(runner, inGame.zipName ?? zipName);
+      writeFileSync(given, inGame.tamper ? Buffer.concat([readFileSync(zip), Buffer.from('x')]) : readFileSync(zip));
+    }
+
     let r;
     if (OS === 'win32') {
       const harness = join(root, 'harness.ps1');
@@ -115,11 +130,14 @@ function global:Invoke-WebRequest {
   if (-not (Test-Path -LiteralPath $f)) { throw "404 $Uri" }
   Copy-Item -LiteralPath $f -Destination $OutFile
 }
-& $Updater -Yes -NoLaunch -NoPause
+if ($env:WL_TEST_INGAME) { & $Updater -FromGame -NoLaunch -Install $env:WL_TEST_INSTALL -Zip $env:WL_TEST_ZIP }
+else { & $Updater -Yes -NoLaunch -NoPause }
 exit $LASTEXITCODE
 `);
-      r = run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', harness,
-        join(install, 'updater', 'update.ps1'), server, log], { env: { ...process.env, APPDATA: join(home, 'AppData', 'Roaming') } });
+      const ps1 = inGame ? join(runner, 'update.ps1') : join(install, 'updater', 'update.ps1');
+      const env = { ...process.env, APPDATA: join(home, 'AppData', 'Roaming') };
+      if (inGame) Object.assign(env, { WL_TEST_INGAME: '1', WL_TEST_INSTALL: install, WL_TEST_ZIP: given });
+      r = run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', harness, ps1, server, log], { env });
     } else {
       // Stand-in curl: insists on HTTPS-only flags, serves the fake release, logs every URL.
       const bin = join(root, 'bin');
@@ -140,12 +158,17 @@ esac
 [ -f "$f" ] || exit 22
 cp "$f" "$out"
 `, 0o755);
-      const script = join(install, OS === 'darwin' ? 'Update Winterland.command' : 'Update Winterland.sh');
-      const args = [script, '--yes', '--no-launch'];
+      const script = inGame ? join(runner, 'update.sh') : join(install, OS === 'darwin' ? 'Update Winterland.command' : 'Update Winterland.sh');
+      const args = inGame ? [script, '--from-game', '--zip', given] : [script, '--yes'];
+      // (the in-game run on Linux starts the fake game, which notes it; elsewhere nothing is started)
+      if (!(inGame && OS === 'linux')) args.push('--no-launch');
       if (OS === 'darwin') args.push('--app', join(install, 'Winterland.app'));
+      else if (inGame) args.push('--install', install);
       r = run('/bin/bash', args, {
-        env: { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}`, WL_UPDATER_IN_TERMINAL: '1', WL_UPDATER_ALLOW_ROOT: '1', TMPDIR: root },
+        env: { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}`, ...(inGame ? {} : { WL_UPDATER_IN_TERMINAL: '1' }), WL_UPDATER_ALLOW_ROOT: '1', TMPDIR: root },
       });
+      // the fake game is started in the background: give it a moment to note how
+      if (inGame && OS === 'linux') for (let i = 0; i < 40 && !existsSync(join(install, 'started.txt')); i++) spawnSync('sleep', ['0.05']);
     }
     const output = `${r.stdout ?? ''}${r.stderr ?? ''}`;
     const asar = OS === 'darwin' ? 'Winterland.app/Contents/Resources/app.asar' : 'resources/app.asar';
@@ -162,6 +185,7 @@ cp "$f" "$out"
       saveKept: readFileSync(join(saveDir, 'Local Storage', 'leveldb', '000003.log'), 'utf8') === 'my precious save',
       newFile: existsSync(join(install, 'locales', 'en.pak')),
       updaterNow: readFileSync(join(install, updaterFiles(OS, ARCH, OLD).at(-1).path), 'utf8'),
+      started: existsSync(join(install, 'started.txt')) ? readFileSync(join(install, 'started.txt'), 'utf8').trim() : null,
     };
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -223,6 +247,26 @@ if (OS !== 'darwin') {
   check(s.leftovers.length === 0, 'cleans up');
   show(s);
 }
+
+// 0.9.8 in-game updates: the app's own copy, with the zip the game downloaded and checked
+s = scenario(`In-game update ${OLD} → ${NEW} (${TARGET})`, { inGame: {} });
+check(s.r.status === 0, 'exits 0');
+check(s.gameNow === `game ${NEW}`, 'game files are the new version');
+check(s.saveKept && s.notesKept, 'save and other files untouched');
+check(s.leftovers.length === 0, 'no temporary folders left behind');
+check(s.urls.length === 1 && s.urls[0] === `${BASE}latest/download/SHA256SUMS.txt`, "re-checks against GitHub's checksum list, downloads nothing else");
+check(OS !== 'linux' || s.started === 'started', 'starts the new version');
+show(s);
+
+s = scenario('In-game update with a tampered download', { inGame: { tamper: true } });
+check(s.r.status !== 0, 'stops with an error');
+check(s.gameNow === `game ${OLD}` && s.saveKept && s.leftovers.length === 0, 'game and save unchanged');
+check(OS !== 'linux' || s.started === 'started --update-failed=checksum', 'reopens the old game with the reason');
+show(s);
+
+s = scenario('In-game update with a zip for another version', { inGame: { zipName: `Winterland-9.9.9-${TARGET}.zip` } });
+check(s.r.status !== 0 && s.gameNow === `game ${OLD}`, 'refuses it and changes nothing');
+show(s);
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nall updater checks passed');
 process.exit(failures ? 1 : 0);
