@@ -14,6 +14,7 @@
  */
 import * as THREE from 'three';
 import { vcMat } from '../render/batch';
+import { MACHINE_TONES } from '../render/palette';
 import { SNOW, SNOW_SH, Kit, eraGlowMaterial, hcyl, wheel, type V3 } from './eraKit';
 import type { MachineModel } from './eraMachines';
 
@@ -85,9 +86,13 @@ function pal(ground: number, body: number, accent: number, trim: number, glow: n
   };
 }
 
-const E8 = pal(0xc2ccd6, 0xe6dec8, 0x45858c, 0x4a5259, 0x66e0a3);
-const E9 = pal(0xcbd6e0, mix(0xdce3e6, WARM, 0.25), 0x4ea885, 0x3d5259, 0x70f5d9);
-const E10 = pal(0xdae3ed, 0xf5f0e6, 0xe8a848, 0x526475, 0xffe082);
+const tones = (n: 8 | 9 | 10, body: number = MACHINE_TONES[n].body): Pal => {
+  const t = MACHINE_TONES[n];
+  return pal(t.ground, body, t.accent, t.trim, t.glow);
+};
+const E8 = tones(8);
+const E9 = tones(9, mix(MACHINE_TONES[9].body, WARM, 0.25));
+const E10 = tones(10);
 
 // secondary glow tints (multiplied into the shared emissive material)
 const G_AMBER = 0xffc070;

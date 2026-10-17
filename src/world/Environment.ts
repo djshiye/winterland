@@ -13,7 +13,7 @@ import { LAYOUT } from '../config';
 import type { GameContext } from '../core/types';
 import { buildAurora, type AuroraPart } from './env/aurora';
 import { buildBuildings } from './env/buildings';
-import { updateGlow } from './env/glow';
+import { setGlowStrength, updateGlow } from './env/glow';
 import { Rng, type EnvPart } from './env/common';
 import { buildDecor, type ClearItem } from './env/decor';
 import { EraController, resetEras } from './env/eras';
@@ -27,7 +27,8 @@ import { buildRiver } from './env/river';
 import { buildRoads, highwayY } from './env/roads';
 import { buildTown, type TownPart } from './env/town';
 import { buildSnowfall, type SnowfallPart } from './env/snowfall';
-import { reducedMotion } from '../fx/comfort';
+import { glowScale, onComfortChange, reducedMotion } from '../fx/comfort';
+import { regionAt } from '../eras/playerUpgrades';
 
 const EXPAND_TIME = 1.6;
 
@@ -112,6 +113,18 @@ export class Environment {
       updateGlow(d);
       this.aurora.setDarkness(d);
     });
+    // 0.9.8: each era's light and colour grade follows the camera (render/palette.ts looks; outside the regions = era 1)
+    ctx.renderer.eraSource = () => {
+      const t = ctx.cameraRig?.target;
+      return t ? regionAt(t.x, t.z) || 1 : 1;
+    };
+    // the comfort Glow slider scales the bloom and the night lights
+    const glow = (): void => {
+      ctx.renderer.glow = glowScale();
+      setGlowStrength(glowScale());
+    };
+    glow();
+    onComfortChange(glow);
 
     // Eras follow the village level (live on 'village:changed'); sets the current look now and again for late registrants.
     this.eras = new EraController(ctx);

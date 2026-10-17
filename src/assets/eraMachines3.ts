@@ -23,6 +23,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { vcMat } from '../render/batch';
+import { MACHINE_TONES, SNOW } from '../render/palette';
 import { Kit, eraGlowMaterial, hcyl, lattice, wheel, type Rot, type V3 } from './eraKit';
 import type { MachineModel } from './eraMachines';
 
@@ -45,24 +46,12 @@ export const ERA5_7_MACHINE_ERA: Record<Era5to7MachineId, 5 | 6 | 7> = {
 // palette (art guide, chat version)
 // ---------------------------------------------------------------------------
 
-const SNOW = 0xf4f7fb;
 const SNOW_SH = 0xd9e4f0;
 
-/** Era 5 Industrial (body and trim one step lighter than the guide: under the toon ramp the guide values read near-black). */
-const I = {
-  ground: 0xbac4d0, fence: 0x525c63, body: 0x6c7a83, accent: 0xe08a2b, trim: 0x3b4449, glow: 0xffd166,
-  bodyL: 0x8794a0, brick: 0xb8613f, brickD: 0x934a32, brass: 0xd4a64a, brassL: 0xecc46a, concrete: 0xa9aeb0,
-};
-/** Era 6 Electric. */
-const E = {
-  ground: 0xb4c0cc, fence: 0x5c6b73, body: 0x4c6b68, accent: 0xd97f38, trim: 0x2b3b39, glow: 0x7ce8c8,
-  bodyL: 0x6a8f8a, cream: 0xf0e4cb, creamD: 0xd8ccb2, honey: 0xe2ad3c, crimson: 0xb8473a, gravel: 0xa9a49a, quartz: 0xeed3e2,
-};
-/** Era 7 Oil. */
-const O = {
-  ground: 0xaebac6, fence: 0x575552, body: 0xd99b26, accent: 0xc44536, trim: 0x36383a, glow: 0xffaa5a,
-  bodyL: 0xebb850, bodyD: 0xb27c1c, concrete: 0xb9b3a8, cream: 0xf0e4cb, steel: 0x8a8580, asphalt: 0x4a4746,
-};
+/** Era 5 Industrial, 6 Electric and 7 Oil tones (render/palette.ts). */
+const I = MACHINE_TONES[5];
+const E = MACHINE_TONES[6];
+const O = MACHINE_TONES[7];
 
 /** Shared warm window / lamp tint. */
 const G_WARM = 0xffd38a;

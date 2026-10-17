@@ -32,7 +32,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CAMERA, COLORS, LAYOUT, PALETTE, TOWN } from '../config';
 import { CHARACTER_HIP_Y } from '../assets/characters';
 import { Batch, type PartOpts } from '../render/batch';
-import { geo, toonUnique } from '../render/materials';
+import { additiveKeepAlpha, geo, toonUnique } from '../render/materials';
 import { registerGlow } from '../world/env/glow';
 
 const HIP = CHARACTER_HIP_Y;
@@ -376,16 +376,17 @@ export class Crowd {
     lanternMat.vertexColors = true;
     registerGlow(lanternMat, 2.0);
     this.lantern = this.prep(new THREE.InstancedMesh(lanternGeometry(), lanternMat, n));
-    this.haloMat = new THREE.MeshBasicMaterial({
-      map: haloTexture(),
-      color: new THREE.Color(1.0, 0.62, 0.24),
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-      fog: false,
-    });
+    this.haloMat = additiveKeepAlpha(
+      new THREE.MeshBasicMaterial({
+        map: haloTexture(),
+        color: new THREE.Color(1.0, 0.62, 0.24),
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        toneMapped: false,
+        fog: false,
+      }),
+    );
     this.halo = this.prep(new THREE.InstancedMesh(haloGeometry(1.1), this.haloMat, n));
     this.halo.renderOrder = 6;
 

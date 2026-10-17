@@ -164,9 +164,19 @@ read by anyone.
   (`artModel(key, build)`: the art guide's body + glow + anim contract, built once per key and pooled, so N copies
   cost 3 calls). Opt a mesh out with `userData.noInstance = true`; `renderer.instancing = false` turns it all off
   (A/B checks in `scripts/perf-scenario.mjs --ab`).
-* Colours come from `COLORS` (the exact art-direction master palette) / `PALETTE` (aliases + derived shades) in
-  `config.ts`. Vibrant, clean, toy-like; chunky proportions; no textures from files.
-* Shadows: one sun with a 2048 shadow map that follows the camera target. Large flat ground pieces receive only.
+* Colours: era colours come only from `render/palette.ts` (`palette(era)` for eras 1-10: guide row, floors, night
+  light, the era's night and colour grade, city colours; `SNOW`, `PINE`, `GOLD`, `INK`); era 1's scene colours from
+  `COLORS` / `PALETTE` in `config.ts`. Never add a new hard-coded palette. `render/paletteMaterials.ts` has the shared
+  `glowMaterial()` (blooms, brightens at night) and `floorMaterial(era, zone)`. Toy-like, chunky, no texture files.
+* Look (0.9.8): a warm / cool cel ramp; on Medium and High the scene renders into an HDR target and `render/PostFX.ts`
+  adds soft ink outlines (depth edges), selective bloom (only what glows: lit materials write their emissive light as
+  a glow mask into alpha, `markGlow()` flags unlit lights), the era's grade and a vignette, plus a gentle depth of
+  field on High. Additive effects use `additiveKeepAlpha()` so they don't switch the bloom off behind them.
+* Quality tiers (`render/Renderer.ts` TIERS): Low (no shadows, no post), Medium (1024 shadows, post), High (2048
+  shadows, post + DOF + 4x MSAA). `ui/AutoQuality.ts` steps them both ways; the player's own pick always wins.
+* Draw-call gate: `node scripts/perf-scenario.mjs --frames 2 --tiers low,medium,high --gate 950` (CI) on the late-game
+  save at night; `--look dir` saves day / night shots of every era for before / after reviews.
+* Shadows: one sun that follows the camera target (2048 map on High, 1024 on Medium). Large flat ground pieces receive only.
 * No per-frame allocations in hot paths (reuse temp vectors). Prefer InstancedMesh/merged geometry for repeated decor.
 
 ## 6. Verification
