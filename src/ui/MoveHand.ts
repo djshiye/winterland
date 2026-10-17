@@ -7,6 +7,7 @@
  */
 import type { GameContext } from '../core/types';
 import { h } from './dom';
+import { ICON_INK } from './iconKit';
 
 const FLAG = 'seen:moveHand' as const;
 const MOVE_DONE = 2;
@@ -18,7 +19,7 @@ const DX = 74;
 const DY = -62;
 
 const HAND = `<svg viewBox="0 0 56 64" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
-  <g stroke="#1f2b46" stroke-width="3" fill="#fff">
+  <g stroke="${ICON_INK}" stroke-width="3" fill="#fff">
     <rect x="19" y="3" width="13" height="32" rx="6.5"/>
     <path d="M12 30c0-3 2-5 5-5h20c8 0 13 6 13 14v10c0 8-6 14-14 14H26c-6 0-10-3-13-8l-6-10c-1.600-2.700 1.500-5.600 4.300-3.800L12 40z"/>
   </g>

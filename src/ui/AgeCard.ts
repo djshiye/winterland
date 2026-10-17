@@ -1,30 +1,41 @@
 /**
  * [0.9.0 Ages — UI] Celebration cards for the city's big moments.
- * - 'era:unlocked' { era }: "A NEW ERA · ERA IV · STEAM AGE", the era's tagline, its perks, the region's name and two
- *   rule (0.9.6, eras/gate.ts gateRuleText: what to raise to Lv 10 before the next expansion) and two
- *   buttons: "Go there" (fast travel to the region's front door via 'travel:request') and Close. Stays until dismissed.
+ * - 'era:unlocked' { era }: 0.9.8 (brief 14) the era POSTCARD: a code-drawn picture of the new era's region built
+ *   around its resource (ui/eraPostcards.ts) with a roman-numeral stamp and an "A NEW ERA" postmark, then "Greetings
+ *   from <region>!", the era's name and tagline, its perks, the Lv 10 rule (0.9.6, eras/gate.ts gateRuleText) and two
+ *   buttons: "Go there" (fast travel to the region's front door via 'travel:request') and Close.
+ *   It is short and skippable: it slips away on its own after POSTCARD_STAY seconds (a stitched line under the picture
+ *   shows the time left), and the timer waits while the pointer, the keyboard or the gamepad is on the card. Close,
+ *   Esc and gamepad B dismiss it at once. Reduce motion: it fades in and out without the pop and the tilt.
  * - 'city:rankUp' { rank, name }: a smaller banner "Your city is now a Big City!" that fades on its own (it waits its
  *   turn while the era card is up).
- * Sits bottom-centre like EraCard (era.css look), hides while a sheet (.shop-open) owns the screen; popped in / faded
- * on simulation time from update(dt).
+ * Sits bottom-centre, hides while a sheet (.shop-open) owns the screen; popped in / faded on simulation time from
+ * update(dt).
  */
 import { finaleQuiet } from '../core/quiet';
 import type { GameContext } from '../core/types';
+import { reducedMotion } from '../fx/comfort';
 import { ERAS } from '../eras/data';
 import { gateNeed, gateRuleText } from '../eras/gate';
 import { regionLayout } from '../eras/layout';
-import { eraTitle } from './agesLogic';
+import { eraRoman } from './agesLogic';
 import { backOut, h, onTap, shield } from './dom';
-import { hexCss, ICON_STAR } from './icons';
+import { eraPostcard } from './eraPostcards';
+import { setEraAccent } from './theme';
 import './era.css';
 import './ages.css';
 
 const IN = 0.45;
 const OUT = 0.3;
 const BANNER_SHOW = 3.6;
+/** Seconds the postcard stays before it slips away on its own (paused while the player is on it). */
+export const POSTCARD_STAY = 9;
 
 export class AgeCard {
   private readonly root: HTMLDivElement;
+  private readonly picEl: HTMLDivElement;
+  private readonly stampEl: HTMLDivElement;
+  private readonly timerEl: HTMLDivElement;
   private readonly kickerEl: HTMLDivElement;
   private readonly titleEl: HTMLDivElement;
   private readonly tagEl: HTMLDivElement;
@@ -36,6 +47,9 @@ export class AgeCard {
   /** Seconds since the era card opened (−1 = none) and since it started closing (−1 = not closing). */
   private t = -1;
   private closing = -1;
+  /** Seconds the postcard has been read (the auto-dismiss clock; it stops while the player is on the card). */
+  private stay = 0;
+  private hovered = false;
   private era = 0;
   private bannerT = -1;
   private pendingRank: string | null = null;
@@ -43,29 +57,42 @@ export class AgeCard {
   private lastBanner = '';
 
   constructor(private readonly ctx: GameContext, layer: HTMLElement) {
-    this.root = h('div', 'wl-era wl-agecard');
+    this.root = h('div', 'wl-era wl-agecard wl-postcard');
+    this.root.setAttribute('role', 'dialog');
     shield(this.root);
     this.root.style.display = 'none';
-    this.kickerEl = h('div', 'wl-era-num', 'A NEW ERA');
-    this.titleEl = h('div', 'wl-era-name');
-    this.tagEl = h('div', 'wl-era-tag');
-    this.perksEl = h('div', 'wl-era-perks');
-    this.placeEl = h('div', 'wl-agecard-place');
+    // the picture side: the region's diorama, a stamp with the era's numeral, an "A NEW ERA" postmark
+    this.picEl = h('div', 'wl-pc-pic');
+    this.stampEl = h('div', 'wl-pc-stamp');
+    const mark = h('div', 'wl-pc-mark', '<span>A NEW ERA</span>');
+    const pic = h('div', 'wl-pc-picwrap');
+    pic.append(this.picEl, this.stampEl, mark);
+    this.timerEl = h('div', 'wl-pc-timer');
+    // the writing side
+    this.kickerEl = h('div', 'wl-kicker wl-pc-kicker');
+    this.titleEl = h('div', 'wl-pc-title');
+    this.tagEl = h('div', 'wl-pc-tag');
+    this.perksEl = h('div', 'wl-era-perks wl-pc-perks');
+    this.placeEl = h('div', 'wl-pc-greet');
     this.ruleEl = h('div', 'wl-agecard-rule');
-    const stars = h('div', 'wl-era-stars', `<i>${ICON_STAR}</i><i>${ICON_STAR}</i><i>${ICON_STAR}</i>`);
     const btns = h('div', 'wl-agecard-btns');
     this.goBtn = h('button', 'wl-agecard-btn is-go', 'Go there');
     this.goBtn.type = 'button';
-    const closeBtn = h('button', 'wl-agecard-btn is-plain', 'Close');
+    const closeBtn = h('button', 'wl-agecard-btn is-plain is-b-pine', 'Close');
     closeBtn.type = 'button';
     btns.append(this.goBtn, closeBtn);
-    this.root.append(stars, this.kickerEl, this.titleEl, this.tagEl, this.perksEl, this.placeEl, this.ruleEl, btns);
+    const body = h('div', 'wl-pc-body');
+    body.append(this.kickerEl, this.placeEl, this.titleEl, this.tagEl, this.perksEl, this.ruleEl, btns);
+    this.root.append(pic, this.timerEl, body);
     layer.appendChild(this.root);
     onTap(this.goBtn, () => this.goThere());
     onTap(closeBtn, () => {
       ctx.audio.play('click');
       this.close();
     });
+    // the auto-dismiss clock waits while the player is reading with the mouse on it (focus is checked each frame)
+    this.root.addEventListener('pointerenter', () => (this.hovered = true));
+    this.root.addEventListener('pointerleave', () => (this.hovered = false));
 
     this.banner = h('div', 'wl-era wl-rankbanner');
     this.banner.style.display = 'none';
@@ -90,7 +117,10 @@ export class AgeCard {
     const e = ERAS[n];
     if (!e) return;
     this.era = n;
-    this.titleEl.textContent = eraTitle(n);
+    this.picEl.innerHTML = eraPostcard(n);
+    this.stampEl.innerHTML = `<b>${eraRoman(n)}</b><small>ERA</small>`;
+    this.kickerEl.textContent = `A new era · Era ${eraRoman(n)}`;
+    this.titleEl.textContent = e.name;
     this.tagEl.textContent = e.tagline;
     this.perksEl.replaceChildren(
       ...e.perks.map((p) => {
@@ -99,9 +129,12 @@ export class AgeCard {
         return el;
       }),
     );
-    this.placeEl.textContent = `${e.region} is open`;
+    this.placeEl.textContent = `Greetings from ${e.region}!`;
     this.ruleEl.textContent = ERAS[n + 1] ? gateRuleText(n + 1) : `Raise ${e.region}'s machines, crew and upgrades to Lv ${gateNeed(n)}.`;
-    this.root.style.setProperty('--era-accent', hexCss(e.colors.accent));
+    setEraAccent(this.root, n);
+    this.stay = 0;
+    this.hovered = false;
+    this.timerEl.style.transform = 'scaleX(1)';
     this.root.setAttribute('aria-label', `A new era: ${e.name}`);
     this.t = 0;
     this.closing = -1;
@@ -145,6 +178,14 @@ export class AgeCard {
     }
     if (this.t >= 0) {
       this.t += dt;
+      // the postcard slips away on its own once read; the clock waits while the player is on it
+      if (this.closing < 0) {
+        const busy = this.hovered || this.root.contains(document.activeElement);
+        if (!busy) this.stay += dt;
+        const left = Math.max(0, 1 - this.stay / POSTCARD_STAY);
+        this.timerEl.style.transform = `scaleX(${left.toFixed(3)})`;
+        if (this.stay >= POSTCARD_STAY) this.close();
+      }
       let fade = 1;
       if (this.closing >= 0) {
         this.closing += dt;
@@ -163,8 +204,11 @@ export class AgeCard {
       }
       const k = Math.min(1, this.t / IN);
       const op = (Math.min(1, k * 2.5) * fade).toFixed(2);
-      const sc = (0.7 + 0.3 * backOut(k)) * (0.96 + 0.04 * fade);
-      const tf = `translate(-50%, ${((1 - k) * 18).toFixed(1)}px) scale(${sc.toFixed(3)})`;
+      // a postcard dropping onto the table: a little pop and a settling tilt (none of it with Reduce motion)
+      const calm = reducedMotion();
+      const sc = calm ? 1 : (0.7 + 0.3 * backOut(k)) * (0.96 + 0.04 * fade);
+      const tilt = calm ? 0 : (1 - k) * -4;
+      const tf = `translate(-50%, ${calm ? 0 : ((1 - k) * 18).toFixed(1)}px) scale(${sc.toFixed(3)}) rotate(${tilt.toFixed(2)}deg)`;
       const key = `${op}|${tf}`;
       if (key !== this.last) {
         this.last = key;

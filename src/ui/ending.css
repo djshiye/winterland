@@ -11,8 +11,8 @@
   font-size: 11px;
   line-height: 1.1;
   font-weight: 700;
-  color: #4a2a05;
-  background: linear-gradient(#ffe27a, #f2b52c);
+  color: var(--wl-gold-ink);
+  background: linear-gradient(var(--wl-gold-hi), var(--wl-gold));
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -22,17 +22,17 @@
 }
 
 .wl-erachip.is-ready .wl-erachip-pct {
-  background: rgba(255, 255, 255, 0.55);
+  background: color-mix(in srgb, var(--wl-cream-c) 60%, transparent);
 }
 
 .wl-erachip.is-complete {
-  background: linear-gradient(#ffd84a, #e8a21c);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 18px rgba(255, 216, 74, 0.55);
+  background: linear-gradient(var(--wl-gold-hi), var(--wl-gold));
+  box-shadow: var(--wl-drop), 0 0 0 2px var(--wl-cream-c), 0 0 18px color-mix(in srgb, var(--wl-gold) 60%, transparent);
 }
 
 .wl-erachip.is-complete .wl-erachip-era,
 .wl-erachip.is-complete .wl-erachip-city {
-  color: #4a2a05;
+  color: var(--wl-gold-ink);
   text-shadow: none;
 }
 
@@ -48,14 +48,14 @@
 .wl-gate-completion {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.22);
+  border-top: 1px dashed var(--wl-well);
 }
 
 .wl-gate-completion-head {
   margin-bottom: 6px;
   font-size: 13px;
   font-weight: 700;
-  color: #ffd84a;
+  color: var(--wl-gold-text);
   letter-spacing: 0.02em;
 }
 
@@ -73,7 +73,7 @@
 .wl-finale-stars.is-trophy svg:nth-child(2) {
   width: 72px;
   height: 72px;
-  filter: drop-shadow(0 4px 0 rgba(20, 30, 55, 0.45)) drop-shadow(0 0 14px rgba(255, 216, 74, 0.6));
+  filter: drop-shadow(0 4px 0 var(--wl-shade)) drop-shadow(0 0 14px color-mix(in srgb, var(--wl-gold) 60%, transparent));
 }
 
 .wl-finale-sub {
@@ -89,7 +89,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #ffd84a;
+  color: var(--wl-gold-text);
   text-align: left;
 }
 
@@ -109,7 +109,7 @@
   margin-bottom: 6px;
   font-size: 20px;
   font-weight: 700;
-  color: #ffd84a;
+  color: var(--wl-gold-text);
 }
 
 .wl-finale-bar {
@@ -126,7 +126,7 @@
   display: block;
   height: 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--wl-well);
   overflow: hidden;
 }
 
@@ -134,11 +134,11 @@
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #8fd8ff, #5ee07a);
+  background: linear-gradient(90deg, var(--wl-info-hi), var(--wl-good));
 }
 
 .wl-finale-bar.is-done i b {
-  background: linear-gradient(90deg, #ffe27a, #f2b52c);
+  background: linear-gradient(90deg, var(--wl-gold-hi), var(--wl-gold));
 }
 
 .wl-finale-bar em {
@@ -164,12 +164,12 @@
 }
 
 .wl-era-row:nth-child(odd) {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--wl-row);
 }
 
 .wl-era-row b {
   font-size: 13px;
-  color: #ffd84a;
+  color: var(--wl-gold-text);
   letter-spacing: 0.05em;
 }
 
@@ -187,7 +187,7 @@
 }
 
 .wl-era-row.is-now em {
-  color: #5ee07a;
+  color: var(--wl-good-text);
 }
 
 .wl-era-row.is-locked {
@@ -211,7 +211,7 @@
   gap: 2px;
   padding: 8px 4px 6px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--wl-row);
   opacity: 0.45;
   filter: grayscale(1);
 }
@@ -219,7 +219,7 @@
 .wl-trophy.is-won {
   opacity: 1;
   filter: none;
-  background: rgba(255, 216, 74, 0.16);
+  background: color-mix(in srgb, var(--wl-gold) 18%, transparent);
 }
 
 .wl-trophy svg {
@@ -241,7 +241,7 @@
 
 .wl-trophy b {
   font-size: 15px;
-  color: #ffd84a;
+  color: var(--wl-gold-text);
 }
 
 .wl-finale-life {
@@ -258,7 +258,7 @@
 
 .wl-life-line b {
   font-size: 16px;
-  color: #fff;
+  color: var(--wl-ink);
 }
 
 /* ---- New Season: what starts over, what stays ---------------------------------------------------------------- */
@@ -292,19 +292,19 @@
 }
 
 .wl-season-list.is-reset {
-  background: rgba(255, 120, 100, 0.14);
+  background: color-mix(in srgb, var(--wl-bad) 14%, transparent);
 }
 
 .wl-season-list.is-reset b {
-  color: #ffb3a3;
+  color: var(--wl-bad-text);
 }
 
 .wl-season-list.is-keep {
-  background: rgba(94, 224, 122, 0.14);
+  background: color-mix(in srgb, var(--wl-good) 16%, transparent);
 }
 
 .wl-season-list.is-keep b {
-  color: #8ff0a4;
+  color: var(--wl-good-text);
 }
 
 @media (max-width: 420px) {
@@ -324,4 +324,78 @@
     padding: 3px 8px;
     font-size: 13px;
   }
+}
+
+/* ---- 0.9.8: the finale moment's look (brief 14) -----------------------------------------------------------------
+   The celebration cards (the Great Lodge, the Grand Market, Winterland Complete) wear a honey prize ribbon across the
+   top; the stats page keeps a calm title. Static looks only: the pop-in runs on simulation time (FinaleCard.update). */
+
+.wl-finale:not(.is-stats) .wl-card-title,
+.wl-finale.is-stats.is-complete .wl-card-title {
+  position: relative;
+  display: inline-block;
+  max-width: calc(100% - 56px);
+  margin: 2px auto 14px;
+  padding: 8px 18px 9px;
+  border-radius: 10px;
+  background: linear-gradient(var(--wl-gold-hi), var(--wl-gold));
+  color: var(--wl-gold-ink);
+  font-size: clamp(20px, 5.4vw, 28px);
+  box-shadow: 0 4px 0 var(--wl-gold-lo), 0 8px 16px var(--wl-shade-soft);
+}
+
+/* the ribbon's folded tails */
+.wl-finale:not(.is-stats) .wl-card-title::before,
+.wl-finale:not(.is-stats) .wl-card-title::after,
+.wl-finale.is-stats.is-complete .wl-card-title::before,
+.wl-finale.is-stats.is-complete .wl-card-title::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  width: 22px;
+  height: calc(100% - 4px);
+  background: var(--wl-gold-lo);
+  z-index: -1;
+}
+
+.wl-finale:not(.is-stats) .wl-card-title::before,
+.wl-finale.is-stats.is-complete .wl-card-title::before {
+  left: -14px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 40% 50%);
+}
+
+.wl-finale:not(.is-stats) .wl-card-title::after,
+.wl-finale.is-stats.is-complete .wl-card-title::after {
+  right: -14px;
+  clip-path: polygon(0 0, 100% 0, 60% 50%, 100% 100%, 0 100%);
+}
+
+.wl-finale {
+  isolation: isolate;
+  border-top: 8px solid var(--wl-gold);
+}
+
+.wl-finale .wl-finale-stars svg {
+  filter: drop-shadow(0 3px 0 var(--wl-shade-soft));
+}
+
+.wl-stat {
+  background: var(--wl-row);
+  box-shadow: 0 2px 0 var(--wl-line);
+}
+
+.wl-stat.is-hot {
+  background: color-mix(in oklab, var(--wl-row), var(--wl-gold) 18%);
+}
+
+/* the long stats/complete cards scroll; their buttons stay pinned in a cream footer so the headline and the focused
+   button are both on screen when the card opens (menuNav focuses the first button) */
+.wl-finale.is-stats .wl-finale-actions {
+  position: sticky;
+  bottom: -20px;
+  z-index: 1;
+  margin: 10px -20px -20px;
+  padding: 12px 20px 20px;
+  border-radius: 0 0 17px 17px;
+  background: linear-gradient(color-mix(in oklab, var(--wl-card), transparent 100%), var(--wl-card) 14px);
 }

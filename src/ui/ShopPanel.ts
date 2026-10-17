@@ -127,7 +127,7 @@ export class ShopPanel {
     this.root.style.display = 'none';
 
     const head = h('div', 'wl-shop-head');
-    head.appendChild(h('div', 'wl-shop-title wl-outline', 'Shop'));
+    head.appendChild(h('div', 'wl-shop-title wl-title', 'Shop'));
     head.classList.add('is-stacked');
     const tabs = h('div', 'wl-shop-tabs');
     this.tabsEl = tabs;

@@ -61,7 +61,7 @@ export function packedEarth(rng: Rng): THREE.MeshToonMaterial {
     });
   }
   // pebbles, each with a little shadow below it
-  for (let i = 0; i < 150; i++) {
+  for (let i = 0; i < 100; i++) {
     const x = rng.range(0, px);
     const y = rng.range(0, px);
     const r = rng.range(0.035, 0.08) * s;

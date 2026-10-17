@@ -21,7 +21,9 @@ import { FINAL_NAME } from '../eras/gate';
 import { eraRoman } from './agesLogic';
 import { backOut, h, onTap, shield, Slide } from './dom';
 import { formatCount, formatDuration, formatMoney } from './format';
-import { ICON_STAR } from './icons';
+import { hexCss, ICON_STAR } from './icons';
+import { ICON_INK } from './iconKit';
+import { CREAM, GOLD, mixHex, palette } from '../render/palette';
 import { SeasonConfirm } from './SeasonConfirm';
 import './ending.css';
 
@@ -45,12 +47,22 @@ const SUBS: Record<FinaleVariant, string> = {
 };
 const BUTTONS: Record<FinaleVariant, string> = { lodge: 'On to the Frontier', market: 'Keep playing', complete: 'Keep playing', stats: 'Close' };
 
-/** A gold cup (the trophy on the Great Lodge plaza, assets/trophy.ts). */
+/** A gold cup (the trophy on the Great Lodge plaza, assets/trophy.ts): 0.9.8 drawn in the icon kit's style (warm ink
+ *  outline, palette gold, a red prize rosette on a wooden drum, a soft star). */
+const T_GOLD = hexCss(GOLD);
+const T_DEEP = hexCss(mixHex(GOLD, palette(1).trim, 0.25));
+const T_LIGHT = hexCss(mixHex(GOLD, CREAM, 0.6));
 export const ICON_TROPHY =
-  '<svg viewBox="0 0 64 64" aria-hidden="true"><path fill="#e0a020" d="M20 54h24v6H20z"/><path fill="#ffcc33" d="M27 42h10v12H27z"/>' +
-  '<path fill="none" stroke="#ffcc33" stroke-width="5" d="M17 14c-9 0-9 14 4 16M47 14c9 0 9 14-4 16"/>' +
-  '<path fill="#ffcc33" d="M15 8h34v10c0 14-8 24-17 24S15 32 15 18z"/><path fill="#fff3b0" d="M22 12h5v10c0 6 2 10 4 12-6-1-9-7-9-12z" opacity=".7"/>' +
-  '<path fill="#fff" d="M32 15l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.6-4.8 2.6.9-5.4-3.9-3.8 5.4-.8z"/></svg>';
+  `<svg viewBox="0 0 64 64" aria-hidden="true" stroke="${ICON_INK}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">` +
+  `<rect x="16" y="50" width="32" height="11" rx="3" fill="${hexCss(palette(1).body)}"/>` +
+  `<path d="M16 54h32" fill="none" stroke-width="1.6"/>` +
+  `<path d="M24 50l2-7h12l2 7z" fill="${T_DEEP}"/><rect x="29" y="35" width="6" height="9" fill="${T_GOLD}"/>` +
+  `<path fill="none" stroke-width="4.5" d="M17 14c-9 0-9 14 4 16M47 14c9 0 9 14-4 16"/>` +
+  `<path fill="none" stroke="${T_GOLD}" stroke-width="2" d="M17 14c-9 0-9 14 4 16M47 14c9 0 9 14-4 16"/>` +
+  `<path fill="${T_GOLD}" d="M15 9h34v8c0 13-8 21-17 21S15 30 15 17z"/>` +
+  `<path fill="${T_LIGHT}" stroke="none" d="M21 13h5v7c0 6 2 9 4 11-6-1-9-6-9-11z" opacity=".8"/>` +
+  `<path fill="${hexCss(CREAM)}" stroke-width="1.6" d="M32 15.5l2.2 4.4 4.8.7-3.5 3.4.8 4.8-4.3-2.3-4.3 2.3.8-4.8-3.5-3.4 4.8-.7z"/>` +
+  `<circle cx="32" cy="55.5" r="4" fill="${hexCss(palette(1).accent)}" stroke-width="1.8"/></svg>`;
 
 export class FinaleCard {
   private readonly backdrop: HTMLDivElement;
@@ -85,7 +97,7 @@ export class FinaleCard {
     this.card.setAttribute('role', 'dialog');
     this.card.setAttribute('aria-modal', 'true');
     this.icon = h('div', 'wl-finale-stars', ICON_STAR + ICON_STAR + ICON_STAR);
-    this.title = h('div', 'wl-card-title wl-title-gold wl-outline', TITLES.lodge);
+    this.title = h('div', 'wl-card-title wl-title-gold wl-title', TITLES.lodge);
     this.sub = h('div', 'wl-finale-sub');
     this.progress = h('div', 'wl-finale-progress');
     this.grid = h('div', 'wl-stats');
@@ -100,7 +112,7 @@ export class FinaleCard {
       ctx.audio.play('click');
       this.slide.open = false;
     });
-    this.again = h('button', 'wl-btn wl-btn-gold wl-finale-new', 'Start a new season');
+    this.again = h('button', 'wl-btn wl-btn-gold is-b-pine wl-finale-new', 'Start a new season');
     this.again.type = 'button';
     this.again.title = 'Prices go up for good, everything else starts over';
     onTap(this.again, () => {
@@ -277,6 +289,7 @@ export class FinaleCard {
     this.fill();
     this.showSeason(false);
     this.card.classList.toggle('is-stats', this.variant === 'complete' || this.variant === 'stats');
+    this.card.classList.toggle('is-complete', this.variant === 'complete');
     this.card.scrollTop = 0;
     this.backdrop.style.display = 'flex';
     this.slide.k = 0;

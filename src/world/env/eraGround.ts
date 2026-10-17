@@ -29,6 +29,13 @@ import type { PropRole } from '../../assets/frontierProps';
 import { era01Dress } from './ground/era01';
 import { era02 } from './ground/era02';
 import { era03 } from './ground/era03';
+import { era04 } from './ground/era04';
+import { era05 } from './ground/era05';
+import { era06 } from './ground/era06';
+import { era07 } from './ground/era07';
+import { era08 } from './ground/era08';
+import { era09 } from './ground/era09';
+import { era10 } from './ground/era10';
 
 /** Everything an era module builds into. Read-only for modules except through its batches and lists. */
 export class GroundKit {
@@ -95,6 +102,13 @@ export interface EraGroundModule {
 const MODULES: Record<number, EraGroundModule> = {
   2: era02,
   3: era03,
+  4: era04,
+  5: era05,
+  6: era06,
+  7: era07,
+  8: era08,
+  9: era09,
+  10: era10,
 };
 
 /** Era n's module, if it has one. */

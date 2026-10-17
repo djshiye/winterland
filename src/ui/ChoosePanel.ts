@@ -26,7 +26,7 @@ export class ChoosePanel {
     const root = this.sheet.root;
     const head = h('div', 'wl-build-head');
     const titles = h('div', 'wl-build-titles');
-    this.titleEl = h('div', 'wl-build-title wl-outline');
+    this.titleEl = h('div', 'wl-build-title wl-title');
     titles.append(this.titleEl, h('div', 'wl-build-sub', 'Choose what to build here'));
     head.appendChild(titles);
     const close = h('button', 'wl-build-close', ICON_CLOSE);
