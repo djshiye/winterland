@@ -1,4 +1,4 @@
-# Every push and pull request that changes more than docs or images: type-check, unit tests (save compatibility),
+# Every push and pull request that changes more than docs or images (CHANGELOG.md counts as code: the game bundles it): type-check, unit tests (save compatibility),
 # production build, a headless bot run that must reach the processor (catches crashes and broken progression) and the
 # draw-call gate. The desktop updater runs in updater.yml, only when its files change.
 name: CI
@@ -6,17 +6,21 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - '**/*.png'
-      - '**/*.jpg'
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!docs/**'
+      - '!**/*.png'
+      - '!**/*.jpg'
+      - 'CHANGELOG.md'
   pull_request:
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - '**/*.png'
-      - '**/*.jpg'
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!docs/**'
+      - '!**/*.png'
+      - '!**/*.jpg'
+      - 'CHANGELOG.md'
 
 # CI only reads the repo (no token write access for tests, bots or pull requests from forks).
 permissions:

@@ -11,6 +11,7 @@ on:
       - 'scripts/updater-files.mjs'
       - 'package.json'
       - 'package-lock.json'
+      - '.github/workflows/updater.yml'
   pull_request:
     paths:
       - 'desktop/**'
@@ -18,6 +19,7 @@ on:
       - 'scripts/updater-files.mjs'
       - 'package.json'
       - 'package-lock.json'
+      - '.github/workflows/updater.yml'
 
 permissions:
   contents: read
