@@ -1,0 +1,1028 @@
+{
+ "note": "Live income ($/s, every source) of era n with its own upgrades all at level L, earlier eras built out at Lv 10. Measured by scripts/econ-curve.mjs on the 0.9.9 era content (quests off, every cash pile banked every 8 s). tests/livePacing.test.ts reads it; regenerate after era content or income changes.",
+ "2": {
+  "n": 2,
+  "samples": [
+   {
+    "L": 0,
+    "perSec": 2098,
+    "src": {
+     "npc/crewHelpers": 305,
+     "stations/CashTubes": 1492,
+     "bank:pile:truckCash": 42,
+     "bank:pile:walkInCash": 52,
+     "bank:pile:seCash": 53,
+     "bank:pile:town1Cash": 7,
+     "bank:pile:platformCash": 141,
+     "bank:pile:town4Cash": 5
+    }
+   },
+   {
+    "L": 2,
+    "perSec": 12035,
+    "src": {
+     "stations/CashTubes": 1567,
+     "eras/CashMachine": 3122,
+     "npc/crewHelpers": 292,
+     "bank:pile:walkInCash": 59,
+     "bank:pile:eraNCash": 5515,
+     "bank:pile:seCash": 46,
+     "bank:pile:truckCash": 54,
+     "npc/EraWorker": 1296,
+     "bank:pile:platformCash": 70,
+     "bank:pile:town1Cash": 5,
+     "bank:pile:town4Cash": 6,
+     "bank:pile:town7Cash": 3
+    }
+   },
+   {
+    "L": 4,
+    "perSec": 26859,
+    "src": {
+     "stations/CashTubes": 1675,
+     "eras/CashMachine": 8406,
+     "npc/crewHelpers": 299,
+     "bank:pile:walkInCash": 66,
+     "bank:pile:eraNCash": 13680,
+     "npc/EraWorker": 2606,
+     "bank:pile:seCash": 44,
+     "bank:pile:truckCash": 74,
+     "bank:pile:town4Cash": 5,
+     "bank:pile:town1Cash": 3
+    }
+   },
+   {
+    "L": 6,
+    "perSec": 50263,
+    "src": {
+     "stations/CashTubes": 1583,
+     "eras/CashMachine": 18955,
+     "npc/crewHelpers": 281,
+     "bank:pile:truckCash": 56,
+     "bank:pile:seCash": 77,
+     "bank:pile:platformCash": 100,
+     "bank:pile:eraNCash": 25985,
+     "npc/EraWorker": 3166,
+     "bank:pile:walkInCash": 55,
+     "bank:pile:town7Cash": 5
+    }
+   },
+   {
+    "L": 8,
+    "perSec": 83951,
+    "src": {
+     "stations/CashTubes": 1564,
+     "npc/crewHelpers": 339,
+     "eras/CashMachine": 37818,
+     "bank:pile:walkInCash": 54,
+     "bank:pile:seCash": 40,
+     "bank:pile:eraNCash": 30318,
+     "npc/EraWorker": 13713,
+     "bank:pile:truckCash": 75,
+     "bank:pile:town7Cash": 5,
+     "bank:pile:town1Cash": 3,
+     "bank:pile:platformCash": 22
+    }
+   },
+   {
+    "L": 10,
+    "perSec": 225032,
+    "src": {
+     "stations/CashTubes": 1584,
+     "eras/CashMachine": 92350,
+     "npc/crewHelpers": 288,
+     "npc/EraWorker": 31987,
+     "bank:pile:truckCash": 93,
+     "bank:pile:walkInCash": 62,
+     "bank:pile:seCash": 52,
+     "bank:pile:town1Cash": 6,
+     "bank:pile:town4Cash": 4,
+     "bank:pile:eraNCash": 38762,
+     "bank:pile:platformCash": 55,
+     "bank:pile:town7Cash": 5,
+     "core/Contracts": 59783
+    }
+   }
+  ]
+ },
+ "3": {
+  "n": 3,
+  "samples": [
+   {
+    "L": 0,
+    "perSec": 202062,
+    "src": {
+     "stations/CashTubes": 1675,
+     "eras/CashMachine": 113232,
+     "city/City": 7599,
+     "npc/crewHelpers": 341,
+     "npc/EraWorker": 30137,
+     "bank:pile:truckCash": 93,
+     "bank:pile:walkInCash": 49,
+     "bank:pile:eraNCash": 48771,
+     "bank:pile:seCash": 64,
+     "bank:pile:town1Cash": 4,
+     "bank:pile:platformCash": 93,
+     "bank:pile:town7Cash": 4
+    }
+   },
+   {
+    "L": 2,
+    "perSec": 204667,
+    "src": {
+     "npc/crewHelpers": 317,
+     "stations/CashTubes": 1693,
+     "eras/CashMachine": 93709,
+     "npc/EraWorker": 30739,
+     "city/City": 7599,
+     "bank:pile:walkInCash": 64,
+     "bank:pile:seCash": 65,
+     "bank:pile:platformCash": 132,
+     "bank:pile:eraNCash": 70198,
+     "bank:pile:town7Cash": 11,
+     "bank:pile:sledCash": 25,
+     "bank:pile:truckCash": 99,
+     "bank:pile:town1Cash": 7,
+     "bank:pile:town4Cash": 9
+    }
+   },
+   {
+    "L": 4,
+    "perSec": 399823,
+    "src": {
+     "stations/CashTubes": 1703,
+     "eras/CashMachine": 123087,
+     "npc/EraWorker": 42251,
+     "npc/crewHelpers": 337,
+     "city/City": 7394,
+     "bank:pile:truckCash": 67,
+     "bank:pile:walkInCash": 58,
+     "bank:pile:eraNCash": 83494,
+     "bank:pile:seCash": 64,
+     "bank:pile:platformCash": 60,
+     "bank:pile:town7Cash": 2,
+     "bank:pile:town1Cash": 1,
+     "core/Contracts": 141304
+    }
+   },
+   {
+    "L": 6,
+    "perSec": 496762,
+    "src": {
+     "stations/CashTubes": 1630,
+     "eras/CashMachine": 154519,
+     "npc/EraWorker": 46108,
+     "city/City": 7599,
+     "npc/crewHelpers": 313,
+     "bank:pile:walkInCash": 58,
+     "bank:pile:seCash": 70,
+     "bank:pile:platformCash": 193,
+     "bank:pile:eraNCash": 106794,
+     "bank:pile:town1Cash": 14,
+     "bank:pile:town4Cash": 14,
+     "bank:pile:truckCash": 86,
+     "bank:pile:town7Cash": 16,
+     "core/Contracts": 179348
+    }
+   },
+   {
+    "L": 8,
+    "perSec": 647198,
+    "src": {
+     "eras/CashMachine": 204252,
+     "stations/CashTubes": 1711,
+     "npc/EraWorker": 82301,
+     "npc/crewHelpers": 290,
+     "city/City": 7599,
+     "bank:pile:walkInCash": 55,
+     "bank:pile:seCash": 56,
+     "bank:pile:eraNCash": 133360,
+     "bank:pile:truckCash": 88,
+     "bank:pile:platformCash": 84,
+     "core/Contracts": 217391,
+     "bank:pile:town1Cash": 4,
+     "bank:pile:town4Cash": 3,
+     "bank:pile:town7Cash": 2
+    }
+   },
+   {
+    "L": 10,
+    "perSec": 1001472,
+    "src": {
+     "stations/CashTubes": 1781,
+     "npc/crewHelpers": 339,
+     "npc/EraWorker": 123946,
+     "city/City": 7599,
+     "eras/CashMachine": 369684,
+     "bank:pile:truckCash": 76,
+     "bank:pile:walkInCash": 78,
+     "bank:pile:eraNCash": 198938,
+     "core/Contracts": 298913,
+     "bank:pile:seCash": 56,
+     "bank:pile:platformCash": 57,
+     "bank:pile:town1Cash": 4
+    }
+   }
+  ]
+ },
+ "4": {
+  "n": 4,
+  "samples": [
+   {
+    "L": 0,
+    "perSec": 808586,
+    "src": {
+     "npc/crewHelpers": 358,
+     "stations/CashTubes": 1966,
+     "eras/CashMachine": 408804,
+     "city/City": 39948,
+     "npc/EraWorker": 120283,
+     "bank:pile:walkInCash": 73,
+     "bank:pile:seCash": 42,
+     "bank:pile:eraNCash": 236950,
+     "bank:pile:town1Cash": 7,
+     "bank:pile:town7Cash": 6,
+     "bank:pile:town4Cash": 9,
+     "bank:pile:truckCash": 79,
+     "bank:pile:platformCash": 59
+    }
+   },
+   {
+    "L": 2,
+    "perSec": 813352,
+    "src": {
+     "stations/CashTubes": 1905,
+     "npc/crewHelpers": 357,
+     "eras/CashMachine": 399897,
+     "city/City": 39948,
+     "npc/EraWorker": 127461,
+     "bank:pile:walkInCash": 82,
+     "bank:pile:seCash": 76,
+     "bank:pile:eraNCash": 243429,
+     "bank:pile:town1Cash": 6,
+     "bank:pile:town7Cash": 1,
+     "bank:pile:truckCash": 102,
+     "bank:pile:platformCash": 89
+    }
+   },
+   {
+    "L": 4,
+    "perSec": 1005725,
+    "src": {
+     "npc/EraWorker": 201555,
+     "npc/crewHelpers": 321,
+     "stations/CashTubes": 2065,
+     "eras/CashMachine": 496519,
+     "city/City": 38868,
+     "bank:pile:truckCash": 101,
+     "bank:pile:walkInCash": 65,
+     "bank:pile:seCash": 55,
+     "bank:pile:eraNCash": 266126,
+     "bank:pile:platformCash": 50
+    }
+   },
+   {
+    "L": 6,
+    "perSec": 1725423,
+    "src": {
+     "stations/CashTubes": 1812,
+     "npc/crewHelpers": 412,
+     "npc/EraWorker": 178301,
+     "eras/CashMachine": 556725,
+     "city/City": 39948,
+     "bank:pile:eraNCash": 350090,
+     "bank:pile:truckCash": 79,
+     "bank:pile:walkInCash": 58,
+     "bank:pile:platformCash": 105,
+     "bank:pile:seCash": 64,
+     "core/Contracts": 597826,
+     "bank:pile:town1Cash": 4
+    }
+   },
+   {
+    "L": 8,
+    "perSec": 1433727,
+    "src": {
+     "eras/CashMachine": 768011,
+     "stations/CashTubes": 1925,
+     "npc/crewHelpers": 386,
+     "npc/EraWorker": 204409,
+     "city/City": 39948,
+     "bank:pile:truckCash": 70,
+     "bank:pile:walkInCash": 62,
+     "bank:pile:seCash": 64,
+     "bank:pile:eraNCash": 418743,
+     "bank:pile:platformCash": 95,
+     "bank:pile:town1Cash": 5,
+     "bank:pile:town7Cash": 5,
+     "bank:pile:town4Cash": 4
+    }
+   },
+   {
+    "L": 10,
+    "perSec": 2029215,
+    "src": {
+     "eras/CashMachine": 1233998,
+     "stations/CashTubes": 1774,
+     "npc/EraWorker": 344978,
+     "npc/crewHelpers": 360,
+     "city/City": 39948,
+     "bank:pile:truckCash": 87,
+     "bank:pile:walkInCash": 68,
+     "bank:pile:eraNCash": 407725,
+     "bank:pile:seCash": 60,
+     "bank:pile:platformCash": 214,
+     "bank:pile:town1Cash": 4
+    }
+   }
+  ]
+ },
+ "5": {
+  "n": 5,
+  "samples": [
+   {
+    "L": 0,
+    "perSec": 2368285,
+    "src": {
+     "stations/CashTubes": 2212,
+     "eras/CashMachine": 1230135,
+     "city/City": 150868,
+     "npc/crewHelpers": 420,
+     "npc/EraWorker": 404475,
+     "bank:pile:truckCash": 139,
+     "bank:pile:seCash": 80,
+     "bank:pile:eraNCash": 579871,
+     "bank:pile:walkInCash": 75,
+     "bank:pile:platformCash": 11
+    }
+   },
+   {
+    "L": 2,
+    "perSec": 2956154,
+    "src": {
+     "eras/CashMachine": 1759796,
+     "stations/CashTubes": 2273,
+     "npc/crewHelpers": 354,
+     "npc/EraWorker": 281672,
+     "city/City": 150868,
+     "bank:pile:walkInCash": 103,
+     "bank:pile:truckCash": 104,
+     "bank:pile:eraNCash": 760814,
+     "bank:pile:seCash": 85,
+     "bank:pile:town1Cash": 10,
+     "bank:pile:town4Cash": 13,
+     "bank:pile:town7Cash": 5,
+     "bank:pile:platformCash": 58
+    }
+   },
+   {
+    "L": 4,
+    "perSec": 5963104,
+    "src": {
+     "stations/CashTubes": 2229,
+     "eras/CashMachine": 1921747,
+     "npc/EraWorker": 618044,
+     "npc/crewHelpers": 480,
+     "city/City": 146790,
+     "bank:pile:walkInCash": 83,
+     "bank:pile:truckCash": 80,
+     "bank:pile:eraNCash": 1262719,
+     "bank:pile:town7Cash": 2,
+     "bank:pile:seCash": 61,
+     "core/Contracts": 2010870
+    }
+   },
+   {
+    "L": 6,
+    "perSec": 7238609,
+    "src": {
+     "npc/EraWorker": 499243,
+     "stations/CashTubes": 2171,
+     "eras/CashMachine": 2571863,
+     "city/City": 150868,
+     "npc/crewHelpers": 422,
+     "bank:pile:truckCash": 87,
+     "bank:pile:eraNCash": 1404921,
+     "bank:pile:town1Cash": 11,
+     "bank:pile:town4Cash": 8,
+     "bank:pile:walkInCash": 82,
+     "bank:pile:seCash": 71,
+     "bank:pile:platformCash": 168,
+     "core/Contracts": 2608696
+    }
+   },
+   {
+    "L": 8,
+    "perSec": 6986120,
+    "src": {
+     "stations/CashTubes": 2191,
+     "eras/CashMachine": 4306816,
+     "npc/EraWorker": 835730,
+     "npc/crewHelpers": 441,
+     "city/City": 150868,
+     "bank:pile:walkInCash": 67,
+     "bank:pile:truckCash": 73,
+     "bank:pile:eraNCash": 1689808,
+     "bank:pile:platformCash": 61,
+     "bank:pile:seCash": 66
+    }
+   },
+   {
+    "L": 10,
+    "perSec": 10847161,
+    "src": {
+     "eras/CashMachine": 6282417,
+     "stations/CashTubes": 2169,
+     "npc/crewHelpers": 370,
+     "city/City": 150868,
+     "npc/EraWorker": 1379588,
+     "bank:pile:walkInCash": 85,
+     "bank:pile:eraNCash": 3031373,
+     "bank:pile:platformCash": 83,
+     "bank:pile:truckCash": 100,
+     "bank:pile:seCash": 77,
+     "bank:pile:town7Cash": 5,
+     "bank:pile:town4Cash": 19,
+     "bank:pile:town1Cash": 9
+    }
+   }
+  ]
+ },
+ "6": {
+  "n": 6,
+  "samples": [
+   {
+    "L": 0,
+    "perSec": 12911762,
+    "src": {
+     "stations/CashTubes": 2312,
+     "npc/crewHelpers": 458,
+     "eras/CashMachine": 8277377,
+     "city/City": 502125,
+     "npc/EraWorker": 1938542,
+     "bank:pile:truckCash": 123,
+     "bank:pile:walkInCash": 89,
+     "bank:pile:eraNCash": 2190505,
+     "bank:pile:seCash": 96,
+     "bank:pile:platformCash": 109,
+     "bank:pile:town7Cash": 7,
+     "bank:pile:town1Cash": 15,
+     "bank:pile:town4Cash": 3
+    }
+   },
+   {
+    "L": 2,
+    "perSec": 12917790,
+    "src": {
+     "stations/CashTubes": 2376,
+     "eras/CashMachine": 7363500,
+     "npc/EraWorker": 2302751,
+     "npc/crewHelpers": 428,
+     "city/City": 502125,
+     "bank:pile:truckCash": 84,
+     "bank:pile:walkInCash": 68,
+     "bank:pile:eraNCash": 2746284,
+     "bank:pile:platformCash": 91,
+     "bank:pile:town1Cash": 7,
+     "bank:pile:town7Cash": 3,
+     "bank:pile:seCash": 68,
+     "bank:pile:town4Cash": 5
+    }
+   },
+   {
+    "L": 4,
+    "perSec": 23015633,
+    "src": {
+     "npc/crewHelpers": 460,
+     "stations/CashTubes": 2386,
+     "eras/CashMachine": 8467276,
+     "npc/EraWorker": 2089667,
+     "city/City": 488554,
+     "core/Contracts": 8695652,
+     "bank:pile:truckCash": 107,
+     "bank:pile:walkInCash": 93,
+     "bank:pile:seCash": 80,
+     "bank:pile:eraNCash": 3271250,
+     "bank:pile:platformCash": 101,
+     "bank:pile:town1Cash": 8
+    }
+   },
+   {
+    "L": 6,
+    "perSec": 26597202,
+    "src": {
+     "eras/CashMachine": 11258821,
+     "stations/CashTubes": 2729,
+     "npc/crewHelpers": 502,
+     "city/City": 502125,
+     "npc/EraWorker": 2498307,
+     "bank:pile:truckCash": 137,
+     "bank:pile:seCash": 97,
+     "bank:pile:eraNCash": 3638601,
+     "bank:pile:walkInCash": 96,
+     "bank:pile:town7Cash": 6,
+     "core/Contracts": 8695652,
+     "bank:pile:platformCash": 113,
+     "bank:pile:town4Cash": 16
+    }
+   },
+   {
+    "L": 8,
+    "perSec": 17702277,
+    "src": {
+     "stations/CashTubes": 2410,
+     "eras/CashMachine": 10649151,
+     "npc/crewHelpers": 392,
+     "npc/EraWorker": 2444296,
+     "city/City": 502125,
+     "bank:pile:truckCash": 144,
+     "bank:pile:walkInCash": 74,
+     "bank:pile:seCash": 90,
+     "bank:pile:eraNCash": 4103517,
+     "bank:pile:town1Cash": 5,
+     "bank:pile:sledCash": 5,
+     "bank:pile:platformCash": 69
+    }
+   },
+   {
+    "L": 10,
+    "perSec": 25154559,
+    "src": {
+     "eras/CashMachine": 17168485,
+     "stations/CashTubes": 2332,
+     "npc/crewHelpers": 414,
+     "city/City": 502125,
+     "npc/EraWorker": 3287248,
+     "bank:pile:seCash": 82,
+     "bank:pile:eraNCash": 4193536,
+     "bank:pile:truckCash": 147,
+     "bank:pile:walkInCash": 93,
+     "bank:pile:platformCash": 87,
+     "bank:pile:town1Cash": 6,
+     "bank:pile:town4Cash": 5
+    }
+   }
+  ]
+ },
+ "7": {
+  "n": 7,
+  "samples": [
+   {
+    "L": 0,
+    "perSec": 28096720,
+    "src": {
+     "stations/CashTubes": 2553,
+     "npc/EraWorker": 4269034,
+     "eras/CashMachine": 16612100,
+     "city/City": 1675525,
+     "npc/crewHelpers": 506,
+     "bank:pile:walkInCash": 96,
+     "bank:pile:eraNCash": 5536556,
+     "bank:pile:truckCash": 157,
+     "bank:pile:seCash": 96,
+     "bank:pile:platformCash": 75,
+     "bank:pile:town1Cash": 22
+    }
+   },
+   {
+    "L": 2,
+    "perSec": 33957662,
+    "src": {
+     "npc/crewHelpers": 520,
+     "eras/CashMachine": 21396997,
+     "stations/CashTubes": 2716,
+     "npc/EraWorker": 4063836,
+     "city/City": 1675525,
+     "bank:pile:walkInCash": 87,
+     "bank:pile:seCash": 54,
+     "bank:pile:eraNCash": 6817660,
+     "bank:pile:truckCash": 123,
+     "bank:pile:town1Cash": 19,
+     "bank:pile:town4Cash": 35,
+     "bank:pile:platformCash": 89
+    }
+   },
+   {
+    "L": 4,
+    "perSec": 40839996,
+    "src": {
+     "eras/CashMachine": 24077763,
+     "npc/EraWorker": 4327691,
+     "stations/CashTubes": 2646,
+     "npc/crewHelpers": 470,
+     "city/City": 1630241,
+     "bank:pile:walkInCash": 106,
+     "bank:pile:eraNCash": 10800681,
+     "bank:pile:town7Cash": 18,
+     "bank:pile:truckCash": 97,
+     "bank:pile:seCash": 65,
+     "bank:pile:town1Cash": 24,
+     "bank:pile:town4Cash": 33,
+     "bank:pile:platformCash": 127,
+     "bank:pile:sledCash": 34
+    }
+   },
+   {
+    "L": 6,
+    "perSec": 77697149,
+    "src": {
+     "eras/CashMachine": 32922187,
+     "npc/EraWorker": 6844489,
+     "stations/CashTubes": 2572,
+     "npc/crewHelpers": 465,
+     "city/City": 1675525,
+     "bank:pile:walkInCash": 104,
+     "bank:pile:truckCash": 149,
+     "bank:pile:eraNCash": 12338323,
+     "bank:pile:platformCash": 171,
+     "bank:pile:town7Cash": 3,
+     "bank:pile:seCash": 82,
+     "core/Contracts": 23913043,
+     "bank:pile:town1Cash": 22,
+     "bank:pile:town4Cash": 14
+    }
+   },
+   {
+    "L": 8,
+    "perSec": 61953734,
+    "src": {
+     "npc/crewHelpers": 532,
+     "npc/EraWorker": 10618045,
+     "eras/CashMachine": 35446628,
+     "stations/CashTubes": 2444,
+     "city/City": 1675525,
+     "bank:pile:walkInCash": 110,
+     "bank:pile:truckCash": 141,
+     "bank:pile:eraNCash": 14210083,
+     "bank:pile:platformCash": 151,
+     "bank:pile:seCash": 68,
+     "bank:pile:town1Cash": 7
+    }
+   },
+   {
+    "L": 10,
+    "perSec": 156606679,
+    "src": {
+     "stations/CashTubes": 2569,
+     "eras/CashMachine": 62473778,
+     "npc/EraWorker": 14246433,
+     "city/City": 1675525,
+     "npc/crewHelpers": 536,
+     "bank:pile:walkInCash": 87,
+     "bank:pile:truckCash": 133,
+     "bank:pile:eraNCash": 23859615,
+     "bank:pile:seCash": 78,
+     "bank:pile:platformCash": 83,
+     "bank:pile:town1Cash": 5,
+     "bank:pile:town4Cash": 10,
+     "core/Contracts": 54347826
+    }
+   }
+  ]
+ },
+ "8": {
+  "n": 8,
+  "samples": [
+   {
+    "L": 0,
+    "perSec": 108088012,
+    "src": {
+     "eras/CashMachine": 63695606,
+     "stations/CashTubes": 2766,
+     "city/City": 5563419,
+     "npc/crewHelpers": 545,
+     "npc/EraWorker": 15156671,
+     "bank:pile:truckCash": 193,
+     "bank:pile:walkInCash": 119,
+     "bank:pile:eraNCash": 23668545,
+     "bank:pile:seCash": 116,
+     "bank:pile:platformCash": 32
+    }
+   },
+   {
+    "L": 2,
+    "perSec": 137359128,
+    "src": {
+     "npc/crewHelpers": 565,
+     "stations/CashTubes": 2864,
+     "eras/CashMachine": 73908460,
+     "npc/EraWorker": 17072427,
+     "city/City": 5563419,
+     "bank:pile:walkInCash": 91,
+     "bank:pile:seCash": 89,
+     "bank:pile:eraNCash": 40811027,
+     "bank:pile:truckCash": 141,
+     "bank:pile:platformCash": 43
+    }
+   },
+   {
+    "L": 4,
+    "perSec": 237443418,
+    "src": {
+     "stations/CashTubes": 2919,
+     "npc/crewHelpers": 479,
+     "eras/CashMachine": 85735435,
+     "npc/EraWorker": 15195142,
+     "city/City": 5413056,
+     "bank:pile:eraNCash": 44139432,
+     "bank:pile:truckCash": 151,
+     "bank:pile:walkInCash": 127,
+     "bank:pile:platformCash": 13,
+     "bank:pile:town7Cash": 6,
+     "bank:pile:seCash": 107,
+     "bank:pile:town1Cash": 22,
+     "core/Contracts": 86956522,
+     "bank:pile:town4Cash": 7
+    }
+   },
+   {
+    "L": 6,
+    "perSec": 172032974,
+    "src": {
+     "npc/crewHelpers": 502,
+     "npc/EraWorker": 26224778,
+     "stations/CashTubes": 2952,
+     "eras/CashMachine": 99049703,
+     "city/City": 5563419,
+     "bank:pile:seCash": 113,
+     "bank:pile:eraNCash": 41191202,
+     "bank:pile:truckCash": 130,
+     "bank:pile:walkInCash": 113,
+     "bank:pile:town7Cash": 14,
+     "bank:pile:town1Cash": 12,
+     "bank:pile:town4Cash": 16,
+     "bank:pile:platformCash": 20
+    }
+   },
+   {
+    "L": 8,
+    "perSec": 239374438,
+    "src": {
+     "stations/CashTubes": 2725,
+     "eras/CashMachine": 130910201,
+     "npc/crewHelpers": 618,
+     "npc/EraWorker": 37968863,
+     "city/City": 5563419,
+     "bank:pile:walkInCash": 103,
+     "bank:pile:seCash": 115,
+     "bank:pile:eraNCash": 64928052,
+     "bank:pile:platformCash": 208,
+     "bank:pile:truckCash": 117,
+     "bank:pile:town1Cash": 6,
+     "bank:pile:town4Cash": 11
+    }
+   },
+   {
+    "L": 10,
+    "perSec": 562239267,
+    "src": {
+     "stations/CashTubes": 2827,
+     "eras/CashMachine": 263550380,
+     "city/City": 5563419,
+     "npc/EraWorker": 51398689,
+     "npc/crewHelpers": 514,
+     "bank:pile:truckCash": 189,
+     "bank:pile:walkInCash": 105,
+     "bank:pile:seCash": 85,
+     "bank:pile:eraNCash": 67809819,
+     "bank:pile:platformCash": 166,
+     "core/Contracts": 173913043,
+     "bank:pile:town1Cash": 15,
+     "bank:pile:town4Cash": 11,
+     "bank:pile:town7Cash": 5
+    }
+   }
+  ]
+ },
+ "9": {
+  "n": 9,
+  "samples": [
+   {
+    "L": 0,
+    "perSec": 427128924,
+    "src": {
+     "stations/CashTubes": 3021,
+     "eras/CashMachine": 253516752,
+     "city/City": 23553067,
+     "npc/EraWorker": 50484343,
+     "npc/crewHelpers": 693,
+     "bank:pile:truckCash": 160,
+     "bank:pile:eraNCash": 99570457,
+     "bank:pile:walkInCash": 106,
+     "bank:pile:seCash": 97,
+     "bank:pile:platformCash": 227
+    }
+   },
+   {
+    "L": 2,
+    "perSec": 438120173,
+    "src": {
+     "npc/crewHelpers": 599,
+     "eras/CashMachine": 253173605,
+     "stations/CashTubes": 3064,
+     "npc/EraWorker": 53740125,
+     "city/City": 23553067,
+     "bank:pile:walkInCash": 111,
+     "bank:pile:eraNCash": 107649141,
+     "bank:pile:seCash": 90,
+     "bank:pile:truckCash": 154,
+     "bank:pile:platformCash": 216
+    }
+   },
+   {
+    "L": 4,
+    "perSec": 806083890,
+    "src": {
+     "eras/CashMachine": 318296923,
+     "stations/CashTubes": 3300,
+     "npc/EraWorker": 70362198,
+     "npc/crewHelpers": 578,
+     "core/Contracts": 271739130,
+     "city/City": 22916498,
+     "bank:pile:truckCash": 159,
+     "bank:pile:walkInCash": 118,
+     "bank:pile:eraNCash": 122764787,
+     "bank:pile:seCash": 92,
+     "bank:pile:town1Cash": 19,
+     "bank:pile:platformCash": 53,
+     "bank:pile:town7Cash": 9,
+     "bank:pile:sledCash": 25
+    }
+   },
+   {
+    "L": 6,
+    "perSec": 940145185,
+    "src": {
+     "stations/CashTubes": 3207,
+     "eras/CashMachine": 340075047,
+     "npc/EraWorker": 63104413,
+     "city/City": 23553067,
+     "npc/crewHelpers": 588,
+     "bank:pile:truckCash": 177,
+     "bank:pile:walkInCash": 88,
+     "bank:pile:eraNCash": 176451932,
+     "core/Contracts": 336956522,
+     "bank:pile:seCash": 106,
+     "bank:pile:platformCash": 36
+    }
+   },
+   {
+    "L": 8,
+    "perSec": 862157805,
+    "src": {
+     "eras/CashMachine": 475942070,
+     "stations/CashTubes": 3275,
+     "npc/EraWorker": 92461048,
+     "npc/crewHelpers": 531,
+     "city/City": 23553067,
+     "bank:pile:truckCash": 137,
+     "bank:pile:walkInCash": 150,
+     "bank:pile:eraNCash": 270197314,
+     "bank:pile:town7Cash": 20,
+     "bank:pile:seCash": 124,
+     "bank:pile:platformCash": 51,
+     "bank:pile:town4Cash": 6,
+     "bank:pile:town1Cash": 11
+    }
+   },
+   {
+    "L": 10,
+    "perSec": 1686423783,
+    "src": {
+     "stations/CashTubes": 3040,
+     "eras/CashMachine": 653795580,
+     "npc/crewHelpers": 725,
+     "city/City": 23553067,
+     "npc/EraWorker": 162289175,
+     "core/Contracts": 543478261,
+     "bank:pile:truckCash": 141,
+     "bank:pile:seCash": 90,
+     "bank:pile:eraNCash": 286640311,
+     "bank:pile:platformCash": 262,
+     "bank:pile:walkInCash": 106,
+     "core/Market": 16663026
+    }
+   }
+  ]
+ },
+ "10": {
+  "n": 10,
+  "samples": [
+   {
+    "L": 0,
+    "perSec": 1363411424,
+    "src": {
+     "eras/CashMachine": 794523195,
+     "stations/CashTubes": 3522,
+     "npc/crewHelpers": 725,
+     "city/City": 85545116,
+     "npc/EraWorker": 162560843,
+     "bank:pile:walkInCash": 125,
+     "bank:pile:seCash": 108,
+     "bank:pile:eraNCash": 320777451,
+     "bank:pile:town1Cash": 7,
+     "bank:pile:town4Cash": 20,
+     "bank:pile:platformCash": 162,
+     "bank:pile:truckCash": 149
+    }
+   },
+   {
+    "L": 2,
+    "perSec": 1672208077,
+    "src": {
+     "eras/CashMachine": 903939626,
+     "npc/crewHelpers": 669,
+     "stations/CashTubes": 3401,
+     "npc/EraWorker": 152735153,
+     "city/City": 85545116,
+     "bank:pile:truckCash": 159,
+     "bank:pile:walkInCash": 136,
+     "bank:pile:seCash": 139,
+     "bank:pile:eraNCash": 521991902,
+     "bank:pile:platformCash": 192,
+     "bank:pile:town7Cash": 5,
+     "core/Market": 7991553,
+     "bank:pile:town4Cash": 18,
+     "bank:pile:town1Cash": 7
+    }
+   },
+   {
+    "L": 4,
+    "perSec": 3211346505,
+    "src": {
+     "eras/CashMachine": 981245675,
+     "stations/CashTubes": 3692,
+     "npc/EraWorker": 205955670,
+     "npc/crewHelpers": 602,
+     "city/City": 83233085,
+     "bank:pile:walkInCash": 124,
+     "bank:pile:seCash": 151,
+     "bank:pile:eraNCash": 853950804,
+     "bank:pile:truckCash": 172,
+     "core/Contracts": 1086956522,
+     "bank:pile:town1Cash": 9
+    }
+   },
+   {
+    "L": 6,
+    "perSec": 4075557477,
+    "src": {
+     "stations/CashTubes": 3263,
+     "eras/CashMachine": 1496545507,
+     "npc/crewHelpers": 660,
+     "npc/EraWorker": 328114756,
+     "city/City": 85545116,
+     "bank:pile:truckCash": 196,
+     "bank:pile:seCash": 139,
+     "bank:pile:eraNCash": 747168934,
+     "bank:pile:walkInCash": 159,
+     "bank:pile:town1Cash": 22,
+     "bank:pile:town4Cash": 16,
+     "bank:pile:town7Cash": 15,
+     "bank:pile:platformCash": 282,
+     "core/Contracts": 1413043478,
+     "core/Market": 5134935
+    }
+   },
+   {
+    "L": 8,
+    "perSec": 6105396905,
+    "src": {
+     "stations/CashTubes": 3512,
+     "npc/EraWorker": 496517636,
+     "eras/CashMachine": 1958311530,
+     "npc/crewHelpers": 624,
+     "city/City": 85545116,
+     "bank:pile:walkInCash": 151,
+     "bank:pile:eraNCash": 1398211689,
+     "bank:pile:truckCash": 108,
+     "bank:pile:seCash": 157,
+     "bank:pile:town1Cash": 23,
+     "bank:pile:platformCash": 132,
+     "bank:pile:town4Cash": 16,
+     "core/Market": 47240968,
+     "bank:pile:town7Cash": 26,
+     "core/Contracts": 2119565217
+    }
+   },
+   {
+    "L": 10,
+    "perSec": 8406473392,
+    "src": {
+     "eras/CashMachine": 2926307067,
+     "stations/CashTubes": 3400,
+     "city/City": 85545116,
+     "core/Market": 273691861,
+     "npc/EraWorker": 733006299,
+     "npc/crewHelpers": 721,
+     "bank:pile:walkInCash": 123,
+     "bank:pile:eraNCash": 1344439988,
+     "bank:pile:truckCash": 191,
+     "bank:pile:seCash": 90,
+     "bank:pile:platformCash": 275,
+     "core/Contracts": 3043478261
+    }
+   }
+  ]
+ }
+}
