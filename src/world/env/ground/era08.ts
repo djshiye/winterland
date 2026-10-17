@@ -1,0 +1,77 @@
+/**
+ * [0.9.8 — 10c] Era 8 Computer: silicon. The base board is a 1980s campus in the snow: beige terrazzo with brass
+ * strips under the machines, a sand-pale forecourt by the gate, pale concrete walks with teal edges and screen-mint
+ * lamps. The tree belt is a tidy row of sculpted cypresses in cream planters; the harvest ground has neat rows of teal
+ * solar panels, silicon boules resting in cradles beside the field and soft sand dunes along its far edge.
+ */
+import type { EraGroundModule } from '../eraGround';
+import { SNOW, mixHex, palette } from '../../../render/palette';
+import { plotPlaces } from '../../../eras/layout';
+import { regionPaths } from '../frontier';
+import { geo } from '../../../render/materials';
+import { beltSpots, boule, cellMarks, cypress, dune, harvestFree, inset, pathLamp, pathLampSpots, slab, solarRow, terrazzo, FLOOR_Y } from './lateKit';
+
+const N = 8;
+
+export const era08: EraGroundModule = {
+  wild(k, l, rng) {
+    const P = plotPlaces(N);
+    for (const t of beltSpots(l, 4.6, rng)) cypress(k.solid, t.x, t.z, t.s, rng);
+    const H = l.zones.harvest;
+    const placed: { x: number; z: number; r: number }[] = [];
+    // solar rows: a tidy array on the harvest ground, rows 3.4 m apart
+    for (let z = H.minZ + 3; z < H.maxZ - 2.5; z += 3.4) {
+      for (let x = H.minX + 6; x < H.maxX - 3; x += 7.2) {
+        if (!harvestFree(l, P, x, z, 3.1, placed)) continue;
+        placed.push({ x, z, r: 3.1 });
+        solarRow(k.solid, k.glow, x, z, 0.9);
+      }
+    }
+    // boules in pairs along the field's west edge, dunes along the harvest's far edge
+    for (let z = P.field.minZ + 2; z < P.field.maxZ - 1; z += 5.5) {
+      const x = P.field.minX - 2.2;
+      if (!harvestFree(l, P, x, z, 1.2, placed)) continue;
+      placed.push({ x, z, r: 1.2 });
+      boule(k.solid, x, z, 0.9, 0.2);
+      boule(k.solid, x - 0.9, z + 0.6, 0.75, -0.3);
+    }
+    const farZ = l.inward > 0 ? H.maxZ - 2.2 : H.minZ + 2.2;
+    for (let x = H.minX + 5; x < H.maxX - 3; x += rng.range(5.5, 7.5)) {
+      if (!harvestFree(l, P, x, farZ, 2.0, placed)) continue;
+      placed.push({ x, z: farZ, r: 2.0 });
+      dune(k.solid, x, farZ, rng.range(0.7, 1.0), rng.range(-0.3, 0.3));
+    }
+  },
+
+  open(k, l, P, rng) {
+    const p = palette(N);
+    const Z = l.zones;
+    // the forecourt by the gate: big pale slabs with joints; the campus terrazzo under the machine grid
+    const yard = inset(Z.yard, 0.6);
+    if (yard) {
+      slab(k.floor, yard, mixHex(p.floor.processing, SNOW, 0.2));
+      for (let x = yard.minX + 4; x < yard.maxX; x += 4) k.floor.add(geo.box(0.08, 0.004, yard.maxZ - yard.minZ), mixHex(p.floor.processing, 0x8a7a62, 0.3), x, FLOOR_Y + 0.004, (yard.minZ + yard.maxZ) / 2);
+    }
+    const proc = inset(Z.processing, 0.6);
+    if (proc) terrazzo(k.floor, proc, rng);
+    cellMarks(k.floor, l, P, mixHex(p.accent, p.floor.yard, 0.35));
+    // the market and the huts: a warm snow lawn so the shops and huts sit on their own ground
+    for (const [q, t] of [[Z.market, 0.35], [Z.huts, 0.45]] as const) {
+      const r = inset(q, 0.8);
+      if (r) slab(k.floor, r, mixHex(p.floor.board, SNOW, t));
+    }
+    // walks: pale concrete with teal kerbs; screen-mint lamps along them
+    for (const q of regionPaths(l)) {
+      slab(k.floor, q, mixHex(p.city!.trim, p.floor.yard, 0.35), FLOOR_Y + 0.002);
+      const alongX = q.maxX - q.minX > q.maxZ - q.minZ;
+      for (const s of [-1, 1]) {
+        if (alongX) k.floor.add(geo.box(q.maxX - q.minX, 0.004, 0.14), p.accent, (q.minX + q.maxX) / 2, FLOOR_Y + 0.006, s < 0 ? q.minZ + 0.07 : q.maxZ - 0.07);
+        else k.floor.add(geo.box(0.14, 0.004, q.maxZ - q.minZ), p.accent, s < 0 ? q.minX + 0.07 : q.maxX - 0.07, FLOOR_Y + 0.006, (q.minZ + q.maxZ) / 2);
+      }
+    }
+    for (const s of pathLampSpots(l, 10)) {
+      pathLamp(k.solid, k.glow, N, s.x, s.z);
+      k.lamps.push({ x: s.x, y: 1.66, z: s.z });
+    }
+  },
+};

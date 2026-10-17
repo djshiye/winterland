@@ -140,12 +140,12 @@ const LOOKS: readonly EraLook[] = [
   { day: day({}), night: night({ hemiGround: 0x565250, hemiSky: 0x5e7ec4, sky: 0x1a2446 }), grade: { day: grade(0xfcfefc, 0x0a0c11, 1.06, 1.03, 0.2), night: grade(0xfafaf6, 0x0d0f16, 1.08, 1.03, 0.3) } },
   // 7 Oil: honey lanes, flare peach
   { day: day({}), night: night({ hemiGround: 0x6c4e40 }), grade: { day: grade(0xfffcf6, 0x0f0a10, 1.06, 1.04, 0.22), night: grade(0xfff6e8, 0x130c14, 1.08, 1.03, 0.32) } },
-  // 8 Computer: beige terrazzo, screen mint
-  { day: day({}), night: night({ hemiGround: 0x56524e, hemiSky: 0x6678c2 }), grade: { day: grade(0xfefefc, 0x0b0b10, 1.02, 1.03, 0.18), night: grade(0xfafaf6, 0x0e0e15, 1.06, 1.02, 0.28) } },
-  // 9 Nuclear: mint glaze, aqua pools
-  { day: day({}), night: night({ hemiGround: 0x50564c, hemiSky: 0x5c84c4, sky: 0x18264a }), grade: { day: grade(0xfcfefc, 0x0a0d10, 1.04, 1.03, 0.18), night: grade(0xf8fcfa, 0x0d1014, 1.08, 1.02, 0.28) } },
-  // 10 AI: cream hex and gold seams, fusion sun-gold
-  { day: day({}), night: night({ hemiGround: 0x6e5844, hemiSky: 0x6c74c0, sky: 0x221e44 }), grade: { day: grade(0xfffefa, 0x0d0b10, 1.04, 1.02, 0.16), night: grade(0xfff8ee, 0x110d15, 1.08, 1.02, 0.26) } },
+  // 8 Computer: beige terrazzo, screen mint (10c: a warm sand bounce and firmer sun so the pale campus reads by day)
+  { day: day({ sun: 1.18, hemi: 0.66, hemiGround: 0x9c8a86 }), night: night({ hemiGround: 0x56524e, hemiSky: 0x6678c2 }), grade: { day: grade(0xfffaf2, 0x0d0a12, 1.12, 1.07, 0.2), night: grade(0xfafaf6, 0x0e0e15, 1.06, 1.02, 0.28) } },
+  // 9 Nuclear: mint glaze, aqua pools (10c: a cool mint bounce, firmer sun, more saturation by day)
+  { day: day({ sun: 1.18, hemi: 0.66, hemiGround: 0x7f8ea0 }), night: night({ hemiGround: 0x50564c, hemiSky: 0x5c84c4, sky: 0x18264a }), grade: { day: grade(0xfafefb, 0x0a0d12, 1.12, 1.07, 0.2), night: grade(0xf8fcfa, 0x0d1014, 1.08, 1.02, 0.28) } },
+  // 10 AI: cream hex and gold seams, fusion sun-gold (10c: a warm gold bounce and firmer sun so cream and gold read by day)
+  { day: day({ sun: 1.2, hemi: 0.64, hemiGround: 0x9a8698 }), night: night({ hemiGround: 0x6e5844, hemiSky: 0x6c74c0, sky: 0x221e44 }), grade: { day: grade(0xfffaf0, 0x0e0a12, 1.12, 1.07, 0.18), night: grade(0xfff8ee, 0x110d15, 1.08, 1.02, 0.26) } },
 ];
 
 // ---------------------------------------------------------------------------
@@ -183,9 +183,9 @@ const FLOORS: readonly [yard: number, processing: number, light: number, board: 
   [0xb8613f, 0x8a6a5c, 0xffd166, 0xbac4d0], // herringbone brick, pellet-grey yard; sodium lamps
   [0x5f8f86, 0x8fb0aa, 0x7ce8c8, 0xb4c0cc], // teal cobbles; mint bulbs on the wires
   [0x5e5753, 0xe2ad3c, 0xffaa5a, 0xaebac6], // warm asphalt with honey lanes; flare peach
-  [0xe2d6bd, 0xd8cdb4, 0x66e0a3, 0xc2ccd6], // beige terrazzo, sand; screen mint
-  [0xa9c9bb, 0xcfe3d9, 0x70f5d9, 0xcbd6e0], // mint-glazed concrete; aqua pools
-  [0xf3ead8, 0xe8a848, 0xffe082, 0xcad4e0], // cream hex panels with gold seams; sun-gold fusion glow
+  [0xe6d4b0, 0xd2bf98, 0x66e0a3, 0xd9cbb0], // beige terrazzo, sand; screen mint; a warm sand-snow board
+  [0x9ccbb6, 0xc8e6d8, 0x70f5d9, 0xb9d6cb], // mint-glazed concrete; aqua pools; a mint-snow board
+  [0xf3ead8, 0xe8a848, 0xffe082, 0xd4cde6], // cream hex panels with gold seams; sun-gold fusion glow; a lilac-snow board
 ];
 
 /**

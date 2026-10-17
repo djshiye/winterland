@@ -13,6 +13,8 @@ import { geo } from '../../../render/materials';
 import type { Batch } from '../../../render/batch';
 import { SNOW, mixHex, palette } from '../../../render/palette';
 import type { Rng } from '../common';
+import type { PlotPlaces, RegionLayout } from '../../../eras/layout';
+import { nodePatch, regionPaths } from '../frontier';
 
 const shade = (c: number, k: number): number => {
   const col = new THREE.Color(c);
@@ -261,4 +263,94 @@ export function pathLamp(body: Batch, glow: Batch, n: number, x: number, z: numb
   body.add(geo.cylinder(0.2, 0.22, 0.1, 10), pole, x, 1.52, z);
   glow.add(geo.sphere(0.17, 10, 8), mixHex(p.light, 0xffffff, 0.3), x, 1.66, z);
   body.add(geo.sphere(0.2, 10, 5), SNOW, x, 1.82, z, { sy: 0.35 });
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// layout helpers: where the late eras' belts, props and paths go (zones, never random scatter)
+// ---------------------------------------------------------------------------------------------------------------------
+
+const inRect = (q: Rect, x: number, z: number, m: number): boolean => x > q.minX - m && x < q.maxX + m && z > q.minZ - m && z < q.maxZ + m;
+
+/** Front-yard spots a tree must leave clear (facilities, the sign, the arrival point, both gates). */
+function frontSpots(l: RegionLayout): { x: number; z: number; r: number }[] {
+  return [
+    { ...l.depot, r: 4 },
+    { ...l.dock, r: 4 },
+    { ...l.jack, r: 3.5 },
+    { ...l.shopMat, r: 3.5 },
+    { x: l.cashSpot.x, z: l.cashSpot.z, r: 3.5 },
+    { ...l.sign, r: 3 },
+    { ...l.inside, r: 3 },
+    { x: l.gate.x, z: l.gate.z, r: l.gate.width / 2 + 3 },
+    { x: l.marketGate.x, z: l.marketGate.z, r: l.marketGate.width / 2 + 3 },
+  ];
+}
+
+/**
+ * The tree belt: spots along the region's west strip and its gate (north) strip, the two edges the camera looks
+ * toward (-X / -Z), so a tree there never hides a pad, the player or a counter. `step` metres apart, clear of the
+ * gates and the front-yard facilities.
+ */
+export function beltSpots(l: RegionLayout, step: number, rng: Rng): { x: number; z: number; s: number }[] {
+  const r = l.rect;
+  const out: { x: number; z: number; s: number }[] = [];
+  const clear = frontSpots(l);
+  const ok = (x: number, z: number): boolean => clear.every((c) => Math.hypot(c.x - x, c.z - z) > c.r);
+  const edge = l.gate.side === 'north' ? r.minZ + 1.7 : r.maxZ - 1.7;
+  for (let z = r.minZ + 2.2; z < r.maxZ - 1.5; z += step) {
+    const x = r.minX + 1.7 + rng.range(-0.15, 0.15);
+    if (ok(x, z)) out.push({ x, z, s: rng.range(0.85, 1.12) });
+  }
+  if (l.gate.side === 'north') {
+    for (let x = r.minX + 2.2 + step; x < r.maxX - 2; x += step) {
+      const z = edge + rng.range(-0.15, 0.15);
+      if (ok(x, z)) out.push({ x, z, s: rng.range(0.8, 1.05) });
+    }
+  }
+  return out;
+}
+
+/**
+ * Free ground in the harvest zone for a prop of footprint radius `rad` at (x, z): inside the zone, clear of the hand
+ * node's patch, the 0.9.7 resource beds, the zone paths and the props already `placed`.
+ */
+export function harvestFree(l: RegionLayout, P: PlotPlaces, x: number, z: number, rad: number, placed: readonly { x: number; z: number; r: number }[]): boolean {
+  const H = l.zones.harvest;
+  if (!(x > H.minX + rad + 0.8 && x < H.maxX - rad - 0.8 && z > H.minZ + rad + 0.8 && z < H.maxZ - rad - 0.8)) return false;
+  if (x < l.rect.minX + 3.4 + rad) return false; // the tree belt
+  if (inRect(nodePatch(l), x, z, rad + 0.6)) return false;
+  if (inRect(P.field, x, z, rad + 0.5)) return false;
+  if (regionPaths(l).some((q) => inRect(q, x, z, rad + 0.4))) return false;
+  return placed.every((p) => Math.hypot(p.x - x, p.z - z) > p.r + rad);
+}
+
+/** Lamp spots along the zone paths, `step` metres apart, set 1.4 m to one side of each path. */
+export function pathLampSpots(l: RegionLayout, step: number): { x: number; z: number }[] {
+  const out: { x: number; z: number }[] = [];
+  for (const q of regionPaths(l)) {
+    const alongX = q.maxX - q.minX > q.maxZ - q.minZ;
+    if (alongX) for (let x = q.minX + step / 2; x < q.maxX - 1; x += step) out.push({ x, z: q.minZ - 0.4 });
+    else for (let z = q.minZ + step / 2; z < q.maxZ - 1; z += step) out.push({ x: q.maxX + 0.4, z });
+  }
+  const clear = frontSpots(l);
+  return out.filter((p) => clear.every((c) => Math.hypot(c.x - p.x, c.z - p.z) > c.r - 1) && !inRect(nodePatch(l), p.x, p.z, 0.5) && !l.slots.some((s) => Math.abs(s.x - p.x) < l.cell / 2 && Math.abs(s.z - p.z) < l.rowPitch / 2));
+}
+
+/** The machine grid marks on a processing floor (one cell per slot of the room grid, as plots.ts drew them). */
+export function cellMarks(floor: Batch, l: RegionLayout, P: PlotPlaces, color: number, y = FLOOR_Y + 0.009): void {
+  const Y = P.yardPave;
+  if (!l.slots[0]) return;
+  for (let x = Y.minX; x <= Y.maxX + 0.01; x += l.cell) floor.add(geo.box(0.1, 0.004, Y.maxZ - Y.minZ - 0.6), color, Math.min(x, Y.maxX - 0.05), y, (Y.minZ + Y.maxZ) / 2);
+  for (let z = Y.minZ + 0.5; z <= Y.maxZ + 0.01; z += l.rowPitch) floor.add(geo.box(Y.maxX - Y.minX - 0.6, 0.004, 0.1), color, (Y.minX + Y.maxX) / 2, y, Math.min(z, Y.maxZ - 0.05));
+}
+
+/** A zone rect inset by `m` metres (empty when too small). */
+export function inset(q: Rect, m: number): Rect | null {
+  const r = { minX: q.minX + m, maxX: q.maxX - m, minZ: q.minZ + m, maxZ: q.maxZ - m };
+  return r.maxX - r.minX > 0.5 && r.maxZ - r.minZ > 0.5 ? r : null;
+}
+
+/** A flat plain slab over a rect (lawns, forecourts, paths). */
+export function slab(floor: Batch, q: Rect, color: number, y = FLOOR_Y): void {
+  floor.add(geo.box(q.maxX - q.minX, 0.006, q.maxZ - q.minZ), color, (q.minX + q.maxX) / 2, y, (q.minZ + q.maxZ) / 2);
 }
