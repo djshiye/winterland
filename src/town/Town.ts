@@ -64,11 +64,11 @@
  * paid one first: rules.settlePaidGrandMarket, also called from Level). debugBuildGrandMarket() builds it without the event.
  */
 
-import { fadeManageSign } from '../fx/manageSign';
+import { faceCameraUpright, fadeManageSign, manageSignFoot } from '../fx/manageSign';
 import * as THREE from 'three';
 import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, VILLAGE, rect, type AmenityId, type BusinessDef, type BusinessId, type XZ } from '../config';
 import { createLotForSale, createTownScaffold, type TownScaffold } from '../assets/town';
-import { createPadSign } from '../assets/pads';
+import { createManageSign, createPadSign, setManageSignName } from '../assets/pads';
 import { createAmenityModel, type AmenityModel } from '../assets/townAmenities';
 import { createGrandMarketModel, type GrandMarketModel } from '../assets/grandMarket';
 import type { WorldSnapshot } from '../core/Save';
@@ -86,9 +86,6 @@ const T = LAYOUT.town;
 const SMOKE_TICK = 0.24;
 const HINT_HEIGHT = 1.05;
 const HINT_SCALE = 0.46;
-/** The MANAGE label over a built lot's manage tile: the same size as the city's and the machines' (readable from the camera). */
-const MANAGE_SIGN_SCALE = 0.9;
-const MANAGE_SIGN_HEIGHT = 1.3;
 
 export interface BuildChoice {
   def: BusinessDef;
@@ -398,7 +395,7 @@ export class Town {
       L.buildPad.update(dt);
       if (L.hint?.visible) L.hint.quaternion.copy(cam);
       if (L.manageSign?.visible) {
-        L.manageSign.quaternion.copy(cam);
+        faceCameraUpright(L.manageSign, this.ctx.camera);
         fadeManageSign(L.manageSign, this.ctx.player?.position);
       }
       L.business?.update(dt);
@@ -648,7 +645,10 @@ export class Town {
     const on = this.opened && !!L.business && canManage(this.ctx.state, L.index);
     if (on && !L.manage) this.makeManage(L);
     L.manage?.setEnabled(on); // a disabled zone with the player inside fires its exit next frame ('manage:close')
-    if (L.manageSign) L.manageSign.visible = on;
+    if (L.manageSign) {
+      L.manageSign.visible = on;
+      if (on && L.business) setManageSignName(L.manageSign, L.business.def.label);
+    }
   }
 
   private makeManage(L: Lot): void {
@@ -662,9 +662,9 @@ export class Town {
       onEnter: () => this.openManage(L),
       onExit: () => ctx.events.emit('manage:close', { key: this.manageKey(L.index) }),
     });
-    const sign = createPadSign('MANAGE');
-    sign.scale.setScalar(MANAGE_SIGN_SCALE);
-    sign.position.set((area.minX + area.maxX) / 2, MANAGE_SIGN_HEIGHT, (area.minZ + area.maxZ) / 2);
+    const sign = createManageSign(L.business?.def.label ?? '');
+    const foot = manageSignFoot(area, L.frame);
+    sign.position.set(foot.x, 0, foot.z);
     sign.visible = false;
     this.root.add(sign);
     L.manageSign = sign;

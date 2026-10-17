@@ -144,3 +144,21 @@ describe('gate quests (0.9.0 climb)', () => {
     expect(def('gate3').progress(s)).toBe(def('gate3').target);
   });
 });
+
+// 0.9.9 (Dino: "a million every couple of minutes" in era 2): "Make 2,500 era materials" counts every era's materials,
+// so era 4-10 goals shown from era 2 paid their eras' rewards (about $740M) long before those eras
+describe('later-era goals wait for their era', () => {
+  it('an era 4-10 materials goal and the 60-building goal stay hidden until their era', () => {
+    const s = createGameState();
+    s.eras.age = 2;
+    s.stats.materialsMade = 1_000_000;
+    s.stats.cityBuilt = 100;
+    for (const id of ['materials4', 'materials10', 'city60', 'machines6', 'city12']) expect(def(id).unlocked!(s), id).toBe(false);
+    for (const id of ['materials100', 'machine1', 'city1']) expect(def(id).unlocked!(s), id).toBe(true);
+    s.eras.age = 4;
+    expect(def('materials4').unlocked!(s)).toBe(true);
+    expect(def('materials5').unlocked!(s)).toBe(false);
+    s.eras.age = 10;
+    expect(def('city60').unlocked!(s)).toBe(true);
+  });
+});
