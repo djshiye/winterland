@@ -8,6 +8,7 @@ import { EVENTS, type EventKind } from '../config';
 import type { GameContext } from '../core/types';
 import { steadyHighlights } from '../fx/comfort';
 import { backOut, h } from './dom';
+import { ICON_INK } from './iconKit';
 
 export class EventBanner {
   private readonly root: HTMLDivElement;
@@ -96,7 +97,7 @@ const ICONS: Record<EventKind, string> = {
   <path d="M19 9l5 4 5-4M19 39l5-4 5 4M6 21l7-1-1-7M42 27l-7 1 1 7M6 27l7 1-1 7M42 21l-7-1 1-7" stroke-width="2.5"/>
 </svg>`,
   festival: `<svg viewBox="0 0 48 48" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M8 42L18 16l14 14z" fill="#ffd84a" stroke="#7a3b0c" stroke-width="3"/>
+  <path d="M8 42L18 16l14 14z" fill="#ffd84a" stroke="${ICON_INK}" stroke-width="3"/>
   <path d="M13 30l10 4M10.5 37l9 3" stroke="#e8483a" stroke-width="3" fill="none"/>
   <path d="M28 8l1 5M38 14l-4 3M40 26l-5-1" stroke="#fff" stroke-width="3" fill="none"/>
   <circle cx="34" cy="8" r="2.5" fill="#ff7ab8"/><circle cx="41" cy="19" r="2.5" fill="#7ad7ff"/><circle cx="25" cy="18" r="2" fill="#fff"/>

@@ -80,6 +80,23 @@ function pieces(g: THREE.Object3D): { what: string; r: Rect; h: number }[] {
   return out;
 }
 
+/**
+ * Every part a module added to its solid and glow batches (the late eras build their props as merged batches, not
+ * instances): footprint and height. Flat parts (top under 6 cm: floor inlays, walk studs) are paving and may sit
+ * under a pad, so they are left out; the floor batch is paving by definition.
+ */
+function batchPieces(k: GroundKit, tag: string): { what: string; r: Rect; h: number }[] {
+  const out: { what: string; r: Rect; h: number }[] = [];
+  for (const [name, b] of [['solid', k.solid], ['glow', k.glow]] as const) {
+    for (const bb of b.bounds()) {
+      if (bb.max.y < 0.06) continue;
+      const at = `${((bb.min.x + bb.max.x) / 2).toFixed(1)},${((bb.min.z + bb.max.z) / 2).toFixed(1)}`;
+      out.push({ what: `${tag}:${name} part at ${at}`, r: { minX: bb.min.x, maxX: bb.max.x, minZ: bb.min.z, maxZ: bb.max.z }, h: bb.max.y });
+    }
+  }
+  return out;
+}
+
 const MODULE_ERAS = [2, 3, 4, 5, 6, 7, 8, 9, 10].filter((n) => eraGround(n));
 
 describe('era base boards (0.9.8 world)', () => {
@@ -124,7 +141,8 @@ describe('era base boards (0.9.8 world)', () => {
       const lamps = [...kw.lamps, ...k.lamps];
       kw.lamps.length = 0;
       k.lamps.length = 0;
-      const all = [...pieces(kw.build('w')), ...pieces(k.build('o'))];
+      const parts = [...batchPieces(kw, 'w'), ...batchPieces(k, 'o')];
+      const all = [...parts, ...pieces(kw.build('w')), ...pieces(k.build('o'))];
       expect(all.length).toBeGreaterThan(0);
       for (const piece of all) {
         for (const s of see) {

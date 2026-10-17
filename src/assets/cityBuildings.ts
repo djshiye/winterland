@@ -109,7 +109,12 @@ function glassMat(): THREE.MeshToonMaterial {
           if (inWin < 0.5) discard;
           float wh = fract(sin(dot(wc, vec2(12.9898, 78.233))) * 43758.5453);
           float lit = step(0.32, wh);
-          diffuseColor.rgb = mix(vec3(0.11, 0.15, 0.21), vec3(0.2, 0.26, 0.34), wh) + vColor.rgb * 0.08;
+          // 0.9.8 (10c): by day the glass reflects a soft winter sky (lighter toward the top of each pane, with a
+          // diagonal sheen) and a few panes show warm curtains, instead of near-black holes; at night the lit share glows
+          float sky = clamp(wf.y * 1.1 - 0.05, 0.0, 1.0);
+          float sheen = smoothstep(0.08, 0.0, abs(wf.x - wf.y * 0.7 - 0.12)) * 0.35;
+          diffuseColor.rgb = mix(vec3(0.38, 0.5, 0.62), vec3(0.62, 0.74, 0.84), sky * 0.7 + wh * 0.3) + sheen;
+          diffuseColor.rgb = mix(diffuseColor.rgb, vColor.rgb * vec3(0.95, 0.82, 0.66), step(0.86, wh) * 0.7);
           totalEmissiveRadiance = emissive * vColor.rgb * lit * (0.4 + 0.5 * wh);`,
         );
     };
@@ -492,7 +497,7 @@ function towerHome(b: Build, n: number, kind: 'home' | 'work'): void {
     const d = D * t.s;
     const h = Math.max(st.floorH, H * t.f);
     const wall = i % 2 && n >= 8 ? st.wall2 : st.wall;
-    top = b.tier({ w, d, y0: y, h, wall: i ? shade(wall, 0.96) : wall, ledge: n >= 6 ? 2 : n === 5 ? 2 : 0, piers: n >= 3 && n <= 6, base: i === 0 });
+    top = b.tier({ w, d, y0: y, h, wall: i ? shade(wall, 0.96) : wall, ledge: n >= 6 ? 2 : n === 5 ? 2 : 0, piers: (n >= 3 && n <= 6) || n === 10, base: i === 0 });
     if (i < plan.length - 1) {
       // setback terrace: snow + (AI) a green roof garden
       k.slab(st.trim, w + 0.1, 0.18, d + 0.1, 0, top, 0);
@@ -547,17 +552,27 @@ function towerHome(b: Build, n: number, kind: 'home' | 'work'): void {
       break;
     }
     case 8: {
+      // silicon: teal solar panels on stands and the era's crown, a little satellite dish
       const ry = b.flatRoof(w, d, top);
-      for (const x of [-0.25, 0.2]) k.slab(0x2a4a6a, w * 0.34, 0.12, d * 0.5, x * w, ry + 0.25, 0, 0);
-      k.slab(SNOW, w * 0.2, 0.08, d * 0.4, 0.2 * w, ry + 0.4, 0);
-      k.cyl(st.trim, 0.05, 0.03, 2.2, w * 0.3, ry, -d * 0.3, 5);
+      for (const x of [-0.28, 0.06]) {
+        k.slab(st.roof, w * 0.04, 0.3, d * 0.04, x * w, ry, 0);
+        k.slab(0x4b86a0, w * 0.3, 0.1, d * 0.46, x * w, ry + 0.3, 0);
+        k.slab(SNOW, w * 0.24, 0.06, d * 0.2, x * w, ry + 0.4, -d * 0.1);
+      }
+      k.cyl(st.trim, 0.12, 0.16, 0.7, w * 0.32, ry, -d * 0.26, 8);
+      k.sph(st.trim, 0.7, w * 0.32, ry + 0.95, -d * 0.26, 0.38);
+      k.sph(st.accent, 0.12, w * 0.32, ry + 1.25, -d * 0.26);
       break;
     }
     case 9: {
+      // the era's crown: a little mint cooling tower with a soft steam puff, and an aqua-lit mast
       const ry = b.flatRoof(w, d, top);
-      k.cyl(st.wall2, w * 0.2, w * 0.14, 1.6, -w * 0.2, ry, 0, 10);
-      k.cone(SNOW, w * 0.15, 0.3, -w * 0.2, ry + 1.6, 0, 10);
+      k.cyl(st.wall2, w * 0.2, w * 0.14, 1.2, -w * 0.2, ry, 0, 14);
+      k.cyl(st.wall2, w * 0.14, w * 0.17, 0.5, -w * 0.2, ry + 1.2, 0, 14);
+      k.sph(WHITE, w * 0.13, -w * 0.2, ry + 1.95, 0, 0.6);
+      k.sph(WHITE, w * 0.09, -w * 0.14, ry + 2.3, 0.1, 0.6);
       k.cyl(st.accent, 0.05, 0.03, 2.4, w * 0.25, ry, 0, 5);
+      k.sph(FOAM, 0.14, w * 0.25, ry + 2.45, 0);
       break;
     }
     default: {

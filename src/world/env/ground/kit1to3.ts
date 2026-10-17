@@ -114,11 +114,36 @@ export function steppingPath(k: GroundKit, q: Rect, c: { bed: number; stone: num
 }
 
 /** A soft snow patch lying on the board: a white heart with a thinner, board-tinted rim. */
-export function snowPatch(k: GroundKit, x: number, z: number, r: number, rng: Rng, board = SNOW): void {
+export function snowPatch(k: GroundKit, x: number, z: number, r: number, rng: Rng, board = SNOW, y = 0.02): void {
   const sx = r * rng.range(1.0, 1.5);
   const ry = rng.range(0, 3);
-  k.floor.add(geo.circleGround(1, 14), mixHex(SNOW, board, 0.45), x, 0.02, z, { sx: sx * 1.25, sz: r * 1.25, ry });
-  k.floor.add(geo.circleGround(1, 14), SNOW, x, 0.021 + rng.range(0, 0.001), z, { sx, sz: r, ry });
+  k.floor.add(geo.circleGround(1, 14), mixHex(SNOW, board, 0.45), x, y, z, { sx: sx * 1.25, sz: r * 1.25, ry });
+  k.floor.add(geo.circleGround(1, 14), SNOW, x, y + 0.001 + rng.range(0, 0.001), z, { sx, sz: r, ry });
+}
+
+/**
+ * A soft snow verge along the long sides of rect q, just outside it: a run of overlapping two-tone ovals that breaks
+ * up now and then, the way snow banks up against a path edge. Flat (floor batch), so it never hides anything.
+ */
+export function snowVerge(k: GroundKit, q: Rect, rng: Rng, board: number, skip: readonly Rect[] = [], y = 0.022): void {
+  const alongX = q.maxX - q.minX >= q.maxZ - q.minZ;
+  const len = alongX ? q.maxX - q.minX : q.maxZ - q.minZ;
+  const rim = mixHex(SNOW, board, 0.45);
+  for (const side of [-1, 1]) {
+    for (let t = rng.range(0.2, 1); t < len - 0.2; t += rng.range(0.45, 0.75)) {
+      if (rng.next() < 0.12) t += rng.range(0.8, 2);
+      const off = rng.range(0.22, 0.42);
+      const x = alongX ? q.minX + t : side < 0 ? q.minX - off : q.maxX + off;
+      const z = alongX ? (side < 0 ? q.minZ - off : q.maxZ + off) : q.minZ + t;
+      if (skip.some((s) => near(s, x, z, 0.2))) continue;
+      const a = rng.range(0.38, 0.6);
+      const b = rng.range(0.2, 0.34);
+      const sx = alongX ? a : b;
+      const sz = alongX ? b : a;
+      k.floor.add(geo.circleGround(1, 12), rim, x, y, z, { sx: sx * 1.3, sz: sz * 1.3 });
+      k.floor.add(geo.circleGround(1, 12), SNOW, x, y + 0.001, z, { sx, sz });
+    }
+  }
 }
 
 let drift: THREE.BufferGeometry | null = null;

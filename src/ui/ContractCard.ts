@@ -12,12 +12,13 @@ import { contractClock, contractItem } from '../core/Contracts';
 import { steadyHighlights, uiScale } from '../fx/comfort';
 import { h, shield } from './dom';
 import { formatMoney } from './format';
+import { ICON_INK } from './iconKit';
 
 const REFRESH = 0.25;
 const WARN = 20;
 
 const ICON_SCROLL = `<svg viewBox="0 0 48 48" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
-  <g stroke="#1f2b46" stroke-width="2.5"><rect x="9" y="5" width="30" height="38" rx="4" fill="#f6ecd2"/>
+  <g stroke="${ICON_INK}" stroke-width="2.5"><rect x="9" y="5" width="30" height="38" rx="4" fill="#f6ecd2"/>
   <path d="M15 15h18M15 22h18M15 29h11" fill="none" stroke="#a8693a" stroke-width="2.6"/>
   <circle cx="33" cy="35" r="5" fill="#e8553e"/></g></svg>`;
 

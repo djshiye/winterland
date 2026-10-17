@@ -1,6 +1,6 @@
 /**
  * [items builder] 0.9.0 inline SVG icons (no image files) for every ItemKind: the eighteen era materials plus sensible
- * versions of the Survival goods, and their labels. Same style as ui/icons.ts (48x48 viewBox, #1f2b46 outline, round
+ * versions of the Survival goods, and their labels. Same style as ui/icons.ts (48x48 viewBox, warm ink outline (ui/iconKit.ts), round
  * caps). Used by the market panel, the choose panel and anywhere an item kind needs a picture or a name.
  */
 import { MATERIALS, isMaterial } from '../eras/data';
@@ -8,8 +8,9 @@ import type { ItemKind } from '../core/types';
 import { ERA2_4_ICONS } from './materialIcons2to4';
 import { ERA5_7_ICONS } from './materialIcons5to7';
 import { ERA8_10_ICONS } from './materialIcons8to10';
+import { ICON_INK, kitIcon } from './iconKit';
 
-const OUT = '#1f2b46';
+const OUT = ICON_INK;
 
 const svg = (inner: string): string => `<svg viewBox="0 0 48 48" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 /** Outlined group: every shape below sits in one with a 2.5 stroke. */
@@ -210,7 +211,7 @@ const SURVIVAL_ICONS: Record<string, string> = {
 
 /** Inline SVG (48x48 viewBox) for any item kind: era materials, Survival goods and cash. */
 export function materialIcon(kind: ItemKind): string {
-  return MATERIAL_ICONS[kind] ?? SURVIVAL_ICONS[kind] ?? svg(g(`<rect x="8" y="10" width="32" height="28" rx="6" fill="#c9c9d4"/>`));
+  return kitIcon(MATERIAL_ICONS[kind] ?? SURVIVAL_ICONS[kind] ?? svg(g(`<rect x="8" y="10" width="32" height="28" rx="6" fill="#c9c9d4"/>`)));
 }
 
 const SURVIVAL_LABELS: Record<string, string> = {

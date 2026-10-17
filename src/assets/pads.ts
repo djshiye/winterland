@@ -27,6 +27,7 @@ import { PAD, mixHex, type PadLook } from '../render/palette';
 import { MATERIALS } from '../eras/data';
 import { motionScale } from '../fx/padJuice';
 import { registerGlow } from '../world/env/glow';
+import { wearTagLook } from '../ui/worldTag';
 
 export type PadIcon = PadDef['icon'];
 
@@ -2280,6 +2281,7 @@ export function createPadSign(label: string, gold = false): THREE.Mesh {
       .then(paint);
   }
   const m = new THREE.Mesh(geo.plane(SIGN_W, SIGN_H), basic(0xffffff, { map: texture, transparent: true, depthWrite: false }));
+  wearTagLook(m, SIGN_H, 58 / 128); // 0.9.8 brief 14: soft distance fade + 13 px lettering floor
   m.renderOrder = 4;
   m.castShadow = false;
   m.receiveShadow = false;
@@ -2336,6 +2338,7 @@ export function createShopSign(): THREE.Mesh {
       .then(paint);
   }
   const m = new THREE.Mesh(geo.plane(2.6, 0.8125), basic(0xffffff, { map: texture, transparent: true, depthWrite: false }));
+  wearTagLook(m, 0.8125, 66 / 160); // 0.9.8 brief 14
   m.renderOrder = 4;
   m.castShadow = false;
   m.receiveShadow = false;
