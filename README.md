@@ -123,7 +123,13 @@ first run downloads the Electron runtime for each target (~100 MB each) and cach
   and drag `Winterland.app` to Applications. The app isn't notarised by Apple, so the first time *right-click → Open*
   it (or *System Settings → Privacy & Security → Open Anyway*).
 
-**Updating:** every zip has an **Update Winterland** file next to the game (`Update Winterland.cmd` on Windows,
+**Updating:** from 0.9.8 the game itself tells you when a new version is out. A card shows what's new and lets you
+pick **Update now** or **Keep playing** (it asks once per version; Settings → Game → *Check for updates* turns the check
+off, and *Check now* / *What's new* are there too). Update now downloads the new version, checks it against the
+release's `SHA256SUMS.txt`, closes the game, updates it and opens it again, then shows a scrollable list of everything
+that changed since your last version. If anything is off, you're back in your game exactly as it was.
+
+The game can also be updated by hand: every zip has an **Update Winterland** file next to the game (`Update Winterland.cmd` on Windows,
 `Update Winterland.command` on macOS, `Update Winterland.sh` on Linux). Double-click it and it fetches the newest
 release from GitHub, checks the download against the release's `SHA256SUMS.txt`, swaps the game files and starts the
 new version. It only talks to `github.com/djshiye/winterland` over HTTPS, stops without changing anything if the
