@@ -4,6 +4,7 @@
  */
 import type { Rect } from '../config';
 import type { Item, ItemHolder, ItemKind } from '../core/types';
+import type { PayPad } from '../city/lotAccess';
 import type { Pile } from '../items/Pile';
 import type { MachineDef } from './data';
 import type { RegionLayout, XZ } from './layout';
@@ -57,6 +58,11 @@ export interface RegionRuntime {
   readonly dockSpot: XZ;
   /** 0.9.5: construction sites wanting material right now (read live). */
   sites(): readonly SiteRuntime[];
+  /**
+   * 0.9.9: chosen, unbuilt machine slots whose pad still owes cash (the foremen pay them): the pad, the machine's whole
+   * price and where a worker stands beside it. Absent in test fakes = none.
+   */
+  payPads?(): readonly { readonly slot: number; readonly pad: PayPad; readonly total: number; readonly spot: XZ }[];
   /** 0.9.6: the era's hand node pile (the player's harvest) and where a worker stands to take from it; null = none. */
   readonly node?: { readonly pile: Pile; readonly pileSpot: XZ; readonly yields: ItemKind } | null;
   /**

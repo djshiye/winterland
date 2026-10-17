@@ -421,18 +421,36 @@ export class Region implements RegionRuntime {
   /** 0.9.5: slots the player started paying for that still want their extra material (era foremen). */
   sites(): SiteRuntime[] {
     const out: SiteRuntime[] = [];
-    const L = this.layout;
     for (const S of this.slots) {
       const st = this.state(S.index);
       const pad = S.pad;
-      if (st.machine === '' || st.tier >= 0 || st.cash <= 0 || !pad || !pad.visible) continue;
+      // 0.9.9: from the moment a machine is chosen (it used to wait for the player's first coin, so builders stood idle)
+      if (st.machine === '' || st.tier >= 0 || !pad || !pad.visible) continue;
       const kind = pad.extraKind;
       const room = pad.extraRoom;
       if (!kind || room <= 0) continue;
-      const p = L.slots[S.index]!;
-      out.push({ slot: S.index, kind, room, holder: pad, spot: { x: p.x, z: p.z - L.inward * (L.padSize / 2 + 0.7) } });
+      out.push({ slot: S.index, kind, room, holder: pad, spot: this.siteSpot(S.index) });
     }
     return out;
+  }
+
+  /** 0.9.9: chosen, unbuilt slots whose pad still owes cash (the era foremen pay them). */
+  payPads(): { slot: number; pad: ConstructionPad; total: number; spot: XZ }[] {
+    const out: { slot: number; pad: ConstructionPad; total: number; spot: XZ }[] = [];
+    for (const S of this.slots) {
+      const st = this.state(S.index);
+      const pad = S.pad;
+      if (st.machine === '' || st.tier >= 0 || !pad || !pad.visible || pad.cashLeft <= 0) continue;
+      out.push({ slot: S.index, pad, total: MACHINES[st.machine as MachineId].cash, spot: this.siteSpot(S.index) });
+    }
+    return out;
+  }
+
+  /** Where a worker stands to unload into / pay slot `i`'s pad (beside the tile on the yard side, clear of it). */
+  private siteSpot(i: number): XZ {
+    const L = this.layout;
+    const p = L.slots[i]!;
+    return { x: p.x, z: p.z - L.inward * (L.padSize / 2 + 0.7) };
   }
 
   /** Debug / tests: the level pad of machine type `id`, if one stands. */
