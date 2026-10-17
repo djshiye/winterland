@@ -107,13 +107,13 @@ export function paintWoodenTag(g: CanvasRenderingContext2D, text: string, o: Woo
   g.fillStyle = hex(lo);
   g.fill();
   roundRect(g, x0, top, pw, ph, 30);
-  const grad = g.createLinearGradient(0, top, 0, top + ph);
-  grad.addColorStop(0, hex(hi));
-  grad.addColorStop(1, hex(base));
-  g.fillStyle = grad;
+  g.fillStyle = hex(hi);
   g.fill();
   g.save();
   g.clip();
+  // the lower half a shade deeper (a two-tone plank, like a toy's painted board)
+  g.fillStyle = hex(base);
+  g.fillRect(x0, top + ph * 0.52, pw, ph);
   g.globalAlpha = 0.22;
   g.strokeStyle = hex(lo);
   g.lineWidth = 4;

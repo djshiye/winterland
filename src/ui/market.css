@@ -59,7 +59,7 @@
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: var(--wl-card);
+  background: var(--wl-tile);
   display: flex;
   align-items: center;
   justify-content: center;
