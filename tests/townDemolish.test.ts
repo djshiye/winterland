@@ -147,7 +147,7 @@ interface FakeZone {
 }
 
 function makeTown(age: number, money = 100000) {
-  const noop2d = new Proxy({}, { get: () => () => ({ width: 10 }), set: () => true });
+  const noop2d = new Proxy({}, { get: () => () => ({ width: 10, addColorStop: () => undefined }), set: () => true });
   vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => noop2d }), fonts: undefined });
   const events = new EventBus<GameEvents>();
   const state = createGameState();
@@ -175,7 +175,7 @@ function makeTown(age: number, money = 100000) {
     economy,
     upgrades: { value: () => 1 },
     player: { arms: { id: 'arms', count: () => 0 }, back: {}, position: new THREE.Vector3() },
-    zones: { add: mk, addTransfer: mk, remove: (z: FakeZone) => void (z.removed = true) },
+    zones: { add: mk, addTransfer: mk, remove: (z: FakeZone) => void (z.removed = true), isPlayerIn: () => false },
     colliders: {
       addBounds: () => undefined,
       addBox: (_r: Rect, tag: string) => {

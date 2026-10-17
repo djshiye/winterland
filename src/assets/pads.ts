@@ -1,26 +1,32 @@
 /**
- * [B7 — progression] AssetFactory: upgrade-pad tile + its canvas texture + floating label sign.
+ * [B7 — progression; 0.9.8 brief 13] The pads: floor tiles that take cash (and logs / materials), their canvas faces,
+ * the hanging price tags and the floating sign boards.
  *
- * Art spec — createPadTexture(iconType, costText, progressRatio):
- * - 256×256 offscreen canvas. Dark grey #4A4A4A (COLORS.PAD_BG) rounded rect with a white border,
- *   lineWidth 10.
- * - Green #2ECC71 (COLORS.PAD_FILL) fill rising from the bottom to the top with progressRatio (0..1 =
- *   paid fraction), clipped to the rounded rect.
- * - White silhouette icon in the upper half: chainsaw for the harvester ('saw'), factory box for the
- *   processor ('factory'), conveyor arrows for belts ('conveyor'), giant blade for the mega saw
- *   ('megasaw').
- * - Green bill icon bottom-left + bold 56px white text (GAME_FONT) with the remaining amount.
- * - Level pads (machines with upgrade levels) draw a gold border and an "LV n" badge (`badge` argument).
- * - createConstructionTexture: the village construction pads (shelter icon, logs left + cash left rows).
- * - createShopSign / createMatTexture / createPadSign: the doormat sign + rug and the floating label signs.
- * - Cheap to RE-RENDER whenever the cost decrements: pass `target` to redraw an existing texture's
- *   canvas in place (texture.needsUpdate = true) instead of allocating a new one. Fredoka may load after
- *   the first draw, so every texture redraws itself once when the font is ready.
+ * Look (DIRECTION D6, never the source ad's grey tile with a green fill or black BUILD tile):
+ * - Three looks, `PadStyle` (palette.ts PAD.looks): a stitched snow QUILT (default), a wooden pressure PLATE and a
+ *   frosted ice LANTERN; `?pads=plate` previews another one, `?gallery=pads` shows all three side by side.
+ * - createPadTexture / createConstructionTexture / createBuildTexture: 256 × 256 canvas faces in that look: the
+ *   machine / shelter icon in warm ink on a round medallion, warm honey rising from the bottom as the pad is paid (its
+ *   wavy surface sloshes a little with every bundle), a brass "LV n" rosette on level pads, a frost wash and padlock on
+ *   preview pads. Cheap to RE-RENDER on every bundle: pass `target` to redraw a texture's canvas in place.
+ * - hangPriceTag(sign, texture): the price (or a construction pad's rows: logs, extra, cash, a tick when done, or a
+ *   preview pad's note) moves off the tile onto a cream luggage tag on twine under the sign. It sways gently and swings
+ *   when the amount changes; still under Reduce motion. A tile without a tag shows the price on a small cream label.
+ * - createPadModel: the face on a rounded slab with a fat lumpy snow rim (one merged, vertex-coloured mesh), lit like
+ *   the world; padDim() quiets the face when the player can't pay.
+ * - createPadSign / createShopSign: snow-capped wooden boards with cream lettering (brass trim for level pads and the
+ *   shop); createMatModel: the cabin's striped doormat.
+ * Fredoka may load after the first draw, so every texture redraws itself once when the font is ready. Every colour
+ * comes from render/palette.ts (PAD); the small item icons keep their item colours.
  */
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CAMERA, COLORS, PALETTE, type PadDef } from '../config';
-import { GAME_FONT, basic, geo, makeCanvasTexture, mesh, toon } from '../render/materials';
+import { GAME_FONT, basic, geo, makeCanvasTexture, mesh, toon, toonUnique } from '../render/materials';
+import { PAD, mixHex, type PadLook } from '../render/palette';
 import { MATERIALS } from '../eras/data';
+import { motionScale } from '../fx/padJuice';
+import { registerGlow } from '../world/env/glow';
 
 export type PadIcon = PadDef['icon'];
 
@@ -326,7 +332,7 @@ function drawTubes(g: CanvasRenderingContext2D): void {
   g.fillRect(38, -30, 9, 68);
   // dollar sign cut into the capsule
   g.save();
-  g.fillStyle = hex(COLORS.PAD_BG);
+  g.fillStyle = cutColor;
   g.font = `700 24px ${GAME_FONT}`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
@@ -450,9 +456,9 @@ function drawCabin(g: CanvasRenderingContext2D): void {
   addRoundedRect(g, -44, 16, 20, 18, 3);
   g.fill('evenodd');
   // log seams
-  g.fillStyle = hex(COLORS.PAD_BG);
+  g.fillStyle = cutColor;
   g.fillRect(-56, 40, 112, 3);
-  g.fillStyle = '#ffffff';
+  g.fillStyle = hex(PAD.ink);
 }
 
 function drawLodge(g: CanvasRenderingContext2D): void {
@@ -970,13 +976,13 @@ function drawLogIcon(g: CanvasRenderingContext2D, x: number, y: number, k = 1): 
   g.restore();
 }
 
-/** White check mark (a requirement that is complete). */
-function drawCheck(g: CanvasRenderingContext2D, x: number, y: number): void {
+/** Check mark (a requirement that is complete). */
+function drawCheck(g: CanvasRenderingContext2D, x: number, y: number, color = PAD.done): void {
   g.save();
   g.lineWidth = 12;
   g.lineCap = 'round';
   g.lineJoin = 'round';
-  g.strokeStyle = '#ffffff';
+  g.strokeStyle = hex(color);
   g.beginPath();
   g.moveTo(x, y);
   g.lineTo(x + 14, y + 14);
@@ -1034,97 +1040,470 @@ function drawBill(g: CanvasRenderingContext2D, x: number, y: number, k = 1): voi
   g.restore();
 }
 
+
 interface PadTextureParams {
-  kind: 'pad' | 'construction';
+  kind: 'pad' | 'construction' | 'build';
   icon: PadIcon | ShelterIcon;
   text: string;
   ratio: number;
-  /** Level pads: "LV 2" badge + gold border. */
+  /** Level pads: the brass "LV n" rosette. */
   badge?: string | undefined;
   /** Construction pads: requirement rows. */
   logs?: { left: number; total: number };
   cash?: { left: number; total: number };
   /** Third requirement (Grand Market toys). */
   extra?: { left: number; total: number; kind: string };
-  /** Construction pads on preview (0.9 era pads before their gate is met): greyed, a padlock + this note. */
+  /** Construction pads on preview (0.9 era pads before their gate is met): frosted, a padlock + this note. */
   locked?: string | undefined;
+  /** The look this texture was made in (padStyle() when it was created). */
+  style: PadStyle;
 }
 
 const params = new WeakMap<THREE.CanvasTexture, PadTextureParams>();
 const fontHooked = new WeakSet<THREE.CanvasTexture>();
 
-function draw(texture: THREE.CanvasTexture, p: PadTextureParams): void {
-  if (p.kind === 'construction') return drawConstruction(texture, p);
-  const canvas = texture.image as HTMLCanvasElement;
-  const g = canvas.getContext('2d')!;
-  const ratio = Math.min(1, Math.max(0, p.ratio));
-  g.clearRect(0, 0, SIZE, SIZE);
+// ---------------------------------------------------------------------------
+// The three looks (0.9.8, DIRECTION D6)
+// ---------------------------------------------------------------------------
 
-  const inset = BORDER / 2;
-  // background
-  roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
-  g.fillStyle = hex(COLORS.PAD_BG);
-  g.fill();
+/** Stitched snow quilt (default), wooden pressure plate, frosted ice lantern: Dino picks one. */
+export type PadStyle = keyof typeof PAD.looks;
+export const PAD_STYLES: readonly PadStyle[] = ['quilt', 'plate', 'lantern'];
 
-  // progress fill, rising bottom -> top, clipped to the rounded rect
-  if (ratio > 0) {
-    g.save();
-    roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
-    g.clip();
-    const top = SIZE - SIZE * ratio;
-    g.fillStyle = hex(COLORS.PAD_FILL);
-    g.fillRect(0, top, SIZE, SIZE - top);
-    if (ratio < 1) {
-      g.fillStyle = 'rgba(255,255,255,0.4)';
-      g.fillRect(0, top, SIZE, 4);
+/** `?pads=plate` previews another look (gallery and screenshots); anything else is the default. */
+function readStyle(): PadStyle {
+  try {
+    const q = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('pads');
+    if (q && (PAD_STYLES as readonly string[]).includes(q)) return q as PadStyle;
+  } catch {
+    /* no location */
+  }
+  return 'quilt';
+}
+
+let style: PadStyle = readStyle();
+
+/** The look new pads are made in. */
+export function padStyle(): PadStyle {
+  return style;
+}
+
+/** Run `make` with pads made in look `s` (the gallery's side-by-side options). */
+export function withPadStyle<T>(s: PadStyle, make: () => T): T {
+  const prev = style;
+  style = s;
+  try {
+    return make();
+  } finally {
+    style = prev;
+  }
+}
+
+/** Inset and corner radius of the tile face (the 3D snow rim covers its edge). */
+const FACE_INSET = 4;
+const FACE_R = CORNER + 4;
+/** The icon medallion: centre and radius (raised a little when the price has no tag and sits on the tile). */
+const MEDAL_R = 64;
+
+function facePath(g: CanvasRenderingContext2D): void {
+  roundedRectPath(g, FACE_INSET, FACE_INSET, SIZE - FACE_INSET * 2, SIZE - FACE_INSET * 2, FACE_R);
+}
+
+/** Tiny deterministic random (a redraw per cash bundle must never make the decoration jump). */
+function seeded(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+const rgba = (c: number, a: number): string => `rgba(${(c >> 16) & 255},${(c >> 8) & 255},${c & 255},${a})`;
+
+/** Quilt: a 3 × 3 patchwork, every patch puffed (highlight and shade) and edged with running stitches. */
+function paintQuilt(g: CanvasRenderingContext2D, L: PadLook): void {
+  const cell = (SIZE - FACE_INSET * 2) / 3;
+  for (let j = 0; j < 3; j++) {
+    for (let i = 0; i < 3; i++) {
+      const x = FACE_INSET + i * cell;
+      const y = FACE_INSET + j * cell;
+      const patch = (i + j) % 2 === 0 ? L.patch[(i + j * 3) % L.patch.length]! : L.face;
+      roundedRectPath(g, x + 2, y + 2, cell - 4, cell - 4, 16);
+      g.fillStyle = hex(patch);
+      g.fill();
+      const puff = g.createRadialGradient(x + cell * 0.35, y + cell * 0.3, 2, x + cell * 0.5, y + cell * 0.5, cell * 0.75);
+      puff.addColorStop(0, 'rgba(255,255,255,0.42)');
+      puff.addColorStop(0.55, 'rgba(255,255,255,0)');
+      puff.addColorStop(1, 'rgba(110,70,50,0.16)');
+      g.fillStyle = puff;
+      g.fill();
+      g.save();
+      g.setLineDash([7, 6]);
+      g.lineWidth = 3;
+      g.lineCap = 'round';
+      g.strokeStyle = rgba(L.line, 0.95);
+      roundedRectPath(g, x + 10, y + 10, cell - 20, cell - 20, 10);
+      g.stroke();
+      g.restore();
     }
+  }
+  // little cross-stitches where the patches meet
+  g.lineWidth = 3;
+  g.lineCap = 'round';
+  g.strokeStyle = rgba(PAD.honeyDeep, 0.55);
+  for (let j = 1; j < 3; j++) {
+    for (let i = 1; i < 3; i++) {
+      const x = FACE_INSET + i * cell;
+      const y = FACE_INSET + j * cell;
+      g.beginPath();
+      g.moveTo(x - 5, y - 5);
+      g.lineTo(x + 5, y + 5);
+      g.moveTo(x + 5, y - 5);
+      g.lineTo(x - 5, y + 5);
+      g.stroke();
+    }
+  }
+}
+
+/** Plate: four honey-pine planks with soft grain, a knot and a nail head at each end. */
+function paintPlate(g: CanvasRenderingContext2D, L: PadLook): void {
+  const rnd = seeded(7);
+  const n = 4;
+  const w = (SIZE - FACE_INSET * 2) / n;
+  for (let i = 0; i < n; i++) {
+    const x = FACE_INSET + i * w;
+    const grad = g.createLinearGradient(x, 0, x + w, 0);
+    grad.addColorStop(0, hex(mixHex(L.patch[i % L.patch.length]!, 0xffffff, 0.12)));
+    grad.addColorStop(1, hex(L.patch[i % L.patch.length]!));
+    g.fillStyle = grad;
+    g.fillRect(x, 0, w, SIZE);
+    // grain: long soft waves down the plank
+    g.lineWidth = 2;
+    g.strokeStyle = rgba(L.line, 0.32);
+    for (let k = 0; k < 3; k++) {
+      const gx = x + w * (0.25 + k * 0.25) + (rnd() - 0.5) * 6;
+      g.beginPath();
+      g.moveTo(gx, 0);
+      g.bezierCurveTo(gx + 8 * (rnd() - 0.5), SIZE * 0.33, gx + 10 * (rnd() - 0.5), SIZE * 0.66, gx + 6 * (rnd() - 0.5), SIZE);
+      g.stroke();
+    }
+    if (i === 1 || i === 3) {
+      const ky = SIZE * (i === 1 ? 0.78 : 0.24);
+      g.beginPath();
+      g.ellipse(x + w * 0.5, ky, 7, 11, 0, 0, Math.PI * 2);
+      g.strokeStyle = rgba(L.line, 0.45);
+      g.lineWidth = 2.5;
+      g.stroke();
+    }
+    // seam
+    if (i > 0) {
+      g.fillStyle = rgba(L.line, 0.55);
+      g.fillRect(x - 1.5, 0, 3, SIZE);
+    }
+    // nail heads
+    for (const ny of [26, SIZE - 26]) {
+      g.beginPath();
+      g.arc(x + w / 2, ny, 4.5, 0, Math.PI * 2);
+      g.fillStyle = hex(PAD.boardDark);
+      g.fill();
+      g.beginPath();
+      g.arc(x + w / 2 - 1.2, ny - 1.4, 1.6, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(255,240,215,0.75)';
+      g.fill();
+    }
+  }
+}
+
+/** Lantern: frosted glass with a warm candle heart, frost ferns creeping from the corners and a few glints. */
+function paintLantern(g: CanvasRenderingContext2D, L: PadLook): void {
+  const heart = g.createRadialGradient(SIZE / 2, SIZE / 2, 10, SIZE / 2, SIZE / 2, SIZE * 0.62);
+  heart.addColorStop(0, rgba(L.patch[2]!, 1));
+  heart.addColorStop(0.5, rgba(L.patch[2]!, 0.5));
+  heart.addColorStop(1, rgba(L.patch[2]!, 0));
+  g.fillStyle = heart;
+  g.fillRect(0, 0, SIZE, SIZE);
+  const rnd = seeded(11);
+  g.strokeStyle = rgba(L.line, 0.75);
+  g.lineCap = 'round';
+  const fern = (x: number, y: number, a: number, len: number, depth: number): void => {
+    const ex = x + Math.cos(a) * len;
+    const ey = y + Math.sin(a) * len;
+    g.lineWidth = 1 + depth;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(ex, ey);
+    g.stroke();
+    if (depth <= 0) return;
+    for (let k = 1; k <= 3; k++) {
+      const t = k / 4;
+      const bx = x + (ex - x) * t;
+      const by = y + (ey - y) * t;
+      fern(bx, by, a + 0.7, len * 0.36, depth - 1);
+      fern(bx, by, a - 0.7, len * 0.36, depth - 1);
+    }
+  };
+  const c = FACE_INSET + 14;
+  fern(c, c, Math.PI / 4 + (rnd() - 0.5) * 0.3, 62, 2);
+  fern(SIZE - c, c, (Math.PI * 3) / 4 + (rnd() - 0.5) * 0.3, 54, 2);
+  fern(c, SIZE - c, -Math.PI / 4 + (rnd() - 0.5) * 0.3, 54, 2);
+  fern(SIZE - c, SIZE - c, (-Math.PI * 3) / 4 + (rnd() - 0.5) * 0.3, 62, 2);
+  // glints
+  g.fillStyle = 'rgba(255,255,255,0.9)';
+  for (let k = 0; k < 6; k++) {
+    const x = 30 + rnd() * (SIZE - 60);
+    const y = 30 + rnd() * (SIZE - 60);
+    const r = 2 + rnd() * 3;
+    g.beginPath();
+    g.moveTo(x, y - r * 2);
+    g.lineTo(x + r * 0.5, y);
+    g.lineTo(x, y + r * 2);
+    g.lineTo(x - r * 0.5, y);
+    g.closePath();
+    g.moveTo(x - r * 2, y);
+    g.lineTo(x, y + r * 0.5);
+    g.lineTo(x + r * 2, y);
+    g.lineTo(x, y - r * 0.5);
+    g.closePath();
+    g.fill();
+  }
+}
+
+/**
+ * Warm honey rising from the bottom as the pad is paid: a gentle wave on top (its phase moves with every bundle, so
+ * it sloshes as it fills), a light meniscus, a glint, deepening toward the bottom. Lets the face show through a little.
+ */
+function paintHoney(g: CanvasRenderingContext2D, ratio: number): void {
+  if (ratio <= 0) return;
+  const span = SIZE - FACE_INSET * 2;
+  const top = FACE_INSET + span * (1 - Math.min(1, ratio));
+  const amp = ratio >= 1 ? 0 : 5;
+  const phase = ratio * 9;
+  const surface = (x: number): number => top + Math.sin((x / SIZE) * Math.PI * 3 + phase) * amp;
+  g.beginPath();
+  g.moveTo(0, SIZE);
+  for (let x = 0; x <= SIZE; x += 8) g.lineTo(x, surface(x));
+  g.lineTo(SIZE, SIZE);
+  g.closePath();
+  const hg = g.createLinearGradient(0, top - amp, 0, SIZE);
+  hg.addColorStop(0, rgba(PAD.honeyLight, 0.9));
+  hg.addColorStop(0.3, rgba(PAD.honey, 0.86));
+  hg.addColorStop(1, rgba(PAD.honeyDeep, 0.9));
+  g.fillStyle = hg;
+  g.fill();
+  if (ratio < 1) {
+    g.beginPath();
+    for (let x = 0; x <= SIZE; x += 8) {
+      if (x === 0) g.moveTo(x, surface(x) + 2);
+      else g.lineTo(x, surface(x) + 2);
+    }
+    g.lineWidth = 5;
+    g.strokeStyle = rgba(0xfff3cf, 0.85);
+    g.stroke();
+  }
+  // a glint riding in the honey
+  const gy = Math.min(SIZE - 30, Math.max(top + 18, SIZE - 40));
+  if (gy < SIZE - 20) {
+    g.beginPath();
+    g.ellipse(40, gy, 12, 5, -0.3, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(255,250,232,0.5)';
+    g.fill();
+  }
+}
+
+/** The look's face (gradient + decoration) with the honey fill and a soft shade under the snow rim, clipped. */
+function paintFace(g: CanvasRenderingContext2D, s: PadStyle, ratio: number): void {
+  const L = PAD.looks[s];
+  g.save();
+  facePath(g);
+  g.clip();
+  const grad = g.createLinearGradient(0, 0, 0, SIZE);
+  grad.addColorStop(0, hex(L.face));
+  grad.addColorStop(1, hex(L.faceShade));
+  g.fillStyle = grad;
+  g.fillRect(0, 0, SIZE, SIZE);
+  if (s === 'quilt') paintQuilt(g, L);
+  else if (s === 'plate') paintPlate(g, L);
+  else paintLantern(g, L);
+  paintHoney(g, ratio);
+  facePath(g);
+  g.lineWidth = 30;
+  g.strokeStyle = 'rgba(90,55,40,0.13)';
+  g.stroke();
+  g.restore();
+}
+
+/** The colour icon cut-outs are filled with (the medallion's, so details read as holes). */
+let cutColor = '#ffffff';
+
+/** Round medallion with the icon in warm ink (readable at 40 px on every look). */
+function paintMedal(g: CanvasRenderingContext2D, s: PadStyle, cy: number, drawIcon: (g: CanvasRenderingContext2D) => void, iconScale: number): void {
+  const L = PAD.looks[s];
+  const cx = SIZE / 2;
+  g.beginPath();
+  g.arc(cx, cy + 5, MEDAL_R, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(80,45,30,0.2)';
+  g.fill();
+  g.beginPath();
+  g.arc(cx, cy, MEDAL_R, 0, Math.PI * 2);
+  const mg = g.createRadialGradient(cx - 18, cy - 22, 6, cx, cy, MEDAL_R);
+  mg.addColorStop(0, hex(mixHex(L.medal, 0xffffff, 0.5)));
+  mg.addColorStop(1, hex(L.medal));
+  g.fillStyle = mg;
+  g.fill();
+  g.lineWidth = 6;
+  g.strokeStyle = hex(L.medalRim);
+  g.stroke();
+  if (s === 'quilt') {
+    g.save();
+    g.setLineDash([6, 5]);
+    g.lineWidth = 2.5;
+    g.strokeStyle = hex(L.medalRim);
+    g.beginPath();
+    g.arc(cx, cy, MEDAL_R - 10, 0, Math.PI * 2);
+    g.stroke();
     g.restore();
   }
-
-  // border
-  roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
-  g.lineWidth = BORDER;
-  g.strokeStyle = hex(p.badge ? PALETTE.accent : COLORS.PAD_BORDER);
-  g.stroke();
-
-  // white silhouette icon, upper half (shifted left/down a little when the level badge is drawn)
   g.save();
-  g.translate(p.badge ? 112 : 128, p.badge ? 96 : 90);
-  g.scale(p.badge ? 0.9 : 1.04, p.badge ? 0.9 : 1.04);
-  g.fillStyle = '#ffffff';
-  g.strokeStyle = '#ffffff';
-  ICONS[p.icon as PadIcon](g);
+  g.translate(cx, cy);
+  g.scale(iconScale, iconScale);
+  g.fillStyle = hex(PAD.ink);
+  g.strokeStyle = hex(PAD.ink);
+  cutColor = hex(L.medal);
+  drawIcon(g);
+  cutColor = '#ffffff';
   g.restore();
+}
 
-  if (p.badge) {
-    roundedRectPath(g, 160, 22, 80, 40, 14);
-    g.fillStyle = hex(PALETTE.accent);
+/** Brass rosette with ribbon tails: "LV" over the level number. */
+function paintBadge(g: CanvasRenderingContext2D, badge: string): void {
+  const cx = 198;
+  const cy = 58;
+  g.fillStyle = hex(PAD.honeyDeep);
+  for (const dx of [-12, 12]) {
+    g.beginPath();
+    g.moveTo(cx + dx - 9, cy + 18);
+    g.lineTo(cx + dx + 9, cy + 18);
+    g.lineTo(cx + dx + 9 + dx * 0.25, cy + 60);
+    g.lineTo(cx + dx + dx * 0.25, cy + 51);
+    g.lineTo(cx + dx - 9 + dx * 0.25, cy + 60);
+    g.closePath();
     g.fill();
-    g.lineWidth = 4;
-    g.strokeStyle = '#ffffff';
-    g.stroke();
-    g.font = `700 28px ${GAME_FONT}`;
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillStyle = hex(COLORS.PAD_BG);
-    g.fillText(p.badge, 200, 43, 70);
   }
-
-  // bill icon (bottom-left) + remaining amount
-  drawBill(g, 56, 196);
-  g.font = `700 56px ${GAME_FONT}`;
-  g.textAlign = 'left';
+  g.beginPath();
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const r = i % 2 === 0 ? 46 : 41;
+    g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+  }
+  g.closePath();
+  g.fillStyle = hex(PAD.brass);
+  g.fill();
+  g.lineWidth = 3;
+  g.strokeStyle = hex(PAD.honeyDeep);
+  g.stroke();
+  g.beginPath();
+  g.arc(cx, cy, 33, 0, Math.PI * 2);
+  g.fillStyle = hex(PAD.tag);
+  g.fill();
+  const num = badge.replace(/^LV\s*/i, '');
+  g.fillStyle = hex(PAD.ink);
+  g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.lineJoin = 'round';
-  g.lineWidth = 9;
-  g.strokeStyle = hex(COLORS.PAD_BG);
-  g.fillStyle = '#ffffff';
-  const tx = 104;
-  const ty = 200;
-  const maxW = SIZE - BORDER - 12 - tx;
-  g.strokeText(p.text, tx, ty, maxW);
-  g.fillText(p.text, tx, ty, maxW);
+  g.font = `700 15px ${GAME_FONT}`;
+  g.fillText('LV', cx, cy - 16);
+  g.font = `700 ${num.length > 1 ? 30 : 34}px ${GAME_FONT}`;
+  g.fillText(num, cx, cy + 7, 56);
+}
 
+/** Frost wash and a padlock over the medallion (a preview pad: for sale, not yet). */
+function paintLockedFace(g: CanvasRenderingContext2D, cy: number): void {
+  g.save();
+  facePath(g);
+  g.fillStyle = rgba(PAD.frost, 0.62);
+  g.fill();
+  g.translate(SIZE / 2, cy);
+  g.lineWidth = 11;
+  g.lineCap = 'round';
+  g.strokeStyle = hex(PAD.ink);
+  g.beginPath();
+  g.arc(0, -16, 20, Math.PI, 0);
+  g.lineTo(20, 0);
+  g.moveTo(-20, 0);
+  g.lineTo(-20, -16);
+  g.stroke();
+  roundedRectPath(g, -32, -2, 64, 50, 10);
+  g.fillStyle = hex(PAD.ink);
+  g.fill();
+  g.fillStyle = hex(PAD.tag);
+  g.beginPath();
+  g.arc(0, 18, 7, 0, Math.PI * 2);
+  g.fill();
+  g.fillRect(-3, 20, 6, 14);
+  g.restore();
+}
+
+/** No tag hung (a stand-alone tile): the price sits on a little cream label on the tile instead. */
+function paintTilePrice(g: CanvasRenderingContext2D, text: string): void {
+  if (!text) return;
+  g.font = `700 40px ${GAME_FONT}`;
+  const w = Math.min(SIZE - 40, g.measureText(text).width + 40);
+  roundedRectPath(g, SIZE / 2 - w / 2, 190, w, 50, 18);
+  g.fillStyle = hex(PAD.tag);
+  g.fill();
+  g.lineWidth = 4;
+  g.strokeStyle = hex(PAD.tagEdge);
+  g.stroke();
+  g.fillStyle = hex(PAD.ink);
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, SIZE / 2, 217, w - 20);
+}
+
+/** The "build here" icon of an empty town lot: a little house with a plus. */
+function drawBuildIcon(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  poly(g, [[-58, 4], [-6, -48], [46, 4], [36, 4], [36, 50], [-48, 50], [-48, 4]]);
+  addRoundedRect(g, -18, 18, 22, 32, 4);
+  g.fill('evenodd');
+  g.save();
+  g.translate(38, -30);
+  g.beginPath();
+  g.arc(0, 0, 24, 0, Math.PI * 2);
+  g.fillStyle = hex(PAD.cashInk);
+  g.fill();
+  g.lineCap = 'round';
+  g.lineWidth = 9;
+  g.strokeStyle = hex(PAD.tag);
+  g.beginPath();
+  g.moveTo(0, -12);
+  g.lineTo(0, 12);
+  g.moveTo(-12, 0);
+  g.lineTo(12, 0);
+  g.stroke();
+  g.restore();
+}
+
+function draw(texture: THREE.CanvasTexture, p: PadTextureParams): void {
+  const g = (texture.image as HTMLCanvasElement).getContext('2d')!;
+  const ratio = Math.min(1, Math.max(0, p.ratio));
+  const tag = tags.get(texture);
+  g.clearRect(0, 0, SIZE, SIZE);
+  paintFace(g, p.style, ratio);
+  const cy = tag || p.kind === 'build' ? SIZE / 2 : 104;
+  if (p.kind === 'construction') {
+    const rows = (p.logs && p.logs.total > 0 ? 1 : 0) + (p.extra ? 1 : 0) + (p.cash ? 1 : 0);
+    paintMedal(g, p.style, cy, SHELTER_ICONS[p.icon as ShelterIcon], rows >= 3 ? 0.72 : 0.78);
+  } else if (p.kind === 'build') {
+    paintMedal(g, p.style, cy, drawBuildIcon, 0.82);
+  } else {
+    paintMedal(g, p.style, cy, ICONS[p.icon as PadIcon], 0.84);
+  }
+  if (p.badge) paintBadge(g, p.badge);
+  if (p.locked !== undefined) paintLockedFace(g, cy);
+  if (tag) paintTag(tag, p);
+  else if (p.locked) paintTilePrice(g, p.locked);
+  else if (p.kind === 'pad') paintTilePrice(g, p.text);
+  else if (p.kind === 'construction' && p.cash && p.cash.left > 0) paintTilePrice(g, formatCost(p.cash.left));
   texture.needsUpdate = true;
 }
 
@@ -1136,13 +1515,22 @@ export function createPadTexture(
   badge?: string,
 ): THREE.CanvasTexture {
   const texture = target ?? makeCanvasTexture(SIZE, SIZE).texture;
-  const p: PadTextureParams = { kind: 'pad', icon: iconType, text: costText, ratio: progressRatio, badge };
+  const p: PadTextureParams = { kind: 'pad', icon: iconType, text: costText, ratio: progressRatio, badge, style: params.get(texture)?.style ?? style };
   params.set(texture, p);
   draw(texture, p);
   hookFont(texture);
   return texture;
 }
 
+/** The empty town lot's BUILD tile (town/LotPad.ts): a house with a plus on the medallion, no price. */
+export function createBuildTexture(): THREE.CanvasTexture {
+  const texture = makeCanvasTexture(SIZE, SIZE).texture;
+  const p: PadTextureParams = { kind: 'build', icon: 'lot', text: '', ratio: 0, style };
+  params.set(texture, p);
+  draw(texture, p);
+  hookFont(texture);
+  return texture;
+}
 
 /** Little wooden toy train (red cab + blue boiler + yellow wheels) with a white outline. */
 function drawToyIcon(g: CanvasRenderingContext2D, x: number, y: number, k = 1): void {
@@ -1306,144 +1694,15 @@ function drawMaterialIcon(g: CanvasRenderingContext2D, x: number, y: number, kin
   g.restore();
 }
 
-function drawConstructionRow(
-  g: CanvasRenderingContext2D,
-  y: number,
-  kind: 'log' | 'cash' | 'extra',
-  req: { left: number; total: number },
-  k = 1,
-  extraKind = 'toy',
-): void {
-  if (kind === 'log') drawLogIcon(g, 58, y, 0.95 * k);
-  else if (kind === 'cash') drawBill(g, 56, y, 0.75 * k);
-  else if (extraKind === 'toy') drawToyIcon(g, 58, y, 0.78 * k);
-  else if (extraKind === 'crate') drawCrateIcon(g, 58, y, 0.7 * k);
-  else if (extraKind === 'log') drawLogIcon(g, 58, y, 0.95 * k);
-  else drawMaterialIcon(g, 58, y, extraKind, 0.72 * k);
-  if (req.left <= 0) {
-    drawCheck(g, 108, y);
-    return;
-  }
-  g.font = `700 ${Math.round(50 * k)}px ${GAME_FONT}`;
-  g.textAlign = 'left';
-  g.textBaseline = 'middle';
-  g.lineJoin = 'round';
-  g.lineWidth = 9;
-  g.strokeStyle = hex(COLORS.PAD_BG);
-  g.fillStyle = '#ffffff';
-  const text = kind === 'cash' ? formatCost(req.left) : `${req.left}`;
-  const maxW = SIZE - BORDER - 14 - 104;
-  g.strokeText(text, 104, y + 2, maxW);
-  g.fillText(text, 104, y + 2, maxW);
-}
 
-function drawConstruction(texture: THREE.CanvasTexture, p: PadTextureParams): void {
-  const g = (texture.image as HTMLCanvasElement).getContext('2d')!;
-  const ratio = Math.min(1, Math.max(0, p.ratio));
-  g.clearRect(0, 0, SIZE, SIZE);
-  const inset = BORDER / 2;
-  roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
-  g.fillStyle = hex(COLORS.PAD_BG);
-  g.fill();
-  if (ratio > 0) {
-    g.save();
-    roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
-    g.clip();
-    const top = SIZE - SIZE * ratio;
-    g.fillStyle = hex(COLORS.PAD_FILL);
-    g.fillRect(0, top, SIZE, SIZE - top);
-    if (ratio < 1) {
-      g.fillStyle = 'rgba(255,255,255,0.4)';
-      g.fillRect(0, top, SIZE, 4);
-    }
-    g.restore();
-  }
-  roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
-  g.lineWidth = BORDER;
-  g.strokeStyle = hex(COLORS.PAD_BORDER);
-  g.stroke();
-
-  // 0.9.0 era pads cost no logs (logs.total 0): no log row, the remaining rows take the lower half
-  const hasLogs = !!p.logs && p.logs.total > 0;
-  const rows = (hasLogs ? 1 : 0) + (p.extra ? 1 : 0) + (p.cash ? 1 : 0);
-  // three requirements (Grand Market): a smaller icon and tighter rows so the toy row fits
-  const three = rows >= 3;
-  const single = rows <= 1;
-  g.save();
-  g.translate(128, three ? 58 : single ? 82 : 76);
-  const iconScale = three ? 0.6 : single ? 0.86 : 0.78;
-  g.scale(iconScale, iconScale);
-  g.fillStyle = '#ffffff';
-  g.strokeStyle = '#ffffff';
-  SHELTER_ICONS[p.icon as ShelterIcon](g);
-  g.restore();
-
-  const ek = p.extra?.kind;
-  if (three) {
-    if (hasLogs) drawConstructionRow(g, 120, 'log', p.logs!, 0.8);
-    if (p.extra) drawConstructionRow(g, 166, 'extra', p.extra, 0.8, ek);
-    if (p.cash) drawConstructionRow(g, 212, 'cash', p.cash, 0.8);
-  } else if (single) {
-    // cash only (or one other row): centred a little lower than the two-row layout
-    if (hasLogs) drawConstructionRow(g, 190, 'log', p.logs!);
-    if (p.extra) drawConstructionRow(g, 190, 'extra', p.extra, 1, ek);
-    if (p.cash) drawConstructionRow(g, 190, 'cash', p.cash);
-  } else {
-    // two rows: logs / extra on top, cash below
-    if (hasLogs) drawConstructionRow(g, 158, 'log', p.logs!);
-    if (p.extra) drawConstructionRow(g, 158, 'extra', p.extra, 1, ek);
-    if (p.cash) drawConstructionRow(g, 208, 'cash', p.cash);
-  }
-  if (p.locked !== undefined) drawLockedWash(g, p.locked);
-  texture.needsUpdate = true;
-}
+// ---------------------------------------------------------------------------
+// Construction pads
+// ---------------------------------------------------------------------------
 
 /**
- * Preview face (docs/EXPANSION.md §C): a grey wash over the whole tile, a padlock and a short progress note
- * ("37/48 · S8/10") on a dark strip, so the pad reads "for sale, not yet" without a second mesh.
- */
-function drawLockedWash(g: CanvasRenderingContext2D, note: string): void {
-  const inset = BORDER / 2;
-  g.save();
-  roundedRectPath(g, inset, inset, SIZE - BORDER, SIZE - BORDER, CORNER);
-  g.fillStyle = 'rgba(150,158,170,0.62)';
-  g.fill();
-  // padlock: shackle + body
-  g.translate(SIZE / 2, note ? 104 : 128);
-  g.lineWidth = 11;
-  g.strokeStyle = '#ffffff';
-  g.beginPath();
-  g.arc(0, -14, 22, Math.PI, 0);
-  g.lineTo(22, 4);
-  g.moveTo(-22, 4);
-  g.lineTo(-22, -14);
-  g.stroke();
-  roundedRectPath(g, -36, 0, 72, 56, 10);
-  g.fillStyle = '#ffffff';
-  g.fill();
-  g.fillStyle = hex(COLORS.PAD_BG);
-  g.beginPath();
-  g.arc(0, 22, 8, 0, Math.PI * 2);
-  g.fill();
-  g.fillRect(-3.5, 24, 7, 16);
-  g.restore();
-  if (!note) return;
-  g.font = `700 40px ${GAME_FONT}`;
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.lineJoin = 'round';
-  g.lineWidth = 9;
-  g.strokeStyle = hex(COLORS.PAD_BG);
-  g.fillStyle = '#ffffff';
-  const maxW = SIZE - BORDER - 28;
-  g.strokeText(note, SIZE / 2, 200, maxW);
-  g.fillText(note, SIZE / 2, 200, maxW);
-}
-
-/**
- * Construction pad face: shelter icon on top, then "log icon + logs left" and "bill icon + cash left" rows (a
- * finished requirement shows a check mark). The fill rises with the combined progress. Redraws `target` in place.
- * `locked` (a preview pad): the face is greyed under a padlock and that note.
+ * Construction pad face: the shelter icon on the medallion, the fill rising with the combined progress; the
+ * requirement rows ("log icon + logs left", "bill icon + cash left", a finished one ticked) go on the hanging tag.
+ * Redraws `target` in place. `locked` (a preview pad): the face is frosted under a padlock and the tag shows that note.
  */
 export function createConstructionTexture(
   icon: ShelterIcon,
@@ -1458,7 +1717,17 @@ export function createConstructionTexture(
   // era pads (logs.total 0) have no log requirement: it must not count as a free third of the progress
   const parts = [...(logs.total > 0 ? [part(logs)] : []), part(cash), ...(extra ? [part(extra)] : [])];
   const ratio = parts.reduce((a, b) => a + b, 0) / parts.length;
-  const p: PadTextureParams = { kind: 'construction', icon, text: '', ratio, logs, cash, ...(extra ? { extra } : {}), locked };
+  const p: PadTextureParams = {
+    kind: 'construction',
+    icon,
+    text: '',
+    ratio,
+    logs,
+    cash,
+    ...(extra ? { extra } : {}),
+    locked,
+    style: params.get(texture)?.style ?? style,
+  };
   params.set(texture, p);
   draw(texture, p);
   hookFont(texture);
@@ -1481,32 +1750,379 @@ function hookFont(texture: THREE.CanvasTexture): void {
 }
 
 // ---------------------------------------------------------------------------
+// The hanging price tag
+// ---------------------------------------------------------------------------
+
+const TAG_PX = 256;
+/** World size of the tag's square canvas (sign-local units: the sign's scale applies). */
+const TAG_WORLD = 1.75;
+/** The sign board is raised this much so the tag hangs about where the board used to be. */
+const TAG_LIFT = 0.82;
+const SIGN_W = 2.5;
+const SIGN_H = 0.625;
+
+interface Tag {
+  mesh: THREE.Mesh;
+  g: CanvasRenderingContext2D;
+  texture: THREE.CanvasTexture;
+  /** What the rows said last time (a change makes the tag swing). */
+  key: string;
+  kickAt: number;
+  phase: number;
+}
+
+const tags = new WeakMap<THREE.CanvasTexture, Tag>();
+
+interface TagRow {
+  icon: (g: CanvasRenderingContext2D, x: number, y: number) => void;
+  /** null: the requirement is done (a tick instead of a number). */
+  text: string | null;
+}
+
+function drawTagLock(g: CanvasRenderingContext2D, x: number, y: number): void {
+  g.save();
+  g.translate(x, y);
+  g.lineWidth = 6;
+  g.strokeStyle = hex(PAD.ink);
+  g.beginPath();
+  g.arc(0, -8, 10, Math.PI, 0);
+  g.lineTo(10, 0);
+  g.moveTo(-10, 0);
+  g.lineTo(-10, -8);
+  g.stroke();
+  roundedRectPath(g, -16, -2, 32, 24, 6);
+  g.fillStyle = hex(PAD.ink);
+  g.fill();
+  g.restore();
+}
+
+function tagRows(p: PadTextureParams): TagRow[] {
+  if (p.locked !== undefined) return [{ icon: drawTagLock, text: p.locked || 'Soon' }];
+  if (p.kind === 'pad') return [{ icon: (g, x, y) => drawBill(g, x, y, 0.5), text: p.text }];
+  if (p.kind !== 'construction') return [];
+  const row = (req: { left: number; total: number }, icon: TagRow['icon'], cash = false): TagRow => ({
+    icon,
+    text: req.left <= 0 ? null : cash ? formatCost(req.left) : `${req.left}`,
+  });
+  const rows: TagRow[] = [];
+  if (p.logs && p.logs.total > 0) rows.push(row(p.logs, (g, x, y) => drawLogIcon(g, x, y, 0.62)));
+  if (p.extra) {
+    const k = p.extra.kind;
+    rows.push(
+      row(p.extra, (g, x, y) => {
+        if (k === 'toy') drawToyIcon(g, x, y, 0.56);
+        else if (k === 'crate') drawCrateIcon(g, x, y, 0.52);
+        else if (k === 'log') drawLogIcon(g, x, y, 0.62);
+        else drawMaterialIcon(g, x, y, k, 0.52);
+      }),
+    );
+  }
+  if (p.cash) rows.push(row(p.cash, (g, x, y) => drawBill(g, x, y, 0.5), true));
+  return rows;
+}
+
+/** A luggage tag: clipped top corners, softly rounded bottom. */
+function tagPath(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+  const c = 16;
+  const r = 12;
+  g.beginPath();
+  g.moveTo(x + c, y);
+  g.lineTo(x + w - c, y);
+  g.lineTo(x + w, y + c);
+  g.lineTo(x + w, y + h - r);
+  g.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  g.lineTo(x + r, y + h);
+  g.quadraticCurveTo(x, y + h, x, y + h - r);
+  g.lineTo(x, y + c);
+  g.closePath();
+}
+
+function paintTag(tag: Tag, p: PadTextureParams): void {
+  const g = tag.g;
+  const rows = tagRows(p);
+  g.clearRect(0, 0, TAG_PX, TAG_PX);
+  tag.mesh.visible = rows.length > 0;
+  if (rows.length === 0) {
+    tag.texture.needsUpdate = true;
+    return;
+  }
+  const three = rows.length >= 3;
+  const rowH = three ? 50 : 56;
+  const font = three ? 42 : 50;
+  g.font = `700 ${font}px ${GAME_FONT}`;
+  let textW = 0;
+  for (const r of rows) textW = Math.max(textW, r.text === null ? 44 : g.measureText(r.text).width);
+  const w = Math.max(138, Math.min(TAG_PX - 10, 72 + textW + 22));
+  const x0 = TAG_PX / 2 - w / 2;
+  const top = 42;
+  const hole = top + 17;
+  const h = 34 + rows.length * rowH + 6;
+  // twine up to the board, knotted through the eyelet
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.lineWidth = 4;
+  g.strokeStyle = hex(PAD.twine);
+  g.beginPath();
+  g.moveTo(TAG_PX / 2 - 46, 0);
+  g.lineTo(TAG_PX / 2, hole);
+  g.lineTo(TAG_PX / 2 + 46, 0);
+  g.stroke();
+  // card, its shadow and a stitched edge
+  g.save();
+  g.translate(3, 5);
+  tagPath(g, x0, top, w, h);
+  g.fillStyle = 'rgba(70,45,30,0.22)';
+  g.fill();
+  g.restore();
+  tagPath(g, x0, top, w, h);
+  const cg = g.createLinearGradient(0, top, 0, top + h);
+  cg.addColorStop(0, hex(PAD.tag));
+  cg.addColorStop(1, hex(mixHex(PAD.tag, PAD.tagEdge, 0.25)));
+  g.fillStyle = cg;
+  g.fill();
+  g.lineWidth = 4;
+  g.strokeStyle = hex(PAD.tagEdge);
+  g.stroke();
+  g.save();
+  g.setLineDash([5, 5]);
+  g.lineWidth = 2;
+  g.strokeStyle = rgba(PAD.tagEdge, 0.9);
+  tagPath(g, x0 + 7, top + 7, w - 14, h - 14);
+  g.stroke();
+  g.restore();
+  // brass eyelet
+  g.beginPath();
+  g.arc(TAG_PX / 2, hole, 9, 0, Math.PI * 2);
+  g.fillStyle = hex(PAD.brass);
+  g.fill();
+  g.beginPath();
+  g.arc(TAG_PX / 2, hole, 4.5, 0, Math.PI * 2);
+  g.fillStyle = hex(PAD.boardDark);
+  g.fill();
+  // rows: icon, then the amount (or a tick)
+  g.textAlign = 'left';
+  g.textBaseline = 'middle';
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]!;
+    const y = top + 34 + i * rowH + rowH / 2;
+    r.icon(g, x0 + 38, y);
+    if (r.text === null) drawCheck(g, x0 + 72, y, PAD.done);
+    else {
+      g.font = `700 ${font}px ${GAME_FONT}`;
+      g.fillStyle = hex(r.text.startsWith('$') ? PAD.cashInk : PAD.ink);
+      g.fillText(r.text, x0 + 70, y + 2, w - 84);
+    }
+  }
+  tag.texture.needsUpdate = true;
+  const key = rows.map((r) => r.text ?? '✓').join('|');
+  if (tag.key && key !== tag.key) tag.kickAt = nowSeconds();
+  tag.key = key;
+}
+
+const nowSeconds = (): number => (typeof performance === 'undefined' ? Date.now() : performance.now()) / 1000;
+
+let tagGeo: THREE.PlaneGeometry | null = null;
+let raisedBoard: THREE.PlaneGeometry | null = null;
+
+/**
+ * Hang a price tag under a pad's sign (createPadSign), on twine: from now on the price (or the construction rows, or a
+ * preview pad's note) is drawn on the tag every time `texture` redraws, and the tile keeps only its icon. The board
+ * rises so the tag hangs about where the board used to be. The tag sways a little and swings when the amount changes
+ * (a bundle lands); it holds still under Reduce motion. Returns the tag (a child of the sign).
+ */
+export function hangPriceTag(sign: THREE.Mesh, texture: THREE.CanvasTexture): THREE.Mesh {
+  const had = tags.get(texture);
+  if (had) return had.mesh;
+  const { ctx: g, texture: tex } = makeCanvasTexture(TAG_PX, TAG_PX);
+  tagGeo ??= new THREE.PlaneGeometry(TAG_WORLD, TAG_WORLD).translate(0, -TAG_WORLD / 2, 0);
+  raisedBoard ??= new THREE.PlaneGeometry(SIGN_W, SIGN_H).translate(0, TAG_LIFT, 0);
+  const m = new THREE.Mesh(tagGeo, basic(0xffffff, { map: tex, transparent: true, depthWrite: false }));
+  m.name = 'padTag';
+  m.renderOrder = 4;
+  m.castShadow = false;
+  m.receiveShadow = false;
+  m.position.set(0, -SIGN_H / 2 + TAG_LIFT + 0.03, -0.004);
+  sign.geometry = raisedBoard;
+  sign.add(m);
+  const tag: Tag = { mesh: m, g, texture: tex, key: '', kickAt: -10, phase: Math.random() * Math.PI * 2 };
+  tags.set(texture, tag);
+  m.onBeforeRender = () => {
+    let a = 0;
+    if (motionScale() >= 1) {
+      const now = nowSeconds();
+      a = 0.03 * Math.sin(now * 1.2 + tag.phase);
+      const k = now - tag.kickAt;
+      if (k < 1.8) a += 0.11 * Math.exp(-k * 3) * Math.sin(k * 10);
+    }
+    if (a !== m.rotation.z) {
+      m.rotation.z = a;
+      m.updateMatrixWorld();
+    }
+  };
+  const p = params.get(texture);
+  if (p) draw(texture, p);
+  return m;
+}
+
+/** Free the canvas of a sign's hanging tag (the sign's own texture is the caller's). */
+export function disposePriceTag(sign: THREE.Mesh): void {
+  for (const c of sign.children) {
+    if (c.name !== 'padTag') continue;
+    const mat = (c as THREE.Mesh).material as THREE.MeshBasicMaterial;
+    mat.map?.dispose();
+    mat.dispose();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
 
 const SLAB_HEIGHT = 0.16;
-const slabCache = new Map<string, THREE.BufferGeometry>();
+const bodyCache = new Map<string, THREE.BufferGeometry>();
+let bodyMat: THREE.MeshToonMaterial | null = null;
 
-/** Rounded square slab (cached), top face at y = SLAB_HEIGHT, matching the texture's outer edge. */
-function slabGeometry(side: number): THREE.BufferGeometry {
-  const key = side.toFixed(3);
-  let g = slabCache.get(key);
+/** One shared vertex-coloured toon material for every pad body (slab + snow rim). */
+function padBodyMaterial(): THREE.MeshToonMaterial {
+  if (!bodyMat) {
+    bodyMat = toonUnique(0xffffff);
+    bodyMat.vertexColors = true;
+  }
+  return bodyMat;
+}
+
+function roundedSquare(h: number, r: number): THREE.Shape {
+  const s = new THREE.Shape();
+  s.moveTo(-h + r, -h);
+  s.lineTo(h - r, -h);
+  s.absarc(h - r, -h + r, r, -Math.PI / 2, 0, false);
+  s.lineTo(h, h - r);
+  s.absarc(h - r, h - r, r, 0, Math.PI / 2, false);
+  s.lineTo(-h + r, h);
+  s.absarc(-h + r, h - r, r, Math.PI / 2, Math.PI, false);
+  s.lineTo(-h, -h + r);
+  s.absarc(-h + r, -h + r, r, Math.PI, Math.PI * 1.5, false);
+  return s;
+}
+
+function colorize(g: THREE.BufferGeometry, color: (y: number, ny: number) => THREE.Color): void {
+  const pos = g.getAttribute('position');
+  const nor = g.getAttribute('normal');
+  const out = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const c = color(pos.getY(i), nor.getY(i));
+    out[i * 3] = c.r;
+    out[i * 3 + 1] = c.g;
+    out[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(out, 3));
+}
+
+/**
+ * A fat, lumpy snow roll along the tile's edge (the snow-globe rim): a tube swept around the rounded square, its
+ * radius wobbling so it reads as packed snow, flattened underneath, lit white on top and blue-grey below.
+ */
+function snowRim(h: number, r: number, side: number): THREE.BufferGeometry {
+  const r0 = side * 0.052;
+  const inset = r0 * 0.5;
+  const a = h - inset - Math.max(0.02, r - inset);
+  const rr = Math.max(0.02, r - inset);
+  const K = 6;
+  const S = 10;
+  const pts: { x: number; z: number; nx: number; nz: number }[] = [];
+  const corners = [
+    [a, a],
+    [-a, a],
+    [-a, -a],
+    [a, -a],
+  ] as const;
+  for (let i = 0; i < 4; i++) {
+    const [cx, cz] = corners[i]!;
+    for (let j = 0; j <= K; j++) {
+      const t = ((i + j / K) * Math.PI) / 2;
+      pts.push({ x: cx + rr * Math.cos(t), z: cz + rr * Math.sin(t), nx: Math.cos(t), nz: Math.sin(t) });
+    }
+    const t = ((i + 1) * Math.PI) / 2;
+    const [dx, dz] = corners[(i + 1) % 4]!;
+    for (let j = 1; j < S; j++) {
+      const k = j / S;
+      pts.push({ x: cx + (dx - cx) * k + rr * Math.cos(t), z: cz + (dz - cz) * k + rr * Math.sin(t), nx: Math.cos(t), nz: Math.sin(t) });
+    }
+  }
+  const M = 9;
+  const n = pts.length;
+  const pos = new Float32Array(n * M * 3);
+  const col = new Float32Array(n * M * 3);
+  const lit = new THREE.Color(PAD.snow);
+  const shade = new THREE.Color(PAD.snowShade);
+  const c = new THREE.Color();
+  for (let i = 0; i < n; i++) {
+    const p = pts[i]!;
+    const u = i / n;
+    const f = 1 + 0.17 * Math.sin(u * Math.PI * 2 * 9) + 0.08 * Math.sin(u * Math.PI * 2 * 17 + 1.7);
+    for (let j = 0; j < M; j++) {
+      const th = (j / M) * Math.PI * 2;
+      const up = Math.sin(th);
+      const out = Math.cos(th);
+      const rad = r0 * f;
+      const v = (i * M + j) * 3;
+      pos[v] = p.x + p.nx * out * rad;
+      pos[v + 1] = SLAB_HEIGHT + r0 * 0.2 + up * rad * (up < 0 ? 0.35 : 0.9);
+      pos[v + 2] = p.z + p.nz * out * rad;
+      c.copy(shade).lerp(lit, Math.min(1, Math.max(0, 0.45 + up * 0.75)));
+      col[v] = c.r;
+      col[v + 1] = c.g;
+      col[v + 2] = c.b;
+    }
+  }
+  const index: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const i2 = (i + 1) % n;
+    for (let j = 0; j < M; j++) {
+      const j2 = (j + 1) % M;
+      const a0 = i * M + j;
+      const a1 = i2 * M + j;
+      const b0 = i * M + j2;
+      const b1 = i2 * M + j2;
+      index.push(a0, b0, a1, a1, b0, b1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  return g.toNonIndexed();
+}
+
+/** Slab (the look's side colour, a hair darker at the foot) + snow rim, merged: one draw call per pad body. */
+function padBodyGeometry(side: number, s: PadStyle): THREE.BufferGeometry {
+  const key = `${side.toFixed(3)}|${s}`;
+  let g = bodyCache.get(key);
   if (!g) {
+    const L = PAD.looks[s];
     const r = ((CORNER + BORDER / 2) / SIZE) * side;
     const h = side / 2;
-    const s = new THREE.Shape();
-    s.moveTo(-h + r, -h);
-    s.lineTo(h - r, -h);
-    s.absarc(h - r, -h + r, r, -Math.PI / 2, 0, false);
-    s.lineTo(h, h - r);
-    s.absarc(h - r, h - r, r, 0, Math.PI / 2, false);
-    s.lineTo(-h + r, h);
-    s.absarc(-h + r, h - r, r, Math.PI / 2, Math.PI, false);
-    s.lineTo(-h, -h + r);
-    s.absarc(-h + r, -h + r, r, Math.PI, Math.PI * 1.5, false);
-    g = new THREE.ExtrudeGeometry(s, { depth: SLAB_HEIGHT, bevelEnabled: false, curveSegments: 6 });
-    g.rotateX(-Math.PI / 2); // extrusion now points up (+Y)
-    slabCache.set(key, g);
+    const bev = Math.min(0.04, side * 0.018);
+    const slab = new THREE.ExtrudeGeometry(roundedSquare(h - bev, Math.max(0.01, r - bev)), {
+      depth: SLAB_HEIGHT - bev * 2,
+      bevelEnabled: true,
+      bevelThickness: bev,
+      bevelSize: bev,
+      bevelSegments: 2,
+      curveSegments: 6,
+    });
+    slab.rotateX(-Math.PI / 2); // extrusion now points up (+Y)
+    slab.translate(0, bev, 0);
+    slab.deleteAttribute('uv');
+    const top = new THREE.Color(L.side);
+    const foot = new THREE.Color(mixHex(L.side, PAD.ink, 0.25));
+    const c = new THREE.Color();
+    colorize(slab, (y) => c.copy(foot).lerp(top, Math.min(1, y / SLAB_HEIGHT)));
+    const merged = mergeGeometries([slab, snowRim(h, r, side)]);
+    slab.dispose();
+    g = merged ?? slab;
+    bodyCache.set(key, g);
   }
   return g;
 }
@@ -1514,37 +2130,128 @@ function slabGeometry(side: number): THREE.BufferGeometry {
 export interface PadModelOptions {
   /**
    * Rotation of the tile around Y. Default: the camera yaw, so the texture's "up" points to the top of the
-   * screen and the text reads upright. The tile is then a square on screen (a diamond-in-diamond on the ground).
+   * screen and the icon reads upright. The tile is then a square on screen (a diamond-in-diamond on the ground).
    */
   yaw?: number;
   /** Side of the visible tile as a fraction of `size` (default 1). */
   fill?: number;
 }
 
-/** Floor tile showing `texture` on a chunky rounded slab; origin at the tile's floor centre. */
+/**
+ * Floor tile showing `texture` (in the look it was drawn in) on a chunky rounded slab with a snow rim; origin at the
+ * tile's floor centre. The face is lit like the world (it takes the player's shadow) with a soft warm lamplight of its
+ * own at night; padDim() dims it.
+ */
 export function createPadModel(size: number, texture: THREE.Texture, opts: PadModelOptions = {}): THREE.Group {
   const yaw = opts.yaw ?? THREE.MathUtils.degToRad(CAMERA.yawDeg);
   const side = size * (opts.fill ?? 1);
+  const s = params.get(texture as THREE.CanvasTexture)?.style ?? style;
   const root = new THREE.Group();
   root.name = 'padModel';
-  const slab = mesh(slabGeometry(side), toon(PALETTE.padBase), { cast: false });
-  root.add(slab);
-  const top = mesh(geo.ground(side, side), basic(0xffffff, { map: texture, transparent: true, depthWrite: false }), {
-    cast: false,
-    receive: false,
-  });
-  top.position.y = SLAB_HEIGHT + 0.006;
+  root.add(mesh(padBodyGeometry(side, s), padBodyMaterial(), { cast: false, receive: true }));
+  // lit like the world by day; at night the face keeps a soft warm lamplight of its own (the glow registry, so the
+  // comfort Glow slider scales it) and stays readable
+  // (the ice lantern glows the most: its candle heart is the point of it)
+  const lantern = s === 'lantern';
+  const topMat = toonUnique(0xffffff, { map: texture, transparent: true, depthWrite: false, emissive: PAD.night, emissiveIntensity: lantern ? 0.1 : 0.05 });
+  topMat.emissiveMap = texture;
+  registerGlow(topMat, lantern ? 6 : 7);
+  const top = mesh(geo.ground(side, side), topMat, { cast: false, receive: true });
+  top.position.y = SLAB_HEIGHT + 0.004;
   top.renderOrder = 3;
   root.add(top);
   root.rotation.y = yaw;
   const holder = new THREE.Group();
+  holder.userData.padTop = topMat;
   holder.add(root);
   return holder;
 }
 
+/** Dim a pad model's face by `k` (0 = as drawn, 1 = the "can't pay yet" dim): no shake, just quieter. */
+export function padDim(model: THREE.Object3D, k: number): void {
+  const m = model.userData.padTop as THREE.MeshToonMaterial | undefined;
+  if (!m) return;
+  const v = 1 - 0.26 * Math.max(0, Math.min(1, k));
+  if (m.color.r !== v) m.color.setScalar(v);
+}
+
+// ---------------------------------------------------------------------------
+// Signs
+// ---------------------------------------------------------------------------
+
+/** A snow-capped wooden board (two planks, soft grain), brass-trimmed when `gold`. Fills the canvas width. */
+function paintBoard(g: CanvasRenderingContext2D, w: number, h: number, gold: boolean): { x: number; y: number; w: number; h: number } {
+  const bx = 8;
+  const by = 18;
+  const bw = w - 16;
+  const bh = h - by - 6;
+  roundedRectPath(g, bx, by + 4, bw, bh, 26);
+  g.fillStyle = 'rgba(60,35,22,0.3)';
+  g.fill();
+  roundedRectPath(g, bx, by, bw, bh, 26);
+  const bg = g.createLinearGradient(0, by, 0, by + bh);
+  bg.addColorStop(0, hex(PAD.boardLight));
+  bg.addColorStop(1, hex(PAD.board));
+  g.fillStyle = bg;
+  g.fill();
+  g.save();
+  g.clip();
+  g.fillStyle = rgba(PAD.boardDark, 0.45);
+  g.fillRect(bx, by + bh / 2 - 1.5, bw, 3);
+  g.strokeStyle = rgba(PAD.boardDark, 0.22);
+  g.lineWidth = 2;
+  for (let k = 0; k < 4; k++) {
+    const y = by + 12 + k * (bh / 4);
+    g.beginPath();
+    g.moveTo(bx, y);
+    g.bezierCurveTo(bx + bw * 0.3, y - 4, bx + bw * 0.6, y + 5, bx + bw, y - 2);
+    g.stroke();
+  }
+  g.restore();
+  roundedRectPath(g, bx, by, bw, bh, 26);
+  g.lineWidth = gold ? 8 : 6;
+  g.strokeStyle = hex(gold ? PAD.brass : PAD.boardDark);
+  g.stroke();
+  if (gold) {
+    g.fillStyle = hex(PAD.brass);
+    for (const [x, y] of [
+      [bx + 22, by + 16],
+      [bx + bw - 22, by + 16],
+      [bx + 22, by + bh - 16],
+      [bx + bw - 22, by + bh - 16],
+    ] as const) {
+      g.beginPath();
+      g.arc(x, y, 5, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  // the snow cap: soft bumps along the top edge with a couple of drips
+  const seg = 34;
+  const n = Math.floor((bw - 40) / seg);
+  const x0 = bx + (bw - n * seg) / 2;
+  g.beginPath();
+  g.moveTo(x0, by + 8);
+  for (let i = 0; i < n; i++) {
+    const cx = x0 + i * seg + seg / 2;
+    g.quadraticCurveTo(cx, by - 14 - (i % 3 === 1 ? 4 : 0), x0 + (i + 1) * seg, by + 4);
+  }
+  for (let i = n; i > 0; i--) {
+    const x = x0 + i * seg;
+    const drip = i % 4 === 2 ? 9 : 0;
+    g.quadraticCurveTo(x - seg / 2, by + 12 + drip, x - seg, by + 9);
+  }
+  g.closePath();
+  const sg = g.createLinearGradient(0, by - 14, 0, by + 16);
+  sg.addColorStop(0, hex(PAD.snow));
+  sg.addColorStop(1, hex(PAD.snowShade));
+  g.fillStyle = sg;
+  g.fill();
+  return { x: bx, y: by, w: bw, h: bh };
+}
+
 const signPainters = new WeakMap<THREE.Mesh, (label: string) => void>();
 
-/** Floating label sign ("HARVESTER"): rounded dark plate, white border + bold text. Face it to the camera. */
+/** Floating label sign ("HARVESTER"): a snow-capped wooden board with cream lettering. Face it to the camera. */
 export function createPadSign(label: string, gold = false): THREE.Mesh {
   const w = 512;
   const h = 128;
@@ -1552,27 +2259,27 @@ export function createPadSign(label: string, gold = false): THREE.Mesh {
   let text = label;
   const paint = (): void => {
     g.clearRect(0, 0, w, h);
-    roundedRectPath(g, 5, 5, w - 10, h - 10, 36);
-    g.fillStyle = hex(COLORS.PAD_BG);
-    g.fill();
-    g.lineWidth = 8;
-    g.strokeStyle = gold ? hex(PALETTE.accent) : hex(COLORS.PAD_BORDER);
-    g.stroke();
-    g.font = `700 64px ${GAME_FONT}`;
+    const b = paintBoard(g, w, h, gold);
+    g.font = `700 58px ${GAME_FONT}`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillStyle = '#ffffff';
-    g.fillText(text, w / 2, h / 2 + 4, w - 60);
+    g.lineJoin = 'round';
+    g.lineWidth = 9;
+    g.strokeStyle = hex(PAD.boardDark);
+    g.fillStyle = hex(PAD.tag);
+    const ty = b.y + b.h / 2 + 4;
+    g.strokeText(text, w / 2, ty, w - 70);
+    g.fillText(text, w / 2, ty, w - 70);
     texture.needsUpdate = true;
   };
   paint();
   if (typeof document !== 'undefined' && document.fonts) {
     void document.fonts
-      .load(`700 64px ${GAME_FONT}`)
+      .load(`700 58px ${GAME_FONT}`)
       .catch(() => undefined)
       .then(paint);
   }
-  const m = new THREE.Mesh(geo.plane(2.5, 0.625), basic(0xffffff, { map: texture, transparent: true, depthWrite: false }));
+  const m = new THREE.Mesh(geo.plane(SIGN_W, SIGN_H), basic(0xffffff, { map: texture, transparent: true, depthWrite: false }));
   m.renderOrder = 4;
   m.castShadow = false;
   m.receiveShadow = false;
@@ -1589,42 +2296,42 @@ export function setPadSignLabel(sign: THREE.Mesh, label: string): void {
   signPainters.get(sign)?.(label);
 }
 
-/** The cabin doormat's floating sign: green up-arrow + "UPGRADES" on a dark plate with a gold rim. */
+/** The cabin doormat's floating sign: a brass-trimmed board with a honey up-arrow and "UPGRADES". */
 export function createShopSign(): THREE.Mesh {
   const w = 512;
   const h = 160;
   const { ctx: g, texture } = makeCanvasTexture(w, h);
   const paint = (): void => {
     g.clearRect(0, 0, w, h);
-    roundedRectPath(g, 5, 5, w - 10, h - 10, 40);
-    g.fillStyle = hex(COLORS.PAD_BG);
-    g.fill();
-    g.lineWidth = 9;
-    g.strokeStyle = hex(PALETTE.accent);
-    g.stroke();
+    const b = paintBoard(g, w, h, true);
+    const cy = b.y + b.h / 2 + 2;
     // up arrow
     g.save();
-    g.translate(86, 82);
+    g.translate(88, cy);
     g.beginPath();
-    poly(g, [[0, -46], [38, -4], [16, -4], [16, 44], [-16, 44], [-16, -4], [-38, -4]]);
-    g.fillStyle = hex(COLORS.PAD_FILL);
+    poly(g, [[0, -42], [36, -4], [15, -4], [15, 40], [-15, 40], [-15, -4], [-36, -4]]);
+    g.fillStyle = hex(PAD.honey);
     g.fill();
     g.lineWidth = 7;
     g.lineJoin = 'round';
-    g.strokeStyle = '#ffffff';
+    g.strokeStyle = hex(PAD.boardDark);
     g.stroke();
     g.restore();
-    g.font = `700 70px ${GAME_FONT}`;
+    g.font = `700 66px ${GAME_FONT}`;
     g.textAlign = 'left';
     g.textBaseline = 'middle';
-    g.fillStyle = '#ffffff';
-    g.fillText('UPGRADES', 148, h / 2 + 5, w - 170);
+    g.lineJoin = 'round';
+    g.lineWidth = 9;
+    g.strokeStyle = hex(PAD.boardDark);
+    g.fillStyle = hex(PAD.tag);
+    g.strokeText('UPGRADES', 146, cy + 4, w - 176);
+    g.fillText('UPGRADES', 146, cy + 4, w - 176);
     texture.needsUpdate = true;
   };
   paint();
   if (typeof document !== 'undefined' && document.fonts) {
     void document.fonts
-      .load(`700 70px ${GAME_FONT}`)
+      .load(`700 66px ${GAME_FONT}`)
       .catch(() => undefined)
       .then(paint);
   }
@@ -1692,6 +2399,41 @@ export function createMatModel(w: number, d: number): THREE.Group {
   return group;
 }
 
+
+/** Gallery: a pad with its sign and hanging tag, tilted to face the gallery's isometric camera. */
+function previewPad(s: PadStyle, icon: PadIcon, text: string, ratio: number, label: string, badge?: string): THREE.Object3D {
+  return withPadStyle(s, () => {
+    const tex = createPadTexture(icon, text, ratio, undefined, badge);
+    const group = new THREE.Group();
+    group.add(createPadModel(2.2, tex));
+    const sign = createPadSign(label, !!badge);
+    hangPriceTag(sign, tex);
+    sign.scale.setScalar(0.85);
+    sign.position.y = 2.0;
+    sign.rotation.order = 'YXZ';
+    sign.rotation.set(-THREE.MathUtils.degToRad(CAMERA.pitchDeg), THREE.MathUtils.degToRad(CAMERA.yawDeg), 0);
+    group.add(sign);
+    return group;
+  });
+}
+
+/** Gallery: a construction pad (three rows on its tag) in look `s`. */
+function previewBuild(s: PadStyle): THREE.Object3D {
+  return withPadStyle(s, () => {
+    const tex = createConstructionTexture('grandMarket', { left: 90, total: 120 }, { left: 0, total: 60000 }, undefined, { left: 14, total: 20, kind: 'toy' });
+    const group = new THREE.Group();
+    group.add(createPadModel(1.8, tex));
+    const sign = createPadSign('GRAND MARKET');
+    hangPriceTag(sign, tex);
+    sign.scale.setScalar(0.72);
+    sign.position.y = 1.7;
+    sign.rotation.order = 'YXZ';
+    sign.rotation.set(-THREE.MathUtils.degToRad(CAMERA.pitchDeg), THREE.MathUtils.degToRad(CAMERA.yawDeg), 0);
+    group.add(sign);
+    return group;
+  });
+}
+
 export const padCatalog: Record<string, () => THREE.Object3D> = {
   padHarvester: () => createPadModel(2.2, createPadTexture('saw', '$100', 0.35)),
   padProcessor: () => createPadModel(2.2, createPadTexture('factory', '$200', 0)),
@@ -1718,6 +2460,7 @@ export const padCatalog: Record<string, () => THREE.Object3D> = {
   padMachine: () =>
     createPadModel(1.8, createConstructionTexture('machine', { left: 0, total: 0 }, { left: 27_000, total: 27_000 }, undefined, { left: 8, total: 12, kind: 'stone' })),
   padBuilding: () => createPadModel(1.8, createConstructionTexture('building', { left: 0, total: 0 }, { left: 1_350_000, total: 1_350_000 })),
+  padBuild: () => createPadModel(1.8, createBuildTexture()),
   shopMat: () => createMatModel(2.2, 1.6),
   padSign: () => {
     // Tilted to face the gallery's isometric camera (the in-game sign copies the camera quaternion instead).
@@ -1727,3 +2470,10 @@ export const padCatalog: Record<string, () => THREE.Object3D> = {
     return new THREE.Group().add(sign);
   },
 };
+
+// 0.9.8: the three looks side by side (`?gallery=pads`): an unlock pad, a level pad and a construction pad each
+for (const s of PAD_STYLES) {
+  padCatalog[`look_${s}_unlock`] = () => previewPad(s, 'saw', '$150', 0.45, 'HARVESTER');
+  padCatalog[`look_${s}_level`] = () => previewPad(s, 'megasaw', '$3200', 0.7, 'MEGA SAWMILL LV 4', 'LV 4');
+  padCatalog[`look_${s}_build`] = () => previewBuild(s);
+}

@@ -17,8 +17,8 @@ function meshes(o: THREE.Object3D): THREE.Mesh[] {
 }
 
 describe('era 5–7 machine models', () => {
-  it('lists the 11 new machines with their eras and a gallery entry each', () => {
-    expect(ERA5_7_MACHINE_IDS).toHaveLength(11);
+  it('lists its machines (era 5 and the era 6-7 cash machines) with a gallery entry each', () => {
+    expect(ERA5_7_MACHINE_IDS).toHaveLength(5);
     for (const id of ERA5_7_MACHINE_IDS) expect(eraMachine3Catalog[id]).toBeTypeOf('function');
     for (const era of [5, 6, 7]) expect(eraMachine3Catalog[`era${era}new`]).toBeTypeOf('function');
   });
@@ -73,8 +73,8 @@ describe('era 5–7 machine models', () => {
   }
 
   it('shares geometry between instances', () => {
-    const a = createEra5to7MachineModel('cracker');
-    const b = createEra5to7MachineModel('cracker');
+    const a = createEra5to7MachineModel('plowWorks');
+    const b = createEra5to7MachineModel('plowWorks');
     expect(a.root).not.toBe(b.root);
     expect(meshes(a.root)[0]!.geometry).toBe(meshes(b.root)[0]!.geometry);
   });

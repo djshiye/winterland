@@ -136,6 +136,7 @@ export class Renderer {
   private readonly lightUp = new THREE.Vector3();
   private texel: number;
   private readonly snapped = new THREE.Vector3();
+  private readonly sunScratch = new THREE.Vector3();
   private q: Quality = 'high';
   private post: PostFX | null = null;
   /** Returns the current night amount (0 day … 1 night); the Environment sets it. Read once per render(). */
@@ -265,6 +266,26 @@ export class Renderer {
     this.sun.intensity = triNum(this.sunI, d);
     this.blendGrade(d);
     if (changed) for (const fn of this.darkListeners) fn(d);
+  }
+
+  /**
+   * 0.9.8 sky (world/sky/Sky.ts): where the sun stands (its offset from the shadow focus) and the daytime sun and sky
+   * colours, moved gently over the day. Takes effect on the next render() / setShadowFocus(). No allocations.
+   */
+  setSunPath(offset: THREE.Vector3, sun: THREE.Color, hemiSky: THREE.Color): void {
+    if (!offset.equals(this.sunOffset)) {
+      this.sunOffset.copy(offset);
+      const dir = this.sunScratch.copy(offset).normalize();
+      this.lightRight.set(0, 1, 0).cross(dir).normalize();
+      this.lightUp.copy(dir).cross(this.lightRight).normalize();
+      this.sun.shadow.camera.far = offset.length() * 2 + 40;
+      this.sun.shadow.camera.updateProjectionMatrix();
+    }
+    if (!sun.equals(this.day.sun) || !hemiSky.equals(this.day.hemiSky)) {
+      this.day.sun.copy(sun);
+      this.day.hemiSky.copy(hemiSky);
+      this.lookDirty = true;
+    }
   }
 
   /** Show era `era`'s look (1..10): fades in over LOOK_FADE seconds, or at once with `instant`. */

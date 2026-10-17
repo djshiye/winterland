@@ -36,6 +36,7 @@ import {
 } from '../assets/shelters';
 import { ConstructionPad, type ConstructionTarget } from '../stations/ConstructionPad';
 import { buildVillageScenery } from '../world/env/village';
+import { smokeFrom } from '../world/sky/smoke';
 
 const V = LAYOUT.village;
 const GROW_TIME = 0.9;
@@ -408,8 +409,7 @@ export class Village {
       this.smokeCursor = (this.smokeCursor + 1) % sites.length;
       const s = sites[this.smokeCursor]!;
       if (s.smoke) {
-        this.tmp.copy(s.smoke);
-        this.ctx.particles.puff(this.tmp, { color: 0xffffff, count: 1, size: 0.45, life: 2.2 });
+        smokeFrom(s.smoke, 0.45); // 0.9.8: a steady plume (world/sky/smoke.ts)
         return;
       }
     }

@@ -24,6 +24,10 @@ vi.mock('../src/assets/pads', () => ({
   createPadModel: () => new THREE.Group(),
   createPadSign: () => new THREE.Mesh(),
   setPadSignLabel: () => undefined,
+  hangPriceTag: () => new THREE.Mesh(),
+  disposePriceTag: () => undefined,
+  padDim: () => undefined,
+  createBuildTexture: () => ({ image: null }),
 }));
 
 // imported after the mock is registered (vi.mock is hoisted, so a static import would also work; this reads clearer)
