@@ -62,9 +62,13 @@ describe('0.9.7 migration: era resources v2 (nothing a player owns is lost)', ()
   });
 
   it('two Fusion Plants on a full plot: the first becomes a Helium Skimmer, the last stays as the Fusion Reactor', () => {
-    const { state, report } = load(save096());
+    const saved = save096();
+    const had = (saved.state as unknown as { eras: { regions: { slots: unknown[] }[] } }).eras.regions[10]!.slots.length;
+    const { state, report } = load(saved);
     const slots = state.eras.regions[10]!.slots.map((s) => s.machine);
-    expect(slots.every((m) => m !== '')).toBe(true); // the fixture's era 10 plot is full
+    // the fixture's era 10 plot is full (0.9.7 adds a ninth slot, which a 0.9.6 save loads empty)
+    expect(slots.slice(0, had).every((m) => m !== '')).toBe(true);
+    expect(slots.slice(had).every((m) => m === '')).toBe(true);
     expect(slots[0]).toBe('heliumSkimmer');
     expect(slots[4]).toBe('fusionPlant');
     expect(slots.filter((m) => m === 'fusionPlant')).toHaveLength(1);

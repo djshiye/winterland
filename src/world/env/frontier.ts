@@ -20,7 +20,8 @@ import { LAYOUT, PALETTE, type Rect } from '../../config';
 import { eraPropGeometry, PROP_RADIUS, PROP_ROLES, strungWires, type PropRole } from '../../assets/frontierProps';
 import { ERAS, REGIONS, RIVER_END_Z, RIVER_POND, ROADS, unlockCash } from '../../eras/data';
 import { climbOpen } from '../../eras/gate';
-import { regionLayout, type RegionLayout } from '../../eras/layout';
+import { plotPlaces, regionLayout, type RegionLayout } from '../../eras/layout';
+import { buildPlots, type PlotsPart } from './plots';
 import type { GameContext } from '../../core/types';
 import { Batch, vcMat } from '../../render/batch';
 import { GAME_FONT, geo, makeCanvasTexture, toonUnique } from '../../render/materials';
@@ -441,6 +442,8 @@ interface Region {
   lock: THREE.Object3D;
   survey: THREE.Object3D;
   zones: THREE.Object3D;
+  /** 0.9.7: the era's places (huts, market street, yard floor, field), built once the region is bought. */
+  places: PlotsPart | null;
   paintSign: (locked: boolean) => void;
   lockedColor: number;
   openColor: number;
@@ -478,6 +481,8 @@ function propFree(l: RegionLayout, x: number, z: number, rad: number): boolean {
   const H = l.zones.harvest;
   if (!(x > H.minX + rad + 0.6 && x < H.maxX - rad - 0.6 && z > H.minZ + rad + 0.6 && z < H.maxZ - rad - 0.6)) return false;
   if (inZone(nodePatch(l), x, z, rad + 0.3)) return false;
+  // 0.9.7: the harvest field's resource beds (world/env/plots.ts) keep their own ground
+  if (inZone(plotPlaces(l.n).field, x, z, rad + 0.3)) return false;
   return !regionPaths(l).some((q) => inZone(q, x, z, rad + 0.3));
 }
 
@@ -670,7 +675,7 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   }
 
   root.add(group);
-  const reg: Region = { n, layout: l, group, unlocked: false, gateK: 0, colorK: 0, animating: false, leafL, leafR, ground, lock, survey, zones: zonesMesh, paintSign: paint, lockedColor, openColor: e.colors.ground };
+  const reg: Region = { n, layout: l, group, unlocked: false, gateK: 0, colorK: 0, animating: false, leafL, leafR, ground, lock, survey, zones: zonesMesh, places: null, paintSign: paint, lockedColor, openColor: e.colors.ground };
   paint(true);
   void ctx;
   return reg;
@@ -844,6 +849,7 @@ export function buildFrontier(ctx: GameContext, town: THREE.Object3D, trikeTail?
     reg.lock.visible = false;
     reg.survey.visible = false;
     reg.zones.visible = true;
+    reg.places ??= buildPlots(ctx, reg.n, reg.group);
     reg.paintSign(false);
     if (instant) {
       reg.gateK = 1;
@@ -888,6 +894,7 @@ export function buildFrontier(ctx: GameContext, town: THREE.Object3D, trikeTail?
     group,
     refresh,
     update(dt: number): void {
+      for (const reg of regions) reg.places?.update(dt);
       if (pending.size === 0) return;
       for (const reg of pending) {
         reg.gateK = Math.min(1, reg.gateK + dt / 0.9);

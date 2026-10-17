@@ -116,7 +116,8 @@ describe('threshold scale', () => {
     for (let L = 6; L <= 50; L++) {
       const k = Math.ceil(L / 5);
       const step = settlementPop(L)! - (L === 6 ? 0 : settlementPop(L - 1)!);
-      expect(step / homeOf(k).people, `level ${L}`).toBeLessThanOrEqual(2.5);
+      // 0.9.7: the bigger era 8-10 plots (8, 8, 9 staffed slots) stretch the top band's last step to about 2.7 homes
+      expect(step / homeOf(k).people, `level ${L}`).toBeLessThanOrEqual(L > 45 ? 3 : 2.5);
       expect(step / homeOf(k).people, `level ${L}`).toBeGreaterThan(0.3);
     }
   });
