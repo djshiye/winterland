@@ -40,9 +40,10 @@ export const SQUARE_LAMPS: readonly LampSpot[] = [
   { x: 16.2, z: 29.2 },
   { x: 21.8, z: 21.7 },
   { x: 27.4, z: 21.7 },
-  { x: 21.8, z: townZ(35.8) - 3.3 },
-  // 0.9.9: beside the south avenue's alley, not in the middle of its mouth
-  { x: 26.1, z: townZ(35.8) - 3.3 },
+  // 0.9.9: the south pair stands 0.7 m further south, off the porters' stands at the shops' hoppers (z 39.8); the east
+  // one beside the south avenue's alley, not in the middle of its mouth
+  { x: 21.8, z: townZ(35.8) - 2.6 },
+  { x: 26.1, z: townZ(35.8) - 2.6 },
   // 0.9.9: on the north corner of the east gate's lane (it stood on the walk down the square's east side)
   { x: 32.7, z: 27.3 },
 ];
