@@ -44,11 +44,11 @@ const NEAR2 = 20 * 20;
 
 type State = 'idle' | 'busy' | 'blocked';
 
-/** A machine pile: refuses kinds past their cap (hopper) and swallows late arrivals once the machine is gone. */
 /** 0.9.8: seconds between stack puffs of a working machine, and how near the player it must be to puff. */
 const PUFF_EVERY = 0.9;
 const PUFF_RANGE = 40;
 
+/** A machine pile: refuses kinds past their cap (hopper) and swallows late arrivals once the machine is gone. */
 export class MachinePile extends Pile {
   /** Set by Machine.dispose(): items still flying in are released instead of landing in a detached pile. */
   dead = false;

@@ -33,12 +33,13 @@ import { BeltPath, type BeltSample } from '../stations/beltPath';
  * source ad's royal blue; their lamps and windows glow at night. Gameplay, sizes and layout are unchanged.
  */
 const T = MACHINE_SHADES[1];
-const LACQUER = T.lacquer;
+const LACQUER = T.lacquerL;
 const LACQUER_D = T.lacquerD;
 const IRON = T.iron;
 const IRON_L = T.ironL;
 const WOOD_D = T.timberD;
 const STRIPE = T.cream;
+const TRIM = T.cream;
 const LAMP = palette(1).glow;
 
 // ---------------------------------------------------------------------------
@@ -458,13 +459,13 @@ export function createHarvester(railLength: number): HarvesterModel {
     addBox(cs, 0.22, 0.14, 1.45, IRON, sx * railX, 0.6, 0);
   }
   // deck + underframe
-  addBox(cs, 1.9, 0.14, 1.7, LACQUER_D, 0, 0.7, 0);
+  addBox(cs, 1.9, 0.14, 1.7, TRIM, 0, 0.7, 0);
   addBox(cs, 1.8, 0.4, 1.6, LACQUER, 0, 0.97, 0);
   // front hood (toward the log) between the boom mounts
   addBox(cs, 0.7, 0.34, 1.0, LACQUER, -0.45, 1.34, 0);
   // cab at the rear (+X)
   addBox(cs, 0.9, 0.78, 1.15, LACQUER, 0.4, 1.57, 0);
-  addBox(cs, 1.0, 0.08, 1.25, LACQUER_D, 0.4, 2.0, 0);
+  addBox(cs, 1.0, 0.08, 1.25, TRIM, 0.4, 2.0, 0);
   // 0.9.8: a little pitched timber roof with a snow cap (the cab's crown)
   for (const sz of [-1, 1]) {
     const slab = addBox(cs, 1.12, 0.08, 0.72, T.timber, 0.4, 2.17, sz * 0.31);
@@ -616,9 +617,9 @@ export function createProcessor(): ProcessorModel {
   // portal frames (darker blue) around both openings
   for (const sx of [-1, 1]) {
     const x = sx * (W / 2 + 0.012);
-    addBox(ps, 0.05, 0.1, D - WALL * 2 + 0.2, LACQUER_D, x, CEIL - 0.05, 0, false);
-    addBox(ps, 0.05, 0.1, D - WALL * 2 + 0.2, LACQUER_D, x, FLOOR + 0.05, 0, false);
-    for (const sz of [-1, 1]) addBox(ps, 0.05, CEIL - FLOOR, 0.1, LACQUER_D, x, (CEIL + FLOOR) / 2, sz * (D / 2 - WALL - 0.05), false);
+    addBox(ps, 0.05, 0.1, D - WALL * 2 + 0.2, TRIM, x, CEIL - 0.05, 0, false);
+    addBox(ps, 0.05, 0.1, D - WALL * 2 + 0.2, TRIM, x, FLOOR + 0.05, 0, false);
+    for (const sz of [-1, 1]) addBox(ps, 0.05, CEIL - FLOOR, 0.1, TRIM, x, (CEIL + FLOOR) / 2, sz * (D / 2 - WALL - 0.05), false);
   }
   // hazard stripes along the lower +Z/-Z faces
   for (const sz of [-1, 1]) {
@@ -630,7 +631,7 @@ export function createProcessor(): ProcessorModel {
   // louver slats on the side walls
   for (const sz of [-1, 1]) {
     for (let i = 0; i < 4; i++) {
-      addBox(ps, 1.1, 0.06, 0.06, LACQUER_D, 0, 0.55 + i * 0.16, sz * (D / 2 + 0.02), false);
+      addBox(ps, 1.1, 0.06, 0.06, TRIM, 0, 0.55 + i * 0.16, sz * (D / 2 + 0.02), false);
     }
   }
   // roof louvers + chimney + status lamp
@@ -646,7 +647,7 @@ export function createProcessor(): ProcessorModel {
     snow.rotation.x = sz * ang;
   }
   addBox(ps, W + 0.2, 0.12, 0.22, COLORS.SNOW_WHITE, 0, H + RISE + 0.03, 0);
-  for (const sx of [-1, 1]) addBox(ps, 0.06, 0.06, D + 0.1, LACQUER_D, sx * (W / 2 + 0.03), H + 0.03, 0, false);
+  for (const sx of [-1, 1]) addBox(ps, 0.06, 0.06, D + 0.1, TRIM, sx * (W / 2 + 0.03), H + 0.03, 0, false);
   const chimneyX = -0.45;
   const chimneyZ = -0.42;
   addBox(ps, 0.3, 0.95, 0.3, T.ironL, chimneyX, H + 0.42, chimneyZ);
@@ -667,6 +668,9 @@ export function createProcessor(): ProcessorModel {
     addBox(ps, w, 0.05, 0.05, T.timberD, x, 1.17, sz * (D / 2 + 0.035), false);
     addBox(ps, w, 0.05, 0.05, T.timberD, x, 1.45, sz * (D / 2 + 0.035), false);
   }
+  addBox(ps, 0.05, 0.05, 0.22, T.brass, W / 2 + 0.02, 1.68, D / 2 + 0.0, false);
+  addBox(ps, 0.03, 0.12, 0.03, T.brass, W / 2 + 0.1, 1.62, D / 2 + 0.1, false);
+  addBox(ps, 0.22, 0.04, 0.22, T.brass, W / 2 + 0.1, 1.66, D / 2 + 0.1, false);
   body.add(bake(ps));
   const pw = new THREE.Group();
   addBox(pw, 0.62, 0.24, 0.03, 0xffd38a, 0, 1.31, -(D / 2 + 0.03), false);
@@ -674,6 +678,10 @@ export function createProcessor(): ProcessorModel {
   const pWin = bake(pw);
   pWin.material = glowMaterial(0xffd38a);
   body.add(pWin);
+  // a brass lantern on the front corner: the mill is findable at night even while it rests
+  const lantern = mesh(geo.sphere(0.13, 10, 8), glowMaterial(LAMP), { cast: false });
+  lantern.position.set(W / 2 + 0.1, 1.5, D / 2 + 0.1);
+  body.add(lantern);
   const badge = createLevelBadge(UPGRADES.processor.values.length - 1);
   badge.mesh.position.set(-0.2, 1.33, D / 2 + 0.03);
   body.add(badge.mesh);
@@ -814,11 +822,11 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
       const mz = (az + bz) / 2 - oz;
       const chordLen = Math.hypot(bx - ax, bz - az) + 0.03;
       const yaw = Math.atan2(bx - ax, bz - az);
-      part(bt, WOOD_D, width, 0.04, chordLen, mx, beltY - 0.17, mz, yaw);
+      part(bt, T.plank, width, 0.04, chordLen, mx, beltY - 0.17, mz, yaw);
       for (const side of [-1, 1]) {
         a.set(ax + nax * half * side - ox, az + naz * half * side - oz);
         b.set(bx + nbx * half * side - ox, bz + nbz * half * side - oz);
-        part(bt, LACQUER, 0.09, railH, a.distanceTo(b) + 0.03, (a.x + b.x) / 2, beltY - railH / 2 + 0.03, (a.y + b.y) / 2, Math.atan2(b.x - a.x, b.y - a.y));
+        part(bt, TRIM, 0.09, railH, a.distanceTo(b) + 0.03, (a.x + b.x) / 2, beltY - railH / 2 + 0.03, (a.y + b.y) / 2, Math.atan2(b.x - a.x, b.y - a.y));
       }
     }
     // legs: one pair near the middle of every second segment, plus the very ends
@@ -860,7 +868,7 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
   const rollerLen = width - 0.02;
   const geometry = rollerGeometry(rollerLen);
   const count = Math.max(1, Math.floor(total / ROLLER_PITCH));
-  const rollers = new THREE.InstancedMesh(geometry, toon(IRON), count);
+  const rollers = new THREE.InstancedMesh(geometry, toon(T.blade), count);
   rollers.castShadow = true;
   rollers.receiveShadow = true;
   rollers.frustumCulled = false;
@@ -972,7 +980,7 @@ export function createMegaSaw(bladeRadius: number): MegaSawModel {
   // yard-side base (solid) + column
   addBox(ms, M.base.maxX - M.base.minX, 1.3, M.base.maxZ - M.base.minZ, blue, yardX, 0.65, baseZ);
   addBox(ms, M.base.maxX - M.base.minX + 0.2, 0.18, M.base.maxZ - M.base.minZ + 0.2, IRON, yardX, 0.09, baseZ);
-  addBox(ms, 1.85, 0.12, 1.85, LACQUER_D, yardX, 1.36, baseZ, false);
+  addBox(ms, 1.85, 0.12, 1.85, TRIM, yardX, 1.36, baseZ, false);
   addBox(ms, 0.7, beamY - 1.3, 0.7, T.timber, yardX, 1.3 + (beamY - 1.3) / 2, POST_Z);
   // far-bank leg
   addBox(ms, 1.3, 0.18, 1.3, IRON, farX, 0.09, POST_Z);
@@ -1007,7 +1015,7 @@ export function createMegaSaw(bladeRadius: number): MegaSawModel {
   // trolley under the beam (blue) with glow stripe
   addBox(ms, 1.8, 0.7, 1.1, blue, 0, beamY - 0.62, POST_Z);
   addBox(ms, 1.84, 0.1, 1.14, COLORS.SAW_GLOW, 0, beamY - 0.5, POST_Z, false);
-  addBox(ms, 1.6, 0.14, 1.0, LACQUER_D, 0, beamY - 1.0, POST_Z);
+  addBox(ms, 1.6, 0.14, 1.0, TRIM, 0, beamY - 1.0, POST_Z);
   // vertical guide rails
   for (const sx of [-1, 1]) {
     addBox(ms, 0.14, beamY - 1.0 - 0.25, 0.14, IRON, sx * 0.85, 0.25 + (beamY - 1.25) / 2, POST_Z + 0.55);
