@@ -1,5 +1,6 @@
-/* 0.9.8 in-game updater (ui/UpdateCard.ts): the update card and the "What's new" changelog. The same night-blue card
-   as the notices, a cream "page" for the notes so long text reads calmly, gold for headings. */
+/* 0.9.8 in-game updater (ui/UpdateCard.ts): the update card and the "What's new" changelog. Brief 14 restyle: the
+   cozy cream card of every menu (ui/tokens.css: gold primary, pine secondary, night variant), a slightly deeper paper
+   "page" for the notes so long text reads calmly, honey headings. Colours only from the tokens. */
 
 .wl-card.wl-update {
   overflow: visible;
@@ -8,6 +9,7 @@
   padding-top: 34px;
   width: min(460px, 100%);
   max-height: min(640px, 100%);
+  border-top: 8px solid var(--wl-gold);
 }
 
 .wl-update-icon {
@@ -20,12 +22,13 @@
 
 .wl-update-sub {
   font-size: 16px;
+  color: var(--wl-ink-soft);
 }
 
 .wl-notice-line.wl-update-small {
   margin-top: 4px;
   font-size: 14px;
-  opacity: 0.85;
+  color: var(--wl-ink-faint);
 }
 
 .wl-update-whatsnew {
@@ -34,7 +37,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #ffd84a;
+  color: var(--wl-gold-text);
   text-align: left;
 }
 
@@ -47,12 +50,12 @@
   padding: 12px 16px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-radius: 18px;
-  background: #fff8ec;
-  color: #3b2d26;
+  border-radius: 16px;
+  background: var(--wl-row);
+  color: var(--wl-ink);
   font-weight: 500;
   text-align: left;
-  box-shadow: inset 0 2px 6px rgba(59, 45, 38, 0.18);
+  box-shadow: inset 0 2px 6px var(--wl-shade-soft), 0 2px 0 var(--wl-line);
   touch-action: pan-y;
 }
 
@@ -61,14 +64,14 @@
 }
 
 .wl-update-notes:focus-visible {
-  outline: 3px solid #ffd84a;
+  outline: 3px solid var(--wl-focus);
   outline-offset: 3px;
 }
 
 .wl-cl-entry + .wl-cl-entry {
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 2px dashed rgba(59, 45, 38, 0.18);
+  border-top: 2px dashed var(--wl-line);
 }
 
 .wl-cl-version {
@@ -79,20 +82,20 @@
   margin-bottom: 6px;
   font-size: 18px;
   font-weight: 700;
-  color: #2d4c3b;
+  color: color-mix(in oklab, var(--wl-pine), var(--wl-ink) var(--wl-np));
 }
 
 .wl-cl-version small {
   font-size: 12px;
   font-weight: 600;
-  opacity: 0.6;
+  color: var(--wl-ink-faint);
 }
 
 .wl-cl-head {
   margin: 10px 0 4px;
   font-size: 15px;
   font-weight: 700;
-  color: #b0661a;
+  color: var(--wl-gold-text);
 }
 
 .wl-cl-p {
@@ -114,27 +117,27 @@
 
 .wl-update-notes b {
   font-weight: 700;
-  color: #2d4c3b;
+  color: var(--wl-ink);
 }
 
 .wl-cl-list li::marker {
-  color: #e0a020;
+  color: var(--wl-gold);
 }
 
 .wl-update-notes code {
   padding: 0 4px;
   border-radius: 5px;
-  background: rgba(59, 45, 38, 0.08);
+  background: var(--wl-well);
   font-size: 0.92em;
 }
 
-/* download progress */
+/* download progress: the same pill bar as the finale and the quests */
 .wl-update-bar {
   height: 18px;
   margin: 6px 4px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-  border: 3px solid #fff;
+  background: var(--wl-well);
+  border: 3px solid var(--wl-rim);
   overflow: hidden;
 }
 
@@ -143,7 +146,7 @@
   width: 0;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(#9be07a, #4cb04a);
+  background: linear-gradient(var(--wl-good-hi), var(--wl-good));
   /* no transition: the main process sends progress about 8 times a second, which already reads smooth */
 }
 
@@ -153,7 +156,7 @@
 }
 
 .wl-update .wl-btn:focus-visible {
-  outline: 3px solid #ffd84a;
+  outline: 3px solid var(--wl-focus);
   outline-offset: 3px;
 }
 
