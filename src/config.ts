@@ -1286,6 +1286,13 @@ export const CLIMB = {
    * whose regions hold 7, 7, 7, 7, 7, 7, 8, 8, 9 machines, so each era earns more and its prices rise to keep its length).
    */
   bandTilt: [1, 1, 2.16, 6.27, 6.64, 6.63, 6.5, 4.29, 3.59, 3.27, 3.11] as readonly number[],
+  /**
+   * 0.9.9 (Dino: "each era's stuff needs to be SIGNIFICANTLY more expensive"): per-band price growth from one level to
+   * the next (index = band; stepGrowth for bands not listed), sized from each era's live income growth Lv 0 → Lv 10
+   * (scripts measured with every pile banked), so the late levels of an era cost as much more as the era earns more
+   * and money never piles up near the gate. Was 1.08 everywhere (Lv 10 cost 2× Lv 1 while era 2 earned 100× more).
+   */
+  bandStep: [1.08, 1.08, 1.08, 1.08, 1.08, 1.08, 1.08, 1.08, 1.08, 1.08, 1.08] as readonly number[],
   legacyStep: 1.01,
   weights: { lumberjack: 0.5, machine: 0.8, crew: 0.8, sales: 0.9, industry: 0.9, finance: 1.0 } satisfies Record<UpgradeGroup, number>,
   /**
