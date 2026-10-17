@@ -69,7 +69,12 @@ import { backOut, cubicOut } from './dom';
 import { reducedMotion, steadyHighlights } from '../fx/comfort';
 import { ICON_MAP, ICON_MARKET } from './icons';
 import { escapeTarget } from './escapeOrder';
+import { installTheme, NightTone, setEraAccent } from './theme';
+import './tokens.css';
 import './hud.css';
+import { ICON_INK } from './iconKit';
+import { CREAM, GOLD } from '../render/palette';
+import { hexCss } from './icons';
 
 export interface FloatTextOptions {
   color?: string;
@@ -98,20 +103,20 @@ const ARROW_SCALE = 1.5;
 
 
 const ICON_CASH = `<svg viewBox="0 0 40 40" aria-hidden="true">
-  <rect x="2" y="9" width="36" height="22" rx="5" fill="#2e9c48" stroke="#fff" stroke-width="2.5"/>
+  <rect x="2" y="9" width="36" height="22" rx="5" fill="#2e9c48" stroke="${ICON_INK}" stroke-width="2.5"/>
   <rect x="6" y="13" width="28" height="14" rx="3" fill="#46c35f"/>
   <circle cx="20" cy="20" r="6.5" fill="#f3fff0" stroke="#2e9c48" stroke-width="1.5"/>
   <text x="20" y="24.6" text-anchor="middle" font-family="${GAME_FONT.replace(/"/g, "'")}" font-weight="700" font-size="11" fill="#2e9c48">$</text>
 </svg>`;
 
 const ICON_SPEAKER = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="#fff" stroke="#fff" stroke-width="1.6"/>
-  <g class="wl-waves" stroke="#fff" stroke-width="2.2"><path d="M15.2 9.2a4 4 0 0 1 0 5.6"/><path d="M17.8 6.6a7.6 7.6 0 0 1 0 10.8"/></g>
-  <path class="wl-slash" d="M15.5 9.5l5 5m0-5l-5 5" stroke="#ff7a6b" stroke-width="2.4"/>
+  <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="currentColor" stroke-width="1.6"/>
+  <g class="wl-waves" stroke="currentColor" stroke-width="2.2"><path d="M15.2 9.2a4 4 0 0 1 0 5.6"/><path d="M17.8 6.6a7.6 7.6 0 0 1 0 10.8"/></g>
+  <path class="wl-slash" d="M15.5 9.5l5 5m0-5l-5 5" stroke="var(--wl-bad)" style="stroke:var(--wl-bad)" stroke-width="2.4"/>
 </svg>`;
 
 const ICON_EDGE_ARROW = `<svg viewBox="0 0 52 52" aria-hidden="true">
-  <path d="M8 16h18V6l20 20-20 20V36H8z" fill="#f6c343" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M8 16h18V6l20 20-20 20V36H8z" fill="${hexCss(GOLD)}" stroke="${hexCss(CREAM)}" stroke-width="4" stroke-linejoin="round"/>
 </svg>`;
 
 export class HUD {
@@ -203,14 +208,21 @@ export class HUD {
   private readonly tmp2 = new THREE.Vector2();
   private readonly tmp3 = new THREE.Vector3();
 
+  /** 0.9.8: day / night card look and the era ribbon colour (ui/theme.ts). */
+  private readonly nightTone: NightTone;
+  private nightSnap = true;
+  private accentEra = 0;
+
   constructor(
     readonly ctx: GameContext,
     readonly root: HTMLElement,
   ) {
+    installTheme();
     const layer = document.createElement('div');
     layer.className = 'wl-hud';
     root.appendChild(layer);
     this.layer = layer;
+    this.nightTone = new NightTone(layer);
 
     // money pill
     this.moneyEl = document.createElement('div');
@@ -677,6 +689,13 @@ export class HUD {
   }
 
   update(dt: number): void {
+    this.nightTone.update(dt, this.ctx.dayNight.darkness, this.nightSnap);
+    this.nightSnap = false;
+    const age = Math.max(1, this.ctx.state.eras.age);
+    if (age !== this.accentEra) {
+      this.accentEra = age;
+      setEraAccent(this.layer, age);
+    }
     this.updateMoney(dt);
     this.updateObjective(dt);
     this.updateFloats(dt);

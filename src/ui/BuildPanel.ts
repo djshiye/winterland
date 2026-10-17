@@ -64,7 +64,7 @@ export class BuildPanel {
 
     const head = h('div', 'wl-build-head');
     const titles = h('div', 'wl-build-titles');
-    titles.appendChild(h('div', 'wl-build-title wl-outline', 'Build'));
+    titles.appendChild(h('div', 'wl-build-title wl-title', 'Build'));
     this.sub = h('div', 'wl-build-sub', 'Choose what to build here');
     titles.appendChild(this.sub);
     head.appendChild(titles);

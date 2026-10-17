@@ -255,3 +255,29 @@ export function mixHex(a: number, b: number, t: number): number {
 export function lightness(c: number): number {
   return (0.2126 * ch(c, 16) + 0.7152 * ch(c, 8) + 0.0722 * ch(c, 0)) / 255;
 }
+
+// ---------------------------------------------------------------------------
+// 0.9.8 interface (brief 14): the UI's few base colours. ui/theme.ts writes them to CSS custom properties
+// (--wl-<name>-c) and ui/tokens.css derives every card, button, chip and night shade from them.
+// ---------------------------------------------------------------------------
+
+export const UI_TONES = {
+  ink: INK,
+  cream: CREAM,
+  gold: GOLD,
+  pine: PINE,
+  snow: SNOW,
+  /** The night card (DIRECTION: dark variant ink #2a2230 with cream text). */
+  night: 0x2a2230,
+  /** Good news, "on", income. */
+  leaf: 0x58a35f,
+  /** Danger, close, warnings. */
+  berry: 0xd2553f,
+  /** Information, progress bars. */
+  sky: 0x4f9ad6,
+  /** Happiness hearts, festivals. */
+  rose: 0xe36f8e,
+  /** Colour-blind friendly pair (Okabe-Ito): go / good / on, and danger. */
+  cbgood: 0x2a8ad8,
+  cbbad: 0xc45f00,
+} as const;
