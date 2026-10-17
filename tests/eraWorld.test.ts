@@ -110,8 +110,8 @@ describe('rules', () => {
     expect(OUTPUT_CAPACITY).toBe(12);
     expect(inputCap(MACHINES.kiln, 'stone')).toBe(8);
     expect(inputCap(MACHINES.kiln, 'brick')).toBe(0);
-    expect(inputCap(MACHINES.steelMill, 'pigIron')).toBe(4);
-    expect(inputCap(MACHINES.steelMill, 'coal')).toBe(4);
+    expect(inputCap(MACHINES.steelMill, 'pellets')).toBe(4);
+    expect(inputCap(MACHINES.steelMill, 'coke')).toBe(4);
     for (const id of MACHINE_IDS) {
       const d = MACHINES[id];
       for (const level of [0, 1, 5, 10]) {
@@ -126,7 +126,7 @@ describe('rules', () => {
     expect([0, 1, 4, 7, 10].map(hopperSize)).toEqual([8, 8, 13, 19, 24]);
     expect(INPUT_CAPACITY_MAX).toBeGreaterThanOrEqual(24);
     expect(inputCap(MACHINES.kiln, 'stone', 10)).toBe(24);
-    expect(inputCap(MACHINES.steelMill, 'coal', 10)).toBe(12);
+    expect(inputCap(MACHINES.steelMill, 'coke', 10)).toBe(12);
     for (const id of MACHINE_IDS) for (const i of MACHINES[id].inputs) expect(inputCap(MACHINES[id], i.kind, 10)).toBeGreaterThan(inputCap(MACHINES[id], i.kind, 1));
   });
 
@@ -482,12 +482,13 @@ describe('machines', () => {
 
   it('the hopper refuses kinds past their cap', () => {
     const w = makeWorld(5);
-    w.world.build(5, 0, 'steelMill'); // pig iron ×1 (cap 4), coal ×2 (cap 4)
+    w.world.build(5, 0, 'steelMill'); // pellets ×2 (cap 4), coke ×1 (cap 4)
     const m = w.world.region(5)!.machines[0]!;
     const it = (k: ItemKind): Item => ({ id: 1, kind: k, value: 0, object: new THREE.Object3D() }) as Item;
-    for (let i = 0; i < 4; i++) m.input!.receive(it('pigIron'), m.input!.reserve(it('pigIron')));
-    expect(m.input!.canAccept('pigIron')).toBe(false);
-    expect(m.input!.canAccept('coal')).toBe(true);
+    for (let i = 0; i < 4; i++) m.input!.receive(it('pellets'), m.input!.reserve(it('pellets')));
+    expect(m.input!.canAccept('pellets')).toBe(false);
+    expect(m.input!.canAccept('coke')).toBe(true);
+    expect(m.input!.canAccept('coal')).toBe(false);
     expect(m.input!.canAccept('stone')).toBe(false);
     expect(m.output.canAccept('steel')).toBe(true);
     expect(m.output.canAccept('ore')).toBe(false);
@@ -731,10 +732,10 @@ describe('snapshot / restore', () => {
     const w = makeWorld(5);
     w.world.build(5, 0, 'steelMill');
     const snap = w.world.snapshot();
-    snap[5]!.slots[0] = { in: { ore: 3, coal: 2 }, out: 0 }; // 0.9.5: ore + 2 coal → steel
+    snap[5]!.slots[0] = { in: { ore: 3, coke: 2 }, out: 0 }; // 0.9.5: ore + 2 coal → steel
     w.world.restore(snap);
     const r = w.world.region(5)!;
-    expect(r.machines[0]!.input!.count('coal')).toBe(2);
+    expect(r.machines[0]!.input!.count('coke')).toBe(2);
     expect(r.dock.count('ore')).toBe(3);
   });
 

@@ -14,13 +14,20 @@
  *
  * Walking: no colliders, scripted waypoints. `planPath` routes along the aisles between the machine cells (cell
  * boundaries) and the front-yard band, so a worker never cuts through a machine.
+ *
+ * 1.0 city lots: once the region's own construction sites are served, a foreman carries the era's district material
+ * (DISTRICT_MATERIAL, from machine piles or the dock) to the lots of the era's city district whose chosen building
+ * still misses it (city/lotAccess.ts lotNeeds; `lotJob`). It walks out of the gate onto the region road, along the
+ * roads and the district walkways (city/roadRoute.ts cityRoute, ROAD_SPEED× faster outside the region and district),
+ * unloads into the lot's ConstructionPad (made on demand, silently, by District.sitePad) and walks back. Only material:
+ * the cash stays the player's to pay. The load in the hands is saved like any other (addCarried → the import dock).
  */
 import * as THREE from 'three';
 import { ERA_WORKER, PLAYER, type EraRole } from '../config';
 import { approach, dampAngle, yawFromDir } from '../core/math';
 import { MATERIAL_KINDS, type MaterialKind } from '../core/kinds';
 import type { EraCrewId, GameContext, GameState, ItemHolder, ItemKind } from '../core/types';
-import { CITY_BUILDINGS, ERAS, MACHINES } from '../eras/data';
+import { CITY_BUILDINGS, DISTRICTS, ERAS, MACHINES } from '../eras/data';
 import { expansionOffered } from '../eras/layout';
 import { eraWorkerScale, createEraWorkerModel } from '../assets/eraWorkers';
 import { CarryStack } from '../items/CarryStack';
@@ -28,6 +35,8 @@ import { transferOne } from '../items/transfer';
 import type { MachineRuntime, RegionRuntime } from '../eras/runtime';
 import type { RegionLayout, XZ } from '../eras/layout';
 import { CharacterRig } from '../render/characters';
+import { cityLotAccess, lotNeeds } from '../city/lotAccess';
+import { cityRoute, gateRoadSpot, inRect, lotStandSpot } from '../city/roadRoute';
 
 // --- tuning -------------------------------------------------------------------------------------------------------
 const ACCEL = 12;
@@ -45,6 +54,8 @@ const LENIENT_AFTER = 3;
 /** Minimum finished goods / surplus worth a trip (unless lenient). */
 const MIN_SHIP = 3;
 const FLY = { duration: 0.2, arcHeight: 1.4 } as const;
+/** 1.0: walk-speed factor on the roads between the region and its city district (long trips, never a teleport). */
+export const ROAD_SPEED = 2.2;
 
 // --- pure job selection ---------------------------------------------------------------------------------------------
 /** One built machine as the job picker sees it. */
@@ -73,6 +84,8 @@ export interface JobView {
   machines: readonly JobMachine[];
   /** 0.9.5: construction sites wanting material (foremen). Absent = none. */
   sites?: readonly JobSite[];
+  /** 1.0: lots of the era's city district wanting its material (foremen, after the region's sites). `slot` = lot. */
+  lots?: readonly JobSite[];
   /** Landed units on the import dock by kind. */
   dock: Partial<Record<ItemKind, number>>;
   dockSpot: XZ;
@@ -93,12 +106,18 @@ export type JobSource = 'dock' | 'cash' | 'node' | number;
  * Where it goes: the export depot, the import dock, a processor slot, (0.9.5) a construction site on a slot, or the
  * bank (clerks hand the market's cash in at the depot).
  */
-export type JobDest = 'depot' | 'dock' | 'bank' | number | `site${number}`;
+export type JobDest = 'depot' | 'dock' | 'bank' | number | `site${number}` | `lot${number}`;
 
 /** 0.9.5: the construction-site destination of slot `slot`. */
 export const siteDest = (slot: number): `site${number}` => `site${slot}`;
 /** The slot of a construction-site destination, or null. */
 export const siteSlot = (to: JobDest): number | null => (typeof to === 'string' && to.startsWith('site') ? Number(to.slice(4)) : null);
+/** 1.0: the city-lot destination of lot `lot` of the region's era district. */
+export const lotDest = (lot: number): `lot${number}` => `lot${lot}`;
+/** The lot of a city-lot destination, or null. */
+export const lotIndex = (to: JobDest): number | null => (typeof to === 'string' && to.startsWith('lot') ? Number(to.slice(3)) : null);
+/** Claim key of the units promised to city lot `lot`. */
+export const lotDestId = (lot: number, kind: ItemKind): string => `l${lot}:${kind}`;
 
 /**
  * 0.9.5: what a worker does (config ERA_ROLES): the hauler does everything (feed > ship > surplus, as in 0.9.0), the
@@ -239,7 +258,7 @@ export function pickJob(view: JobView, capacity: number, claims: Claims, at: XZ,
       );
     }
     case 'foreman':
-      return buildJob(view, sources, avail, capacity, claims, at);
+      return buildJob(view, sources, avail, capacity, claims, at) ?? lotJob(view, sources, avail, capacity, claims, at, lenient);
     case 'hauler':
       return (
         feedJob(view, sources, avail, capacity, claims, at, lenient, () => true) ??
@@ -363,6 +382,31 @@ function buildJob(view: JobView, sources: readonly Source[], avail: (s: Source) 
       if (score > bestScore) {
         bestScore = score;
         best = { type: 'build', item: site.kind, take, from: s.from, to: siteDest(site.slot) };
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * 1.0 foreman, once the region's own sites are served: the era's material from any machine pile or the dock to a lot
+ * of the era's city district whose pad still wants it. The walk is long, so a trip waits for a full load (all the lot
+ * still needs, up to capacity) unless the worker has been idle a while (`lenient`).
+ */
+function lotJob(view: JobView, sources: readonly Source[], avail: (s: Source) => number, capacity: number, claims: Claims, at: XZ, lenient: boolean): Job | null {
+  let best: Job | null = null;
+  let bestScore = -Infinity;
+  for (const lot of view.lots ?? []) {
+    const need = lot.room - (claims.dests.get(lotDestId(lot.slot, lot.kind)) ?? 0);
+    if (need <= 0) continue;
+    for (const s of sources) {
+      if (s.kind !== lot.kind) continue;
+      const take = Math.min(capacity, need, avail(s));
+      if (take < (lenient ? 1 : Math.min(capacity, need))) continue;
+      const score = take - 0.1 * dist(at, s.pos) - 0.01 * dist(s.pos, lot.spot);
+      if (score > bestScore) {
+        bestScore = score;
+        best = { type: 'build', item: lot.kind, take, from: s.from, to: lotDest(lot.slot) };
       }
     }
   }
@@ -502,6 +546,8 @@ export class EraWorker {
   private disposing = false;
   private gone = false;
   private readonly home: XZ;
+  /** 1.0: the era's city district (normal walking speed inside it). */
+  private readonly cityRect: { minX: number; maxX: number; minZ: number; maxZ: number };
   /** Units still owed per material, held back from the depot (EraCrew keeps it current). */
   owed: Owed = NO_OWED;
 
@@ -524,6 +570,7 @@ export class EraWorker {
       columnSize: 6,
     });
     this.home = idleSpot(region.layout, index);
+    this.cityRect = DISTRICTS[region.era]?.rect ?? region.layout.rect;
     this.at = this.home;
     this.pickTimer = 0.5 + index * 0.3;
     this.applyLevel();
@@ -586,9 +633,19 @@ export class EraWorker {
     if (amount <= 0) return null;
     const dest = this.dest?.slot ?? null;
     const site = siteSlot(job.to);
+    const lot = lotIndex(job.to);
     return {
       src: loading ? srcId(job.from, job.item) : null,
-      dest: site !== null ? destId(site, job.item, true) : dest !== null ? destId(dest, job.item) : job.type === 'stock' ? `dock:${job.item}` : null,
+      dest:
+        site !== null
+          ? destId(site, job.item, true)
+          : lot !== null
+            ? lotDestId(lot, job.item)
+            : dest !== null
+              ? destId(dest, job.item)
+              : job.type === 'stock'
+                ? `dock:${job.item}`
+                : null,
       amount,
     };
   }
@@ -701,11 +758,13 @@ export class EraWorker {
       if (n > 0) dock[k] = n;
     }
     const sites = this.role === 'foreman' ? r.sites().map((x) => ({ slot: x.slot, kind: x.kind, room: x.room, spot: x.spot })) : [];
+    // 1.0: the era district's lots (only with a city to deliver to)
+    const lots = this.role === 'foreman' && cityLotAccess(this.ctx) ? lotNeeds(this.ctx.state, r.era).map((x) => ({ slot: x.lot, kind: x.kind, room: x.room, spot: lotStandSpot(r.era, x.lot).spot })) : [];
     const m = r.market;
     const cash = this.role === 'clerk' ? { value: m.cash.value, bundles: m.cash.pile.count('cash'), spot: m.clerkSpot } : undefined;
     const nd = r.node;
     const node = nd ? { kind: nd.yields, count: nd.pile.count(nd.yields), full: nd.pile.isFull(), spot: nd.pileSpot } : undefined;
-    return { machines, sites, dock, cash, node, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
+    return { machines, sites, lots, dock, cash, node, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
   }
 
   private lookAtSlot(slot: number): XZ | null {
@@ -724,6 +783,13 @@ export class EraWorker {
 
   private destRef(to: JobDest): Ref & { slot: number | null } {
     const r = this.region;
+    const lot = lotIndex(to);
+    if (lot !== null) {
+      // a city lot's pad, made on demand (silently) when the district has not been visited yet; null → redirect
+      const holder = cityLotAccess(this.ctx)?.lotPad(r.era, lot) ?? null;
+      const s = lotStandSpot(r.era, lot);
+      return { slot: null, machine: null, holder, spot: s.spot, look: s.look };
+    }
     const site = siteSlot(to);
     if (site !== null) {
       // a construction pad: read live, gone (paid, demolished, choice changed) → the unload redirects
@@ -752,10 +818,28 @@ export class EraWorker {
 
   // --- the job loop -------------------------------------------------------------------------------------------------
   private goTo(p: XZ, look: XZ | null): void {
-    this.route = planPath(this.region.layout, this.at, p);
+    this.route = this.pathTo(this.at, p);
     this.routeIdx = 0;
     this.at = p;
     this.look = look;
+  }
+
+  /**
+   * Waypoints from `a` to `b`: the aisles inside the region (planPath); 1.0, a trip to the city goes out of the gate
+   * onto the region's road, along the roads to the district and its walkways (city/roadRoute.ts), and back the same way.
+   */
+  private pathTo(a: XZ, b: XZ): XZ[] {
+    const L = this.region.layout;
+    const inA = inRect(L.rect, a);
+    const inB = inRect(L.rect, b);
+    if (inA && inB) return planPath(L, a, b);
+    const g = gateRoadSpot(L);
+    const out: XZ[] = inA ? planPath(L, a, g) : [];
+    const from = inA ? g : a;
+    const to = inB ? g : b;
+    out.push(...(cityRoute(this.region.era, from, to) ?? [to]));
+    if (inB) out.push(...planPath(L, g, b));
+    return out;
   }
 
   private park(delay: number): void {
@@ -912,7 +996,9 @@ export class EraWorker {
       const dx = goal.x - p.x;
       const dz = goal.z - p.z;
       const d = Math.hypot(dx, dz);
-      const max = ERA_WORKER.walkSpeed * this.stats.walk;
+      // 1.0: quicker on the roads to the city (outside the region and the district)
+      const road = !inRect(this.region.layout.rect, p) && !inRect(this.cityRect, p);
+      const max = ERA_WORKER.walkSpeed * this.stats.walk * (road ? ROAD_SPEED : 1);
       const target = last ? Math.min(max, 1.2 + d * 4) : max;
       this.speed = approach(this.speed, target, ACCEL * dt);
       const stepLen = this.speed * dt;

@@ -11,12 +11,15 @@
  * Pooled per variant: spawning is free after warm-up and the cargo goes back to the item pool on despawn.
  * 0.9.6 (F6): later eras and bigger docks bring buyers more often and with bigger orders (buyerScale), so the counters
  * keep up with a levelled region and little is left to sell cheaply at the depot.
+ * 0.9.7: each era sends its own vehicle (assets/eraVehicles.ts: a pony cart, an ox wagon … a hover pod), tinted by the
+ * variant's colour; the model animates its own wheels, bounce and draught animal.
  */
 import * as THREE from 'three';
 import { TIMING, TRADE_POST } from '../config';
 import { approach, randRange } from '../core/math';
 import type { GameContext, ItemKind } from '../core/types';
-import { createPickupTruckWithDriver, TRUCK_BED_X, TRUCK_WHEEL_RADIUS, type PickupTruckModel } from '../assets/vehicles';
+import { TRUCK_BED_X } from '../assets/vehicles';
+import { createEraVehicleWithDriver, type EraVehicleModel } from '../assets/eraVehicles';
 import { createSpeechBubble, type SpeechBubble } from '../assets/shop';
 import type { CharacterRig } from '../render/characters';
 import { Pile } from '../items/Pile';
@@ -31,7 +34,7 @@ export interface BuyerPost {
   /** Counter centre (world x) the beds line up with. */
   readonly x: number;
   readonly lane: { z: number; fromX: number; toX: number };
-  /** Truck paints (2 variants). */
+  /** Vehicle paints (2 variants). */
   readonly colors: readonly [number, number];
   /** What a truck asks for at an empty counter (the era's main product). */
   readonly fallback: MaterialKind;
@@ -56,12 +59,11 @@ class Truck {
   takeTimer = 0;
   idle = 0;
   timer = 0;
-  bounce = 0;
   fading = false;
 
   constructor(
     ctx: GameContext,
-    readonly model: PickupTruckModel,
+    readonly model: EraVehicleModel,
     readonly rig: CharacterRig,
     readonly variant: number,
     id: string,
@@ -162,7 +164,7 @@ export class EraBuyers {
     const variant = this.spawned++ % 2;
     let t = this.pools[variant]!.pop();
     if (!t) {
-      const { model, rig } = createPickupTruckWithDriver(this.post.colors[variant]!, variant + 2);
+      const { model, rig } = createEraVehicleWithDriver(this.post.era, this.post.colors[variant]!, variant + 2);
       t = new Truck(this.ctx, model, rig, variant, `npc:trader${this.post.era}:${this.spawned}`);
     }
     t.mode = 'queue';
@@ -325,11 +327,8 @@ export class EraBuyers {
   private animate(t: Truck, dt: number): void {
     const m = t.model;
     this.pose(t);
-    const spin = (t.speed * dt) / TRUCK_WHEEL_RADIUS;
-    for (const w of m.wheels) w.rotation.z += spin;
     const moving = Math.min(1, t.speed / (TRADE_POST.driveSpeed * 0.5));
-    t.bounce += t.speed * dt * 5.2;
-    m.body.position.y = Math.abs(Math.sin(t.bounce)) * 0.045 * moving;
+    m.animate(dt, t.speed, moving);
     t.rig.animate(dt, 0);
     if (t.bubble.sprite.visible) t.bubble.sprite.position.y = m.bubbleY + Math.sin((this.ctx.time.elapsed + t.u) * 4.5) * 0.04;
   }
