@@ -1,8 +1,14 @@
-/** Snow world (with the river channel cut out), warm dirt yard, dirt patches, footprints. */
+/**
+ * Snow world (with the river channel cut out), warm dirt yard, dirt patches. 0.9.8 (10a): the yard is painted packed
+ * earth and the customers' lane a plank boardwalk, with stumps and log piles round the yard (world/env/ground/era01.ts).
+ */
 import * as THREE from 'three';
 import { LAYOUT, PALETTE } from '../../config';
 import { geo, mesh, toon } from '../../render/materials';
-import { instanced, W, type EnvPart, type Placement } from './common';
+import { instanced, Rng, W, type EnvPart, type Placement } from './common';
+import { palette } from '../../render/palette';
+import { eraOneDress } from './eraGround';
+import { earthPlane, packedEarth } from './ground/era01';
 
 export interface GroundPart extends EnvPart {
   /** Dirt that grows north on expansion (origin on its south edge). */
@@ -44,8 +50,13 @@ export function buildGround(): GroundPart {
   // Yard: dark border under a lighter dirt plane (thin planes: pads/slabs sit on top of them).
   const bw = W.yardMaxX - W.yardMinX;
   const bd = W.yardMaxZ - W.yardMinZ;
-  group.add(flat(bw + 0.5, bd + 0.5, (W.yardMinX + W.yardMaxX) / 2 + 0.2, (W.yardMinZ + W.yardMaxZ) / 2, 0.006, PALETTE.yardDirtDark));
-  group.add(flat(bw, bd, (W.yardMinX + W.yardMaxX) / 2, (W.yardMinZ + W.yardMaxZ) / 2, 0.01, PALETTE.yardDirt));
+  // 0.9.8: the era-1 floor colour from the palette, painted as packed earth (pebbles, wood chips)
+  const dirtDark = palette(1).trim;
+  const earth = packedEarth(new Rng(1181));
+  group.add(flat(bw + 0.5, bd + 0.5, (W.yardMinX + W.yardMaxX) / 2 + 0.2, (W.yardMinZ + W.yardMaxZ) / 2, 0.006, dirtDark));
+  const yard = mesh(earthPlane(bw, bd, (W.yardMinX + W.yardMaxX) / 2, (W.yardMinZ + W.yardMaxZ) / 2), earth, { cast: false });
+  yard.position.set((W.yardMinX + W.yardMaxX) / 2, 0.01, (W.yardMinZ + W.yardMaxZ) / 2);
+  group.add(yard);
 
   // Worn, darker patches in the dirt (kept clear of pads / zones' centres).
   const patches: Placement[] = [
@@ -66,26 +77,22 @@ export function buildGround(): GroundPart {
   dirtExtension.position.z = W.yardMinZ;
   const extD = LAYOUT.expandedMinZ - W.yardMinZ; // negative
   const ext = Math.abs(extD);
-  const border = mesh(geo.ground(bw + 0.5, ext).clone().translate(0.2, 0, -ext / 2), toon(PALETTE.yardDirtDark), { cast: false });
+  const border = mesh(geo.ground(bw + 0.5, ext).clone().translate(0.2, 0, -ext / 2), toon(dirtDark), { cast: false });
   border.position.y = 0.006;
-  const dirt = mesh(geo.ground(bw, ext).clone().translate(0, 0, -ext / 2), toon(PALETTE.yardDirt), { cast: false });
+  const dirt = mesh(earthPlane(bw, ext, (W.yardMinX + W.yardMaxX) / 2, W.yardMinZ - ext / 2).translate(0, 0, -ext / 2), earth, { cast: false });
   dirt.position.y = 0.01;
   dirtExtension.add(border, dirt);
   dirtExtension.scale.z = 0.001;
   dirtExtension.visible = false;
   group.add(dirtExtension);
 
-  // Customer path: packed snow lane with footprints, tricycle road etc. live in roads.ts.
+  // Customer path: a plank boardwalk over the packed snow lane (0.9.8; tricycle road etc. live in roads.ts), plus the
+  // era-1 stumps and log piles (world/env/ground/era01.ts)
   const path = LAYOUT.customers.path;
   const pw = path.maxX - path.minX;
   const pd = path.maxZ - path.minZ;
   group.add(flat(pw, pd, (path.minX + path.maxX) / 2, (path.minZ + path.maxZ) / 2, 0.008, 0xe6eef8));
-  const prints: Placement[] = [];
-  for (let z = 12.4, i = 0; z < path.maxZ - 1; z += 1.35, i++) {
-    prints.push({ x: -4.0 + (i % 2 ? 0.28 : -0.28), y: 0.012, z, sx: 0.16, sz: 0.28 });
-    prints.push({ x: -2.3 + (i % 2 ? -0.25 : 0.25), y: 0.012, z: z + 0.5, sx: 0.16, sz: 0.28 });
-  }
-  group.add(instanced(new THREE.CircleGeometry(1, 8).rotateX(-Math.PI / 2), toon(0xc5d3e5), prints, { cast: false }));
+  group.add(eraOneDress());
 
   return { group, dirtExtension };
 }
