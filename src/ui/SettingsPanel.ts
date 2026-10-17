@@ -291,6 +291,7 @@ export class SettingsPanel {
       if (ctx.audio.toggleMusic()) ctx.audio.play('click');
     });
     slider(ps, 'Music volume', volume('music').get, volume('music').set);
+    slider(ps, 'Ambience volume', volume('ambience').get, volume('ambience').set);
 
     // Display
     const pd = page('display');

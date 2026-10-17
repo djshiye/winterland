@@ -35,7 +35,13 @@
  * - Background music (fx/Music.ts) shares the AudioContext and the master gain: it starts after unlock(), runs only
  *   while the music switch is on, sound isn't muted and the tab is visible, and dips ~40 % under loud SFX. Its own
  *   on/off persists in 'winterland:music' (default on).
+ * - 0.9.8 [17]: the music plays the theme of the era the player stands in (fx/Music.ts setEra) and an ambient bed
+ *   (fx/Ambience.ts) plays the sound of the place, both picked by fx/soundscape.ts (setPlace, setDarkness). The
+ *   ambience has its own volume channel ('winterland:vol:ambience') and runs whenever sound is on and the tab is
+ *   visible, music switch or not.
  */
+import { Ambience } from './Ambience';
+import type { BedId } from './ambience/beds';
 import { Music } from './Music';
 import { admitVoice } from './padJuice';
 import { clampVolume, readVolume, volumeGain, writeVolume, type VolumeChannel } from './volume';
@@ -161,6 +167,7 @@ export class AudioFX {
     master: readVolume('master'),
     sfx: readVolume('sfx'),
     music: readVolume('music'),
+    ambience: readVolume('ambience'),
   };
 
   /** Current volume of a channel, 0..1. */
@@ -185,8 +192,11 @@ export class AudioFX {
         if (this.master && !this.muted) this.master.gain.setTargetAtTime(this.masterLevel(), now, 0.03);
       } else if (ch === 'sfx') {
         this.sfxGain?.gain.setTargetAtTime(volumeGain(vol), now, 0.03);
-      } else {
+      } else if (ch === 'music') {
         this.music?.setVolume(vol);
+      } else {
+        this.ambience?.setVolume(vol);
+        this.syncMusic();
       }
     } catch {
       /* audio must never break the game */
@@ -204,6 +214,12 @@ export class AudioFX {
   private compIn: DynamicsCompressorNode | null = null;
   private sfxGain: GainNode | null = null;
   private music: Music | null = null;
+  private ambience: Ambience | null = null;
+  /** 0.9.8 [17] where the player is and the sky (applied at init when they arrive before the first unlock). */
+  private place: { bed: BedId; era: number } = { bed: 'home', era: 1 };
+  private darkness = 0;
+  private hush = false;
+  private eventRate = 1;
   private failed = false;
   private night = false;
   private voices = 0;
@@ -303,6 +319,35 @@ export class AudioFX {
     this.music?.setNight(on);
   }
 
+  /** 0.9.8 [17] The place's ambient bed and the era whose theme plays (fx/soundscape.ts). */
+  setPlace(bed: BedId, era: number): void {
+    this.place = { bed, era };
+    try {
+      this.music?.setEra(era);
+      this.ambience?.setBed(bed);
+    } catch {
+      /* audio must never break the game */
+    }
+  }
+
+  /** 0.9.8 [17] The sky's darkness 0..1: the ambience slowly trades day sounds for night ones. */
+  setDarkness(d: number): void {
+    this.darkness = d;
+    this.ambience?.setDarkness(d);
+  }
+
+  /** 0.9.8 [17] The ending's hush (core/quiet.ts): the ambience steps back. */
+  setAmbienceHush(on: boolean): void {
+    this.hush = on;
+    this.ambience?.setHush(on);
+  }
+
+  /** 0.9.8 [17] Share of little ambient sounds (comfort Effects). */
+  setAmbienceRate(r: number): void {
+    this.eventRate = r;
+    this.ambience?.setEventRate(r);
+  }
+
   /** Returns the new music state. */
   toggleMusic(): boolean {
     this.setMusic(!this.musicOn);
@@ -319,14 +364,20 @@ export class AudioFX {
   // Internals
   // ---------------------------------------------------------------------------------------------
 
-  /** Start / stop the music to match: unlocked, switched on, not muted, tab visible. */
+  /** Start / stop the music (unlocked, switched on, not muted, tab visible) and the ambience (the same, minus the switch). */
   private syncMusic(): void {
     try {
+      const live = !this.muted && !this.failed && !document.hidden && this.ac?.state === 'running';
       const m = this.music;
-      if (!m) return;
-      const want = this.musicOn && !this.muted && !this.failed && !document.hidden && this.ac?.state === 'running';
-      if (want) m.start();
-      else m.stop();
+      if (m) {
+        if (live && this.musicOn) m.start();
+        else m.stop();
+      }
+      const a = this.ambience;
+      if (a) {
+        if (live && this.volumes.ambience > 0) a.start();
+        else a.stop();
+      }
     } catch {
       /* music must never break the game */
     }
@@ -369,11 +420,24 @@ export class AudioFX {
       // music goes straight to the master gain (not through the SFX compressor) so it never pumps the SFX
       this.music = new Music(ac, master);
       this.music.setVolume(this.volumes.music);
+      this.music.setEra(this.place.era);
       if (this.night) this.music.setNight(true);
-      ac.onstatechange = () => this.syncMusic();
     } catch {
       this.music = null;
     }
+    try {
+      // 0.9.8 [17] the ambience also goes straight to the master gain
+      const a = new Ambience(ac, master);
+      a.setVolume(this.volumes.ambience);
+      a.setBed(this.place.bed);
+      a.setDarkness(this.darkness);
+      a.setHush(this.hush);
+      a.setEventRate(this.eventRate);
+      this.ambience = a;
+    } catch {
+      this.ambience = null;
+    }
+    ac.onstatechange = () => this.syncMusic();
   }
 
   /** Track a voice's end so MAX_VOICES stays honest, and release its nodes. */
