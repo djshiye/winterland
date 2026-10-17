@@ -3,7 +3,7 @@
  * 0.9.8 [17] Renders the era themes and ambient beds to audio files, so they can be heard and balanced without
  * playing the game, and prints their loudness.
  *
- *   node scripts/music-preview.mjs [--out dir] [--secs N] [--only music|ambience|xfade] [--mp3]
+ *   node scripts/music-preview.mjs [--out dir] [--secs N] [--only music|ambience|mix|xfade] [--match regex] [--mp3]
  *   WL_CHROMIUM=/path/to/chrome node scripts/music-preview.mjs
  *
  * Starts a Vite dev server, opens headless Chromium and renders on an OfflineAudioContext with the game's own code
@@ -30,6 +30,7 @@ const outDir = path.resolve(opt('--out', 'music-preview'));
 const secs = Number(opt('--secs', '40')) || 40;
 const only = opt('--only', '');
 const mp3 = args.includes('--mp3');
+const match = new RegExp(opt('--match', '.'));
 const SR = 44100;
 
 fs.mkdirSync(outDir, { recursive: true });
@@ -183,7 +184,7 @@ if (mp3) {
     console.warn('ffmpeg not found: writing WAV only');
   }
 }
-for (const job of jobs) {
+for (const job of jobs.filter((j) => match.test(j.name))) {
   const t0 = Date.now();
   const d = await render(job);
   const wav = path.join(outDir, `${job.name}.wav`);
@@ -195,6 +196,13 @@ for (const job of jobs) {
   report[job.name] = { rms: d.rms, peak: d.peak, sudden: d.sudden };
   console.log(`${job.name.padEnd(26)} rms ${String(d.rms).padStart(7)} dBFS  peak ${String(d.peak).padStart(7)}  sudden +${d.sudden} dB  (${Date.now() - t0} ms)`);
 }
-fs.writeFileSync(path.join(outDir, 'loudness.json'), JSON.stringify(report, null, 2));
+const prevFile = path.join(outDir, 'loudness.json');
+let prev = {};
+try {
+  prev = JSON.parse(fs.readFileSync(prevFile, 'utf8'));
+} catch {
+  /* first run */
+}
+fs.writeFileSync(prevFile, JSON.stringify({ ...prev, ...report }, null, 2));
 await browser.close();
 await server.close();
