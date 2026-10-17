@@ -12,6 +12,7 @@ Release notes for the next version collect here. When a release is cut, rename t
 
 - **The game tells you when a new version is out.** A cozy card shows what's new and lets you pick *Update now* or *Keep playing*. It asks once per version, and you can turn the check off in Settings › Game.
 - **One click to update.** The game downloads the new version, checks it's genuine against the release checksum, closes, updates and opens again. Your save is never touched, and if anything goes wrong you're back in your game as it was.
+- Updates reach you once Winterland's downloads are public (planned with 1.0). Until then the check quietly finds nothing and you keep playing.
 - **What's new.** The first time you open the game after an update, it shows everything that changed since your last version. Settings › Game › *What's new* opens it any time.
 
 ## 0.9.7 (2026-10-17)

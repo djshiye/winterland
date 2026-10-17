@@ -6,7 +6,9 @@
  *   itself (a Mac app run straight from Downloads, a read-only folder) offers "Open download page" instead.
  * - 'downloading' (progress bar, Cancel) → 'installing' (the game saves, the updater script takes over, the game
  *   closes and the new version opens) or 'error' (why, and that nothing changed).
- * - 'current': "You have the newest Winterland" (only after Settings › Check now).
+ * - 'current': "You have the newest Winterland" (only after Settings › Check now), or, while GitHub shows no public
+ *   release at all (the repository stays private until 1.0), "Nothing to update yet". The automatic check never
+ *   shows anything for that, or for any other failure: the game just carries on.
  * - 'changelog': the first launch after an update lists every release since the version the player had
  *   (core/changelog.ts, from the bundled CHANGELOG.md); Settings › What's new opens it any time.
  * Never blocking: the card waits until no other card is open, Esc / gamepad B is always "Keep playing" / "Cancel" /
@@ -218,7 +220,9 @@ export class UpdateCard {
         this.latest = { version: r.version, notes: typeof r.notes === 'string' ? r.notes : null };
         if (manual || readUpdatePrefs().skipped !== r.version) this.enqueue(() => this.showAvailable());
       } else if (manual) {
-        if (r.status === 'none') this.enqueue(() => this.showCurrent());
+        if (r.status === 'none') this.enqueue(() => this.showCurrent(false));
+        // no public release at all (the repository stays private until 1.0): calm, not an error
+        else if (r.code === 'norelease') this.enqueue(() => this.showCurrent(true));
         else this.enqueue(() => this.showError(r.code, false));
       }
     } catch {
@@ -420,9 +424,9 @@ export class UpdateCard {
     this.present('error');
   }
 
-  private showCurrent(): void {
-    this.frame(ICON_SNOW, "You're up to date");
-    this.line(`Winterland ${GAME_VERSION} is the newest version.`);
+  private showCurrent(noRelease: boolean): void {
+    this.frame(ICON_SNOW, noRelease ? 'Nothing to update yet' : "You're up to date");
+    this.line(noRelease ? `There's no public download to check yet, so Winterland ${GAME_VERSION} is all set. Keep playing!` : `Winterland ${GAME_VERSION} is the newest version.`);
     const close = (): void => this.close();
     this.escapeAction = close;
     this.buttons([{ label: 'OK', style: 'green', tap: close }], 0);
