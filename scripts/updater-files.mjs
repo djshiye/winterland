@@ -6,6 +6,9 @@
  *   macOS:   Update Winterland.command   (next to Winterland.app; double-click opens it in Terminal)
  *   Windows: Update Winterland.cmd       (next to Winterland.exe) + updater\update.ps1
  *
+ * 0.9.8: `inAppUpdaterFiles` is the same script for the in-game updater (desktop/updater.cjs), placed inside the app's
+ * resources folder (resources/updater/update.sh or update.ps1; macOS: Winterland.app/Contents/Resources/updater).
+ *
  * The .cmd is a single line on purpose: cmd.exe reads batch files a line at a time, so a one-line file can't be
  * tripped up when the update replaces it while it runs.
  */
@@ -31,4 +34,11 @@ export function updaterFiles(platform, arch, version) {
   const sh = fill(readFileSync(join(src, 'update.sh'), 'utf8'));
   const name = platform === 'darwin' ? 'Update Winterland.command' : 'Update Winterland.sh';
   return [{ path: name, content: sh, mode: 0o755 }];
+}
+
+/** The in-game updater's copy (paths relative to the app's resources folder; `inApp` marks them). */
+export function inAppUpdaterFiles(platform, arch, version) {
+  return updaterFiles(platform, arch, version)
+    .filter((f) => f.path.endsWith('.ps1') || f.path.endsWith('.sh') || f.path.endsWith('.command'))
+    .map((f) => ({ ...f, path: `updater/${platform === 'win32' ? 'update.ps1' : 'update.sh'}`, inApp: true }));
 }
