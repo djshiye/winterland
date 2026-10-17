@@ -782,12 +782,12 @@
 .wl-hud .wl-agecard {
   width: min(372px, calc(100vw - 24px));
   padding: 8px 8px 12px;
-  border: 3px solid var(--wl-rim);
-  border-radius: 18px;
+  border: 6px solid transparent;
+  border-radius: 20px;
+  /* the cream card on top (padding box), the airmail stripes only in the border ring under it */
   background:
-    repeating-linear-gradient(-45deg, var(--wl-era) 0 8px, transparent 8px 16px, var(--wl-info) 16px 24px, transparent 24px 32px) border-box,
-    linear-gradient(var(--wl-card-hi), var(--wl-card)) padding-box;
-  border-color: transparent;
+    linear-gradient(var(--wl-card-hi), var(--wl-card)) padding-box,
+    repeating-linear-gradient(-45deg, var(--wl-era) 0 7px, var(--wl-card-hi) 7px 12px, var(--wl-info) 12px 19px, var(--wl-card-hi) 19px 24px) border-box;
   transform-origin: 50% 100%;
 }
 
