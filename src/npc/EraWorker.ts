@@ -19,11 +19,16 @@
  * (DISTRICT_MATERIAL, from machine piles or the dock) to the lots of the era's city district whose chosen building
  * still misses it (city/lotAccess.ts lotNeeds; `lotJob`). It walks out of the gate onto the region road, along the
  * roads and the district walkways (city/roadRoute.ts cityRoute, ROAD_SPEED× faster outside the region and district),
- * unloads into the lot's ConstructionPad (made on demand, silently, by District.sitePad) and walks back. Only material:
- * the cash stays the player's to pay. The load in the hands is saved like any other (addCarried → the import dock).
+ * unloads into the lot's ConstructionPad (made on demand, silently, by District.sitePad) and walks back. The load in
+ * the hands is saved like any other (addCarried → the import dock).
+ *
+ * 0.9.9 builders pay too (docs/EXPANSION.md §D, like Survival's foreman): when no material trip is worth making, a
+ * foreman walks to a machine slot or city lot of its era that the player has chosen and pays the cash still owed from
+ * the wallet, in chunks (`eraPayAmount`), while the wallet keeps its reserve (npc/Foreman.ts spendable). It never picks
+ * what to build and never pays the next expansion: the player's choice and the era's big moment stay theirs.
  */
 import * as THREE from 'three';
-import { ERA_WORKER, PLAYER, type EraRole } from '../config';
+import { ERA_WORKER, PLAYER, PRIORITIES, type EraRole } from '../config';
 import { approach, dampAngle, yawFromDir } from '../core/math';
 import { MATERIAL_KINDS, type MaterialKind } from '../core/kinds';
 import type { EraCrewId, GameContext, GameState, ItemHolder, ItemKind } from '../core/types';
@@ -35,7 +40,8 @@ import { transferOne } from '../items/transfer';
 import type { MachineRuntime, RegionRuntime } from '../eras/runtime';
 import type { RegionLayout, XZ } from '../eras/layout';
 import { CharacterRig } from '../render/characters';
-import { cityLotAccess, lotNeeds } from '../city/lotAccess';
+import { cityLotAccess, lotCash, lotNeeds, type PayPad } from '../city/lotAccess';
+import { spendable } from './Foreman';
 import { cityRoute, gateRoadSpot, inRect, lotStandSpot } from '../city/roadRoute';
 
 // --- tuning -------------------------------------------------------------------------------------------------------
@@ -86,6 +92,8 @@ export interface JobView {
   sites?: readonly JobSite[];
   /** 1.0: lots of the era's city district wanting its material (foremen, after the region's sites). `slot` = lot. */
   lots?: readonly JobSite[];
+  /** 0.9.9: chosen machine slots and city lots of the era that still owe cash (foremen pay them). Absent = none. */
+  pays?: readonly PaySite[];
   /** Landed units on the import dock by kind. */
   dock: Partial<Record<ItemKind, number>>;
   dockSpot: XZ;
@@ -98,6 +106,15 @@ export interface JobView {
   cash?: { value: number; bundles: number; spot: XZ };
   /** 0.9.6: the hand-node pile (the player's harvest: landed units, kind, worker spot, full). Absent = none. */
   node?: { kind: ItemKind; count: number; full: boolean; spot: XZ };
+}
+
+/** 0.9.9: a chosen, unbuilt machine slot (`site<n>`) or city lot (`lot<n>`) that still owes cash. */
+export interface PaySite {
+  to: `site${number}` | `lot${number}`;
+  /** Cash still owed and the building's whole price. */
+  left: number;
+  total: number;
+  spot: XZ;
 }
 
 /** Where a load comes from: the import dock, a machine slot, (0.9.5, clerks) the market's cash pile or (0.9.6) the hand-node pile. */
@@ -413,6 +430,39 @@ function lotJob(view: JobView, sources: readonly Source[], avail: (s: Source) =>
   return best;
 }
 
+// --- 0.9.9: the foreman pays ----------------------------------------------------------------------------------------
+/** A building is paid in about this many chunks (so a $40k house and a $4M landmark both fill in a few seconds). */
+export const PAY_STEPS = 40;
+
+/** Claim key of the foreman paying site `to` (one foreman per pad). */
+export const payDestId = (to: PaySite['to']): string => `pay:${to}`;
+
+/**
+ * One payment toward a building of price `total` with `left` still owed: min(chunk, left, spendable wallet), whole
+ * dollars, where chunk = max(PRIORITIES.payChunk, total / PAY_STEPS). 0 when the wallet is at its reserve or the amount
+ * would be a dribble (under a tenth of a chunk, unless it finishes the building).
+ */
+export function eraPayAmount(left: number, total: number, money: number): number {
+  const chunk = Math.max(PRIORITIES.payChunk, Math.ceil(total / PAY_STEPS));
+  const amount = Math.floor(Math.min(chunk, left, spendable(money)));
+  return amount >= 1 && amount >= Math.min(Math.ceil(left), chunk / 10) ? amount : 0;
+}
+
+/** The nearest site that still owes cash, that no peer pays and that the wallet can pay a chunk toward now; or null. */
+export function pickPay(view: JobView, money: number, claims: Claims, at: XZ): PaySite | null {
+  let best: PaySite | null = null;
+  let bestD = Infinity;
+  for (const p of view.pays ?? []) {
+    if ((claims.dests.get(payDestId(p.to)) ?? 0) > 0 || eraPayAmount(p.left, p.total, money) <= 0) continue;
+    const d = dist(at, p.spot);
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  return best;
+}
+
 /**
  * Where a load of `kind` should go when its planned destination is gone or full: another hungry processor, else the
  * import dock when a processor of the region uses the kind (0.9.6), else the depot.
@@ -503,7 +553,7 @@ export function idleSpot(L: RegionLayout, index: number): XZ {
 }
 
 // --- the worker -----------------------------------------------------------------------------------------------------
-type Phase = 'idle' | 'toSource' | 'load' | 'toDest' | 'unload' | 'toHome';
+type Phase = 'idle' | 'toSource' | 'load' | 'toDest' | 'unload' | 'toHome' | 'toPay' | 'pay';
 
 interface Ref {
   machine: MachineRuntime | null;
@@ -541,6 +591,9 @@ export class EraWorker {
   private job: Job | null = null;
   private src: Ref | null = null;
   private dest: (Ref & { slot: number | null }) | null = null;
+  /** 0.9.9: the site a foreman walks to / stands at to pay, and seconds to its next chunk. */
+  private paying: PaySite | null = null;
+  private payTimer = 0;
   /** Where the worker stands (or is walking to): paths start here. */
   private at: XZ;
   private disposing = false;
@@ -629,6 +682,7 @@ export class EraWorker {
 
   /** What a peer must not chase: the source pile being loaded from and the hopper being fed. */
   claim(): WorkerClaim | null {
+    if (this.paying && (this.phase === 'toPay' || this.phase === 'pay')) return { src: null, dest: payDestId(this.paying.to), amount: 1 };
     const job = this.job;
     if (!job || this.phase === 'idle' || this.phase === 'toHome') return null;
     const loading = this.phase === 'toSource' || this.phase === 'load';
@@ -768,11 +822,28 @@ export class EraWorker {
     const sites = this.role === 'foreman' ? r.sites().map((x) => ({ slot: x.slot, kind: x.kind, room: x.room, spot: x.spot })) : [];
     // 1.0: the era district's lots (only with a city to deliver to)
     const lots = this.role === 'foreman' && cityLotAccess(this.ctx) ? lotNeeds(this.ctx.state, r.era).map((x) => ({ slot: x.lot, kind: x.kind, room: x.room, spot: lotStandSpot(r.era, x.lot).spot })) : [];
+    const pays = this.role === 'foreman' ? this.paySites() : [];
     const m = r.market;
     const cash = this.role === 'clerk' ? { value: m.cash.value, bundles: m.cash.pile.count('cash'), spot: m.clerkSpot } : undefined;
     const nd = r.node;
     const node = nd ? { kind: nd.yields, count: nd.pile.count(nd.yields), full: nd.pile.isFull(), spot: nd.pileSpot } : undefined;
-    return { machines, sites, lots, dock, cash, node, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
+    return { machines, sites, lots, pays, dock, cash, node, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
+  }
+
+  /** 0.9.9: the era's chosen machine slots (region pads) and city lots (with a city) that still owe cash. */
+  private paySites(): PaySite[] {
+    const r = this.region;
+    const out: PaySite[] = (r.payPads?.() ?? []).map((p) => ({ to: siteDest(p.slot), left: p.pad.cashLeft, total: p.total, spot: p.spot }));
+    if (cityLotAccess(this.ctx)) for (const c of lotCash(this.ctx.state, r.era)) out.push({ to: lotDest(c.lot), left: c.left, total: c.total, spot: lotStandSpot(r.era, c.lot).spot });
+    return out;
+  }
+
+  /** 0.9.9: the live pad of a pay site (null when it was paid, built, demolished or re-chosen meanwhile). */
+  private payPad(to: PaySite['to']): PayPad | null {
+    const lot = lotIndex(to);
+    if (lot !== null) return cityLotAccess(this.ctx)?.lotPad(this.region.era, lot) ?? null;
+    const slot = siteSlot(to);
+    return this.region.payPads?.().find((p) => p.slot === slot)?.pad ?? null;
   }
 
   private lookAtSlot(slot: number): XZ | null {
@@ -851,6 +922,7 @@ export class EraWorker {
   }
 
   private park(delay: number): void {
+    this.paying = null;
     this.job = null;
     this.src = null;
     this.dest = null;
@@ -931,6 +1003,16 @@ export class EraWorker {
           this.phase = 'toSource';
           return;
         }
+        // 0.9.9: no load worth carrying: a foreman pays what the player chose to build
+        const pay = this.role === 'foreman' ? pickPay(this.view(), this.ctx.economy.money, this.claims(), this.at) : null;
+        if (pay) {
+          this.paying = pay;
+          this.idleFor = 0;
+          const look = lotIndex(pay.to) !== null ? lotStandSpot(this.region.era, lotIndex(pay.to)!).look : this.lookAtSlot(siteSlot(pay.to)!);
+          this.goTo(pay.spot, look);
+          this.phase = 'toPay';
+          return;
+        }
         this.idleFor += PICK_EVERY;
         if (this.idleFor > 1.5 && this.at !== this.home) {
           this.goTo(this.home, this.homeLook());
@@ -942,6 +1024,25 @@ export class EraWorker {
         if (this.moving) return;
         this.phase = 'idle';
         return;
+      case 'toPay':
+        if (this.moving) return;
+        this.phase = 'pay';
+        this.payTimer = 0.2;
+        return;
+      case 'pay': {
+        // chunks from the wallet into the live pad, like the player's coin pour; done, gone or at the reserve → next
+        const pad = this.paying ? this.payPad(this.paying.to) : null;
+        if (!pad || !pad.visible || pad.cashLeft <= 0) return this.park(0.1);
+        this.payTimer -= dt;
+        if (this.payTimer > 0) return;
+        const amount = eraPayAmount(pad.cashLeft, this.paying!.total, this.ctx.economy.money);
+        if (amount <= 0 || !this.ctx.economy.spend(amount)) return this.park(1);
+        const credit = pad.payDirect(amount);
+        if (credit < amount) this.ctx.economy.add(amount - credit); // the pad took less (cannot normally happen)
+        this.payTimer = PRIORITIES.payInterval / this.stats.cadence;
+        this.workT = 0.5;
+        return;
+      }
       case 'toSource':
         if (this.moving) return;
         this.phase = 'load';
