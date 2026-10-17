@@ -30,6 +30,8 @@ export type UpdateView = 'available' | 'downloading' | 'installing' | 'error' | 
 
 /** Seconds after the game starts before the first automatic check (the start stays quick and quiet). */
 const CHECK_DELAY = 4;
+/** Seconds the 'installing' view waits for the game to close before saying the update didn't start. */
+const INSTALL_TIMEOUT = 20;
 /** Seconds the buttons ignore presses after the card opens. */
 const ARM_DELAY = 0.6;
 
@@ -116,6 +118,9 @@ export class UpdateCard {
   private latest: { version: string; notes: string | null } | null = null;
   private armed = 0;
   private checkIn = -1;
+  private availableQueued = false;
+  /** Seconds the 'installing' view has waited for the game to close. */
+  private installWait = 0;
   private checking = false;
   private bar: HTMLElement | null = null;
   private barText: HTMLElement | null = null;
@@ -218,7 +223,15 @@ export class UpdateCard {
       const r = await this.bridge.check();
       if (r.status === 'available') {
         this.latest = { version: r.version, notes: typeof r.notes === 'string' ? r.notes : null };
-        if (manual || readUpdatePrefs().skipped !== r.version) this.enqueue(() => this.showAvailable());
+        // one card per version: never a second one queued behind an open or waiting one (Check now during the
+        // automatic check), and the skip is checked again when the card is about to show
+        if (!this.availableQueued && this.view !== 'available' && (manual || readUpdatePrefs().skipped !== r.version)) {
+          this.availableQueued = true;
+          this.enqueue(() => {
+            this.availableQueued = false;
+            if (manual || readUpdatePrefs().skipped !== r.version) this.showAvailable();
+          });
+        }
       } else if (manual) {
         if (r.status === 'none') this.enqueue(() => this.showCurrent(false));
         // no public release at all (the repository stays private until 1.0): calm, not an error
@@ -349,7 +362,7 @@ export class UpdateCard {
               },
             },
       ],
-      1,
+      0, // the focus starts on Keep playing: a stray Enter / A never starts an update
     );
     this.present('available');
   }
@@ -400,6 +413,7 @@ export class UpdateCard {
     this.frame(ICON_SNOW, 'All set!');
     this.line(`Saving your game. Winterland closes, updates to ${version} and opens again in a moment.`);
     this.escapeAction = null;
+    this.installWait = 0;
     this.present('installing', false);
     try {
       this.saveNow();
@@ -446,6 +460,11 @@ export class UpdateCard {
   }
 
   update(dt: number): void {
+    // the game should have closed within moments of handing over; if it is somehow still here, say so and carry on
+    if (this.view === 'installing') {
+      this.installWait += dt;
+      if (this.installWait > INSTALL_TIMEOUT) this.showError('running', false);
+    }
     if (this.checkIn >= 0) {
       this.checkIn -= dt;
       if (this.checkIn < 0) void this.check(false);
