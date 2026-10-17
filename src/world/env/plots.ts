@@ -26,6 +26,7 @@ import { Batch } from '../../render/batch';
 import { geo } from '../../render/materials';
 import { bulbMaterial } from './glow';
 import { Rng } from './common';
+import { eraOwnsFloor } from './eraGround';
 
 /** Tallest a hut gets (loft + pennant) and the tallest shopfront (sign included), metres. */
 export const HUT_MAX_H = 4.6;
@@ -874,6 +875,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   const body = new Batch();
   const glow = new Batch();
   const Y = P.yardPave;
+  // 0.9.8: an era with its own base board (world/env/eraGround.ts) lays its own processing floor and cell marks
+  if (!eraOwnsFloor(n)) {
   body.add(geo.box(Y.maxX - Y.minX, 0.02, Y.maxZ - Y.minZ), st.pave, (Y.minX + Y.maxX) / 2, 0.022, (Y.minZ + Y.maxZ) / 2);
   // machine cells (room grid): thin lines on the paving, one cell per slot
   {
@@ -885,6 +888,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
     }
   }
   buildYardPattern(body, glow, st, Y, rng);
+  }
   for (const S of P.streets) buildStreet(body, st, P, S, rng);
   P.shops.forEach((s, i) => buildShop(body, glow, st, s, i, e.colors.accent, goods));
   const bulbs = new Batch();
