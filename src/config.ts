@@ -14,6 +14,7 @@
  */
 
 import type { ItemKind } from './core/types';
+import { SNOW, SNOW_SHADE } from './render/palette';
 import { ERA_KEYS, ERA_NAMES, MATERIALS, MATERIAL_KINDS, ERA_SCALE, ERAS, MACHINES, MACHINE_IDS, type EraKey, type MachineId, type MaterialKind } from './eras/data';
 import { eraPlayerUpgrades, type EraPlayerUpgradeId } from './eras/playerUpgrades';
 
@@ -57,7 +58,8 @@ export function inflate(r: Rect, m: number): Rect {
  */
 export const COLORS = {
   // Environment
-  SNOW_WHITE: 0xeef5fc,
+  /** The guide's snow (render/palette.ts SNOW). */
+  SNOW_WHITE: SNOW,
   RIVER_BLUE: 0x1ca3ec,
   RIVER_FOAM: 0x74ccf4,
   YARD_DIRT: 0x9e8272,
@@ -98,7 +100,7 @@ export const COLORS = {
 export const PALETTE = {
   sky: 0xcfe6f7,
   snow: COLORS.SNOW_WHITE,
-  snowShade: 0xd9e6f2,
+  snowShade: SNOW_SHADE,
   yardDirt: COLORS.YARD_DIRT,
   yardDirtDark: 0x8a6f60,
   dropSlab: COLORS.DROP_ZONE_GREY,

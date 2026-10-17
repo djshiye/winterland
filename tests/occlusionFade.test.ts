@@ -1,11 +1,12 @@
 /**
- * 0.9.3: a building standing between the camera and a pad (or the player) fades to see-through, so the pad's price
- * stays readable; buildings off to the side or behind stay solid, and the shared materials come back once clear.
+ * 0.9.3: a building standing between the camera and a pad (or the player) opens up, so the pad's price stays readable;
+ * buildings off to the side or behind stay solid, and the shared materials come back once clear.
+ * 0.9.8: the opening is a cutaway (an opaque clone that cuts a hole around the target), never a grey see-through ghost.
  */
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { CAMERA } from '../src/config';
-import { GHOST, OcclusionFade } from '../src/render/OcclusionFade';
+import { GHOST, MAX_HOLES, OcclusionFade } from '../src/render/OcclusionFade';
 import type { GameContext } from '../src/core/types';
 
 function world() {
@@ -49,7 +50,7 @@ function pad(scene: THREE.Scene, x: number, z: number): THREE.Object3D {
   return o;
 }
 
-describe('buildings fade when they hide a pad', () => {
+describe('buildings open a cutaway when they hide a pad', () => {
   it('a tower on the camera side of a pad fades, one behind it stays solid', () => {
     const { scene, fade, run } = world();
     const front = tower(scene, 4, 4); // camera sits toward +X / +Z
@@ -62,8 +63,11 @@ describe('buildings fade when they hide a pad', () => {
     expect(fade.faded(front.root)).toBeCloseTo(GHOST);
     expect(fade.faded(back.root)).toBe(1);
     const mesh = front.root.children[0] as THREE.Mesh;
-    expect(mesh.material).not.toBe(front.mat); // a transparent clone, the shared material is untouched
-    expect((mesh.material as THREE.Material).transparent).toBe(true);
+    const cut = mesh.material as THREE.Material;
+    expect(cut).not.toBe(front.mat); // a cutaway clone, the shared material is untouched
+    expect(cut.userData.wlCutaway).toBe(true);
+    expect(cut.transparent).toBe(false); // solid colours, no grey ghost
+    expect(cut.customProgramCacheKey()).toContain('wlCut');
     expect(front.mat.transparent).toBe(false);
 
     // the pad hides (bought out): the tower comes back solid with its own material
@@ -93,5 +97,37 @@ describe('buildings fade when they hide a pad', () => {
     off();
     expect((t.root.children[0] as THREE.Mesh).material).toBe(t.mat);
     expect(fade.faded(t.root)).toBeUndefined();
+  });
+});
+
+describe('the cutaway shader', () => {
+  it('cuts a hole around the hidden pad, on the camera side, and patches the shader', () => {
+    const { scene, fade, run, ctx } = world();
+    const t = tower(scene, 4, 4);
+    fade.addOccluder(t.root);
+    const p = pad(scene, 0, 0);
+    fade.addTarget(p, 2, () => true);
+    run(1);
+    const mesh = t.root.children[0] as THREE.Mesh;
+    const mat = mesh.material as THREE.Material;
+    const shader = {
+      uniforms: {} as Record<string, THREE.IUniform>,
+      vertexShader: '#include <common>\nvoid main() {\n#include <project_vertex>\n}',
+      fragmentShader: '#include <common>\nvoid main() {\n#include <clipping_planes_fragment>\n}',
+    };
+    mat.onBeforeCompile(shader as never, {} as never);
+    expect(shader.vertexShader).toContain('vWlWorld = ');
+    expect(shader.fragmentShader).toContain('discard');
+    const holes = shader.uniforms.wlHoles!.value as THREE.Vector4[];
+    expect(holes).toHaveLength(MAX_HOLES);
+    expect(holes[0]!.x).toBeCloseTo(0);
+    expect(holes[0]!.z).toBeCloseTo(0);
+    expect(holes[0]!.w).toBeGreaterThan(1); // radius around the 2 m pad
+    expect(holes[1]!.w).toBe(0);
+    expect(shader.uniforms.wlOpen!.value).toBeCloseTo(1);
+    // the view direction points at the camera
+    const toCam = new THREE.Vector3();
+    ctx.camera.getWorldDirection(toCam).negate();
+    expect((shader.uniforms.wlView!.value as THREE.Vector3).dot(toCam)).toBeCloseTo(1);
   });
 });
