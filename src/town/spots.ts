@@ -15,10 +15,14 @@ export interface Spot extends XZ {
 const toward = (from: XZ, to: XZ): number => Math.atan2(to.x - from.x, to.z - from.z);
 const TREE = { x: LAYOUT.town.tree.x, z: LAYOUT.town.tree.z };
 
-/** Benches (2 seats each, seats ±0.45 m along the bench), facing the big tree. */
+/**
+ * Benches (2 seats each, seats ±0.45 m along the bench), facing the big tree. 0.9.9: the two north ones moved off the
+ * walk from the corridor mouth to the east gate (they sat on it at z 26.55) into the corners by the stall and the
+ * north-east lot.
+ */
 export const BENCHES: readonly Spot[] = [
-  { x: 20.4, z: townZ(24.7) },
-  { x: 27.6, z: townZ(24.7) },
+  { x: 19.6, z: 23.9 },
+  { x: 28.4, z: 23.9 },
   { x: 19.4, z: 35.2 }, // 0.9.4: west of the pond's rim
   { x: 27.6, z: townZ(29.5) },
 ].map((p) => ({ ...p, yaw: toward(p, TREE) }));
@@ -32,8 +36,11 @@ export const STALLS: readonly Spot[] = [
   { x: 17.6, z: 30.8, yaw: Math.PI / 2 },
 ];
 
-/** A snowman (solid, r 0.5) kids gather around. */
-export const SNOWMAN: Spot = { x: 30.0, z: townZ(27.1), yaw: -Math.PI / 2 };
+/**
+ * A snowman (solid, r 0.5) kids gather around. 0.9.9: in the quiet south-west corner, facing the square (it stood in
+ * the way between the north-east road, the east gate and the south avenue).
+ */
+export const SNOWMAN: Spot = { x: 17.3, z: 37.3, yaw: Math.PI / 2 };
 
 /** True when (x, z) lies inside `r` grown by `margin` on every side. */
 const insideGrown = (r: Rect, x: number, z: number, margin: number): boolean =>
