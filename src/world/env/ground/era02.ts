@@ -16,7 +16,7 @@ import type { Rect } from '../../../config';
 import { blockedNewLand, occludesNewLand, type Rng } from '../common';
 import type { EraGroundModule, GroundKit } from '../eraGround';
 import { regionPaths, nodePatch } from '../frontier';
-import { cellSlabs, fenceDrifts, fieldstones, lantern, near, shade, snowPatch, steppingPath } from './kit1to3';
+import { cellSlabs, clearOf, fenceDrifts, fieldstones, lantern, near, shade, snowPatch, steppingPath } from './kit1to3';
 
 const P2 = palette(2);
 /** Era 2's tones, all from its palette row. */
@@ -97,9 +97,9 @@ function jarsGeo(): THREE.BufferGeometry {
 }
 
 /** Free for a dressing piece of radius r: inside `inside`, off the paths, the node patch, the field and `extra`. */
-function freeIn(l: RegionLayout, inside: Rect, x: number, z: number, r: number, extra: readonly Rect[] = []): boolean {
+function freeIn(l: RegionLayout, inside: Rect, x: number, z: number, r: number, h: number, extra: readonly Rect[] = []): boolean {
   if (!(x > inside.minX + r && x < inside.maxX - r && z > inside.minZ + r && z < inside.maxZ - r)) return false;
-  if (near(nodePatch(l), x, z, r + 0.4)) return false;
+  if (!clearOf(nodePatch(l), x, z, r, h)) return false;
   if (near(plotPlaces(l.n).field, x, z, r + 0.4)) return false;
   if (regionPaths(l).some((q) => near(q, x, z, r + 0.3))) return false;
   return !extra.some((q) => near(q, x, z, r));
@@ -122,8 +122,8 @@ export const era02: EraGroundModule = {
     // ---- a grove in the harvest zone's west end, with boulders, granite stacks and clay jars
     const grove: Rect = { minX: H.minX + 0.8, maxX: nodePatch(l).minX - 1, minZ: H.minZ + 4, maxZ: H.maxZ - 1 };
     const placed: { x: number; z: number; r: number }[] = [];
-    const take = (x: number, z: number, rad: number): boolean => {
-      if (!freeIn(l, H, x, z, rad)) return false;
+    const take = (x: number, z: number, rad: number, h = 1.4): boolean => {
+      if (!freeIn(l, H, x, z, rad, h)) return false;
       if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + rad)) return false;
       placed.push({ x, z, r: rad });
       return true;
@@ -132,7 +132,7 @@ export const era02: EraGroundModule = {
       for (let x = grove.minX + 1; x < grove.maxX; x += 3.6) {
         const px = x + rng.range(-0.9, 0.9);
         const pz = z + rng.range(-0.9, 0.9);
-        if (!take(px, pz, 1.1)) continue;
+        if (!take(px, pz, 1.1, 4.6)) continue;
         const s = rng.range(0.8, 1.05);
         k.put('birch', birchGeo, { x: px, z: pz, ry: rng.range(0, 6.28), sx: s, sy: s * rng.range(0.9, 1.08), tint: rng.range(0.94, 1.03) });
       }

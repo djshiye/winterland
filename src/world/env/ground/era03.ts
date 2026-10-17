@@ -16,7 +16,7 @@ import type { Rect } from '../../../config';
 import { blockedNewLand, occludesNewLand, type Rng } from '../common';
 import type { EraGroundModule, GroundKit } from '../eraGround';
 import { nodePatch, regionPaths } from '../frontier';
-import { fenceDrifts, lantern, near, shade, slab, snowPatch } from './kit1to3';
+import { clearOf, fenceDrifts, lantern, near, shade, slab, snowPatch } from './kit1to3';
 
 const P3 = palette(3);
 /** Era 3's tones, all from its palette row (warm: never near-black, DIRECTION). */
@@ -148,9 +148,9 @@ function cartTrack(k: GroundKit, q: Rect, rng: Rng): void {
   for (const s of [-0.45, 0.45]) k.solid.add(BOX(), C.iron, alongX ? cx : cx + s, 0.11, alongX ? cz + s : cz, alongX ? { sx: len - 0.3, sy: 0.07, sz: 0.08 } : { sx: 0.08, sy: 0.07, sz: len - 0.3 });
 }
 
-function freeIn(l: RegionLayout, inside: Rect, x: number, z: number, r: number): boolean {
+function freeIn(l: RegionLayout, inside: Rect, x: number, z: number, r: number, h: number): boolean {
   if (!(x > inside.minX + r && x < inside.maxX - r && z > inside.minZ + r && z < inside.maxZ - r)) return false;
-  if (near(nodePatch(l), x, z, r + 0.4)) return false;
+  if (!clearOf(nodePatch(l), x, z, r, h)) return false;
   if (near(plotPlaces(l.n).field, x, z, r + 0.4)) return false;
   return !regionPaths(l).some((q) => near(q, x, z, r + 0.3));
 }
@@ -171,8 +171,8 @@ export const era03: EraGroundModule = {
     }
     // ---- the wild ground: a few firs at the west end, ore mounds, charcoal clamps, pit props
     const placed: { x: number; z: number; r: number }[] = [];
-    const take = (x: number, z: number, rad: number): boolean => {
-      if (!freeIn(l, H, x, z, rad)) return false;
+    const take = (x: number, z: number, rad: number, h = 1.4): boolean => {
+      if (!freeIn(l, H, x, z, rad, h)) return false;
       if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + rad)) return false;
       placed.push({ x, z, r: rad });
       return true;
@@ -182,7 +182,7 @@ export const era03: EraGroundModule = {
       for (let x = west.minX + 1; x < west.maxX; x += 4.2) {
         const px = x + rng.range(-1, 1);
         const pz = z + rng.range(-1, 1);
-        if (rng.next() < 0.35 || !take(px, pz, 1.2)) continue;
+        if (rng.next() < 0.35 || !take(px, pz, 1.2, 4.8)) continue;
         const s = rng.range(0.8, 1.0);
         k.put('fir', firGeo, { x: px, z: pz, ry: rng.range(0, 6.28), sx: s, sy: s * rng.range(0.9, 1.1), tint: rng.range(0.92, 1.04) });
       }

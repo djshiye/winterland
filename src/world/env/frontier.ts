@@ -656,9 +656,10 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
     return placed.every((p) => Math.hypot(p.x - x, p.z - z) > p.r + rad);
   };
   const byRole: Record<PropRole, Placement[]> = { tall: [], mid: [], low: [] };
-  // tall: a row down the west strip (the camera looks toward -X/-Z, so they hide nothing there)
+  // tall: a row down the west strip (the camera looks toward -X/-Z, so they hide nothing there); an era module
+  // (world/env/eraGround.ts) with its own wild dressing places its props itself
   const zStep = n === 6 ? 7.5 : 5.5;
-  for (let z = r.minZ + 2; z < r.maxZ - 1.5 && byRole.tall.length < 6; z += zStep) {
+  for (let z = r.minZ + 2; !mod?.wild && z < r.maxZ - 1.5 && byRole.tall.length < 6; z += zStep) {
     const x = r.minX + 2.0 + (n === 6 ? 0 : rng.range(-0.3, 0.5));
     if (!spot(x, z, PROP_RADIUS.tall)) continue;
     placed.push({ x, z, r: PROP_RADIUS.tall });
@@ -666,7 +667,7 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   }
   for (const [role, base] of [['mid', 9], ['low', 16]] as const) {
     const count = Math.round(base * Math.sqrt(grow));
-    for (let t = 0; t < 400 * grow && byRole[role].length < count; t++) {
+    for (let t = 0; !mod?.wild && t < 400 * grow && byRole[role].length < count; t++) {
       const x = rng.range(r.minX + 1, r.maxX - 1);
       const z = rng.range(r.minZ + 1, r.maxZ - 1);
       const s = rng.range(0.85, 1.15);
@@ -676,7 +677,6 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
     }
   }
   for (const role of PROP_ROLES) {
-    if (mod?.wild) break; // the module dresses the region itself
     if (byRole[role].length) group.add(instanced(eraPropGeometry(n, role), vcMat(), byRole[role], { cast: role !== 'low', receive: true }));
   }
   if (n === 6 && !mod?.wild) {
