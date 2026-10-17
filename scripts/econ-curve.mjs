@@ -4,6 +4,13 @@
  * source counted (era 1 still running, every era's sales, cash machines, crews, the city, contracts; quest rewards are
  * one-off and switched off) and a perfectly diligent player who banks every cash pile every 8 simulated seconds.
  *
+ * 0.9.10: contracts are averaged in rather than played. The board's own offers are random and arrive every 150-260 s,
+ * so a 184 s stretch would catch zero or one of them; instead the board is paused and each sample adds the long-run
+ * contract income of a player who takes every offer: for each good the era's built machines make and each count the
+ * board can ask, the bonus (core/Contracts.ts eraBonus on the measured sales rate) if that many sell within the time
+ * limit at the measured rate, over the mean gap plus the time it takes (renewal reward). `sales` is the sale-event
+ * part of perSec alone (what scripts that count only 'sale' events see).
+ *
  *   node scripts/econ-curve.mjs [--eras 2,3,...,10] [--out tests/fixtures/econ-curve.json] [--jobs 2]
  *   npm run econ-curve                 (eras 2..10, two pages at a time)
  *   npm run econ-curve -- --eras 4     (one era only; other eras already in the output file are kept)
@@ -37,7 +44,8 @@ const NOTE =
   'Live income per second of era n at each level L of its own upgrades (crew at max(1, L)), every income source ' +
   'counted, for a perfectly diligent player who banks every cash pile every 8 sim-s. Earlier eras are built out at ' +
   'Lv 10, settlement 5(n-1), all quests done, era n slots built; 64 s warm-up, then 184 s measured. src splits perSec ' +
-  'by source. Read by tests/livePacing.test.ts. Regenerate with: npm run econ-curve';
+  'by source; src.contracts is the averaged income of taking every contract; sales is the sale-event part alone. ' +
+  'Read by tests/livePacing.test.ts. Regenerate with: npm run econ-curve';
 
 const server = await createServer({ root: process.cwd(), logLevel: 'error', server: { port: 0, host: '127.0.0.1', hmr: false } });
 await server.listen();
@@ -67,7 +75,8 @@ const measure = async (n) => {
       const { contentMachines } = await import('/src/eras/template.ts');
       const { REGION_SLOTS, DISTRICT_LOTS } = await import('/src/core/types.ts');
       const { introEra } = await import('/src/core/ladder.ts');
-      const { UPGRADES } = await import('/src/config.ts');
+      const { UPGRADES, CONTRACTS } = await import('/src/config.ts');
+      const { eraOffers, eraBonus } = await import('/src/core/Contracts.ts');
       const { QUEST_DEFS, questEra } = await import('/src/core/quests.ts');
       const { CashPile } = await import('/src/stations/CashPile.ts');
       // remember every cash pile that ever pays out, so the diligent player can bank them all
@@ -118,7 +127,38 @@ const measure = async (n) => {
           }
         }
       };
-      window.__ec = { bank, own, src, QUEST_DEFS };
+      // contracts are averaged, not played: pause the board (and drop any offer it made while the era was set up)
+      ctx.contracts.update = () => {};
+      Object.assign(ctx.state.contract, { kind: '', target: 0, progress: 0, left: 0, bonus: 0 });
+      const sales = { amount: 0, units: {} };
+      ctx.events.on('sale', (x) => {
+        if (x.buyer === 'jack') return; // the swap cart is not a delivery (Contracts ignores it too)
+        sales.amount += x.amount;
+        sales.units[x.kind] = (sales.units[x.kind] || 0) + x.count;
+      });
+      /** Long-run contract income ($/s) of a player who takes every offer, at the sales measured over `secs`. */
+      const contractRate = (secs) => {
+        const offers = eraOffers(ctx.state, n);
+        if (offers.length === 0) return 0;
+        const rate = sales.amount / secs;
+        const [lo, hi] = CONTRACTS.era.count;
+        const gap = (CONTRACTS.every[0] + CONTRACTS.every[1]) / 2;
+        let bonus = 0, time = 0;
+        for (const o of offers) {
+          const perSec = (sales.units[o.kind] || 0) / secs;
+          // the board's count: round((lo + U·(hi − lo)) / 5) · 5 for U uniform on [0, 1)
+          for (let i = 0; i < 200; i++) {
+            const count = Math.round((lo + ((i + 0.5) / 200) * (hi - lo)) / 5) * 5;
+            const need = perSec > 0 ? count / perSec : Infinity;
+            if (need <= CONTRACTS.seconds) {
+              bonus += eraBonus(rate, count, o.value);
+              time += gap + need;
+            } else time += gap + CONTRACTS.seconds;
+          }
+        }
+        return bonus / time;
+      };
+      window.__ec = { bank, own, src, QUEST_DEFS, sales, contractRate };
     }, { n });
     const samples = await page.evaluate((levels) => {
       const W = window.__WINTERLAND__, ctx = W.ctx, e = window.__ec;
@@ -130,12 +170,17 @@ const measure = async (n) => {
         ctx.events.emit('village:changed', { population: ctx.state.village.population, level: ctx.state.village.level });
         for (let i = 0; i < 8; i++) { W.game.simulate(8); e.bank(); }
         for (const k of Object.keys(e.src)) delete e.src[k];
+        e.sales.amount = 0;
+        for (const k of Object.keys(e.sales.units)) delete e.sales.units[k];
         for (let i = 0; i < 23; i++) { W.game.simulate(8); e.bank(); }
         const secs = 23 * 8;
+        const src = Object.fromEntries(Object.entries(e.src).map(([k, v]) => [k, Math.round(v / secs)]));
+        src.contracts = Math.round(e.contractRate(secs));
         out.push({
           L,
-          perSec: Math.round(Object.values(e.src).reduce((a, b) => a + b, 0) / secs),
-          src: Object.fromEntries(Object.entries(e.src).map(([k, v]) => [k, Math.round(v / secs)])),
+          perSec: Math.round(Object.values(e.src).reduce((a, b) => a + b, 0) / secs) + src.contracts,
+          sales: Math.round(e.sales.amount / secs),
+          src,
         });
       }
       return out;

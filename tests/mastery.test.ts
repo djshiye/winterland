@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { CLIMB, ECONOMY, GATE, QUARTERS, SETTLEMENT, UPGRADES, VILLAGE } from '../src/config';
+import { CLIMB, ECONOMY, QUARTERS, SETTLEMENT, UPGRADES, VILLAGE } from '../src/config';
 import { climbMult, founderScarf, masteryOf, renownAt, renownMult, salePrice } from '../src/core/demand';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
@@ -140,8 +140,7 @@ describe('caps', () => {
     expect(valueAt(d, maxStored(d, true))).toBe(0.9);
   });
 
-  it('offset mode: the Broker stops at 10 (a 0.5 % spread); bonds read it at most up to its authored top', () => {
-    GATE.mode = 'offset';
+  it('the Broker ladder stops at ×10; in play it reads at most its Lv 10 (authored top), so bonds and the spread stop there', () => {
     const d = UPGRADES.broker;
     for (let s = 0; s <= maxStored(d, true); s++) expect(valueAt(d, s)).toBeLessThanOrEqual(10);
     expect(valueAt(d, maxStored(d, true))).toBe(10);
@@ -154,9 +153,7 @@ describe('caps', () => {
     const spreadTop = market.spread();
     s.upgrades.broker = maxStored(d, true);
     expect(market.bondPayout()).toBe(top);
-    expect(market.spread()).toBeCloseTo(MARKET.spread / 10, 12);
-    expect(market.spread()).toBeLessThan(spreadTop);
-    GATE.mode = 'literal';
+    expect(market.spread()).toBe(spreadTop); // Upgrades.level clamps a stored level above Lv 10 (the sale cap)
   });
 });
 

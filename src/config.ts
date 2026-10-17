@@ -1312,12 +1312,12 @@ export const CLIMB = {
 } as const;
 
 /**
- * The era gate's level convention (docs/EXPANSION.md R4). 'offset': an upgrade introduced in era e shows
- * stored + 10 · (e − 1), so every era asks +10 levels of everything; 'literal': shown = stored for every id.
- * 0.9.5 (Dino): 'literal'. Every era's own upgrades go Lv 1 → 10 and stop there; era n + 1 opens once era n's own
- * upgrades are all at Lv 10 (eras/gate.ts). Prices still climb era by era (core/ladder.ts priceBase).
+ * The era gate's level convention (docs/EXPANSION.md R4), 0.9.5 (Dino): 'literal', shown = stored for every id. Every
+ * era's own upgrades go Lv 1 → 10 and stop there; era n + 1 opens once era n's own upgrades are all at Lv 10
+ * (eras/gate.ts). Prices still climb era by era (core/ladder.ts priceBase). 0.9.10 (READINESS B5): the 0.9.0-0.9.4
+ * 'offset' rule (era e's ids showed stored + 10 · (e − 1)) is deleted; 'literal' is the only mode.
  */
-export const GATE: { mode: 'offset' | 'literal' } = { mode: 'literal' };
+export const GATE = { mode: 'literal' } as const;
 
 /**
  * Settlement levels 6..50 (docs/EXPANSION.md §B; the pure rules are in core/demand.ts). Levels 0..5 stay the village
@@ -1580,6 +1580,12 @@ export const PRIORITIES = {
   weight: 1.5,
   /** The foreman keeps this share of the wallet (and at least `reserveMin`) untouched. */
   reserveShare: 0.2,
+  /**
+   * 0.9.10: the era 2-10 foremen (npc/EraWorker.ts) keep this share instead. At 0.2 they drained the wallet to a fifth
+   * within a minute of a big choice, so the player's own next upgrade waited on the builders; at 0.4 most of the
+   * wallet stays the player's while a building still gets paid. Survival's foreman keeps reserveShare (era 1 frozen).
+   */
+  eraReserveShare: 0.4,
   reserveMin: 500,
   /** Cash per foreman payment chunk and seconds between chunks at work multiplier 1. */
   payChunk: 250,

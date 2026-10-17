@@ -22,48 +22,29 @@ describe('ladder: frozen prefix', () => {
 });
 
 describe('ladder: levels', () => {
-  it('28 era-1 ids (22 Survival + jack + the five 0.9.2 docks) sit at offset 0; era-n ids at 10 · (n − 1) in offset mode', () => {
+  it('28 era-1 ids (22 Survival + jack + the five 0.9.2 docks) sit at offset 0, and so does every other id', () => {
     expect(ERA1).toHaveLength(28);
     expect(ERA1.map((d) => d.id)).toContain('jack');
-    for (const d of ERA1) expect(base(d, 'offset')).toBe(0);
-    expect(base(UPGRADES.taxOffice, 'offset')).toBe(10);
-    expect(base(UPGRADES.broker, 'offset')).toBe(10);
-    expect(base(UPGRADES.frontierCrew, 'offset')).toBe(10);
-    expect(base(UPGRADES.ironRigs, 'offset')).toBe(20);
-    expect(base(UPGRADES.aiRigs, 'offset')).toBe(90);
-    expect(shown(UPGRADES.ironRigs, 3, 'offset')).toBe(23);
+    for (const d of DEFS) expect(base(d)).toBe(0);
+    expect(shown(UPGRADES.ironRigs, 3)).toBe(3);
   });
 
-  it('the climb runs every id to shown level 100 (offset mode)', () => {
-    for (const d of DEFS) {
-      expect(maxStored(d, true, 'offset')).toBe(LEGACY_LEVEL_CAP - base(d, 'offset'));
-      expect(shown(d, maxStored(d, true, 'offset'), 'offset')).toBe(LEGACY_LEVEL_CAP);
-    }
-  });
-
-  it("'literal' mode (the 0.9.5 default) drops every offset", () => {
+  it("the 'literal' gate (the only mode) has no offset: the climb runs every id to stored level 100", () => {
     expect(GATE.mode).toBe('literal');
     for (const d of DEFS) {
-      expect(base(d, 'literal')).toBe(0);
-      expect(maxStored(d, true, 'literal')).toBe(LEGACY_LEVEL_CAP);
+      expect(base(d)).toBe(0);
+      expect(maxStored(d, true)).toBe(LEGACY_LEVEL_CAP);
+      expect(shown(d, maxStored(d, true))).toBe(LEGACY_LEVEL_CAP);
     }
   });
 
-  it('prices follow the era, not the display mode; caps follow GATE.mode (the cap cache is per mode)', () => {
+  it('prices follow the era; hard caps are reachable below 100', () => {
     const rigs = UPGRADES.frontierRigs;
-    // era 2's first step is band 2's price in either mode (Dino 0.9.5: the economy scales era by era)
+    // era 2's first step is band 2's price (Dino 0.9.5: the economy scales era by era)
     expect(costAt(rigs, 0)).toBe(price3((0.9 * CLIMB.unit * (CLIMB.bandTilt[2] ?? 1))));
-    expect(hardCapStored(rigs)).toBe(34); // literal: 3.6 + 0.1 · 24 = 6 at stored 34 (0.9.6: Lv 10 authored)
-    expect(hardCapStored(UPGRADES.aiRigs)).toBe(34); // literal: reachable below 100
+    expect(hardCapStored(rigs)).toBe(34); // 3.6 + 0.1 · 24 = 6 at stored 34 (0.9.6: Lv 10 authored)
+    expect(hardCapStored(UPGRADES.aiRigs)).toBe(34); // reachable below 100
     for (const d of ERA1) expect(costAt(d, 0)).toBe(d.costs[0]);
-    GATE.mode = 'offset';
-    try {
-      expect(costAt(rigs, 0)).toBe(price3((0.9 * CLIMB.unit * (CLIMB.bandTilt[2] ?? 1))));
-      expect(hardCapStored(rigs)).toBe(34);
-      expect(hardCapStored(UPGRADES.aiRigs)).toBeNull(); // offset: base 90 leaves only 10 levels
-    } finally {
-      GATE.mode = 'literal';
-    }
   });
 });
 
