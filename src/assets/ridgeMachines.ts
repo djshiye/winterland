@@ -20,6 +20,10 @@ import { COLORS, LAYOUT, PALETTE, UPGRADES, type XZ } from '../config';
 import { Batch } from '../render/batch';
 import { geo, mesh, toonUnique } from '../render/materials';
 import { createLevelBadge, createSawBlade, type LevelBadge } from './machines';
+import { MACHINE_SHADES } from '../render/palette';
+
+/** 0.9.8: era 1 machine shades (timber and red lacquer instead of the ad's royal blue). */
+const T1 = MACHINE_SHADES[1];
 
 const box = (b: Batch, color: number, w: number, h: number, d: number, x: number, y: number, z: number, o?: { ry?: number; rx?: number; rz?: number }): void => {
   b.add(geo.box(1, 1, 1), color, x, y, z, { sx: w, sy: h, sz: d, ...o });
@@ -66,38 +70,38 @@ export function createTreeFeller(): TreeFellerModel {
   const c = new Batch();
   for (const sx of [-1, 1]) {
     const x = sx * 0.84;
-    box(c, PALETTE.rubber, 0.5, 0.46, 2.7, x, 0.3, -0.05);
-    box(c, PALETTE.metalDark, 0.34, 0.1, 2.5, x, 0.58, -0.05);
+    box(c, T1.timberD, 0.5, 0.46, 2.7, x, 0.3, -0.05);
+    box(c, T1.iron, 0.34, 0.1, 2.5, x, 0.58, -0.05);
     // sprocket + idler wheels with yellow hubs
     for (const z of [-1.25, 1.15]) {
-      cylX(c, PALETTE.metalDark, 0.27, 0.54, x, 0.3, z, 12);
+      cylX(c, T1.iron, 0.27, 0.54, x, 0.3, z, 12);
       cylX(c, PALETTE.accent, 0.12, 0.58, x, 0.3, z, 8);
     }
     // cleats
     for (let i = 0; i < 9; i++) box(c, COLORS.MACHINE_STEEL, 0.54, 0.05, 0.1, x, 0.04, -1.3 + i * 0.3);
-    box(c, PALETTE.metalDark, 0.4, 0.14, 2.9, x, 0.14, -0.05);
+    box(c, T1.iron, 0.4, 0.14, 2.9, x, 0.14, -0.05);
   }
   // frame + deck
-  box(c, PALETTE.metalDark, 1.8, 0.24, 2.9, 0, 0.55, -0.05);
+  box(c, T1.iron, 1.8, 0.24, 2.9, 0, 0.55, -0.05);
   box(c, PALETTE.accent, 1.5, 0.3, 2.8, 0, 0.78, -0.05);
-  box(c, PALETTE.rubber, 1.52, 0.06, 2.82, 0, 0.64, -0.05);
+  box(c, T1.timberD, 1.52, 0.06, 2.82, 0, 0.64, -0.05);
   // cab (front-left), dark windows
   box(c, PALETTE.accent, 0.85, 0.9, 1.0, -0.42, 1.38, 0.1);
-  box(c, PALETTE.metalDark, 0.95, 0.08, 1.1, -0.42, 1.86, 0.1);
-  box(c, PALETTE.rubber, 0.7, 0.42, 0.04, -0.42, 1.5, 0.62);
-  box(c, PALETTE.rubber, 0.04, 0.42, 0.7, -0.86, 1.5, 0.1);
-  box(c, PALETTE.rubber, 0.04, 0.42, 0.7, 0.01, 1.5, 0.1);
+  box(c, T1.iron, 0.95, 0.08, 1.1, -0.42, 1.86, 0.1);
+  box(c, T1.timberD, 0.7, 0.42, 0.04, -0.42, 1.5, 0.62);
+  box(c, T1.timberD, 0.04, 0.42, 0.7, -0.86, 1.5, 0.1);
+  box(c, T1.timberD, 0.04, 0.42, 0.7, 0.01, 1.5, 0.1);
   // engine hood + exhaust behind the cab
   box(c, PALETTE.accent, 1.2, 0.52, 0.7, 0, 1.2, -0.62);
-  box(c, PALETTE.rubber, 1.0, 0.05, 0.5, 0, 1.48, -0.62);
+  box(c, T1.timberD, 1.0, 0.05, 0.5, 0, 1.48, -0.62);
   cylY(c, COLORS.MACHINE_STEEL, 0.07, 0.6, 0.45, 1.75, -0.55, 8);
   // hazard stripes along the deck edge
-  for (let i = 0; i < 8; i++) box(c, i % 2 ? PALETTE.rubber : COLORS.SAW_GLOW, 0.03, 0.2, 0.22, 0.76, 0.78, -1.15 + i * 0.32);
+  for (let i = 0; i < 8; i++) box(c, i % 2 ? T1.timberD : COLORS.SAW_GLOW, 0.03, 0.2, 0.22, 0.76, 0.78, -1.15 + i * 0.32);
   // log rack at the rear: floor, four stakes
   box(c, PALETTE.fenceDark, 1.5, 0.08, 1.0, 0, 0.88, -1.0);
-  for (const sx of [-1, 1]) for (const sz of [-1.44, -0.56]) box(c, PALETTE.metalDark, 0.08, 0.7, 0.08, sx * 0.72, 1.2, sz);
+  for (const sx of [-1, 1]) for (const sz of [-1.44, -0.56]) box(c, T1.iron, 0.08, 0.7, 0.08, sx * 0.72, 1.2, sz);
   // turret ring (static base)
-  cylY(c, PALETTE.metalDark, 0.42, 0.16, 0, 1.0, SHOULDER.z, 14);
+  cylY(c, T1.iron, 0.42, 0.16, 0, 1.0, SHOULDER.z, 14);
   const chassis = c.mesh();
   root.add(chassis);
 
@@ -116,7 +120,7 @@ export function createTreeFeller(): TreeFellerModel {
   root.add(turret);
   const tb = new Batch();
   box(tb, PALETTE.accent, 0.6, 0.34, 0.6, 0, -0.1, -0.05);
-  cylY(tb, PALETTE.metalDark, 0.34, 0.1, 0, -0.26, 0, 12);
+  cylY(tb, T1.iron, 0.34, 0.1, 0, -0.26, 0, 12);
   cylX(tb, COLORS.MACHINE_STEEL, 0.17, 0.4, 0, 0, 0, 12);
   turret.add(tb.mesh());
 
@@ -138,7 +142,7 @@ export function createTreeFeller(): TreeFellerModel {
   const head = new THREE.Group();
   head.position.set(0, 0, FL_FORE);
   const hb = new Batch();
-  box(hb, PALETTE.metalDark, 0.36, 0.36, 0.34, 0, 0, 0);
+  box(hb, T1.iron, 0.36, 0.36, 0.34, 0, 0, 0);
   box(hb, PALETTE.accent, 0.5, 0.14, 0.5, 0, -0.16, 0.05);
   head.add(hb.mesh());
   const bladePivot = new THREE.Group();
@@ -299,7 +303,7 @@ export function createWorkshop(): WorkshopModel {
   // chair plaque on the header: dark board with a yellow chair icon
   const PZ = FRONT_POST_Z + 0.15;
   const PY = underside(FRONT_POST_Z) - 0.14;
-  box(b, PALETTE.rubber, 0.62, 0.24, 0.04, 0, PY, PZ);
+  box(b, T1.timberD, 0.62, 0.24, 0.04, 0, PY, PZ);
   box(b, COLORS.COURIER_YELLOW, 0.03, 0.17, 0.02, -0.07, PY + 0.01, PZ + 0.03);
   box(b, COLORS.COURIER_YELLOW, 0.03, 0.17, 0.02, 0.07, PY + 0.01, PZ + 0.03);
   box(b, COLORS.COURIER_YELLOW, 0.17, 0.035, 0.02, 0, PY + 0.07, PZ + 0.03);
@@ -338,8 +342,8 @@ export function createWorkshop(): WorkshopModel {
   // steel rails on the table edge to guide the logs
   for (const s of [-1, 1]) box(b, COLORS.MACHINE_STEEL, W.w - 0.3, 0.04, 0.035, 0, TABLE + 0.02, s * 0.3);
   // motor housing behind the blade + belt guard
-  box(b, COLORS.MACHINE_BLUE, 0.62, 0.52, 0.3, 0, TABLE + 0.2, -0.31);
-  box(b, PALETTE.machineDark, 0.7, 0.07, 0.36, 0, TABLE + 0.48, -0.31);
+  box(b, T1.lacquer, 0.62, 0.52, 0.3, 0, TABLE + 0.2, -0.31);
+  box(b, T1.lacquerD, 0.7, 0.07, 0.36, 0, TABLE + 0.48, -0.31);
   box(b, COLORS.MACHINE_STEEL, 0.34, 0.08, 0.02, 0, TABLE + 0.24, -0.15);
   for (let i = 0; i < 3; i++) box(b, COLORS.COURIER_YELLOW, 0.5, 0.045, 0.01, 0, TABLE + 0.32 + i * 0.1, -0.155);
   // blade guard arching over the back of the disc
@@ -348,12 +352,12 @@ export function createWorkshop(): WorkshopModel {
   // --- hanging lantern on the front-left post ---
   const LX = -HW + 0.28;
   const LY = underside(FRONT_POST_Z) - 0.5;
-  box(b, PALETTE.rubber, 0.03, 0.34, 0.03, LX, LY + 0.3, FRONT_POST_Z + 0.2);
-  box(b, PALETTE.rubber, 0.2, 0.05, 0.2, LX, LY + 0.13, FRONT_POST_Z + 0.4);
+  box(b, T1.timberD, 0.03, 0.34, 0.03, LX, LY + 0.3, FRONT_POST_Z + 0.2);
+  box(b, T1.timberD, 0.2, 0.05, 0.2, LX, LY + 0.13, FRONT_POST_Z + 0.4);
   box(b, COLORS.SAW_GLOW, 0.15, 0.2, 0.15, LX, LY, FRONT_POST_Z + 0.4);
-  box(b, PALETTE.rubber, 0.2, 0.05, 0.2, LX, LY - 0.12, FRONT_POST_Z + 0.4);
-  box(b, PALETTE.rubber, 0.03, 0.34, 0.03, LX, LY + 0.3, FRONT_POST_Z + 0.4);
-  box(b, PALETTE.rubber, 0.03, 0.03, 0.2, LX, LY + 0.47, FRONT_POST_Z + 0.3);
+  box(b, T1.timberD, 0.2, 0.05, 0.2, LX, LY - 0.12, FRONT_POST_Z + 0.4);
+  box(b, T1.timberD, 0.03, 0.34, 0.03, LX, LY + 0.3, FRONT_POST_Z + 0.4);
+  box(b, T1.timberD, 0.03, 0.03, 0.2, LX, LY + 0.47, FRONT_POST_Z + 0.3);
 
   // --- hopper trough on the west side (logs lie along X, pile base plane at WORKSHOP_HOPPER_Y) ---
   const hx = W.hopper.x - W.x;
@@ -439,21 +443,21 @@ export function createCashTower(portHeights: readonly number[]): CashTowerModel 
   const root = new THREE.Group();
   const b = new Batch();
   // control cabinet
-  box(b, PALETTE.machineDark, 1.2, 0.18, 1.0, 0, 0.09, 0);
-  box(b, COLORS.MACHINE_BLUE, 1.0, 1.15, 0.8, 0, 0.75, 0);
-  box(b, PALETTE.metalDark, 1.08, 0.08, 0.88, 0, 1.36, 0);
-  box(b, PALETTE.rubber, 0.5, 0.5, 0.04, -0.2, 0.7, 0.4);
+  box(b, T1.lacquerD, 1.2, 0.18, 1.0, 0, 0.09, 0);
+  box(b, T1.lacquer, 1.0, 1.15, 0.8, 0, 0.75, 0);
+  box(b, T1.iron, 1.08, 0.08, 0.88, 0, 1.36, 0);
+  box(b, T1.timberD, 0.5, 0.5, 0.04, -0.2, 0.7, 0.4);
   // column
   cylY(b, COLORS.MACHINE_STEEL, 0.3, TOWER_HEIGHT - 1.3, 0, 1.4 + (TOWER_HEIGHT - 1.3) / 2, 0, 14);
-  cylY(b, PALETTE.metalDark, 0.4, 0.16, 0, 1.46, 0, 14);
+  cylY(b, T1.iron, 0.4, 0.16, 0, 1.46, 0, 14);
   // collars at every port height
   for (const h of portHeights) {
     cylY(b, COLORS.COURIER_YELLOW, 0.4, 0.14, 0, h, 0, 14);
-    cylY(b, PALETTE.metalDark, 0.36, 0.06, 0, h - 0.1, 0, 14);
+    cylY(b, T1.iron, 0.36, 0.06, 0, h - 0.1, 0, 14);
   }
   // cap
-  cylY(b, PALETTE.metalDark, 0.42, 0.14, 0, TOWER_HEIGHT - 0.05, 0, 14);
-  b.add(geo.cone(0.34, 0.4, 12), COLORS.MACHINE_BLUE, 0, TOWER_HEIGHT + 0.22, 0);
+  cylY(b, T1.iron, 0.42, 0.14, 0, TOWER_HEIGHT - 0.05, 0, 14);
+  b.add(geo.cone(0.34, 0.4, 12), T1.lacquer, 0, TOWER_HEIGHT + 0.22, 0);
   root.add(b.mesh());
   const lampMaterial = toonUnique(COLORS.SAW_GLOW, { emissive: COLORS.SAW_GLOW, emissiveIntensity: 0.4 });
   const lamp = mesh(geo.sphere(0.2, 10, 8), lampMaterial, { cast: false });
@@ -508,12 +512,12 @@ export function createLoaderExtras(start: XZ, startDir: XZ, end: XZ, endDir: XZ,
   };
   // start: side boards that funnel logs onto the belt + a lamp-post style marker
   for (const s of [-1, 1]) {
-    place(start, startDir, 0.35, s * (half + 0.04), 0.82, 0.08, 0.42, 1.1, COLORS.MACHINE_BLUE);
-    place(start, startDir, -0.05, s * (half + 0.2), 0.6, 0.08, 0.1, 0.5, PALETTE.metalDark);
+    place(start, startDir, 0.35, s * (half + 0.04), 0.82, 0.08, 0.42, 1.1, T1.lacquer);
+    place(start, startDir, -0.05, s * (half + 0.2), 0.6, 0.08, 0.1, 0.5, T1.iron);
   }
   place(start, startDir, -0.3, 0, 0.62, width + 0.5, 0.08, 0.08, COLORS.COURIER_YELLOW);
   // end: buffer bar + yellow frame the logs hop over
-  place(end, endDir, 0.12, 0, 0.78, width + 0.3, 0.1, 0.1, PALETTE.rubber);
+  place(end, endDir, 0.12, 0, 0.78, width + 0.3, 0.1, 0.1, T1.timberD);
   for (const s of [-1, 1]) place(end, endDir, 0.12, s * (half + 0.02), 0.74, 0.1, 0.6, 0.1, COLORS.COURIER_YELLOW);
   const m = b.mesh();
   root.add(m);
