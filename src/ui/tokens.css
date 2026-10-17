@@ -1,0 +1,179 @@
+/* [0.9.8 — brief 14] The interface token set. Every HUD card, button, chip, bar and label colour comes from here.
+   ui/theme.ts writes the palette module's few UI base colours to <html> as --wl-<name>-c (render/palette.ts UI_TONES:
+   ink, cream, gold, pine, snow, night, leaf, berry, sky, rose); everything below is mixed from them, so the day cards,
+   the night variant, the era ribbons and the colour-blind palette are class or custom-property swaps, never copies.
+
+   --wl-n (0 = day, 1 = night) is eased on simulation time by ui/theme.ts NightTone. --wl-era / --wl-era-ink are the
+   current era's accent and the text colour that reads on it (any card can set its own). */
+
+.wl-hud {
+  --wl-n: 0;
+  --wl-np: calc(var(--wl-n) * 100%);
+
+  /* ---- surfaces ---- */
+  /* the card: warm cream by day, plum ink at night */
+  --wl-card: color-mix(in oklab, var(--wl-cream-c), var(--wl-night-c) var(--wl-np));
+  /* the top of a card's gentle gradient */
+  --wl-card-hi: color-mix(in oklab, color-mix(in oklab, var(--wl-cream-c), #fff 55%), color-mix(in oklab, var(--wl-night-c), var(--wl-cream-c) 9%) var(--wl-np));
+  /* rows and list items sitting on a card: paper by day, a lifted plum at night */
+  --wl-row: color-mix(in oklab, color-mix(in oklab, var(--wl-cream-c), #fff 70%), color-mix(in oklab, var(--wl-night-c), var(--wl-cream-c) 11%) var(--wl-np));
+  /* a pressed-in well: bar tracks, quiet rows, off switches */
+  --wl-well: color-mix(in oklab, color-mix(in oklab, var(--wl-cream-c), var(--wl-ink-c) 11%), color-mix(in oklab, var(--wl-night-c), #000 28%) var(--wl-np));
+  /* the card's honey-biscuit rim */
+  --wl-rim: color-mix(in oklab, color-mix(in oklab, var(--wl-cream-c), var(--wl-gold-c) 34%), color-mix(in oklab, var(--wl-night-c), var(--wl-gold-c) 30%) var(--wl-np));
+  /* thin lines between rows */
+  --wl-line: color-mix(in oklab, color-mix(in oklab, var(--wl-cream-c), var(--wl-ink-c) 14%), color-mix(in oklab, var(--wl-night-c), var(--wl-cream-c) 18%) var(--wl-np));
+
+  /* ---- text ---- */
+  --wl-ink: color-mix(in oklab, var(--wl-ink-c), var(--wl-cream-c) var(--wl-np));
+  --wl-ink-soft: color-mix(in oklab, color-mix(in oklab, var(--wl-ink-c), var(--wl-cream-c) 38%), color-mix(in oklab, var(--wl-cream-c), var(--wl-night-c) 30%) var(--wl-np));
+  --wl-ink-faint: color-mix(in oklab, color-mix(in oklab, var(--wl-ink-c), var(--wl-cream-c) 58%), color-mix(in oklab, var(--wl-cream-c), var(--wl-night-c) 50%) var(--wl-np));
+  /* the outline of chunky text drawn straight over the world (toasts, floating "+$12") */
+  --wl-outline: var(--wl-ink-c);
+
+  /* ---- shadows ---- */
+  --wl-shade: color-mix(in srgb, color-mix(in oklab, var(--wl-ink-c), #000 calc(var(--wl-n) * 60%)) calc(30% + var(--wl-n) * 20%), transparent);
+  --wl-shade-soft: color-mix(in srgb, color-mix(in oklab, var(--wl-ink-c), #000 calc(var(--wl-n) * 60%)) calc(18% + var(--wl-n) * 16%), transparent);
+  --wl-drop: 0 4px 0 var(--wl-shade), 0 8px 18px var(--wl-shade-soft);
+  --wl-drop-big: 0 6px 0 var(--wl-shade), 0 14px 32px var(--wl-shade-soft);
+  --wl-gloss: inset 0 2px 0 color-mix(in srgb, #fff calc(70% - var(--wl-n) * 58%), transparent);
+
+  /* ---- actions ---- */
+  --wl-gold: var(--wl-gold-c);
+  --wl-gold-hi: color-mix(in oklab, var(--wl-gold-c), #fff 32%);
+  --wl-gold-lo: color-mix(in oklab, var(--wl-gold-c), var(--wl-ink-c) 20%);
+  --wl-gold-ink: var(--wl-ink-c);
+  --wl-pine: var(--wl-pine-c);
+  --wl-pine-hi: color-mix(in oklab, var(--wl-pine-c), #fff 22%);
+  --wl-pine-ink: var(--wl-cream-c);
+  /* gold as text on a card (era numbers, "max", stars): a honey brown by day, bright gold at night */
+  --wl-gold-text: color-mix(in oklab, color-mix(in oklab, var(--wl-gold-c), var(--wl-ink-c) 45%), var(--wl-gold-hi) var(--wl-np));
+  --wl-good: var(--wl-leaf-c);
+  --wl-good-hi: color-mix(in oklab, var(--wl-leaf-c), #fff 30%);
+  /* good-news numbers on a card (income, offline earnings): deeper by day, brighter at night */
+  --wl-good-text: color-mix(in oklab, color-mix(in oklab, var(--wl-leaf-c), var(--wl-ink-c) 30%), color-mix(in oklab, var(--wl-leaf-c), #fff 35%) var(--wl-np));
+  --wl-bad: var(--wl-berry-c);
+  --wl-bad-hi: color-mix(in oklab, var(--wl-berry-c), #fff 28%);
+  --wl-bad-text: color-mix(in oklab, color-mix(in oklab, var(--wl-berry-c), var(--wl-ink-c) 20%), color-mix(in oklab, var(--wl-berry-c), #fff 40%) var(--wl-np));
+  --wl-info: var(--wl-sky-c);
+  --wl-info-hi: color-mix(in oklab, var(--wl-sky-c), #fff 40%);
+  --wl-info-text: color-mix(in oklab, color-mix(in oklab, var(--wl-sky-c), var(--wl-ink-c) 30%), color-mix(in oklab, var(--wl-sky-c), #fff 45%) var(--wl-np));
+  --wl-rose: var(--wl-rose-c);
+  --wl-cream: var(--wl-cream-c);
+  /* a resting (can't afford / locked) button: a quiet biscuit */
+  --wl-idle: color-mix(in oklab, color-mix(in oklab, var(--wl-cream-c), var(--wl-ink-c) 20%), color-mix(in oklab, var(--wl-night-c), var(--wl-cream-c) 22%) var(--wl-np));
+  --wl-idle-ink: color-mix(in oklab, color-mix(in oklab, var(--wl-ink-c), var(--wl-cream-c) 25%), var(--wl-cream-c) var(--wl-np));
+
+  /* the keyboard / gamepad focus ring: gold with an ink halo, so it reads on cream, on night and on the world */
+  --wl-focus: color-mix(in oklab, color-mix(in oklab, var(--wl-gold-c), var(--wl-ink-c) 32%), var(--wl-gold-hi) var(--wl-np));
+}
+
+/* the colour-blind friendly palette (fx/comfort.ts puts wl-cb on <html>): go / good / on becomes the Okabe-Ito sky
+   blue and danger a deep orange, so the pairs never rely on red versus green */
+.wl-cb .wl-hud {
+  --wl-good: var(--wl-cbgood-c);
+  --wl-good-hi: color-mix(in oklab, var(--wl-cbgood-c), #fff 40%);
+  --wl-good-text: color-mix(in oklab, color-mix(in oklab, var(--wl-cbgood-c), var(--wl-ink-c) 15%), color-mix(in oklab, var(--wl-cbgood-c), #fff 50%) var(--wl-np));
+  --wl-bad: var(--wl-cbbad-c);
+  --wl-bad-hi: color-mix(in oklab, var(--wl-cbbad-c), #fff 30%);
+  --wl-bad-text: color-mix(in oklab, var(--wl-cbbad-c), color-mix(in oklab, var(--wl-cbbad-c), #fff 50%) var(--wl-np));
+}
+
+/* ======================================================================================================
+   Shared looks built on the tokens: the card, the pill, buttons, the era ribbon.
+   ====================================================================================================== */
+
+/* a cream card with a honey rim; .wl-ribbon adds the era accent along its left edge */
+.wl-hud .wl-ribbon {
+  position: relative;
+  border-left-width: 9px !important;
+  border-left-color: var(--wl-era) !important;
+}
+
+/* small caps "kicker" line above titles (A NEW ERA, ERA IV) */
+.wl-kicker {
+  font-size: 12px;
+  line-height: 1.1;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--wl-ink-soft);
+}
+
+/* every number in the HUD lines up (Fredoka has tabular figures) */
+.wl-hud {
+  font-variant-numeric: tabular-nums;
+}
+
+/* the gentle honey stitch used along card headers and the postcard's border */
+.wl-stitch {
+  height: 0;
+  border-top: 2px dashed color-mix(in oklab, var(--wl-rim), var(--wl-ink-c) 18%);
+  opacity: 0.8;
+}
+
+/* ---- one button material for every action button --------------------------------------------------------
+   A rounded toy key: a soft top light, a darker lip underneath, no white outline. A button picks its colour with
+   --b (face), --b-hi (top light) and --b-ink (label); the default is the primary honey gold with ink text.
+   Secondary = pine with cream text, danger = berry, resting / can't afford = biscuit. */
+.wl-hud :is(.wl-btn, .wl-shop-buy, .wl-build-go, .wl-mk-btn, .wl-gate-go, .wl-map-go, .wl-agecard-btn, .wl-manage-btn, .wl-earlier-btn) {
+  border: 0;
+  color: var(--b-ink, var(--wl-gold-ink));
+  background: linear-gradient(var(--b-hi, var(--wl-gold-hi)), var(--b, var(--wl-gold)));
+  box-shadow:
+    0 3px 0 color-mix(in oklab, var(--b, var(--wl-gold)), var(--wl-ink-c) 45%),
+    0 5px 10px var(--wl-shade-soft),
+    inset 0 2px 0 color-mix(in srgb, #fff 32%, transparent);
+  text-shadow: none;
+}
+
+.wl-hud :is(.wl-btn, .wl-shop-buy, .wl-build-go, .wl-mk-btn, .wl-gate-go, .wl-map-go, .wl-agecard-btn, .wl-manage-btn, .wl-earlier-btn):active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 0 color-mix(in oklab, var(--b, var(--wl-gold)), var(--wl-ink-c) 45%),
+    inset 0 2px 0 color-mix(in srgb, #fff 32%, transparent);
+}
+
+.wl-hud :is(.wl-btn, .wl-shop-buy, .wl-build-go, .wl-mk-btn, .wl-gate-go, .wl-map-go, .wl-agecard-btn, .wl-manage-btn, .wl-earlier-btn):disabled {
+  --b: var(--wl-idle);
+  --b-hi: var(--wl-idle);
+  --b-ink: var(--wl-idle-ink);
+  cursor: default;
+}
+
+/* colour roles */
+.wl-hud .is-b-pine {
+  --b: var(--wl-pine);
+  --b-hi: var(--wl-pine-hi);
+  --b-ink: var(--wl-pine-ink);
+}
+
+.wl-hud .is-b-danger {
+  --b: var(--wl-bad);
+  --b-hi: var(--wl-bad-hi);
+  --b-ink: var(--wl-cream-c);
+}
+
+.wl-hud .is-b-idle {
+  --b: var(--wl-idle);
+  --b-hi: var(--wl-idle);
+  --b-ink: var(--wl-idle-ink);
+}
+
+.wl-hud .is-b-sky {
+  --b: var(--wl-info);
+  --b-hi: var(--wl-info-hi);
+  --b-ink: var(--wl-cream-c);
+}
+
+/* round close buttons */
+.wl-hud :is(.wl-card-x, .wl-shop-close, .wl-build-close) {
+  border: 0;
+  padding: 8px;
+  background: var(--wl-bad);
+  box-shadow: 0 3px 0 color-mix(in oklab, var(--wl-bad), var(--wl-ink-c) 45%), inset 0 2px 0 color-mix(in srgb, #fff 30%, transparent);
+}
+
+/* round HUD buttons and pills: the same cream as the cards */
+.wl-hud :is(.wl-hudbtn, .wl-gear, .wl-mute) {
+  color: var(--wl-ink);
+}

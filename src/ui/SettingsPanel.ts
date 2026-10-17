@@ -133,7 +133,7 @@ export class SettingsPanel {
     });
 
     this.card = h('div', 'wl-card wl-settings');
-    const title = h('div', 'wl-card-title wl-outline', 'Settings');
+    const title = h('div', 'wl-card-title wl-title', 'Settings');
     const x = h('button', 'wl-card-x', ICON_CLOSE);
     x.type = 'button';
     x.setAttribute('aria-label', 'Close settings');

@@ -11,8 +11,8 @@ import { h } from './dom';
 const FADE = 0.15;
 
 const ICON_PRESS = `<svg class="wl-chip-press" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <circle cx="12" cy="12" r="10" stroke="#fff" stroke-width="1.8" opacity="0.5"/>
-  <circle cx="12" cy="12" r="5.5" fill="#fff" stroke="#fff" stroke-width="1.8"/>
+  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8" opacity="0.5"/>
+  <circle cx="12" cy="12" r="5.5" fill="currentColor" stroke="currentColor" stroke-width="1.8"/>
 </svg>`;
 
 export class InteractChip {

@@ -13,9 +13,9 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 3px solid #fff;
-  background: linear-gradient(#3f4f6e, #2a3652);
-  box-shadow: 0 4px 0 rgba(20, 30, 55, 0.5), 0 6px 14px rgba(20, 30, 55, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.18);
+  border: 3px solid var(--wl-rim);
+  background: linear-gradient(var(--wl-card-hi), var(--wl-card));
+  box-shadow: var(--wl-drop), var(--wl-gloss);
   pointer-events: auto;
   cursor: pointer;
   touch-action: manipulation;
@@ -27,7 +27,8 @@
 }
 
 .wl-hudbtn.is-on {
-  background: linear-gradient(#58b6ff, #2f86d6);
+  background: linear-gradient(var(--wl-pine-hi), var(--wl-pine));
+  color: var(--wl-pine-ink);
 }
 
 .wl-hudbtn svg {
@@ -57,10 +58,10 @@
   padding: 0 14px 0 10px;
   box-sizing: border-box;
   border-radius: 22px;
-  border: 3px solid #fff;
-  background: linear-gradient(#3f4f6e, #2a3652);
-  box-shadow: 0 4px 0 rgba(20, 30, 55, 0.5), 0 6px 14px rgba(20, 30, 55, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.18);
-  color: #fff;
+  border: 3px solid var(--wl-rim);
+  background: linear-gradient(var(--wl-card-hi), var(--wl-card));
+  box-shadow: var(--wl-drop), var(--wl-gloss);
+  color: var(--wl-ink);
   font: inherit;
   text-align: left;
   pointer-events: auto;
@@ -82,9 +83,9 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid var(--wl-rim);
   box-sizing: border-box;
-  background: #ffd84a;
+  background: var(--wl-era);
 }
 
 .wl-erachip-text {
@@ -98,16 +99,16 @@
   font-size: 13px;
   line-height: 1;
   letter-spacing: 0.1em;
-  color: #ffd84a;
+  color: var(--wl-gold-text);
   white-space: nowrap;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+  text-shadow: none;
 }
 
 .wl-erachip-city {
   font-size: 12px;
   line-height: 1;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--wl-ink-soft);
   white-space: nowrap;
 }
 
@@ -122,7 +123,7 @@
   font-size: 12px;
   line-height: 1;
   font-weight: 600;
-  color: #bfe8ff;
+  color: var(--wl-ink-soft);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -131,7 +132,7 @@
   margin-left: 6px;
   font-size: 11px;
   font-weight: 700;
-  color: #ffd84a;
+  color: var(--wl-gold-text);
   white-space: nowrap;
 }
 
@@ -163,11 +164,11 @@
 }
 
 .wl-ring-bg {
-  stroke: rgba(255, 255, 255, 0.22);
+  stroke: var(--wl-well);
 }
 
 .wl-ring-fg {
-  stroke: #5ee07a;
+  stroke: var(--wl-good);
   stroke-linecap: round;
 }
 
@@ -175,22 +176,22 @@
   max-width: 300px;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #fff;
+  color: var(--wl-ink);
 }
 
 .wl-erachip.is-ready {
-  background: linear-gradient(#ffd84a, #e8a21c);
+  background: linear-gradient(var(--wl-gold-hi), var(--wl-gold));
 }
 
 .wl-erachip.is-ready .wl-erachip-era,
 .wl-erachip.is-ready .wl-erachip-count,
 .wl-erachip.is-ready .wl-erachip-mastery {
-  color: #6b3a05;
+  color: var(--wl-gold-ink);
   text-shadow: none;
 }
 
 .wl-erachip.is-ready .wl-erachip-city {
-  color: #4a2a05;
+  color: var(--wl-gold-ink);
   font-weight: 700;
 }
 
@@ -222,7 +223,7 @@
   }
   .wl-erachip.is-gate .wl-erachip-count {
     font-size: 13px;
-    color: #fff;
+    color: var(--wl-ink);
   }
   .wl-erachip-mastery {
     display: none;
@@ -246,12 +247,12 @@
   white-space: nowrap;
   font-size: 16px;
   line-height: 1.1;
-  color: #5ee07a;
+  color: var(--wl-good-text);
   pointer-events: none;
   text-shadow:
     -2px -2px 0 var(--wl-outline), 2px -2px 0 var(--wl-outline),
     -2px 2px 0 var(--wl-outline), 2px 2px 0 var(--wl-outline),
-    0 3px 0 rgba(20, 30, 55, 0.5);
+    0 3px 0 var(--wl-shade);
 }
 
 @media (max-width: 699px) {
@@ -305,20 +306,20 @@
   margin-top: 2px;
   padding: 5px 10px 5px 10px;
   border-radius: 12px;
-  border-left: 7px solid var(--era-accent, #ffd84a);
-  background: rgba(10, 18, 36, 0.4);
+  border-left: 7px solid var(--era-accent, var(--wl-gold));
+  background: var(--wl-well);
   font-size: 13px;
   line-height: 1.1;
   letter-spacing: 0.08em;
-  color: #fff;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+  color: var(--wl-ink);
+  text-shadow: none;
 }
 
 .wl-shop-era-note {
   font-size: 12px;
   letter-spacing: 0;
   font-weight: 500;
-  color: #ffd84a;
+  color: var(--wl-gold-text);
   white-space: nowrap;
 }
 
@@ -335,11 +336,11 @@
   gap: 10px;
   padding: 7px 10px;
   border-radius: 12px;
-  background: rgba(255, 216, 74, 0.16);
-  border: 2px solid rgba(255, 216, 74, 0.55);
+  background: color-mix(in srgb, var(--wl-gold) 18%, transparent);
+  border: 2px solid color-mix(in srgb, var(--wl-gold) 60%, transparent);
   font-size: 13px;
   line-height: 1.25;
-  color: #fff;
+  color: var(--wl-ink);
 }
 
 /* ---- manage / choose sheets (BuildPanel's classes + a sideways shake) ---------------------------------- */
@@ -356,7 +357,7 @@
   box-sizing: border-box;
   padding: 4px;
   border-radius: 12px;
-  background: #dbe8fb;
+  background: var(--wl-card);
 }
 
 .wl-manage-icon svg {
@@ -377,9 +378,9 @@
   flex: none;
   padding: 4px 12px;
   border-radius: 16px;
-  background: #f1f6ff;
-  color: #2a3652;
-  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+  background: var(--wl-row);
+  color: var(--wl-ink);
+  box-shadow: 0 3px 0 var(--wl-line);
 }
 
 .wl-manage-row {
@@ -393,18 +394,18 @@
 }
 
 .wl-manage-row + .wl-manage-row {
-  border-top: 2px solid #dbe4f3;
+  border-top: 2px solid var(--wl-line);
 }
 
 .wl-manage-label {
   flex: none;
   font-weight: 500;
-  color: #5b6a8a;
+  color: var(--wl-ink-soft);
 }
 
 .wl-manage-value {
   text-align: right;
-  color: #2a3652;
+  color: var(--wl-ink);
 }
 
 .wl-manage-demo {
@@ -417,8 +418,8 @@
   text-align: center;
   font-size: 15px;
   line-height: 1.2;
-  color: #ffd2cb;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+  color: var(--wl-bad-text);
+  text-shadow: none;
 }
 
 .wl-manage-confirm {
@@ -436,13 +437,9 @@
   justify-content: center;
   gap: 8px;
   border-radius: 16px;
-  border: 3px solid #fff;
   font: inherit;
   font-size: 17px;
   line-height: 1.1;
-  color: #fff;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
-  box-shadow: 0 3px 0 rgba(20, 30, 55, 0.45);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -450,15 +447,18 @@
 
 .wl-manage-btn:active {
   transform: translateY(2px);
-  box-shadow: 0 1px 0 rgba(20, 30, 55, 0.45);
 }
 
 .wl-manage-btn.is-danger {
-  background: linear-gradient(#ff7a6b, #d6382a);
+  --b: var(--wl-bad);
+  --b-hi: var(--wl-bad-hi);
+  --b-ink: var(--wl-cream-c);
 }
 
 .wl-manage-btn.is-plain {
-  background: #8591ab;
+  --b: var(--wl-pine);
+  --b-hi: var(--wl-pine-hi);
+  --b-ink: var(--wl-pine-ink);
 }
 
 .wl-manage-btn i {
@@ -516,7 +516,7 @@
   font-size: 13px;
   font-weight: 500;
   line-height: 1.1;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--wl-ink-soft);
 }
 
 .wl-map-body {
@@ -533,10 +533,10 @@
 .wl-map-view {
   flex: none;
   border-radius: 16px;
-  border: 3px solid #fff;
+  border: 3px solid var(--wl-rim);
   overflow: hidden;
-  background: #dcebf8;
-  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+  background: var(--wl-snow-c);
+  box-shadow: 0 3px 0 var(--wl-line);
 }
 
 .wl-hud .wl-map-view svg {
@@ -558,7 +558,7 @@
   font-size: calc(9px * var(--k, 1));
   font-weight: 700;
   text-anchor: middle;
-  fill: #2a3652;
+  fill: var(--wl-ink-c);
   pointer-events: none;
 }
 
@@ -567,9 +567,9 @@
   font-size: calc(4px * var(--k, 1));
   font-weight: 700;
   text-anchor: middle;
-  fill: #1f2b46;
+  fill: var(--wl-ink-c);
   paint-order: stroke;
-  stroke: rgba(255, 255, 255, 0.85);
+  stroke: color-mix(in srgb, var(--wl-cream-c) 88%, transparent);
   stroke-width: calc(0.9px * var(--k, 1));
   pointer-events: none;
 }
@@ -578,7 +578,7 @@
   font-size: calc(6px * var(--k, 1));
   font-weight: 700;
   text-anchor: middle;
-  fill: #2a3652;
+  fill: var(--wl-ink-c);
   letter-spacing: calc(0.4px * var(--k, 1));
   pointer-events: none;
 }
@@ -587,7 +587,7 @@
   font-size: calc(7px * var(--k, 1));
   font-weight: 700;
   text-anchor: middle;
-  fill: #fff;
+  fill: var(--wl-cream-c);
   pointer-events: none;
 }
 
@@ -595,7 +595,7 @@
   font-size: calc(3.4px * var(--k, 1));
   font-weight: 700;
   text-anchor: middle;
-  fill: #e7eefb;
+  fill: var(--wl-cream-c);
   pointer-events: none;
 }
 
@@ -605,23 +605,24 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   pointer-events: none;
+  stroke: var(--wl-berry-c);
 }
 
 .wl-map-trail-bg {
-  stroke: #fff;
+  stroke: var(--wl-cream-c);
   stroke-width: calc(2.6px * var(--k, 1));
   opacity: 0.85;
 }
 
 .wl-map-trail {
-  stroke: #e8553e;
+  stroke: var(--wl-berry-c);
   stroke-width: calc(1.2px * var(--k, 1));
   stroke-dasharray: calc(3px * var(--k, 1)) calc(2.2px * var(--k, 1));
 }
 
 .wl-map-next {
-  fill: #fff;
-  stroke: #e8553e;
+  fill: var(--wl-cream-c);
+  stroke: var(--wl-berry-c);
   stroke-width: calc(1.2px * var(--k, 1));
   pointer-events: none;
 }
@@ -638,8 +639,8 @@
   font-size: 13px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #bfe8ff;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  color: var(--wl-ink-soft);
+  text-shadow: none;
 }
 
 .wl-map-group:first-child {
@@ -656,11 +657,11 @@
   box-sizing: border-box;
   border: none;
   border-radius: 14px;
-  background: #f1f6ff;
-  color: #2a3652;
+  background: var(--wl-row);
+  color: var(--wl-ink);
   font: inherit;
   text-align: left;
-  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+  box-shadow: 0 3px 0 var(--wl-line);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -668,11 +669,11 @@
 
 .wl-map-row:active:not(:disabled) {
   transform: translateY(2px);
-  box-shadow: 0 1px 0 rgba(10, 18, 36, 0.35);
+  box-shadow: 0 1px 0 var(--wl-line);
 }
 
 .wl-map-row.is-locked {
-  background: #dfe5f0;
+  background: color-mix(in oklab, var(--wl-row), var(--wl-well) 55%);
   cursor: default;
 }
 
@@ -688,10 +689,10 @@
   display: grid;
   place-items: center;
   border-radius: 10px;
-  background: #dbe8fb;
+  background: var(--wl-card);
   font-size: 14px;
   line-height: 1;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  text-shadow: none;
 }
 
 .wl-map-badge svg {
@@ -715,11 +716,11 @@
   font-size: 12px;
   line-height: 1.15;
   font-weight: 500;
-  color: #5b6a8a;
+  color: var(--wl-ink-soft);
 }
 
 .wl-map-note.is-ok {
-  color: #2e9c48;
+  color: var(--wl-good-text);
 }
 
 .wl-map-go {
@@ -728,18 +729,15 @@
   padding: 5px 10px;
   box-sizing: border-box;
   border-radius: 12px;
-  border: 3px solid #fff;
-  background: linear-gradient(#5ee07a, #2e9c48);
   font-size: 15px;
   line-height: 1;
   text-align: center;
-  color: #fff;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
-  box-shadow: 0 2px 0 rgba(20, 30, 55, 0.4);
 }
 
 .wl-map-go.is-lock {
-  background: #8591ab;
+  --b: var(--wl-idle);
+  --b-hi: var(--wl-idle);
+  --b-ink: var(--wl-idle-ink);
   padding: 4px 8px;
   box-shadow: none;
 }
@@ -776,77 +774,167 @@
   }
 }
 
-/* ---- new-era card (era.css look) ------------------------------------------------------------------------ */
+/* ---- 0.9.8 the era postcard (ui/AgeCard.ts) -------------------------------------------------------------
+   A cream postcard with a scalloped picture of the new region (ui/eraPostcards.ts), a roman-numeral stamp, an
+   "A NEW ERA" postmark and a stitched line that shrinks while it waits to slip away. Bottom-centre like the
+   settlement card; the era's accent (--wl-era, set by ui/theme.ts) colours the stamp, the ribbon and the title. */
 
 .wl-hud .wl-agecard {
-  width: min(360px, calc(100vw - 24px));
-  padding: 8px 14px 12px;
-  background: linear-gradient(#5a4aa0, #2d2a52);
+  width: min(372px, calc(100vw - 24px));
+  padding: 8px 8px 12px;
+  border: 3px solid var(--wl-rim);
+  border-radius: 18px;
+  background:
+    repeating-linear-gradient(-45deg, var(--wl-era) 0 8px, transparent 8px 16px, var(--wl-info) 16px 24px, transparent 24px 32px) border-box,
+    linear-gradient(var(--wl-card-hi), var(--wl-card)) padding-box;
+  border-color: transparent;
+  transform-origin: 50% 100%;
 }
 
-.wl-hud .wl-agecard .wl-era-name {
-  font-size: clamp(20px, 6.2vw, 27px);
-}
-
-.wl-agecard-place {
-  display: inline-block;
-  margin-top: 8px;
-  padding: 3px 12px 4px;
+.wl-pc-picwrap {
+  position: relative;
   border-radius: 12px;
-  border: 2px solid #fff;
-  background: var(--era-accent, #ffd84a);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 3px var(--wl-card), 0 2px 0 var(--wl-line);
+}
+
+.wl-pc-pic svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 160 / 92;
+}
+
+/* the stamp: a perforated square in the era's accent with its numeral */
+.wl-pc-stamp {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 46px;
+  height: 52px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--wl-era);
+  color: var(--wl-era-ink);
+  outline: 3px dotted var(--wl-cream-c);
+  outline-offset: -5px;
+  box-shadow: 0 0 0 3px var(--wl-cream-c), 0 3px 6px var(--wl-shade-soft);
+  transform: rotate(4deg);
+}
+
+.wl-pc-stamp b {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.wl-pc-stamp small {
+  margin-top: 2px;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+}
+
+/* the postmark: two inked rings with the words, stamped over the sky */
+.wl-pc-mark {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 64px;
+  height: 64px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--wl-ink-c) 55%, transparent);
+  box-shadow: inset 0 0 0 4px transparent, inset 0 0 0 5.5px color-mix(in srgb, var(--wl-ink-c) 45%, transparent);
+  transform: rotate(-12deg);
+}
+
+.wl-pc-mark span {
+  width: 48px;
+  font-size: 10px;
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: color-mix(in srgb, var(--wl-ink-c) 70%, transparent);
+}
+
+/* the time the card waits: a stitched honey line that shrinks toward the left */
+.wl-pc-timer {
+  height: 0;
+  margin: 7px 10px 0;
+  border-top: 3px dotted color-mix(in oklab, var(--wl-era), var(--wl-ink-c) 15%);
+  transform-origin: 0 50%;
+}
+
+.wl-pc-body {
+  padding: 4px 8px 0;
+  text-align: center;
+}
+
+.wl-pc-kicker {
+  margin-top: 4px;
+}
+
+.wl-pc-greet {
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 1.2;
+  color: var(--wl-ink-soft);
+}
+
+.wl-pc-title {
+  margin-top: 1px;
+  font-size: clamp(24px, 7vw, 30px);
+  line-height: 1.05;
+  color: color-mix(in oklab, var(--wl-era), var(--wl-ink) 35%);
+}
+
+.wl-pc-tag {
+  margin-top: 3px;
   font-size: 14px;
-  line-height: 1.15;
-  color: #fff;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+  line-height: 1.25;
+  font-weight: 600;
+  color: var(--wl-ink-soft);
 }
 
 /* 0.9.6: the per-era Lv 10 rule, in one sentence */
 .wl-agecard-rule {
   max-width: 34em;
-  margin: 6px auto 0;
-  font-size: 14px;
+  margin: 8px auto 0;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--wl-row);
+  box-shadow: 0 2px 0 var(--wl-line);
+  font-size: 13.5px;
   line-height: 1.3;
-  color: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+  color: var(--wl-ink);
   text-align: center;
 }
 
 .wl-agecard-btns {
-  margin-top: 9px;
+  margin-top: 10px;
   display: flex;
   justify-content: center;
   gap: 8px;
 }
 
 .wl-agecard-btn {
-  min-width: 96px;
-  min-height: 38px;
+  min-width: 112px;
+  min-height: 40px;
   padding: 4px 14px;
   box-sizing: border-box;
-  border-radius: 15px;
-  border: 3px solid #fff;
+  border-radius: 14px;
   font: inherit;
   font-size: 16px;
   line-height: 1.1;
-  color: #fff;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
-  box-shadow: 0 3px 0 rgba(20, 20, 50, 0.5);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-}
-
-.wl-agecard-btn:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 rgba(20, 20, 50, 0.5);
-}
-
-.wl-agecard-btn.is-go {
-  background: linear-gradient(#5ee07a, #2e9c48);
-}
-
-.wl-agecard-btn.is-plain {
-  background: #8591ab;
 }
 
 .wl-hud .wl-rankbanner {
@@ -855,8 +943,7 @@
   padding: 9px 20px 11px;
   font-size: 19px;
   line-height: 1.15;
-  color: #ffd84a;
-  text-shadow: 0 2px 0 rgba(60, 25, 5, 0.6);
+  color: var(--wl-gold-text);
 }
 
 @media (min-width: 700px) {
@@ -866,9 +953,24 @@
   }
 }
 
-@media (max-height: 520px) {
-  .wl-hud .wl-agecard .wl-era-tag {
+/* short screens (landscape phones, 800x450): the picture becomes a slim band and the tagline goes */
+@media (max-height: 560px) {
+  .wl-hud .wl-agecard .wl-pc-tag,
+  .wl-hud .wl-agecard .wl-pc-perks {
     display: none;
+  }
+  .wl-pc-pic svg {
+    aspect-ratio: 160 / 50;
+  }
+  .wl-pc-mark {
+    display: none;
+  }
+  .wl-pc-stamp {
+    width: 38px;
+    height: 42px;
+  }
+  .wl-pc-stamp b {
+    font-size: 16px;
   }
 }
 
@@ -882,16 +984,17 @@
 .wl-gate-bar {
   height: 10px;
   border-radius: 6px;
-  background: rgba(10, 18, 36, 0.45);
-  border: 2px solid rgba(255, 255, 255, 0.55);
+  background: var(--wl-well);
+  border: 0;
   overflow: hidden;
+  box-shadow: inset 0 2px 0 var(--wl-shade-soft);
 }
 
 .wl-gate-fill {
   height: 100%;
   width: 0;
   border-radius: 4px;
-  background: linear-gradient(#8af0a0, #38b957);
+  background: linear-gradient(var(--wl-good-hi), var(--wl-good));
 }
 
 .wl-gate-next {
@@ -899,7 +1002,7 @@
   font-size: 12px;
   line-height: 1.15;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--wl-ink-soft);
 }
 
 .wl-gate-ready {
@@ -909,9 +1012,9 @@
   gap: 10px;
   padding: 8px 10px;
   border-radius: 16px;
-  background: linear-gradient(#ffe680, #f0b52c);
-  color: #4a2a05;
-  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+  background: linear-gradient(var(--wl-gold-hi), var(--wl-gold));
+  color: var(--wl-gold-ink);
+  box-shadow: 0 3px 0 var(--wl-line);
 }
 
 .wl-gate-ready-text {
@@ -939,11 +1042,11 @@
   padding: 0 6px;
   font-size: 13px;
   line-height: 1.2;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--wl-ink-soft);
 }
 
 .wl-gate-done {
-  color: #8af0a0;
+  color: var(--wl-good-text);
 }
 
 /* 0.9.6: "+24 more · Show all" is a real button now */
@@ -953,9 +1056,9 @@ button.wl-gate-more {
   margin: 0 4px;
   padding: 2px 12px;
   border-radius: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.55);
-  background: rgba(10, 18, 36, 0.35);
-  color: #fff;
+  border: 0;
+  background: var(--wl-well);
+  color: var(--wl-ink);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
@@ -966,7 +1069,7 @@ button.wl-gate-more {
   margin-top: 5px;
   font-size: 13px;
   line-height: 1.25;
-  color: #fff;
+  color: var(--wl-ink);
 }
 
 /* 0.9.6: one small bar per group, so no row hides behind "+N more" */
@@ -982,10 +1085,10 @@ button.wl-gate-more {
   overflow: hidden;
   padding: 3px 8px 5px;
   border-radius: 10px;
-  background: rgba(10, 18, 36, 0.4);
+  background: var(--wl-well);
   font-size: 12px;
   line-height: 1.1;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--wl-ink-soft);
   white-space: nowrap;
 }
 
@@ -998,15 +1101,15 @@ button.wl-gate-more {
   left: 0;
   bottom: 0;
   height: 3px;
-  background: var(--era-accent, #ffd84a);
+  background: var(--era-accent, var(--wl-gold));
 }
 
 .wl-gate-grp.is-done {
-  color: #8af0a0;
+  color: var(--wl-good-text);
 }
 
 .wl-gate-grp.is-done i {
-  background: #8af0a0;
+  background: var(--wl-good);
 }
 
 /* "Locked: Settlement 12" in place of Go */
@@ -1014,10 +1117,10 @@ button.wl-gate-more {
   display: inline-block;
   padding: 4px 8px;
   border-radius: 10px;
-  background: rgba(10, 18, 36, 0.45);
+  background: var(--wl-well);
   font-size: 12px;
   line-height: 1.15;
-  color: #ffd84a;
+  color: var(--wl-gold-text);
   text-align: center;
   max-width: 96px;
 }
@@ -1029,13 +1132,13 @@ button.wl-gate-more {
   gap: 9px;
   padding: 6px 8px;
   border-radius: 16px;
-  background: #f1f6ff;
-  color: #2a3652;
-  box-shadow: 0 3px 0 rgba(10, 18, 36, 0.35);
+  background: var(--wl-row);
+  color: var(--wl-ink);
+  box-shadow: 0 3px 0 var(--wl-line);
 }
 
 .wl-gate-row.is-locked {
-  background: #dfe5f0;
+  background: var(--wl-well);
 }
 
 .wl-gate-row.is-locked .wl-gate-icon {
@@ -1044,7 +1147,7 @@ button.wl-gate-more {
 }
 
 .wl-gate-row.is-settle {
-  background: #eaf7ee;
+  background: color-mix(in oklab, var(--wl-row), var(--wl-good) 14%);
 }
 
 .wl-gate-icon {
@@ -1052,7 +1155,7 @@ button.wl-gate-more {
   width: 40px;
   height: 40px;
   border-radius: 11px;
-  background: #dbe8fb;
+  background: var(--wl-card);
   padding: 4px;
   box-sizing: border-box;
 }
@@ -1076,7 +1179,7 @@ button.wl-gate-more {
   font-size: 12px;
   line-height: 1.15;
   font-weight: 500;
-  color: #5b6a8a;
+  color: var(--wl-ink-soft);
 }
 
 .wl-gate-sub .wl-lock {
@@ -1103,23 +1206,20 @@ button.wl-gate-more {
   min-height: 36px;
   padding: 2px 10px;
   border-radius: 12px;
-  border: 2px solid #fff;
-  background: linear-gradient(#58b6ff, #2f86d6);
-  color: #fff;
   min-width: 64px;
   font-size: 16px;
   line-height: 1;
   white-space: nowrap;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
-  box-shadow: 0 2px 0 rgba(20, 30, 55, 0.45);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  --b: var(--wl-pine);
+  --b-hi: var(--wl-pine-hi);
+  --b-ink: var(--wl-pine-ink);
 }
 
 .wl-gate-go:active {
   transform: translateY(2px);
-  box-shadow: 0 0 0 rgba(20, 30, 55, 0.45);
 }
 
 /* "✦ Mastery 340 · +41% on every sale": only once a level has passed its cap */
@@ -1127,7 +1227,7 @@ button.wl-gate-more {
   margin-top: 4px;
   font-size: 12px;
   font-weight: 700;
-  color: #b07a00;
+  color: var(--wl-gold-text);
 }
 
 /* the checklist is taller than the other sheets: the top five rows, "+N more" and the settlement show at a glance */
@@ -1161,7 +1261,7 @@ button.wl-gate-more {
   margin-left: 3px;
   font-size: 11px;
   line-height: 1;
-  color: #e8a21c;
+  color: var(--wl-gold-text);
   white-space: nowrap;
 }
 
@@ -1173,32 +1273,32 @@ button.wl-gate-more {
   margin-left: 6px;
   padding: 1px 6px;
   border-radius: 8px;
-  background: #dbe8fb;
+  background: var(--wl-card);
   font-size: 11px;
   line-height: 1.2;
-  color: #5b6a8a;
+  color: var(--wl-ink-soft);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
 .wl-need.is-low {
-  background: #ffe9b8;
-  color: #8a5a06;
+  background: color-mix(in oklab, var(--wl-row), var(--wl-gold) 25%);
+  color: var(--wl-gold-text);
 }
 
 .wl-need.is-ok {
-  background: linear-gradient(#ffe680, #f0b52c);
-  color: #5a3504;
+  background: linear-gradient(var(--wl-gold-hi), var(--wl-gold));
+  color: var(--wl-gold-ink);
 }
 
 /* a tab with upgrades below the gate's level: a gold dot (the green "something to buy" dot wins) */
 .wl-shop-tab.has-need .wl-dot {
   display: block;
-  background: #ffb020;
+  background: var(--wl-gold);
 }
 
 .wl-shop-tab.has-hint .wl-dot {
-  background: #5ee07a;
+  background: var(--wl-good);
 }
 
 /* the band row (pips, star, badge) wraps on a narrow card instead of pushing the price off it (climb only: era 1
@@ -1218,7 +1318,7 @@ button.wl-gate-more {
 
 /* Market before era 2: on show so players know it is coming, but muted with a little padlock */
 .wl-hudbtn.is-locked {
-  background: linear-gradient(#6b7590, #4f586f);
+  background: linear-gradient(var(--wl-well), var(--wl-idle));
 }
 
 .wl-hudbtn.is-locked svg {
@@ -1233,8 +1333,8 @@ button.wl-gate-more {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 2px solid #fff;
-  background: #f2b84b
+  border: 2px solid var(--wl-rim);
+  background: var(--wl-gold)
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='6' y='11' width='12' height='9' rx='2' fill='%23ffffff'/%3E%3Cpath d='M8.5 11V8.5a3.5 3.5 0 0 1 7 0V11' fill='none' stroke='%23ffffff' stroke-width='2.4'/%3E%3C/svg%3E")
     center / 12px no-repeat;
 }

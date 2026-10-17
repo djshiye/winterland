@@ -84,7 +84,7 @@ export class NoticeCard {
     this.card.replaceChildren();
     const icon = n.icon === 'coin' ? ICON_COIN : n.icon === 'star' ? ICON_STAR : n.icon === 'shield' ? ICON_SHIELD : '';
     if (icon) this.card.appendChild(h('div', 'wl-notice-icon', icon));
-    const title = h('div', 'wl-card-title wl-outline');
+    const title = h('div', 'wl-card-title wl-title');
     title.textContent = n.title;
     title.id = 'wl-notice-title';
     this.card.setAttribute('aria-labelledby', title.id);

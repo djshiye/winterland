@@ -134,7 +134,7 @@ export class GateCard {
     const root = this.sheet.root;
     const head = h('div', 'wl-build-head');
     const titles = h('div', 'wl-build-titles');
-    this.titleEl = h('div', 'wl-build-title wl-outline');
+    this.titleEl = h('div', 'wl-build-title wl-title');
     this.subEl = h('div', 'wl-build-sub');
     titles.append(this.titleEl, this.subEl);
     head.appendChild(titles);
