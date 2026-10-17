@@ -13,6 +13,8 @@
  *   variable `--wl-ui`; ui/comfort.css zooms every HUD panel by it (world-anchored effects keep their own size).
  *   A size above 100 % is fitted to the window (`fitUiScale`), so a small window never crowds the top bar; the big
  *   centre toast stops at TOAST_UI_MAX (`--wl-ui-toast`).
+ * - glow (0.9.8, Glow): 0..1, how strongly lamps, windows and furnaces bloom and brighten at night (render/PostFX.ts
+ *   bloom, world/env/glow.ts night boost and halos). 0 keeps every light at its plain daytime look.
  * <html> also gets `wl-reduce-motion` and `wl-calm` so CSS can follow. Every storage / DOM access is guarded.
  */
 
@@ -26,6 +28,8 @@ export interface ComfortSettings {
   colorBlind: boolean;
   /** Interface size, 0.8..1.5 (1 = as designed). */
   uiScale: number;
+  /** Glow, 0..1 (1 = as designed). */
+  glow: number;
 }
 
 /** Interface size limits and step (the Settings slider shows them as 80-150 %). */
@@ -36,6 +40,12 @@ export function clampUiScale(v: unknown): number {
   if (typeof v !== 'number' || !Number.isFinite(v)) return 1;
   const stepped = Math.round(v / UI_SCALE.step) * UI_SCALE.step;
   return Math.round(Math.min(UI_SCALE.max, Math.max(UI_SCALE.min, stepped)) * 100) / 100;
+}
+
+/** Clamp a Glow value to 0..1 on 5 % steps; anything not a finite number is 1. */
+export function clampGlow(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 1;
+  return Math.round(Math.min(1, Math.max(0, v)) * 20) / 20;
 }
 
 /** The window (CSS px) the HUD needs per 100 % of size: a bigger size only applies where the window has room. */
@@ -68,7 +78,7 @@ function systemReducedMotion(): boolean {
 }
 
 export function defaultComfort(): ComfortSettings {
-  return { motion: systemReducedMotion(), effects: 'full', colorBlind: false, uiScale: 1 };
+  return { motion: systemReducedMotion(), effects: 'full', colorBlind: false, uiScale: 1, glow: 1 };
 }
 
 /**
@@ -91,6 +101,7 @@ export function parseComfort(text: string | null): ComfortSettings {
     effects: EFFECTS_LEVELS.includes(r.effects as EffectsLevel) ? (r.effects as EffectsLevel) : d.effects,
     colorBlind: typeof r.colorBlind === 'boolean' ? r.colorBlind : d.colorBlind,
     uiScale: r.uiScale === undefined ? d.uiScale : clampUiScale(r.uiScale),
+    glow: r.glow === undefined ? d.glow : clampGlow(r.glow),
   };
 }
 
@@ -180,6 +191,11 @@ export function uiScale(): number {
 /** True when the window is too small for the chosen size, so a smaller one is drawn (Settings says so). */
 export function uiScaleFitted(): boolean {
   return drawn < state.uiScale;
+}
+
+/** Glow strength 0..1 (lamps, windows and furnaces at night; the bloom). */
+export function glowScale(): number {
+  return state.glow;
 }
 
 /** True when pulsing / flashing highlights should hold still (reduced motion or calmer effects). */

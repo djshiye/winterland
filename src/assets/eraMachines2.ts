@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { vcMat } from '../render/batch';
 import type { MachineModel } from './eraMachines';
+import { MACHINE_TONES } from '../render/palette';
 import { SNOW, Kit, eraGlowMaterial, hcyl, seeded, wheel, type Rot, type V3 } from './eraKit';
 
 // ---------------------------------------------------------------------------
@@ -58,12 +59,12 @@ export const ERA_MACHINE_2_IDS = Object.keys(ERA_MACHINES_2) as readonly EraMach
 export const ERA2_4_MACHINE_IDS = ['clayPit', 'tileKiln', 'masonYard', 'charcoalClamp', 'forge', 'railMill', 'scrapYard', 'boilerShop', 'engineWorks'] as const;
 
 // ---------------------------------------------------------------------------
-// palette (ARGON chat guide rows for eras 2–4, plus warm material tones)
+// palette (the era rows come from render/palette.ts; plus warm material tones)
 // ---------------------------------------------------------------------------
 
-const E2 = { body: 0x8c857b, accent: 0xb85239, trim: 0x5c4028, glow: 0xffb347, fence: 0x6e5a4f };
-const E3 = { body: 0xa65e46, accent: 0x4a5559, trim: 0x2f3538, glow: 0xff9233, fence: 0x4f4c49 };
-const E4 = { body: 0x9e4737, accent: 0xd49a35, trim: 0x383d40, glow: 0xffbe55, fence: 0x464b4f };
+const E2 = MACHINE_TONES[2];
+const E3 = MACHINE_TONES[3];
+const E4 = MACHINE_TONES[4];
 
 // era 2: rough timber, fieldstone, terracotta clay
 const TIMBER = 0x8a5a3b;

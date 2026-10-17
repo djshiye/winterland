@@ -2,19 +2,79 @@
  * Shared toon materials + cached primitive geometries. Always build visuals through these so the
  * whole game shares one look (3-step cel shading) and GPU state (materials/geometries are reused).
  * Never dispose objects returned from here.
+ *
+ * 0.9.8 look foundation (DIRECTION V7):
+ * - The cel ramp is warm / cool: lit faces take a touch of warm gold, the mid and shadow steps a cool plum-blue, instead of the
+ *   neutral grey 90 / 175 / 255. three's toon shader reads only the ramp's red channel, so the gradient chunk is patched
+ *   once (below) to read all three.
+ * - Glow mask: every opaque lit material writes how much it glows (its emissive light) into the alpha channel as
+ *   1 − glow, and materials flagged with `markGlow()` glow fully. The post stack (render/PostFX.ts) blooms only those
+ *   pixels, so bright snow never blooms. When the game draws straight to the screen (Low quality) the canvas has no
+ *   alpha and the mask is simply ignored.
  */
 import * as THREE from 'three';
 
-// 3-tone cel ramp: shadow / mid / lit.
+THREE.ShaderChunk.gradientmap_pars_fragment = THREE.ShaderChunk.gradientmap_pars_fragment.replace(
+  'return vec3( texture2D( gradientMap, coord ).r );',
+  'return texture2D( gradientMap, coord ).rgb;',
+);
+THREE.ShaderChunk.opaque_fragment = `${THREE.ShaderChunk.opaque_fragment}
+#ifdef OPAQUE
+{
+  float wlGlow = 0.0;
+  #if defined( TOON ) || defined( LAMBERT ) || defined( PHONG ) || defined( STANDARD )
+    wlGlow = clamp( dot( totalEmissiveRadiance, vec3( 0.2126, 0.7152, 0.0722 ) ) * 1.4 - 0.08, 0.0, 1.0 );
+  #endif
+  #ifdef WL_GLOW
+    wlGlow = max( wlGlow, float( WL_GLOW ) );
+  #endif
+  gl_FragColor.a = 1.0 - wlGlow;
+}
+#endif
+`;
+
+/** The warm / cool cel ramp (linear multipliers per channel): shadow, mid, lit. */
+export const RAMP: readonly (readonly [number, number, number])[] = [
+  [0.32, 0.33, 0.48],
+  [0.70, 0.70, 0.76],
+  [1.04, 1.015, 0.985],
+];
+
+// 3-tone cel ramp: shadow / mid / lit (float, so the lit step can go a touch above 1).
 const gradientMap = (() => {
-  const data = new Uint8Array([90, 90, 90, 255, 175, 175, 175, 255, 255, 255, 255, 255]);
-  const tex = new THREE.DataTexture(data, 3, 1, THREE.RGBAFormat);
+  const data = new Float32Array(RAMP.flatMap(([r, g, b]) => [r, g, b, 1]));
+  const tex = new THREE.DataTexture(data, 3, 1, THREE.RGBAFormat, THREE.FloatType);
   tex.minFilter = THREE.NearestFilter;
   tex.magFilter = THREE.NearestFilter;
   tex.generateMipmaps = false;
   tex.needsUpdate = true;
   return tex;
 })();
+
+/**
+ * Flag a material as a full glow for the bloom (unlit bulbs, neon, screens; lit materials glow by their emissive
+ * light already). `amount` 0..1. Returns the material.
+ */
+export function markGlow<T extends THREE.Material>(mat: T, amount = 1): T {
+  mat.defines = { ...(mat.defines ?? {}), WL_GLOW: amount.toFixed(3) };
+  mat.needsUpdate = true;
+  return mat;
+}
+
+/**
+ * Additive blending that leaves the alpha (the glow mask) alone, so halos, auroras and sparkles add their light
+ * without switching off the bloom of what lies behind them. Returns the material.
+ */
+export function additiveKeepAlpha<T extends THREE.Material>(mat: T): T {
+  mat.blending = THREE.CustomBlending;
+  mat.blendEquation = THREE.AddEquation;
+  mat.blendSrc = THREE.SrcAlphaFactor;
+  mat.blendDst = THREE.OneFactor;
+  mat.blendEquationAlpha = THREE.AddEquation;
+  mat.blendSrcAlpha = THREE.ZeroFactor;
+  mat.blendDstAlpha = THREE.OneFactor;
+  return mat;
+}
 
 export interface ToonOptions {
   emissive?: THREE.ColorRepresentation;
