@@ -182,7 +182,7 @@ const FLOORS: readonly [yard: number, processing: number, light: number, board: 
   [0x7d7a78, 0xc77a45, 0xffbe55, 0xbdb3ad], // cinder slate with warm specks; boiler doors, gas lamps; smoky taupe board
   [0xb8613f, 0x8a6a5c, 0xffd166, 0xc4aa9c], // herringbone brick, pellet-grey yard; sodium lamps; brick-dust board
   [0x5f8f86, 0x8fb0aa, 0x7ce8c8, 0xa9c7bf], // teal cobbles; mint bulbs on the wires; mint-teal snow board
-  [0x7a6454, 0xe2ad3c, 0xffaa5a, 0xdcc4a0], // warm asphalt with honey lanes; flare peach; honey-caramel board
+  [0x7a6454, 0xe2ad3c, 0xffaa5a, 0xe2cfb2], // warm asphalt with honey lanes; flare peach; honey-caramel board
   [0xe2d6bd, 0xd8cdb4, 0x66e0a3, 0xc2ccd6], // beige terrazzo, sand; screen mint
   [0xa9c9bb, 0xcfe3d9, 0x70f5d9, 0xcbd6e0], // mint-glazed concrete; aqua pools
   [0xf3ead8, 0xe8a848, 0xffe082, 0xcad4e0], // cream hex panels with gold seams; sun-gold fusion glow
