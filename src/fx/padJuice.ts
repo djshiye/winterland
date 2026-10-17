@@ -10,7 +10,10 @@
  *   silence). pitchJitter() adds the ±3 % humanising wobble so repeated buys never sound identical. admitVoice() is the
  *   per-sound overlapping-voice cap AudioFX applies to the pad sounds.
  * - Look: bounceScale() is the squash-and-stretch hump the pads play on completion; fillApproach() eases the drawn
- *   fill ring toward the paid ratio (frame-rate independent); breath() is the idle glow of an affordable pad.
+ *   fill ring toward the paid ratio (frame-rate independent); breath() is the idle glow of an affordable pad and
+ *   padBreath() its slow swell (0.9.8: a pad you can't pay yet holds still and dims instead of jiggling).
+ * - 0.9.8 levels: levelNotePitch() is the bell note a level purchase rings (one pentatonic step higher per level, so a
+ *   climb from Lv 1 to Lv 9 plays a little tune); Lv 10 rings the capstone chord instead (isCapstone()).
  */
 
 import { reducedMotion as comfortReducedMotion } from './comfort';
@@ -82,6 +85,22 @@ export function admitVoice(ends: number[], now: number, max: number, len: number
   return true;
 }
 
+/** Bell note per level bought (semitones over the first): Lv 1 … Lv 9 climb the major pentatonic over ~1.6 octaves. */
+export const LEVEL_NOTES: readonly number[] = [0, 2, 4, 7, 9, 12, 14, 16, 19];
+/** The level that rings the capstone chord. */
+export const CAPSTONE_LEVEL = 10;
+
+/** Playback-rate multiplier of the bell note for reaching `level` (clamped to Lv 1 … Lv 9). */
+export function levelNotePitch(level: number): number {
+  const i = Math.max(0, Math.min(LEVEL_NOTES.length - 1, Math.floor(level) - 1));
+  return Math.pow(2, LEVEL_NOTES[i]! / 12);
+}
+
+/** True when reaching `level` (or the upgrade's top, `max`) should ring the capstone chord. */
+export function isCapstone(level: number, max = false): boolean {
+  return max || level >= CAPSTONE_LEVEL;
+}
+
 // ---------------------------------------------------------------------------
 // Reduced motion
 // ---------------------------------------------------------------------------
@@ -139,6 +158,18 @@ export function bounceScale(k: number, peak: number, motion = 1, out = { xz: 1, 
 export function fillApproach(shown: number, target: number, dt: number, rate = 9): number {
   const next = shown + (target - shown) * (1 - Math.exp(-rate * Math.max(0, dt)));
   return Math.abs(target - next) < 1e-4 ? target : next;
+}
+
+/** Swell of an affordable pad's breathing (scale above 1). */
+export const BREATH_SWELL = 0.022;
+
+/**
+ * Scale of a pad's slow breathing at time t (~0.25 Hz): it swells by up to BREATH_SWELL while the player can afford
+ * it and rests at exactly 1 otherwise (never a jiggle). Reduced motion holds it at 1. `phase` desyncs neighbours.
+ */
+export function padBreath(t: number, afford: boolean, phase = 0, reduced: boolean = reducedMotion()): number {
+  if (!afford || reduced) return 1;
+  return 1 + BREATH_SWELL * (0.5 + 0.5 * Math.sin(t * 1.6 + phase));
 }
 
 /** Idle breathing glow 0..1 at time t (slow, ~0.3 Hz); reduced motion holds it steady at the middle. */
