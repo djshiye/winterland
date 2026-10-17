@@ -11,6 +11,7 @@
  * (reduced motion: still).
  */
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { additiveKeepAlpha, toon } from '../render/materials';
 import { CREAM, GOLD, SNOW, mixHex, palette } from '../render/palette';
 
@@ -50,6 +51,31 @@ function softStar(outer: number, depth: number): THREE.ExtrudeGeometry {
   });
   g.center();
   return g;
+}
+
+/** Merge every still part into one mesh per material (about 7 draw calls instead of ~25); the spinning star stays. */
+function bake(root: THREE.Group, keep: THREE.Object3D): void {
+  const byMat = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  for (const child of [...root.children]) {
+    if (child === keep || !(child instanceof THREE.Mesh)) continue;
+    child.updateMatrix();
+    const g = (child.geometry as THREE.BufferGeometry).index ? (child.geometry as THREE.BufferGeometry).toNonIndexed() : (child.geometry as THREE.BufferGeometry).clone();
+    g.applyMatrix4(child.matrix);
+    g.clearGroups();
+    const mat = child.material as THREE.Material;
+    if (!byMat.has(mat)) byMat.set(mat, []);
+    byMat.get(mat)!.push(g);
+    root.remove(child);
+    (child.geometry as THREE.BufferGeometry).dispose();
+  }
+  for (const [mat, list] of byMat) {
+    const merged = mergeGeometries(list, false);
+    for (const g of list) g.dispose();
+    if (!merged) continue;
+    const m = new THREE.Mesh(merged, mat);
+    m.castShadow = true;
+    root.add(m);
+  }
 }
 
 export function createTrophyModel(stars = 1): TrophyModel {
@@ -117,6 +143,7 @@ export function createTrophyModel(stars = 1): TrophyModel {
     m.position.set(Math.sin(a) * 0.38, 0.5 - Math.abs(i - (n - 1) / 2) * 0.012, Math.cos(a) * 0.38);
     m.rotation.y = a;
   }
+  bake(root, spin);
   // a soft gold glow on the snow around the plinth (no light: one additive disc), so it reads from across the yard
   const glow = new THREE.Mesh(
     new THREE.CircleGeometry(0.9, 32),

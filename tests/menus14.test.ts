@@ -84,3 +84,16 @@ describe('wooden world tags', () => {
     expect(tagGrow(Number.NaN)).toBe(1);
   });
 });
+
+describe('trophy', () => {
+  it('stays cheap on draw calls and keeps its spinning star', async () => {
+    const { createTrophyModel } = await import('../src/assets/trophy');
+    const t = createTrophyModel(5);
+    let meshes = 0;
+    t.root.traverse((o) => {
+      if ((o as { isMesh?: boolean }).isMesh) meshes++;
+    });
+    expect(meshes).toBeLessThanOrEqual(10);
+    expect(t.spin.parent).toBe(t.root);
+  });
+});
