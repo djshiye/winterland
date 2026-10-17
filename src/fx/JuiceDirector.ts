@@ -55,6 +55,7 @@ import { expansionCostText } from '../ui/agesLogic';
 import { ERAS, MATERIALS } from '../eras/data';
 import { ERA_NODES } from '../assets/eraNodes';
 import { regionLayout } from '../eras/layout';
+import { FINAL_GATE, FINAL_NAME } from '../eras/gate';
 import { Haptics } from './Haptics';
 import { TickLadder, burstCount, motionScale, pitchJitter } from './padJuice';
 
@@ -241,10 +242,8 @@ export class JuiceDirector {
       if (crewHire) return; // 'helper:hired' says HIRED! when the new worker walks out
       // one numbering everywhere (the pads, the shop, the era checklist): the shown level
       ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 2.6), `LV ${ctx.upgrades.shownLevel(e.id)}!`, { color: '#ffd84a', size: 32, duration: 1.2, rise: 1.6 });
-      // 0.9.5: Lv 10 is the top of every upgrade (or the era cap in 'offset' mode)
-      if (ctx.upgrades.atEraCap(e.id)) {
-        ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 3.5), 'Max for this era', { color: '#bfe6ff', size: 22, duration: 2.2, rise: 1.2 });
-      } else if (ctx.upgrades.isMax(e.id)) {
+      // 0.9.5: Lv 10 is the top of every upgrade
+      if (ctx.upgrades.isMax(e.id)) {
         ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 3.5), 'Max level!', { color: '#bfe6ff', size: 22, duration: 2.2, rise: 1.2 });
       }
     });
@@ -383,12 +382,27 @@ export class JuiceDirector {
     // list; the gate met: fanfare, a camera look at the expansion pad and "Iron Ridge is for sale!".
     ev.on('gate:progress', (e) => {
       const era = ERAS[e.era];
-      if (!era) return;
+      if (!era) {
+        // 0.9.7: the final gate (era 10's own things, "Winterland Complete"): the same dings, no pad to show
+        if (e.era !== FINAL_GATE) return;
+        for (let i = 0; i < Math.min(e.gained, 3); i++) this.later(i * 0.26, () => ctx.audio.play('ding', { pitch: pitchJitter() * Math.pow(2, (i * 2) / 12), volume: 0.8 }));
+        if (e.gained > 0 && e.ok < e.total && Math.floor(e.ok / 5) > Math.floor((e.ok - e.gained) / 5)) {
+          ctx.hud.toast(`${e.ok}/${e.total} upgrades at Lv 10`, { sub: `${e.total - e.ok} more for ${FINAL_NAME}`, small: true, duration: 2.4 });
+        }
+        if (e.readyNow) {
+          ctx.audio.play('fanfare', { volume: 0.8 });
+          const n = burstCount(50);
+          if (n > 0) ctx.particles.confetti(this.playerSpot(this.tmp), n);
+          ctx.hud.toast(`${ERAS[FINAL_GATE - 1]!.region} is done!`, { sub: 'The era chip shows the last pieces for 100 %', duration: 3.4 });
+        }
+        return;
+      }
       // a tiny "ding-ding" per row that turned green (a few at most, each a pentatonic step higher)
       for (let i = 0; i < Math.min(e.gained, 3); i++) this.later(i * 0.26, () => ctx.audio.play('ding', { pitch: pitchJitter() * Math.pow(2, (i * 2) / 12), volume: 0.8 }));
       if (e.gained > 0 && !e.ready) {
         const before = e.ok - e.gained;
-        if (Math.floor(e.ok / 5) > Math.floor(before / 5)) {
+        // every 5 rows, never "0 more" (the last row with the settlement still short: the chip says what is next)
+        if (e.ok < e.total && Math.floor(e.ok / 5) > Math.floor(before / 5)) {
           ctx.hud.toast(`${e.ok}/${e.total} upgrades ready`, { sub: `${e.total - e.ok} more to open ${era.region}`, small: true, duration: 2.4 });
         }
         if (Math.floor((e.ok * 10) / e.total) > Math.floor((before * 10) / e.total)) ctx.particles.confetti(this.playerSpot(this.tmp), 24);
@@ -433,6 +447,47 @@ export class JuiceDirector {
       }
       this.later(1.2, () => ctx.particles.confetti(this.tmp2.copy(center), 60));
       this.later(2.6, () => ctx.audio.play('fanfare', { pitch: 1.12, volume: 0.8 }));
+    });
+
+    // 0.9.7: Winterland Complete (100 %): the game's ending. The biggest show, over the Great Lodge and its new trophy, in
+    // three waves with a slow gold rain; under reduced motion a calm version (a few soft rockets, no shake, no confetti).
+    ev.on('complete:start', (e) => {
+      const center = new THREE.Vector3().copy(e.position);
+      const m = motionScale();
+      const calm = m < 1;
+      ctx.audio.play('fanfare');
+      const c0 = burstCount(120);
+      if (c0 > 0) ctx.particles.confetti(center, c0);
+      ctx.particles.ring(center, { color: 0xffd84a, radius: 7, life: 1.1 });
+      if (!calm) ctx.cameraRig.shake(0.25, 0.4);
+      ctx.cameraRig.focus(center, { duration: 1.2, hold: 5.5 });
+      const salvos = calm ? 6 : 26;
+      const span = calm ? 5 : 6.5;
+      for (let i = 0; i < salvos; i++) {
+        this.later(0.3 + (i / salvos) * span + Math.random() * 0.2, () => {
+          const [c1, c2] = FIREWORKS[(Math.random() * FIREWORKS.length) | 0]!;
+          const a = Math.random() * Math.PI * 2;
+          const r = 2 + Math.random() * 8;
+          const from = this.tmp3.set(center.x + Math.cos(a) * r, center.y, center.z + Math.sin(a) * r);
+          ctx.audio.play('whoosh', { volume: calm ? 0.2 : 0.35, pitch: 1.3 });
+          ctx.particles.rocket(from, {
+            height: 9 + Math.random() * 5,
+            color: c1,
+            color2: c2,
+            drift: this.tmp4.set((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 3),
+            onBurst: () => ctx.audio.play('firework', { pitch: 0.8 + Math.random() * 0.4, volume: calm ? 0.5 : 1 }),
+          });
+        });
+      }
+      for (const t of [1.5, 3.2, 5.0]) {
+        this.later(t, () => {
+          const n = burstCount(70);
+          if (n > 0) ctx.particles.confetti(this.tmp2.copy(center), n);
+          ctx.particles.sparkle(this.tmp2.copy(center).setY(2.5), 0xffe066);
+        });
+      }
+      this.later(3.0, () => ctx.audio.play('fanfare', { pitch: 1.12, volume: 0.8 }));
+      this.later(6.2, () => ctx.audio.play('chime', { pitch: 0.9, volume: 0.9 }));
     });
 
     // Wave 13: the Grand Market opens, a second, smaller fireworks show over the south-east corner of the square

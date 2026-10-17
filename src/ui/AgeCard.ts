@@ -8,6 +8,7 @@
  * Sits bottom-centre like EraCard (era.css look), hides while a sheet (.shop-open) owns the screen; popped in / faded
  * on simulation time from update(dt).
  */
+import { finaleQuiet } from '../core/quiet';
 import type { GameContext } from '../core/types';
 import { ERAS } from '../eras/data';
 import { gateNeed, gateRuleText } from '../eras/gate';
@@ -110,7 +111,7 @@ export class AgeCard {
 
   /** Show the small "Your city is now a Big City!" banner (waits while the era card is up). */
   showRank(name: string): void {
-    if (this.t >= 0) {
+    if (this.t >= 0 || finaleQuiet()) {
       this.pendingRank = name;
       return;
     }
@@ -136,6 +137,12 @@ export class AgeCard {
   }
 
   update(dt: number): void {
+    // 0.9.7: a rank banner held back by the ending's hush (core/quiet.ts) shows once the Winterland Complete card closes
+    if (this.pendingRank && this.t < 0 && !finaleQuiet()) {
+      const name = this.pendingRank;
+      this.pendingRank = null;
+      this.showRank(name);
+    }
     if (this.t >= 0) {
       this.t += dt;
       let fade = 1;
