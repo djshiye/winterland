@@ -913,7 +913,8 @@ export interface UpgradeDef {
  * - shipper: finished goods and surplus → the export depot (the crateRunner's);
  * - porter: import-dock goods (market orders, the player's drops) → the machines (the porter's);
  * - gatherer: keeps the extractors running: raw material from a filling extractor → a reserve on the import dock;
- * - foreman: carries the era's materials to machine slots the player has started paying for (never cash);
+ * - foreman: carries the era's materials to the machine slots and city lots the player has chosen, then (0.9.9) pays
+ *   what they still owe from the wallet, keeping a reserve (never chooses what to build, never pays an expansion);
  * - clerk: banks the region's cash (the cashier's job) once sales leave cash, otherwise ships the fullest pile first.
  * `settlement`: band offset of the settlement level that unlocks the role (5·(n − 1) + offset; 0 = era n opens it).
  * `scarf`: the knitted scarf the role wears over the era outfit (and its shop icon's hat): sage, honey, sky, teal,
@@ -926,7 +927,7 @@ export const ERA_ROLES: readonly { key: EraRoleKey; role: EraRole; settlement: n
   { key: 'Shipper', role: 'shipper', settlement: 0, blurb: 'Takes finished goods to the export depot', scarf: 0xf2c14e },
   { key: 'Porter', role: 'porter', settlement: 2, blurb: 'Brings import-dock goods to the machines', scarf: 0x6fa8dc },
   { key: 'Gatherer', role: 'gatherer', settlement: 2, blurb: 'Clears full extractors into a reserve on the dock', scarf: 0x58b8a8 },
-  { key: 'Foreman', role: 'foreman', settlement: 4, blurb: 'Hauls materials to machines you are building', scarf: 0xe07a5f },
+  { key: 'Foreman', role: 'foreman', settlement: 4, blurb: 'Builds what you chose: brings materials, then pays', scarf: 0xe07a5f },
   { key: 'Clerk', role: 'clerk', settlement: 4, blurb: 'Banks the market cash, then keeps the fullest piles moving', scarf: 0xb48ad6 },
 ];
 
