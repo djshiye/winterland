@@ -238,6 +238,66 @@ export const MACHINE_TONES = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// pads (0.9.8 brief 13: assets/pads.ts, fx/PadRing.ts)
+// ---------------------------------------------------------------------------
+
+/** One pad look: the tile face, its stitching / grain, the slab side and the icon medallion. */
+export interface PadLook {
+  /** Tile face, light and shade (a soft vertical gradient). */
+  face: number;
+  faceShade: number;
+  /** Patches / planks / frost streaks drawn over the face. */
+  patch: readonly number[];
+  /** Stitches, grain lines, frost veins. */
+  line: number;
+  /** The slab's side under the snow rim. */
+  side: number;
+  /** The round medallion the icon sits on, and its rim. */
+  medal: number;
+  medalRim: number;
+}
+
+/**
+ * The pads (DIRECTION D6): never the ad's grey tile with a green fill. Three looks Dino picks from (quilt is the
+ * default), all sharing the honey fill, the cream price tag on twine and the wooden sign board.
+ */
+export const PAD = {
+  /** Warm honey: the fill on the tile and the ring, its light meniscus and its deep bottom. */
+  honey: 0xf2b644,
+  honeyLight: 0xffdc8a,
+  honeyDeep: 0xd98a2e,
+  /** Icon and text ink (warm brown, never black). */
+  ink: 0x4e3529,
+  /** Price tag card, its edge and the twine it hangs from. */
+  tag: 0xfff4de,
+  tagEdge: 0xdcb98a,
+  twine: 0xa87a4f,
+  /** Sign board planks (light, mid, dark) and the brass of a level pad's board. */
+  board: 0xa86d3e,
+  boardLight: 0xc58a55,
+  boardDark: 0x7a4a2a,
+  brass: 0xe8b84f,
+  /** Cash still to pay on the tag (deep pine), and a finished row's tick (sage). */
+  cashInk: 0x2f6b4a,
+  done: 0x5aa06e,
+  /** Snow rim: lit top and shaded underside. */
+  snow: SNOW,
+  snowShade: SNOW_SHADE,
+  /** The warm lamplight a pad face keeps at night (its own soft glow, scaled by the comfort Glow slider). */
+  night: 0xffe2b0,
+  /** A locked (preview) pad's frost wash. */
+  frost: 0xc9d6e6,
+  looks: {
+    // stitched snow quilt: cream linen with rose, sage and butter patches, cream stitching
+    quilt: { face: 0xf6ead6, faceShade: 0xe9d6bb, patch: [0xe8b4a8, 0xb9cfae, 0xf3d68e, 0xc9b8dc], line: 0xfff8ec, side: 0xc98d6c, medal: CREAM, medalRim: 0xd9a48c },
+    // wooden pressure plate: honey pine planks with darker grain and nail heads
+    plate: { face: 0xd59a5c, faceShade: 0xbf8048, patch: [0xdca468, 0xc98c50, 0xe2ad72], line: 0x9c6436, side: 0x8f5a33, medal: 0xfff1d6, medalRim: 0x9c6436 },
+    // ice lantern: frosted periwinkle glass with a warm candle heart
+    lantern: { face: 0xd6e4f7, faceShade: 0xb4c8e8, patch: [0xeef4fc, 0xc4d5ee, 0xffe3ad], line: 0xffffff, side: 0x93a9d0, medal: 0xfff2d2, medalRim: 0xf0c27a },
+  } satisfies Record<'quilt' | 'plate' | 'lantern', PadLook>,
+} as const;
+
+// ---------------------------------------------------------------------------
 // colour maths (hex in, hex out; sRGB values, no three needed)
 // ---------------------------------------------------------------------------
 

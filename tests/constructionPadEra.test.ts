@@ -21,6 +21,8 @@ vi.mock('../src/assets/pads', async (importOriginal) => {
     createPadModel: () => new THREE.Group(),
     createPadSign: () => new THREE.Mesh(),
     setPadSignLabel: () => undefined,
+    hangPriceTag: () => new THREE.Mesh(),
+    padDim: () => undefined,
   };
 });
 

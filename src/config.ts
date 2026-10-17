@@ -14,7 +14,7 @@
  */
 
 import type { ItemKind } from './core/types';
-import { SNOW, SNOW_SHADE } from './render/palette';
+import { PAD, SNOW, SNOW_SHADE } from './render/palette';
 import { ERA_KEYS, ERA_NAMES, MATERIALS, MATERIAL_KINDS, ERA_SCALE, ERAS, MACHINES, MACHINE_IDS, type EraKey, type MachineId, type MaterialKind } from './eras/data';
 import { eraPlayerUpgrades, type EraPlayerUpgradeId } from './eras/playerUpgrades';
 
@@ -86,10 +86,10 @@ export const COLORS = {
   MACHINE_BLUE: 0x1a75ff,
   MACHINE_STEEL: 0x7f8c8d,
   SAW_GLOW: 0xff9f1c,
-  // Upgrade pad texture (createPadTexture)
-  PAD_BG: 0x4a4a4a,
+  // Pads (0.9.8: the look lives in render/palette.ts PAD; the fill and its rings are honey)
+  PAD_BG: PAD.ink,
   PAD_BORDER: 0xffffff,
-  PAD_FILL: 0x2ecc71,
+  PAD_FILL: PAD.honey,
 } as const;
 
 /**

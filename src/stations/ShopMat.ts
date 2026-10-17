@@ -5,8 +5,9 @@
  * - A cosy striped rug (assets/pads.ts createMatModel) with a floating "UPGRADES" + up-arrow sign.
  * - Hidden until show() (Progression reveals it; state.flags.shopRevealed). Built shown at once when the flag is
  *   already set (restored save). show(instant): instant = no animation, no sound, no event.
- * - Pulses (rug breathes, sign bounces) while something in the shop is affordable: ctx.upgrades.canBuy over the
- *   'lumberjack' and 'crew' groups (checked twice a second).
+ * - Breathes (the rug swells slowly, the sign floats a little higher) while something in the shop is affordable:
+ *   ctx.upgrades.canBuy over the 'lumberjack' and 'crew' groups (checked twice a second). 0.9.8: stepping on gives the
+ *   pads' soft felt thump; no jiggle or hop.
  * - First time on the mat sets state.flags.shopVisited.
  * - Juice (fx/PadRing.ts): while something is affordable and the player is off the mat, a warm glow breathes around
  *   the rug; a purchase made while standing on it ('upgrade:bought') flashes the glow, squash-bounces the mat and emits
@@ -18,7 +19,7 @@ import type { GameContext } from '../core/types';
 import type { Zone } from '../items/Zones';
 import { createMatModel, createShopSign } from '../assets/pads';
 import { PadRing } from '../fx/PadRing';
-import { motionScale } from '../fx/padJuice';
+import { motionScale, padBreath } from '../fx/padJuice';
 
 const SIGN_HEIGHT = 2.0;
 const CHECK_INTERVAL = 0.5;
@@ -54,6 +55,7 @@ export class ShopMat {
       enabled: false,
       onEnter: () => {
         this.on = true;
+        ctx.audio.play('padStep', { volume: 0.7 });
         ctx.state.flags.shopVisited = true;
         ctx.events.emit('shop:open', {});
       },
@@ -110,14 +112,13 @@ export class ShopMat {
     }
     const t = this.ctx.time.elapsed;
     const eager = this.affordable && !this.on;
-    const amp = (eager ? 0.05 : 0.012) * motionScale();
-    const s = 1 + amp * Math.sin(t * (eager ? 5.5 : 2.4));
+    const s = padBreath(t, eager);
     this.rug.scale.set(s, 1, s);
     this.ring.update(dt, t, eager);
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
-    // the sign hops when there is something to buy, drifts gently otherwise
-    const hop = (eager ? Math.abs(Math.sin(t * 4.2)) * 0.28 : Math.sin(t * 2) * 0.05) * motionScale();
-    this.sign.position.y = SIGN_HEIGHT + hop;
+    // the sign floats a little higher when there is something to buy, drifts gently otherwise
+    const lift = (eager ? 0.16 + 0.08 * Math.sin(t * 1.6) : Math.sin(t * 2) * 0.05) * motionScale();
+    this.sign.position.y = SIGN_HEIGHT + lift;
     this.sign.visible = !this.on;
   }
 
