@@ -10,7 +10,8 @@ import { EventBus } from '../src/core/EventBus';
 import { createGameState, type GameContext, type GameEvents, type GameState, type Item, type ItemHolder, type ItemKind, type Slot } from '../src/core/types';
 import { CITY_BUILDINGS, DISTRICT_MATERIAL, ROADS, districtDef, type CityBuildingId } from '../src/eras/data';
 import { regionLayout } from '../src/eras/layout';
-import { NO_CLAIMS, lotDest, lotDestId, pickJob, siteDest, type JobMachine, type JobView } from '../src/npc/EraWorker';
+import { NO_CLAIMS, PAY_STEPS, eraPayAmount, lotDest, lotDestId, payDestId, pickJob, pickPay, siteDest, type JobMachine, type JobView } from '../src/npc/EraWorker';
+import { PRIORITIES } from '../src/config';
 import { cityLotAccess, lotNeeds, registerCityLots } from '../src/city/lotAccess';
 import { inRect, lotStandSpot } from '../src/city/roadRoute';
 import { districtLots } from '../src/city/rules';
@@ -236,6 +237,19 @@ class Heap implements ItemHolder {
   }
 }
 
+/** A wallet that really spends (the foremen pay from it, 0.9.9). */
+const wallet = (money: number) => ({
+  money,
+  spend(n: number): boolean {
+    if (n > this.money) return false;
+    this.money -= n;
+    return true;
+  },
+  add(n: number): void {
+    this.money += n;
+  },
+});
+
 describe('a foreman trip to a city lot', () => {
   it('walks out of the gate, along the roads to the lot, unloads the material into its pad and walks back', () => {
     const state = createGameState();
@@ -243,6 +257,8 @@ describe('a foreman trip to a city lot', () => {
     const need = CITY_BUILDINGS[HOME].extra.count;
     state.city.districts[2]!.lots[4] = { building: HOME, tier: -1, cash: 0, extra: 0 };
     const { ctx } = makeCtx(state);
+    // an empty wallet: nothing to pay with, so this trip is all about the material
+    (ctx as { economy: unknown }).economy = wallet(0);
     const L = regionLayout(2);
     const dock = new Heap('pile:dock');
     for (let i = 0; i < need + 4; i++) dock.items.push(brick());
@@ -283,10 +299,148 @@ describe('a foreman trip to a city lot', () => {
     expect(reachedLot).toBe(true);
     expect(state.city.districts[2]!.lots[4]!.extra).toBe(need);
     expect(dock.count(BRICK)).toBe(4);
-    // only material: the cash is still the player's to pay, the lot is not built
+    // an empty wallet pays nothing: the cash is still owed, the lot is not built
     expect(state.city.districts[2]!.lots[4]!.cash).toBe(0);
     expect(state.city.districts[2]!.lots[4]!.tier).toBe(-1);
     // a reasonable trip: three loads over ~90 m each way at road speed, well under the time limit
     expect(t).toBeLessThan(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 0.9.9: the builders pay for what the player chose
+// ---------------------------------------------------------------------------
+
+describe('the foreman pays (0.9.9)', () => {
+  const HOME_CASH = CITY_BUILDINGS[HOME].cash;
+
+  it('pays in chunks sized to the price, keeps the wallet reserve and never dribbles', () => {
+    // a $250 floor, else a fortieth of the price
+    expect(eraPayAmount(HOME_CASH, HOME_CASH, 1e12)).toBe(Math.max(PRIORITIES.payChunk, Math.ceil(HOME_CASH / PAY_STEPS)));
+    expect(eraPayAmount(4000, 4000, 1e12)).toBe(PRIORITIES.payChunk);
+    // the last few dollars finish the building
+    expect(eraPayAmount(7, HOME_CASH, 1e12)).toBe(7);
+    // the wallet keeps max($500, 20 %): $600 → $100 spendable, $500 → nothing; $1M → $800k spendable
+    expect(eraPayAmount(4000, 4000, 600)).toBe(100);
+    expect(eraPayAmount(4000, 4000, 500)).toBe(0);
+    expect(eraPayAmount(2e6, 4e7, 1e6)).toBe(Math.min(1e6, 8e5));
+    // a dribble (under a tenth of a chunk) waits for the wallet to grow
+    const chunk = Math.ceil(HOME_CASH / PAY_STEPS);
+    const money = 500 + Math.floor(chunk / 10) - 1;
+    expect(eraPayAmount(HOME_CASH, HOME_CASH, money)).toBe(0);
+  });
+
+  it('picks the nearest site the wallet can pay, skipping one a peer already pays', () => {
+    const near = { to: lotDest(0), left: 1000, total: 1000, spot: { x: 1, z: 72 } };
+    const far = { to: siteDest(2), left: 1000, total: 1000, spot: { x: 30, z: 72 } };
+    expect(pickPay(view({ pays: [far, near] }), 1e6, NO_CLAIMS, AT)).toBe(near);
+    const claims = { sources: new Map(), dests: new Map([[payDestId(near.to), 1]]) };
+    expect(pickPay(view({ pays: [far, near] }), 1e6, claims, AT)).toBe(far);
+    expect(pickPay(view({ pays: [far, near] }), 500, NO_CLAIMS, AT)).toBeNull(); // at the reserve
+    expect(pickPay(view({}), 1e6, NO_CLAIMS, AT)).toBeNull();
+  });
+
+  /** A fake era-2 region with an empty dock (and optional chosen machine slots that owe cash). */
+  const fakeRegion = (payPads?: () => unknown[]) => {
+    const L = regionLayout(2);
+    return {
+      era: 2,
+      layout: L,
+      machines: [],
+      depot: new Heap('depot'),
+      depotSpot: { x: L.depot.x, z: L.depot.z + 1 },
+      dock: new Heap('pile:dock'),
+      dockSpot: { x: L.dock.x, z: L.dock.z + 1 },
+      sites: () => [],
+      ...(payPads ? { payPads } : {}),
+      node: null,
+      market: { dockPile: new Heap('a'), stallPile: new Heap('b'), cash: { pile: new Heap('c'), value: 0 }, clerkSpot: L.inside, cashSpot: L.inside, bank: new Heap('bank'), forward: () => false },
+    };
+  };
+
+  it('walks to a chosen lot whose material is in, pays the rest of the price and the house goes up', () => {
+    const state = createGameState();
+    state.eras.age = 2;
+    state.city.districts[2]!.lots[4] = { building: HOME, tier: -1, cash: 0, extra: CITY_BUILDINGS[HOME].extra.count };
+    const { ctx, events } = makeCtx(state);
+    const purse = wallet(10 * HOME_CASH);
+    (ctx as { economy: unknown }).economy = purse;
+    const built = vi.fn();
+    events.on('city:built', built);
+    const d = new District(ctx, 2, () => undefined);
+    registerCityLots(ctx, { lotPad: (n, lot) => (n === 2 ? d.sitePad(lot) : null) });
+    const L = regionLayout(2);
+    const w = new EraWorker(ctx, fakeRegion() as never, 'frontierForeman' as never, 0, 'foreman');
+    w.peers = [w];
+    w.arrive(L.inside);
+    const spot = lotStandSpot(2, 4).spot;
+    let paidAt: { x: number; z: number } | null = null;
+    const dt = 1 / 30;
+    let t = 0;
+    for (; t < 200 && state.city.districts[2]!.lots[4]!.tier < 0; t += dt) {
+      const before = purse.money;
+      w.update(dt);
+      if (purse.money < before && !paidAt) paidAt = { x: w.group.position.x, z: w.group.position.z };
+    }
+    // paid standing at the lot, not from the region
+    expect(paidAt).not.toBeNull();
+    expect(Math.hypot(paidAt!.x - spot.x, paidAt!.z - spot.z)).toBeLessThan(0.1);
+    expect(state.city.districts[2]!.lots[4]!.tier).toBe(0);
+    expect(built).toHaveBeenCalledWith(expect.objectContaining({ era: 2, lot: 4, building: HOME }));
+    expect(purse.money).toBe(9 * HOME_CASH);
+    expect(t).toBeLessThan(120);
+  });
+
+  it('stops at the wallet reserve and leaves the rest owed', () => {
+    const state = createGameState();
+    state.eras.age = 2;
+    state.city.districts[2]!.lots[0] = { building: HOME, tier: -1, cash: 0, extra: 0 };
+    const { ctx } = makeCtx(state);
+    const purse = wallet(HOME_CASH / 2);
+    (ctx as { economy: unknown }).economy = purse;
+    const d = new District(ctx, 2, () => undefined);
+    registerCityLots(ctx, { lotPad: (n, lot) => (n === 2 ? d.sitePad(lot) : null) });
+    const w = new EraWorker(ctx, fakeRegion() as never, 'frontierForeman' as never, 0, 'foreman');
+    w.peers = [w];
+    w.arrive(regionLayout(2).inside);
+    for (let t = 0; t < 150; t += 1 / 30) w.update(1 / 30);
+    const lot = state.city.districts[2]!.lots[0]!;
+    expect(lot.tier).toBe(-1);
+    expect(lot.cash).toBeGreaterThan(0);
+    // what is left in the wallet is the reserve (at most one dribble above it)
+    const reserve = Math.max(PRIORITIES.reserveMin, PRIORITIES.reserveShare * purse.money);
+    expect(purse.money).toBeGreaterThanOrEqual(reserve);
+    expect(lot.cash + purse.money).toBe(HOME_CASH / 2);
+  });
+
+  it('pays a chosen machine slot of its region too', () => {
+    const state = createGameState();
+    state.eras.age = 2;
+    const { ctx } = makeCtx(state);
+    const purse = wallet(1e6);
+    (ctx as { economy: unknown }).economy = purse;
+    const L = regionLayout(2);
+    const pad = {
+      left: 6000,
+      visible: true,
+      get cashLeft() {
+        return this.left;
+      },
+      payDirect(n: number) {
+        const c = Math.min(n, this.left);
+        this.left -= c;
+        return c;
+      },
+    };
+    const p = L.slots[3]!;
+    const spot = { x: p.x, z: p.z - L.inward * (L.padSize / 2 + 0.7) };
+    const region = fakeRegion(() => (pad.left > 0 ? [{ slot: 3, pad, total: 6000, spot }] : []));
+    const w = new EraWorker(ctx, region as never, 'frontierForeman' as never, 0, 'foreman');
+    w.peers = [w];
+    w.arrive(L.inside);
+    for (let t = 0; t < 60 && pad.left > 0; t += 1 / 30) w.update(1 / 30);
+    expect(pad.left).toBe(0);
+    expect(purse.money).toBe(1e6 - 6000);
+    expect(Math.hypot(w.group.position.x - spot.x, w.group.position.z - spot.z)).toBeLessThan(0.1);
   });
 });
