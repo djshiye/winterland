@@ -34,6 +34,7 @@ const RING = 2 * Math.PI * 9;
 const ICON_RING = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="wl-ring-bg" cx="12" cy="12" r="9"/><circle class="wl-ring-fg" cx="12" cy="12" r="9" stroke-dasharray="${RING.toFixed(2)}" stroke-dashoffset="${RING.toFixed(2)}"/></svg>`;
 import './ages.css';
 import './ending.css';
+import { eraAccent } from './theme';
 
 export class EraChip {
   private readonly root: HTMLButtonElement;
@@ -161,7 +162,7 @@ export class EraChip {
     }
     if (age !== this.lastAge) {
       this.lastAge = age;
-      this.dot.style.background = n >= 2 ? hexCss(ERAS[n]!.colors.accent) : '#ffd84a';
+      this.dot.style.background = hexCss(eraAccent(n));
     }
     if (gating) {
       this.goalAcc += dt;

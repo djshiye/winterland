@@ -16,6 +16,7 @@ import { formatDuration, formatMoney } from './format';
 import { ICON_CLOSE } from './icons';
 import { materialIcon, materialLabel } from './materialIcons';
 import './market.css';
+import { inkOn } from './theme';
 
 type Tab = 'prices' | 'trade' | 'invest';
 
@@ -137,7 +138,7 @@ export class MarketPanel {
     this.root.style.display = 'none';
 
     const head = h('div', 'wl-shop-head');
-    head.appendChild(h('div', 'wl-shop-title wl-outline', 'Market'));
+    head.appendChild(h('div', 'wl-shop-title wl-title', 'Market'));
     const tabs = h('div', 'wl-shop-tabs');
     for (const t of TABS) {
       const b = h('button', 'wl-shop-tab', `<span>${t.label}</span>`);
@@ -266,8 +267,9 @@ export class MarketPanel {
 
   private eraTag(era: number): string {
     const d = ERAS[era];
-    const c = d ? hex(d.colors.accent) : '#8a98b4';
-    return `<span class="wl-mk-era" style="--c:${c}">${ERA_NAMES[era] ?? ''}</span>`;
+    // 0.9.8: the era's accent with ink or cream lettering, whichever reads on it (ui/theme.ts)
+    const style = d ? `--c:${hex(d.colors.accent)};--c-ink:${hex(inkOn(d.colors.accent))}` : '';
+    return `<span class="wl-mk-era" style="${style}">${ERA_NAMES[era] ?? ''}</span>`;
   }
 
   private makePriceRow(kind: MaterialKind, parent: HTMLElement): PriceRow {
@@ -525,7 +527,8 @@ export class MarketPanel {
       if (pts !== r.shownSpark) {
         r.shownSpark = pts;
         r.line.setAttribute('points', pts);
-        r.line.setAttribute('stroke', hist[hist.length - 1]! >= hist[0]! ? '#2fa655' : '#d6453a');
+        // the token colours (ui/tokens.css), so the colour-blind palette and the night cards apply here too
+        r.line.style.stroke = hist[hist.length - 1]! >= hist[0]! ? 'var(--wl-good-text)' : 'var(--wl-bad-text)';
       }
     }
     for (const s of this.survivalRows) put(s.el, `${materialLabel(s.kind)} <b>${formatMoney(market.unitValue(s.kind))}</b>`);

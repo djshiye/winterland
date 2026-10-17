@@ -9,7 +9,7 @@
   width: 64px;
   height: 64px;
   margin: -42px auto 6px;
-  filter: drop-shadow(0 4px 0 rgba(20, 30, 55, 0.4));
+  filter: drop-shadow(0 4px 0 var(--wl-shade));
 }
 
 .wl-notice-icon svg {
@@ -27,7 +27,7 @@
   font-size: 17px;
   line-height: 1.35;
   opacity: 0.95;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  text-shadow: none;
 }
 
 .wl-notice-amount {
@@ -40,7 +40,7 @@
 }
 
 .wl-notice .wl-btn:focus-visible {
-  outline: 3px solid #ffd84a;
+  outline: 3px solid var(--wl-focus);
   outline-offset: 3px;
 }
 
@@ -60,7 +60,7 @@
   gap: 10px;
   padding: 8px 10px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--wl-row);
   text-align: left;
 }
 
@@ -70,7 +70,7 @@
   flex-direction: column;
   gap: 2px;
   font-size: 16px;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  text-shadow: none;
 }
 
 .wl-earlier-text span {

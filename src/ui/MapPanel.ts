@@ -23,9 +23,13 @@ import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
 import { eraRoman, groupTravelPoints, travelNote } from './agesLogic';
 import { hexCss, ICON_CLOSE, ICON_HOUSE, ICON_LOCK, ICON_PIN, shadeCss } from './icons';
 import { readableOn } from './contrast';
+import { CREAM, INK, SNOW, UI_TONES, mixHex } from '../render/palette';
+import { inkOn } from './theme';
 
-/** The map's dark city-block colour (district rects and badges). */
-const BLOCK = 0x4a5672;
+/** 0.9.8: the map is a snowy paper map in warm ink: city blocks are a cocoa ink, roads a soft taupe. */
+const BLOCK = mixHex(INK, CREAM, 0.22);
+const ROAD = mixHex(INK, CREAM, 0.6);
+const BERRY = hexCss(UI_TONES.berry);
 import './ages.css';
 
 /** World rectangle the SVG shows: the old map plus every region, road and district (0.9.5: computed, 4 m margin). */
@@ -79,7 +83,7 @@ export class MapPanel {
     this.card = h('div', 'wl-card wl-map-card');
     const head = h('div', 'wl-map-head');
     const titles = h('div', 'wl-map-titles');
-    titles.append(h('div', 'wl-map-title wl-outline', 'Map'), h('div', 'wl-map-sub', 'Tap a place to travel there'));
+    titles.append(h('div', 'wl-map-title wl-title', 'Map'), h('div', 'wl-map-sub', 'Tap a place to travel there'));
     head.appendChild(titles);
     const close = h('button', 'wl-build-close', ICON_CLOSE);
     close.type = 'button';
@@ -165,11 +169,11 @@ export class MapPanel {
     const age = state.eras.age;
     const out: string[] = [];
     out.push(`<svg viewBox="${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}" role="img" aria-label="World map" preserveAspectRatio="xMidYMid meet" style="--k:${K.toFixed(3)}">`);
-    out.push(`<rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" rx="5" fill="#dcebf8"/>`);
+    out.push(`<rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" rx="5" fill="${hexCss(SNOW)}"/>`);
     // roads
     for (const r of ROADS) {
       const open = r.opensAt <= 2 ? climbOpen(state) || age >= 2 : age >= r.opensAt - 1;
-      out.push(`<rect ${rectAttrs(r.rect)} fill="#8a94a8" opacity="${open ? 0.95 : 0.28}"/>`);
+      out.push(`<rect ${rectAttrs(r.rect)} fill="${hexCss(ROAD)}" opacity="${open ? 0.95 : 0.28}"/>`);
     }
     // the old map
     for (const p of OLD_PLACES) {
@@ -198,7 +202,7 @@ export class MapPanel {
       const cz = (d.rect.minZ + d.rect.maxZ) / 2;
       out.push(
         `<g ${open && tp ? `data-tp="${tp.id}" class="is-open"` : ''}>` +
-          `<rect ${rectAttrs(d.rect)} rx="2.5" fill="#4a5672" stroke="${hexCss(readableOn(e.colors.accent, BLOCK))}" stroke-width="1.1" ${open ? '' : 'opacity="0.35" stroke-dasharray="3 2"'}/>` +
+          `<rect ${rectAttrs(d.rect)} rx="2.5" fill="${hexCss(BLOCK)}" stroke="${hexCss(readableOn(e.colors.accent, BLOCK))}" stroke-width="1.1" ${open ? '' : 'opacity="0.35" stroke-dasharray="3 2"'}/>` +
           `<text class="wl-map-dname" x="${cx}" y="${cz + 2}" ${d.name.length > 9 ? 'textLength="26" lengthAdjust="spacingAndGlyphs"' : ''} ${open ? '' : 'opacity="0.6"'}>${d.name}</text></g>`,
       );
     }
@@ -230,10 +234,10 @@ export class MapPanel {
     // home points as tappable pins
     for (const p of pts) {
       if (p.kind !== 'home') continue;
-      out.push(`<g ${p.open ? `data-tp="${p.id}" class="is-open"` : ''}><circle cx="${p.x}" cy="${p.z}" r="${(3 * K).toFixed(2)}" fill="#fff" stroke="#1f2b46" stroke-width="${(1.2 * K).toFixed(2)}" ${p.open ? '' : 'opacity="0.4"'}/></g>`);
+      out.push(`<g ${p.open ? `data-tp="${p.id}" class="is-open"` : ''}><circle cx="${p.x}" cy="${p.z}" r="${(3 * K).toFixed(2)}" fill="${hexCss(CREAM)}" stroke="${hexCss(INK)}" stroke-width="${(1.2 * K).toFixed(2)}" ${p.open ? '' : 'opacity="0.4"'}/></g>`);
     }
-    out.push(`<circle class="wl-map-ring" cx="0" cy="0" r="${(4 * K).toFixed(2)}" fill="none" stroke="#e8553e" stroke-width="${K.toFixed(2)}"/>`);
-    out.push(`<circle class="wl-map-you" cx="0" cy="0" r="${(2.7 * K).toFixed(2)}" fill="#e8553e" stroke="#fff" stroke-width="${(1.1 * K).toFixed(2)}"/>`);
+    out.push(`<circle class="wl-map-ring" cx="0" cy="0" r="${(4 * K).toFixed(2)}" fill="none" stroke="${BERRY}" stroke-width="${K.toFixed(2)}"/>`);
+    out.push(`<circle class="wl-map-you" cx="0" cy="0" r="${(2.7 * K).toFixed(2)}" fill="${BERRY}" stroke="${hexCss(CREAM)}" stroke-width="${(1.1 * K).toFixed(2)}"/>`);
     out.push('</svg>');
     return out.join('');
   }
@@ -260,12 +264,13 @@ export class MapPanel {
       // a city block: dark like the map's blocks, ringed in the era's colour
       // 0.9.7 (contrast check): the ring and house are lightened just enough to read on the dark block
       const ring = hexCss(readableOn(e.colors.accent, BLOCK));
-      badge.style.background = '#4a5672';
+      badge.style.background = hexCss(BLOCK);
       badge.style.color = ring;
       badge.style.boxShadow = `inset 0 0 0 2px ${ring}`;
     } else if (e) {
       badge.style.background = hexCss(e.colors.accent);
-      badge.style.color = '#fff';
+      badge.style.color = hexCss(inkOn(e.colors.accent));
+      badge.style.textShadow = 'none';
     }
     const mid = h('div', 'wl-map-rowmid');
     const name = h('div', 'wl-map-rowname');
