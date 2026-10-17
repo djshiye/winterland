@@ -20,6 +20,7 @@ import { CAMERA } from '../config';
 import { Ease, type Tween, type TweenManager } from '../core/Tween';
 import { padDim } from '../assets/pads';
 import { PAD } from '../render/palette';
+import { glowScale } from './comfort';
 import type { SfxName, PlayOptions } from './Audio';
 import { bounceScale, breath, fillApproach, motionScale, padBreath, pitchJitter, reducedMotion } from './padJuice';
 
@@ -206,7 +207,8 @@ export class PadRing {
     u.uProgress.value = this.shown;
     u.uTime.value = reduced ? 0 : t;
     u.uShimmer.value = reduced ? 0 : 1;
-    u.uGlow.value = this.glow;
+    // the Glow slider softens the halo but never below 35%, so an affordable pad still reads as one
+    u.uGlow.value = this.glow * Math.max(0.35, glowScale());
     u.uFlash.value = this.flashK * this.flashK;
     // the faint track shows while something is paid or the pad glows
     u.uTrackVis.value = Math.min(1, Math.max(this.shown > 0.001 ? 1 : 0, this.glow * 2));

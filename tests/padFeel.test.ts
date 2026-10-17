@@ -9,13 +9,17 @@ import { resolve } from 'node:path';
 import * as THREE from 'three';
 import { afterEach, describe, expect, it } from 'vitest';
 import { BREATH_SWELL, CAPSTONE_LEVEL, LEVEL_NOTES, PENTATONIC, isCapstone, levelNotePitch, padBreath, setReducedMotion } from '../src/fx/padJuice';
-import { PadFeel } from '../src/fx/PadRing';
+import { PadFeel, PadRing } from '../src/fx/PadRing';
+import { setComfort } from '../src/fx/comfort';
 import { COLORS } from '../src/config';
 import { PAD, lightness } from '../src/render/palette';
 
 const src = (p: string): string => readFileSync(resolve(__dirname, '..', p), 'utf8').replace(/\r\n/g, '\n');
 
-afterEach(() => setReducedMotion(null));
+afterEach(() => {
+  setReducedMotion(null);
+  setComfort({ glow: 1 });
+});
 
 describe('level notes', () => {
   it('climbs one pentatonic step per level from Lv 1 to Lv 9, then the capstone takes over at Lv 10', () => {
@@ -96,6 +100,22 @@ describe('PadFeel', () => {
     f.feel.update(1 / 60, 0.98, f.pulse, true, true, false);
     expect(f.pulse.scale.x).toBeGreaterThan(1);
     expect(f.pulse.scale.y).toBeLessThan(f.pulse.scale.x);
+  });
+});
+
+describe('ring glow', () => {
+  it('follows the Glow slider but keeps an affordable pad readable at Glow 0', () => {
+    const glowAt = (g: number): number => {
+      setComfort({ glow: g });
+      const ring = new PadRing(2, 2);
+      for (let i = 0; i < 240; i++) ring.update(1 / 60, i / 60, true);
+      return (ring.mesh.material as THREE.ShaderMaterial).uniforms.uGlow.value as number;
+    };
+    const full = glowAt(1);
+    const off = glowAt(0);
+    expect(full).toBeGreaterThan(0);
+    expect(off).toBeLessThan(full);
+    expect(off / full).toBeCloseTo(0.35, 1);
   });
 });
 
