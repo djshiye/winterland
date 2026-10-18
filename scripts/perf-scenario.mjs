@@ -19,6 +19,8 @@
  * --look dir: after measuring, a day and a night screenshot of every era (the yard for era 1, beside each region's
  * market for eras 2..10, HUD hidden) plus the village, town and the era-10 district, as dir/<view>-day.png and dir/<view>-night.png
  * (the before / after proof of a visual change).
+ * 0.9.10: also prints the first frame drawn in each era region against the next one (the walk-in stutter, G1), and the
+ * slowest of the warm-up frames that get each opened region ready ahead of time (render/Renderer.ts warm()).
  * WL_CHROMIUM=/path/to/chrome uses an installed Chromium (scripts/shot.mjs).
  */
 import { spawnSync } from 'node:child_process';
@@ -216,13 +218,69 @@ const measure = `(() => {
   return JSON.stringify({ meshesInScene: meshes, views: out });
 })()`;
 
+// 0.9.10 (G1): the first frame drawn in each era region vs the next one (the walk-in stutter: shader programs, buffer and
+// texture uploads that happen the first time an era is in view). Runs before anything else visits the regions.
+const firstFrame = `(() => {
+  const W = ${W};
+  const gl = W.ctx.renderer.renderer.getContext();
+  // GPU work the first frame starts (hardware-independent): shader programs linked, vertex / index bytes and texture
+  // pixels uploaded. Software WebGL times swing a lot (its own per-draw JIT), so these counts are the real proof.
+  const work = { programs: 0, bufferMB: 0, textureMB: 0 };
+  const wrap = (name, add) => { const f = gl[name].bind(gl); gl[name] = (...a) => { add(a); return f(...a); }; return () => { gl[name] = f; }; };
+  const undo = [
+    wrap('linkProgram', () => { work.programs++; }),
+    wrap('bufferData', (a) => { work.bufferMB += (a[1]?.byteLength ?? 0) / 1048576; }),
+    wrap('texImage2D', (a) => { const src = a[a.length - 1]; work.textureMB += (src && src.width ? src.width * src.height * 4 : (a[3] * a[4] * 4 || 0)) / 1048576; }),
+  ];
+  const time = () => { const t0 = performance.now(); W.render(); gl.finish(); return +(performance.now() - t0).toFixed(1); };
+  const out = [];
+  try {
+    for (let n = 2; n <= ${eras}; n++) {
+      if (!W.travel('region:' + n)) continue;
+      work.programs = 0; work.bufferMB = 0; work.textureMB = 0;
+      const first = time();
+      const row = { era: n, first, programs: work.programs, bufferMB: +work.bufferMB.toFixed(2), textureMB: +work.textureMB.toFixed(2) };
+      work.bufferMB = 0;
+      row.next = time();
+      // what any frame uploads anyway (instance matrices, particles): the first frame's extra is the difference
+      row.nextBufferMB = +work.bufferMB.toFixed(2);
+      out.push(row);
+    }
+  } finally {
+    for (const u of undo) u();
+  }
+  return JSON.stringify({ firstFrame: out });
+})()`;
+
+// The game keeps drawing frames after an era opens; the queued warm-up draws (render/Renderer.ts warm()) run in those
+// frames. One frame starts the background shader compile, then the rest draw one queued area each (the slowest is reported).
+const warmKick = `(${W}.render(), 'warm-up started: ' + (${W}.ctx.renderer.warmPending ?? 'n/a') + ' areas')`;
+const warmDrain = `(() => {
+  const W = ${W};
+  const r = W.ctx.renderer;
+  const gl = r.renderer.getContext();
+  let frames = 0, worst = 0;
+  while ((r.warmPending ?? 0) > 0 && frames < 60) {
+    const t0 = performance.now();
+    W.render();
+    gl.finish();
+    worst = Math.max(worst, performance.now() - t0);
+    frames++;
+  }
+  return JSON.stringify({ warmFrames: frames, warmWorstMs: +worst.toFixed(1), left: r.warmPending ?? 'n/a' });
+})()`;
+
 const steps = [
   'sim:1',
   `eval:${setup}`,
   'sim:2',
   `eval:${fillEras}`,
+  `eval:${warmKick}`,
+  'wait:500',
+  `eval:${warmDrain}`,
   'sim:150',
   `eval:(${W}.setTimeOfDay(${night ? 0.75 : 0.25}), ${W}.simulate(2, 1/60), 'time set')`,
+  `eval:${firstFrame}`,
   `eval:${measure}`,
   ...(shots ? shotSteps : []),
   ...lookSteps,
@@ -230,7 +288,17 @@ const steps = [
 const r = spawnSync(process.execPath, [path.join(here, 'shot.mjs'), '--timeout', '180000', '--allow-errors', ...steps], { encoding: 'utf8', maxBuffer: 64 << 20 });
 process.stdout.write(r.stdout);
 process.stderr.write(r.stderr);
-// readable summary of the measure step (shot.mjs prints eval results as JSON strings)
+// readable summary of the first-frame and measure steps (shot.mjs prints eval results as JSON strings)
+const ffLine = r.stdout.split('\n').find((l) => l.includes('firstFrame'));
+const ff = ffLine ? JSON.parse(JSON.parse(ffLine.slice(ffLine.indexOf('→ ') + 2))).firstFrame : [];
+if (ff.length) {
+  console.log('\nfirst frame into each era (ms are software WebGL; the GPU work is what stutters on real hardware):');
+  for (const f of ff) console.log(`  era ${String(f.era).padStart(2)}  first ${String(f.first).padStart(7)} ms  next ${String(f.next).padStart(6)} ms  programs ${String(f.programs).padStart(3)}  buffers ${String(f.bufferMB).padStart(6)} MB (next ${String(f.nextBufferMB).padStart(5)})  textures ${String(f.textureMB).padStart(6)} MB`);
+  const sum = (k) => +ff.reduce((s, f) => s + f[k], 0).toFixed(2);
+  console.log(`  all eras: programs ${sum('programs')}, buffers ${sum('bufferMB')} MB, textures ${sum('textureMB')} MB; worst first frame ${Math.max(...ff.map((f) => f.first))} ms`);
+}
+const wLine = r.stdout.split('\n').find((l) => l.includes('warmFrames'));
+if (wLine) console.log(`warm-up after the eras opened: ${wLine.slice(wLine.indexOf('→ ') + 2)}`);
 const line = r.stdout.split('\n').find((l) => l.includes('meshesInScene'));
 if (line) {
   const result = JSON.parse(JSON.parse(line.slice(line.indexOf('→ ') + 2)));
