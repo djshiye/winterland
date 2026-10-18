@@ -1123,6 +1123,8 @@ export class Townsfolk {
         let pickA: Agent | null = null;
         for (const a of this.live) {
           if (a.kind !== 'wanderer' || a.act === 'leave' || a.act === 'carol' || a.fading) continue;
+          // 0.9.10: not someone seated or on the last step into a bench seat / café stool (they walked off through it)
+          if (a.mode === 'sit' || a.mode === 'standup' || ((a.act === 'sit' || a.act === 'cafe') && a.path.n > 0 && a.path.i === a.path.n - 1)) continue;
           if (!pickA || a.life > pickA.life) pickA = a;
         }
         if (pickA) this.beginLeave(pickA);
