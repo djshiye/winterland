@@ -11,6 +11,10 @@
  * - `onWindowMode(cb)`: fires whenever the mode changes, including from F11 / Alt+Enter handled in the main process.
  *   Returns an unsubscribe.
  * - `quit()` (0.9.6): close the app (Settings → Save & quit; the game writes its save first). Absent in older shells.
+ * - `saveMirror` (0.9.10, desktop/save-mirror.cjs): the copy of the save in the user-data folder (save.json and the
+ *   copy before it, save.json.bak). `read()` returns both texts (null when missing); `write(text)` hands over a save,
+ *   which the main process writes to disk now and then; `setAside()` moves both files aside (never deleted) before a
+ *   different game is copied there. Absent in older shells.
  * - `updates` (0.9.8, desktop/updater.cjs): the in-game updater. The page never reaches the network itself; the main
  *   process checks GitHub, downloads and verifies the zip, and hands over to the "Update Winterland" script.
  */
@@ -46,12 +50,20 @@ export interface UpdateBridge {
   onProgress(cb: (p: { got: number; total: number }) => void): () => void;
 }
 
+export interface SaveMirrorBridge {
+  read(): { save: string | null; bak: string | null } | null;
+  write(text: string): void;
+  /** Move save.json and save.json.bak aside (save.json.replaced-<time>); true when done or nothing was there. */
+  setAside(): boolean;
+}
+
 export interface DesktopBridge {
   readonly version: string;
   getWindowMode(): Promise<WindowMode>;
   setWindowMode(mode: WindowMode): void;
   onWindowMode(cb: (mode: WindowMode) => void): () => void;
   quit?(): void;
+  saveMirror?: SaveMirrorBridge;
   updates?: UpdateBridge;
 }
 

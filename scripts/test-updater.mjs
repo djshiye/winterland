@@ -11,12 +11,17 @@
  * 0.9.8: also the in-game route (desktop/updater.cjs): the app's own copy of the script, run from a temp folder with
  * the zip the game already downloaded (--from-game --zip --install / --app; Windows -FromGame -Zip -Install).
  *
+ * 0.9.10 (F9): swaps cut off half way. A stand-in `mv` (Linux, macOS) or Move-Item (Windows) hard-kills the updater
+ * right after a chosen move, like a power cut, or refuses chosen moves; then either the updater runs again or the game
+ * starts (desktop/swap-recover.cjs, Linux and macOS), and the folder must come out whole: all old or all new.
+ *
  *   node scripts/test-updater.mjs
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { inAppUpdaterFiles, updaterFiles } from './updater-files.mjs';
 
@@ -39,6 +44,9 @@ const put = (file, content, mode = 0o644) => {
 };
 const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf8', ...opts });
 const sha = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
+const { recoverSwap } = createRequire(import.meta.url)('../desktop/swap-recover.cjs');
+/** The real mv, for the stand-in to call. */
+const REAL_MV = OS === 'win32' ? '' : run('/bin/sh', ['-c', 'command -v mv']).stdout.trim();
 
 /** The files of one Winterland version, laid out like the packaged folder (paths relative to it). */
 function gameFiles(version) {
@@ -89,8 +97,14 @@ function closingGame(install, seconds) {
   child.unref();
 }
 
-/** One scenario in a fresh temp folder. `sums` edits SHA256SUMS.txt; `before` can tamper with the install. */
-function scenario(title, { latest = NEW, sums = (s) => s, before = () => {}, inGame = null } = {}) {
+/**
+ * One scenario in a fresh temp folder. `sums` edits SHA256SUMS.txt; `before` can tamper with the install.
+ * `cut` (0.9.10): `{ kill }` hard-kills the updater just after the move whose destination ends with that text (a power
+ * cut), `{ fail }` makes every move whose "from to" matches that regex fail (Linux). `then`: after that run, 'updater'
+ * runs the updater again (the old version's copy, from outside the folder) and 'game' runs the game's start-up
+ * recovery; the state after the first run is in `mid`.
+ */
+function scenario(title, { latest = NEW, sums = (s) => s, before = () => {}, inGame = null, cut = null, then = null } = {}) {
   console.log(`\n${title}`);
   const root = mkdtempSync(join(tmpdir(), 'wl-updater-test-'));
   try {
@@ -132,8 +146,14 @@ function scenario(title, { latest = NEW, sums = (s) => s, before = () => {}, inG
       writeFileSync(given, inGame.tamper ? Buffer.concat([readFileSync(zip), Buffer.from('x')]) : readFileSync(zip));
     }
 
+    // The old version's own updater, kept outside the folder (a cut-off swap may have moved the one inside it).
+    const rerun = join(root, 'rerun');
+    if (then === 'updater') {
+      for (const f of updaterFiles(OS, ARCH, OLD)) put(join(rerun, f.path), f.content, f.mode);
+    }
+    const execute = (again) => {
     let r;
-    const began = Date.now();
+    const cutEnv = !again && cut ? (cut.kill ? { WL_MV_KILL: cut.kill.replaceAll('/', OS === 'win32' ? '\\' : '/') } : { WL_MV_FAIL: cut.fail }) : {};
     if (OS === 'win32') {
       const harness = join(root, 'harness.ps1');
       writeFileSync(harness, `param($Updater, $Server, $Log)
@@ -147,13 +167,22 @@ function global:Invoke-WebRequest {
   if (-not (Test-Path -LiteralPath $f)) { throw "404 $Uri" }
   Copy-Item -LiteralPath $f -Destination $OutFile
 }
+if ($env:WL_MV_KILL) {
+  function global:Move-Item {
+    param([string]$LiteralPath, [string]$Destination)
+    Microsoft.PowerShell.Management\Move-Item -LiteralPath $LiteralPath -Destination $Destination
+    if ($Destination.EndsWith($env:WL_MV_KILL)) { Stop-Process -Id $PID -Force }
+  }
+}
 if ($env:WL_TEST_INGAME) { & $Updater -FromGame -NoLaunch -Install $env:WL_TEST_INSTALL -Zip $env:WL_TEST_ZIP }
+elseif ($env:WL_TEST_INSTALL) { & $Updater -Yes -NoLaunch -NoPause -Install $env:WL_TEST_INSTALL }
 else { & $Updater -Yes -NoLaunch -NoPause }
 exit $LASTEXITCODE
 `);
-      const ps1 = inGame ? join(runner, 'update.ps1') : join(install, 'updater', 'update.ps1');
-      const env = { ...process.env, APPDATA: join(home, 'AppData', 'Roaming') };
-      if (inGame) Object.assign(env, { WL_TEST_INGAME: '1', WL_TEST_INSTALL: install, WL_TEST_ZIP: given });
+      const ps1 = again ? join(rerun, 'updater', 'update.ps1') : inGame ? join(runner, 'update.ps1') : join(install, 'updater', 'update.ps1');
+      const env = { ...process.env, APPDATA: join(home, 'AppData', 'Roaming'), ...cutEnv };
+      if (again) env.WL_TEST_INSTALL = install;
+      else if (inGame) Object.assign(env, { WL_TEST_INGAME: '1', WL_TEST_INSTALL: install, WL_TEST_ZIP: given });
       r = run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', harness, ps1, server, log], { env });
     } else {
       // Stand-in curl: insists on HTTPS-only flags, serves the fake release, logs every URL.
@@ -175,25 +204,53 @@ esac
 [ -f "$f" ] || exit 22
 cp "$f" "$out"
 `, 0o755);
-      const script = inGame ? join(runner, 'update.sh') : join(install, OS === 'darwin' ? 'Update Winterland.command' : 'Update Winterland.sh');
-      const args = inGame ? [script, '--from-game', '--zip', given] : [script, '--yes'];
+      // Stand-in mv (0.9.10): the real one, then a hard kill of the updater after the chosen move, or a refused move.
+      if (cut) {
+        put(join(bin, 'mv'), `#!/bin/bash
+if [ -n "\${WL_MV_FAIL:-}" ] && [[ "$*" =~ $WL_MV_FAIL ]]; then exit 1; fi
+'${REAL_MV}' "$@" || exit $?
+if [ -n "\${WL_MV_KILL:-}" ]; then case "\${@: -1}" in *"$WL_MV_KILL") kill -9 "$PPID" ;; esac; fi
+exit 0
+`, 0o755);
+      }
+      const inGameRun = inGame && !again;
+      const script = again ? join(rerun, updaterFiles(OS, ARCH, OLD)[0].path) : inGameRun ? join(runner, 'update.sh') : join(install, OS === 'darwin' ? 'Update Winterland.command' : 'Update Winterland.sh');
+      const args = inGameRun ? [script, '--from-game', '--zip', given] : [script, '--yes'];
       // (the in-game run on Linux starts the fake game, which notes it; elsewhere nothing is started)
-      if (!(inGame && OS === 'linux')) args.push('--no-launch');
+      if (!(inGameRun && OS === 'linux')) args.push('--no-launch');
       if (OS === 'darwin') args.push('--app', join(install, 'Winterland.app'));
-      else if (inGame) args.push('--install', install);
+      else if (inGameRun || again) args.push('--install', install);
       r = run('/bin/bash', args, {
-        env: { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}`, ...(inGame ? {} : { WL_UPDATER_IN_TERMINAL: '1' }), WL_UPDATER_ALLOW_ROOT: '1', TMPDIR: root },
+        env: { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}`, ...(inGameRun ? {} : { WL_UPDATER_IN_TERMINAL: '1' }), WL_UPDATER_ALLOW_ROOT: '1', TMPDIR: root, ...cutEnv },
       });
       // the fake game is started in the background: give it a moment to note how
-      if (inGame && OS === 'linux') for (let i = 0; i < 40 && !existsSync(join(install, 'started.txt')); i++) spawnSync('sleep', ['0.05']);
+      if (inGameRun && OS === 'linux') for (let i = 0; i < 40 && !existsSync(join(install, 'started.txt')); i++) spawnSync('sleep', ['0.05']);
     }
-    const output = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+    return r;
+    };
+    const began = Date.now();
+    let r = execute(false);
+    const listLeftovers = () => readdirSync(install).filter((n) => n.startsWith('.winterland-update'));
+    const asarPath = join(install, OS === 'darwin' ? 'Winterland.app/Contents/Resources/app.asar' : 'resources/app.asar');
+    const mid = {
+      status: r.status,
+      output: `${r.stdout ?? ''}${r.stderr ?? ''}`,
+      leftovers: listLeftovers(),
+      gameNow: existsSync(asarPath) ? readFileSync(asarPath, 'utf8') : '(missing)',
+      oldKept: existsSync(join(install, '.winterland-update-new', 'old', 'resources', 'app.asar')) || existsSync(join(install, '.winterland-update-new', 'old.app')),
+    };
+    let recovered = null;
+    if (then === 'updater') r = execute(true);
+    else if (then === 'game') recovered = recoverSwap(install, OS, OS === 'darwin' ? join(install, 'Winterland.app') : '');
+    const output = `${mid.output}${then ? `${r.stdout ?? ''}${r.stderr ?? ''}` : ''}`;
     const asar = OS === 'darwin' ? 'Winterland.app/Contents/Resources/app.asar' : 'resources/app.asar';
     const gameNow = existsSync(join(install, asar)) ? readFileSync(join(install, asar), 'utf8') : '(missing)';
     const leftovers = readdirSync(install).filter((n) => n.startsWith('.winterland-update'));
     const urls = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [];
     return {
       r,
+      mid,
+      recovered,
       seconds: (Date.now() - began) / 1000,
       output,
       gameNow,
@@ -263,6 +320,38 @@ if (OS !== 'darwin') {
   });
   check(s.r.status === 0 && s.gameNow === `game ${OLD}`, 'puts the old files back');
   check(s.leftovers.length === 0, 'cleans up');
+  show(s);
+}
+
+// 0.9.10 (F9): a swap cut off half way (a power cut or a killed script) never leaves a half-old, half-new game.
+{
+  const half = OS === 'darwin' ? '/old.app' : '/old/resources';
+  s = scenario('Swap killed half way, then the updater runs again', { cut: { kill: half }, then: 'updater' });
+  check(s.mid.status !== 0 && s.mid.oldKept, 'the cut leaves the old files set aside');
+  check(s.r.status === 0 && s.gameNow === `game ${NEW}`, 'the next run puts things right and updates');
+  check(OS === 'darwin' || s.newFile, 'files new in this version arrive');
+  check(s.saveKept && s.notesKept && s.leftovers.length === 0, 'save and other files untouched, nothing left behind');
+  show(s);
+
+  if (OS !== 'win32') {
+    s = scenario('Swap killed half way, then the game starts', { cut: { kill: half }, then: 'game' });
+    check(s.recovered === 'rolled-back', 'the game puts the old version back at start');
+    check(s.gameNow === `game ${OLD}` && (OS === 'darwin' || !s.newFile), 'all of the old version, none of the new');
+    check(s.saveKept && s.notesKept, 'save and other files untouched');
+    check(s.leftovers.every((n) => n === '.winterland-update-lock'), 'only the dead updater lock is left (the next run clears it)');
+    show(s);
+  }
+
+  s = scenario('In-game update killed half way, then the updater runs again', { inGame: {}, cut: { kill: half }, then: 'updater' });
+  check(s.r.status === 0 && s.gameNow === `game ${NEW}` && s.saveKept && s.leftovers.length === 0, 'ends up fully updated, save untouched');
+  show(s);
+}
+if (OS === 'linux') {
+  // A file that won't move in, and the old one that won't move back either: the old copy must never be deleted.
+  s = scenario('Swap and put-back both fail', { cut: { fail: '(unpacked/[^ ]*/resources|old/resources) ' }, then: 'updater' });
+  check(s.mid.status !== 0 && /still in/.test(s.mid.output), 'stops and says where the old files are');
+  check(s.mid.oldKept && s.mid.leftovers.includes('.winterland-update-new'), 'keeps the old files set aside');
+  check(s.r.status === 0 && s.gameNow === `game ${NEW}` && s.leftovers.length === 0, 'the next run puts them back and updates');
   show(s);
 }
 

@@ -28,6 +28,13 @@
  *
  * 0.9.8: the in-game updater (desktop/updater.cjs) is the only part of the app that reaches the network, from this
  * main process; the page itself stays offline.
+ *
+ * 0.9.10:
+ * - a copy of the save is kept in the user-data folder as save.json (+ save.json.bak), see desktop/save-mirror.cjs;
+ * - a hidden or minimised window is throttled again (no drawing); the page keeps the factory running on a slow timer
+ *   and saves as it hides (src/game/Game.ts);
+ * - an update that was cut off mid-swap (power cut, killed script) is rolled back before the game starts
+ *   (desktop/swap-recover.cjs), then this copy starts again as the old version and says the update stopped.
  */
 const fs = require('node:fs');
 const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, screen, session, shell } = require('electron');
@@ -35,6 +42,8 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { CSP, distFile, fullscreenOptions, isAppUrl, isFullscreenKey } = require('./window-options.cjs');
 const { registerUpdater } = require('./updater.cjs');
+const { createMirror } = require('./save-mirror.cjs');
+const { recoverSwap } = require('./swap-recover.cjs');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const DEFAULT_SIZE = { width: 1280, height: 800 };
@@ -126,7 +135,9 @@ function createWindow() {
       spellcheck: false,
       safeDialogs: true,
       devTools: !app.isPackaged,
-      backgroundThrottling: false,
+      // 0.9.10 (D9): throttled while hidden or minimised, so it stops drawing; the page saves as it hides and keeps
+      // the factory running on a slow timer (src/game/Game.ts backgroundTick).
+      backgroundThrottling: true,
       preload: path.join(__dirname, 'preload.cjs'),
     },
   });
@@ -169,7 +180,10 @@ function createWindow() {
     if (timer) clearTimeout(timer);
     timer = null;
     writeState();
+    flushMirror();
   });
+  // the page saves as it hides (visibilitychange); that save reaches the disk copy at once
+  for (const ev of ['minimize', 'hide']) win.on(ev, () => setTimeout(flushMirror, 1000));
 
   const announce = (mode) => {
     if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('desktop:windowMode', mode);
@@ -255,7 +269,42 @@ ipcMain.on('desktop:quit', (event) => {
 // 0.9.8 in-game updater (desktop/updater.cjs): 'update:*' channels; nothing is contacted until the page asks.
 registerUpdater();
 
+// 0.9.10 save copy (desktop/save-mirror.cjs). The page reads it once at start (synchronously, it is small) and hands
+// over each save it writes; the newest one goes to disk at most every MIRROR_SECONDS, and when the window hides,
+// closes or the app quits. Only the game page may read or write it, and only ever save.json(.bak) in user data.
+const MIRROR_SECONDS = 30;
+let mirror = null;
+const saveMirror = () => (mirror ??= createMirror(app.getPath('userData')));
+let mirrorTimer = null;
+const flushMirror = () => {
+  if (mirrorTimer) clearTimeout(mirrorTimer);
+  mirrorTimer = null;
+  mirror?.flush();
+};
+ipcMain.on('save:mirrorRead', (event) => {
+  event.returnValue = isAppUrl(event.senderFrame?.url ?? '') ? saveMirror().read() : null;
+});
+ipcMain.on('save:mirrorSetAside', (event) => {
+  event.returnValue = isAppUrl(event.senderFrame?.url ?? '') ? saveMirror().setAside(Date.now()) : false;
+});
+ipcMain.on('save:mirrorWrite', (event, text) => {
+  if (!isAppUrl(event.senderFrame?.url ?? '') || !saveMirror().offer(text)) return;
+  if (!mirrorTimer) mirrorTimer = setTimeout(flushMirror, MIRROR_SECONDS * 1000);
+});
+app.on('before-quit', flushMirror);
+app.on('will-quit', flushMirror);
+
 app.whenReady().then(() => {
+  // 0.9.10 (F9): an update cut off mid-swap is rolled back before anything else, then the old version starts again.
+  if (app.isPackaged && process.platform !== 'win32') {
+    const appPath = process.platform === 'darwin' ? path.resolve(process.execPath, '..', '..', '..') : '';
+    const where = appPath ? path.dirname(appPath) : path.dirname(process.execPath);
+    if (recoverSwap(where, process.platform, appPath) === 'rolled-back') {
+      app.relaunch({ args: [...process.argv.slice(1).filter((a) => !a.startsWith('--update-failed')), '--update-failed=files'] });
+      app.exit(0);
+      return;
+    }
+  }
   // No menu bar in the game window; macOS keeps just the app menu (Hide, Quit), View > Enter Full Screen and the
   // Window menu (Minimize).
   Menu.setApplicationMenu(

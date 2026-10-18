@@ -67,7 +67,8 @@ describe('parseSave: what is on disk', () => {
   });
 
   it('reports corrupt text as unreadable with the exact text, never as "no save"', () => {
-    for (const text of ['{"v":1,"state":{', 'null', '[]', ok({ money: 'x' }), ok({ state: null }), ok({ v: 0 })]) {
+    // (0.9.10: an older format such as v 0 is upgraded instead, tests/saveFormat.test.ts)
+    for (const text of ['{"v":1,"state":{', 'null', '[]', ok({ money: 'x' }), ok({ state: null }), ok({ v: 0, state: 'x' })]) {
       const r = parseSave(text);
       expect(r).toEqual({ kind: 'unreadable', raw: text, reason: 'corrupt' });
     }

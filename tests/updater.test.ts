@@ -276,7 +276,7 @@ describe('wiring', () => {
   it('every release ships its notes, listed in SHA256SUMS.txt, and the app carries its own updater copy', () => {
     const yml = read('.github/workflows/release.yml');
     expect(yml).toContain('RELEASE-NOTES.md');
-    expect(yml).toMatch(/sha256sum \*\.zip \$\{extra\[@\]\+RELEASE-NOTES\.md\} > SHA256SUMS\.txt/);
+    expect(yml).toMatch(/sha256sum -- \*\.zip \$\{extra\[@\]\+RELEASE-NOTES\.md\} > SHA256SUMS\.txt/);
     const pack = read('scripts/package-desktop.mjs');
     expect(pack).toContain('inAppUpdaterFiles');
     expect(pack).toContain("p !== '/desktop/updater'");

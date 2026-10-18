@@ -100,12 +100,59 @@ $Exe = Join-Path $Install 'Winterland.exe'
 $Stage = Join-Path $Install '.winterland-update-new'
 $Old = Join-Path $Stage 'old'
 
-# A previous update that was cut off mid-swap (power loss): put back any old file that has no replacement yet.
-if (Test-Path -LiteralPath $Old) {
-  foreach ($item in Get-ChildItem -LiteralPath $Old -Force) {
-    $dest = Join-Path $Install $item.Name
-    if (-not (Test-Path -LiteralPath $dest)) { Move-Item -LiteralPath $item.FullName -Destination $dest }
+$Done = Join-Path $Install '.winterland-update-done'
+
+# Put back an update that was cut off mid-swap (power cut, killed script): the layout of .winterland-update-new is
+# shared with update.sh and desktop/swap-recover.cjs, which explains it. swap.txt lists each name the new version
+# ships, "1 <name>" when the folder had it before and "0 <name>" when not; every old copy comes back and every
+# name only the new version has goes. $true when the folder is whole again (the leftovers are then removed).
+function Restore-Swap([switch]$Mine) {
+  if (-not $Mine) {
+    $lockPid = Get-Content -LiteralPath (Join-Path $Install '.winterland-update-lock\pid') -ErrorAction SilentlyContinue
+    if ($lockPid -and (Get-Process -Id $lockPid -ErrorAction SilentlyContinue)) { return $true } # another updater is at work
   }
+  if (Test-Path -LiteralPath $Done) { Remove-Item -LiteralPath $Done -Recurse -Force -ErrorAction SilentlyContinue }
+  if (-not (Test-Path -LiteralPath $Stage)) { return $true }
+  $journal = Join-Path $Stage 'swap.txt'
+  $bad = $false
+  if (Test-Path -LiteralPath $journal) {
+    foreach ($line in @(Get-Content -LiteralPath $journal)) {
+      if (-not $line) { continue }
+      $m = [regex]::Match($line, '^([01]) (.+)$')
+      if (-not $m.Success) { return $false }
+      $had = $m.Groups[1].Value
+      $name = $m.Groups[2].Value
+      if ($name -eq '.' -or $name -eq '..' -or $name -match '[\\/]') { return $false }
+      $live = Join-Path $Install $name
+      $kept = Join-Path $Old $name
+      try {
+        if ($had -eq '1') {
+          if (Test-Path -LiteralPath $kept) {
+            if (Test-Path -LiteralPath $live) { Remove-Item -LiteralPath $live -Recurse -Force }
+            Move-Item -LiteralPath $kept -Destination $live
+          }
+        } elseif (Test-Path -LiteralPath $live) {
+          Remove-Item -LiteralPath $live -Recurse -Force
+        }
+      } catch { $bad = $true }
+    }
+    if ($bad) { return $false }
+  } elseif (Test-Path -LiteralPath $Old) {
+    # Left by a 0.9.8 / 0.9.9 updater (no swap.txt): put back each old file that has no replacement.
+    foreach ($item in @(Get-ChildItem -LiteralPath $Old -Force)) {
+      $dest = Join-Path $Install $item.Name
+      if (-not (Test-Path -LiteralPath $dest)) {
+        try { Move-Item -LiteralPath $item.FullName -Destination $dest } catch { $bad = $true }
+      }
+    }
+    if ($bad -or @(Get-ChildItem -LiteralPath $Old -Force).Count -gt 0) { return $false }
+  }
+  Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
+  return $true
+}
+
+if (-not (Restore-Swap)) {
+  Stop-Update "an earlier update was cut off and its files couldn't all be put back. They are kept in $Old."
 }
 if (-not ((Test-Path -LiteralPath $Exe) -and (Test-Path -LiteralPath (Join-Path $Install 'resources\app.asar')))) {
   Stop-Update 'run this from your unzipped Winterland folder (the one with Winterland.exe in it).'
@@ -203,6 +250,10 @@ try {
   # Unpack next to the game (same disk, so the swap is a quick rename) and check it looks like Winterland.
   Say 'Installing...'
   $script:Step = 'files'
+  if (-not (Restore-Swap -Mine)) {
+    $KeepStage = $true
+    Stop-Update "an earlier update's files couldn't all be put back. They are kept in $Old."
+  }
   if (Test-Path -LiteralPath $Stage) { Remove-Item -LiteralPath $Stage -Recurse -Force } # leftovers were put back above
   $Unpacked = Join-Path $Stage 'unpacked'
   try {
@@ -220,27 +271,33 @@ try {
 
   # Swap only the files the new version ships; anything else in the folder stays. Ctrl+C can't cut it in half, and if
   # the swap is cut off anyway (power loss) the old files stay in .winterland-update-new\old for the next run.
+  # 0.9.10: swap.txt first lists every name the new version ships (and whether the folder had it), so a swap cut off
+  # half way can be put back exactly (Restore-Swap, here or when the game starts).
   $KeepStage = $true
   try { [Console]::TreatControlCAsInput = $true } catch { }
   New-Item -ItemType Directory -Path $Old | Out-Null
-  $moved = New-Object System.Collections.Generic.List[string]
-  $placed = New-Object System.Collections.Generic.List[string]
+  $items = @(Get-ChildItem -LiteralPath $Top -Force)
+  $entries = foreach ($item in $items) { if (Test-Path -LiteralPath (Join-Path $Install $item.Name)) { "1 $($item.Name)" } else { "0 $($item.Name)" } }
+  $journalTmp = Join-Path $Stage 'swap.tmp'
+  [IO.File]::WriteAllLines($journalTmp, [string[]]@($entries))
+  Move-Item -LiteralPath $journalTmp -Destination (Join-Path $Stage 'swap.txt')
   try {
-    foreach ($item in Get-ChildItem -LiteralPath $Top -Force) {
+    foreach ($item in $items) {
       $dest = Join-Path $Install $item.Name
-      if (Test-Path -LiteralPath $dest) {
-        Move-Item -LiteralPath $dest -Destination (Join-Path $Old $item.Name)
-        $moved.Add($item.Name)
-      }
+      if (Test-Path -LiteralPath $dest) { Move-Item -LiteralPath $dest -Destination (Join-Path $Old $item.Name) }
       Move-Item -LiteralPath $item.FullName -Destination $dest
-      $placed.Add($item.Name)
     }
   } catch {
-    foreach ($name in $placed) { Remove-Item -LiteralPath (Join-Path $Install $name) -Recurse -Force -ErrorAction SilentlyContinue }
-    foreach ($name in $moved) { Move-Item -LiteralPath (Join-Path $Old $name) -Destination (Join-Path $Install $name) }
-    $KeepStage = $false
-    Stop-Update "couldn't replace every file, so the old version was put back. Is the game closed?"
+    if (Restore-Swap -Mine) {
+      $KeepStage = $false
+      Stop-Update "couldn't replace every file, so the old version was put back. Is the game closed?"
+    }
+    # Never delete the old files while any of them is still set aside: the next run puts them back.
+    $script:Relaunch = $false
+    Stop-Update "couldn't replace every file, and some old files are still in $Old. Run Update Winterland again to put them back."
   }
+  # Done: the leftovers leave in one rename (so a cut here can't look like a half-finished swap), then go.
+  try { Move-Item -LiteralPath $Stage -Destination $Done; $Stage = $Done } catch { }
   $KeepStage = $false
   try { [Console]::TreatControlCAsInput = $false } catch { }
 

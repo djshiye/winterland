@@ -8,7 +8,9 @@
 #   2. If that release is newer than this copy, downloads the zip for this platform from that exact release tag.
 #   3. Checks the zip's SHA-256 against SHA256SUMS.txt. On any mismatch it stops and changes nothing.
 #   4. Swaps the game files (Linux: the files in this folder that the new zip ships; macOS: Winterland.app),
-#      keeping the old ones until the new ones are in place, and puts them back if anything fails.
+#      keeping the old ones until the new ones are in place, and puts them back if anything fails. A swap that is cut
+#      off anyway (power cut, killed script) is put back the next time this script or the game starts: the layout of
+#      .winterland-update-new is shared with desktop/swap-recover.cjs, which explains it.
 #   5. Starts the new version.
 # It never reads, moves or deletes the save (~/.config/Winterland on Linux, ~/Library/Application Support/Winterland
 # on macOS): the save is not in the game folder, so the swap cannot reach it.
@@ -106,6 +108,60 @@ main() {
     done
     return 0
   }
+  # Put back an update that was cut off mid-swap in folder $1 (the same steps as desktop/swap-recover.cjs, which the
+  # game runs at start). $2 = 1 when this run holds the lock itself. True when the folder is whole again.
+  recover_swap() {
+    local dir="$1" mine="${2:-0}" stage="$1/.winterland-update-new" pid line had name bad=0
+    if [ "$mine" != 1 ]; then
+      pid="$(cat "$dir/.winterland-update-lock/pid" 2>/dev/null || true)"
+      if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then return 0; fi # another updater is at work: its business
+    fi
+    if [ -d "$dir/.winterland-update-done" ]; then rm -rf "$dir/.winterland-update-done"; fi
+    [ -d "$stage" ] || return 0
+    if [ -f "$stage/swap.txt" ]; then
+      while IFS= read -r line || [ -n "$line" ]; do
+        [ -n "$line" ] || continue
+        had="${line%% *}"
+        name="${line#* }"
+        case "$name" in '' | . | .. | */*) return 1 ;; esac
+        if [ "$had" = 1 ]; then
+          if [ -e "$stage/old/$name" ] || [ -L "$stage/old/$name" ]; then
+            if [ -e "$dir/$name" ] || [ -L "$dir/$name" ]; then rm -rf "${dir:?}/$name" || { bad=1; continue; }; fi
+            mv "$stage/old/$name" "$dir/$name" || bad=1
+          fi
+        elif [ "$had" = 0 ]; then
+          if [ -e "$dir/$name" ] || [ -L "$dir/$name" ]; then rm -rf "${dir:?}/$name" || bad=1; fi
+        else
+          return 1
+        fi
+      done <"$stage/swap.txt"
+      [ "$bad" = 0 ] || return 1
+      rm -rf "$stage"
+      return 0
+    fi
+    # Left by a 0.9.8 / 0.9.9 updater (no swap.txt): put back each old file that has no replacement.
+    if [ -d "$stage/old" ]; then
+      while IFS= read -r name; do
+        if [ -n "$name" ] && [ ! -e "$dir/$name" ] && [ ! -L "$dir/$name" ]; then mv "$stage/old/$name" "$dir/$name" || bad=1; fi
+      done <<EOF
+$(ls -A "$stage/old")
+EOF
+      [ -z "$(ls -A "$stage/old")" ] || return 1
+    fi
+    rm -rf "$stage"
+    return "$bad"
+  }
+  # macOS: the old Winterland.app, moved aside by a swap that was cut off, comes back if no app took its place.
+  recover_app() {
+    local app="$1" dir stage pid
+    dir="$(dirname "$app")"
+    stage="$dir/.winterland-update-new"
+    pid="$(cat "$dir/.winterland-update-lock/pid" 2>/dev/null || true)"
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then return 0; fi
+    if [ -d "$dir/.winterland-update-done" ]; then rm -rf "$dir/.winterland-update-done"; fi
+    if [ -d "$stage/old.app" ] && [ ! -e "$app" ]; then mv "$stage/old.app" "$app" && rm -rf "$stage"; fi
+    return 0
+  }
   fail() {
     say ""
     say "${R}${B}Update stopped:${N} $*"
@@ -133,6 +189,9 @@ main() {
   if [ "$OS" = Darwin ]; then
     local candidate
     for candidate in "$APP_ARG" "/Applications/Winterland.app" "$HOME/Applications/Winterland.app" "$SCRIPT_DIR/Winterland.app"; do
+      if [ -n "$candidate" ] && [ -d "$(dirname "$candidate")" ]; then recover_app "$candidate"; fi
+    done
+    for candidate in "$APP_ARG" "/Applications/Winterland.app" "$HOME/Applications/Winterland.app" "$SCRIPT_DIR/Winterland.app"; do
       if [ -n "$candidate" ] && [ -x "$candidate/Contents/MacOS/Winterland" ]; then APP="$candidate"; break; fi
     done
     [ -n "$APP" ] || fail "couldn't find Winterland.app in Applications or next to this updater."
@@ -144,16 +203,9 @@ main() {
   else
     INSTALL="$SCRIPT_DIR"
     [ -n "$INSTALL_ARG" ] && INSTALL="$(cd "$INSTALL_ARG" && pwd)"
-    # A previous update that was cut off mid-swap (power loss): put back any old file that has no replacement yet.
-    local leftover="$INSTALL/.winterland-update-new/old" name
-    if [ -d "$leftover" ]; then
-      while IFS= read -r name; do
-        [ -n "$name" ] && [ ! -e "$INSTALL/$name" ] && mv "$leftover/$name" "$INSTALL/$name"
-      done <<EOF
-$(ls -A "$leftover")
-EOF
-      [ -z "$(ls -A "$leftover")" ] && rm -rf "$INSTALL/.winterland-update-new"
-    fi
+    # A previous update that was cut off mid-swap (power cut, killed script): put the old version back first.
+    recover_swap "$INSTALL" ||
+      fail "an earlier update was cut off and its files couldn't all be put back. They are kept in $INSTALL/.winterland-update-new/old."
     if ! { [ -x "$INSTALL/winterland" ] && [ -f "$INSTALL/resources/app.asar" ]; }; then
       fail "run this from your unzipped Winterland folder (the one with the 'winterland' program in it)."
     fi
@@ -289,7 +341,11 @@ EOF
   say "Installing..."
   STEP=files
   STAGE="$INSTALL/.winterland-update-new"
-  rm -rf "$STAGE" # anything left in it was put back above
+  if [ "$OS" != Darwin ] && ! recover_swap "$INSTALL" 1; then
+    STAGE=''
+    fail "an earlier update's files couldn't all be put back. They are kept in $INSTALL/.winterland-update-new/old."
+  fi
+  rm -rf "$STAGE" # anything left in it was put back above (macOS: the new app is in place)
   mkdir "$STAGE" || fail "couldn't write to $INSTALL."
   if [ "$OS" = Darwin ]; then
     /usr/bin/ditto -x -k "$TMP/$ZIP_NAME" "$STAGE/unpacked" || fail "couldn't unpack the download."
@@ -314,8 +370,11 @@ EOF
     [ -x "$top/Winterland.app/Contents/MacOS/Winterland" ] || fail "the download isn't laid out as expected."
     mv "$APP" "$STAGE/old.app" || fail "couldn't move the old Winterland.app aside. Is the game closed?"
     if ! mv "$top/Winterland.app" "$APP"; then
-      mv "$STAGE/old.app" "$APP"
-      fail "couldn't put the new Winterland.app in place, so the old one was put back."
+      if mv "$STAGE/old.app" "$APP"; then fail "couldn't put the new Winterland.app in place, so the old one was put back."; fi
+      # never delete the old app while it is still set aside: the next run puts it back (recover_app)
+      STAGE=''
+      RELAUNCH=0
+      fail "couldn't put Winterland.app back. It is kept in $INSTALL/.winterland-update-new/old.app. Run Update Winterland again to put it back."
     fi
     # Keep this updater current too (a rename, so this running copy is unaffected).
     if [ -f "$top/Update Winterland.command" ] && [ "$(basename "$0")" = "Update Winterland.command" ]; then
@@ -325,26 +384,41 @@ EOF
     if ! { [ -x "$top/winterland" ] && [ -f "$top/resources/app.asar" ]; }; then
       fail "the download isn't laid out as expected."
     fi
-    # Swap only the files the new version ships; anything else in this folder stays.
-    local OLD="$STAGE/old" moved=() placed=() name ok=1
+    # Swap only the files the new version ships; anything else in this folder stays. swap.txt lists them first (with
+    # whether the folder had each one), so a swap cut off half way can be put back exactly (recover_swap).
+    local OLD="$STAGE/old" name ok=1 names
+    names="$(ls -A "$top")"
     mkdir "$OLD" || fail "couldn't write to $INSTALL."
     while IFS= read -r name; do
       [ -n "$name" ] || continue
+      if [ -e "$INSTALL/$name" ] || [ -L "$INSTALL/$name" ]; then echo "1 $name"; else echo "0 $name"; fi
+    done >"$STAGE/swap.tmp" <<EOF
+$names
+EOF
+    mv "$STAGE/swap.tmp" "$STAGE/swap.txt" || fail "couldn't write to $INSTALL."
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
       if [ -e "$INSTALL/$name" ] || [ -L "$INSTALL/$name" ]; then
-        if mv "$INSTALL/$name" "$OLD/$name"; then moved+=("$name"); else ok=0; break; fi
+        mv "$INSTALL/$name" "$OLD/$name" || { ok=0; break; }
       fi
-      if mv "$top/$name" "$INSTALL/$name"; then placed+=("$name"); else ok=0; break; fi
+      mv "$top/$name" "$INSTALL/$name" || { ok=0; break; }
     done <<EOF
-$(ls -A "$top")
+$names
 EOF
     if [ "$ok" != 1 ]; then
-      for name in ${placed[@]+"${placed[@]}"}; do rm -rf "${INSTALL:?}/$name"; done
-      for name in ${moved[@]+"${moved[@]}"}; do mv "$OLD/$name" "$INSTALL/$name"; done
-      fail "couldn't replace every file, so the old version was put back. Is the game closed?"
+      if recover_swap "$INSTALL" 1; then
+        STAGE=''
+        fail "couldn't replace every file, so the old version was put back. Is the game closed?"
+      fi
+      # Never delete the old files while any of them is still set aside: the next run (or the game) puts them back.
+      STAGE=''
+      RELAUNCH=0
+      fail "couldn't replace every file, and some old files are still in $INSTALL/.winterland-update-new/old. Run Update Winterland again to put them back."
     fi
   fi
 
-  rm -rf "$STAGE"
+  # Done: the leftovers leave in one rename (so a cut here can't look like a half-finished swap), then go.
+  if mv "$STAGE" "$INSTALL/.winterland-update-done" 2>/dev/null; then rm -rf "$INSTALL/.winterland-update-done"; else rm -rf "$STAGE"; fi
   STAGE=''
   trap 'exit 130' INT TERM HUP
   say ""
