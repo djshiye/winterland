@@ -432,7 +432,7 @@ describe('validator #41 polish', () => {
     const s = complete();
     for (const d of QUEST_DEFS) {
       const t = questTarget(s, d.id);
-      if (/^(trio|gate|city|materials|machine)/.test(d.id) || d.id === 'invest1') expect(t, d.id).toBeTruthy();
+      if (/^(trio|gate|city|materials|machine)/.test(d.id) || d.id === 'invest1' || d.id === 'trade1') expect(t, d.id).toBeTruthy();
       if (t?.startsWith('pad:')) expect(PADS[t.slice(4) as PadId], d.id).toBeTruthy();
       if (t?.startsWith('region:') || t?.startsWith('district:')) {
         const n = Number(t.split(':')[1]);
@@ -442,6 +442,7 @@ describe('validator #41 polish', () => {
     expect(questTarget(s, 'trio4landmark')).toBe('district:4');
     expect(questTarget(s, 'trio4machines')).toBe('region:4');
     expect(questTarget(s, 'gate5')).toBe('region:4');
+    expect(questTarget(s, 'trade1')).toBe('town');
     expect(questTarget(s, 'harvester')).toBe('pad:harvester');
     expect(questTarget(s, 'planks10')).toBeUndefined(); // a sales goal: done anywhere
   });
