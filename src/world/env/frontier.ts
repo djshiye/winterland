@@ -18,7 +18,7 @@
 import * as THREE from 'three';
 import { LAYOUT, PALETTE, type Rect } from '../../config';
 import { eraPropGeometry, PROP_RADIUS, PROP_ROLES, strungWires, type PropRole } from '../../assets/frontierProps';
-import { ERAS, REGIONS, RIVER_END_Z, RIVER_POND, ROADS, unlockCash } from '../../eras/data';
+import { DISTRICTS, ERAS, REGIONS, RIVER_END_Z, RIVER_POND, ROADS, unlockCash } from '../../eras/data';
 import { climbOpen } from '../../eras/gate';
 import { plotPlaces, regionLayout, type RegionLayout } from '../../eras/layout';
 import { buildPlots, type PlotsPart } from './plots';
@@ -820,6 +820,9 @@ function buildFarScatter(): THREE.Group {
 // The part
 // ---------------------------------------------------------------------------
 
+/** 0.9.10: how tall the warm-up box over a region / district is (the tallest era-10 towers fit). */
+const WARM_HEIGHT = 60;
+
 /**
  * Build the new land. `town` = the Market Town's group (its fence gets gaps where roads leave it). The part follows
  * 'village:changed' / 'era:unlocked' by itself; a restored game is brought up to date at construction, silently.
@@ -857,6 +860,10 @@ export function buildFrontier(ctx: GameContext, town: THREE.Object3D, trikeTail?
     reg.zones.visible = true;
     reg.places ??= buildPlots(ctx, reg.n, reg.group);
     reg.paintSign(false);
+    // 0.9.10 (G1): draw the new region and its city district once ahead of time, so walking in doesn't stutter
+    for (const r of [reg.layout.rect, DISTRICTS[reg.n]?.rect]) {
+      if (r) ctx.renderer.warm(new THREE.Box3(new THREE.Vector3(r.minX - 4, -1, r.minZ - 4), new THREE.Vector3(r.maxX + 4, WARM_HEIGHT, r.maxZ + 4)));
+    }
     if (instant) {
       reg.gateK = 1;
       reg.colorK = 1;

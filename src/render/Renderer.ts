@@ -27,6 +27,9 @@
  * - setScale(s) (wave 10): render-resolution scale 0.5..1 in 0.05 steps, multiplies the pixel ratio (Low = 1 × scale).
  *   Persisted in localStorage 'winterland:scale' (default 1, invalid → 1) and applied at construction. The canvas CSS
  *   size stays the container size (setSize updateStyle), only the backing store shrinks, so it still fills the view.
+ * - 0.9.10 (G1) warm(box): an era region / city district that just opened is drawn once ahead of time (programs compile
+ *   in the background first where the browser can), so the first walk into a new era doesn't stutter; queued before
+ *   the first frame (a restored game), it all happens behind the loading splash.
  */
 import * as THREE from 'three';
 import { LIGHTING, PALETTE } from '../config';
@@ -460,6 +463,109 @@ export class Renderer {
   /** Draw repeated items / NPC parts instanced (render/instancer.ts). Off = every mesh draws itself (A/B checks). */
   instancing = true;
 
+  /** 0.9.10 (G1): areas waiting for a warm-up draw (world boxes), see warm(). */
+  private readonly warmQueue: THREE.Box3[] = [];
+  /** 'idle' → 'compiling' (programs linking in the background) → 'ready' (draw one queued area per frame). */
+  private warmState: 'idle' | 'compiling' | 'ready' = 'idle';
+  private framesDrawn = 0;
+  private readonly warmCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 600);
+  private readonly warmScratch = new THREE.Vector3();
+
+  /**
+   * 0.9.10 (G1): get an area ready to draw before the player walks into it (a newly opened era region and its city
+   * district), so the first look at it doesn't stutter. Everything a first frame does there (shader programs, vertex
+   * buffers, textures) happens ahead of time: the scene's programs compile in the background (KHR_parallel_shader_compile
+   * where the browser has it), then the area is drawn once from a camera that frames it, just before a normal frame
+   * (which paints over it, so nothing shows). Queued before the first frame (a restored game), it all happens in that
+   * frame, behind the loading splash.
+   */
+  warm(box: THREE.Box3): void {
+    this.warmQueue.push(box.clone());
+    // programs compiled earlier don't cover what was built since: compile again before drawing
+    if (this.warmState === 'ready') this.warmState = 'idle';
+  }
+
+  /** Areas still waiting for their warm-up draw (tests, perf-scenario). */
+  get warmPending(): number {
+    return this.warmQueue.length;
+  }
+
+  /** The render target the scene is drawn into this tier (programs differ between the screen and a target). */
+  private sceneTarget(): THREE.WebGLRenderTarget | null {
+    return this.post ? this.post.scene : null;
+  }
+
+  /** Point the warm-up camera along the view camera's direction and fit its frustum around `box`. */
+  private frameWarmCam(box: THREE.Box3): void {
+    const cam = this.warmCam;
+    const centre = box.getCenter(this.warmScratch);
+    cam.quaternion.copy(this.camera.quaternion);
+    cam.position.copy(centre).add(new THREE.Vector3(0, 0, 250).applyQuaternion(cam.quaternion));
+    cam.updateMatrixWorld(true);
+    const inv = cam.matrixWorldInverse;
+    let l = Infinity, r = -Infinity, b = Infinity, t = -Infinity;
+    for (let i = 0; i < 8; i++) {
+      const p = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).applyMatrix4(inv);
+      l = Math.min(l, p.x);
+      r = Math.max(r, p.x);
+      b = Math.min(b, p.y);
+      t = Math.max(t, p.y);
+    }
+    Object.assign(cam, { left: l, right: r, bottom: b, top: t, near: 1, far: 600 });
+    cam.layers.mask = this.camera.layers.mask;
+    cam.updateProjectionMatrix();
+  }
+
+  /** One warm-up draw of `box` into this tier's scene target (no shadow pass: its programs are shared). */
+  private drawWarm(box: THREE.Box3): void {
+    this.frameWarmCam(box);
+    const sm = this.renderer.shadowMap;
+    const auto = sm.autoUpdate;
+    sm.autoUpdate = false;
+    sm.needsUpdate = false;
+    try {
+      this.renderer.setRenderTarget(this.sceneTarget());
+      this.renderer.render(this.scene, this.warmCam);
+    } finally {
+      sm.autoUpdate = auto;
+      // show what the shared instancer hid for this draw (the real frame prepares its own), and count only the real frame
+      restoreInstances();
+      this.renderer.info.reset();
+    }
+  }
+
+  /** Called at the start of each frame: moves queued warm-ups along (see warm()). */
+  private stepWarm(): void {
+    if (this.warmQueue.length === 0) return;
+    if (this.framesDrawn === 0) {
+      // the very first frame, still behind the splash: everything at once
+      this.renderer.setRenderTarget(this.sceneTarget());
+      this.renderer.compile(this.scene, this.camera);
+      for (const box of this.warmQueue.splice(0)) this.drawWarm(box);
+      return;
+    }
+    if (this.warmState === 'idle') {
+      this.renderer.setRenderTarget(this.sceneTarget());
+      if (!this.renderer.extensions.has('KHR_parallel_shader_compile')) {
+        // no background compiling here: the warm-up draw next frame compiles what it needs
+        this.warmState = 'ready';
+        return;
+      }
+      this.warmState = 'compiling';
+      this.renderer
+        .compileAsync(this.scene, this.camera)
+        .catch(() => undefined)
+        .then(() => {
+          this.warmState = 'ready';
+        });
+      return;
+    }
+    if (this.warmState === 'ready') {
+      this.drawWarm(this.warmQueue.shift()!);
+      if (this.warmQueue.length === 0) this.warmState = 'idle';
+    }
+  }
+
   /** Advance the era crossfade by real time (so a paused debug render() never animates it). */
   private stepLook(): void {
     const now = performance.now();
@@ -476,8 +582,11 @@ export class Renderer {
     this.renderer.info.reset();
     this.stepLook();
     if (this.darknessSource) this.setDarkness(this.darknessSource());
-    // repeated pile / stack items and NPC parts draw as one instanced mesh per kind (render/instancer.ts)
     try {
+      // 0.9.10: a queued warm-up draw goes first (the real frame paints over it)
+      this.stepWarm();
+      this.framesDrawn++;
+      // repeated pile / stack items and NPC parts draw as one instanced mesh per kind (render/instancer.ts)
       if (this.instancing) prepareInstances(this.scene);
       else hideInstanced();
       const post = this.post;

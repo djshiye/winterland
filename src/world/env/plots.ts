@@ -26,7 +26,7 @@ import { Batch } from '../../render/batch';
 import { geo } from '../../render/materials';
 import { bulbMaterial } from './glow';
 import { Rng } from './common';
-import { mixHex, palette } from '../../render/palette';
+import { MACHINE_TONES, mixHex, palette } from '../../render/palette';
 import { addChimney } from '../sky/smoke';
 import { eraOwnsFloor } from './eraGround';
 
@@ -65,6 +65,9 @@ interface PlotStyle {
  * 5 iron pellets + coke, 6 copper + quartz, 7 crude + gas, 8 silica + gold, 9 uranium + graphite, 10 rare earth +
  * helium-3. Warm, never near-black (DIRECTION.md).
  */
+/** Era 8's gold pools (the beds' colour picks their look). */
+const GOLD_POOL = 0xe5c05a;
+
 const STYLE: readonly (PlotStyle | null)[] = [
   null,
   null,
@@ -76,9 +79,9 @@ const STYLE: readonly (PlotStyle | null)[] = [
   // 6 copper + quartz: patina-green deco arcades, flagstone yard, a grove of copper outcrops and quartz clumps
   { hut: 'deco', wall: 0xd8cbb2, roof: 0x4c7a74, shop: 0xe0d2b8, shopRoof: 0x3f706a, street: 0xa7b3a9, pave: 0xb9c2b6, line: 0x8a9490, green: 'lamps', beds: ['outcrop', 0xc0784a, 'crystals', 0xe4eef2], glow: [1], yard: 'flags' },
   // 7 crude + gas: trailers and a roadside strip on dark asphalt, pumpjacks and a tank farm in the field
-  { hut: 'trailer', wall: 0xe3c07a, roof: 0xc44536, shop: 0xe6d3a8, shopRoof: 0xc44536, street: 0x77757a, pave: 0x8a888a, line: 0xe8d27a, green: 'brazier', beds: ['jack', 0x5a4c45, 'tank', 0xd99b26], yard: 'asphalt' },
+  { hut: 'trailer', wall: 0xe3c07a, roof: 0xc44536, shop: 0xe6d3a8, shopRoof: 0xc44536, street: 0x77757a, pave: 0x8a888a, line: 0xe8d27a, green: 'brazier', beds: ['jack', 0x7a5236, 'tank', 0xd99b26], yard: 'asphalt' },
   // 8 silica + gold: white modular blocks on clean tiles, glass pavilions, sand dunes with gold pans and a clean room
-  { hut: 'modular', wall: 0xeee8d8, roof: 0x5c9aa0, shop: 0xf0eadb, shopRoof: 0x45858c, street: 0xd8d6cf, pave: 0xe2e0d8, line: 0xc4c2ba, green: 'kiosk', beds: ['dunes', 0xeee2c2, 'pools', 0xe5c05a], special: ['cleanroom', 0xf3f4f6], glow: [1], yard: 'tiles' },
+  { hut: 'modular', wall: 0xeee8d8, roof: 0x5c9aa0, shop: 0xf0eadb, shopRoof: 0x45858c, street: 0xd8d6cf, pave: 0xe2e0d8, line: 0xc4c2ba, green: 'kiosk', beds: ['dunes', 0xdfc28c, 'pools', GOLD_POOL], special: ['cleanroom', 0xf3f4f6], glow: [1], yard: 'tiles' },
   // 9 uranium + graphite: quonset barracks, a hazard-striped yard, a fenced grid of glowing pits
   { hut: 'quonset', wall: 0xdfe6e8, roof: 0x5bb391, shop: 0xe4eaec, shopRoof: 0x4ea885, street: 0xa9b3b6, pave: 0xbcc5c8, line: 0xe8c547, green: 'fountain', beds: ['pit', 0x86e8c4, 'slabs', 0x6f6c6b], glow: [0], yard: 'hazard' },
   // 10 rare earth + helium-3: pods and domes on lavender regolith, a geode crater with skimmer pads
@@ -539,17 +542,30 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
   const dz = r.maxZ - r.minZ;
   const len = r.maxX - r.minX;
   // a raked strip under every bed
-  body.add(geo.box(len, 0.02, dz + 0.3), mix(color, SNOW, 0.72), (r.minX + r.maxX) / 2, 0.02, cz);
+  body.add(geo.box(len, 0.02, dz + 0.3), mix(color, SNOW, kind === 'outcrop' || kind === 'crystals' ? 0.86 : 0.72), (r.minX + r.maxX) / 2, 0.02, cz);
   const glowTo = lit ? glow : body;
   switch (kind) {
-    case 'ridges':
     case 'dunes': {
+      // 0.9.10: rows of small wind-sculpted silica dunes: a low skirt, a tall crest leaning downwind with snow on its
+      // top, so the sand field reads in 3D instead of flat ovals
+      const seg = Math.max(1, Math.round(len / 3.4));
+      for (let k = 0; k < seg; k++) {
+        const x = r.minX + ((k + 0.5) * len) / seg + rng.range(-0.3, 0.3);
+        const sx = len / seg / 2 - 0.2;
+        const h = rng.range(0.85, 1.2);
+        body.add(geo.sphere(1, 14, 8), color, x, 0, cz, { sx, sy: 0.4 * h, sz: dz / 2 + 0.15 });
+        body.add(geo.sphere(1, 14, 8), shade(color, 1.05), x - sx * 0.15, 0, cz - dz * 0.08, { sx: sx * 0.7, sy: 0.95 * h, sz: dz * 0.26 });
+        body.add(geo.sphere(1, 12, 6), SNOW, x - sx * 0.15, 0.16, cz - dz * 0.08, { sx: sx * 0.42, sy: 0.86 * h, sz: dz * 0.15 });
+      }
+      break;
+    }
+    case 'ridges': {
       const seg = Math.max(1, Math.round(len / 6));
       for (let k = 0; k < seg; k++) {
         const x = r.minX + ((k + 0.5) * len) / seg;
         const sx = len / seg / 2 - 0.2;
-        body.add(geo.sphere(1, 14, 8), color, x, 0, cz, { sx, sy: kind === 'dunes' ? 0.55 : 0.7, sz: dz / 2 + (kind === 'dunes' ? 0.3 : 0) });
-        body.add(geo.sphere(1, 12, 6), mix(color, SNOW, 0.75), x, 0.12, cz - dz * 0.05, { sx: sx * 0.6, sy: kind === 'dunes' ? 0.42 : 0.6, sz: dz * 0.25 });
+        body.add(geo.sphere(1, 14, 8), color, x, 0, cz, { sx, sy: 0.7, sz: dz / 2 });
+        body.add(geo.sphere(1, 12, 6), mix(color, SNOW, 0.75), x, 0.12, cz - dz * 0.05, { sx: sx * 0.6, sy: 0.6, sz: dz * 0.25 });
       }
       if (lit) for (let x = r.minX + 1; x < r.maxX - 1; x += rng.range(1.5, 2.6)) glow.add(geo.sphere(0.09, 6, 4), 0xffa45a, x, 0.55, cz + dz * 0.35);
       break;
@@ -567,6 +583,20 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
       break;
     }
     case 'pools': {
+      if (color === GOLD_POOL) {
+        // 0.9.10 era 8: gold-panning pools: a timber rim round clear water, gold flakes glinting on the bottom and a
+        // little sluice box beside each
+        const T8 = MACHINE_TONES[8]!;
+        for (let x = r.minX + 1.3; x < r.maxX - 1.1; x += rng.range(2.8, 3.4)) {
+          const s = rng.range(0.85, 1.0);
+          body.add(geo.cylinder(1, 1.05, 0.16, 20), mix(T8.trim, T8.body, 0.55), x, 0.08, cz, { sx: s * 1.15, sz: (dz / 2) * 0.95 });
+          body.add(geo.cylinder(1, 1, 0.04, 20), mix(T8.glow, SNOW, 0.62), x, 0.15, cz, { sx: s * 0.98, sz: (dz / 2) * 0.78 });
+          for (let f = 0; f < 5; f++) glowTo.add(geo.sphere(0.08, 6, 4), color, x + rng.range(-0.5, 0.5) * s, 0.17, cz + rng.range(-0.3, 0.3) * dz, { sy: 0.4 });
+          body.add(geo.boxBase(0.9, 0.22, 0.32), mix(T8.trim, T8.body, 0.4), x + s * 0.9, 0.12, cz + dz * 0.42, { rz: -0.18 });
+          body.add(geo.box(0.86, 0.03, 0.26), mix(T8.glow, SNOW, 0.5), x + s * 0.9, 0.36, cz + dz * 0.42, { rz: -0.18 });
+        }
+        break;
+      }
       for (let x = r.minX + 1.2; x < r.maxX - 1; x += rng.range(2.6, 3.4)) {
         const s = rng.range(0.8, 1.05);
         body.add(geo.cylinder(1, 1.05, 0.12, 18), mix(color, SNOW, 0.45), x, 0.06, cz, { sx: s * 1.15, sz: (dz / 2) * 0.95 });
@@ -575,41 +605,74 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
       break;
     }
     case 'crystals': {
-      // a row of crystals along a strip bed, or a clump filling a square one
+      // 0.9.10: clusters of rounded quartz prisms (soft dome tips, never spikes) on a little stone, leaning out
       const zs = dz > 1.6 ? [r.minZ + dz * 0.3, r.minZ + dz * 0.7] : [cz];
       for (const z of zs) {
-        for (let x = r.minX + 0.5; x < r.maxX - 0.4; x += rng.range(0.6, 1.4)) {
-          const hgt = rng.range(0.5, 0.95);
-          glowTo.add(geo.cylinder(0.02, 0.2, hgt, 6), color, x, hgt / 2, z + rng.range(-0.25, 0.25), { rz: rng.range(-0.3, 0.3), rx: rng.range(-0.3, 0.3) });
-          body.add(geo.dodecahedron(0.18), mix(color, 0x8a8684, 0.35), x + 0.2, 0.08, z + 0.2);
+        for (let x = r.minX + 0.7; x < r.maxX - 0.6; x += rng.range(1.1, 1.6)) {
+          const zc = z + rng.range(-0.2, 0.2);
+          body.add(geo.dodecahedron(0.3), mix(color, 0x8a8684, 0.45), x, 0.08, zc, { sy: 0.55 });
+          for (let c = 0; c < 3; c++) {
+            const a = rng.range(0, Math.PI * 2);
+            const lean = c === 0 ? 0.08 : 0.38;
+            const hgt = c === 0 ? rng.range(0.95, 1.25) : rng.range(0.55, 0.8);
+            const ox = c === 0 ? 0 : Math.cos(a) * 0.28;
+            const oz = c === 0 ? 0 : Math.sin(a) * 0.28;
+            const rot = { rz: -Math.cos(a) * lean, rx: Math.sin(a) * lean };
+            glowTo.add(geo.cylinder(0.18, 0.21, hgt, 6), color, x + ox, 0.1 + hgt / 2, zc + oz, rot);
+            glowTo.add(geo.sphere(0.18, 6, 4), mix(color, SNOW, 0.4), x + ox - Math.sin(rot.rz) * hgt * 0.5, 0.1 + hgt * Math.cos(lean), zc + oz + Math.sin(rot.rx) * hgt * 0.5, { sy: 0.8 });
+          }
+          body.add(geo.sphere(0.32, 8, 4), SNOW, x - 0.15, 0.04, zc + 0.15, { sy: 0.2 });
         }
       }
       break;
     }
     case 'outcrop': {
-      // a rocky clump of copper ore, green patina on its shoulders
+      // 0.9.10: a clump of warm stone shot through with bright copper veins, verdigris on its shoulders, a little heap
+      // of nuggets at its foot and a snow cap (era 6 runs on copper)
       const cx = (r.minX + r.maxX) / 2;
       const s = Math.min(len, dz) / 2;
-      body.add(geo.dodecahedron(1), mix(color, 0x8a8684, 0.3), cx, s * 0.35, cz, { sx: s * 0.75, sy: 0.9, sz: s * 0.7 });
-      body.add(geo.dodecahedron(0.5), color, cx + s * 0.45, 0.3, cz + s * 0.3, { sx: 0.9, sy: 0.8 });
-      body.add(geo.dodecahedron(0.4), shade(color, 1.1), cx - s * 0.5, 0.25, cz + s * 0.25);
-      body.add(geo.sphere(0.5, 8, 5), 0x6fb8a0, cx - s * 0.1, s * 0.35 + 0.65, cz - 0.1, { sx: s * 0.6, sy: 0.25, sz: s * 0.5 });
-      body.add(geo.sphere(0.5, 8, 5), SNOW, cx + 0.1, s * 0.35 + 0.85, cz, { sx: s * 0.35, sy: 0.15, sz: s * 0.3 });
+      const T6 = MACHINE_TONES[6]!;
+      const stone = mix(T6.cream, T6.body, 0.42);
+      const patina = mix(T6.bodyL, T6.cream, 0.32);
+      body.add(geo.dodecahedron(1), mix(color, stone, 0.5), cx, s * 0.35, cz, { sx: s * 0.75, sy: 0.95, sz: s * 0.7, ry: 0.4 });
+      body.add(geo.dodecahedron(0.62), shade(stone, 1.08), cx + s * 0.5, 0.32, cz + s * 0.25, { sy: 0.8 });
+      body.add(geo.dodecahedron(0.48), shade(stone, 0.94), cx - s * 0.55, 0.26, cz + s * 0.2, { ry: 0.9 });
+      // copper veins across the camera-side faces
+      for (const [vx, vy, vz, rz] of [[-0.25, 0.75, 0.62, 0.6], [0.2, 0.55, 0.66, -0.4], [0.62, 0.35, 0.7, 0.9]] as const) {
+        body.add(geo.box(0.8, 0.11, 0.07), shade(color, 1.12), cx + vx * s, vy + s * 0.2, cz + vz * s, { rz });
+      }
+      for (let k = 0; k < 5; k++) body.add(geo.dodecahedron(0.13), shade(color, rng.range(1, 1.18)), cx + rng.range(-0.9, 0.9), 0.08, cz + s * 0.75 + rng.range(-0.15, 0.25));
+      body.add(geo.sphere(0.5, 8, 5), patina, cx - s * 0.1, s * 0.35 + 0.7, cz - 0.1, { sx: s * 0.62, sy: 0.25, sz: s * 0.5 });
+      body.add(geo.sphere(0.5, 8, 5), SNOW, cx + 0.1, s * 0.35 + 0.88, cz, { sx: s * 0.42, sy: 0.16, sz: s * 0.34 });
+      // two copper glints that catch the lamplight at night
+      for (const [gx, gz] of [[-0.3, 0.68], [0.55, 0.72]] as const) glow.add(geo.sphere(0.07, 6, 4), mix(color, T6.cream, 0.35), cx + gx * s, 0.7, cz + gz * s);
       break;
     }
     case 'jack': {
-      // a pumpjack on a gravel pad with its wellhead: walking beam, horse head, counterweight
+      // 0.9.10: a honey-painted pumpjack (DIRECTION: warm, never black) on a gravel pad: cream samson posts, a crimson
+      // counterweight, a wellhead with a little warm lamp, and a pair of snow-capped honey barrels by the pad
       const cx = (r.minX + r.maxX) / 2;
-      body.add(geo.box(len, 0.06, dz), 0x9b958e, cx, 0.04, cz);
-      body.add(geo.boxBase(1.6, 0.25, 0.9), 0x8a8580, cx, 0, cz);
-      for (const s of [-0.3, 0.3]) body.add(geo.box(0.12, 1.9, 0.12), shade(color, 1.3), cx, 1.15, cz + s, { rx: -s * 0.35 });
-      body.add(geo.box(2.4, 0.22, 0.24), 0xd9a63a, cx + 0.2, 2.05, cz, { rz: 0.12 });
-      body.add(geo.box(0.35, 0.8, 0.3), 0xd9a63a, cx + 1.45, 1.75, cz, { rz: 0.12 });
-      body.add(geo.cylinder(0.45, 0.45, 0.25, 12), color, cx - 1.0, 1.0, cz, { rx: Math.PI / 2 });
-      body.add(geo.cylinder(0.14, 0.18, 0.7, 8), 0x5f5f66, cx + 1.45, 0.35, cz);
-      body.add(geo.box(2.4, 0.06, 0.26), SNOW, cx + 0.2, 2.19, cz, { rz: 0.12 });
-      // a crude-oil seep beside the wellhead
-      body.add(geo.cylinder(1, 1, 0.03, 14), color, cx + 0.6, 0.06, cz + dz * 0.32, { sx: 0.55, sz: 0.3 });
+      const T7 = MACHINE_TONES[7]!;
+      const honey = T7.body;
+      body.add(geo.box(len, 0.06, dz), mix(T7.concrete, SNOW, 0.25), cx, 0.04, cz);
+      body.add(geo.boxBase(1.6, 0.25, 0.9), T7.concrete, cx, 0, cz);
+      for (const s of [-0.3, 0.3]) body.add(geo.box(0.13, 1.9, 0.13), T7.cream, cx, 1.15, cz + s, { rx: -s * 0.35 });
+      body.add(geo.box(2.4, 0.24, 0.26), honey, cx + 0.2, 2.05, cz, { rz: 0.12 });
+      body.add(geo.box(0.38, 0.85, 0.32), T7.bodyD, cx + 1.45, 1.75, cz, { rz: 0.12 });
+      body.add(geo.cylinder(0.45, 0.45, 0.26, 14), T7.accent, cx - 1.0, 1.0, cz, { rx: Math.PI / 2 });
+      body.add(geo.cylinder(0.12, 0.12, 0.3, 8), T7.cream, cx - 1.0, 1.0, cz, { rx: Math.PI / 2 });
+      body.add(geo.cylinder(0.14, 0.18, 0.7, 8), T7.steel, cx + 1.45, 0.35, cz);
+      body.add(geo.box(2.4, 0.07, 0.28), SNOW, cx + 0.2, 2.2, cz, { rz: 0.12 });
+      glow.add(geo.sphere(0.1, 8, 6), T7.glow, cx + 1.45, 0.82, cz + 0.12);
+      // the barrels (honey, cream bands), standing on the pad's camera side
+      for (const [bx, bz] of [[-1.25, 0.28], [-0.72, 0.36]] as const) {
+        const x = cx + bx, z = cz + dz * bz;
+        body.add(geo.cylinder(0.26, 0.26, 0.62, 12), mix(honey, T7.bodyL, 0.4), x, 0.33, z);
+        for (const y of [0.18, 0.48]) body.add(geo.torus(0.265, 0.025, 4, 16), T7.cream, x, y, z, { rx: Math.PI / 2 });
+        body.add(geo.cylinder(0.24, 0.27, 0.06, 12), SNOW, x, 0.66, z);
+      }
+      // a crude-oil seep beside the wellhead (warm brown, not black)
+      body.add(geo.cylinder(1, 1, 0.03, 14), mix(color, honey, 0.25), cx + 0.6, 0.06, cz + dz * 0.32, { sx: 0.55, sz: 0.3 });
       break;
     }
     case 'tank': {
@@ -621,6 +684,9 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
       body.add(geo.sphere(rad, 18, 12), 0xeee8de, cx, 0.5 + rad * 0.55, cz, { sy: 0.55 });
       body.add(geo.torus(rad * 0.98, 0.07, 6, 28), color, cx, 0.5 + rad * 0.55, cz, { rx: Math.PI / 2 });
       body.add(geo.sphere(rad * 0.7, 12, 6), SNOW, cx, 0.5 + rad * 1.0, cz, { sy: 0.15 });
+      // 0.9.10: a stair up the camera side and a warm valve lamp at its foot (the tank farm glows a little at night)
+      for (let k = 0; k < 4; k++) body.add(geo.box(0.5, 0.06, 0.22), MACHINE_TONES[7]!.steel, cx + rad * 0.55, 0.15 + k * 0.28, cz + rad * 0.62 - k * 0.12);
+      glow.add(geo.sphere(0.09, 8, 6), MACHINE_TONES[7]!.glow, cx + rad * 0.85, 0.55, cz + rad * 0.62);
       break;
     }
     case 'cleanroom': {
@@ -813,7 +879,7 @@ function buildFieldDressing(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlac
     }
     case 'dunes':
       // wind ripples in the sand between the dunes
-      for (let k = 0; k < 18; k++) body.add(geo.box(rng.range(1.5, 3.5), 0.01, 0.08), shade(st.beds[1], 0.9), rng.range(F.minX + 2, F.maxX - 2), 0.03, rng.range(F.minZ + 1, F.maxZ - 1), { ry: rng.range(-0.25, 0.25) });
+      for (let k = 0; k < 18; k++) body.add(geo.box(rng.range(1.5, 3.5), 0.01, 0.08), mix(st.beds[1], SNOW, 0.45), rng.range(F.minX + 2, F.maxX - 2), 0.03, rng.range(F.minZ + 1, F.maxZ - 1), { ry: rng.range(-0.25, 0.25) });
       break;
     case 'grove':
       // stepping stones winding through the grove
