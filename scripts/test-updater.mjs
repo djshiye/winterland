@@ -170,7 +170,7 @@ function global:Invoke-WebRequest {
 if ($env:WL_MV_KILL) {
   function global:Move-Item {
     param([string]$LiteralPath, [string]$Destination)
-    Microsoft.PowerShell.Management\Move-Item -LiteralPath $LiteralPath -Destination $Destination
+    Microsoft.PowerShell.Management\\Move-Item -LiteralPath $LiteralPath -Destination $Destination
     if ($Destination.EndsWith($env:WL_MV_KILL)) { Stop-Process -Id $PID -Force }
   }
 }
