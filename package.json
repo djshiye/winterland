@@ -1,7 +1,7 @@
 {
   "name": "winterland",
   "private": true,
-  "version": "0.9.9",
+  "version": "0.9.10",
   "description": "Winterland — a 3D isometric arcade-idle lumber mill game (Three.js + TypeScript + Vite)",
   "type": "module",
   "scripts": {

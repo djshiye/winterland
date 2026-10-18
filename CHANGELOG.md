@@ -4,6 +4,52 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
+## 0.9.10 (2026-10-18)
+
+A calmer first hour, safer saves and updates, a fairer climb through the eras, tidier town life and prettier fields in eras 6 to 8.
+
+### Easier to find your way
+
+- **One next step.** The era chip and the goal banner now always show the same goal, and from era 2 on the guide keeps you on the current era instead of sending you back to old yard chores.
+- **A calmer start.** A new game keeps the quest list folded until your first harvester, so the first minutes show one goal.
+- **The era postcard no longer covers the move hint,** and its perks no longer look like buttons.
+- **Meet MANAGE and the market.** A one-time tip shows what MANAGE signs do, and a small new quest, *Buy or sell a good at the market*, introduces trading.
+- The cash hint now says "Walk over the cash to bank it", and a new era's "harvest by hand" step can no longer get stuck.
+
+### Menus for everyone
+
+- **Settings and the Shop work fully with a keyboard and screen reader.** Tab stays inside, and focus goes back where it was when they close.
+- **New Comfort option: "Pause when a menu is open".** The world waits while Settings, the shop or a card is open. It's off unless you turn it on.
+- **Credits** in Settings › Game.
+- **Colour-blind friendly mode** now also covers the ticks and prices on pads and their tags.
+
+### Your save and updates are safer
+
+- **A spare copy of your save.** The desktop game keeps a copy of your save on your computer. If the main save is ever lost, the game offers to bring it back.
+- **Saves from older versions always open now,** instead of being set aside.
+- **Lighter when minimised.** A minimised game no longer draws in the background. Your factory keeps earning, and the game saves as you minimise.
+- **Interrupted updates are undone cleanly.** If an update is cut off (a power cut, for example), the previous version is put back. Your save is never touched.
+- Releases now come with signed build provenance, so anyone can check a download was built from this repository.
+
+### A fairer climb
+
+- **Era prices are re-balanced now that delivery-contract bonuses are counted.** Every era from 2 to 10 takes a little longer than the one before, from about 2 hours to about 2 h 40 min. Era 1 is unchanged.
+- **Era builders leave you money to play with.** They always leave you at least 40 % of what you had.
+
+### Market Town
+
+- **No more surprise MANAGE cards.** Walking through the town no longer pops up a shop's card: it opens when you stop on the tile.
+- **Townsfolk no longer stand inside each other** around the tree, the bandstand, the café and the benches, and they walk round the snowman park's fence and the benches instead of through them.
+
+### Prettier fields, smoother arrivals
+
+- **Walking into a newly opened era no longer stutters:** the game gets it ready while the era opens.
+- **Electric Age:** copper-veined boulders and soft quartz clusters.
+- **Oil Age:** honey-painted pumpjacks with barrels and little warm lamps.
+- **Computer Age:** snowy silica dunes and gold-panning pools.
+
+Your save carries over as it is.
+
 ## 0.9.9 (2026-10-17)
 
 A fairer economy from era 2 on, builders that actually build, roads that lead somewhere, and a round of polish.
