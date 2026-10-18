@@ -1291,8 +1291,11 @@ export const CLIMB = {
    * whose regions hold 7, 7, 7, 7, 7, 7, 8, 8, 9 machines, so each era earns more and its prices rise to keep its length).
    * 0.9.9: re-solved with bandStep on the LIVE income curves (tests/fixtures/econ-curve.json, tests/livePacing.test.ts):
    * era 2 119 live minutes, +5 an era, era 10 160, waiting for money about 70-78 % of each era; never below 0.9.8's tilt.
+   * 0.9.10: re-solved once on fresh curves that count contract income (scripts/econ-curve.mjs): era 2 120, +5 an era,
+   * era 10 160, waiting 69-78 %. The fresh curves earn less in eras 3-10 than 0.9.9's without contracts (era 3 read 168
+   * minutes on the old prices, matching the sales-only vclimb's 190), so contracts are what keeps those eras in range.
    */
-  bandTilt: [1, 1, 2.16, 12.07, 6.99, 7.62, 7.8, 4.46, 3.98, 3.59, 3.59] as readonly number[],
+  bandTilt: [1, 1, 2.67, 11.52, 7.9, 7.96, 7.78, 4.65, 4.58, 3.93, 3.3] as readonly number[],
   /**
    * 0.9.9 (Dino: "each era's stuff needs to be SIGNIFICANTLY more expensive"): per-band price growth from one level to
    * the next (index = band; stepGrowth for bands not listed), sized from each era's live income growth Lv 0 → Lv 10

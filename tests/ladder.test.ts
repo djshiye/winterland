@@ -64,13 +64,13 @@ describe('ladder: costs', () => {
   it('matches the calibrated sample prices', () => {
     // design §A2 at U 250k, growth 2.6: $125k / $225k / $201M / $401M; the pacing model (core/pacing.ts) set
     // U 300k, growth 4.3; 0.9.0 (every era longer than the last): U 190k, growth 4.3 × bandTilt; 0.9.5 (literal gate)
-    // re-solved bandTilt; again for the era 2-4 machines and six slots, and the era 5-7 content with the era player upgrades, and the region markets with their cash machines, and the era 8-10 machines; 0.9.6 after the Trade/Fine merge and again on the 0.9.6 era chains, and for bands 5-10 on the 0.9.7 era resources v2, and for every band on the 0.9.7 plots (7-9 slots); 0.9.9 per-era step growth (CLIMB.bandStep) on the live income curves
-    expect(costAt(UPGRADES.carry, 10)).toBe(205_000); // A 10, lumberjack
-    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(369_000); // A 10, industry: era 2's first level
-    expect(costAt(UPGRADES.frontierRigs, 9)).toBe(1_910_000); // era 2's last level (0.9.9: +20 % a level, was 738k)
-    expect(costAt(UPGRADES.quarry, 0)).toBe(328_000); // A 10, machine level pad
-    expect(costAt(UPGRADES.carry, 89)).toBe(32_600_000_000); // A 89, lumberjack
-    expect(costAt(UPGRADES.taxOffice, 79)).toBe(65_200_000_000); // A 89, finance
+    // re-solved bandTilt; again for the era 2-4 machines and six slots, and the era 5-7 content with the era player upgrades, and the region markets with their cash machines, and the era 8-10 machines; 0.9.6 after the Trade/Fine merge and again on the 0.9.6 era chains, and for bands 5-10 on the 0.9.7 era resources v2, and for every band on the 0.9.7 plots (7-9 slots); 0.9.9 per-era step growth (CLIMB.bandStep) on the live income curves; 0.9.10 with contracts counted in them
+    expect(costAt(UPGRADES.carry, 10)).toBe(254_000); // A 10, lumberjack (not for sale: era 1 stops at Lv 10)
+    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(457_000); // A 10, industry: era 2's first level
+    expect(costAt(UPGRADES.frontierRigs, 9)).toBe(2_360_000); // era 2's last level (0.9.9: +20 % a level, was 738k)
+    expect(costAt(UPGRADES.quarry, 0)).toBe(406_000); // A 10, machine level pad
+    expect(costAt(UPGRADES.carry, 89)).toBe(35_700_000_000); // A 89, lumberjack
+    expect(costAt(UPGRADES.taxOffice, 79)).toBe(71_400_000_000); // A 89, finance
   });
 
   // 0.9.6: 1 % a level (was 5 %), part of the shorter post-Lodge climb (CODE_AUDIT P1-9)
