@@ -87,8 +87,9 @@ function buildObstacles(): Obstacle[] {
     const cz = (minZ + maxZ) / 2;
     const hx = (maxX - minX) / 2;
     const hz = (maxZ - minZ) / 2;
-    const r = Math.min(hx, hz);
-    const hl = Math.max(hx, hz) - r; // half length of the capsule axis
+    // 0.9.10: the snowman park's stadium is 0.2 m fatter so its fenced corners fall inside (walkers cut across one)
+    const r = Math.min(hx, hz) + (id === 'snowmanPark' ? 0.2 : 0);
+    const hl = Math.max(0, Math.max(hx, hz) - Math.min(hx, hz)); // half length of the capsule axis
     const alongX = hx >= hz;
     out.push({
       x: cx - (alongX ? hl : 0),

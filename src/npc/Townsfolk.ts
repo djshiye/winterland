@@ -300,6 +300,41 @@ const pick = <T>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]!
 /** The porters wait in a short line by the corridor mouth (crewHelpers PORTER_HOME, lanes up to 1.6 m off it). */
 const nearPorterPosts = (x: number, z: number): boolean => Math.hypot(x - PORTER_HOME.x, z - PORTER_HOME.z) < 2.2;
 
+/**
+ * 0.9.10: everywhere somebody stands on purpose (the tree ring, the amenity spots and the café stools' approach, the
+ * bench seats and their approach, the snowman ring). A stroll's end or a chat's meeting point keeps clear of them:
+ * a wanderer idling on a reserved spot stood inside whoever came to use it (the soak's "stacked townsfolk").
+ */
+const STAND_CLEAR = 0.75;
+const STAND_SPOTS: readonly XZ[] = (() => {
+  const out: XZ[] = [];
+  for (const s of TREE_RING) out.push({ x: s.x, z: s.z });
+  for (const id of AMENITY_IDS) {
+    for (const s of AMENITY_SPOTS[id] ?? []) {
+      out.push({ x: s.x, z: s.z });
+      if (id === 'cafe') out.push({ ...cafeApproach(s, { x: 0, z: 0 }) });
+    }
+  }
+  const seat = { x: 0, z: 0, yaw: 0, ax: 0, az: 0 };
+  for (let i = 0; i < BENCHES.length; i++) {
+    for (const k of [0, 1]) {
+      seatPoint(i, k, seat);
+      out.push({ x: seat.x, z: seat.z }, { x: seat.ax, z: seat.az });
+    }
+  }
+  for (const i of SNOW_SLOT_KEPT) {
+    const ang = (i / SNOWMAN_SLOTS) * Math.PI * 2 + 0.5;
+    out.push({ x: SNOWMAN.x + Math.sin(ang) * SNOWMAN_RING, z: SNOWMAN.z + Math.cos(ang) * SNOWMAN_RING });
+  }
+  return out;
+})();
+
+/** True when (x, z) is within STAND_CLEAR of a fixed stand spot (STAND_SPOTS). */
+export function nearStandSpot(x: number, z: number): boolean {
+  for (const s of STAND_SPOTS) if (Math.abs(s.x - x) < STAND_CLEAR && Math.abs(s.z - z) < STAND_CLEAR && Math.hypot(s.x - x, s.z - z) < STAND_CLEAR) return true;
+  return false;
+}
+
 /** Scratch route for walkPath's re-plan. */
 const replan = new Path();
 
@@ -1088,6 +1123,8 @@ export class Townsfolk {
         let pickA: Agent | null = null;
         for (const a of this.live) {
           if (a.kind !== 'wanderer' || a.act === 'leave' || a.act === 'carol' || a.fading) continue;
+          // 0.9.10: not someone seated or on the last step into a bench seat / café stool (they walked off through it)
+          if (a.mode === 'sit' || a.mode === 'standup' || ((a.act === 'sit' || a.act === 'cafe') && a.path.n > 0 && a.path.i === a.path.n - 1)) continue;
           if (!pickA || a.life > pickA.life) pickA = a;
         }
         if (pickA) this.beginLeave(pickA);
@@ -1117,8 +1154,8 @@ export class Townsfolk {
     a.lantern = false;
     if (scatter) {
       const inTown = townOpen && Math.random() < 0.6;
-      if (inTown) this.randomSquarePoint(tmpXZ);
-      else this.randomStreetPoint(tmpXZ);
+      if (inTown) this.randomSquarePoint(tmpXZ, a);
+      else this.randomStreetPoint(tmpXZ, a);
       a.x = tmpXZ.x;
       a.z = tmpXZ.z;
       a.yaw = Math.random() * 6.28;
@@ -1151,18 +1188,43 @@ export class Townsfolk {
     a.path.clear();
   }
 
-  private randomStreetPoint(out: XZ): void {
-    out.x = randRange(STROLL_STREET_X[0], STROLL_STREET_X[1]);
-    out.z = randRange(STROLL_STREET_Z[0], STROLL_STREET_Z[1]);
+  /** A place on the village street to stroll to (or meet at), 0.9.10: clear of other people when one can be found. */
+  private randomStreetPoint(out: XZ, self: Agent | null = null, other: Agent | null = null): void {
+    for (let i = 0; i < 12; i++) {
+      out.x = randRange(STROLL_STREET_X[0], STROLL_STREET_X[1]);
+      out.z = randRange(STROLL_STREET_Z[0], STROLL_STREET_Z[1]);
+      if (!this.nearSomeone(out.x, out.z, self, other)) return;
+    }
   }
 
-  private randomSquarePoint(out: XZ): void {
+  /** A free place in the square to stroll to (or meet at): clear of the solids, queues, porters and other people. */
+  private randomSquarePoint(out: XZ, self: Agent | null = null, other: Agent | null = null): void {
     const s = NAV.square;
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 24; i++) {
       out.x = randRange(s.minX + 1.4, s.maxX - 1.4);
       out.z = randRange(s.minZ + 1.2, s.maxZ - 1.2);
-      if (!insideObstacle(out.x, out.z, 0, 0.35) && !this.nearQueue(out.x, out.z) && !nearPorterPosts(out.x, out.z)) return;
+      if (insideObstacle(out.x, out.z, 0, 0.35) || this.nearQueue(out.x, out.z) || nearPorterPosts(out.x, out.z)) continue;
+      if (this.standTaken(out.x, out.z, self, other)) continue;
+      return;
     }
+  }
+
+  /** A fixed stand spot is at (x, z), or somebody (not `self` / `other`) stands or is heading there. */
+  private standTaken(x: number, z: number, self: Agent | null, other: Agent | null): boolean {
+    return nearStandSpot(x, z) || this.nearSomeone(x, z, self, other);
+  }
+
+  /** Someone already stands at (x, z), or is walking there (the end of their path), or a stall's customer spot is. */
+  private nearSomeone(x: number, z: number, self: Agent | null = null, other: Agent | null = null): boolean {
+    const r2 = STAND_CLEAR * STAND_CLEAR;
+    for (const b of this.live) {
+      if (b === self || b === other) continue;
+      if ((b.x - x) ** 2 + (b.z - z) ** 2 < r2) return true;
+      const p = b.path;
+      if (p.n > 0 && (p.x[p.n - 1]! - x) ** 2 + (p.z[p.n - 1]! - z) ** 2 < r2) return true;
+    }
+    for (const s of this.stallSpots) if ((s.x - x) ** 2 + (s.z - z) ** 2 < r2) return true;
+    return false;
   }
 
   private nearQueue(x: number, z: number): boolean {
@@ -1470,8 +1532,8 @@ export class Townsfolk {
     const here = zoneOf(a.x, a.z);
     const inSquare = here === 'square' || here === 'lane';
     const wantTown = townOpen && (inSquare ? Math.random() < 0.8 : Math.random() < 0.3);
-    if (wantTown) this.randomSquarePoint(tmpXZ);
-    else this.randomStreetPoint(tmpXZ);
+    if (wantTown) this.randomSquarePoint(tmpXZ, a);
+    else this.randomStreetPoint(tmpXZ, a);
     a.act = 'stroll';
     a.mode = 'walk';
     this.goTo(a, tmpXZ.x, tmpXZ.z);
@@ -1547,7 +1609,8 @@ export class Townsfolk {
     for (const b of this.live) {
       if (b === a || b.kind !== 'wanderer' || b.partner || b.fading) continue;
       if (b.mode !== 'walk' && b.mode !== 'idle') continue;
-      if (b.act === 'leave' || b.act === 'sit' || b.act === 'carol' || b.act === 'pond' || b.act === 'cafe' || b.p!.kid !== a.p!.kid) continue;
+      // (0.9.10: nor a kid playing in the snowman park: called away from its spot inside the fence, it cut across it)
+      if (b.act === 'leave' || b.act === 'sit' || b.act === 'carol' || b.act === 'pond' || b.act === 'cafe' || b.act === 'park' || b.p!.kid !== a.p!.kid) continue;
       const d = (b.x - a.x) ** 2 + (b.z - a.z) ** 2;
       if (d < bd && Math.random() < 0.7) {
         bd = d;
@@ -1558,14 +1621,24 @@ export class Townsfolk {
     const b: Agent = best;
     // meet near the initiator, in the open
     const here = zoneOf(a.x, a.z);
-    if ((here === 'square' || here === 'lane') && this.town.revealed) this.randomSquarePoint(tmpXZ);
-    else this.randomStreetPoint(tmpXZ);
-    const mx = tmpXZ.x;
-    const mz = tmpXZ.z;
-    // line them up along the street (x) / randomly in the square
-    const ang = zoneOf(mx, mz) === 'street' ? 0 : Math.random() * Math.PI;
-    const ox = Math.cos(ang) * 0.42;
-    const oz = Math.sin(ang) * 0.42;
+    const inSquare = (here === 'square' || here === 'lane') && this.town.revealed;
+    let mx = 0;
+    let mz = 0;
+    let ox = 0;
+    let oz = 0;
+    // 0.9.10: both places keep clear of everyone else and of the spots people stand on (a pair meeting on top of a
+    // café sitter or a tree singer stood inside them)
+    for (let tries = 0; tries < 6; tries++) {
+      if (inSquare) this.randomSquarePoint(tmpXZ, a, b);
+      else this.randomStreetPoint(tmpXZ, a, b);
+      mx = tmpXZ.x;
+      mz = tmpXZ.z;
+      // line them up along the street (x) / randomly in the square
+      const ang = zoneOf(mx, mz) === 'street' ? 0 : Math.random() * Math.PI;
+      ox = Math.cos(ang) * 0.42;
+      oz = Math.sin(ang) * 0.42;
+      if (!this.standTaken(mx - ox, mz - oz, a, b) && !this.standTaken(mx + ox, mz + oz, a, b)) break;
+    }
     this.freeSpots(b);
     a.act = b.act = 'chat';
     a.partner = b;

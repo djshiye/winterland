@@ -7,7 +7,7 @@ import { EventBus } from '../src/core/EventBus';
 import { createGameState, type GameContext, type GameEvents, type Item, type ItemHolder, type ItemKind, type Slot } from '../src/core/types';
 import { Crowd } from '../src/npc/Crowd';
 import { NAV, OBSTACLES, Path, PERSON_MARGIN, insideObstacle, ownerAmenity, planPath, planTownPath, seatPoint } from '../src/npc/CrowdNav';
-import { Townsfolk } from '../src/npc/Townsfolk';
+import { Townsfolk, nearStandSpot } from '../src/npc/Townsfolk';
 import type { ShopSpot } from '../src/town/types';
 import { AMENITY_SPOTS, BENCHES, POND_POSTS, STALLS, TREE_RING } from '../src/town/spots';
 import { amenityFrame, amenityToWorld } from '../src/town/rules';
@@ -492,5 +492,23 @@ describe('Townsfolk wanderers', () => {
     (w.ctx.dayNight as { darkness: number }).darkness = 1;
     for (let i = 0; i < 60 * 60; i++) w.step(1 / 30);
     expect(w.folk.crowd.lanternCount).toBeGreaterThan(0);
+  });
+});
+
+describe('0.9.10: strolls and chats keep off the spots people stand on', () => {
+  it('every tree-ring, amenity and bench spot counts as taken for a stroll or a chat', () => {
+    const spots: XZ[] = [...TREE_RING, ...AMENITY_IDS.flatMap((id) => AMENITY_SPOTS[id])];
+    const seat = { x: 0, z: 0, yaw: 0, ax: 0, az: 0 };
+    BENCHES.forEach((_, i) => {
+      for (const k of [0, 1]) {
+        seatPoint(i, k, seat);
+        spots.push({ x: seat.x, z: seat.z }, { x: seat.ax, z: seat.az });
+      }
+    });
+    for (const s of spots) {
+      expect(nearStandSpot(s.x, s.z)).toBe(true);
+      expect(nearStandSpot(s.x + 0.3, s.z - 0.3)).toBe(true); // 0.42 m off: still standing inside them
+    }
+    expect(nearStandSpot(LAYOUT.town.entrances[0]!.x, LAYOUT.town.entrances[0]!.z)).toBe(false);
   });
 });
