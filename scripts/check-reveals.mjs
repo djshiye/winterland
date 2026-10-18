@@ -114,7 +114,7 @@ const steps = [
   ['eval:' + `(${W}.level.sledCash.restoreValue(500),${broke})`, 'cash on the sled pile, no money'],
   ['eval:' + `(${W}.ctx.player.arms.take('furniture'),${W}.level.workshop.output.take('furniture'),${W}.level.workshop.output.take('furniture'),${W}.level.workshop.output.take('furniture'),0)`, 'all chairs gone'],
   ['sim:1'],
-  ['eval:' + obj, 'guide: collect the sled cash', 'Collect your cash'],
+  ['eval:' + obj, 'guide: collect the sled cash', 'Walk over the cash to bank it'],
   // the workshop survives a reload too
   ['eval:' + `${W}.level.sledCash.value`, 'sled cash before the save', undefined],
   ['eval:' + `(${W}.save(),0)`, 'save'],

@@ -1,6 +1,6 @@
 /** 0.9.7: the five-step starter guide of each new era region, and the era colour contrast check. */
 import { describe, expect, it } from 'vitest';
-import { EraStarter, NODE_LINGER, READ_SECONDS, WALK_SECONDS, RESOURCE_LINES, STARTER_STEPS, starterFlag, starterSteps, type StarterInput } from '../src/progression/eraStarter';
+import { EraStarter, NODE_LINGER, NODE_SECONDS, READ_SECONDS, WALK_SECONDS, RESOURCE_LINES, STARTER_STEPS, starterFlag, starterSteps, type StarterInput } from '../src/progression/eraStarter';
 import { ERAS } from '../src/eras/data';
 import { ERA_NODES } from '../src/assets/eraNodes';
 import { contrast, readableOn } from '../src/ui/contrast';
@@ -75,6 +75,15 @@ describe('era starter guide', () => {
     expect(g.update(0.25, at, () => undefined)!.text).toBe(steps[1]!.text);
     g.update(0.25, at, () => undefined);
     expect(g.update(NODE_LINGER, at, () => undefined)!.text).toBe(steps[2]!.text);
+  });
+
+  it('the node step moves on by itself after NODE_SECONDS, so it never sticks either (0.9.10)', () => {
+    const g = new EraStarter();
+    const steps = starterSteps(4);
+    const away = input({ here: 4, age: 4 });
+    g.update(READ_SECONDS, away, () => undefined);
+    expect(g.update(NODE_SECONDS - 1, away, () => undefined)!.text).toBe(steps[1]!.text);
+    expect(g.update(1, away, () => undefined)!.text).toBe(steps[2]!.text);
   });
 
   it('never starts in an older region, a started one, or one already seen; leaving and coming back carries on', () => {

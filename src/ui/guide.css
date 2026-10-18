@@ -1,0 +1,41 @@
+/* 0.9.10 first hour and new-era guide (READINESS C6). Colours are the theme's palette variables only. */
+
+/* the era postcard owns the bottom of the screen: the hold-to-interact chip and the move hint step aside */
+.wl-card-up .wl-chip,
+.wl-card-up .wl-hand {
+  display: none !important;
+}
+
+/* the postcard's perks are notes about the era, not buttons: no raised edge, a small accent dot, plain cursor */
+.wl-hud .wl-agecard .wl-era-perk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 4px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--wl-ink-soft);
+  font-weight: 600;
+  cursor: default;
+  user-select: none;
+}
+
+.wl-hud .wl-agecard .wl-era-perk::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-era);
+}
+
+.wl-hud .wl-agecard .wl-pc-perks {
+  gap: 2px 12px;
+}
+
+/* the Lv 10 rule is a note too: a soft inset well instead of a raised (button-like) slab */
+.wl-hud .wl-agecard .wl-agecard-rule {
+  background: var(--wl-well);
+  box-shadow: inset 0 2px 0 var(--wl-shade-soft);
+}

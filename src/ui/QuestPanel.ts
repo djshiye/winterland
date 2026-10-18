@@ -2,7 +2,9 @@
  * [B4] Quest panel (wave 8): a compact card on the left (under the money pill / village badge / season chip) with the
  * three active quests from ctx.quests.active(): title, progress bar "12 / 40" and a reward chip "$350".
  * - Collapsible to a small "Quests 4/18" chip; the state persists in localStorage 'winterland:quests' ('1' = collapsed).
- *   With nothing stored it starts collapsed on phones (<= 640 px wide) and open elsewhere.
+ *   With nothing stored it starts collapsed on phones (<= 640 px wide) and open elsewhere. 0.9.10 (READINESS C5): a
+ *   fresh game keeps it collapsed until the harvester is built, on every screen, so the first minutes show one goal;
+ *   then the stored choice (or the screen default) applies. A tap during that time is the player's choice and sticks.
  * - When every quest is done the chip reads "All quests complete ★" (nothing to expand).
  * - The DOM is refreshed ~4 times per second on simulation time (and right after a toggle / a completed quest);
  *   text is only rewritten when it changed. Hidden during the intro cinematic.
@@ -16,6 +18,14 @@ import { ICON_STAR } from './icons';
 const KEY = 'winterland:quests';
 const REFRESH = 0.25;
 const ROWS = 3;
+
+/**
+ * Pure (tests): how the panel starts. `preferred` is the stored choice ('1' collapsed, '0' open) or the screen default
+ * (collapsed at 640 px or narrower); `early` holds it collapsed on a fresh game until the harvester is built (C5).
+ */
+export function questStartCollapse(stored: string | null, width: number, harvester: boolean): { early: boolean; preferred: boolean } {
+  return { early: !harvester, preferred: stored === null ? width <= 640 : stored === '1' };
+}
 
 interface Row {
   el: HTMLDivElement;
@@ -38,6 +48,10 @@ export class QuestPanel {
   private lastHead = '';
   private lastDisplay = '';
   private allDone = false;
+  /** 0.9.10 (C5): the first minutes (no harvester yet, the player has not opened the panel): kept collapsed. */
+  private early: boolean;
+  /** The collapse the player chose or the screen default, applied once the early minutes end. */
+  private preferred: boolean;
 
   constructor(
     private readonly ctx: GameContext,
@@ -49,7 +63,8 @@ export class QuestPanel {
     } catch {
       /* storage unavailable */
     }
-    this.collapsed = stored === null ? window.innerWidth <= 640 : stored === '1';
+    ({ early: this.early, preferred: this.preferred } = questStartCollapse(stored, window.innerWidth, ctx.state.unlocked.harvester));
+    this.collapsed = this.early || this.preferred;
 
     this.root = h('div', 'wl-quests');
     this.head = h('button', 'wl-quests-head');
@@ -98,6 +113,8 @@ export class QuestPanel {
 
   /** Expand / collapse (persisted). */
   setCollapsed(c: boolean): void {
+    this.early = false; // the player's own choice ends the early hold
+    this.preferred = c;
     this.collapsed = c;
     try {
       localStorage.setItem(KEY, c ? '1' : '0');
@@ -121,6 +138,13 @@ export class QuestPanel {
       this.root.style.display = disp;
     }
     if (hide) return;
+    // the harvester is built (or a save restored it): the early hold ends and the usual choice applies
+    if (this.early && this.ctx.state.unlocked.harvester) {
+      this.early = false;
+      this.collapsed = this.preferred;
+      this.applyCollapsed();
+      this.acc = REFRESH;
+    }
     this.acc += dt;
     if (this.acc < REFRESH) return;
     this.acc = 0;

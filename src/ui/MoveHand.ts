@@ -4,6 +4,8 @@
  * swipe trail; desktop (hover + fine pointer) also gets a "WASD / arrow keys" caption, touch gets "Drag to move".
  * It goes away once the player has walked about 2 m or after 8 s, whichever comes first, and the flag is set the moment
  * it appears so it never returns (also not after a reload). Everything is driven from update(dt) on simulation time.
+ * 0.9.10 (READINESS C6): it steps aside while a card (the era postcard, the settlement card, a notice, the update card)
+ * is on screen, and its 8 s wait pauses meanwhile, so the hint and a card never overlap.
  */
 import type { GameContext } from '../core/types';
 import { h } from './dom';
@@ -17,6 +19,8 @@ const TRAIL = 9;
 /** Swipe path in px relative to the start point (up and to the right: the iso "forward"). */
 const DX = 74;
 const DY = -62;
+/** The cards the hint steps aside for (any shown dialog, plus the settlement card, which is not one). */
+const CARDS = '[role="dialog"], .wl-era';
 
 const HAND = `<svg viewBox="0 0 56 64" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
   <g stroke="${ICON_INK}" stroke-width="3" fill="#fff">
@@ -37,10 +41,11 @@ export class MoveHand {
   private leaving = 0;
   private readonly last = { x: 0, z: 0 };
   private readonly desktop: boolean;
+  private covered = false;
 
   constructor(
     private readonly ctx: GameContext,
-    layer: HTMLElement,
+    private readonly layer: HTMLElement,
   ) {
     let desktop = false;
     try {
@@ -89,12 +94,24 @@ export class MoveHand {
     this.root.classList.toggle('is-desktop', this.desktop);
   }
 
+  /** True while a card is on screen in the HUD layer (checked only while the hint runs). */
+  private cardUp(): boolean {
+    for (const el of this.layer.querySelectorAll<HTMLElement>(CARDS)) if (el !== this.root && el.getClientRects().length > 0) return true;
+    return false;
+  }
+
   update(dt: number): void {
     if (!this.active) return;
     const p = this.ctx.player.position;
     this.walked += Math.hypot(p.x - this.last.x, p.z - this.last.z);
     this.last.x = p.x;
     this.last.z = p.z;
+    const covered = this.cardUp();
+    if (covered !== this.covered) {
+      this.covered = covered;
+      this.root.style.visibility = covered ? 'hidden' : '';
+    }
+    if (covered) return; // the wait pauses under a card
     this.age += dt;
     if (this.leaving === 0 && (this.walked >= MOVE_DONE || this.age >= MAX_TIME)) this.leaving = 1e-6;
     let fade = Math.min(1, this.age / 0.35);

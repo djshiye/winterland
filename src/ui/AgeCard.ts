@@ -11,6 +11,8 @@
  *   turn while the era card is up).
  * Sits bottom-centre, hides while a sheet (.shop-open) owns the screen; popped in / faded on simulation time from
  * update(dt).
+ * 0.9.10 (READINESS C6): while the postcard is up the HUD layer carries `wl-card-up`, so the hold-to-interact chip
+ * and the move hint step aside (guide.css; ui/MoveHand.ts also pauses); the perks read as plain notes, not buttons.
  */
 import { finaleQuiet } from '../core/quiet';
 import type { GameContext } from '../core/types';
@@ -24,6 +26,7 @@ import { eraPostcard } from './eraPostcards';
 import { setEraAccent } from './theme';
 import './era.css';
 import './ages.css';
+import './guide.css';
 
 const IN = 0.45;
 const OUT = 0.3;
@@ -56,7 +59,7 @@ export class AgeCard {
   private last = '';
   private lastBanner = '';
 
-  constructor(private readonly ctx: GameContext, layer: HTMLElement) {
+  constructor(private readonly ctx: GameContext, private readonly layer: HTMLElement) {
     this.root = h('div', 'wl-era wl-agecard wl-postcard');
     this.root.setAttribute('role', 'dialog');
     shield(this.root);
@@ -140,6 +143,7 @@ export class AgeCard {
     this.closing = -1;
     this.last = '';
     this.root.style.display = '';
+    this.layer.classList.add('wl-card-up');
   }
 
   /** Show the small "Your city is now a Big City!" banner (waits while the era card is up). */
@@ -194,6 +198,7 @@ export class AgeCard {
           this.t = -1;
           this.closing = -1;
           this.root.style.display = 'none';
+          this.layer.classList.remove('wl-card-up');
           if (this.pendingRank) {
             const name = this.pendingRank;
             this.pendingRank = null;

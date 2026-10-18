@@ -26,7 +26,7 @@
  *   guide: "Build the Workshop ($15,000)" (the generic pad hint), then a one-off lesson "Feed logs to the workshop"
  *   (hopper arrow; "Pick up logs for the workshop" fetches them from the deck / yard) until the first chair exists,
  *   "Grab the chairs for the dog sleds" at the bench, and "Carry chairs to the dog sleds" at the sled counter. The sled
- *   cash joins the "Collect your cash" biggest-pile pick through Level.cashPiles().
+ *   cash joins the "Walk over the cash" biggest-pile pick through Level.cashPiles().
  * - Guide (re-evaluated ~4×/s): one objective at a time via ctx.hud.setObjective(text) +
  *   ctx.hud.setGuideTarget(world point) — chop → pick up → sell → collect cash → build pad → feed the
  *   processor → grab the crates → load the tricycles / trucks. The arrow is hidden while the player already
@@ -37,16 +37,18 @@ import * as THREE from 'three';
 import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, PADS, QUARTERS, TOWN, UPGRADES, VILLAGE, rect, type BusinessId, type PadIdConst, type Rect, type UpgradeIdConst, type XZ } from '../config';
 import type { FlagId, GameContext, ItemKind, PadId, Phase } from '../core/types';
 import type { Level } from '../level/Level';
+import type { Machine } from '../eras/Machine';
 import { DISTRICTS, ERAS, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
 import { climbOpen, eraMatOf, hasGate, nextGoal } from '../eras/gate';
 import { expansionOffered, regionLayout } from '../eras/layout';
-import { MAT_SIZE, machinePadTarget } from '../eras/rules';
+import { MAT_SIZE, machinePadTarget, worldRect } from '../eras/rules';
 import { MATERIAL_KINDS } from '../core/kinds';
 import { article, formatMoney } from '../ui/format';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
 import { grandMarketOffered } from '../town/rules';
 import { usingGamepad } from '../input/Gamepad';
 import { EraStarter, starterFlag } from './eraStarter';
+import { setGuideGoal } from './guideGoal';
 
 /** " (hold A)" with a gamepad (0.9.7), " (hold E)" with a keyboard, " (hold)" on touch, for the guide's pickup / payment hints. */
 function holdHint(): string {
@@ -65,10 +67,15 @@ const PICKUP_STAY_UNTIL = 6;
 /** Seconds between "visit the cabin" reminders once the shop has been visited. */
 const SHOP_REMINDER = 120;
 const RULE_INTERVAL = 0.2;
-/** With the cash tubes built, "Collect your cash" only shows for a pile worth at least this much. */
+/** With the cash tubes built, "Walk over the cash to bank it" only shows for a pile worth at least this much. */
 const CASH_BACKLOG = 300;
 /** The "feed logs to the workshop" lesson is offered this long after the workshop opens, and only until the first chair. */
 const WORKSHOP_LESSON = 600; // long enough that a busy village can't hide the lesson
+/** 0.9.10 (READINESS C7): the one-time MANAGE tip shows once a built era machine's sign is this close (metres)... */
+const MANAGE_HINT_NEAR = 6;
+/** ...and stays up this long (seconds) unless the player opens a MANAGE card first. */
+const MANAGE_HINT_SECONDS = 12;
+const MANAGE_HINT_FLAG = 'seen:manageHint' as const;
 
 const PAD_ORDER = [
   'harvester',
@@ -156,6 +163,9 @@ export class Progression {
   private objectiveSince = -10;
   private readonly guidePoint = new THREE.Vector3();
   private readonly tmpPoint = new THREE.Vector3();
+  /** The MANAGE tip: when it came up (−1 = not yet) and the sign it points at. */
+  private manageHintAt = -1;
+  private manageSpot: Rect | null = null;
 
   private readonly query: RevealQuery;
 
@@ -180,6 +190,10 @@ export class Progression {
       else if (buyer === 'tricycle') ctx.state.flags.firstTrikeSale = true;
     });
     ctx.events.on('pad:unlocked', ({ id }) => this.onUnlocked(id));
+    // the MANAGE tip is learnt the moment an era machine's or a city building's card opens (town shops don't count)
+    ctx.events.on('manage:open', ({ key }) => {
+      if (/^(slot|city):/.test(key)) ctx.state.flags[MANAGE_HINT_FLAG] = true;
+    });
     ctx.events.on('shop:close', () => {
       this.lastShopVisit = ctx.time.elapsed;
     });
@@ -491,9 +505,10 @@ export class Progression {
   // Tutorial guide
   // ---------------------------------------------------------------------------
 
-  private setGoal(text: string | null, area: Rect | null, point?: THREE.Vector3): void {
+  private setGoal(text: string | null, area: Rect | null, point?: THREE.Vector3, chip?: string): void {
     const ctx = this.ctx;
     const now = ctx.time.elapsed;
+    const goal = text;
     // hold-to-interact (core/interact.ts): pickups and payments need the key, so the hint says so
     if (text && ctx.input.holdToInteract && /^(Pick up|Pay for|Bring logs to|Build the Great Lodge)/.test(text)) {
       text += holdHint();
@@ -503,6 +518,7 @@ export class Progression {
       this.objective = text;
       this.objectiveSince = now;
       ctx.hud.setObjective(text);
+      setGuideGoal(ctx.state, goal, chip); // 0.9.10 (C2): the era chip names the same goal
     }
     if (!text || (!area && !point)) {
       ctx.hud.setGuideTarget(null);
@@ -942,6 +958,37 @@ export class Progression {
     return true;
   }
 
+  /**
+   * 0.9.10 (READINESS C7): a gentle one-time tip the first time a built machine's MANAGE sign in an era region is near:
+   * the arrow points at the sign for MANAGE_HINT_SECONDS, or until a MANAGE card opens. Never again after that.
+   */
+  private manageHint(here: number): boolean {
+    const s = this.ctx.state;
+    if (s.flags[MANAGE_HINT_FLAG]) return false;
+    const now = this.ctx.time.elapsed;
+    if (this.manageHintAt < 0) {
+      const region = this.level.eras.region(here);
+      const p = this.ctx.player.object.position;
+      for (const rt of region?.machines ?? []) {
+        // Region's machines are eras/Machine instances (the runtime view leaves the frame out)
+        if (!rt || !('frame' in rt)) continue;
+        const m = rt as Machine;
+        const r = worldRect(m.place, m.place.yaw, m.frame.manage);
+        if (Math.hypot((r.minX + r.maxX) / 2 - p.x, (r.minZ + r.maxZ) / 2 - p.z) > MANAGE_HINT_NEAR) continue;
+        this.manageSpot = r;
+        this.manageHintAt = now;
+        break;
+      }
+      if (!this.manageSpot) return false;
+    }
+    if (now - this.manageHintAt > MANAGE_HINT_SECONDS || !this.manageSpot) {
+      s.flags[MANAGE_HINT_FLAG] = true;
+      return false;
+    }
+    this.setGoal('Tip: step on a MANAGE sign to see or swap a machine', this.manageSpot, undefined, 'Try the MANAGE sign');
+    return true;
+  }
+
   /** 0.9.7: the starter guide of the region the player stands in, while it runs (eraStarter.ts). */
   private starterGuide(here: number): boolean {
     const s = this.ctx.state;
@@ -961,8 +1008,8 @@ export class Progression {
       },
     );
     if (!step) return false;
-    if (step.spot) this.setGoal(step.text, rect(step.spot.x, step.spot.z, step.w, step.d), this.tmpPoint.set(step.spot.x, 0, step.spot.z));
-    else this.setGoal(step.text, null);
+    if (step.spot) this.setGoal(step.text, rect(step.spot.x, step.spot.z, step.w, step.d), this.tmpPoint.set(step.spot.x, 0, step.spot.z), step.chip);
+    else this.setGoal(step.text, null, undefined, step.chip);
     return true;
   }
 
@@ -986,7 +1033,7 @@ export class Progression {
     const here = this.regionHere();
     if (here >= 2) {
       if (this.starterGuide(here)) return;
-      if (this.eraGoodsInHand() || this.eraGuide() || this.climbGuide()) return;
+      if (this.eraGoodsInHand() || this.manageHint(here) || this.eraGuide() || this.climbGuide()) return;
       this.setGoal(null, null);
       return;
     }
@@ -1035,6 +1082,9 @@ export class Progression {
     if (this.townGoodsInHand()) return;
     // 2d. 0.9.0: era materials in hand feed a machine that wants them, else the export depot.
     if (this.eraGoodsInHand()) return;
+    // 2e. 0.9.10 (READINESS C3): from era 2 on, Survival's chores (cash piles, crates, chairs, logs, the cabin, the town)
+    // never outrank the current era's next step; only what is already in the player's hands comes first.
+    if (s.eras.age >= 2 && (this.eraGuide() || this.climbGuide())) return;
 
     // 2b. Timber Ridge is open but the player has not been through the east gate yet.
     if (s.unlocked.ridge && !s.unlocked.treeFeller && !s.flags['seen:ridge']) {
@@ -1132,7 +1182,7 @@ export class Progression {
     let pile = L.walkInCash;
     for (const p of [...L.cashPiles(), ...L.town.tills()]) if (p.value > pile.value) pile = p;
     if (pile.value > (L.cashTubes || ctx.upgrades.isHired('cashier') ? CASH_BACKLOG : 0)) {
-      this.setGoal('Collect your cash', pile.zone.area);
+      this.setGoal('Walk over the cash to bank it', pile.zone.area); // 0.9.10 (C8): banking is walking over it
       return;
     }
 
