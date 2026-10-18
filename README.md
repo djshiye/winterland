@@ -176,3 +176,5 @@ Add `?fresh` to the URL to ignore the save, and `?noauto` to keep the automatic 
 Architecture, coordinates and module ownership are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md);
 the full-game systems (save, upgrades, village, demand, pads) in [docs/DESIGN.md](docs/DESIGN.md).
 Tuning (prices, speeds, layout, colours) all lives in [`src/config.ts`](src/config.ts).
+
+Licence: all rights reserved, see [LICENSE](LICENSE).

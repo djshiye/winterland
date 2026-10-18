@@ -874,6 +874,93 @@
   text-shadow: none;
 }
 
+/* ---- 0.9.10 Settings → Game → Credits (ui/CreditsCard.ts) ------------------------------------------- */
+
+.wl-credits-title {
+  margin-bottom: 6px;
+}
+
+.wl-credits-by {
+  margin: 0 8px 14px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--wl-ink);
+  text-shadow: none;
+}
+
+.wl-credits-lead {
+  margin: 0 4px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--wl-ink-soft);
+  text-align: left;
+  text-shadow: none;
+}
+
+.wl-credits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  max-height: 44vh;
+  overflow-y: auto;
+}
+
+.wl-credits-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  background: var(--wl-row);
+  text-align: left;
+  text-shadow: none;
+}
+
+.wl-credits-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 17px;
+  color: var(--wl-ink);
+}
+
+.wl-credits-text span {
+  font-size: 14px;
+  color: var(--wl-ink-soft);
+}
+
+.wl-credits-lic {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--wl-well);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wl-ink);
+  white-space: nowrap;
+}
+
+.wl-credits-copy {
+  margin: 0 8px 14px;
+  font-size: 13px;
+  color: var(--wl-ink-soft);
+  text-shadow: none;
+}
+
+.wl-credits-thanks {
+  margin: 0 8px 6px;
+  font-size: 14px;
+  color: var(--wl-ink-soft);
+  text-shadow: none;
+}
+
 /* ---- offline card ---------------------------------------------------------------------------------- */
 
 .wl-offline-coin {
@@ -2208,6 +2295,22 @@
   }
   .wl-settings .wl-row-hint {
     max-width: 140px;
+  }
+  /* 0.9.10 credits: two columns so the whole list and Back fit 800x450 */
+  .wl-credits-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    max-height: none;
+    margin-bottom: 10px;
+  }
+  .wl-credits-by {
+    margin-bottom: 8px;
+  }
+  .wl-credits-thanks {
+    margin-bottom: 2px;
+  }
+  .wl-credits-copy {
+    margin-bottom: 8px;
   }
 }
 

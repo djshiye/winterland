@@ -27,6 +27,9 @@
  *   Only one of the shop / build / choose / manage / market / gate sheets
  *   is open at a time (opening one closes the others); Esc closes the topmost.
  * - toast() queues briefly: a toast arriving < 1 s after another waits its turn (max 2 waiting, dropped after 3 s).
+ * - 0.9.10 (D5): the objective banner and the toast are polite live regions from the start (screen readers read the
+ *   next goal and each toast without interrupting). D9: `menuOpen` tells game/Game.ts when Settings, a sheet or a card
+ *   is up (the "Pause when a menu is open" switch), and `closeSheets()` lets a paused player walk away from a sheet.
  */
 import * as THREE from 'three';
 import { PALETTE } from '../config';
@@ -239,6 +242,8 @@ export class HUD {
     // objective banner
     this.objectiveEl = document.createElement('div');
     this.objectiveEl.className = 'wl-objective';
+    this.objectiveEl.setAttribute('role', 'status');
+    this.objectiveEl.setAttribute('aria-live', 'polite');
     layer.appendChild(this.objectiveEl);
 
     // mute
@@ -294,6 +299,8 @@ export class HUD {
     // toast
     this.toastEl = document.createElement('div');
     this.toastEl.className = 'wl-toast';
+    this.toastEl.setAttribute('role', 'status');
+    this.toastEl.setAttribute('aria-live', 'polite');
     this.toastTitle = document.createElement('div');
     this.toastTitle.className = 'wl-toast-title';
     this.toastSub = document.createElement('div');
@@ -384,6 +391,28 @@ export class HUD {
   /** True while settings, the map or any bottom sheet (shop, build, choose, manage, market) is open. */
   get anyModalOpen(): boolean {
     return this.settings.isOpen || this.map.visible || this.anySheetOpen;
+  }
+
+  /**
+   * 0.9.10 (D9): true while Settings, the map, a sheet, the era card or any centred card (notices, the welcome-back
+   * card, the finale, the update card) is on screen: the world waits then when "Pause when a menu is open" is on.
+   */
+  get menuOpen(): boolean {
+    return this.anyModalOpen || this.ageCard.visible || this.era.visible || this.finale.isOpen || this.updates.isOpen || this.notices.isOpen || this.ctx.input.nav.modalOpen;
+  }
+
+  /**
+   * 0.9.10 (D9): close the sheets that open under the player's feet (shop, build, choose, manage), like their X
+   * buttons, unless something the player opened on purpose is up too. While the world waits for a menu, walking again
+   * closes them so the player can step away. True if any was closed.
+   */
+  closeSheets(): boolean {
+    // only when nothing the player opened on purpose is up (Settings, the map, the market, a card)
+    if (this.settings.isOpen || this.map.visible || this.market.visible || this.gate.visible || this.ageCard.visible || this.era.visible) return false;
+    if (this.finale.isOpen || this.updates.isOpen || this.notices.isOpen || this.ctx.input.nav.modalOpen) return false;
+    const open = [this.shop, this.build, this.choose, this.manage].filter((p) => p.visible);
+    for (const p of open) p.close();
+    return open.length > 0;
   }
 
   /** True while one of the bottom sheets (shop, build, choose, manage, market) is open. */

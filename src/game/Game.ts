@@ -64,6 +64,7 @@ import { Soundscape } from '../fx/soundscape';
 import { Fireworks } from '../fx/Fireworks';
 import { HUD } from '../ui/HUD';
 import { readFpsCap, writeFpsCap, type FpsCap } from '../core/fps';
+import { menuPause } from '../fx/comfort';
 import { WorldEvents } from '../core/WorldEvents';
 import { Contracts } from '../core/Contracts';
 import { Market } from '../core/Market';
@@ -198,6 +199,11 @@ export class Game {
   private readonly completion: CompletionTracker;
   private running = false;
   private paused = false;
+  /**
+   * 0.9.10 (D9): while "Pause when a menu is open" holds the world, walking closes the sheet under the player's feet,
+   * but only a fresh press: the keys held while stepping onto the shop mat must not shut it straight away.
+   */
+  private menuWalkArmed = false;
   private lastTime = 0;
   /** Frame cap; frames arriving early are skipped (sim and render) so the sim never slows (MAX_DT is 50 ms). */
   fpsCap: FpsCap = readFpsCap();
@@ -507,7 +513,13 @@ export class Game {
       }
       const dt = Math.min((now - this.lastTime) / 1000, MAX_DT);
       this.lastTime = now;
-      if (!this.paused && dt > 0) this.step(dt);
+      if (!this.paused && dt > 0) {
+        if (menuPause() && this.ctx.hud.menuOpen) this.menuStep(dt);
+        else {
+          this.menuWalkArmed = false;
+          this.step(dt);
+        }
+      }
       this.ctx.renderer.render();
     };
     requestAnimationFrame(loop);
@@ -562,6 +574,26 @@ export class Game {
         const raw = readRawSave();
         if (raw) pushBackup(raw);
       }
+      this.save();
+    }
+  }
+
+  /**
+   * 0.9.10 (D9): a frame while the world waits for an open menu ("Pause when a menu is open"): the menus, their
+   * keyboard / gamepad navigation and the autosave timer run, nothing else moves and play time stands still. Saves and
+   * the updater are untouched (the update card runs from hud.update). A fresh walking press closes a sheet the player
+   * is standing on (shop, build, choose, manage) so they can step away.
+   */
+  private menuStep(dt: number): void {
+    const c = this.ctx;
+    c.input.update();
+    if (!c.input.active) this.menuWalkArmed = true;
+    else if (this.menuWalkArmed && c.hud.closeSheets()) this.menuWalkArmed = false;
+    c.hud.update(dt);
+    c.input.updateMenus(dt);
+    this.saveTimer -= dt;
+    if (this.saveTimer <= 0) {
+      this.saveTimer = SAVE.interval;
       this.save();
     }
   }

@@ -19,12 +19,17 @@
  *   shop); createMatModel: the cabin's striped doormat.
  * Fredoka may load after the first draw, so every texture redraws itself once when the font is ready. Every colour
  * comes from render/palette.ts (PAD); the small item icons keep their item colours.
+ * 0.9.10 (D8) colour-blind hook: with Settings › Colour-blind friendly on (fx/comfort), the greens that carry meaning
+ * on a pad (the tick of a finished requirement, the cash still to pay, the plus on a BUILD tile) turn the Okabe-Ito
+ * sky blue the HUD uses (tagInks), and every live pad face and tag redraws when the switch flips. The honey ring and
+ * fill, the brass LV rosette and the MANAGE board use no red or green, so they stay as they are.
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CAMERA, COLORS, PALETTE, type PadDef } from '../config';
 import { GAME_FONT, basic, geo, makeCanvasTexture, mesh, toon, toonUnique } from '../render/materials';
-import { PAD, mixHex, type PadLook } from '../render/palette';
+import { PAD, UI_TONES, mixHex, type PadLook } from '../render/palette';
+import { comfort, onComfortChange } from '../fx/comfort';
 import { MATERIALS } from '../eras/data';
 import { motionScale } from '../fx/padJuice';
 import { registerGlow } from '../world/env/glow';
@@ -979,8 +984,16 @@ function drawLogIcon(g: CanvasRenderingContext2D, x: number, y: number, k = 1): 
   g.restore();
 }
 
+/**
+ * [0.9.10 — D8] The inks that say "done" (a tick) and "cash still to pay" on pads and tags: pine and sage normally,
+ * the colour-blind friendly sky blue (a deeper one for the cash text, readable on the cream tag) when asked.
+ */
+export function tagInks(colorBlind: boolean = comfort().colorBlind): { done: number; cash: number } {
+  return colorBlind ? { done: UI_TONES.cbgood, cash: mixHex(UI_TONES.cbgood, PAD.ink, 0.4) } : { done: PAD.done, cash: PAD.cashInk };
+}
+
 /** Check mark (a requirement that is complete). */
-function drawCheck(g: CanvasRenderingContext2D, x: number, y: number, color = PAD.done): void {
+function drawCheck(g: CanvasRenderingContext2D, x: number, y: number, color = tagInks().done): void {
   g.save();
   g.lineWidth = 12;
   g.lineCap = 'round';
@@ -1064,6 +1077,19 @@ interface PadTextureParams {
 
 const params = new WeakMap<THREE.CanvasTexture, PadTextureParams>();
 const fontHooked = new WeakSet<THREE.CanvasTexture>();
+/** 0.9.10: every pad face drawn so far (weakly held), redrawn when the colour-blind switch flips. */
+const liveFaces = new Set<WeakRef<THREE.CanvasTexture>>();
+let facesColorBlind = comfort().colorBlind;
+onComfortChange((s) => {
+  if (s.colorBlind === facesColorBlind) return;
+  facesColorBlind = s.colorBlind;
+  for (const ref of liveFaces) {
+    const t = ref.deref();
+    const p = t ? params.get(t) : undefined;
+    if (!t || !p) liveFaces.delete(ref);
+    else draw(t, p);
+  }
+});
 
 // ---------------------------------------------------------------------------
 // The three looks (0.9.8, DIRECTION D6)
@@ -1480,7 +1506,7 @@ function drawBuildIcon(g: CanvasRenderingContext2D): void {
   g.translate(38, -30);
   g.beginPath();
   g.arc(0, 0, 24, 0, Math.PI * 2);
-  g.fillStyle = hex(PAD.cashInk);
+  g.fillStyle = hex(tagInks().cash);
   g.fill();
   g.lineCap = 'round';
   g.lineWidth = 9;
@@ -1747,8 +1773,10 @@ export function createConstructionTexture(
 
 /** Fredoka may finish loading after the first draw: redraw once with the latest parameters. */
 function hookFont(texture: THREE.CanvasTexture): void {
-  if (fontHooked.has(texture) || typeof document === 'undefined' || !document.fonts) return;
+  if (fontHooked.has(texture)) return;
   fontHooked.add(texture);
+  liveFaces.add(new WeakRef(texture));
+  if (typeof document === 'undefined' || !document.fonts) return;
   const redraw = (): void => {
     const p = params.get(texture);
     if (p) draw(texture, p);
@@ -1917,10 +1945,10 @@ function paintTag(tag: Tag, p: PadTextureParams): void {
     const r = rows[i]!;
     const y = top + 34 + i * rowH + rowH / 2;
     r.icon(g, x0 + 38, y);
-    if (r.text === null) drawCheck(g, x0 + 72, y, PAD.done);
+    if (r.text === null) drawCheck(g, x0 + 72, y, tagInks().done);
     else {
       g.font = `700 ${font}px ${GAME_FONT}`;
-      g.fillStyle = hex(r.text.startsWith('$') ? PAD.cashInk : PAD.ink);
+      g.fillStyle = hex(r.text.startsWith('$') ? tagInks().cash : PAD.ink);
       g.fillText(r.text, x0 + 70, y + 2, w - 84);
     }
   }

@@ -14,6 +14,11 @@
  * - band pips: 10 pips for Lv 0 .. 10 instead of the authored pips; a badge "Lv 7 · need 10", a gold "Lv 10 ✓" at
  *   the gate's level, "Not hired" for a crew;
  * - a gold dot on a tab while any of its upgrades is below the gate's level (the green "can buy" dot wins).
+ *
+ * 0.9.10 (D5): the panel is a dialog for keyboard and screen-reader players (ui/dialog.ts: role="dialog", aria-modal,
+ * labelled "Shop", Tab stays inside). It never grabs the focus as it opens, because it opens under the player's feet
+ * and the arrow keys must keep walking; Tab (or the gamepad's D-pad) steps in, and when it closes the focus goes back
+ * to where it was before that (else back to the game).
  */
 import { PRIORITIES, QUARTERS, UPGRADES, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
@@ -28,6 +33,7 @@ import { formatMoney } from './format';
 import { hexCss, ICON_CLOSE, ICON_LOCK, upgradeIcon } from './icons';
 import './ages.css';
 import { reducedMotion } from '../fx/comfort';
+import { FocusReturn, markDialog, trapTab } from './dialog';
 
 interface Card {
   id: UpgradeIdConst;
@@ -117,6 +123,7 @@ export class ShopPanel {
   private wanted = false;
   private dismissed = false;
   private dirty = true;
+  private readonly focusBack = new FocusReturn();
 
   constructor(
     private readonly ctx: GameContext,
@@ -127,7 +134,15 @@ export class ShopPanel {
     this.root.style.display = 'none';
 
     const head = h('div', 'wl-shop-head');
-    head.appendChild(h('div', 'wl-shop-title wl-title', 'Shop'));
+    const title = h('div', 'wl-shop-title wl-title', 'Shop');
+    head.appendChild(title);
+    markDialog(this.root, title, 'wl-shop-title');
+    trapTab(this.root);
+    // remember where the focus came from when Tab steps into the panel, to give it back on close
+    this.root.addEventListener('focusin', (e) => {
+      const from = e.relatedTarget;
+      if (!(from instanceof Node) || !this.root.contains(from)) this.focusBack.take(from instanceof Element ? from : null);
+    });
     head.classList.add('is-stacked');
     const tabs = h('div', 'wl-shop-tabs');
     this.tabsEl = tabs;
@@ -251,7 +266,9 @@ export class ShopPanel {
   }
 
   private syncOpen(): void {
+    const was = this.slide.open;
     this.slide.open = this.wanted && !this.dismissed;
+    if (was && !this.slide.open) this.focusBack.give(this.root);
   }
 
   private setTab(group: Tab): void {

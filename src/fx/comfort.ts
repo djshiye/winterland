@@ -16,6 +16,8 @@
  * - glow (0.9.8, Glow): 0..1, how strongly lamps, windows and furnaces bloom and brighten at night (render/PostFX.ts
  *   bloom, world/env/glow.ts night boost and halos). 0 keeps every light at its plain daytime look.
  * - snow (0.9.8, Falling snow): false stops the falling snow (and the snowstorm's flakes) altogether.
+ * - menuPause (0.9.10, Pause when a menu is open): off by default. On, the world holds still while Settings, the
+ *   shop or a card is open (game/Game.ts runs only the menus then; saves and the updater carry on).
  * <html> also gets `wl-reduce-motion` and `wl-calm` so CSS can follow. Every storage / DOM access is guarded.
  */
 
@@ -33,6 +35,8 @@ export interface ComfortSettings {
   glow: number;
   /** Falling snow on (default) or off. */
   snow: boolean;
+  /** Pause the world while a menu is open (off by default). */
+  menuPause: boolean;
 }
 
 /** Interface size limits and step (the Settings slider shows them as 80-150 %). */
@@ -81,7 +85,7 @@ function systemReducedMotion(): boolean {
 }
 
 export function defaultComfort(): ComfortSettings {
-  return { motion: systemReducedMotion(), effects: 'full', colorBlind: false, uiScale: 1, glow: 1, snow: true };
+  return { motion: systemReducedMotion(), effects: 'full', colorBlind: false, uiScale: 1, glow: 1, snow: true, menuPause: false };
 }
 
 /**
@@ -106,6 +110,7 @@ export function parseComfort(text: string | null): ComfortSettings {
     uiScale: r.uiScale === undefined ? d.uiScale : clampUiScale(r.uiScale),
     glow: r.glow === undefined ? d.glow : clampGlow(r.glow),
     snow: typeof r.snow === 'boolean' ? r.snow : d.snow,
+    menuPause: typeof r.menuPause === 'boolean' ? r.menuPause : d.menuPause,
   };
 }
 
@@ -200,6 +205,11 @@ export function uiScaleFitted(): boolean {
 /** Glow strength 0..1 (lamps, windows and furnaces at night; the bloom). */
 export function glowScale(): number {
   return state.glow;
+}
+
+/** True when the world should hold still while a menu is open. */
+export function menuPause(): boolean {
+  return state.menuPause;
 }
 
 /** True when pulsing / flashing highlights should hold still (reduced motion or calmer effects). */

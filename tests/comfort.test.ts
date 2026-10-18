@@ -44,7 +44,7 @@ afterEach(() => {
 
 describe('parseComfort', () => {
   it('falls back to the defaults for missing, broken or hostile values', () => {
-    const d = { motion: false, effects: 'full', colorBlind: false, uiScale: 1, glow: 1, snow: true };
+    const d = { motion: false, effects: 'full', colorBlind: false, uiScale: 1, glow: 1, snow: true, menuPause: false };
     for (const text of [null, '', 'not json', 'null', '[]', '42', '"x"', '{"__proto__":{"motion":true}}']) {
       expect(parseComfort(text)).toEqual(d);
     }
@@ -59,6 +59,7 @@ describe('parseComfort', () => {
       uiScale: 1,
       glow: 1,
       snow: true,
+      menuPause: false,
     });
   });
 
@@ -72,9 +73,9 @@ describe('parseComfort', () => {
 describe('setComfort', () => {
   it('remembers the choice and survives a restart', () => {
     setComfort({ effects: 'minimal', colorBlind: true });
-    expect(JSON.parse(store[COMFORT_KEY]!)).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1, glow: 1, snow: true });
+    expect(JSON.parse(store[COMFORT_KEY]!)).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1, glow: 1, snow: true, menuPause: false });
     reloadComfort();
-    expect(comfort()).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1, glow: 1, snow: true });
+    expect(comfort()).toEqual({ motion: false, effects: 'minimal', colorBlind: true, uiScale: 1, glow: 1, snow: true, menuPause: false });
   });
 
   it('still applies for the session when storage is unavailable', () => {
