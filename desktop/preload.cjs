@@ -14,6 +14,18 @@ contextBridge.exposeInMainWorld('winterlandDesktop', {
   quit: () => {
     ipcRenderer.send('desktop:quit');
   },
+  // 0.9.10: the copy of the save in the user-data folder (desktop/save-mirror.cjs). Read once at start; every save the
+  // game writes is handed over, and the main process puts the newest on disk now and then.
+  saveMirror: {
+    read: () => {
+      const r = ipcRenderer.sendSync('save:mirrorRead');
+      return r && typeof r === 'object' ? { save: typeof r.save === 'string' ? r.save : null, bak: typeof r.bak === 'string' ? r.bak : null } : null;
+    },
+    write: (text) => {
+      if (typeof text === 'string') ipcRenderer.send('save:mirrorWrite', text);
+    },
+    setAside: () => ipcRenderer.sendSync('save:mirrorSetAside') === true,
+  },
   // 0.9.8 in-game updater (desktop/updater.cjs); the main process checks every request comes from the game page.
   updates: {
     info: () => ipcRenderer.invoke('update:info'),

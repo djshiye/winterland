@@ -12,6 +12,7 @@
  * be missing, full or blocked: every function is wrapped and reports failure instead of throwing.
  */
 import { SAVE } from '../config';
+import { parseSave } from './Save';
 
 export type BackupKind = 'autosave' | 'before' | 'rescue';
 
@@ -141,14 +142,9 @@ export function readBackup(key: string, s: Storage | null = storage()): string |
 
 function info(key: string, kind: BackupKind, raw: string | null, why = ''): BackupInfo | null {
   if (!raw) return null;
-  try {
-    const d = JSON.parse(raw) as { v?: unknown; savedAt?: unknown; money?: unknown; state?: unknown };
-    if (!d || d.v !== SAVE.version || typeof d.state !== 'object' || !d.state) return null;
-    const n = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-    return { key, kind, savedAt: n(d.savedAt), money: Math.max(0, Math.floor(n(d.money))), why };
-  } catch {
-    return null;
-  }
+  // the same gate as a load (0.9.10: an older save format is listed too, since it opens)
+  const r = parseSave(raw);
+  return r.kind === 'ok' ? { key, kind, savedAt: r.data.savedAt, money: r.data.money, why } : null;
 }
 
 /** Every restorable backup, newest first (unreadable copies are not listed: they can only be downloaded). */

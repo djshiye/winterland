@@ -34,10 +34,11 @@ describe('importSave', () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
-  it('rejects a wrong version, a missing state and bad numbers', async () => {
+  it('rejects a newer format, a missing state and bad numbers', async () => {
     // 0.9.6: a save format newer than this build says so instead of "not a save"
     expect(await importSave(file(valid({ v: SAVE.version + 1 })))).toBe(NEWER_SAVE);
-    for (const text of [valid({ v: 0 }), valid({ v: '1' }), valid({ state: null }), valid({ state: 'x' }), valid({ money: '5' }), valid({ savedAt: null }), 'null', '[]', '42']) {
+    // (0.9.10: an older or unknown format is upgraded and opens, tests/saveFormat.test.ts)
+    for (const text of [valid({ state: null }), valid({ state: 'x' }), valid({ money: '5' }), valid({ savedAt: null }), 'null', '[]', '42']) {
       expect(await importSave(file(text))).toBe(NOT_A_SAVE);
     }
     expect(store[SAVE.key]).toBeUndefined();

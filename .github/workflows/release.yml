@@ -38,34 +38,54 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       # no npm cache in release builds: every release installs from the lockfile, nothing restored from earlier runs
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
       - run: npm ci
       - run: npm test
       - name: Package
         run: node scripts/package-desktop.mjs ${{ matrix.targets }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: winterland-${{ matrix.os }}
           path: release/*.zip
           if-no-files-found: error
 
-  publish:
+  # 0.9.10 (F11): signed build provenance for every zip of a real release, so anyone can check a download was built
+  # by this workflow from this repository (`gh attestation verify <zip> --repo djshiye/winterland`). Its own job, so
+  # the token that may sign is never in a job that runs npm install or project code.
+  provenance:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: dist-zips
+          merge-multiple: true
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: 'dist-zips/*.zip'
+
+  publish:
+    needs: [build, provenance]
     if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: dist-zips
           merge-multiple: true
@@ -89,7 +109,7 @@ jobs:
           awk -v h="## ${TAG#v} " 'index($0, h) == 1 { on = 1; next } /^## / { on = 0 } on' ../CHANGELOG.md > RELEASE-NOTES.md
           extra=()
           if grep -q '[^[:space:]]' RELEASE-NOTES.md; then extra=(dist-zips/RELEASE-NOTES.md); else rm RELEASE-NOTES.md; fi
-          sha256sum *.zip ${extra[@]+RELEASE-NOTES.md} > SHA256SUMS.txt
+          sha256sum -- *.zip ${extra[@]+RELEASE-NOTES.md} > SHA256SUMS.txt
           cat SHA256SUMS.txt
           cd ..
           gh release create "$TAG" dist-zips/*.zip dist-zips/SHA256SUMS.txt "${extra[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Winterland $TAG" --generate-notes "${notes[@]}"

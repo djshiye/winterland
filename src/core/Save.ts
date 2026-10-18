@@ -19,6 +19,7 @@ import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, MACHINES, MARKET, MAX_ERA, ty
 import { mergeTradeIntoSales } from './salesMerge';
 import { convertEraResources, LEGACY_KINDS } from './resourcesV2';
 import { GAME_VERSION, isNewerVersion, parseVersion } from './version';
+import type { SaveMirrorBridge } from '../platform/desktop';
 
 /** Items lying in the world, by station (counts include items still flying toward it). */
 export interface WorldSnapshot {
@@ -103,21 +104,55 @@ export type SaveRead =
   | { kind: 'ok'; data: SaveData; raw: string; newer: string | null }
   | { kind: 'unreadable'; raw: string; reason: 'corrupt' | 'newer-format' };
 
+/**
+ * The save format a save says it has: a whole number (also written as a string), or 0 when the number is missing or
+ * garbled (treated as the oldest format, so it is upgraded rather than refused).
+ */
+export function saveFormatOf(v: unknown): number {
+  const n = typeof v === 'string' && /^\d{1,6}$/.test(v.trim()) ? Number(v) : v;
+  return typeof n === 'number' && Number.isInteger(n) && n >= 0 ? n : 0;
+}
+
+/**
+ * 0.9.10 (READINESS A3): save-format steps. FORMAT_STEPS[n] turns a format-n save (the parsed JSON, in place) into
+ * format n + 1, so a save with an older or unknown format is upgraded step by step instead of being refused; then the
+ * normal load (mergeState, sanitizeState, MIGRATIONS) brings its contents up to date. Only a NEWER format is refused
+ * (this build can't know what it holds). When SAVE.version is bumped, add the step from the old number here.
+ */
+export const FORMAT_STEPS: Readonly<Record<number, (data: Record<string, unknown>) => void>> = {
+  // Format 1 is the only one ever shipped. A save without a format number (or with a garbled one) is read as format
+  // 1: mergeState and sanitizeState already fill in or drop whatever it lacks or has extra.
+  0: () => {},
+};
+
+/** Run the format steps from `from` up to SAVE.version; false when a step is missing (never, while tests pass). */
+export function upgradeFormat(data: Record<string, unknown>, from: number, steps: Readonly<Record<number, (data: Record<string, unknown>) => void>> = FORMAT_STEPS): boolean {
+  for (let f = from; f < SAVE.version; f++) {
+    const step = steps[f];
+    if (!step) return false;
+    step(data);
+  }
+  data.v = SAVE.version;
+  return true;
+}
+
 /** Parse a save text (the gate every load and every restore goes through). */
 export function parseSave(raw: string): SaveRead {
   try {
     const data = JSON.parse(raw) as Partial<SaveData>;
     if (!isObj(data)) return { kind: 'unreadable', raw, reason: 'corrupt' };
-    if (isNum(data.v) && data.v > SAVE.version) return { kind: 'unreadable', raw, reason: 'newer-format' };
-    if (data.v !== SAVE.version || !isObj(data.state)) return { kind: 'unreadable', raw, reason: 'corrupt' };
+    const format = saveFormatOf(data.v);
+    if (format > SAVE.version) return { kind: 'unreadable', raw, reason: 'newer-format' };
+    if (!isObj(data.state)) return { kind: 'unreadable', raw, reason: 'corrupt' };
     if (!isNum(data.money) || !isNum(data.savedAt)) return { kind: 'unreadable', raw, reason: 'corrupt' };
+    if (format < SAVE.version && !upgradeFormat(data as Record<string, unknown>, format)) return { kind: 'unreadable', raw, reason: 'corrupt' };
     const game = typeof data.game === 'string' && parseVersion(data.game) ? data.game : undefined;
     return {
       kind: 'ok',
       raw,
       newer: game && isNewerVersion(game, GAME_VERSION) ? game : null,
       data: {
-        v: data.v,
+        v: SAVE.version,
         game,
         savedAt: data.savedAt,
         money: Math.max(0, Math.floor(data.money)),
@@ -152,19 +187,101 @@ export function writeSave(data: SaveData): boolean {
   try {
     const s = storage();
     if (!s) return false;
-    s.setItem(SAVE.key, JSON.stringify(data));
+    const text = JSON.stringify(data);
+    s.setItem(SAVE.key, text);
+    mirrorSave(text);
     return true;
   } catch {
     return false;
   }
 }
 
+/** Set by a Reset: the next start is a fresh game by choice, so the desktop copy of the old one isn't offered back. */
+const FRESH_START_KEY = `${SAVE.key}.fresh-start`;
+
 export function clearSave(): void {
   try {
     storage()?.removeItem(SAVE.key);
+    storage()?.setItem(FRESH_START_KEY, '1');
   } catch {
     // nothing to clear
   }
+}
+
+/** True (once) when this start follows a Reset. */
+export function startedFresh(): boolean {
+  try {
+    const s = storage();
+    if (!s?.getItem(FRESH_START_KEY)) return false;
+    s.removeItem(FRESH_START_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// 0.9.10 (READINESS A5): the desktop copy of the save (desktop/save-mirror.cjs: save.json in the user-data folder).
+// localStorage stays the real save. Every save written there is also handed to the desktop app, but only once the
+// game knows the copy on disk holds nothing it would lose: the save it started from opened, or there was no copy, or
+// the player chose to start fresh (Game.mirrorNotices). A copy this build can't open is never written over.
+// ---------------------------------------------------------------------------------------------------------------------
+
+let mirrorWrites = false;
+
+function mirrorBridge(): SaveMirrorBridge | null {
+  try {
+    return (window as unknown as { winterlandDesktop?: { saveMirror?: SaveMirrorBridge } }).winterlandDesktop?.saveMirror ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Allow (or stop) handing saves to the desktop copy. */
+export function setMirrorWrites(on: boolean): void {
+  mirrorWrites = on;
+}
+
+function mirrorSave(text: string): void {
+  if (!mirrorWrites) return;
+  try {
+    mirrorBridge()?.write(text);
+  } catch {
+    // the copy is a spare: the save in localStorage is already written
+  }
+}
+
+/**
+ * Move the desktop copy (save.json and save.json.bak) aside as save.json.replaced-<time> before something else is
+ * written there, so no copy the player didn't delete is ever lost. True when it is aside (or there was none).
+ */
+export function setAsideMirror(bridge: SaveMirrorBridge | null = mirrorBridge()): boolean {
+  if (!bridge) return true;
+  try {
+    return bridge.setAside() === true;
+  } catch {
+    return false;
+  }
+}
+
+/** The desktop copy: none (also on the web), the newest copy that opens, or copies that exist but don't open. */
+export type MirrorRead = { kind: 'none' } | { kind: 'ok'; data: SaveData; raw: string } | { kind: 'unreadable' };
+
+export function readMirror(bridge: SaveMirrorBridge | null = mirrorBridge()): MirrorRead {
+  if (!bridge) return { kind: 'none' };
+  let r: { save: string | null; bak: string | null } | null;
+  try {
+    r = bridge.read();
+  } catch {
+    return { kind: 'unreadable' }; // can't tell what is there: leave it alone
+  }
+  if (!r || (!r.save && !r.bak)) return { kind: 'none' };
+  for (const text of [r.save, r.bak]) {
+    if (!text) continue;
+    const p = parseSave(text);
+    if (p.kind === 'ok') return { kind: 'ok', data: p.data, raw: text };
+  }
+  return { kind: 'unreadable' };
 }
 
 /**

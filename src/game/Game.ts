@@ -18,8 +18,12 @@ import {
   migrateState,
   mergeState,
   parseSave,
+  readMirror,
   readSave,
   sanitizeState,
+  setAsideMirror,
+  setMirrorWrites,
+  startedFresh,
   newSeasonSave,
   offlineEarnings,
   writeSave,
@@ -30,7 +34,8 @@ import {
 import { keepUnreadable, pushBackup, readBackup, readRawSave, snapshotBefore } from '../core/saveVault';
 import { GAME_VERSION } from '../core/version';
 import { debugAllowed } from '../platform/debug';
-import { desktop } from '../platform/desktop';
+import { desktop, isDesktop } from '../platform/desktop';
+import { backgroundShouldStep, backgroundSteps } from './backgroundTick';
 import { exportText, saveFileName } from '../ui/saveTransfer';
 import type { Notice } from '../ui/NoticeCard';
 import { formatMoney } from '../ui/format';
@@ -84,6 +89,8 @@ export const RECOVERED_FLAG = 'winterland.recovered';
 
 /** Longest step the real-time loop will take (tab switches, hitches). */
 const MAX_DT = 1 / 20;
+/** 0.9.10: the most simulated seconds one background tick catches up (a sleeping computer doesn't fast-forward). */
+const BACKGROUND_CATCH_UP = 60;
 
 export interface DebugApi {
   game: Game;
@@ -226,6 +233,7 @@ export class Game {
     const save = read.kind === 'ok' ? read.data : null;
     // 0.9.6 (S5): a save that can't be opened is never replaced by a fresh game without a copy of its exact text.
     const notices = this.saveNotices(read);
+    notices.push(...this.mirrorNotices(read));
     const state = createGameState();
     if (save) {
       mergeState(state, save.state);
@@ -300,6 +308,9 @@ export class Game {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') this.save();
     });
+    // 0.9.10 (D9): the desktop app throttles a hidden or minimised window (no frames, so nothing is drawn); the
+    // factory keeps running on this slow timer instead (backgroundTick). The web build is unchanged.
+    if (isDesktop()) window.setInterval(() => this.backgroundTick(), 1000);
     events.on('game:reset', () => this.reset());
     // wave 10: keyboard shortcuts and zoom become events; the HUD and the camera listen
     input.onShortcut((s) => {
@@ -404,6 +415,43 @@ export class Game {
       /* no storage */
     }
     return out;
+  }
+
+  /**
+   * 0.9.10 (READINESS A5, desktop): the copy of the save kept next to the game (core/Save.ts readMirror). When the
+   * save in the browser store is gone or won't open but that copy opens, offer it back; until the player picks, the
+   * copy is never written over. Otherwise saves are copied there as they are written.
+   */
+  private mirrorNotices(read: SaveRead): Notice[] {
+    if (!this.saving) return []; // ?fresh, or a save that must not be written over: leave the copy alone too
+    const fresh = startedFresh(); // (read every start, so the mark of a Reset never lingers)
+    const mirror = readMirror();
+    if (read.kind === 'ok' || fresh) {
+      // The copy is about to be written over. One that holds something else (a copy this build can't open, or later
+      // progress than the save we start from) is moved aside first, never lost.
+      const other = mirror.kind === 'unreadable' || (mirror.kind === 'ok' && (fresh || (read.kind === 'ok' && mirror.data.savedAt > read.data.savedAt)));
+      if (!other || setAsideMirror()) setMirrorWrites(true);
+      return [];
+    }
+    if (mirror.kind === 'none') setMirrorWrites(true);
+    if (mirror.kind !== 'ok') return []; // (a copy this build can't open stays exactly as it is)
+    const when = new Date(mirror.data.savedAt);
+    const day = Number.isFinite(when.getTime()) ? when.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+    return [
+      {
+        icon: 'shield',
+        title: 'We found your game',
+        lines: [
+          `A copy of your game is saved on this computer${day ? ` (from ${day}${mirror.data.money > 0 ? `, with ${formatMoney(mirror.data.money)}` : ''})` : ''}.`,
+          'Bring it back to carry on where you left off, or start a fresh game. The copy stays safe until you choose.',
+        ],
+        buttons: [
+          // (the copy is moved aside, kept as save.json.replaced-<time>, before the fresh game is copied there)
+          { label: 'Start fresh', style: 'grey', onTap: () => void (setAsideMirror() && setMirrorWrites(true)) },
+          { label: 'Bring it back', onTap: () => this.restore(mirror.raw) },
+        ],
+      },
+    ];
   }
 
   /** The save as it would be written now. */
@@ -523,6 +571,21 @@ export class Game {
       this.ctx.renderer.render();
     };
     requestAnimationFrame(loop);
+  }
+
+  /**
+   * 0.9.10 (D9, desktop): while the window is hidden or minimised the app sends no frames, so the loop above stops.
+   * Once a second (or less often, as the system throttles timers) this catches the simulation up without drawing,
+   * at most BACKGROUND_CATCH_UP seconds at a time, so a minimised factory keeps earning as before.
+   */
+  private backgroundTick(): void {
+    if (!backgroundShouldStep(document.hidden, this.running)) return;
+    const now = performance.now();
+    const steps = backgroundSteps(this.lastTime, now, BACKGROUND_CATCH_UP, MAX_DT);
+    this.lastTime = now;
+    // paused, or the "Pause when a menu is open" switch with a menu open: the world waits (no catching up later)
+    if (this.paused || (menuPause() && this.ctx.hud.menuOpen)) return;
+    for (const dt of steps) this.step(dt);
   }
 
   /** Settings → Display: 0 (uncapped), 30 or 60. Persisted. */
