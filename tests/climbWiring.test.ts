@@ -3,7 +3,7 @@
  * crewStats read core/ladder.ts; levels past the authored max are for sale only once the climb is open (the Great
  * Lodge). Era 1 below the Lodge stays 0.8.0 (tests/era1Frozen.test.ts).
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { CLIMB, GATE, UPGRADES, type UpgradeDef } from '../src/config';
 import { productMult } from '../src/core/demand';
 import { Market } from '../src/core/Market';
@@ -17,14 +17,6 @@ import { INVEST, MARKET } from '../src/eras/data';
 import { climbOpen } from '../src/eras/gate';
 
 const DEFS = Object.values(UPGRADES) as UpgradeDef[];
-
-/** The 0.9.0 – 0.9.4 convention ('offset': era cap 10 · age) is still a switch; tests that pin it opt in. */
-const OFFSET = (): void => {
-  GATE.mode = 'offset';
-};
-afterEach(() => {
-  GATE.mode = 'literal';
-});
 
 const make = (money = 1e15, lodge = false) => {
   const state = createGameState();
@@ -57,64 +49,23 @@ describe('Upgrades on the ladder', () => {
     expect(up.nextValue('carry')).toBeNull();
   });
 
-  it('offset mode: with the Lodge built the ladder runs on past the authored max, era cap by era cap, to shown level 100', () => {
-    OFFSET();
-    const { up, state, economy } = make(1e15, true);
-    const id: UpgradeId = 'carry';
-    const d = UPGRADES[id];
-    while (up.level(id) < authoredMax(d)) expect(up.buy(id)).toBe(true);
-    expect(up.isMax(id)).toBe(false);
-    const before = economy.money;
-    expect(up.nextCost(id)).toBe(costAt(d, authoredMax(d)));
-    expect(up.nextValue(id)).toBe(valueAt(d, authoredMax(d) + 1));
-    expect(up.buy(id)).toBe(true);
-    expect(economy.money).toBe(before - costAt(d, authoredMax(d)));
-    expect(up.value(id)).toBe(41);
-    expect(up.describe(id)).toBe('41 items');
-    // era 1 stops at shown level 10 (the era-2 gate) until the era-2 expansion is bought
-    while (up.buy(id));
-    expect(up.level(id)).toBe(10);
-    expect(up.isMax(id)).toBe(true);
-    expect(up.nextCost(id)).toBeNull();
-    // each era lifts the cap by 10; era 10 reaches the final level
-    for (let age = 2; age <= 10; age++) {
-      state.eras.age = age;
-      expect(up.isMax(id)).toBe(false);
-      while (up.buy(id));
-      expect(up.shownLevel(id)).toBe(10 * age);
-    }
-    expect(up.level(id)).toBe(LEGACY_LEVEL_CAP);
-    expect(up.shownLevel(id)).toBe(LEGACY_LEVEL_CAP);
-    expect(up.value(id)).toBe(50); // the hard cap
-    // closing the climb again (debug) never takes bought levels away; it only stops further purchases
-    state.village.greatLodge.tier = -1;
-    expect(up.level(id)).toBe(LEGACY_LEVEL_CAP);
-    expect(up.isMax(id)).toBe(true);
-  });
-
-  it('offset mode: the era cap stops machines and crews alike at shown level 10 · age, and old saves above it keep their levels', () => {
-    OFFSET();
+  it('the Lv 10 cap stops machines and crews alike, and old saves above it keep their levels', () => {
     const { up, state } = make(1e15, true);
     for (const id of ['harvester', 'processor', 'megaSaw', 'treeFeller', 'cashTubes', 'workshop'] as UpgradeId[]) {
       expect(UPGRADES[id].group).toBe('machine');
       expect(up.maxLevel(id)).toBe(10);
     }
     for (const id of up.group('crew').filter((i) => UPGRADES[i].era === undefined)) expect(up.maxLevel(id)).toBe(10);
-    // an era-3 id starts at shown 20 (stored 0): in era 3 it caps at shown 30 (stored 10), like every older id
-    state.eras.age = 3;
-    expect(introEra(UPGRADES.ironRigs)).toBe(3);
-    expect(up.maxLevel('ironRigs')).toBe(10);
-    expect(up.maxLevel('harvester')).toBe(30);
-    // a save from 0.9.0 with a machine already past the cap: nothing is taken away, it just can't go higher yet
-    state.eras.age = 1;
+    // a save from 0.9.0 with a machine already past the cap: nothing is taken away, it just can't go higher
     state.upgrades.harvester = 25;
-    expect(up.level('harvester')).toBe(25);
+    expect(state.upgrades.harvester).toBe(25);
+    expect(up.level('harvester')).toBe(10); // played at the Lv 10 cap
     expect(up.isMax('harvester')).toBe(true);
     expect(up.nextCost('harvester')).toBeNull();
     expect(up.canBuy('harvester')).toBe(false);
     const before = state.stats.upgradesBought;
     up.levelUp('harvester', null);
-    expect(up.level('harvester')).toBe(25);
+    expect(state.upgrades.harvester).toBe(25);
     expect(state.stats.upgradesBought).toBe(before);
   });
 
@@ -155,19 +106,19 @@ describe('Upgrades on the ladder', () => {
     }
   });
 
-  it('offset mode: setLevel jumps past the authored max (to shown 100 at most), climb open or not', () => {
-    OFFSET();
-    const { up } = make();
+  it('setLevel keeps stored levels past the authored max (to 100 at most), climb open or not; play reads at most Lv 10', () => {
+    const { up, state } = make();
     up.setLevel('axe', 30);
-    expect(up.level('axe')).toBe(30);
-    expect(up.value('axe')).toBe(valueAt(UPGRADES.axe, 30));
+    expect(state.upgrades.axe).toBe(30);
+    expect(up.level('axe')).toBe(10);
+    expect(up.value('axe')).toBe(valueAt(UPGRADES.axe, 10));
     up.setLevel('axe', 500);
-    expect(up.level('axe')).toBe(LEGACY_LEVEL_CAP);
+    expect(state.upgrades.axe).toBe(LEGACY_LEVEL_CAP);
     up.setLevel('ironRigs', 500);
-    expect(up.level('ironRigs')).toBe(LEGACY_LEVEL_CAP - 20);
-    expect(up.shownLevel('ironRigs')).toBe(LEGACY_LEVEL_CAP);
+    expect(state.upgrades.ironRigs).toBe(LEGACY_LEVEL_CAP);
+    expect(shown(UPGRADES.ironRigs, state.upgrades.ironRigs)).toBe(LEGACY_LEVEL_CAP);
     up.setLevel('dog', -4);
-    expect(up.level('dog')).toBe(0);
+    expect(state.upgrades.dog).toBe(0);
   });
 
   it('productMult reads the sales ladder past its table', () => {
@@ -216,32 +167,34 @@ describe('crewStats', () => {
     }
   });
 
-  it('offset mode: clamps walk, capacity and cadence separately past the table', () => {
-    OFFSET();
+  it('clamps walk, capacity and cadence separately past the table (a stored Lv 100 plays as Lv 10)', () => {
     const { up } = make();
     const c = CLIMB.crew;
     up.setLevel('cashier', 100);
     let st = up.crewStats('cashier');
-    expect(st.mult).toBe(8);
-    expect(st.walk).toBe(c.walkMax);
-    expect(st.capacity).toBe(c.capMaxSurvival);
-    expect(st.cadence).toBe(c.cadenceMax);
+    const v = valueAt(UPGRADES.cashier, 10);
+    expect(st.mult).toBe(v);
+    expect(st.walk).toBe(Math.min(v, c.walkMax));
+    expect(st.capacity).toBe(Math.min(v, c.capMaxSurvival));
+    expect(st.cadence).toBe(Math.min(v, c.cadenceMax));
+    expect(st.capacity).toBe(c.capMaxSurvival); // 3.6 > 2.8: the Survival clamp bites
     up.setLevel('frontierCrew', 100);
     st = up.crewStats('frontierCrew');
-    expect(st.capacity).toBe(c.capMaxEra);
-    expect(st.walk).toBe(c.walkMax);
+    const w = valueAt(UPGRADES.frontierCrew, 10);
+    expect(st.mult).toBe(w);
+    expect(st.capacity).toBe(Math.min(w, c.capMaxEra));
+    expect(st.walk).toBe(Math.min(w, c.walkMax));
   });
 });
 
 describe('Save clamp', () => {
-  it('offset mode: keeps levels bought past the authored max, climb open or not', () => {
-    OFFSET();
+  it('keeps levels bought past the authored max, climb open or not', () => {
     const state = createGameState();
-    mergeState(state, { upgrades: { carry: 17, frontierRigs: 40, aiRigs: 50, speed: 1e6 } });
+    mergeState(state, { upgrades: { carry: 17, frontierRigs: 40, aiRigs: 150, speed: 1e6 } });
     sanitizeState(state);
     expect(state.upgrades.carry).toBe(17);
     expect(state.upgrades.frontierRigs).toBe(40);
-    expect(state.upgrades.aiRigs).toBe(LEGACY_LEVEL_CAP - 90);
+    expect(state.upgrades.aiRigs).toBe(LEGACY_LEVEL_CAP);
     expect(state.upgrades.speed).toBe(LEGACY_LEVEL_CAP);
     expect(shown(UPGRADES.aiRigs, state.upgrades.aiRigs)).toBe(LEGACY_LEVEL_CAP);
   });

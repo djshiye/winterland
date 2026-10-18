@@ -24,7 +24,8 @@
  *
  * 0.9.9 builders pay too (docs/EXPANSION.md §D, like Survival's foreman): when no material trip is worth making, a
  * foreman walks to a machine slot or city lot of its era that the player has chosen and pays the cash still owed from
- * the wallet, in chunks (`eraPayAmount`), while the wallet keeps its reserve (npc/Foreman.ts spendable). It never picks
+ * the wallet, in chunks (`eraPayAmount`), while the wallet keeps its reserve (0.9.10: 40 % of the wallet since the
+ * player last spent, `walletRef`). It never picks
  * what to build and never pays the next expansion: the player's choice and the era's big moment stay theirs.
  */
 import * as THREE from 'three';
@@ -41,7 +42,6 @@ import type { MachineRuntime, RegionRuntime } from '../eras/runtime';
 import type { RegionLayout, XZ } from '../eras/layout';
 import { CharacterRig } from '../render/characters';
 import { cityLotAccess, lotCash, lotNeeds, type PayPad } from '../city/lotAccess';
-import { spendable } from './Foreman';
 import { cityRoute, gateRoadSpot, inRect, lotStandSpot } from '../city/roadRoute';
 
 // --- tuning -------------------------------------------------------------------------------------------------------
@@ -437,23 +437,50 @@ export const PAY_STEPS = 40;
 /** Claim key of the foreman paying site `to` (one foreman per pad). */
 export const payDestId = (to: PaySite['to']): string => `pay:${to}`;
 
+const walletRefs = new WeakMap<object, { ref: number; last: number }>();
+
 /**
- * One payment toward a building of price `total` with `left` still owed: min(chunk, left, spendable wallet), whole
- * dollars, where chunk = max(PRIORITIES.payChunk, total / PAY_STEPS). 0 when the wallet is at its reserve or the amount
- * would be a dribble (under a tenth of a chunk, unless it finishes the building).
+ * 0.9.10: the wallet the era builders' reserve is measured against, shared by every era foreman of one game (`key`, its
+ * economy): the highest wallet since anyone but the builders last spent (the player buying an upgrade resets it to what
+ * is left). In 0.9.9 the reserve was a share of the wallet at each chunk, so chunk after chunk took the wallet down to
+ * its $500 floor; measured against this, the builders stop at 40 % of what the player had and pick up again as income
+ * refills the wallet, so they never fight the player for the last of their money. `paid` tells it a builder just spent.
  */
-export function eraPayAmount(left: number, total: number, money: number): number {
+export function walletRef(key: object, money: number, paid = false): number {
+  const r = walletRefs.get(key);
+  if (!r) {
+    walletRefs.set(key, { ref: money, last: money });
+    return money;
+  }
+  // someone else spent since the builders last looked: start again from what is left
+  if (!paid && money < r.last) r.ref = money;
+  r.ref = Math.max(r.ref, money);
+  r.last = money;
+  return r.ref;
+}
+
+/** Wallet the era builders may use: everything above max(reserveMin, eraReserveShare × the reference wallet `ref`). */
+export function eraSpendable(money: number, ref = money): number {
+  return Math.max(0, money - Math.max(PRIORITIES.reserveMin, PRIORITIES.eraReserveShare * Math.max(money, ref)));
+}
+
+/**
+ * One payment toward a building of price `total` with `left` still owed: min(chunk, left, spendable wallet above the
+ * era reserve, `eraSpendable`), whole dollars, where chunk = max(PRIORITIES.payChunk, total / PAY_STEPS). 0 when the
+ * wallet is at its reserve or the amount would be a dribble (under a tenth of a chunk, unless it finishes the building).
+ */
+export function eraPayAmount(left: number, total: number, money: number, ref = money): number {
   const chunk = Math.max(PRIORITIES.payChunk, Math.ceil(total / PAY_STEPS));
-  const amount = Math.floor(Math.min(chunk, left, spendable(money)));
+  const amount = Math.floor(Math.min(chunk, left, eraSpendable(money, ref)));
   return amount >= 1 && amount >= Math.min(Math.ceil(left), chunk / 10) ? amount : 0;
 }
 
 /** The nearest site that still owes cash, that no peer pays and that the wallet can pay a chunk toward now; or null. */
-export function pickPay(view: JobView, money: number, claims: Claims, at: XZ): PaySite | null {
+export function pickPay(view: JobView, money: number, claims: Claims, at: XZ, ref = money): PaySite | null {
   let best: PaySite | null = null;
   let bestD = Infinity;
   for (const p of view.pays ?? []) {
-    if ((claims.dests.get(payDestId(p.to)) ?? 0) > 0 || eraPayAmount(p.left, p.total, money) <= 0) continue;
+    if ((claims.dests.get(payDestId(p.to)) ?? 0) > 0 || eraPayAmount(p.left, p.total, money, ref) <= 0) continue;
     const d = dist(at, p.spot);
     if (d < bestD) {
       bestD = d;
@@ -921,6 +948,11 @@ export class EraWorker {
     return out;
   }
 
+  /** The game's reference wallet for the builders' reserve (`walletRef`); `paid`: this builder just spent. */
+  private walletRef(paid = false): number {
+    return walletRef(this.ctx.economy, this.ctx.economy.money, paid);
+  }
+
   private park(delay: number): void {
     this.paying = null;
     this.job = null;
@@ -1004,7 +1036,7 @@ export class EraWorker {
           return;
         }
         // 0.9.9: no load worth carrying: a foreman pays what the player chose to build
-        const pay = this.role === 'foreman' ? pickPay(this.view(), this.ctx.economy.money, this.claims(), this.at) : null;
+        const pay = this.role === 'foreman' ? pickPay(this.view(), this.ctx.economy.money, this.claims(), this.at, this.walletRef()) : null;
         if (pay) {
           this.paying = pay;
           this.idleFor = 0;
@@ -1035,8 +1067,9 @@ export class EraWorker {
         if (!pad || !pad.visible || pad.cashLeft <= 0) return this.park(0.1);
         this.payTimer -= dt;
         if (this.payTimer > 0) return;
-        const amount = eraPayAmount(pad.cashLeft, this.paying!.total, this.ctx.economy.money);
+        const amount = eraPayAmount(pad.cashLeft, this.paying!.total, this.ctx.economy.money, this.walletRef());
         if (amount <= 0 || !this.ctx.economy.spend(amount)) return this.park(1);
+        this.walletRef(true);
         const credit = pad.payDirect(amount);
         if (credit < amount) this.ctx.economy.add(amount - credit); // the pad took less (cannot normally happen)
         this.payTimer = PRIORITIES.payInterval / this.stats.cadence;

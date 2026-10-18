@@ -2,10 +2,9 @@
  * [PURE] Upgrade ladders to level 100 (docs/EXPANSION.md §A). Every read of an upgrade's effect or price goes
  * through here, so the authored tables (config UPGRADES) stay the 0.8.0 truth and the climb only extends them.
  *
- * Two level numbers:
- * - stored: GameState.upgrades[id], 0-based, as saved.
- * - shown: stored + base(def), base = 10 · (introEra − 1) in GATE mode 'offset' (0 in 'literal'). Era n's gate needs
- *   every owned upgrade at shown level 10 · (n − 1).
+ * Levels: GameState.upgrades[id], 0-based, as saved, is also the level the player sees (0.9.5 'literal' gate: every
+ * era's own upgrades go Lv 1 → 10, eras/gate.ts). 0.9.10 (READINESS B5): the 0.9.0-0.9.4 'offset' rule, where era n's
+ * ids showed stored + 10 · (n − 1), is gone; only core/refund.ts still prices its old levels, for old saves.
  *
  * Up to the authored max m (values.length − 1) valueAt / costAt return the tables unchanged (tests/era1Frozen.test.ts).
  * Past it the effect follows a per-display curve towards a hard cap. Whether levels past m may be bought at all (the
@@ -13,10 +12,10 @@
  * 0.9.7: Mastery (points for levels past a hard cap) is gone from play; only the 0.9.6 refund still reads it, for old
  * saves (core/refund.ts legacyMastery).
  */
-import { CLIMB, GATE, price3, type UpgradeDef } from '../config';
+import { CLIMB, price3, type UpgradeDef } from '../config';
 
 /**
- * The old climb's top level (0.9.0-0.9.4, and the unused 'offset' gate mode). Nothing for sale goes past Lv 10 any more
+ * The old climb's top level (0.9.0-0.9.4): a legacy clamp for old saves only. Nothing for sale goes past Lv 10 any more
  * (capStored); sanitizeState only keeps levels up to this so the 0.9.6 refund can pay an old save back for them.
  */
 export const LEGACY_LEVEL_CAP = 100;
@@ -81,9 +80,9 @@ export function introEra(def: UpgradeDef): number {
   return def.era ?? def.requires?.era ?? 1;
 }
 
-/** Shown-level offset of an id (0 for every era-1 id, and for every id in 'literal' mode). */
-export function base(def: UpgradeDef, mode: 'offset' | 'literal' = GATE.mode): number {
-  return mode === 'literal' ? 0 : CLIMB.bandSize * (introEra(def) - 1);
+/** Shown-level offset of an id: 0 for every id since the 'offset' rule went (0.9.10); kept for the gate's readers. */
+export function base(_def: UpgradeDef): number {
+  return 0;
 }
 
 /** Authored max (stored). */
@@ -91,33 +90,33 @@ export function authoredMax(def: UpgradeDef): number {
   return def.values.length - 1;
 }
 
-/** Stored level as the player sees it. */
-export function shown(def: UpgradeDef, stored: number, mode: 'offset' | 'literal' = GATE.mode): number {
-  return stored + base(def, mode);
+/** Stored level as the player sees it (the same number since 0.9.10). */
+export function shown(_def: UpgradeDef, stored: number): number {
+  return stored;
 }
 
-/** Highest stored level a save may hold: the authored max before the climb, then shown LEGACY_LEVEL_CAP (old saves). */
-export function maxStored(def: UpgradeDef, climb: boolean, mode: 'offset' | 'literal' = GATE.mode): number {
-  return climb ? LEGACY_LEVEL_CAP - base(def, mode) : authoredMax(def);
-}
-
-/**
- * Highest shown level for sale. 'offset' mode: the next gate's need, 10 · age (100 in era 10). 'literal' mode (0.9.5,
- * Dino): Lv 10 for every upgrade of every era, for good: each era's own upgrades go 1 → 10 and earlier eras stay at 10.
- */
-export function eraCapShown(age: number, mode: 'offset' | 'literal' = GATE.mode): number {
-  if (mode === 'literal') return CLIMB.bandSize;
-  return Math.min(LEGACY_LEVEL_CAP, CLIMB.bandSize * Math.max(1, Math.floor(age)));
+/** Highest stored level a save may hold: the authored max before the climb, then the legacy clamp (old saves). */
+export function maxStored(def: UpgradeDef, climb: boolean): number {
+  return climb ? LEGACY_LEVEL_CAP : authoredMax(def);
 }
 
 /**
- * Highest stored level for sale now (Upgrades.maxLevel). Every upgrade, machines and crews alike, stops at the era cap
- * (eraCapShown). Levels already owned above it (older saves) are kept; the cap only stops new purchases.
+ * Highest level for sale (0.9.5, Dino): Lv 10 for every upgrade of every era, for good: each era's own upgrades go
+ * 1 → 10 and earlier eras stay at 10.
  */
-export function capStored(def: UpgradeDef, climb: boolean, age: number, mode: 'offset' | 'literal' = GATE.mode): number {
-  // before the climb the authored tables (all below shown 10 in era 1) are the limit, as in 0.8.0
+export function eraCapShown(): number {
+  return CLIMB.bandSize;
+}
+
+/**
+ * Highest stored level for sale now (Upgrades.maxLevel). Every upgrade, machines and crews alike, stops at Lv 10
+ * (eraCapShown) once the climb is open. Levels already owned above it (older saves) are kept; the cap only stops new
+ * purchases. `age` is the era the player is in (unused since the cap is the same in every era).
+ */
+export function capStored(def: UpgradeDef, climb: boolean, _age?: number): number {
+  // before the climb the authored tables (all below 10 in era 1) are the limit, as in 0.8.0
   if (!climb) return authoredMax(def);
-  return Math.max(0, Math.min(maxStored(def, true, mode), eraCapShown(age, mode) - base(def, mode)));
+  return eraCapShown();
 }
 
 /**
@@ -149,7 +148,7 @@ const capCache = new Map<string, number | null>();
 
 /** First stored level whose effect sits at the hard cap (null: uncapped, or not reached by shown LEGACY_LEVEL_CAP). */
 export function hardCapStored(def: UpgradeDef): number | null {
-  const key = `${def.id}:${GATE.mode}`;
+  const key = def.id;
   const hit = capCache.get(key);
   if (hit !== undefined) return hit;
   const c = curveOf(def);
@@ -186,10 +185,9 @@ export function costAt(def: UpgradeDef, s: number): number {
 /** The era-1 rule: the authored table, then legacyStep per level, never below the band price from shown level 10. */
 function legacyCost(def: UpgradeDef, s: number): number {
   const m = authoredMax(def);
-  const A = base(def) + s;
   if (s < m) return def.costs[s]!;
   const legacy = def.costs[m - 1]! * CLIMB.legacyStep ** (s - m + 1);
-  return price3(A < CLIMB.bandSize ? legacy : Math.max(legacy, bandPrice(def, A)));
+  return price3(s < CLIMB.bandSize ? legacy : Math.max(legacy, bandPrice(def, s)));
 }
 
 /**

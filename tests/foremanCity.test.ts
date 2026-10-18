@@ -10,7 +10,7 @@ import { EventBus } from '../src/core/EventBus';
 import { createGameState, type GameContext, type GameEvents, type GameState, type Item, type ItemHolder, type ItemKind, type Slot } from '../src/core/types';
 import { CITY_BUILDINGS, DISTRICT_MATERIAL, ROADS, districtDef, type CityBuildingId } from '../src/eras/data';
 import { regionLayout } from '../src/eras/layout';
-import { NO_CLAIMS, PAY_STEPS, eraPayAmount, lotDest, lotDestId, payDestId, pickJob, pickPay, siteDest, type JobMachine, type JobView } from '../src/npc/EraWorker';
+import { NO_CLAIMS, PAY_STEPS, eraPayAmount, eraSpendable, walletRef, lotDest, lotDestId, payDestId, pickJob, pickPay, siteDest, type JobMachine, type JobView } from '../src/npc/EraWorker';
 import { PRIORITIES } from '../src/config';
 import { cityLotAccess, lotNeeds, registerCityLots } from '../src/city/lotAccess';
 import { inRect, lotStandSpot } from '../src/city/roadRoute';
@@ -320,14 +320,47 @@ describe('the foreman pays (0.9.9)', () => {
     expect(eraPayAmount(4000, 4000, 1e12)).toBe(PRIORITIES.payChunk);
     // the last few dollars finish the building
     expect(eraPayAmount(7, HOME_CASH, 1e12)).toBe(7);
-    // the wallet keeps max($500, 20 %): $600 → $100 spendable, $500 → nothing; $1M → $800k spendable
+    // the wallet keeps max($500, 40 %) (0.9.10; Survival's foreman keeps 20 %): $600 → $100 spendable, $500 → nothing;
+    // $1M → $600k spendable
+    expect(PRIORITIES.eraReserveShare).toBe(0.4);
+    expect(PRIORITIES.reserveShare).toBe(0.2);
     expect(eraPayAmount(4000, 4000, 600)).toBe(100);
     expect(eraPayAmount(4000, 4000, 500)).toBe(0);
-    expect(eraPayAmount(2e6, 4e7, 1e6)).toBe(Math.min(1e6, 8e5));
+    expect(eraPayAmount(2e6, 4e7, 1e6)).toBe(Math.min(1e6, 6e5));
     // a dribble (under a tenth of a chunk) waits for the wallet to grow
     const chunk = Math.ceil(HOME_CASH / PAY_STEPS);
     const money = 500 + Math.floor(chunk / 10) - 1;
     expect(eraPayAmount(HOME_CASH, HOME_CASH, money)).toBe(0);
+  });
+
+  it('0.9.10: chunk after chunk, the builders stop at 40 % of the wallet the player left them', () => {
+    // 0.9.9 measured the reserve against the wallet at each chunk, so a run of chunks drained it to the $500 floor
+    const key = {};
+    let money = 1e6;
+    walletRef(key, money);
+    for (let i = 0; i < 400; i++) {
+      const amount = eraPayAmount(4e7, 4e7, money, walletRef(key, money));
+      money -= amount;
+      walletRef(key, money, true);
+    }
+    expect(money).toBeGreaterThanOrEqual(0.4 * 1e6);
+    expect(money).toBeLessThan(0.4 * 1e6 + 1e3);
+    // income refills the wallet: the builders take only what is above 40 % of the new high
+    money += 1e6;
+    expect(eraSpendable(money, walletRef(key, money))).toBe(money - 0.4 * money);
+    expect(eraSpendable(1e6)).toBe(6e5);
+    expect(eraSpendable(5e5, 1e6)).toBe(1e5);
+    expect(eraSpendable(3e5, 1e6)).toBe(0);
+  });
+
+  it('the reference wallet rises with the wallet, holds through builder payments and restarts after a player spend', () => {
+    const key = {};
+    expect(walletRef(key, 100)).toBe(100);
+    expect(walletRef(key, 1000)).toBe(1000);
+    expect(walletRef(key, 700, true)).toBe(1000); // a builder paid
+    expect(walletRef(key, 700)).toBe(1000);
+    expect(walletRef(key, 200)).toBe(200); // the player bought something
+    expect(walletRef(key, 500)).toBe(500);
   });
 
   it('picks the nearest site the wallet can pay, skipping one a peer already pays', () => {

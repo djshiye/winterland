@@ -22,48 +22,29 @@ describe('ladder: frozen prefix', () => {
 });
 
 describe('ladder: levels', () => {
-  it('28 era-1 ids (22 Survival + jack + the five 0.9.2 docks) sit at offset 0; era-n ids at 10 · (n − 1) in offset mode', () => {
+  it('28 era-1 ids (22 Survival + jack + the five 0.9.2 docks) sit at offset 0, and so does every other id', () => {
     expect(ERA1).toHaveLength(28);
     expect(ERA1.map((d) => d.id)).toContain('jack');
-    for (const d of ERA1) expect(base(d, 'offset')).toBe(0);
-    expect(base(UPGRADES.taxOffice, 'offset')).toBe(10);
-    expect(base(UPGRADES.broker, 'offset')).toBe(10);
-    expect(base(UPGRADES.frontierCrew, 'offset')).toBe(10);
-    expect(base(UPGRADES.ironRigs, 'offset')).toBe(20);
-    expect(base(UPGRADES.aiRigs, 'offset')).toBe(90);
-    expect(shown(UPGRADES.ironRigs, 3, 'offset')).toBe(23);
+    for (const d of DEFS) expect(base(d)).toBe(0);
+    expect(shown(UPGRADES.ironRigs, 3)).toBe(3);
   });
 
-  it('the climb runs every id to shown level 100 (offset mode)', () => {
-    for (const d of DEFS) {
-      expect(maxStored(d, true, 'offset')).toBe(LEGACY_LEVEL_CAP - base(d, 'offset'));
-      expect(shown(d, maxStored(d, true, 'offset'), 'offset')).toBe(LEGACY_LEVEL_CAP);
-    }
-  });
-
-  it("'literal' mode (the 0.9.5 default) drops every offset", () => {
+  it("the 'literal' gate (the only mode) has no offset: the climb runs every id to stored level 100", () => {
     expect(GATE.mode).toBe('literal');
     for (const d of DEFS) {
-      expect(base(d, 'literal')).toBe(0);
-      expect(maxStored(d, true, 'literal')).toBe(LEGACY_LEVEL_CAP);
+      expect(base(d)).toBe(0);
+      expect(maxStored(d, true)).toBe(LEGACY_LEVEL_CAP);
+      expect(shown(d, maxStored(d, true))).toBe(LEGACY_LEVEL_CAP);
     }
   });
 
-  it('prices follow the era, not the display mode; caps follow GATE.mode (the cap cache is per mode)', () => {
+  it('prices follow the era; hard caps are reachable below 100', () => {
     const rigs = UPGRADES.frontierRigs;
-    // era 2's first step is band 2's price in either mode (Dino 0.9.5: the economy scales era by era)
+    // era 2's first step is band 2's price (Dino 0.9.5: the economy scales era by era)
     expect(costAt(rigs, 0)).toBe(price3((0.9 * CLIMB.unit * (CLIMB.bandTilt[2] ?? 1))));
-    expect(hardCapStored(rigs)).toBe(34); // literal: 3.6 + 0.1 · 24 = 6 at stored 34 (0.9.6: Lv 10 authored)
-    expect(hardCapStored(UPGRADES.aiRigs)).toBe(34); // literal: reachable below 100
+    expect(hardCapStored(rigs)).toBe(34); // 3.6 + 0.1 · 24 = 6 at stored 34 (0.9.6: Lv 10 authored)
+    expect(hardCapStored(UPGRADES.aiRigs)).toBe(34); // reachable below 100
     for (const d of ERA1) expect(costAt(d, 0)).toBe(d.costs[0]);
-    GATE.mode = 'offset';
-    try {
-      expect(costAt(rigs, 0)).toBe(price3((0.9 * CLIMB.unit * (CLIMB.bandTilt[2] ?? 1))));
-      expect(hardCapStored(rigs)).toBe(34);
-      expect(hardCapStored(UPGRADES.aiRigs)).toBeNull(); // offset: base 90 leaves only 10 levels
-    } finally {
-      GATE.mode = 'literal';
-    }
   });
 });
 
@@ -83,13 +64,13 @@ describe('ladder: costs', () => {
   it('matches the calibrated sample prices', () => {
     // design §A2 at U 250k, growth 2.6: $125k / $225k / $201M / $401M; the pacing model (core/pacing.ts) set
     // U 300k, growth 4.3; 0.9.0 (every era longer than the last): U 190k, growth 4.3 × bandTilt; 0.9.5 (literal gate)
-    // re-solved bandTilt; again for the era 2-4 machines and six slots, and the era 5-7 content with the era player upgrades, and the region markets with their cash machines, and the era 8-10 machines; 0.9.6 after the Trade/Fine merge and again on the 0.9.6 era chains, and for bands 5-10 on the 0.9.7 era resources v2, and for every band on the 0.9.7 plots (7-9 slots); 0.9.9 per-era step growth (CLIMB.bandStep) on the live income curves
-    expect(costAt(UPGRADES.carry, 10)).toBe(205_000); // A 10, lumberjack
-    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(369_000); // A 10, industry: era 2's first level
-    expect(costAt(UPGRADES.frontierRigs, 9)).toBe(1_910_000); // era 2's last level (0.9.9: +20 % a level, was 738k)
-    expect(costAt(UPGRADES.quarry, 0)).toBe(328_000); // A 10, machine level pad
-    expect(costAt(UPGRADES.carry, 89)).toBe(32_600_000_000); // A 89, lumberjack
-    expect(costAt(UPGRADES.taxOffice, 79)).toBe(65_200_000_000); // A 89, finance
+    // re-solved bandTilt; again for the era 2-4 machines and six slots, and the era 5-7 content with the era player upgrades, and the region markets with their cash machines, and the era 8-10 machines; 0.9.6 after the Trade/Fine merge and again on the 0.9.6 era chains, and for bands 5-10 on the 0.9.7 era resources v2, and for every band on the 0.9.7 plots (7-9 slots); 0.9.9 per-era step growth (CLIMB.bandStep) on the live income curves; 0.9.10 with contracts counted in them
+    expect(costAt(UPGRADES.carry, 10)).toBe(254_000); // A 10, lumberjack (not for sale: era 1 stops at Lv 10)
+    expect(costAt(UPGRADES.frontierRigs, 0)).toBe(457_000); // A 10, industry: era 2's first level
+    expect(costAt(UPGRADES.frontierRigs, 9)).toBe(2_360_000); // era 2's last level (0.9.9: +20 % a level, was 738k)
+    expect(costAt(UPGRADES.quarry, 0)).toBe(406_000); // A 10, machine level pad
+    expect(costAt(UPGRADES.carry, 89)).toBe(35_700_000_000); // A 89, lumberjack
+    expect(costAt(UPGRADES.taxOffice, 79)).toBe(71_400_000_000); // A 89, finance
   });
 
   // 0.9.6: 1 % a level (was 5 %), part of the shorter post-Lodge climb (CODE_AUDIT P1-9)

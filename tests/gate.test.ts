@@ -3,8 +3,8 @@
  * layout.expansionOffered (climb open, era next, gate met, partial pad payments grandfathered).
  */
 import { readFileSync } from 'node:fs';
-import { afterEach, describe, expect, it } from 'vitest';
-import { GATE, QUARTERS, UPGRADES, VILLAGE } from '../src/config';
+import { describe, expect, it } from 'vitest';
+import { QUARTERS, UPGRADES, VILLAGE } from '../src/config';
 import { base, introEra, stepCost } from '../src/core/ladder';
 import { mergeState, sanitizeState, type SaveData } from '../src/core/Save';
 import { createGameState, type GameState, type PadId, type UpgradeId } from '../src/core/types';
@@ -31,10 +31,6 @@ function allBuilt(s: GameState): GameState {
   return s;
 }
 
-afterEach(() => {
-  GATE.mode = 'literal';
-});
-
 describe('eraGate rows', () => {
   it("literal mode (0.9.5): era n's gate lists the previous era's own ids, 28 for era 2 (Survival + the five docks)", () => {
     const s = lodge();
@@ -54,17 +50,6 @@ describe('eraGate rows', () => {
     expect(eraGate(s, MAX_ERA + 1).total).toBe(IDS.filter((id) => introEra(UPGRADES[id]) === MAX_ERA).length);
     expect(eraGate(s, MAX_ERA + 1).settlementNeed).toBe(50);
     expect(eraGate(s, MAX_ERA + 2).total).toBe(0);
-  });
-
-  it('offset mode: lists every id introduced before era n: 28 for era 2, then everything before era n', () => {
-    GATE.mode = 'offset';
-    const s = lodge();
-    expect(eraGate(s, 2).total).toBe(28);
-    for (let n = 3; n <= MAX_ERA; n++) {
-      s.eras.age = n - 1;
-      const g = eraGate(s, n);
-      expect(g.total, `era ${n}`).toBe(IDS.filter((id) => introEra(UPGRADES[id]) <= n - 1).length);
-    }
   });
 
   it('era 2 asks shown Lv 10 of the 22 Survival ids and Jack, and settlement 5', () => {
@@ -108,18 +93,6 @@ describe('eraGate rows', () => {
     const ok = eraGate(s, 2).rows.find((r) => r.id === 'carry')!;
     expect(ok).toMatchObject({ state: 'ok', costToNeed: 0, shown: 12 });
     expect(eraGate(s, 2).ok).toBe(1);
-  });
-
-  it('era-2 ids read their offset: Lv 10 at stored 0, the era-3 gate needs stored 10 (Lv 20)', () => {
-    GATE.mode = 'offset';
-    const s = allBuilt(lodge());
-    s.eras.age = 2;
-    s.upgrades.frontierRigs = 9;
-    const g = eraGate(s, 3);
-    const rigs = g.rows.find((r) => r.id === 'frontierRigs')!;
-    expect(rigs).toMatchObject({ shown: 19, need: 20, state: 'low', where: 'eraShop' });
-    expect(g.rows.find((r) => r.id === 'frontierCrew')!.shown).toBeNull();
-    expect(g.rows.find((r) => r.id === 'taxOffice')!.shown).toBe(10);
   });
 
   it("literal mode: every id's shown level is its stored level, so era-2 ids need Lv 10 for era 3", () => {
