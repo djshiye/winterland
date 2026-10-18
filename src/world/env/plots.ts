@@ -634,12 +634,12 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
       const T6 = MACHINE_TONES[6]!;
       const stone = mix(T6.cream, T6.body, 0.42);
       const patina = mix(T6.bodyL, T6.cream, 0.32);
-      body.add(geo.dodecahedron(1), stone, cx, s * 0.35, cz, { sx: s * 0.75, sy: 0.95, sz: s * 0.7, ry: 0.4 });
+      body.add(geo.dodecahedron(1), mix(color, stone, 0.5), cx, s * 0.35, cz, { sx: s * 0.75, sy: 0.95, sz: s * 0.7, ry: 0.4 });
       body.add(geo.dodecahedron(0.62), shade(stone, 1.08), cx + s * 0.5, 0.32, cz + s * 0.25, { sy: 0.8 });
       body.add(geo.dodecahedron(0.48), shade(stone, 0.94), cx - s * 0.55, 0.26, cz + s * 0.2, { ry: 0.9 });
       // copper veins across the camera-side faces
       for (const [vx, vy, vz, rz] of [[-0.25, 0.75, 0.62, 0.6], [0.2, 0.55, 0.66, -0.4], [0.62, 0.35, 0.7, 0.9]] as const) {
-        body.add(geo.box(0.7, 0.09, 0.06), color, cx + vx * s, vy + s * 0.2, cz + vz * s, { rz });
+        body.add(geo.box(0.8, 0.11, 0.07), shade(color, 1.12), cx + vx * s, vy + s * 0.2, cz + vz * s, { rz });
       }
       for (let k = 0; k < 5; k++) body.add(geo.dodecahedron(0.13), shade(color, rng.range(1, 1.18)), cx + rng.range(-0.9, 0.9), 0.08, cz + s * 0.75 + rng.range(-0.15, 0.25));
       body.add(geo.sphere(0.5, 8, 5), patina, cx - s * 0.1, s * 0.35 + 0.7, cz - 0.1, { sx: s * 0.62, sy: 0.25, sz: s * 0.5 });
@@ -879,7 +879,7 @@ function buildFieldDressing(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlac
     }
     case 'dunes':
       // wind ripples in the sand between the dunes
-      for (let k = 0; k < 18; k++) body.add(geo.box(rng.range(1.5, 3.5), 0.01, 0.08), shade(st.beds[1], 0.9), rng.range(F.minX + 2, F.maxX - 2), 0.03, rng.range(F.minZ + 1, F.maxZ - 1), { ry: rng.range(-0.25, 0.25) });
+      for (let k = 0; k < 18; k++) body.add(geo.box(rng.range(1.5, 3.5), 0.01, 0.08), mix(st.beds[1], SNOW, 0.45), rng.range(F.minX + 2, F.maxX - 2), 0.03, rng.range(F.minZ + 1, F.maxZ - 1), { ry: rng.range(-0.25, 0.25) });
       break;
     case 'grove':
       // stepping stones winding through the grove
