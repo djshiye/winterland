@@ -26,6 +26,7 @@ import { Rng } from '../common';
 import { pineGeo, pineTallGeo } from '../props';
 import { nodePatch, regionPaths } from '../frontier';
 import type { EraGroundModule, GroundKit } from '../eraGround';
+import { placeWarmSpot, warmSpotRect } from './warmSpots';
 import { around, beltSpots, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, sightKeep, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
 
 const T = MACHINE_TONES[7];
@@ -63,9 +64,14 @@ export function era07Solids(l: RegionLayout): GroundSolid[] {
   ];
 }
 
-function keepOut(l: RegionLayout): Rect[] {
+export function landKeepOut(l: RegionLayout): Rect[] {
   const p = flarePlace(l);
   return [around(p.flare.x, p.flare.z, 2.6), ...p.tanks.map((t) => around(t.x, t.z, t.r + 1))].map((r) => clip(r, l.rect));
+}
+
+/** The landmark's keep-outs plus the warm-up spot's. */
+function keepOut(l: RegionLayout): Rect[] {
+  return [...landKeepOut(l), ...warmSpotRect(l, 7, landKeepOut(l))];
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -200,6 +206,7 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
   for (const t of fp.tanks) tank(k, t.x, t.z, t.r);
   kit.extra.push(flame(fp.flare.x, fp.flare.z));
   kit.lamps.push({ x: fp.flare.x, y: FLARE_H + 0.4, z: fp.flare.z, size: 3.2, pool: 6.5 });
+  placeWarmSpot(kit, l, rng, 7, landKeepOut(l));
 
   // the west belt: a derrick every third spot, snowy pines between
   const paths = regionPaths(l);

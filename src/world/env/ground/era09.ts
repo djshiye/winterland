@@ -9,13 +9,14 @@ import { SNOW, mixHex, palette } from '../../../render/palette';
 import { plotPlaces } from '../../../eras/layout';
 import { regionPaths } from '../frontier';
 import { geo } from '../../../render/materials';
+import { placeWarmSpot, warmSpotRect } from './warmSpots';
 import { landmarkDiscs, landmarkRect89, placeLandmark89 } from './landmarks8to9';
 import { aquaPool, beltSpots, greenBorder, cask, cellMarks, crystalCluster, harvestFree, inset, mintGlaze, mintPine, pathLamp, pathLampSpots, slab, FLOOR_Y, beltSnow, harvestDrifts, snowVerge } from './lateKit';
 
 const N = 9;
 
 export const era09: EraGroundModule = {
-  keepOut: (l) => landmarkRect89(l, 9),
+  keepOut: (l) => [...landmarkRect89(l, 9), ...warmSpotRect(l, 9)],
   wild(k, l, rng) {
     const P = plotPlaces(N);
     const belt = beltSpots(l, 4.2, rng);
@@ -26,6 +27,8 @@ export const era09: EraGroundModule = {
     // the signature landmark (twin cooling towers) first; nothing else lands on it
     placeLandmark89(k, l, rng, 9);
     placed.push(...landmarkDiscs(l, 9));
+    const w9 = placeWarmSpot(k, l, rng, 9);
+    if (w9) placed.push({ x: w9.x, z: w9.z, r: 1.9 });
     // a line of cooling pools down the middle of the harvest ground
     const midZ = (H.minZ + H.maxZ) / 2;
     for (let x = H.minX + 7; x < H.maxX - 4; x += 9) {
@@ -34,10 +37,13 @@ export const era09: EraGroundModule = {
       aquaPool(k.solid, k.glow, x, midZ, 1);
       k.lamps.push({ x, y: 0.4, z: midZ, size: 1.4, pool: 3.4 });
     }
-    // crystal clusters on a staggered grid either side
+    // crystal clusters either side: a loose, jittered and thinned grid (0.9.11, review T5: an even grid read as polka dots)
     let row = 0;
-    for (let z = H.minZ + 2.6; z < H.maxZ - 2; z += 4.2, row++) {
-      for (let x = H.minX + 5 + (row % 2) * 3; x < H.maxX - 2.5; x += 6) {
+    for (let z0 = H.minZ + 2.6; z0 < H.maxZ - 2; z0 += 4.2, row++) {
+      for (let x0 = H.minX + 5 + (row % 2) * 3; x0 < H.maxX - 2.5; x0 += 6) {
+        if (rng.next() < 0.35) continue;
+        const x = x0 + rng.range(-1.4, 1.4);
+        const z = z0 + rng.range(-1.1, 1.1);
         if (!harvestFree(l, P, x, z, 1.1, placed)) continue;
         placed.push({ x, z, r: 1.1 });
         crystalCluster(k.solid, k.glow, x, z, rng.range(0.75, 1.0), rng);

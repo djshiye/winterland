@@ -26,6 +26,7 @@ import { Rng } from '../common';
 import { pineGeo, pineTallGeo } from '../props';
 import { nodePatch, regionPaths } from '../frontier';
 import type { EraGroundModule, GroundKit } from '../eraGround';
+import { placeWarmSpot, warmSpotRect } from './warmSpots';
 import { around, beltSpots, cablePoints, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, sightKeep, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
 
 const T = MACHINE_TONES[6];
@@ -63,9 +64,14 @@ export function era06Solids(l: RegionLayout): GroundSolid[] {
   ];
 }
 
-function keepOut(l: RegionLayout): Rect[] {
+export function landKeepOut(l: RegionLayout): Rect[] {
   const { tower, house } = coilTowerPlace(l);
   return [around(tower.x, tower.z, PLINTH_R + 1.2), around(house.x, house.z, house.w / 2 + 1, house.d / 2 + 1)].map((r) => clip(r, l.rect));
+}
+
+/** The landmark's keep-outs plus the warm-up spot's. */
+function keepOut(l: RegionLayout): Rect[] {
+  return [...landKeepOut(l), ...warmSpotRect(l, 6, landKeepOut(l))];
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -205,6 +211,7 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
   const { tower: tp, house } = coilTowerPlace(l);
   tower(k, g, tp.x, tp.z);
   switchHouse(k, g, house, tp.x, tp.z);
+  placeWarmSpot(kit, l, rng, 6, landKeepOut(l));
 
   // the west belt: a pylon every third spot, pines between; copper wires run pylon to pylon and into the tower
   const paths = regionPaths(l);

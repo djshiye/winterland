@@ -59,9 +59,16 @@ export function footprintAllowed(x: number, z: number, areas: readonly Rect[] = 
  * World position of the next print: `side` +1 = right of the heading, -1 = left. `yaw` is the heading (0 = +Z, the
  * model's forward; atan2(vx, vz)). Writes into `out` and returns it. Pure.
  */
-export function printPlacement(x: number, z: number, yaw: number, side: 1 | -1, out: { x: number; z: number }): { x: number; z: number } {
-  out.x = x + Math.cos(yaw) * SIDE_OFFSET * side;
-  out.z = z - Math.sin(yaw) * SIDE_OFFSET * side;
+export function printPlacement(
+  x: number,
+  z: number,
+  yaw: number,
+  side: 1 | -1,
+  out: { x: number; z: number },
+  offset = SIDE_OFFSET,
+): { x: number; z: number } {
+  out.x = x + Math.cos(yaw) * offset * side;
+  out.z = z - Math.sin(yaw) * offset * side;
   return out;
 }
 
@@ -92,7 +99,17 @@ function printGeometry(): THREE.BufferGeometry {
   return new THREE.ShapeGeometry(s, 4).rotateX(-Math.PI / 2);
 }
 
+/** 0.9.11: a smaller trail (the pal's paw prints): print scale, metres between prints, lateral offset. */
+export interface TrailOptions {
+  scale?: number;
+  step?: number;
+  side?: number;
+  name?: string;
+}
+
 export class Footprints {
+  private readonly stepDistance: number;
+  private readonly sideOffset: number;
   private readonly mesh: THREE.InstancedMesh;
   private readonly material: THREE.MeshBasicMaterial;
   private readonly alphaAttr: THREE.InstancedBufferAttribute;
@@ -116,7 +133,13 @@ export class Footprints {
   private readonly up = new THREE.Vector3(0, 1, 0);
   private readonly at = { x: 0, z: 0 };
 
-  constructor(private readonly ctx: GameContext) {
+  constructor(
+    private readonly ctx: GameContext,
+    opts: TrailOptions = {},
+  ) {
+    this.stepDistance = opts.step ?? STEP_DISTANCE;
+    this.sideOffset = opts.side ?? SIDE_OFFSET;
+    this.scale.setScalar(opts.scale ?? 1);
     this.alphaAttr = new THREE.InstancedBufferAttribute(this.alpha, 1);
     this.alphaAttr.setUsage(THREE.DynamicDrawUsage);
     const geometry = printGeometry();
@@ -139,7 +162,7 @@ export class Footprints {
         .replace('#include <opaque_fragment>', 'diffuseColor.a *= vPrintAlpha;\n#include <opaque_fragment>');
     };
     this.mesh = new THREE.InstancedMesh(geometry, this.material, FOOTPRINT_POOL);
-    this.mesh.name = 'footprints';
+    this.mesh.name = opts.name ?? 'footprints';
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false;
     this.mesh.castShadow = false;
@@ -183,8 +206,8 @@ export class Footprints {
       return;
     }
     this.travelled += d;
-    if (this.travelled < STEP_DISTANCE) return;
-    this.travelled = this.travelled % STEP_DISTANCE;
+    if (this.travelled < this.stepDistance) return;
+    this.travelled = this.travelled % this.stepDistance;
     if (!footprintAllowed(x, z, this.areas)) return;
     const sp = Math.hypot(vx, vz);
     const yaw = sp > 0.05 ? Math.atan2(vx, vz) : Math.atan2(dx, dz);
@@ -195,7 +218,7 @@ export class Footprints {
   lay(x: number, z: number, yaw: number): void {
     const i = this.cursor;
     this.cursor = (this.cursor + 1) % FOOTPRINT_POOL;
-    printPlacement(x, z, yaw, this.side, this.at);
+    printPlacement(x, z, yaw, this.side, this.at, this.sideOffset);
     this.side = this.side === 1 ? -1 : 1;
     this.q.setFromAxisAngle(this.up, yaw);
     this.pos.set(this.at.x, PRINT_Y, this.at.z);
