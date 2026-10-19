@@ -6,12 +6,17 @@
  * `reconcile()` when a crew upgrade is bought, and the crew also re-reads the levels twice a second, so a restored /
  * debug-set level needs no event. Every worker of the region shares one peer list, so no two of them chase the same
  * pile or overfill the same hopper, whatever their roles.
+ * 0.9.11 (Dino: "the builders are not bringing materials"): while the region has a foreman, what its chosen buildings
+ * (machine slots and the era district's lots) still need is HELD on the piles and the dock (`hold`): feeders, porters,
+ * haulers and the belts only take the stock above it, so a busy processor no longer eats every stone or brick before
+ * a builder can carry it to the site.
  */
 import { ERA_CREW_COUNT, ERA_ROLES, eraRoleCount, type EraRole } from '../config';
 import { ERA_KEYS } from '../core/kinds';
 import type { EraCrewId, GameContext, ItemKind } from '../core/types';
 import type { RegionRuntime } from '../eras/runtime';
-import { EraWorker, materialNeeds } from './EraWorker';
+import { EraWorker, materialNeeds, type Owed } from './EraWorker';
+import { cityLotAccess, lotNeeds } from '../city/lotAccess';
 
 /** Seconds between two automatic level checks. */
 const RECONCILE_EVERY = 0.5;
@@ -31,6 +36,8 @@ export class EraCrew {
   private timer = RECONCILE_EVERY;
   /** Units of each material the player still has to pay (held back from the depot by the workers). */
   private owed: ReadonlyMap<ItemKind, number> = new Map();
+  /** Units per kind the foremen still have to carry to this era's sites and lots (empty without a foreman). */
+  private held: Owed = new Map();
   /** Next worker number (idle posts, outfit variety). */
   private serial = 0;
 
@@ -76,10 +83,29 @@ export class EraCrew {
     }
     if (changed) this.all = this.roles.flatMap((r) => r.workers);
     this.owed = materialNeeds(this.ctx.state);
+    this.held = this.buildNeeds();
     for (const w of this.all) {
       w.peers = this.all;
       w.owed = this.owed;
+      w.held = this.held;
     }
+  }
+
+  /** Units of `kind` held on the piles for the builders (EraBelts leaves them on the producer's pile). */
+  hold(kind: ItemKind): number {
+    return this.held.get(kind) ?? 0;
+  }
+
+  /** What this era's chosen machine slots and district lots still need carried, by kind (none without a foreman). */
+  private buildNeeds(): Map<ItemKind, number> {
+    const out = new Map<ItemKind, number>();
+    if (this.count('foreman') === 0) return out;
+    const add = (kind: ItemKind, n: number): void => {
+      if (n > 0) out.set(kind, (out.get(kind) ?? 0) + n);
+    };
+    for (const s of this.region.sites()) add(s.kind, s.room);
+    if (cityLotAccess(this.ctx)) for (const l of lotNeeds(this.ctx.state, this.region.era)) add(l.kind, l.room);
+    return out;
   }
 
   update(dt: number): void {

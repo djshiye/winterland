@@ -202,6 +202,20 @@ export class CarryStack implements ItemHolder {
     return v;
   }
 
+  /**
+   * 0.9.11: landed + reserved items per kind, the most recently added kind first (the HUD carry meter). Sums to `size`.
+   */
+  kindCounts(): [ItemKind, number][] {
+    const out: [ItemKind, number][] = [];
+    for (let i = this.entries.length - 1; i >= 0; i--) {
+      const kind = this.entries[i]!.kind;
+      const row = out.find((r) => r[0] === kind);
+      if (row) row[1]++;
+      else out.push([kind, 1]);
+    }
+    return out;
+  }
+
   /** Landed + reserved items. */
   get size(): number {
     return this.entries.length;

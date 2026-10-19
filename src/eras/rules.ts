@@ -85,7 +85,7 @@ export function machineFrame(w: number, d: number): MachineFrame {
 }
 
 /** 0.9.5: an era machine's level pad (the tile its type's level is bought on), beside the body away from MANAGE. */
-export const LEVEL_PAD_SIZE = 1.6;
+export const LEVEL_PAD_SIZE = 1.9;
 /** Gap between the machine body and its level pad. */
 const LEVEL_PAD_GAP = 0.35;
 

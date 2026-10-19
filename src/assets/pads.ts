@@ -34,6 +34,7 @@ import { MATERIALS } from '../eras/data';
 import { motionScale } from '../fx/padJuice';
 import { registerGlow } from '../world/env/glow';
 import { wearTagLook } from '../ui/worldTag';
+import { materialIcon, materialLabel } from '../ui/materialIcons';
 import { MANAGE_BOARD_H, MANAGE_BOARD_W, MANAGE_POST_H, UPRIGHT } from '../fx/manageSign';
 
 export type PadIcon = PadDef['icon'];
@@ -1792,9 +1793,14 @@ function hookFont(texture: THREE.CanvasTexture): void {
 // The hanging price tag
 // ---------------------------------------------------------------------------
 
+/** 0.9.11: the tag canvas is wider than tall (TAG_W_PX × TAG_PX) so a material row can spell its name ("12 Clay"). */
 const TAG_PX = 256;
-/** World size of the tag's square canvas (sign-local units: the sign's scale applies). */
-const TAG_WORLD = 1.75;
+const TAG_W_PX = 384;
+/**
+ * World height of the tag's canvas (sign-local units: the sign's scale applies); the width follows the canvas.
+ * 0.9.11 (Dino: "the upgrade tiles are small, I can't see what I need to bring"): 1.75 → 2.3.
+ */
+const TAG_WORLD = 2.3;
 /** The sign board is raised this much so the tag hangs about where the board used to be. */
 const TAG_LIFT = 0.82;
 const SIGN_W = 2.5;
@@ -1816,6 +1822,53 @@ interface TagRow {
   icon: (g: CanvasRenderingContext2D, x: number, y: number) => void;
   /** null: the requirement is done (a tick instead of a number). */
   text: string | null;
+  /** 0.9.11: the item's name after the amount ("Clay"), so look-alike icons (clay and bricks) never get mixed up. */
+  label?: string;
+}
+
+/**
+ * 0.9.11: the item icons of the HUD and the market (ui/materialIcons.ts SVGs) as images for the tags, so a tag shows
+ * exactly the picture the rest of the game uses for that item. Loaded once per kind; until an image is ready the
+ * tinted canvas icon stands in, and every live face redraws when one arrives.
+ */
+const itemImages = new Map<string, HTMLImageElement>();
+function itemImage(kind: string): HTMLImageElement | null {
+  if (typeof Image === 'undefined') return null;
+  let img = itemImages.get(kind);
+  if (!img) {
+    img = new Image();
+    const svg = materialIcon(kind as Parameters<typeof materialIcon>[0]).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" ');
+    img.onload = () => {
+      for (const ref of liveFaces) {
+        const t = ref.deref();
+        const p = t ? params.get(t) : undefined;
+        if (!t || !p) liveFaces.delete(ref);
+        else if (p.extra?.kind === kind) draw(t, p);
+      }
+    };
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    itemImages.set(kind, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+/** An item's tag icon: its HUD picture on a soft white disc when loaded, else the canvas fallback. */
+function drawItemIcon(g: CanvasRenderingContext2D, x: number, y: number, kind: string): void {
+  const img = itemImage(kind);
+  if (!img) {
+    if (kind === 'toy') drawToyIcon(g, x, y, 0.56);
+    else if (kind === 'crate') drawCrateIcon(g, x, y, 0.52);
+    else if (kind === 'log') drawLogIcon(g, x, y, 0.62);
+    else drawMaterialIcon(g, x, y, kind, 0.52);
+    return;
+  }
+  g.save();
+  g.beginPath();
+  g.arc(x, y, 25, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(255,255,255,0.75)';
+  g.fill();
+  g.drawImage(img, x - 23, y - 23, 46, 46);
+  g.restore();
 }
 
 function drawTagLock(g: CanvasRenderingContext2D, x: number, y: number): void {
@@ -1847,14 +1900,9 @@ function tagRows(p: PadTextureParams): TagRow[] {
   if (p.logs && p.logs.total > 0) rows.push(row(p.logs, (g, x, y) => drawLogIcon(g, x, y, 0.62)));
   if (p.extra) {
     const k = p.extra.kind;
-    rows.push(
-      row(p.extra, (g, x, y) => {
-        if (k === 'toy') drawToyIcon(g, x, y, 0.56);
-        else if (k === 'crate') drawCrateIcon(g, x, y, 0.52);
-        else if (k === 'log') drawLogIcon(g, x, y, 0.62);
-        else drawMaterialIcon(g, x, y, k, 0.52);
-      }),
-    );
+    const r = row(p.extra, (g, x, y) => drawItemIcon(g, x, y, k));
+    if (r.text !== null) r.label = materialLabel(k as Parameters<typeof materialLabel>[0]);
+    rows.push(r);
   }
   if (p.cash) rows.push(row(p.cash, (g, x, y) => drawBill(g, x, y, 0.5), true));
   return rows;
@@ -1879,7 +1927,7 @@ function tagPath(g: CanvasRenderingContext2D, x: number, y: number, w: number, h
 function paintTag(tag: Tag, p: PadTextureParams): void {
   const g = tag.g;
   const rows = tagRows(p);
-  g.clearRect(0, 0, TAG_PX, TAG_PX);
+  g.clearRect(0, 0, TAG_W_PX, TAG_PX);
   tag.mesh.visible = rows.length > 0;
   if (rows.length === 0) {
     tag.texture.needsUpdate = true;
@@ -1889,10 +1937,19 @@ function paintTag(tag: Tag, p: PadTextureParams): void {
   const rowH = three ? 50 : 56;
   const font = three ? 42 : 50;
   g.font = `700 ${font}px ${GAME_FONT}`;
+  const labelFont = `600 ${Math.round(font * 0.72)}px ${GAME_FONT}`;
   let textW = 0;
-  for (const r of rows) textW = Math.max(textW, r.text === null ? 44 : g.measureText(r.text).width);
-  const w = Math.max(138, Math.min(TAG_PX - 10, 72 + textW + 22));
-  const x0 = TAG_PX / 2 - w / 2;
+  for (const r of rows) {
+    let rw = r.text === null ? 44 : g.measureText(r.text).width;
+    if (r.label && r.text !== null) {
+      g.font = labelFont;
+      rw += 10 + g.measureText(r.label).width;
+      g.font = `700 ${font}px ${GAME_FONT}`;
+    }
+    textW = Math.max(textW, rw);
+  }
+  const w = Math.max(138, Math.min(TAG_W_PX - 10, 72 + textW + 22));
+  const x0 = TAG_W_PX / 2 - w / 2;
   const top = 42;
   const hole = top + 17;
   const h = 34 + rows.length * rowH + 6;
@@ -1902,9 +1959,9 @@ function paintTag(tag: Tag, p: PadTextureParams): void {
   g.lineWidth = 4;
   g.strokeStyle = hex(PAD.twine);
   g.beginPath();
-  g.moveTo(TAG_PX / 2 - 46, 0);
-  g.lineTo(TAG_PX / 2, hole);
-  g.lineTo(TAG_PX / 2 + 46, 0);
+  g.moveTo(TAG_W_PX / 2 - 46, 0);
+  g.lineTo(TAG_W_PX / 2, hole);
+  g.lineTo(TAG_W_PX / 2 + 46, 0);
   g.stroke();
   // card, its shadow and a stitched edge
   g.save();
@@ -1931,11 +1988,11 @@ function paintTag(tag: Tag, p: PadTextureParams): void {
   g.restore();
   // brass eyelet
   g.beginPath();
-  g.arc(TAG_PX / 2, hole, 9, 0, Math.PI * 2);
+  g.arc(TAG_W_PX / 2, hole, 9, 0, Math.PI * 2);
   g.fillStyle = hex(PAD.brass);
   g.fill();
   g.beginPath();
-  g.arc(TAG_PX / 2, hole, 4.5, 0, Math.PI * 2);
+  g.arc(TAG_W_PX / 2, hole, 4.5, 0, Math.PI * 2);
   g.fillStyle = hex(PAD.boardDark);
   g.fill();
   // rows: icon, then the amount (or a tick)
@@ -1950,6 +2007,14 @@ function paintTag(tag: Tag, p: PadTextureParams): void {
       g.font = `700 ${font}px ${GAME_FONT}`;
       g.fillStyle = hex(r.text.startsWith('$') ? tagInks().cash : PAD.ink);
       g.fillText(r.text, x0 + 70, y + 2, w - 84);
+      if (r.label) {
+        const tw = g.measureText(r.text).width;
+        g.font = labelFont;
+        g.fillStyle = hex(PAD.ink);
+        g.globalAlpha = 0.78;
+        g.fillText(r.label, x0 + 70 + tw + 10, y + 4, Math.max(20, w - 94 - tw));
+        g.globalAlpha = 1;
+      }
     }
   }
   tag.texture.needsUpdate = true;
@@ -1972,8 +2037,8 @@ let raisedBoard: THREE.PlaneGeometry | null = null;
 export function hangPriceTag(sign: THREE.Mesh, texture: THREE.CanvasTexture): THREE.Mesh {
   const had = tags.get(texture);
   if (had) return had.mesh;
-  const { ctx: g, texture: tex } = makeCanvasTexture(TAG_PX, TAG_PX);
-  tagGeo ??= new THREE.PlaneGeometry(TAG_WORLD, TAG_WORLD).translate(0, -TAG_WORLD / 2, 0);
+  const { ctx: g, texture: tex } = makeCanvasTexture(TAG_W_PX, TAG_PX);
+  tagGeo ??= new THREE.PlaneGeometry((TAG_WORLD * TAG_W_PX) / TAG_PX, TAG_WORLD).translate(0, -TAG_WORLD / 2, 0);
   raisedBoard ??= new THREE.PlaneGeometry(SIGN_W, SIGN_H).translate(0, TAG_LIFT, 0);
   const m = new THREE.Mesh(tagGeo, basic(0xffffff, { map: tex, transparent: true, depthWrite: false }));
   m.name = 'padTag';

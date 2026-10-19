@@ -179,10 +179,10 @@ const GUIDE: readonly Row[] = [
 const FLOORS: readonly [yard: number, processing: number, light: number, board: number][] = [
   [0, 0, 0, 0],
   [0x9c7a5c, 0xc49a6c, 0xffb347, 0x9c7a5c], // packed earth, plank walkways; amber windows and lanterns
-  [0xb9ab98, 0x8f8170, 0xffb347, 0xd6c6ae], // fieldstone flags and mortar on clay-dusted earth; hearth glow in the kiln mouths
-  [0x94604c, 0xc9906b, 0xff9233, 0xcca38c], // rust-ore gravel on rust-tinted earth; forge orange
-  [0x7d7a78, 0xc77a45, 0xffbe55, 0xbdb3ad], // cinder slate with warm specks; boiler doors, gas lamps; smoky taupe board
-  [0xb8613f, 0x8a6a5c, 0xffd166, 0xc4aa9c], // herringbone brick, pellet-grey yard; sodium lamps; brick-dust board
+  [0xb9ab98, 0x8f8170, 0xffb347, 0xdcc8a2], // fieldstone flags and mortar on golden straw-dusted earth (0.9.11: warmer, harvest gold); hearth glow in the kiln mouths
+  [0x94604c, 0xc9906b, 0xff9233, 0xaeb0b8], // rust-ore gravel on cool slate hill rock (0.9.11: slate, so era 3 stops reading like eras 2 and 5); forge orange
+  [0x7d7a78, 0xc77a45, 0xffbe55, 0xb4baaa], // cinder slate with warm specks; boiler doors, gas lamps; misty sage-grey board (0.9.11)
+  [0xb8613f, 0x8a6a5c, 0xffd166, 0xa98270], // herringbone brick, pellet-grey yard; sodium lamps; deep brick-umber soot board (0.9.11)
   [0x5f8f86, 0x8fb0aa, 0x7ce8c8, 0xa9c7bf], // teal cobbles; mint bulbs on the wires; mint-teal snow board
   [0x7a6454, 0xe2ad3c, 0xffaa5a, 0xe8dcc8], // warm asphalt with honey lanes; flare peach; honey-cream snow board
   [0xe6d4b0, 0xd2bf98, 0x66e0a3, 0xece4d6], // beige terrazzo, sand; screen mint; a warm sand-snow board
