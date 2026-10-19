@@ -49,10 +49,27 @@ jobs:
       - run: npm test
       - name: Package
         run: node scripts/package-desktop.mjs ${{ matrix.targets }}
+      # 0.9.11: Linux also ships an AppImage per architecture (scripts/package-appimage.mjs), built from the same
+      # folders. The AppImage starter comes from AppImage/type2-runtime release 20251108; the script refuses any file
+      # that doesn't match its pinned SHA-256.
+      - name: AppImages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends squashfs-tools zsync
+          mkdir -p "$RUNNER_TEMP/appimage-runtime"
+          for a in x86_64 aarch64; do
+            curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
+              -o "$RUNNER_TEMP/appimage-runtime/runtime-$a" "https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-$a"
+          done
+          node scripts/package-appimage.mjs "$RUNNER_TEMP/appimage-runtime" ${{ matrix.targets }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: winterland-${{ matrix.os }}
-          path: release/*.zip
+          path: |
+            release/*.zip
+            release/*.AppImage
+            release/*.AppImage.zsync
           if-no-files-found: error
 
   # 0.9.10 (F11): signed build provenance for every zip of a real release, so anyone can check a download was built
@@ -73,7 +90,9 @@ jobs:
           merge-multiple: true
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: 'dist-zips/*.zip'
+          subject-path: |
+            dist-zips/*.zip
+            dist-zips/*.AppImage
 
   publish:
     needs: [build, provenance]
@@ -105,11 +124,17 @@ jobs:
             case "$z" in Winterland-"${TAG#v}"-*.zip) ;; *) echo "$z doesn't match $TAG (bump package.json)"; exit 1 ;; esac
             unzip -Z1 "$z" | grep -Ec '(^|[/\\])Update Winterland\.(sh|command|cmd)$' > /dev/null || { echo "$z has no updater"; exit 1; }
           done
+          # 0.9.11: the Linux AppImages (x86_64 + aarch64), each with the .zsync Gear Lever and AppImageUpdate read.
+          for a in x86_64 aarch64; do
+            f="Winterland-${TAG#v}-$a.AppImage"
+            [ -f "$f" ] && [ -f "$f.zsync" ] || { echo "$f (or its .zsync) is missing"; exit 1; }
+          done
+          [ "$(ls -- *.AppImage | wc -l)" = 2 ] || { echo "unexpected AppImages: $(ls -- *.AppImage)"; exit 1; }
           # This version's CHANGELOG.md entry (heading "## X.Y.Z (date)") for the in-game update card.
           awk -v h="## ${TAG#v} " 'index($0, h) == 1 { on = 1; next } /^## / { on = 0 } on' ../CHANGELOG.md > RELEASE-NOTES.md
           extra=()
           if grep -q '[^[:space:]]' RELEASE-NOTES.md; then extra=(dist-zips/RELEASE-NOTES.md); else rm RELEASE-NOTES.md; fi
-          sha256sum -- *.zip ${extra[@]+RELEASE-NOTES.md} > SHA256SUMS.txt
+          sha256sum -- *.zip *.AppImage ${extra[@]+RELEASE-NOTES.md} > SHA256SUMS.txt
           cat SHA256SUMS.txt
           cd ..
-          gh release create "$TAG" dist-zips/*.zip dist-zips/SHA256SUMS.txt "${extra[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Winterland $TAG" --generate-notes "${notes[@]}"
+          gh release create "$TAG" dist-zips/*.zip dist-zips/*.AppImage dist-zips/*.AppImage.zsync dist-zips/SHA256SUMS.txt "${extra[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Winterland $TAG" --generate-notes "${notes[@]}"

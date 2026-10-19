@@ -12,7 +12,7 @@
 import { AMENITIES, AMENITY_IDS, BUSINESSES, CLIMB, CONTRACTS, DAYNIGHT, ECONOMY, GATE, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, SETTLEMENT, UPGRADES, VILLAGE, type BusinessId } from '../config';
 import { CARRY_KINDS, createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type CarryKind, type FlagId, type GameContext, type GameState, type InvestmentState, type ItemKind, type RunRecord } from './types';
 import { cleanEraAt } from './completion';
-import { maxStored } from './ladder';
+import { maxStored, valueAt } from './ladder';
 import { legacyMastery, MASTERY_KEEP, masteryPayout, refundPrice } from './refund';
 import { INVEST_POSITIONS_CAP } from './demand';
 import { CITY_BUILDINGS, ERAS, INVEST, INVEST_IDS, MACHINES, MARKET, MAX_ERA, type CityBuildingId, type MachineId } from '../eras/data';
@@ -616,7 +616,23 @@ export const MIGRATIONS: readonly Migration[] = [
       for (let n = 2; n <= Math.min(state.eras.age, MAX_ERA); n++) state.flags[`seen:book${n}`] = true;
     },
   },
+  {
+    // 0.9.11 investing is a side bonus (eras/data.ts INVEST): bonds pay +4% instead of +12%. A bond bought before this
+    // build still pays what it promised: its value is set now to principal × the old payout (Market.bondPayout with
+    // rate 0.12 and the save's Broker), which ageBonds keeps at maturity; cashing out early still returns the deposit.
+    id: '0.9.11-bond-promise',
+    run(state) {
+      const broker = Math.min(valueAt(UPGRADES.broker, state.upgrades.broker ?? 0), CLIMB.bondBrokerMax);
+      const payout = 1 + OLD_BOND_RATE * Math.sqrt(broker);
+      for (const p of state.market.investments) {
+        if (p.product === 'bond' && p.age < (INVEST.bond.lock ?? 0) && p.value <= p.principal) p.value = p.principal * payout;
+      }
+    },
+  },
 ];
+
+/** The bond rate before 0.9.11 (+12% per 10 minutes), kept for bonds bought under it ('0.9.11-bond-promise'). */
+const OLD_BOND_RATE = 0.12;
 
 /** Apply every migration this save has not had yet (see MIGRATIONS). `fresh`: a new game, nothing to migrate. */
 export function migrateState(state: GameState, fresh: boolean, ctx: MigrationContext = { salesRate: 0 }, list: readonly Migration[] = MIGRATIONS): MigrationReport {

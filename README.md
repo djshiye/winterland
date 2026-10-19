@@ -115,10 +115,22 @@ first run downloads the Electron runtime for each target (~100 MB each) and cach
 
 - **Windows:** unzip `Winterland-<version>-win32-x64.zip` anywhere and run `Winterland.exe`. The app is unsigned,
   so SmartScreen may warn the first time: choose *More info → Run anyway*.
-- **Linux:** unzip the archive that matches your machine (`x64` for most PCs, `arm64` for e.g. a Raspberry Pi 5) and
-  run `./winterland`. On distributions that block Chromium's sandbox (some Ubuntu 24.04+ setups report
-  *"The SUID sandbox helper binary was found, but is not configured correctly"*), start it with
-  `./winterland --no-sandbox`.
+- **Linux (AppImage, easiest):** download `Winterland-<version>-x86_64.AppImage` (`aarch64` for e.g. a Raspberry Pi 5).
+  Right-click it → *Properties* → allow *Executable as Program*, then double-click it. Or open it with
+  [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever), which adds Winterland to your app menu. The game updates
+  the AppImage in place itself, and Gear Lever's own update button works too (the AppImage carries GitHub update
+  info). It needs no `libfuse2`.
+- **Linux (zip):** unzip the archive that matches your machine (`x64` for most PCs, `arm64` for e.g. a Raspberry Pi 5)
+  and run `./winterland` from a terminal in that folder.
+- **Ubuntu 23.10 / 24.04 and later** block the game's sandbox until Ubuntu's AppArmor allows it (otherwise the game
+  closes at once, or says *"The SUID sandbox helper binary was found, but is not configured correctly"*). The AppImage
+  asks for this itself the first time, in a window, with Ubuntu's password prompt. On those Ubuntu versions it also
+  copies the game into your own `~/.local/share/Winterland/app` (about 300 MB, refreshed after each update) and starts
+  it from there, because the AppImage's own temporary folder can't safely be named in a profile. With the zip, run
+  `./"Set up for Ubuntu.sh"` once in that folder (run it again if you move the folder). Either way it adds one small
+  profile in `/etc/apparmor.d/` (`winterland-appimage` or `winterland`) for that one program path, which lets it use
+  the sandbox and nothing more: the sandbox stays on and the game gets no other rights. Delete that file (and the
+  copy) to undo it. Please don't start the game with `--no-sandbox`: that turns off a main layer of protection.
 - **macOS:** unzip `Winterland-<version>-darwin-arm64.zip` (Macs with an Apple chip, M1 and later; Intel Macs are not
   supported from 0.9.11) and drag `Winterland.app` to Applications. The app isn't notarised by Apple, so the first time *right-click → Open*
   it (or *System Settings → Privacy & Security → Open Anyway*).

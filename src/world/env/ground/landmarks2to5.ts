@@ -25,7 +25,7 @@ type Era = 2 | 3 | 4 | 5;
 const BOX = (): THREE.BufferGeometry => geo.box(1, 1, 1);
 
 /** A Batch seen from an offset, so one drawing routine serves both the cached solid geometry (0, 0) and the world glow. */
-class At {
+export class At {
   constructor(readonly b: Batch, readonly ox = 0, readonly oz = 0) {}
   add(g: THREE.BufferGeometry, c: number, x: number, y: number, z: number, o?: PartOpts): this {
     this.b.add(g, c, x + this.ox, y, z + this.oz, o);
@@ -339,7 +339,7 @@ function cokeBatteryGlow(g: At): void {
 // placement
 // ---------------------------------------------------------------------------------------------------------------------
 
-interface Def {
+export interface Def {
   geom: () => THREE.BufferGeometry;
   glow: (g: At) => void;
   /** Footprint relative to the origin, and the tallest point. */
@@ -347,6 +347,8 @@ interface Def {
   h: number;
   /** Lamps (relative x, y, z, size, pool). */
   lamps: [number, number, number, number, number][];
+  /** Flat pieces for the floor batch (ponds, kerbs), same frame. */
+  floor?: (g: At) => void;
 }
 
 const DEFS: Record<Era, Def> = {
@@ -356,11 +358,15 @@ const DEFS: Record<Era, Def> = {
   5: { geom: cokeBatteryGeo, glow: cokeBatteryGlow, fp: { minX: -3.8, maxX: 3.8, minZ: -2.9, maxZ: 2.4 }, h: 6.6, lamps: [[-1.2, 1.1, 1.5, 2.0, 4.8], [1.2, 1.1, 1.5, 2.0, 4.8]] },
 };
 
-const world = (d: Def, x: number, z: number): Rect => ({ minX: x + d.fp.minX, maxX: x + d.fp.maxX, minZ: z + d.fp.minZ, maxZ: z + d.fp.maxZ });
+export const world = (d: Def, x: number, z: number): Rect => ({ minX: x + d.fp.minX, maxX: x + d.fp.maxX, minZ: z + d.fp.minZ, maxZ: z + d.fp.maxZ });
 
 /** The landmark's spot on region l (centre of its origin), or null when the harvest zone has no free ground for it. `avoid`: rects the era already fills. */
 export function landmarkSpot(l: RegionLayout, n: Era, avoid: readonly Rect[] = []): { x: number; z: number } | null {
-  const d = DEFS[n];
+  return spotFor(DEFS[n], l, avoid);
+}
+
+/** The generic spot search for any landmark definition (eras 8-9 reuse it from landmarks8to9.ts). */
+export function spotFor(d: Def, l: RegionLayout, avoid: readonly Rect[] = []): { x: number; z: number } | null {
   const H = l.zones.harvest;
   const paths = regionPaths(l);
   const node = nodePatch(l);
@@ -402,10 +408,14 @@ export function landmarkRect(l: RegionLayout, n: Era, avoid: readonly Rect[] = [
 export function placeLandmark(k: GroundKit, l: RegionLayout, rng: Rng, n: Era, avoid: readonly Rect[] = []): { x: number; z: number } | null {
   void rng;
   const s = landmarkSpot(l, n, avoid);
-  if (!s) return null;
-  const d = DEFS[n];
+  return s ? placeDef(k, n, DEFS[n], s) : null;
+}
+
+/** Put a landmark definition into the kit at spot s. */
+export function placeDef(k: GroundKit, n: number, d: Def, s: { x: number; z: number }): { x: number; z: number } {
   k.put(`landmark${n}`, d.geom, { x: s.x, z: s.z });
   d.glow(new At(k.glow, s.x, s.z));
+  d.floor?.(new At(k.floor, s.x, s.z));
   for (const [x, y, z, size, pool] of d.lamps) k.lamps.push({ x: s.x + x, y, z: s.z + z, size, pool });
   return s;
 }

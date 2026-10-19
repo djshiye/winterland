@@ -9,11 +9,13 @@ import { SNOW, mixHex, palette } from '../../../render/palette';
 import { plotPlaces } from '../../../eras/layout';
 import { regionPaths } from '../frontier';
 import { geo } from '../../../render/materials';
+import { landmarkDiscs, landmarkRect89, placeLandmark89 } from './landmarks8to9';
 import { aquaPool, beltSpots, greenBorder, cask, cellMarks, crystalCluster, harvestFree, inset, mintGlaze, mintPine, pathLamp, pathLampSpots, slab, FLOOR_Y, beltSnow, harvestDrifts, snowVerge } from './lateKit';
 
 const N = 9;
 
 export const era09: EraGroundModule = {
+  keepOut: (l) => landmarkRect89(l, 9),
   wild(k, l, rng) {
     const P = plotPlaces(N);
     const belt = beltSpots(l, 4.2, rng);
@@ -21,6 +23,9 @@ export const era09: EraGroundModule = {
     beltSnow(k.solid, belt, rng);
     const H = l.zones.harvest;
     const placed: { x: number; z: number; r: number }[] = [];
+    // the signature landmark (twin cooling towers) first; nothing else lands on it
+    placeLandmark89(k, l, rng, 9);
+    placed.push(...landmarkDiscs(l, 9));
     // a line of cooling pools down the middle of the harvest ground
     const midZ = (H.minZ + H.maxZ) / 2;
     for (let x = H.minX + 7; x < H.maxX - 4; x += 9) {
