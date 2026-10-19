@@ -47,7 +47,11 @@ mkdirSync(out, { recursive: true });
 const keep = (p) =>
   p === '' ||
   p === '/package.json' ||
-  (p.startsWith('/desktop') && p !== '/desktop/updater' && !p.startsWith('/desktop/updater/')) ||
+  (p.startsWith('/desktop') &&
+    p !== '/desktop/updater' &&
+    !p.startsWith('/desktop/updater/') &&
+    p !== '/desktop/linux' &&
+    !p.startsWith('/desktop/linux/')) ||
   p.startsWith('/dist');
 
 for (const target of targets) {
@@ -85,6 +89,12 @@ for (const target of targets) {
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, f.content);
     chmodSync(file, f.mode);
+  }
+  // 0.9.11 (Linux): Ubuntu 23.10+ blocks Chromium's sandbox unless an AppArmor profile allows it; this asks the player
+  // (once, with their password) to add one. The AppImage runs the same script by itself (scripts/package-appimage.mjs).
+  if (platform === 'linux') {
+    writeFileSync(join(dir, 'Set up for Ubuntu.sh'), readFileSync(join(root, 'desktop', 'linux', 'sandbox-setup.sh')));
+    chmodSync(join(dir, 'Set up for Ubuntu.sh'), 0o755);
   }
   const zip = join(out, `Winterland-${pkg.version}-${platform}-${arch}.zip`);
   if (platform === 'darwin' && process.platform === 'darwin') {

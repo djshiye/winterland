@@ -4,6 +4,13 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
+## Unreleased
+
+### Linux
+
+- **New: an AppImage download.** One file for Linux. Allow it to run as a program, then double-click it, or add it with Gear Lever. The game's own updater keeps it up to date in place, and Gear Lever's update button works too.
+- **Starts on Ubuntu 24.04.** Ubuntu 24.04 blocks the game's safety sandbox, so the game used to close at once without a word. Now it asks once, with Ubuntu's own password window, to add Winterland to Ubuntu's list. The sandbox stays on. The zip has a *Set up for Ubuntu* file that does the same.
+
 ## 0.9.10 (2026-10-18)
 
 A calmer first hour, safer saves and updates, a fairer climb through the eras, tidier town life and prettier fields in eras 6 to 8.

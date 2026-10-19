@@ -27,6 +27,9 @@
 #   --zip PATH       use this already-downloaded zip instead of downloading it. It is still checked against the
 #                    SHA256SUMS.txt this script fetches itself, so the game's word is never taken for it.
 #   --install DIR    (Linux) the game folder to update, instead of the folder this script is in.
+#   --appimage FILE  (Linux, 0.9.11, with --from-game) the game runs as this AppImage: replace that one file with the
+#                    release's AppImage for this computer instead of swapping folder files. The file keeps its name
+#                    and place (so a menu entry, e.g. from Gear Lever, keeps working) and is swapped in one rename.
 # Plain bash 3.2 (the macOS default) on purpose.
 
 main() {
@@ -35,7 +38,7 @@ main() {
   local REPO='djshiye/winterland'
   local BUILT_VERSION='__WL_VERSION__'
   local TARGET='__WL_TARGET__'
-  local ASK=1 LAUNCH=1 APP_ARG='' FROM_GAME=0 ZIP_ARG='' INSTALL_ARG=''
+  local ASK=1 LAUNCH=1 APP_ARG='' FROM_GAME=0 ZIP_ARG='' INSTALL_ARG='' APPIMAGE_ARG=''
   # What the step that can fail is doing (the reason an in-game update reports back): see `fail`.
   local STEP=other
   # In-game updates: how long, in half seconds, the script waits in all for the game to finish closing (10 minutes).
@@ -51,6 +54,7 @@ main() {
       --from-game) FROM_GAME=1; ASK=0 ;;
       --zip) shift; ZIP_ARG="${1:-}" ;;
       --install) shift; INSTALL_ARG="${1:-}" ;;
+      --appimage) shift; APPIMAGE_ARG="${1:-}" ;;
       *) ;;
     esac
     shift
@@ -82,14 +86,23 @@ main() {
   start_game() {
     if [ "$OS" = Darwin ]; then
       [ -n "${APP:-}" ] && open "$APP" --args "$@"
+    elif [ -n "${IMAGE:-}" ]; then
+      [ -x "$IMAGE" ] && (cd "${HOME:-/}" 2>/dev/null || true; nohup "$IMAGE" "$@" >/dev/null 2>&1 &)
     elif [ -n "${INSTALL:-}" ] && [ -x "$INSTALL/winterland" ]; then
       (cd "$INSTALL" && nohup ./winterland "$@" >/dev/null 2>&1 &)
     fi
   }
-  # True while this copy of the game is open (Linux: any process running this folder's 'winterland').
+  # True while this copy of the game is open (Linux: any process running this folder's 'winterland'; an AppImage:
+  # any process running that file, which is the AppImage's own starter and lives until the game has closed).
   running() {
     if [ "$OS" = Darwin ]; then
       [ -n "${APP:-}" ] && pgrep -f "$APP/Contents/MacOS/Winterland" >/dev/null 2>&1
+    elif [ -n "${IMAGE:-}" ]; then
+      local proc
+      for proc in /proc/[0-9]*; do
+        [ "$(readlink "$proc/exe" 2>/dev/null)" = "$IMAGE" ] && return 0
+      done
+      return 1
     else
       [ -n "${INSTALL:-}" ] || return 1
       local pid
@@ -183,7 +196,7 @@ EOF
   fi
 
   # Where the game lives, and which version it is.
-  local SCRIPT_DIR CURRENT="$BUILT_VERSION" INSTALL='' APP=''
+  local SCRIPT_DIR CURRENT="$BUILT_VERSION" INSTALL='' APP='' IMAGE=''
   [ "$OS" = Darwin ] || [ -z "$INSTALL_ARG" ] || [ -d "$INSTALL_ARG" ] || fail "couldn't find the game folder $INSTALL_ARG."
   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)" || fail "couldn't find the folder this updater is in."
   if [ "$OS" = Darwin ]; then
@@ -200,6 +213,19 @@ EOF
     plist_version="$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$APP/Contents/Info.plist" 2>/dev/null || true)"
     if printf '%s' "$plist_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then CURRENT="$plist_version"; fi
     INSTALL="$(dirname "$APP")"
+  elif [ -n "$APPIMAGE_ARG" ]; then
+    # Only the in-game updater hands over an AppImage, already resolved to the real file. It must be a plain file the
+    # player owns that starts like an AppImage (an ELF program marked "AI" 2), so nothing else is ever replaced.
+    [ "$OS" = Linux ] && [ "$FROM_GAME" = 1 ] || fail "--appimage is only for in-game updates on Linux."
+    case "$APPIMAGE_ARG" in /*) ;; *) fail "the AppImage path must be absolute." ;; esac
+    if [ -L "$APPIMAGE_ARG" ] || [ ! -f "$APPIMAGE_ARG" ] || [ ! -O "$APPIMAGE_ARG" ]; then
+      fail "couldn't find the Winterland AppImage $APPIMAGE_ARG."
+    fi
+    local head
+    head="$(LC_ALL=C od -An -tx1 -N11 "$APPIMAGE_ARG" 2>/dev/null | tr -d ' \n')"
+    case "$head" in 7f454c46????????414902) ;; *) fail "$APPIMAGE_ARG isn't a Winterland AppImage." ;; esac
+    IMAGE="$APPIMAGE_ARG"
+    INSTALL="$(cd "$(dirname "$IMAGE")" && pwd)" || fail "couldn't find the folder of $IMAGE."
   else
     INSTALL="$SCRIPT_DIR"
     [ -n "$INSTALL_ARG" ] && INSTALL="$(cd "$INSTALL_ARG" && pwd)"
@@ -221,7 +247,7 @@ EOF
   # shellcheck disable=SC2329 # run by the EXIT trap
   cleanup() {
     [ -n "$TMP" ] && [ -d "$TMP" ] && rm -rf "$TMP"
-    [ -n "$STAGE" ] && [ -d "$STAGE" ] && rm -rf "$STAGE"
+    [ -n "$STAGE" ] && [ -e "$STAGE" ] && rm -rf "$STAGE"
     [ -n "$LOCK" ] && rm -f "$LOCK/pid" && rmdir "$LOCK" 2>/dev/null
     return 0
   }
@@ -245,16 +271,25 @@ EOF
   fetch "https://github.com/$REPO/releases/latest/download/SHA256SUMS.txt" "$TMP/SHA256SUMS.txt" ||
     fail "couldn't reach GitHub. Check your internet connection and try again."
 
-  # Exactly one line for this platform, in the strict "<64 hex>  Winterland-X.Y.Z-<target>.zip" form.
+  # Exactly one line for this platform, in the strict "<64 hex>  Winterland-X.Y.Z-<target>.zip" form (an AppImage:
+  # "<64 hex>  Winterland-X.Y.Z-<x86_64|aarch64>.AppImage").
   STEP=nodownload
-  local line count
-  count="$(grep -Ec "^[0-9a-f]{64}  Winterland-[0-9]+\.[0-9]+\.[0-9]+-$TARGET\.zip\$" "$TMP/SHA256SUMS.txt")"
-  [ "$count" = 1 ] || fail "the latest release has no download for this computer ($TARGET)."
-  line="$(grep -E "^[0-9a-f]{64}  Winterland-[0-9]+\.[0-9]+\.[0-9]+-$TARGET\.zip\$" "$TMP/SHA256SUMS.txt")"
+  local line count suffix="$TARGET.zip"
+  if [ -n "$IMAGE" ]; then
+    case "$TARGET" in
+      linux-x64) suffix='x86_64.AppImage' ;;
+      linux-arm64) suffix='aarch64.AppImage' ;;
+      *) fail "the latest release has no AppImage for this computer ($TARGET)." ;;
+    esac
+  fi
+  local pattern="^[0-9a-f]{64}  Winterland-[0-9]+\.[0-9]+\.[0-9]+-${suffix//./\\.}\$"
+  count="$(grep -Ec "$pattern" "$TMP/SHA256SUMS.txt")"
+  [ "$count" = 1 ] || fail "the latest release has no download for this computer ($suffix)."
+  line="$(grep -E "$pattern" "$TMP/SHA256SUMS.txt")"
   local WANT_SHA="${line%%  *}"
   local ZIP_NAME="${line#*  }"
   local LATEST="${ZIP_NAME#Winterland-}"
-  LATEST="${LATEST%-"$TARGET".zip}"
+  LATEST="${LATEST%-"$suffix"}"
 
   newer() { # newer A B: true when version A > version B
     local a b i
@@ -278,7 +313,7 @@ EOF
 
   say ""
   say "${B}Winterland $LATEST is out!${N}"
-  if [ "$OS" = Darwin ]; then say "It will replace $APP."; else say "It will replace the game files in $INSTALL."; fi
+  if [ "$OS" = Darwin ]; then say "It will replace $APP."; elif [ -n "$IMAGE" ]; then say "It will replace $IMAGE."; else say "It will replace the game files in $INSTALL."; fi
   say "Your save stays where it is and is not touched."
   if [ "$ASK" = 1 ] && [ -t 0 ]; then
     printf '\nPress Enter to update, or close this window to keep %s. ' "$CURRENT"
@@ -336,6 +371,29 @@ EOF
     fail "the downloaded file doesn't match the release's checksum, so it was thrown away."
   fi
   say "${G}OK${N}"
+
+  if [ -n "$IMAGE" ]; then
+    # An AppImage is one file: copy the checked download next to it (same disk), check the copy, then rename it over
+    # the old one. A rename is all or nothing, so the old AppImage stays whole until the new one is in its place.
+    say "Installing..."
+    STEP=files
+    STAGE="$(mktemp "$INSTALL/.winterland-appimage-XXXXXX")" || fail "couldn't write to $INSTALL."
+    cp "$TMP/$ZIP_NAME" "$STAGE" || fail "couldn't write to $INSTALL."
+    chmod --reference="$IMAGE" "$STAGE" 2>/dev/null || true
+    chmod u+rwx,go-w "$STAGE" || fail "couldn't write to $INSTALL."
+    STEP=checksum
+    [ "$(sha256sum "$STAGE" | cut -d' ' -f1)" = "$WANT_SHA" ] || fail "the copied update didn't match the release's checksum."
+    STEP=files
+    mv -f "$STAGE" "$IMAGE" || fail "couldn't replace $IMAGE. Is the game closed?"
+    STAGE=''
+    say ""
+    say "${G}${B}Done! Winterland is now $LATEST.${N} Your save was not touched."
+    if [ "$LAUNCH" = 1 ]; then
+      say "Starting the game..."
+      start_game
+    fi
+    exit 0
+  fi
 
   # Unpack next to the game (same disk, so the swap is a quick rename) and check it looks like Winterland.
   say "Installing..."
