@@ -146,6 +146,46 @@ describe('payments stay exact and deliberate', () => {
   });
 });
 
+describe('overlapping give and take between the same arms and pile (era dock)', () => {
+  it('goods never bounce back and forth: the nearer zone works, the other waits', () => {
+    const w = world({ kind: 'take', armKinds: ['log', 'log', 'log'] });
+    // a give zone back into the same pile, right beside the take zone so body reach covers both
+    const pile = (w.zone as unknown as { t: { from: ItemHolder } }).t.from;
+    const arms = w.player.arms;
+    const give = w.zones.addTransfer({
+      id: 'g',
+      area: { minX: 1.2, maxX: 3, minZ: -1, maxZ: 1 },
+      from: arms,
+      to: pile,
+      kinds: ['log'],
+      kind: 'give',
+      interval: 0.05,
+    });
+    let flips = 0;
+    let last = '';
+    const watch = (): void => {
+      const now = `${w.zone.yielding ? 'G' : 'T'}`;
+      if (last && now !== last) flips++;
+      last = now;
+    };
+    w.at(1.1); // between the two zones: inside both under body reach
+    for (let i = 0; i < 180; i++) {
+      w.zones.update(1 / 60);
+      watch();
+    }
+    expect(w.zone.playerInside && give.playerInside).toBe(true);
+    expect(w.zone.yielding !== give.yielding).toBe(true);
+    expect(flips).toBe(0);
+    // standing nearer the give side: only giving happens, so the pile only grows
+    w.at(1.5); // 0.3 m from the give zone, 0.5 m from the take zone (still held by hysteresis)
+    const before = (pile as unknown as { items: Item[] }).items.length;
+    w.step(1);
+    expect(w.zone.playerInside && w.zone.yielding).toBe(true);
+    expect(give.yielding).toBe(false);
+    expect((pile as unknown as { items: Item[] }).items.length).toBeGreaterThanOrEqual(before);
+  });
+});
+
 describe('wrong load hint (I6)', () => {
   it('floats "Takes Logs" once per visit when the player stops with only other goods', () => {
     const w = world({ kind: 'give', armKinds: ['crate', 'crate'] });

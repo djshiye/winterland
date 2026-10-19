@@ -176,6 +176,12 @@ export class Zone {
   readonly reach: ZoneReach;
   /** @internal seconds the player has been past `leave` while still counted inside (grace) */
   outFor = 0;
+  /** @internal this step's centre distance to the rect and inside verdict (ZoneSystem.update pass 1) */
+  lastDist = Infinity;
+  /** @internal */
+  nextInside = false;
+  /** @internal a reverse-direction zone the player stands nearer to runs instead this step */
+  yielding = false;
   /** @internal */
   removed = false;
   /** @internal */
@@ -291,10 +297,27 @@ class TransferZone extends Zone {
     return this.hasTransferable();
   }
 
+  /** Moves goods out of a holder into the player's arms (a pickup). */
+  get takes(): boolean {
+    return this.t.kind === 'take';
+  }
+
+  /** True when `o` moves goods the opposite way between the same two holders. */
+  reverses(o: TransferZone): boolean {
+    return this.t.from === o.t.to && this.t.to === o.t.from;
+  }
+
   override tick(ctx: GameContext, dt: number): void {
     const t = this.t;
     this.fullTimer -= dt;
     if (!this.playerInside) {
+      this.setPrompt(ctx, false);
+      return;
+    }
+    if (this.yielding) {
+      // the reverse zone next to this one runs: nothing moves here, and the next burst starts fresh
+      this.interval = this.base;
+      this.timer = t.delay ?? 0;
       this.setPrompt(ctx, false);
       return;
     }
@@ -409,6 +432,7 @@ function hasTop(h: ItemHolder): h is ItemHolder & HasTop {
 export class ZoneSystem {
   private readonly zones: Zone[] = [];
   private needsCompact = false;
+  private readonly pairBuf: TransferZone[] = [];
 
   constructor(readonly ctx: GameContext) {}
 
@@ -446,6 +470,9 @@ export class ZoneSystem {
 
   update(dt: number): void {
     const p = this.ctx.player.position;
+    // pass 1: who counts as inside this step (no callbacks yet)
+    const pairs = this.pairBuf;
+    pairs.length = 0;
     for (let i = 0; i < this.zones.length; i++) {
       const z = this.zones[i]!;
       if (z.removed) continue;
@@ -461,6 +488,28 @@ export class ZoneSystem {
         inside = z.enabled && z.outFor < REACH.grace;
       }
       if (inside && !z.playerInside) z.outFor = 0;
+      z.lastDist = d;
+      z.nextInside = inside;
+      z.yielding = false;
+      if (inside && z instanceof TransferZone) pairs.push(z);
+    }
+    // a player inside both halves of a two-way spot (an era dock's drop and pick-up side by side) would bounce the same
+    // goods between arms and pile: only the zone they stand nearer to runs (a tie goes to the drop-off)
+    for (let i = 0; i < pairs.length; i++) {
+      for (let j = i + 1; j < pairs.length; j++) {
+        const a = pairs[i]!;
+        const b = pairs[j]!;
+        if (!a.reverses(b)) continue;
+        const aFirst = a.lastDist < b.lastDist || (a.lastDist === b.lastDist && !a.takes);
+        (aFirst ? b : a).yielding = true;
+      }
+    }
+    // pass 2: transitions, callbacks, transfers, markers
+    for (let i = 0; i < this.zones.length; i++) {
+      const z = this.zones[i]!;
+      if (z.removed) continue;
+      const inside = z.nextInside;
+      const d = z.lastDist;
       if (inside && !z.playerInside) {
         z.playerInside = true;
         z.handleEnter();
