@@ -15,7 +15,7 @@ import { geo } from '../../../render/materials';
 import { GOLD, MACHINE_SHADES, mixHex, palette, SNOW } from '../../../render/palette';
 import type { Rng } from '../common';
 import type { GroundKit } from '../eraGround';
-import { At, placeDef, spotFor, world, type Def } from './landmarks2to5';
+import { At, placeDef, scaled, spotFor, world, type Def } from './landmarks2to5';
 import { FLOOR_Y } from './lateKit';
 
 type Era = 8 | 9;
@@ -247,7 +247,8 @@ function coolingTowersFloor(g: At): void {
 // ---------------------------------------------------------------------------------------------------------------------
 
 const DEFS: Record<Era, Def> = {
-  8: { geom: lighthouseGeo, glow: lighthouseGlow, floor: lighthouseFloor, fp: { minX: -4.3, maxX: 4.7, minZ: -3.2, maxZ: 3.2 }, h: 6.6, lamps: [[TX, 5.5, TZ, 3.0, 7.0]] },
+  // 0.9.11 Validator note on #82: grown 1.3× so the lighthouse reads at the play camera
+  8: scaled({ geom: lighthouseGeo, glow: lighthouseGlow, floor: lighthouseFloor, fp: { minX: -4.3, maxX: 4.7, minZ: -3.2, maxZ: 3.2 }, h: 6.6, lamps: [[TX, 5.5, TZ, 3.0, 7.0]] }, 1.3),
   9: { geom: coolingTowersGeo, glow: coolingTowersGlow, floor: coolingTowersFloor, fp: { minX: -4.7, maxX: 4.7, minZ: -3.0, maxZ: 4.4 }, h: 8.4, lamps: [[1.0, 1.0, HUT_Z + 0.3, 2.0, 4.4], [-2.7, 6.1, 0.9, 2.2, 4.0], [2.7, 6.1, -0.9, 2.2, 4.0]] },
 };
 
