@@ -29,7 +29,7 @@ import type { VolumeChannel } from '../fx/volume';
 import type { GameContext } from '../core/types';
 import type { Quality } from '../render/Renderer';
 import { desktop, toggleFullscreen, type WindowMode } from '../platform/desktop';
-import { backOut, h, onTap, shield, Slide } from './dom';
+import { backOut, h, keyLabel, onTap, shield, Slide } from './dom';
 import { ICON_CLOSE, ICON_GEAR } from './icons';
 import type { PerfOverlay } from './PerfOverlay';
 import { EarlierSaves } from './EarlierSaves';
@@ -69,18 +69,30 @@ export function writeSettingsTab(tab: SettingsTab): void {
 /** Keys the player's controls (and the camera zoom) listen to on window: a focused slider must keep them to itself. */
 const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract']);
 
+/** Keyboard, mouse and touch controls (every key here is bound in input/Input.ts, ui/HUD.ts or input/menuNav.ts). */
 const CONTROLS: readonly (readonly [string, string])[] = [
-  ['WASD / arrows', 'move'],
-  ['Drag', 'joystick'],
+  ['WASD / arrows', 'walk'],
+  ['Drag', 'walk on touch (joystick)'],
   ['E / Space', 'pick up & pay (hold)'],
-  ['Wheel / + \u2212', 'zoom'],
-  ['Esc', 'menu'],
-  ['T / B', 'map / market'],
-  ['G', 'guidebook'],
+  ['Wheel / + = \u2212 / pinch', 'zoom'],
+  ['Esc', 'close the top card; with none open, fold the quests, then Settings'],
+  ['T / B / G', 'map / market / guidebook'],
   ['Tab / arrows', 'move through menus'],
-  ['M', 'mute'],
-  ['F', 'fullscreen (desktop: F11 / Alt+Enter)'],
-  ['Gamepad', 'stick walks, A picks up & pays, B back, Start menu, Y map, X market'],
+  ['Enter / Space', 'press the focused button'],
+  ['M', 'sound on / off'],
+  ['F / F11 / Alt+Enter', 'fullscreen (Mac: also Ctrl+Cmd+F)'],
+];
+
+/** Gamepad buttons (standard mapping; input/Input.ts padFrame). */
+const PAD_CONTROLS: readonly (readonly [string, string])[] = [
+  ['Stick', 'walk; moves through an open menu'],
+  ['D-pad', 'moves through menus (steps into the shop or build card), else walks'],
+  ['A', 'pick up & pay (hold); press the focused button'],
+  ['B', 'close the open menu'],
+  ['Start', 'Settings, or close the open menu'],
+  ['Y / X', 'map / market'],
+  ['Back / View', 'the top buttons: guidebook, quests, era checklist'],
+  ['LB / RB', 'zoom out / in'],
 ];
 
 export class SettingsPanel {
@@ -134,6 +146,7 @@ export class SettingsPanel {
     this.button = h('button', 'wl-gear', ICON_GEAR);
     this.button.type = 'button';
     this.button.setAttribute('aria-label', 'Settings');
+    this.button.title = keyLabel('Settings', 'Esc');
     shield(this.button);
     onTap(this.button, () => {
       ctx.audio.unlock();
@@ -157,6 +170,7 @@ export class SettingsPanel {
     const x = h('button', 'wl-card-x', ICON_CLOSE);
     x.type = 'button';
     x.setAttribute('aria-label', 'Close settings');
+    x.title = keyLabel('Close', 'Esc');
     onTap(x, () => this.close());
 
     // --- main view: tabs over a scrolling pane
@@ -470,6 +484,10 @@ export class SettingsPanel {
     const list = h('div', 'wl-controls-list');
     for (const [keys, what] of CONTROLS) list.appendChild(h('div', 'wl-controls-item', `<b>${keys}</b> ${what}`));
     controls.appendChild(list);
+    controls.appendChild(h('div', 'wl-controls-title is-sub', 'Gamepad'));
+    const padList = h('div', 'wl-controls-list');
+    for (const [keys, what] of PAD_CONTROLS) padList.appendChild(h('div', 'wl-controls-item', `<b>${keys}</b> ${what}`));
+    controls.appendChild(padList);
     controls.appendChild(h('div', 'wl-controls-note', 'Drop-offs happen on their own. Walk over cash to bank it.'));
     pg.appendChild(controls);
     // 0.9.11: the Guidebook (every good, machine, crew and rule of the eras reached so far)

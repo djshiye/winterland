@@ -28,7 +28,7 @@ import { ERAS } from '../eras/data';
 import { regionLayout } from '../eras/layout';
 import { climbOpen, gateNeed, hasGate, inGate as inGateOf } from '../eras/gate';
 import { BAND_PIPS, bandView, eraCrewDelta, eraRoman, industryEraNote, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
-import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
+import { backOut, cubicOut, h, keyLabel, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
 import { hexCss, ICON_CLOSE, ICON_LOCK, upgradeIcon } from './icons';
 import './ages.css';
@@ -145,11 +145,13 @@ export class ShopPanel {
     });
     head.classList.add('is-stacked');
     const tabs = h('div', 'wl-shop-tabs');
+    tabs.setAttribute('role', 'tablist');
     this.tabsEl = tabs;
     for (const t of TABS) {
       const label = t.short ? `<span class="wl-tab-long">${t.label}</span><span class="wl-tab-short">${t.short}</span>` : `<span>${t.label}</span>`;
-      const b = h('button', 'wl-shop-tab', `${label}<i class="wl-dot"></i>`);
+      const b = h('button', 'wl-shop-tab', `${label}<i class="wl-dot" aria-hidden="true"></i>`);
       b.type = 'button';
+      b.setAttribute('role', 'tab');
       if (t.group === 'lumberjack') {
         this.lumberTab = { long: b.querySelector('.wl-tab-long') as HTMLSpanElement, short: b.querySelector('.wl-tab-short') as HTMLSpanElement };
       }
@@ -164,6 +166,7 @@ export class ShopPanel {
     const close = h('button', 'wl-shop-close', ICON_CLOSE);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close shop');
+    close.title = keyLabel('Close', 'Esc');
     onTap(close, () => {
       ctx.audio.play('click');
       this.close();
@@ -273,7 +276,10 @@ export class ShopPanel {
 
   private setTab(group: Tab): void {
     this.tab = group;
-    for (const [g, el] of this.tabEls) el.classList.toggle('is-on', g === group);
+    for (const [g, el] of this.tabEls) {
+      el.classList.toggle('is-on', g === group);
+      el.setAttribute('aria-selected', String(g === group));
+    }
     if (group !== 'crew') this.prio.style.display = 'none';
     this.layoutKey = '';
     this.applyLayout();
@@ -421,6 +427,8 @@ export class ShopPanel {
       const b = h('button', 'wl-prio-opt', labels[v].text);
       b.type = 'button';
       b.title = labels[v].hint;
+      // the hover hint, read out too (touch and screen-reader players never see a title)
+      b.setAttribute('aria-description', labels[v].hint);
       b.setAttribute('role', 'radio');
       onTap(b, () => {
         this.ctx.audio.unlock();
@@ -590,10 +598,20 @@ export class ShopPanel {
         c.shown.btn = btnHtml;
         c.btn.innerHTML = btnHtml;
       }
+      // spoken: what the button does and why it can't yet (the price alone, or a grey colour, said neither)
+      const say =
+        cls === 'is-max'
+          ? `${def.label}: max level`
+          : cls === 'is-lock'
+            ? `${def.label}: locked, ${req ?? ''}`
+            : `${lvl === 0 && (c.group === 'crew' || id.endsWith('Crew')) ? 'Hire' : 'Buy'} ${def.label}: ${formatMoney(cost ?? 0)}${cls === 'is-poor' ? ', not enough money yet' : ''}`;
+      if (c.btn.getAttribute('aria-label') !== say) c.btn.setAttribute('aria-label', say);
       if (cls !== c.shown.cls) {
         c.shown.cls = cls;
         c.btn.className = `wl-shop-buy ${cls}`;
-        c.btn.disabled = cls !== 'is-buy';
+        // aria-disabled, not disabled: a keyboard or gamepad player keeps their place after a buy empties the purse
+        // (a disabled button drops the focus), and buy() already refuses what can't be bought
+        c.btn.setAttribute('aria-disabled', String(cls !== 'is-buy'));
         c.root.classList.toggle('is-locked', cls === 'is-lock');
         c.root.classList.toggle('is-maxed', cls === 'is-max');
       }

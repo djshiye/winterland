@@ -11,10 +11,11 @@ import { BUSINESSES, TOWN, type BusinessDef, type BusinessId } from '../config';
 import type { GameContext, ItemKind } from '../core/types';
 import { MATERIALS, MATERIAL_KINDS, type MaterialKind } from '../eras/data';
 import type { Town } from '../town/Town';
-import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
+import { backOut, cubicOut, h, keyLabel, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
 import { buildingIcon, ICON_CLOSE, ICON_COIN, ICON_LOCK, ICON_LOG, ICON_WORKER } from './icons';
 import './build.css';
+import { markPanel } from './dialog';
 
 const ITEM_NAME: Record<ItemKind, string> = {
   log: 'logs',
@@ -64,13 +65,16 @@ export class BuildPanel {
 
     const head = h('div', 'wl-build-head');
     const titles = h('div', 'wl-build-titles');
-    titles.appendChild(h('div', 'wl-build-title wl-title', 'Build'));
+    const title = h('div', 'wl-build-title wl-title', 'Build');
+    titles.appendChild(title);
+    markPanel(this.root, title, 'wl-build-title');
     this.sub = h('div', 'wl-build-sub', 'Choose what to build here');
     titles.appendChild(this.sub);
     head.appendChild(titles);
     const close = h('button', 'wl-build-close', ICON_CLOSE);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close build menu');
+    close.title = keyLabel('Close', 'Esc');
     onTap(close, () => {
       ctx.audio.play('click');
       this.close();
@@ -165,7 +169,6 @@ export class BuildPanel {
     const root = h('div', 'wl-build-card');
     root.classList.toggle('is-locked', !available);
     root.classList.toggle('is-current', current);
-    root.setAttribute('role', 'button');
     root.appendChild(h('div', 'wl-build-icon', buildingIcon(def.id)));
     const mid = h('div', 'wl-build-mid');
     mid.appendChild(h('div', 'wl-build-name', live.label));
@@ -178,15 +181,21 @@ export class BuildPanel {
     const flow = [d.needs, d.makes].filter(Boolean).join(' · ');
     if (flow) mid.appendChild(h('div', 'wl-build-flow', flow));
     root.appendChild(mid);
-    const go = h('div', 'wl-build-go');
+    // a real button, so the keyboard and the gamepad reach every card (a locked one too: it reads out why)
+    const go = h('button', 'wl-build-go');
+    go.type = 'button';
     if (!available) {
       go.className = 'wl-build-go is-lock';
       go.innerHTML = `<span class="wl-lock">${ICON_LOCK}</span><span class="wl-req">${reason ?? 'Locked'}</span>`;
+      go.setAttribute('aria-disabled', 'true');
+      go.setAttribute('aria-label', `${live.label}: locked, ${reason ?? 'not yet'}`);
     } else {
       go.textContent = current ? 'Chosen' : 'Build';
+      go.setAttribute('aria-label', current ? `${live.label}: chosen` : `Build ${live.label}`);
     }
     root.appendChild(go);
     if (available) onTap(root, () => this.pick(def.id));
+    else onTap(go, () => this.ctx.audio.play('full', { volume: 0.5 })); // pressed with Enter / A: a soft "not yet"
     this.cards.push({ id: def.id, root });
     return root;
   }

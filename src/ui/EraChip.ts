@@ -205,7 +205,7 @@ export class EraChip {
     const banner = this.done ? null : guideGoal(state);
     // past the final gate only 100 % reads as ready; a mirrored hands-on step (feed a machine) never reads as "for sale"
     if (finished || (banner && !isExpandGoal(banner))) ready = false;
-    const line = banner ? chipGoalText(banner) : goal?.text;
+    const line = (banner ? chipGoalText(banner) : goal?.text)?.trim();
     let text = line ? (ready ? line : `Next: ${line}`) : '';
     if (!banner && !goal && finished) {
       const missing = this.done ? null : nextMissing(state);
@@ -218,7 +218,9 @@ export class EraChip {
       this.root.classList.toggle('is-ready', ready);
     }
     // the visible count and goal name the button (a fixed aria-label would hide them from screen readers)
-    const label = `${this.done ? 'Your stats' : 'Era checklist'}: ${this.lastPct}${this.lastCount ? ` ${this.lastCount}` : ''}${text ? `. ${text}` : ''}`;
+    // spoken words, not the chip's shorthand ("S8/10" read out as "S eight slash ten")
+    const count = finished ? '' : `, ${c.ok} of ${c.total} done, settlement ${Math.min(c.settlement, c.settlementNeed)} of ${c.settlementNeed}`;
+    const label = `${this.done ? 'Your stats' : 'Era checklist'}: ${this.pct}% complete${count}${text ? `. ${text}` : ''}`;
     if (label !== this.lastLabel) {
       this.lastLabel = label;
       this.root.setAttribute('aria-label', label);

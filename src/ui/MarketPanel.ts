@@ -11,12 +11,13 @@ import { ERAS, ERA_NAMES, INVEST, MACHINES, MATERIALS, SURVIVAL_VALUE, type Inve
 import { ORDER_MAX_UNITS } from '../core/Market';
 import { investMaxPositions } from '../core/demand';
 import type { GameContext, InvestmentState, ItemKind, MaterialKind } from '../core/types';
-import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
+import { backOut, cubicOut, h, keyLabel, onTap, shield, Slide } from './dom';
 import { formatDuration, formatMoney } from './format';
 import { ICON_CLOSE } from './icons';
 import { materialIcon, materialLabel } from './materialIcons';
 import './market.css';
 import { inkOn } from './theme';
+import { markPanel } from './dialog';
 
 type Tab = 'prices' | 'trade' | 'invest';
 
@@ -138,11 +139,15 @@ export class MarketPanel {
     this.root.style.display = 'none';
 
     const head = h('div', 'wl-shop-head');
-    head.appendChild(h('div', 'wl-shop-title wl-title', 'Market'));
+    const title = h('div', 'wl-shop-title wl-title', 'Market');
+    head.appendChild(title);
+    markPanel(this.root, title, 'wl-market-title');
     const tabs = h('div', 'wl-shop-tabs');
+    tabs.setAttribute('role', 'tablist');
     for (const t of TABS) {
       const b = h('button', 'wl-shop-tab', `<span>${t.label}</span>`);
       b.type = 'button';
+      b.setAttribute('role', 'tab');
       onTap(b, () => {
         ctx.audio.unlock();
         ctx.audio.play('click');
@@ -155,6 +160,7 @@ export class MarketPanel {
     const close = h('button', 'wl-shop-close', ICON_CLOSE);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close market');
+    close.title = keyLabel('Close', 'Esc');
     onTap(close, () => {
       ctx.audio.play('click');
       this.close();
@@ -238,7 +244,10 @@ export class MarketPanel {
   /** Switch tab (the HUD / tests may call it). */
   setTab(tab: Tab): void {
     this.tab = tab;
-    for (const [id, el] of this.tabEls) el.classList.toggle('is-on', id === tab);
+    for (const [id, el] of this.tabEls) {
+      el.classList.toggle('is-on', id === tab);
+      el.setAttribute('aria-selected', String(id === tab));
+    }
     for (const [id, el] of this.sections) el.style.display = id === tab ? '' : 'none';
     this.list.scrollTop = 0;
     this.since = Infinity;

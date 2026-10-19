@@ -19,7 +19,8 @@ import type { GameContext } from '../core/types';
 import { DISTRICTS, ERAS, REGIONS, ROADS, type ERect } from '../eras/data';
 import { climbOpen, gateCount } from '../eras/gate';
 import { eraTrail, travelPoints, type TravelPoint } from '../eras/layout';
-import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
+import { backOut, cubicOut, h, keyLabel, onTap, shield, Slide, touchOnly } from './dom';
+import { markDialog } from './dialog';
 import { eraRoman, groupTravelPoints, travelNote } from './agesLogic';
 import { hexCss, ICON_CLOSE, ICON_HOUSE, ICON_LOCK, ICON_PIN, shadeCss } from './icons';
 import { readableOn } from './contrast';
@@ -83,11 +84,14 @@ export class MapPanel {
     this.card = h('div', 'wl-card wl-map-card');
     const head = h('div', 'wl-map-head');
     const titles = h('div', 'wl-map-titles');
-    titles.append(h('div', 'wl-map-title wl-title', 'Map'), h('div', 'wl-map-sub', 'Tap a place to travel there'));
+    const title = h('div', 'wl-map-title wl-title', 'Map');
+    titles.append(title, h('div', 'wl-map-sub', touchOnly() ? 'Tap a place to travel there' : 'Pick a place on the map or in the list to travel there'));
+    markDialog(this.root, title, 'wl-map-title');
     head.appendChild(titles);
     const close = h('button', 'wl-build-close', ICON_CLOSE);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close map');
+    close.title = keyLabel('Close', 'Esc');
     onTap(close, () => {
       ctx.audio.play('click');
       this.close();
@@ -109,6 +113,16 @@ export class MapPanel {
       const el = (e.target as Element).closest('[data-tp]');
       const p = el ? this.points.get(el.getAttribute('data-tp') ?? '') : undefined;
       if (p) this.travel(p);
+    });
+    // 0.9.12: the places on the map are focusable too (arrows / D-pad reach them); Enter or Space travels
+    this.view.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const el = (e.target as Element).closest('[data-tp]');
+      const p = el ? this.points.get(el.getAttribute('data-tp') ?? '') : undefined;
+      if (!p) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.travel(p);
     });
 
     ctx.events.on('map:open', () => this.open());
@@ -168,7 +182,7 @@ export class MapPanel {
     const { state } = this.ctx;
     const age = state.eras.age;
     const out: string[] = [];
-    out.push(`<svg viewBox="${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}" role="img" aria-label="World map" preserveAspectRatio="xMidYMid meet" style="--k:${K.toFixed(3)}">`);
+    out.push(`<svg viewBox="${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}" role="group" aria-label="World map" preserveAspectRatio="xMidYMid meet" style="--k:${K.toFixed(3)}">`);
     out.push(`<rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" rx="5" fill="${hexCss(SNOW)}"/>`);
     // roads
     for (const r of ROADS) {
@@ -201,7 +215,7 @@ export class MapPanel {
       const cx = (d.rect.minX + d.rect.maxX) / 2;
       const cz = (d.rect.minZ + d.rect.maxZ) / 2;
       out.push(
-        `<g ${open && tp ? `data-tp="${tp.id}" class="is-open"` : ''}>` +
+        `<g ${open && tp ? tpAttrs(tp) : ''}>` +
           `<rect ${rectAttrs(d.rect)} rx="2.5" fill="${hexCss(BLOCK)}" stroke="${hexCss(readableOn(e.colors.accent, BLOCK))}" stroke-width="1.1" ${open ? '' : 'opacity="0.35" stroke-dasharray="3 2"'}/>` +
           `<text class="wl-map-dname" x="${cx}" y="${cz + 2}" ${d.name.length > 9 ? 'textLength="26" lengthAdjust="spacingAndGlyphs"' : ''} ${open ? '' : 'opacity="0.6"'}>${d.name}</text></g>`,
       );
@@ -215,7 +229,7 @@ export class MapPanel {
       const bought = age >= n;
       const open = !!tp?.open;
       out.push(
-        `<g ${open && tp ? `data-tp="${tp.id}" class="is-open"` : ''}>` +
+        `<g ${open && tp ? tpAttrs(tp) : ''}>` +
           `<rect ${rectAttrs(r.rect)} rx="2.5" fill="${hexCss(e.colors.ground)}" stroke="${hexCss(e.colors.accent)}" stroke-width="1.4" ${bought ? '' : `opacity="${open ? 0.7 : 0.38}" stroke-dasharray="3 2"`}/>` +
           `<text class="wl-map-num" x="${(r.rect.minX + r.rect.maxX) / 2}" y="${(r.rect.minZ + r.rect.maxZ) / 2 + 3 * K}" fill="${shadeCss(e.colors.accent, -0.35)}" ${bought ? '' : 'opacity="0.55"'}>${eraRoman(n)}</text>` +
           `<text class="wl-map-name" x="${(r.rect.minX + r.rect.maxX) / 2}" y="${(r.rect.minZ + r.rect.maxZ) / 2 + 9 * K}" ${bought ? '' : 'opacity="0.55"'}>${e.region}</text></g>`,
@@ -234,7 +248,7 @@ export class MapPanel {
     // home points as tappable pins
     for (const p of pts) {
       if (p.kind !== 'home') continue;
-      out.push(`<g ${p.open ? `data-tp="${p.id}" class="is-open"` : ''}><circle cx="${p.x}" cy="${p.z}" r="${(3 * K).toFixed(2)}" fill="${hexCss(CREAM)}" stroke="${hexCss(INK)}" stroke-width="${(1.2 * K).toFixed(2)}" ${p.open ? '' : 'opacity="0.4"'}/></g>`);
+      out.push(`<g ${p.open ? tpAttrs(p) : ''}><circle cx="${p.x}" cy="${p.z}" r="${(3 * K).toFixed(2)}" fill="${hexCss(CREAM)}" stroke="${hexCss(INK)}" stroke-width="${(1.2 * K).toFixed(2)}" ${p.open ? '' : 'opacity="0.4"'}/></g>`);
     }
     out.push(`<circle class="wl-map-ring" cx="0" cy="0" r="${(4 * K).toFixed(2)}" fill="none" stroke="${BERRY}" stroke-width="${K.toFixed(2)}"/>`);
     out.push(`<circle class="wl-map-you" cx="0" cy="0" r="${(2.7 * K).toFixed(2)}" fill="${BERRY}" stroke="${hexCss(CREAM)}" stroke-width="${(1.1 * K).toFixed(2)}"/>`);
@@ -334,4 +348,13 @@ export class MapPanel {
       }
     }
   }
+}
+
+/** A place on the map the player can travel to: tappable, and focusable for the keyboard and the gamepad. */
+function tpAttrs(p: TravelPoint): string {
+  return `data-tp="${p.id}" class="is-open" tabindex="0" role="button" aria-label="Travel to ${escAttr(p.label)}"`;
+}
+
+function escAttr(t: string): string {
+  return t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
