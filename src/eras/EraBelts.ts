@@ -7,6 +7,8 @@
  *
  * The belts are stations/Conveyor.ts (Survival's roller conveyor): they pull from the producer's output pile and hand
  * over into the consumer's hopper only while it has room (the hopper's cap), so belts and workers share the work.
+ * 0.9.11: a belt leaves on the producer's pile what the era builders still need of its kind (EraCrew.hold), so a
+ * chosen building's material is never all fed away before a builder can carry it.
  */
 import type { GameContext, Item, ItemKind } from '../core/types';
 import type { EraUpgradeId } from '../core/types';
@@ -72,6 +74,8 @@ export class EraBelts {
         to: to.input,
         kind: link.kind as ItemKind,
         itemYaw: 0,
+        // 0.9.11: what the era builders still need of this kind stays on the pile for them
+        keep: () => this.region.crew.hold(link.kind as ItemKind),
       });
       belt.build(instant);
       this.belts.set(key, { link, belt });

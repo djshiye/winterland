@@ -172,7 +172,7 @@ export function regionLayout(n: number): RegionLayout {
     inward,
     inside: { x: gx, z: edgeZ + inward * 3 },
     expansionPad: { x: gx + 4.5, z: roadZ },
-    padSize: 2.2,
+    padSize: 2.6,
     // the yard's facilities hug the gate: depot + dock west of it, Jack + the shop mat east of it
     depot: { x: gx - 10.5, z: bandZ },
     dock: { x: gx - 4.5, z: bandZ },

@@ -16,7 +16,7 @@ import * as THREE from 'three';
 import { PALETTE, TIMING, rect } from '../config';
 import { createPadModel, createPadSign, createPadTexture, disposePriceTag, formatCost, hangPriceTag, setPadSignLabel } from '../assets/pads';
 import { PadFeel, PadRing, playPadCelebrate } from '../fx/PadRing';
-import { PAD_CASH_FLIGHT, motionScale } from '../fx/padJuice';
+import { PAD_CASH_FLIGHT, motionScale, signHeight } from '../fx/padJuice';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot, UpgradeId } from '../core/types';
 import type { Zone } from '../items/Zones';
 import type { XZ } from './layout';
@@ -54,6 +54,8 @@ export class EraLevelPad implements ItemHolder {
   private readonly ring: PadRing;
   private readonly feel: PadFeel;
   private readonly tmp = new THREE.Vector3();
+  /** Sign height, eased up over the player's stack while they stand on the pad (signHeight). */
+  private signY = SIGN_HEIGHT;
 
   constructor(
     private readonly ctx: GameContext,
@@ -141,10 +143,14 @@ export class EraLevelPad implements ItemHolder {
     const money = this.ctx.economy.money;
     const eager = this.remaining > 0 && money >= this.remaining;
     const canPay = this.pending > 0 || (this.remaining - this.pending > 0 && money >= 5);
-    this.feel.update(dt, t, this.pulse, eager, canPay, this.ctx.zones.isPlayerIn(this.zone.area));
+    const inside = this.ctx.zones.isPlayerIn(this.zone.area);
+    this.feel.update(dt, t, this.pulse, eager, canPay, inside);
     this.ring.update(dt, t, eager);
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
-    this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.at.z) * 0.06 * motionScale();
+    const arms = this.ctx.player.arms;
+    const top = inside && arms.size > 0 ? arms.topWorldPosition(this.tmp).y : 0;
+    this.signY += (signHeight(SIGN_HEIGHT, inside, top) - this.signY) * Math.min(1, dt * 8);
+    this.sign.position.y = this.signY + Math.sin(t * 2.2 + this.at.z) * 0.06 * motionScale();
   }
 
   /** Remove for good (the machine went away): what was paid stays in state.padPaid for the next pad of this type. */

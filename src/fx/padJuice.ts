@@ -177,3 +177,15 @@ export function breath(t: number, reduced: boolean = reducedMotion()): number {
   if (reduced) return 0.55;
   return 0.35 + 0.4 * (0.5 + 0.5 * Math.sin(t * 1.9));
 }
+
+/** 0.9.11: how far a pad's tag card hangs below its sign's centre (world metres at the usual sign scales), plus air. */
+const TAG_CLEAR = 1.2;
+
+/**
+ * 0.9.11 (Dino's tag hid behind his brick stack): the height a pad's sign should float at. While the player stands on
+ * the pad with a stack in the arms reaching `stackTop` (world y, 0 when empty) the sign rises so its tag hangs above
+ * the stack; otherwise it rests at `base`. Pure; the pads ease toward it.
+ */
+export function signHeight(base: number, inside: boolean, stackTop: number): number {
+  return inside && stackTop > 0 ? Math.max(base, stackTop + TAG_CLEAR) : base;
+}
