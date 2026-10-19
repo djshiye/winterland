@@ -31,7 +31,12 @@ function offRoad(start: XZ, pts: readonly XZ[], roads: readonly ERect[], crossin
   for (const p of pts) {
     for (let k = 0; k <= 40; k++) {
       const q = { x: prev.x + ((p.x - prev.x) * k) / 40, z: prev.z + ((p.z - prev.z) * k) / 40 };
-      if (roads.some((r) => inRect(r, q, -0.05))) expect(crossings.some((c) => inRect(c, q, EPS)), `on the road at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBe(true);
+      const on = roads.find((r) => inRect(r, q, -0.05));
+      if (!on) continue;
+      expect(crossings.some((c) => inRect(c, q, EPS)), `on the road at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBe(true);
+      // straight across, never diagonally through a junction: hardly any way along the traffic while on the road
+      const along = on.maxX - on.minX >= on.maxZ - on.minZ ? Math.abs(p.x - prev.x) : Math.abs(p.z - prev.z);
+      expect(along, `cuts along the road at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBeLessThanOrEqual(1.2 + EPS);
     }
     prev = p;
   }
@@ -121,8 +126,8 @@ describe('cityRoute: every era from its region gate to every lot of its district
         checkPath(g, there!, allowed, footprints);
         // 0.9.12: off the roadway (between the trucks' lanes) except where it crosses: a junction or the gate
         offRoad(g, there!, roads, crossings);
-        // and every leg inside the district stays on its walkways
-        for (const p of there!) if (inRect(district, p, -EPS)) expect(districtWalkways(n).some((w) => inRect(w, p, EPS))).toBe(true);
+        // and every leg inside the district stays on its walkways (the street verge just inside its edge aside)
+        for (const p of there!) if (inRect(district, p, -0.6)) expect(districtWalkways(n).some((w) => inRect(w, p, EPS))).toBe(true);
         const back = cityRoute(n, spot, g)!;
         expect(back.at(-1)).toEqual(g);
         checkPath(spot, back, allowed, footprints);

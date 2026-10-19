@@ -4,7 +4,7 @@
  *
  * - `routeOver(rects, a, b)`: a waypoint polyline from `a` to `b` (a excluded, b last) whose every leg stays inside one
  *   rect (rects are convex, so a straight leg between two points of the same rect never leaves it). Rects that touch
- *   or overlap along at least PASS metres are joined at the centre of their overlap; the shortest chain wins
+ *   or overlap along at least PASS metres (or cross, CROSS both ways) are joined at the centre of their overlap; the shortest chain wins
  *   (Dijkstra). Each leg walks the strip's centre line (a long strip's lane centre), so people keep to the middle of a
  *   road. A point outside every rect is first snapped onto the nearest one.
  * - `districtWalkways(n)`: the clear walk network of district n: a narrow inner sidewalk strip (clear of the street
@@ -13,7 +13,8 @@
  * - `cityRoute(era, a, b)`: the era foreman's way between its region's gate (on the region road) and a lot of its
  *   district, over the verges of the roads open by that era and that district's walkways. 0.9.12 (Dino: "clear roads
  *   where you're meant to walk on, the people and the cars"): people keep to a strip beside each road (`roadVerges`)
- *   and cross only at junctions and at the gate, so they never walk down the middle between the trucks' lanes.
+ *   and cross only straight over a road, on a band at a junction's edge or at the gate, so they never walk down the
+ *   middle between the trucks' lanes or cut a corner through the traffic.
  */
 import { LAYOUT } from '../config';
 import { DISTRICTS, REGIONS, ROADS, districtDef, type ERect } from '../eras/data';
@@ -23,6 +24,8 @@ import { DISTRICT_MARGIN, LOT_PAD, districtLots, type LotFrame, type XZ } from '
 
 /** Shortest shared edge (metres) for two rects to count as joined. */
 const PASS = 1;
+/** Two walk strips crossing (a verge corner) overlap this far both ways: they join there too. */
+const CROSS = 0.29;
 const EPS = 1e-6;
 
 export const inRect = (r: ERect, p: XZ, eps = 1e-4): boolean => p.x >= r.minX - eps && p.x <= r.maxX + eps && p.z >= r.minZ - eps && p.z <= r.maxZ + eps;
@@ -81,7 +84,7 @@ export function routeOver(rects: readonly WalkRect[], a: XZ, b: XZ): XZ[] | null
       const minZ = Math.max(p.minZ, q.minZ);
       const maxZ = Math.min(p.maxZ, q.maxZ);
       if (maxX < minX - EPS || maxZ < minZ - EPS) continue;
-      if (Math.max(maxX - minX, maxZ - minZ) < PASS) continue;
+      if (Math.max(maxX - minX, maxZ - minZ) < PASS && Math.min(maxX - minX, maxZ - minZ) < CROSS) continue;
       nodes.push({ x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 });
     }
   }
@@ -251,9 +254,10 @@ function cut(lo: number, hi: number, spans: readonly [number, number][]): [numbe
 
 /**
  * The walk strips beside road `r` (pure): one along each long edge, `VERGE_*` outside it, run past both ends so the
- * verges of joining roads meet, and cut where they would cross a region or the Market Town.
+ * verges of joining roads meet, and cut where they would cross a region, the Market Town or another road's carriageway
+ * (`others`: a walker crosses a road only on a crossing, never down a verge that runs into the traffic).
  */
-export function roadVerges(r: ERect, street: boolean): ERect[] {
+export function roadVerges(r: ERect, street: boolean, others: readonly ERect[] = []): ERect[] {
   const o = street ? VERGE_STREET : VERGE_TRAIL;
   const ext = o + VERGE_HALF;
   const alongX = r.maxX - r.minX >= r.maxZ - r.minZ;
@@ -263,7 +267,7 @@ export function roadVerges(r: ERect, street: boolean): ERect[] {
     const lo = (alongX ? r.minX : r.minZ) - ext;
     const hi = (alongX ? r.maxX : r.maxZ) + ext;
     const spans: [number, number][] = [];
-    for (const b of VERGE_BLOCKS) {
+    for (const b of [...VERGE_BLOCKS, ...others.map((q) => grow(q, ROAD_EDGE))]) {
       const [c0, c1] = alongX ? [b.minZ, b.maxZ] : [b.minX, b.maxX];
       if (c + VERGE_HALF <= c0 || c - VERGE_HALF >= c1) continue;
       spans.push(alongX ? [b.minX, b.maxX] : [b.minZ, b.maxZ]);
@@ -275,20 +279,38 @@ export function roadVerges(r: ERect, street: boolean): ERect[] {
   return out;
 }
 
-/** Where two roads join: their overlap, grown over both verges, crossed straight (the crossing). */
-function junctions(roads: readonly ERect[]): WalkRect[] {
+/** How far short of another road's carriageway a verge stops (it still overlaps that road's own verge). */
+const ROAD_EDGE = 0.05;
+/** Half the width of a crossing band. */
+const CROSS_HALF = 0.6;
+
+/**
+ * Where two roads meet: a crossing band over each road, on the line of every verge of the other road that runs into it,
+ * straight across at right angles like a zebra at the junction's edge (never diagonally through the junction).
+ */
+function junctionCrossings(roads: readonly { rect: ERect; street: boolean }[]): WalkRect[] {
   const out: WalkRect[] = [];
-  const g = VERGE_TRAIL + VERGE_HALF + 0.05;
-  for (let i = 0; i < roads.length; i++) {
-    for (let j = i + 1; j < roads.length; j++) {
-      const p = roads[i]!;
-      const q = roads[j]!;
-      const minX = Math.max(p.minX, q.minX);
-      const maxX = Math.min(p.maxX, q.maxX);
-      const minZ = Math.max(p.minZ, q.minZ);
-      const maxZ = Math.min(p.maxZ, q.maxZ);
-      if (maxX < minX - EPS || maxZ < minZ - EPS || Math.max(maxX - minX, maxZ - minZ) < PASS) continue;
-      out.push({ minX: minX - g, maxX: maxX + g, minZ: minZ - g, maxZ: maxZ + g, direct: true });
+  for (const p of roads) {
+    const pAlongX = p.rect.maxX - p.rect.minX >= p.rect.maxZ - p.rect.minZ;
+    const o = p.street ? VERGE_STREET : VERGE_TRAIL;
+    const lines = pAlongX ? [p.rect.minZ - o, p.rect.maxZ + o] : [p.rect.minX - o, p.rect.maxX + o];
+    for (const q of roads) {
+      if (q === p) continue;
+      const r = q.rect;
+      if (Math.max(p.rect.minX, r.minX) > Math.min(p.rect.maxX, r.maxX) + EPS || Math.max(p.rect.minZ, r.minZ) > Math.min(p.rect.maxZ, r.maxZ) + EPS) continue;
+      const qAlongX = r.maxX - r.minX >= r.maxZ - r.minZ;
+      if (qAlongX === pAlongX) continue; // a road running on: its verges carry on, nothing to cross
+      const g = (q.street ? VERGE_STREET : VERGE_TRAIL) + VERGE_HALF + 0.05;
+      for (const c of lines) {
+        // p's verge on line c crosses q's carriageway: the band runs along c over q and both its verges
+        if (qAlongX) {
+          if (c < r.minX || c > r.maxX) continue;
+          out.push({ minX: c - CROSS_HALF, maxX: c + CROSS_HALF, minZ: r.minZ - g, maxZ: r.maxZ + g, direct: true });
+        } else {
+          if (c < r.minZ || c > r.maxZ) continue;
+          out.push({ minX: r.minX - g, maxX: r.maxX + g, minZ: c - CROSS_HALF, maxZ: c + CROSS_HALF, direct: true });
+        }
+      }
     }
   }
   return out;
@@ -302,8 +324,8 @@ export function cityWalkRects(era: number): readonly WalkRect[] {
   const hit = routeRects.get(era);
   if (hit) return hit;
   const open = ROADS.filter((r) => r.opensAt <= era);
-  const out: WalkRect[] = open.flatMap((r) => (NO_VERGE.has(r.id) ? [] : roadVerges(r.rect, isStreet(r.id))));
-  out.push(...junctions(open.map((r) => r.rect)));
+  const out: WalkRect[] = open.flatMap((r) => (NO_VERGE.has(r.id) ? [] : roadVerges(r.rect, isStreet(r.id), open.filter((o) => o !== r).map((o) => o.rect))));
+  out.push(...junctionCrossings(open.map((r) => ({ rect: r.rect, street: isStreet(r.id) }))));
   if (DISTRICTS[era]) out.push(...districtWalkways(era));
   routeRects.set(era, out);
   return out;

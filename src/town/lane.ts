@@ -29,7 +29,7 @@ export const LANE_WALK: Rect = { minX: 23.6, maxX: 32.4, minZ: TOWN_SOUTH + 0.4,
 /** The player's walk rect for the lane (lot footprints and props keep their own colliders). */
 export const LANE_PLAYER_WALK: Rect = { minX: LANE.minX + 0.4, maxX: LANE.maxX - 0.4, minZ: TOWN_SOUTH - 0.2, maxZ: LANE.maxZ };
 /** The walk through the south fence gap between the square and the lane (the avenue's own, world/env/frontier.ts TOWN_GAPS). */
-export const LANE_GAP_WALK: Rect = { minX: 25.9, maxX: 28.9, minZ: T.square.maxZ - 0.2, maxZ: TOWN_SOUTH + 0.2 };
+export const LANE_GAP_WALK: Rect = { minX: 25.85, maxX: 28.85, minZ: T.square.maxZ - 0.2, maxZ: TOWN_SOUTH + 0.2 };
 /** Inside the square at the south fence gap, and just past the fence in the lane. */
 export const GAP_IN: XZ = { x: SPINE_X, z: T.square.maxZ - 0.6 };
 export const GAP_OUT: XZ = { x: SPINE_X, z: TOWN_SOUTH + 1.0 };
