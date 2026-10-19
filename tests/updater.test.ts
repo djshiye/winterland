@@ -22,7 +22,8 @@ const core = require('../desktop/update-core.cjs') as {
   failCodeFromArgv(argv: unknown): string | null;
   installCommand(o: Record<string, string | undefined>): { cmd: string; args: string[] };
   isNewer(a: unknown, b: unknown): boolean;
-  parseSums(text: unknown, target: string): { version: string; zipName: string; sha: string; notesSha: string | null } | null;
+  parseSums(text: unknown, target: string, o?: { appImage?: boolean }): { version: string; zipName: string; sha: string; notesSha: string | null } | null;
+  isAppImageHead(head: Uint8Array | null): boolean;
   targetOf(platform: string, arch: string): string | null;
 };
 const read = (p: string): string => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
@@ -84,6 +85,28 @@ describe('SHA256SUMS.txt', () => {
     expect(core.parseSums(sums, 'beos-x64')).toBeNull();
   });
 
+  it('0.9.10: an AppImage copy picks its AppImage line; zip copies (and older games) ignore those lines', () => {
+    const withImages = `${sums}\n${C}  Winterland-0.9.8-x86_64.AppImage\n${B}  Winterland-0.9.8-aarch64.AppImage`;
+    expect(core.parseSums(withImages, 'linux-x64')?.zipName).toBe('Winterland-0.9.8-linux-x64.zip');
+    expect(core.parseSums(withImages, 'linux-x64', { appImage: true })).toEqual({ version: '0.9.8', zipName: 'Winterland-0.9.8-x86_64.AppImage', sha: C, notesSha: C });
+    expect(core.parseSums(withImages, 'linux-arm64', { appImage: true })?.sha).toBe(B);
+    // no AppImage in the release, two for one computer, another version than the zips, or not Linux: refused
+    expect(core.parseSums(sums, 'linux-x64', { appImage: true })).toBeNull();
+    expect(core.parseSums(`${withImages}\n${A}  Winterland-0.9.8-x86_64.AppImage`, 'linux-x64', { appImage: true })).toBeNull();
+    expect(core.parseSums(`${sums}\n${C}  Winterland-0.9.9-x86_64.AppImage`, 'linux-x64', { appImage: true })).toBeNull();
+    expect(core.parseSums(`${sums}\n${C}  Winterland-0.9.8-x86_64.appimage`, 'linux-x64', { appImage: true })).toBeNull();
+    expect(core.parseSums(withImages, 'win32-x64', { appImage: true })).toBeNull();
+  });
+
+  it('only a file that starts like an AppImage (ELF, "AI" 2) is ever replaced', () => {
+    const head = Uint8Array.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0, 0x41, 0x49, 0x02, 0, 0, 0, 0, 0]);
+    expect(core.isAppImageHead(head)).toBe(true);
+    expect(core.isAppImageHead(Uint8Array.from([...head.slice(0, 10), 0x01]))).toBe(false); // type 1
+    expect(core.isAppImageHead(Uint8Array.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0, 0, 0, 0]))).toBe(false); // plain program
+    expect(core.isAppImageHead(new TextEncoder().encode('#!/bin/sh\necho hi\n'))).toBe(false);
+    expect(core.isAppImageHead(null)).toBe(false);
+  });
+
   it('compares 3-part versions only', () => {
     expect(core.isNewer('0.9.10', '0.9.9')).toBe(true);
     expect(core.isNewer('0.9.8', '0.9.8')).toBe(false);
@@ -104,6 +127,8 @@ describe('handing over to the updater script', () => {
     expect(linux).toEqual({ cmd: '/bin/bash', args: ['/tmp/w/update.sh', '--from-game', '--install', '/home/me/Winterland', '--zip', '/tmp/w/Winterland-0.9.8-linux-x64.zip'] });
     const mac = core.installCommand({ platform: 'darwin', script: '/t/update.sh', zip: '/t/z.zip', app: '/Applications/Winterland.app' });
     expect(mac.args).toEqual(['/t/update.sh', '--from-game', '--app', '/Applications/Winterland.app', '--zip', '/t/z.zip']);
+    const image = core.installCommand({ platform: 'linux', script: '/t/update.sh', zip: '/t/W.AppImage', install: '/home/me/AppImages', appImage: '/home/me/AppImages/winterland.appimage' });
+    expect(image.args).toEqual(['/t/update.sh', '--from-game', '--appimage', '/home/me/AppImages/winterland.appimage', '--zip', '/t/W.AppImage']);
     const win = core.installCommand({ platform: 'win32', script: 'C:\\t\\update.ps1', zip: 'C:\\t\\z.zip', install: 'C:\\Games\\Winterland', systemRoot: 'D:\\Windows' });
     expect(win.cmd).toBe('D:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe');
     expect(win.args).toContain('-FromGame');
@@ -276,7 +301,7 @@ describe('wiring', () => {
   it('every release ships its notes, listed in SHA256SUMS.txt, and the app carries its own updater copy', () => {
     const yml = read('.github/workflows/release.yml');
     expect(yml).toContain('RELEASE-NOTES.md');
-    expect(yml).toMatch(/sha256sum -- \*\.zip \$\{extra\[@\]\+RELEASE-NOTES\.md\} > SHA256SUMS\.txt/);
+    expect(yml).toMatch(/sha256sum -- \*\.zip \*\.AppImage \$\{extra\[@\]\+RELEASE-NOTES\.md\} > SHA256SUMS\.txt/);
     const pack = read('scripts/package-desktop.mjs');
     expect(pack).toContain('inAppUpdaterFiles');
     expect(pack).toContain("p !== '/desktop/updater'");

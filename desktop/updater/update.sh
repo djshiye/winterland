@@ -377,7 +377,7 @@ EOF
     # the old one. A rename is all or nothing, so the old AppImage stays whole until the new one is in its place.
     say "Installing..."
     STEP=files
-    STAGE="$(mktemp "$INSTALL/.winterland-update-XXXXXX")" || fail "couldn't write to $INSTALL."
+    STAGE="$(mktemp "$INSTALL/.winterland-appimage-XXXXXX")" || fail "couldn't write to $INSTALL."
     cp "$TMP/$ZIP_NAME" "$STAGE" || fail "couldn't write to $INSTALL."
     chmod --reference="$IMAGE" "$STAGE" 2>/dev/null || true
     chmod u+rwx,go-w "$STAGE" || fail "couldn't write to $INSTALL."

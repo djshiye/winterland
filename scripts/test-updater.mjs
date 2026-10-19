@@ -390,5 +390,152 @@ if (OS === 'linux') {
   show(s);
 }
 
+// 0.9.10 AppImages (Linux): the game runs as one .AppImage file (often in ~/AppImages, put there by Gear Lever) and the
+// in-game updater has the script replace that file in place with the release's AppImage (--appimage FILE).
+if (OS === 'linux') {
+  const cc = run('sh', ['-c', 'command -v cc']).status === 0;
+  /**
+   * A stand-in AppImage: a tiny real program (so the script can start it) marked like an AppImage ("AI" 2 at byte 8),
+   * with its version written after the program. Started, it notes how in started.txt next to it; with WL_FAKE_CLOSE=N
+   * in its environment it stays open N seconds first (a game still closing).
+   */
+  const fakeImage = (dir, version) => {
+    const src = join(dir, 'fake.c');
+    const bin = join(dir, `fake-${version}`);
+    if (!existsSync(join(dir, 'fake'))) {
+      writeFileSync(src, `#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+int main(int argc, char **argv) {
+  const char *w = getenv("WL_FAKE_CLOSE");
+  if (w) { sleep(atoi(w)); return 0; }
+  char path[4096]; ssize_t n = readlink("/proc/self/exe", path, sizeof path - 32);
+  if (n <= 0) return 1;
+  path[n] = 0; strcpy(strrchr(path, '/') + 1, "started.txt");
+  FILE *f = fopen(path, "w"); if (!f) return 1;
+  fputs("started", f); for (int i = 1; i < argc; i++) fprintf(f, " %s", argv[i]); fputs("\\n", f); fclose(f);
+  return 0;
+}
+`);
+      const r = run('cc', ['-O1', '-o', join(dir, 'fake'), src]);
+      if (r.status !== 0) throw new Error(`cc failed: ${r.stderr}`);
+    }
+    const elf = readFileSync(join(dir, 'fake'));
+    Buffer.from([0x41, 0x49, 0x02]).copy(elf, 8);
+    writeFileSync(bin, Buffer.concat([elf, Buffer.from(`\ngame ${version}\n`)]));
+    chmodSync(bin, 0o755);
+    return bin;
+  };
+  const versionOf = (file) => (existsSync(file) ? /game (\S+)\n$/.exec(readFileSync(file, 'latin1'))?.[1] ?? '(not a game)' : '(missing)');
+
+  /** One AppImage scenario: `tamper` the download, `latest` release version, `closing` seconds, `target` file. */
+  const imageScenario = (title, { latest = NEW, tamper = false, closing = 0, target = null, sums = (t) => t } = {}) => {
+    console.log(`\n${title}`);
+    const root = mkdtempSync(join(tmpdir(), 'wl-appimage-test-'));
+    try {
+      const home = join(root, 'home');
+      const apps = join(home, 'AppImages');
+      const server = join(root, 'server');
+      const work = join(root, 'work');
+      const log = join(root, 'downloads.log');
+      for (const d of [apps, server, work, join(server, `v${latest}`)]) mkdirSync(d, { recursive: true });
+      // the installed AppImage, renamed the way Gear Lever does
+      const image = join(apps, 'winterland.appimage');
+      copyFileSync(fakeImage(work, OLD), image);
+      chmodSync(image, 0o755);
+      put(join(apps, 'other-app.appimage'), 'someone else'); // must stay
+      const saveDir = join(home, '.config', 'Winterland');
+      put(join(saveDir, 'Local Storage', 'leveldb', '000003.log'), 'my precious save');
+
+      const arch = 'x86_64';
+      const name = `Winterland-${latest}-${arch}.AppImage`;
+      const release = join(server, `v${latest}`, name);
+      copyFileSync(fakeImage(work, latest), release);
+      const zip = `Winterland-${latest}-${TARGET}.zip`;
+      writeFileSync(join(server, `v${latest}`, zip), 'zip');
+      writeFileSync(
+        join(server, 'SHA256SUMS.txt'),
+        sums(`${sha(join(server, `v${latest}`, zip))}  ${zip}\n${sha(release)}  ${name}\n${'b'.repeat(64)}  Winterland-${latest}-aarch64.AppImage\n`),
+      );
+      // what the game downloaded and checked
+      const runner = join(root, 'ingame');
+      put(join(runner, 'update.sh'), inAppUpdaterFiles(OS, ARCH, OLD)[0].content, 0o700);
+      const given = join(runner, name);
+      writeFileSync(given, tamper ? Buffer.concat([readFileSync(release), Buffer.from('x')]) : readFileSync(release));
+
+      const bin = join(root, 'bin');
+      put(join(bin, 'curl'), `#!/bin/bash
+out='' url=''
+while [ $# -gt 0 ]; do case "$1" in -o) shift; out="$1" ;; --proto|--proto-redir) shift ;; -*) ;; *) url="$1" ;; esac; shift; done
+echo "$url" >> '${log}'
+case "$url" in
+  '${BASE}latest/download/SHA256SUMS.txt') f='${server}/SHA256SUMS.txt' ;;
+  *) echo "unexpected URL $url" >&2; exit 2 ;;
+esac
+cp "$f" "$out"
+`, 0o755);
+      if (closing) {
+        // the old game still closing: the installed AppImage itself, running
+        spawn(image, [], { detached: true, stdio: 'ignore', env: { ...process.env, WL_FAKE_CLOSE: String(closing) } }).unref();
+        spawnSync('sleep', ['0.3']);
+      }
+      const began = Date.now();
+      const r = run('/bin/bash', [join(runner, 'update.sh'), '--from-game', '--appimage', target ?? image, '--zip', given], {
+        env: { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}`, WL_UPDATER_ALLOW_ROOT: '1', TMPDIR: root },
+      });
+      for (let i = 0; i < 40 && !existsSync(join(apps, 'started.txt')); i++) spawnSync('sleep', ['0.05']);
+      return {
+        r,
+        seconds: (Date.now() - began) / 1000,
+        output: `${r.stdout}${r.stderr}`,
+        version: versionOf(image),
+        same: existsSync(image) && sha(image) === sha(release),
+        executable: existsSync(image) && (readFileSync(image).length > 0) && run('test', ['-x', image]).status === 0,
+        others: readdirSync(apps).filter((n) => !['winterland.appimage', 'other-app.appimage', 'started.txt'].includes(n)),
+        otherKept: readFileSync(join(apps, 'other-app.appimage'), 'utf8') === 'someone else',
+        saveKept: readFileSync(join(saveDir, 'Local Storage', 'leveldb', '000003.log'), 'utf8') === 'my precious save',
+        urls: existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [],
+        started: existsSync(join(apps, 'started.txt')) ? readFileSync(join(apps, 'started.txt'), 'utf8').trim() : null,
+        apps,
+      };
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  };
+
+  if (!cc) console.log('\n(no C compiler: AppImage scenarios skipped)');
+  else {
+    s = imageScenario(`In-game AppImage update ${OLD} → ${NEW}`);
+    check(s.r.status === 0, 'exits 0');
+    check(s.version === NEW && s.same, 'the AppImage is now the release file, byte for byte (Gear Lever sees it as current)');
+    check(s.executable, 'it stays executable, same name, same folder');
+    check(s.others.length === 0 && s.otherKept, 'nothing left behind, other AppImages untouched');
+    check(s.saveKept, 'save untouched');
+    check(s.urls.length === 1 && s.urls[0] === `${BASE}latest/download/SHA256SUMS.txt`, "re-checks against GitHub's checksum list, downloads nothing else");
+    check(s.started === 'started', 'starts the new version');
+    show(s);
+
+    s = imageScenario('In-game AppImage update with a tampered download', { tamper: true });
+    check(s.r.status !== 0 && s.version === OLD && s.others.length === 0, 'stops and changes nothing');
+    check(s.started === 'started --update-failed=checksum', 'reopens the old game with the reason');
+    show(s);
+
+    s = imageScenario('In-game AppImage update with no AppImage in the release', { sums: (t) => t.replace(/^.*x86_64\.AppImage\n/m, '') });
+    check(s.r.status !== 0 && s.version === OLD, 'stops and changes nothing');
+    check(s.started === 'started --update-failed=nodownload', 'reopens the old game with the reason');
+    show(s);
+
+    s = imageScenario('In-game AppImage update while the game is slow to close', { closing: 3 });
+    check(s.r.status === 0 && s.seconds >= 2.5, 'waits for the game to close');
+    check(s.version === NEW && s.started === 'started', 'then updates and starts the new version');
+    show(s);
+
+    s = imageScenario('In-game AppImage update pointed at a file that is not an AppImage', { target: '/etc/hostname' });
+    check(s.r.status !== 0 && s.version === OLD && s.started === null, 'refuses, changes nothing, starts nothing');
+    show(s);
+  }
+}
+
 console.log(failures ? `\n${failures} check(s) failed` : '\nall updater checks passed');
 process.exit(failures ? 1 : 0);

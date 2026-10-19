@@ -8,6 +8,7 @@ on:
     paths:
       - 'desktop/**'
       - 'scripts/test-updater.mjs'
+      - 'scripts/test-linux-sandbox.mjs'
       - 'scripts/updater-files.mjs'
       - 'package.json'
       - 'package-lock.json'
@@ -16,6 +17,7 @@ on:
     paths:
       - 'desktop/**'
       - 'scripts/test-updater.mjs'
+      - 'scripts/test-linux-sandbox.mjs'
       - 'scripts/updater-files.mjs'
       - 'package.json'
       - 'package-lock.json'
@@ -46,5 +48,9 @@ jobs:
           node-version: 24
       - name: Lint the shell updater
         if: runner.os == 'Linux'
-        run: shellcheck -s bash --severity=warning desktop/updater/update.sh
+        run: shellcheck -s bash --severity=warning desktop/updater/update.sh desktop/linux/sandbox-setup.sh
       - run: node scripts/test-updater.mjs
+      # 0.9.10: the Ubuntu sandbox setup (desktop/linux/sandbox-setup.sh) against a pretend system
+      - name: Ubuntu sandbox setup
+        if: runner.os == 'Linux'
+        run: node scripts/test-linux-sandbox.mjs
