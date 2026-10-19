@@ -20,8 +20,8 @@
  *     Low    no shadows, pixel ratio 1, drawn straight to the screen (no post);
  *     Medium 1024² shadows, pixel ratio ≤ 1.5, post: outlines, bloom (3 levels), grade, vignette (render/PostFX.ts);
  *     High   2048² shadows, pixel ratio ≤ 2, post as Medium with 4 bloom levels, 4× MSAA and a gentle depth of field.
- *   0.9.11 (running hot on Macs): the screen canvas smooths edges only on Low (post tiers draw one full-screen picture
- *   onto it), and at a Retina pixel ratio the scene target uses at most 2× MSAA (samples()), same look, less work.
+ *   0.9.11 (running hot on Macs): the screen canvas smooths edges only on Low or when automatic quality may switch to
+ *   Low mid-play (post tiers draw one full-screen picture onto it), and at a Retina pixel ratio the scene target uses at most 2× MSAA (samples()), same look, less work.
  *   `stats` = the last frame's draw calls / triangles: shadow pass, scene and post passes together.
  * - 0.9.8 era looks: `eraSource` (set by the Environment) says which era the camera is in (1 outside the regions); its
  *   palette look (render/palette.ts EraLook: its daylight, a warm night and a day / night colour grade) crossfades in over
@@ -38,6 +38,7 @@ import { LIGHTING, PALETTE } from '../config';
 import { hideInstanced, prepareInstances, prepareSharedInstances, restoreInstances } from './instancer';
 import { eraIndex, palette, type DayLight, type Grade, type NightLight } from './palette';
 import { PostFX, type PostFrame } from './PostFX';
+import { autoQualityOn } from '../core/autoQuality';
 
 export type Quality = 'low' | 'medium' | 'high';
 export const QUALITIES: readonly Quality[] = ['low', 'medium', 'high'];
@@ -190,8 +191,10 @@ export class Renderer {
       /* storage unavailable */
     }
     // 0.9.11: with the post stack on, the screen only receives one full-screen picture, so smoothing its edges is
-    // wasted work every frame; Low (drawn straight to the screen) keeps it. Fixed for the session (a context setting).
-    this.renderer = new THREE.WebGLRenderer({ antialias: !TIERS[this.q].post, powerPreference: 'high-performance' });
+    // wasted work every frame. Low (drawn straight to the screen) needs it, and so does a session where automatic
+    // quality may drop to Low mid-play: the setting is fixed when the context is made.
+    const smooth = !TIERS[this.q].post || autoQualityOn();
+    this.renderer = new THREE.WebGLRenderer({ antialias: smooth, powerPreference: 'high-performance' });
     // shadow, scene and post passes all count toward `stats` (reset once per frame in render())
     this.renderer.info.autoReset = false;
     this.renderer.setPixelRatio(this.pixelRatio());

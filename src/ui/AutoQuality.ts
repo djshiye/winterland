@@ -20,11 +20,11 @@
  *   apart), so `__WINTERLAND__.simulate()` bursts and pauses never feed it.
  */
 import type { GameContext } from '../core/types';
+import { AUTO_QUALITY_KEY, autoQualityOn } from '../core/autoQuality';
 import { readFpsCap } from '../core/fps';
 import { QUALITIES, type Quality } from '../render/Renderer';
 
-const KEY = 'winterland:autoQuality';
-const QUALITY_KEY = 'winterland:quality';
+const KEY = AUTO_QUALITY_KEY;
 /** Step down under this share of the target frame rate (40 of 60)… */
 const DOWN_FRACTION = 2 / 3;
 const DOWN_SECONDS = 8;
@@ -51,18 +51,7 @@ export class AutoQuality {
     private readonly ctx: GameContext,
     private readonly notify: (q: Quality, up: boolean) => void,
   ) {
-    let ok = true;
-    try {
-      const q = new URLSearchParams(location.search);
-      if (q.has('noauto')) ok = false;
-      if ((navigator as Navigator & { webdriver?: boolean }).webdriver) ok = false;
-      const mark = localStorage.getItem(KEY);
-      if (mark === 'manual') ok = false; // chosen by hand
-      else if (mark === null && localStorage.getItem(QUALITY_KEY) !== null) ok = false; // a hand-set quality from before the marker existed
-    } catch {
-      /* storage unavailable: still fine to run, nothing to read */
-    }
-    this.enabled = ok;
+    this.enabled = autoQualityOn();
     try {
       document.addEventListener('visibilitychange', () => this.restart());
     } catch {
