@@ -264,7 +264,9 @@ describe('routes between the market lots', () => {
         const edge = (i: number): number => Math.min(path.x[i]! - sq.minX, sq.maxX - path.x[i]!, path.z[i]! - sq.minZ, sq.maxZ - path.z[i]!);
         for (let i = 1; i < path.n; i++) {
           const len = Math.hypot(path.x[i]! - path.x[i - 1]!, path.z[i]! - path.z[i - 1]!);
-          const along = edge(i) < 0.6 && edge(i - 1) < 0.6 && len > 1;
+          // (0.9.12: a leg out in Lantern Lane, beyond the square, is not along its edge)
+          const near = (k: number): boolean => edge(k) < 0.6 && edge(k) > -0.05;
+          const along = near(i) && near(i - 1) && len > 1;
           expect(along, `lot ${a} -> door ${b}: ${len.toFixed(1)} m along the edge to ${path.x[i]},${path.z[i]}`).toBe(false);
         }
       }

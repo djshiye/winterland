@@ -17,7 +17,9 @@ import { Rng, type EnvPart } from './env/common';
 import { buildDecor, type ClearItem } from './env/decor';
 import { EraController, resetEras } from './env/eras';
 import { buildFences } from './env/fences';
-import { buildFrontier, pruneNewLand, type FrontierPart } from './env/frontier';
+import { buildFrontier, pruneInstances, pruneNewLand, type FrontierPart } from './env/frontier';
+import { LANE } from '../town/lane';
+import { buildLanternLane } from './env/lantern';
 import { buildGate, type GatePart } from './env/gate';
 import { buildGround } from './env/ground';
 import { buildRidgeGate, type RidgeGatePart } from './env/ridgeGate';
@@ -64,6 +66,8 @@ export class Environment {
   private readonly gate: GatePart;
   private readonly ridgeGate: RidgeGatePart;
   private readonly town: TownPart;
+  /** The old-map scatter (pines, rocks, drifts): Lantern Lane clears its patch when it opens. */
+  private readonly decorGroup: THREE.Object3D;
   private readonly frontier: FrontierPart;
   /** 0.9.3: hides the peaks that stood on the new land once it shows (env/mountains.ts). */
   private readonly mountains: EnvPart;
@@ -99,6 +103,7 @@ export class Environment {
     this.sky = new Sky(ctx, this.snowfall);
     // 0.9.0: the old scatter is built exactly as before; whatever landed on the new land is pruned afterwards.
     pruneNewLand(decor.group);
+    this.decorGroup = decor.group;
     this.frontier = buildFrontier(ctx, this.town.group, roads.trikeTail);
     this.chimney = buildings.chimney;
 
@@ -155,6 +160,13 @@ export class Environment {
    */
   openTownGate(instant = false): void {
     this.town.open(instant);
+  }
+
+  /** 0.9.12: Lantern Lane (town/lane.ts) opens: clear the old scatter off it and build its scenery into `parent`. */
+  openLane(parent: THREE.Object3D): void {
+    const m = 0.8;
+    pruneInstances(this.decorGroup, (x, z) => x > LANE.minX - m && x < LANE.maxX + m && z > LANE.minZ - m && z < LANE.maxZ + m);
+    buildLanternLane(this.ctx, parent);
   }
 
   /** Highway road-surface height at world X (raised over the river bridge). */

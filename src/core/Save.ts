@@ -643,6 +643,8 @@ export const MIGRATIONS: readonly Migration[] = [
       state.city.districts.forEach((d, n) => {
         while (d.lots.length < (DISTRICT_LOTS[n] ?? 0)) d.lots.push({ building: '', tier: -1, cash: 0, extra: 0 });
       });
+      // Lantern Lane: the Market Town's four new lots come after the square's eight, so every built lot keeps its number
+      while (state.town.lots.length < LOT_COUNT) state.town.lots.push({ building: '', tier: -1, logs: 0, cash: 0 });
     },
   },
 ];

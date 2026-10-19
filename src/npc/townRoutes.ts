@@ -12,6 +12,7 @@
  * tests/townRoutes.test.ts samples every route against the walk-rect union and the colliders.
  */
 import { LAYOUT, type Rect, type XZ } from '../config';
+import { clampToLane, inLane, LANE_GAP_WALK, LANE_PLAYER_WALK, viaLane } from '../town/lane';
 
 const T = LAYOUT.town;
 const V = LAYOUT.village;
@@ -49,7 +50,7 @@ export const SQUARE_WALK: Rect = {
 
 /** Every rect a helper may stand on (the walk-rect union of the player, plus the yard). */
 export function walkUnion(): Rect[] {
-  return [LAYOUT.yard, ...V.walk, ...T.walk];
+  return [LAYOUT.yard, ...V.walk, ...T.walk, LANE_PLAYER_WALK, LANE_GAP_WALK];
 }
 
 export function inRects(rects: readonly Rect[], x: number, z: number, eps = 1e-6): boolean {
@@ -84,7 +85,9 @@ export function zoneStand(zone: Rect, face: XZ, index = 0, extraDepth = 0): { p:
   const c = rectCentre(zone);
   const [lane, depth] = ZONE_SPOTS[Math.min(index, ZONE_SPOTS.length - 1)]!;
   const d = depth + extraDepth;
-  const p = clampToSquare({ x: c.x + face.z * lane + face.x * d, z: c.z - face.x * lane + face.z * d });
+  const raw = { x: c.x + face.z * lane + face.x * d, z: c.z - face.x * lane + face.z * d };
+  // 0.9.12: Lantern Lane's lots stand in the lane, not round the square
+  const p = inLane(raw) ? clampToLane(raw) : clampToSquare(raw);
   return { p, look: { x: p.x - face.x, z: p.z - face.z } };
 }
 
@@ -113,6 +116,11 @@ function lineClear(a: XZ, b: XZ, blocked: Blocked, slack: number): boolean {
  * may be tight against a prop). Falls back to [to] when no path exists.
  */
 export function planSquare(from: XZ, to: XZ, blocked: Blocked): XZ[] {
+  // 0.9.12: an end in Lantern Lane walks the lane's spine through the south fence gap (town/lane.ts)
+  return viaLane(from, to, (a, b) => planInSquare(a, b, blocked));
+}
+
+function planInSquare(from: XZ, to: XZ, blocked: Blocked): XZ[] {
   const slack = 0.5;
   if (lineClear(from, to, blocked, slack)) return [to];
   const R = SQUARE_WALK;

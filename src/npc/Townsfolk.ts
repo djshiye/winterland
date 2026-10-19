@@ -34,6 +34,7 @@ import type { ShopSpot } from '../town/types';
 import type { Town } from '../town/Town';
 import { BENCHES, SNOWMAN, STALLS, TREE_RING, type Spot, AMENITY_SPOTS, POND_GLIDE_VIA } from '../town/spots';
 import { amenityFrame } from '../town/rules';
+import { LANE_WALK, inLane } from '../town/lane';
 import { Crowd, COAT_COLORS, GOODS_COLORS, TRIM_COLORS, type CrowdPerson } from './Crowd';
 import { PORTER_HOME } from './crewHelpers';
 import { NAV, OWNER_SNOWMAN, Path, ownerAmenity, insideObstacle, lotDoor, nearestHome, planPath, planTownPath, seatPoint, solidBetween, zoneOf } from './CrowdNav';
@@ -41,6 +42,8 @@ import { NAV, OWNER_SNOWMAN, Path, ownerAmenity, insideObstacle, lotDoor, neares
 // --- tuning --------------------------------------------------------------------
 const BUYER_SPEED = 2.1;
 const STROLL_SPEED: readonly [number, number] = [0.95, 1.35];
+/** 0.9.12: share of the strolls from the square that go down Lantern Lane once it is open. */
+const LANE_STROLL_SHARE = 0.3;
 const KID_SPEED = 2.5;
 const KID_CHANCE = 0.18;
 const RUSH_HURRY = 1.25;
@@ -1209,6 +1212,18 @@ export class Townsfolk {
     }
   }
 
+  /** 0.9.12: a free place on Lantern Lane's walk (town/lane.ts LANE_WALK), clear of its signpost and other people. */
+  private randomLanePoint(out: XZ, self: Agent | null = null): void {
+    const w = LANE_WALK;
+    for (let i = 0; i < 16; i++) {
+      out.x = randRange(w.minX + 0.6, w.maxX - 0.6);
+      // (the south end's 1.6 m is left to the R1 signpost: a leg off the spine there would brush it)
+      out.z = randRange(w.minZ + 1.0, w.maxZ - 1.6);
+      if (this.ctx.colliders.overlaps(out.x, out.z, 0.45) || this.nearSomeone(out.x, out.z, self)) continue;
+      return;
+    }
+  }
+
   /** A fixed stand spot is at (x, z), or somebody (not `self` / `other`) stands or is heading there. */
   private standTaken(x: number, z: number, self: Agent | null, other: Agent | null): boolean {
     return nearStandSpot(x, z) || this.nearSomeone(x, z, self, other);
@@ -1530,9 +1545,12 @@ export class Townsfolk {
     const townOpen = this.town.revealed;
     // someone in the square mostly stays there; villagers mostly stay on the street
     const here = zoneOf(a.x, a.z);
-    const inSquare = here === 'square' || here === 'lane';
+    const inSquare = here === 'square' || here === 'lane' || inLane(a);
     const wantTown = townOpen && (inSquare ? Math.random() < 0.8 : Math.random() < 0.3);
-    if (wantTown) this.randomSquarePoint(tmpXZ, a);
+    // 0.9.12: once Lantern Lane is open, a share of the town strolls go down it (and from it, mostly back up it)
+    const wantLane = wantTown && this.town.laneOpen && Math.random() < (inLane(a) ? 0.45 : LANE_STROLL_SHARE);
+    if (wantLane) this.randomLanePoint(tmpXZ, a);
+    else if (wantTown) this.randomSquarePoint(tmpXZ, a);
     else this.randomStreetPoint(tmpXZ, a);
     a.act = 'stroll';
     a.mode = 'walk';
