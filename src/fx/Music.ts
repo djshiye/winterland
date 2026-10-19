@@ -27,6 +27,8 @@ const LOOKAHEAD = 0.6;
 const TICK_MS = 100;
 const LEVEL = 0.5;
 const DUCK_TO = 0.6;
+/** Warm-up spot: the music rests at this share of its level (eased over ~1.5 s). */
+const SOFT_TO = 0.7;
 /** Night: level factor while it is night. */
 const NIGHT_LEVEL = 0.8;
 /** Era crossfade: the old theme fades over OUT s; the new one starts IN_AT s later and swells over IN s. */
@@ -64,6 +66,8 @@ export class Music {
   private night = false;
   /** Music slider value 0..1 (volumeGain is applied in restLevel). */
   private vol = 1;
+  /** Warm-up spot: the resting level eases to SOFT_TO of itself while the player warms up (fx/WarmUp.ts). */
+  private soft = false;
   private warmed = false;
 
   /** Section of the arrangement a new theme starts from (0 = its intro; scripts/music-preview.mjs uses 1). */
@@ -97,7 +101,7 @@ export class Music {
 
   /** Current resting level of `duck`: day/night level times the music volume. */
   private get restLevel(): number {
-    return musicRestLevel(this.night, this.vol);
+    return musicRestLevel(this.night, this.vol) * (this.soft ? SOFT_TO : 1);
   }
 
   get isRunning(): boolean {
@@ -146,6 +150,16 @@ export class Music {
     g.cancelScheduledValues(now);
     g.setTargetAtTime(this.restLevel * DUCK_TO, now, 0.03);
     g.setTargetAtTime(this.restLevel, now + 0.4, 0.25);
+  }
+
+  /** Warm-up spot: ease the music to ~70 % of its resting level over ~1.5 s (on) and back (off). */
+  soften(on: boolean): void {
+    if (this.soft === on) return;
+    this.soft = on;
+    const now = this.ac.currentTime;
+    const g = this.duck.gain;
+    g.cancelScheduledValues(now);
+    g.setTargetAtTime(this.restLevel, now, 0.5);
   }
 
   /** Music volume, the 0..1 slider value (the perceptual curve is applied here). Ramps the resting level (~0.05 s). */

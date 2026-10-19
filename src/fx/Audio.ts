@@ -214,6 +214,7 @@ export class AudioFX {
   private compIn: DynamicsCompressorNode | null = null;
   private sfxGain: GainNode | null = null;
   private music: Music | null = null;
+  private softened = false;
   private ambience: Ambience | null = null;
   /** 0.9.8 [17] where the player is and the sky (applied at init when they arrive before the first unlock). */
   private place: { bed: BedId; era: number } = { bed: 'home', era: 1 };
@@ -311,6 +312,12 @@ export class AudioFX {
       /* storage unavailable */
     }
     this.syncMusic();
+  }
+
+  /** Warm-up spot (fx/WarmUp.ts): the music eases down a little while the player warms up. */
+  soften(on: boolean): void {
+    this.softened = on;
+    this.music?.soften(on);
   }
 
   /** Night ambience: the music softens (about -20 %, duller pad) while it is night, back at day:start. */
@@ -422,6 +429,7 @@ export class AudioFX {
       this.music.setVolume(this.volumes.music);
       this.music.setEra(this.place.era);
       if (this.night) this.music.setNight(true);
+      if (this.softened) this.music.soften(true);
     } catch {
       this.music = null;
     }

@@ -24,6 +24,7 @@ import { pineGeo, pineTallGeo } from '../props';
 import { nodePatch, regionPaths } from '../frontier';
 import type { EraGroundModule, GroundKit } from '../eraGround';
 import { landmarkRect, placeLandmark } from './landmarks2to5';
+import { placeWarmSpot, warmSpotRect } from './warmSpots';
 import { around, beltSpots, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, sightKeep, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
 
 const T = MACHINE_TONES[5];
@@ -67,14 +68,14 @@ export function era05Solids(l: RegionLayout): GroundSolid[] {
   ];
 }
 
-function baseKeepOut(l: RegionLayout): Rect[] {
+export function baseKeepOut(l: RegionLayout): Rect[] {
   const b = batteryPlace(l);
   return [{ minX: b.chimney.x - 1.5, maxX: b.x1 + 0.6, minZ: b.z - b.d / 2 - 1.2, maxZ: b.z + b.d / 2 + 1 }].map((r) => clip(r, l.rect));
 }
 
 /** The era's own keep-outs plus the signature landmark's footprint. */
 function keepOut(l: RegionLayout): Rect[] {
-  return [...baseKeepOut(l), ...landmarkRect(l, 5, baseKeepOut(l))];
+  return [...baseKeepOut(l), ...landmarkRect(l, 5, baseKeepOut(l)), ...warmSpotRect(l, 5, baseKeepOut(l))];
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -193,6 +194,7 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
   const g = new Kit(kit.glow);
   const P = plotPlaces(l.n);
   placeLandmark(kit, l, rng, 5, baseKeepOut(l));
+  placeWarmSpot(kit, l, rng, 5, baseKeepOut(l));
   battery(k, g, f, l, kit);
 
   // the west belt: a gantry crane every third spot, snowy pines between
@@ -226,11 +228,12 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
 
 /** One herringbone course pattern over rect R: bricks w × h set at ±45°, in a few brick tones. */
 function herringbone(f: Kit, R: Rect, y: number, rng: Rng): void {
-  const tones = [BRICK, mixHex(BRICK, BRICK_D, 0.5), BRICK_L, mixHex(BRICK, BRASS, 0.12)];
+  // 0.9.11 (review T5): close tones and a brick-coloured grout, so the courses read as a calm brick floor, not a zig-zag carpet
+  const tones = [BRICK, mixHex(BRICK, BRICK_D, 0.18), mixHex(BRICK, BRICK_L, 0.3), mixHex(BRICK, BRASS, 0.06)];
   const bw = 0.5;
   const bh = 0.2;
   const step = (bw + 0.05) / Math.SQRT2;
-  f.tile(R.maxX - R.minX, R.maxZ - R.minZ, mixHex(BRICK_D, CONCRETE, 0.35), (R.minX + R.maxX) / 2, y - 0.002, (R.minZ + R.maxZ) / 2);
+  f.tile(R.maxX - R.minX, R.maxZ - R.minZ, mixHex(BRICK, BRICK_D, 0.4), (R.minX + R.maxX) / 2, y - 0.002, (R.minZ + R.maxZ) / 2);
   for (let j = 0, z = R.minZ + 0.25; z < R.maxZ - 0.2; j++, z += step) {
     for (let i = 0, x = R.minX + 0.25 + (j % 2) * step; x < R.maxX - 0.2; i++, x += step * 2) {
       f.tile(bw, bh, rng.pick(tones), x, y, z, Math.PI / 4);

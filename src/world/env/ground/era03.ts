@@ -19,6 +19,7 @@ import { clearOfFence } from '../clearance';
 import { fenceStrips, softEdge } from './softEdge';
 import { nodePatch, regionPaths } from '../frontier';
 import { landmarkRect, placeLandmark } from './landmarks2to5';
+import { placeWarmSpot, warmSpotRect } from './warmSpots';
 import { clearOf, marketWalk, fenceDrifts, lantern, near, shade, slab, snowPatch, snowVerge } from './kit1to3';
 
 const P3 = palette(3);
@@ -170,7 +171,7 @@ function freeIn(l: RegionLayout, inside: Rect, x: number, z: number, r: number, 
 }
 
 export const era03: EraGroundModule = {
-  keepOut: (l) => landmarkRect(l, 3),
+  keepOut: (l) => [...landmarkRect(l, 3), ...warmSpotRect(l, 3)],
   wild(k: GroundKit, l: RegionLayout, rng: Rng): void {
     const r = l.rect;
     const H = l.zones.harvest;
@@ -188,7 +189,8 @@ export const era03: EraGroundModule = {
     const placed: { x: number; z: number; r: number }[] = [];
     // the signature landmark (an ore cliff with a mine mouth) first; nothing else lands on it
     placeLandmark(k, l, rng, 3);
-    const lm = landmarkRect(l, 3);
+    placeWarmSpot(k, l, rng, 3);
+    const lm = [...landmarkRect(l, 3), ...warmSpotRect(l, 3)];
     const take = (x: number, z: number, rad: number, h = 1.4): boolean => {
       if (!freeIn(l, H, x, z, rad, h) || lm.some((q) => near(q, x, z, rad + 0.3))) return false;
       if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + rad)) return false;

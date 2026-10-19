@@ -26,9 +26,12 @@ const BOX = (): THREE.BufferGeometry => geo.box(1, 1, 1);
 
 /** A Batch seen from an offset, so one drawing routine serves both the cached solid geometry (0, 0) and the world glow. */
 export class At {
-  constructor(readonly b: Batch, readonly ox = 0, readonly oz = 0) {}
+  /** `s` scales the whole drawing about the origin (a landmark grown to read at the play camera, `scaled`). */
+  constructor(readonly b: Batch, readonly ox = 0, readonly oz = 0, readonly s = 1) {}
   add(g: THREE.BufferGeometry, c: number, x: number, y: number, z: number, o?: PartOpts): this {
-    this.b.add(g, c, x + this.ox, y, z + this.oz, o);
+    const k = this.s;
+    const opts = k === 1 ? o : { ...o, sx: (o?.sx ?? 1) * k, sy: (o?.sy ?? 1) * k, sz: (o?.sz ?? 1) * k };
+    this.b.add(g, c, x * k + this.ox, y * k, z * k + this.oz, opts);
     return this;
   }
   /** A box w × h × d with its centre at (x, y, z). */
@@ -357,6 +360,19 @@ const DEFS: Record<Era, Def> = {
   4: { geom: waterTowerLocoGeo, glow: waterTowerLocoGlow, fp: { minX: -3.4, maxX: 3.4, minZ: -2.2, maxZ: 2.4 }, h: 6.4, lamps: [[2.2, 1.6, 0.05, 1.6, 4.0]] },
   5: { geom: cokeBatteryGeo, glow: cokeBatteryGlow, fp: { minX: -3.8, maxX: 3.8, minZ: -2.9, maxZ: 2.4 }, h: 6.6, lamps: [[-1.2, 1.1, 1.5, 2.0, 4.8], [1.2, 1.1, 1.5, 2.0, 4.8]] },
 };
+
+/** Def `d` grown by `k` about its origin: geometry, glow, floor, footprint, height and lamps all scale together. */
+export function scaled(d: Def, k: number): Def {
+  let g: THREE.BufferGeometry | null = null;
+  return {
+    geom: () => (g ??= d.geom().clone().scale(k, k, k)),
+    glow: (a) => d.glow(new At(a.b, a.ox, a.oz, a.s * k)),
+    floor: d.floor ? (a) => d.floor!(new At(a.b, a.ox, a.oz, a.s * k)) : undefined,
+    fp: { minX: d.fp.minX * k, maxX: d.fp.maxX * k, minZ: d.fp.minZ * k, maxZ: d.fp.maxZ * k },
+    h: d.h * k,
+    lamps: d.lamps.map(([x, y, z, size, pool]) => [x * k, y * k, z * k, size * k, pool * k]),
+  };
+}
 
 export const world = (d: Def, x: number, z: number): Rect => ({ minX: x + d.fp.minX, maxX: x + d.fp.maxX, minZ: z + d.fp.minZ, maxZ: z + d.fp.maxZ });
 

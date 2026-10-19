@@ -4,7 +4,36 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
-## Unreleased
+## 0.9.11 (2026-10-19)
+
+Every era its own place, clearer pads and icons, a guidebook, a cooler-running game and a few cozy touches.
+
+### Every era its own place
+
+- **Each era has its own mood.** Its own light, sky, weather and air: warm frontier evenings, smoky steam-age haze, a cold sparkling tundra in era 7, soft pastel skies at the end. Nights differ from era to era too.
+- **Eras 2 to 5 got their own ground and a landmark each:** a row of brick kilns, a mine cliff, a water tower with a coal wagon and a coke battery.
+- **Era 7 is a cold tundra now,** era 8 has a little lighthouse on a frozen shore and era 9 has twin cooling towers.
+- **Glass Heights steps down toward the frontier,** so its towers no longer loom over the log cabins next door.
+- Homes in eras 8 and 10 come in different colours, and the busy floor patterns in eras 5 and 9 are calmer.
+
+### Cozy touches
+
+- **Warm-up spots.** Every era from 2 on has a little fire, stove or cocoa cart. Stand by it for a moment: the music softens and your pal settles down beside you.
+- **Pet your pal.** Stand still next to your pal and it gets a pat now and then, with a little heart and a wag.
+- **Paw prints.** Your pal leaves small paw prints in the snow next to yours.
+
+### Easier to read
+
+- **Pads say what they need.** Upgrade tags are bigger and show the materials to bring.
+- **Every resource has its own icon shape,** not just its own colour, so iron ore and copper, or stone and coal, no longer look alike.
+- **The carry counter shows what you hold,** whatever you picked up, not only logs.
+- **Builders bring their material** to the quarry and the city again.
+- **New: the guidebook.** Press G or tap the book button to look up every good, machine, crew, upgrade and rule of the eras you've reached.
+
+### Runs cooler
+
+- **Runs cooler.** Late-game scenes draw about half as much, so laptops stay cooler and quieter. The frame rate tops out at 60 and drops to 30 while another window is in front.
+- **Macs: Apple chips only.** Winterland now ships for Macs with an Apple chip (M1 and later). Intel Macs stay on 0.9.10. If your Apple-chip Mac runs the Intel build (under Rosetta), download the `darwin-arm64` zip once by hand; updates work from then on.
 
 ### Linux
 

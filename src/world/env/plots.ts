@@ -55,6 +55,9 @@ interface PlotStyle {
   /** The resource beds of the harvest field (bed k 0 and 1): shape and colour; `glow` lists the lit ones. */
   beds: [BedKind, number, BedKind, number];
   glow?: readonly number[];
+  /** 0.9.11 (review EM2): roof / wall colours the huts cycle through, so a row isn't one model repeated. */
+  roofs?: readonly number[];
+  walls?: readonly number[];
   /** Bed k 2, where the era has one (era 8's clean room). */
   special?: [BedKind, number];
   yard: YardKind;
@@ -82,11 +85,11 @@ const STYLE: readonly (PlotStyle | null)[] = [
   // 7 crude + gas: honey trailers and a roadside strip on cold slate asphalt (0.9.11 tundra), pumpjacks and a tank farm
   { hut: 'trailer', wall: 0xe3c07a, roof: 0xc44536, shop: 0xe6d3a8, shopRoof: 0xc44536, street: 0x6c7684, pave: 0x8592a0, line: 0xe8d27a, green: 'brazier', beds: ['jack', 0x7a5236, 'tank', 0xd99b26], yard: 'asphalt' },
   // 8 silica + gold: white modular blocks on clean tiles, glass pavilions, sand dunes with gold pans and a clean room
-  { hut: 'modular', wall: 0xeee8d8, roof: 0x5c9aa0, shop: 0xf0eadb, shopRoof: 0x45858c, street: 0xd8d6cf, pave: 0xe2e0d8, line: 0xc4c2ba, green: 'kiosk', beds: ['dunes', 0xdfc28c, 'pools', GOLD_POOL], special: ['cleanroom', 0xf3f4f6], glow: [1], yard: 'tiles' },
+  { hut: 'modular', wall: 0xeee8d8, roof: 0x5c9aa0, shop: 0xf0eadb, shopRoof: 0x45858c, street: 0xd8d6cf, pave: 0xe2e0d8, line: 0xc4c2ba, green: 'kiosk', beds: ['dunes', 0xdfc28c, 'pools', GOLD_POOL], special: ['cleanroom', 0xf3f4f6], glow: [1], yard: 'tiles', roofs: [0x5c9aa0, 0xd9a441, 0x6f8fb8, 0xc9705a], walls: [0xeee8d8, 0xe6eef0, 0xf2e6d2] },
   // 9 uranium + graphite: quonset barracks, a hazard-striped yard, a fenced grid of glowing pits
   { hut: 'quonset', wall: 0xdfe6e8, roof: 0x5bb391, shop: 0xe4eaec, shopRoof: 0x4ea885, street: 0xa9b3b6, pave: 0xbcc5c8, line: 0xe8c547, green: 'fountain', beds: ['pit', 0x86e8c4, 'slabs', 0x6f6c6b], glow: [0], yard: 'hazard' },
   // 10 rare earth + helium-3: pods and domes on lavender regolith, a geode crater with skimmer pads
-  { hut: 'pod', wall: 0xf6f1e7, roof: 0xb9a3e8, shop: 0xf3eee6, shopRoof: 0xa58fd6, street: 0xc9c6dc, pave: 0xd6d2e6, line: 0xb9b2d8, green: 'orb', beds: ['geode', 0xb9a3e8, 'pad', 0xe6f2ff], glow: [0, 1], yard: 'rings' },
+  { hut: 'pod', wall: 0xf6f1e7, roof: 0xb9a3e8, shop: 0xf3eee6, shopRoof: 0xa58fd6, street: 0xc9c6dc, pave: 0xd6d2e6, line: 0xb9b2d8, green: 'orb', beds: ['geode', 0xb9a3e8, 'pad', 0xe6f2ff], glow: [0, 1], yard: 'rings', roofs: [0xb9a3e8, 0xe8a8c0, 0xf2c46a, 0x9fc8e8], walls: [0xf6f1e7, 0xf3ebf6, 0xf6f0e2] },
 ];
 
 const SNOW = PALETTE.snow;
@@ -282,8 +285,10 @@ function buildHut(body: Batch, glow: Batch, st: PlotStyle, h: HutPlace, stage: n
     }
     return;
   }
-  const wall = st.wall;
-  const roof = st.roof;
+  // a steady pick per hut from its spot, so the same hut keeps its colours across rebuilds
+  const pick = Math.abs(Math.round(h.x * 3 + h.z * 7));
+  const wall = st.walls ? st.walls[pick % st.walls.length]! : st.wall;
+  const roof = st.roofs ? st.roofs[Math.floor(pick / 2) % st.roofs.length]! : st.roof;
   const wh = 2.1; // wall height
   const door = (y0: number, z: number): void => {
     f.put(geo.box(0.8, 1.45, DOOR_D), scarf, 0, y0 + 0.72, z);
