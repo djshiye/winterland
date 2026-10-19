@@ -18,10 +18,12 @@ const TREE = { x: LAYOUT.town.tree.x, z: LAYOUT.town.tree.z };
 /**
  * Benches (2 seats each, seats ±0.45 m along the bench), facing the big tree. 0.9.9: the two north ones moved off the
  * walk from the corridor mouth to the east gate (they sat on it at z 26.55) into the corners by the stall and the
- * north-east lot.
+ * north-east lot. 0.9.11 (Dino: "this bench on the market is obstructive"): the north-west one stood between the
+ * entrance and the first lot's counter (with the stall it closed the way round); it now sits south-east of the tree,
+ * off every walk.
  */
 export const BENCHES: readonly Spot[] = [
-  { x: 19.6, z: 23.9 },
+  { x: 26.3, z: 32.45 },
   { x: 28.4, z: 23.9 },
   { x: 19.4, z: 35.2 }, // 0.9.4: west of the pond's rim
   { x: 27.6, z: townZ(29.5) },

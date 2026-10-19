@@ -92,8 +92,7 @@ describe('TransferZone hold gate', () => {
     const w = world('take');
     w.zones.update(1 / 60);
     w.player.position.x = 10;
-    w.zones.update(1 / 60);
-    w.zones.update(1 / 60);
+    for (let i = 0; i < 20; i++) w.zones.update(1 / 60); // past the 0.25 s exit grace
     expect(w.prompts).toEqual([
       { on: true, kind: 'take' },
       { on: false, kind: 'take' },

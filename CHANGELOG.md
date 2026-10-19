@@ -4,6 +4,24 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
+## Unreleased
+
+### Easier to carry
+
+- **Easy pickups.** Piles, counters and drop-offs now count your whole body, with a little slack: walk up until you touch the spot and goods start flowing, and they keep flowing if you drift a bit. The spot glows gold while you're in range.
+- **Walking across a pad pays nothing.** With hold-to-interact off (phones and tablets), a pad only spends once you slow down or stop on it.
+- **"Takes Stone".** Stop at a machine, shop or counter with the wrong goods and it tells you what it takes.
+- **A clearer market square.** The bench by the first shop and the lamp by the entrance moved out of the way.
+- **MANAGE signs on the working side.** Each era machine's MANAGE sign now stands in front, beside its feed spot, and its card opens when you stop on it, not while you walk past.
+
+### Roads and traffic
+
+- **The train no longer drives backwards.** It has an engine at each end now, so an engine always leads, in to the platform and back out to the tunnel.
+- **Buyers no longer vanish in the middle of the road.** Carts, wagons and trucks drive in from the city and the link roads, turn the corners, park in their own lane and drive on until they are out of sight. Passing traffic keeps to the other lane, and parked buyers no longer stand over the fences. Sleds, trikes and shoppers on foot also come and go out of sight.
+- **Fast travel to a city district lands in that district,** on its own street, not beside the district before it.
+- **Roads join up.** Ruts follow the road round corners and stop at junctions, city streets are cozy cobbles that meet the trail cleanly, the south avenue reaches the town, each era's gate has its own paving, and signposts no longer cross.
+- **Nothing pokes through the fences.** Trees, cranes, cacti and boulders keep clear of the fences, gate signs stand clear of the gate posts, the old cart track and pipes end properly, the market walk leads all the way to the stall, and floor joins and grid lines are softer.
+
 ## 0.9.11 (2026-10-19)
 
 Every era its own place, clearer pads and icons, a guidebook, a cooler-running game and a few cozy touches.
@@ -43,14 +61,6 @@ Every era its own place, clearer pads and icons, a guidebook, a cooler-running g
 ### Balance
 
 - **Investing is a small bonus now.** Bonds, the index fund and ventures used to add about half again on top of what your factories earn, so investing could skip much of an era. They now add about a tenth: still worth a few clicks, never a shortcut past the grind. Bonds pay +4% after 10 minutes, and each product holds a few minutes of your sales. Money you already invested is safe and keeps its value.
-
-### Roads and traffic
-
-- **The train no longer drives backwards.** It has an engine at each end now, so an engine always leads, in to the platform and back out to the tunnel.
-- **Buyers no longer vanish in the middle of the road.** Carts, wagons and trucks drive in from the city and the link roads, turn the corners, park in their own lane and drive on until they are out of sight. Passing traffic keeps to the other lane, and parked buyers no longer stand over the fences. Sleds, trikes and shoppers on foot also come and go out of sight.
-- **Fast travel to a city district lands in that district,** on its own street, not beside the district before it.
-- **Roads join up.** Ruts follow the road round corners and stop at junctions, city streets are cozy cobbles that meet the trail cleanly, the south avenue reaches the town, each era's gate has its own paving, and signposts no longer cross.
-- **Nothing pokes through the fences.** Trees, cranes, cacti and boulders keep clear of the fences, gate signs stand clear of the gate posts, the old cart track and pipes end properly, the market walk leads all the way to the stall, and floor joins and grid lines are softer.
 
 ## 0.9.10 (2026-10-18)
 

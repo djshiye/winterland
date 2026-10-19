@@ -557,7 +557,11 @@ describe('choose, pay, demolish', () => {
     m.input!.fill('stone', 4);
     m.output.fill('brick', 2);
     const manage = w.zones.find((z) => z.opts.id === 'pile:era2m1:manage')!;
-    (manage.opts as unknown as { onEnter(): void }).onEnter();
+    // 0.9.11: the card opens once the player stops on the tile (not on stepping in)
+    const mo = manage.opts as unknown as { onEnter(): void; onStay(dt: number): void };
+    mo.onEnter();
+    expect(w.of<ManageRequest>('manage:open').length).toBe(0);
+    mo.onStay(0.1);
     const req = w.of<ManageRequest>('manage:open')[0]!;
     expect(req.key).toBe('slot:2:1');
     expect(req.title).toBe('Brick Kiln');

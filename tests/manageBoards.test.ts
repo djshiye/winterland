@@ -10,7 +10,7 @@ import { districtLots } from '../src/city/rules';
 import { REGIONS } from '../src/eras/data';
 import { regionLayout, type RegionLayout } from '../src/eras/layout';
 import { marketPlaces, DOCK_BODY, STALL_BODY } from '../src/eras/market';
-import { LEVEL_PAD_SIZE, levelPadLocal, MACHINE_NOMINAL, machineFrame, toWorld, worldRect } from '../src/eras/rules';
+import { LEVEL_PAD_SIZE, levelPadLocal, MACHINE_NOMINAL, machineFrame, manageBoardLocal, toWorld, worldRect } from '../src/eras/rules';
 import { MANAGE_POST_GAP, manageBoardShadow, manageSignFoot } from '../src/fx/manageSign';
 import { amenityFrame, grandMarketFrame, lotFrame, manageRect } from '../src/town/rules';
 import { nodePatch } from '../src/world/env/frontier';
@@ -107,7 +107,8 @@ describe('era machine MANAGE boards', () => {
       const R = regionItems(regionLayout(n), n);
       expect(R.slots.length).toBeGreaterThan(0);
       R.slots.forEach((s, i) => {
-        const foot = manageSignFoot(s.manage, s.place);
+        const b = manageBoardLocal(machineFrame(MACHINE_NOMINAL.w, MACHINE_NOMINAL.d));
+        const foot = toWorld(s.place, s.place.yaw, b.u, b.v);
         const shadow = manageBoardShadow(foot);
         expect(inRect(s.body, foot), `slot ${i} post in the body`).toBe(false);
         R.slots.forEach((o, j) => expect(inRect(o.manage, foot), `slot ${i} post on slot ${j} manage tile`).toBe(false));
