@@ -137,7 +137,7 @@ const LOOKS: readonly EraLook[] = [
   // 4 Steam Age: misty railway morning: pale cream, soft low contrast, lifted milky shadows
   { day: day({ sun: 1.05, hemi: 0.84, hemiSky: 0xe8ecf4, hemiGround: 0xa49a9a }), night: night({ hemiGround: 0x645048, hemiSky: 0x7480bc }), grade: { day: grade(0xfcf8f0, 0x2c2a30, 0.94, 0.9, 0.18), night: grade(0xf8f2ec, 0x1e1a24, 0.98, 0.94, 0.3) } },
   // 5 Industrial: ember night-shift: copper haze even by day, sodium lamps at night
-  { day: day({ sun: 1.18, hemi: 0.58, hemiSky: 0xe8cfc0, hemiGround: 0x9a6c5c }), night: night({ hemiGround: 0x74503a, sky: 0x2a1c30 }), grade: { day: grade(0xffeacf, 0x24120a, 1.06, 1.07, 0.36), night: grade(0xffe8cc, 0x1c0c0c, 1.12, 1.05, 0.38) } },
+  { day: day({ sun: 1.18, hemi: 0.58, hemiSky: 0xe8cfc0, hemiGround: 0x9a6c5c }), night: night({ hemiGround: 0x74503a, sky: 0x2a1c30 }), grade: { day: grade(0xfff4e6, 0x140a06, 1.06, 1.06, 0.32), night: grade(0xffe8cc, 0x1c0c0c, 1.12, 1.05, 0.38) } },
   // 6 Electric Age: twinkle-lit blue hour: cool blue light so the warm bulbs and copper pop
   { day: day({ sun: 1.12, hemi: 0.66, hemiSky: 0xbcccf4, hemiGround: 0x7a8aa0 }), night: night({ hemiGround: 0x5a5050, hemiSky: 0x5a78cc, sky: 0x162248 }), grade: { day: grade(0xeef6ff, 0x081830, 1.16, 1.06, 0.3), night: grade(0xf4f4ff, 0x0c1020, 1.1, 1.04, 0.34) } },
   // 7 Oil: polar tundra: cold blue-white air, low pale sun, flare stacks the warmest thing on screen
@@ -147,7 +147,7 @@ const LOOKS: readonly EraLook[] = [
   // 9 Nuclear: minty glow valley: a soft green cast, glowing nights
   { day: day({ sun: 1.16, hemi: 0.66, hemiSky: 0xc8ecdc, hemiGround: 0x7a9490 }), night: night({ hemiGround: 0x4e5a4c, hemiSky: 0x5c8cc4, sky: 0x122a40 }), grade: { day: grade(0xf5fff9, 0x0a1a16, 1.1, 1.04, 0.3), night: grade(0xeefff8, 0x081814, 1.1, 1.02, 0.34) } },
   // 10 AI: dream aurora plateau: lavender twilight even by day, sun-gold fusion
-  { day: day({ sun: 1.16, hemi: 0.68, hemiSky: 0xd8c8f4, hemiGround: 0x9a86a8 }), night: night({ hemiGround: 0x6e5844, hemiSky: 0x7a70c8, sky: 0x221a4c }), grade: { day: grade(0xf6ecff, 0x1a1030, 1.12, 1.03, 0.3), night: grade(0xfaf0ff, 0x160e28, 1.1, 1.02, 0.34) } },
+  { day: day({ sun: 1.16, hemi: 0.68, hemiSky: 0xd8c8f4, hemiGround: 0x9a86a8 }), night: night({ hemiGround: 0x6e5844, hemiSky: 0x6c74c0, sky: 0x221e44 }), grade: { day: grade(0xf6ecff, 0x1a1030, 1.12, 1.03, 0.3), night: grade(0xfff8ee, 0x120d20, 1.1, 1.03, 0.28) } },
 ];
 
 // ---------------------------------------------------------------------------
@@ -483,7 +483,7 @@ const SKIES: readonly EraSky[] = [
   // 4 Steam Age: soft steam wisps
   { motes: 'steam', mote: 0xf6f2ec, auroraTint: 0xffbe55, auroraTintAmount: 0.1, mood: mood({ sun: 0xfff4e4, clouds: 0.12, snow: 0.6, wind: 0.45, motes: 1.5, aurora: 0.8 }) },
   // 5 Industrial: coke ash flecks and the odd sodium spark
-  { motes: 'ash', mote: 0xa89c94, auroraTint: 0xffd166, auroraTintAmount: 0.12, mood: mood({ sun: 0xffd4a4, clouds: 0.25, snow: 0.45, wind: 0.7, motes: 1.4, aurora: 0.7 }) },
+  { motes: 'ash', mote: 0xa89c94, auroraTint: 0xffd166, auroraTintAmount: 0.12, mood: mood({ sun: 0xffead2, clouds: 0.25, snow: 0.45, wind: 0.7, motes: 1.4, aurora: 0.7 }) },
   // 6 Electric Age: little mint zaps along the wires
   { motes: 'zaps', mote: 0x7ce8c8, auroraTint: 0x7ce8c8, auroraTintAmount: 0.3, mood: mood({ sun: 0xeaf2ff, clouds: 0.08, snow: 1.15, wind: 0.6, motes: 1.2 }) },
   // 7 Oil: polar tundra (0.9.11): diamond-dust glitter in the cold air, windy and snowy, cool northern lights
@@ -493,7 +493,7 @@ const SKIES: readonly EraSky[] = [
   // 9 Nuclear: aqua glow motes bobbing over the pools
   { motes: 'glow', mote: 0x70f5d9, auroraTint: 0x70f5d9, auroraTintAmount: 0.35, mood: mood({ sun: 0xf0fff2, snow: 0.6, wind: 0.5, motes: 1.3, aurora: 1.2 }) },
   // 10 AI: sun-gold fusion shimmer
-  { motes: 'fusion', mote: 0xffe082, auroraTint: 0xffe082, auroraTintAmount: 0.3, mood: mood({ sun: 0xf4e8ff, clouds: -0.1, snow: 0.4, wind: 0.3, motes: 1.25, aurora: 1.8 }) },
+  { motes: 'fusion', mote: 0xffe082, auroraTint: 0xffe082, auroraTintAmount: 0.3, mood: mood({ sun: 0xf4e8ff, clouds: -0.1, snow: 0.4, wind: 0.3, motes: 1.25, aurora: 1.2 }) },
 ];
 
 /** Era `era`'s sky (clamped like palette()). */
