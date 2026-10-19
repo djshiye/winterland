@@ -27,6 +27,7 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **The empty square is a build spot now.** Every era area had one paved square you could not build on. Each area now has one more machine spot there. Prices rose a little so each era still takes about as long.
 - **The city districts are much bigger.** Each district is about half again as wide and deep, with up to twice the lots: 12 in Brickside instead of 6. Settlement levels still need the same number of homes, so the new lots are free room for more homes, shops and parks. Your buildings stay on their lot numbers.
 - **More to look at.** Street trees, benches, planters and little touches in every district, and the bare market squares and hut yards in eras 2 to 10 now have stalls, crates and clutter that fit their era. Every path stays clear.
+- **A finished game may show less than 100 % now.** The new machine spots and lots count towards completion, so an older finished save shows a lower percentage until you build on them. Every trophy you've earned is kept.
 
 ## 0.9.11 (2026-10-19)
 
