@@ -63,6 +63,8 @@ export const REACH = { enter: PLAYER.radius + 0.2, leave: PLAYER.radius + 0.55, 
 
 /** 0.9.11 (I7): in walk-over mode a pay zone only pays below this speed (m/s); walking pace is 4+. */
 export const PAY_WALK_MAX = 1.0;
+/** Metres nearer the player must step to the waiting side of a two-way spot before it takes over. */
+const PAIR_SWITCH = 0.3;
 
 /** Distance from (x, z) to the rect (0 inside). */
 export function rectDistance(r: Rect, x: number, z: number): number {
@@ -182,6 +184,8 @@ export class Zone {
   nextInside = false;
   /** @internal a reverse-direction zone the player stands nearer to runs instead this step */
   yielding = false;
+  /** @internal last step's `yielding` (keeps a two-way spot's choice steady) */
+  wasYielding = false;
   /** @internal */
   removed = false;
   /** @internal */
@@ -291,7 +295,11 @@ class TransferZone extends Zone {
     this.interval = this.base;
     this.timer = 0;
     this.hinted = false;
+    this.movedThisVisit = false;
   }
+
+  /** @internal something moved through this zone since the player arrived (ZoneSystem.pairWinner) */
+  movedThisVisit = false;
 
   override ready(_ctx: GameContext): boolean {
     return this.hasTransferable();
@@ -356,6 +364,7 @@ class TransferZone extends Zone {
         break;
       }
       moved++;
+      this.movedThisVisit = true;
       this.timer += this.interval;
       this.interval = Math.max(TIMING.minInterval, this.interval * 0.88);
       t.onTransfer?.(item);
@@ -468,6 +477,26 @@ export class ZoneSystem {
     return inRect(area, p.x, p.z);
   }
 
+  /**
+   * Which of two reverse zones the player stands in runs. A fresh pairing goes to the one with something to move, else
+   * the nearer one (a tie goes to the drop-off). It then holds for the visit, so emptying the arms never hands over to
+   * the pick-up (or the other way round), unless the player steps clearly nearer to the other side, or the winner never
+   * had anything to move and the other side now does.
+   */
+  private pairWinner(a: TransferZone, b: TransferZone): TransferZone {
+    if (a.wasYielding !== b.wasYielding) {
+      const w = a.wasYielding ? b : a;
+      const l = w === a ? b : a;
+      if (l.lastDist + PAIR_SWITCH < w.lastDist) return l;
+      if (!w.movedThisVisit && !w.ready(this.ctx) && l.ready(this.ctx)) return l;
+      return w;
+    }
+    const ar = a.ready(this.ctx);
+    if (ar !== b.ready(this.ctx)) return ar ? a : b;
+    if (a.lastDist !== b.lastDist) return a.lastDist < b.lastDist ? a : b;
+    return a.takes ? b : a;
+  }
+
   update(dt: number): void {
     const p = this.ctx.player.position;
     // pass 1: who counts as inside this step (no callbacks yet)
@@ -490,18 +519,17 @@ export class ZoneSystem {
       if (inside && !z.playerInside) z.outFor = 0;
       z.lastDist = d;
       z.nextInside = inside;
+      z.wasYielding = z.yielding;
       z.yielding = false;
       if (inside && z instanceof TransferZone) pairs.push(z);
     }
     // a player inside both halves of a two-way spot (an era dock's drop and pick-up side by side) would bounce the same
-    // goods between arms and pile: only the zone they stand nearer to runs (a tie goes to the drop-off)
+    // goods between arms and pile: only one of the two runs (pairWinner), the other waits
     for (let i = 0; i < pairs.length; i++) {
       for (let j = i + 1; j < pairs.length; j++) {
         const a = pairs[i]!;
         const b = pairs[j]!;
-        if (!a.reverses(b)) continue;
-        const aFirst = a.lastDist < b.lastDist || (a.lastDist === b.lastDist && !a.takes);
-        (aFirst ? b : a).yielding = true;
+        if (a.reverses(b)) (this.pairWinner(a, b) === a ? b : a).yielding = true;
       }
     }
     // pass 2: transitions, callbacks, transfers, markers

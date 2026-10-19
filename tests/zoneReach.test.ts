@@ -147,42 +147,71 @@ describe('payments stay exact and deliberate', () => {
 });
 
 describe('overlapping give and take between the same arms and pile (era dock)', () => {
-  it('goods never bounce back and forth: the nearer zone works, the other waits', () => {
-    const w = world({ kind: 'take', armKinds: ['log', 'log', 'log'] });
-    // a give zone back into the same pile, right beside the take zone so body reach covers both
-    const pile = (w.zone as unknown as { t: { from: ItemHolder } }).t.from;
-    const arms = w.player.arms;
-    const give = w.zones.addTransfer({
-      id: 'g',
-      area: { minX: 1.2, maxX: 3, minZ: -1, maxZ: 1 },
-      from: arms,
-      to: pile,
-      kinds: ['log'],
-      kind: 'give',
-      interval: 0.05,
-    });
-    let flips = 0;
-    let last = '';
-    const watch = (): void => {
-      const now = `${w.zone.yielding ? 'G' : 'T'}`;
-      if (last && now !== last) flips++;
-      last = now;
+  /** Arms (holding up to 4) and a dock with a give zone and a take zone side by side; flights land at once. */
+  function dock(armLogs: number, dockLogs: number) {
+    const events = new EventBus<GameEvents>();
+    const arms = holder('arms', Array(armLogs).fill('log'));
+    const pile = holder('dock', Array(dockLogs).fill('log'));
+    arms.canAccept = () => arms.items.length < 4;
+    const player = { position: { x: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, arms };
+    const ctx = {
+      events,
+      scene: SCENE,
+      input: { interactHeld: true, holdToInteract: false },
+      player,
+      hud: { floatText: () => {} },
+      flights: { launch: (it: Item, to: ItemHolder) => to.receive(it, undefined as never) },
+    } as unknown as GameContext;
+    const zones = new ZoneSystem(ctx);
+    const area = (x0: number, x1: number) => ({ minX: x0, maxX: x1, minZ: -0.8, maxZ: 0.8 });
+    const give = zones.addTransfer({ id: 'give', area: area(-1.4, 0.1), from: arms, to: pile, kinds: ['log'], interval: 0.1 });
+    const take = zones.addTransfer({ id: 'take', area: area(0.3, 1.8), from: pile, to: arms, kinds: ['log'], kind: 'take', interval: 0.1 });
+    const run = (x: number, s: number): number[] => {
+      player.position.x = x;
+      const seen: number[] = [];
+      for (let t = 0; t < s - 1e-9; t += 1 / 60) {
+        zones.update(1 / 60);
+        seen.push(arms.items.length);
+      }
+      return seen;
     };
-    w.at(1.1); // between the two zones: inside both under body reach
-    for (let i = 0; i < 180; i++) {
-      w.zones.update(1 / 60);
-      watch();
-    }
-    expect(w.zone.playerInside && give.playerInside).toBe(true);
-    expect(w.zone.yielding !== give.yielding).toBe(true);
-    expect(flips).toBe(0);
-    // standing nearer the give side: only giving happens, so the pile only grows
-    w.at(1.5); // 0.3 m from the give zone, 0.5 m from the take zone (still held by hysteresis)
-    const before = (pile as unknown as { items: Item[] }).items.length;
-    w.step(1);
-    expect(w.zone.playerInside && w.zone.yielding).toBe(true);
-    expect(give.yielding).toBe(false);
-    expect((pile as unknown as { items: Item[] }).items.length).toBeGreaterThanOrEqual(before);
+    /** Times the arm count turned from rising to falling or back. */
+    const turns = (seen: number[]): number => {
+      let n = 0;
+      let dir = 0;
+      for (let i = 1; i < seen.length; i++) {
+        const d = Math.sign(seen[i]! - seen[i - 1]!);
+        if (d && dir && d !== dir) n++;
+        if (d) dir = d;
+      }
+      return n;
+    };
+    return { arms, pile, give, take, run, turns };
+  }
+
+  it('standing between them with a load: the load goes in and stays in (no bouncing)', () => {
+    const d = dock(3, 2);
+    const seen = d.run(0.15, 4); // in both zones, a little nearer the drop-off
+    expect(d.give.playerInside && d.take.playerInside).toBe(true);
+    expect(d.arms.items.length).toBe(0);
+    expect(d.pile.items.length).toBe(5);
+    expect(d.turns(seen)).toBe(0);
+  });
+
+  it('standing between them with empty arms: you pick up and keep it', () => {
+    const d = dock(0, 6);
+    const seen = d.run(0.2, 4);
+    expect(d.arms.items.length).toBe(4);
+    expect(d.turns(seen)).toBe(0);
+  });
+
+  it('stepping clearly to the other side switches over', () => {
+    const d = dock(3, 2);
+    d.run(0.15, 2);
+    expect(d.arms.items.length).toBe(0);
+    d.run(0.75, 2); // well onto the pick-up side, still within reach of the drop-off
+    expect(d.give.playerInside).toBe(true);
+    expect(d.arms.items.length).toBe(4);
   });
 });
 
