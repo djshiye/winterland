@@ -34,8 +34,8 @@ export interface XZ {
 // Lot layout
 // ---------------------------------------------------------------------------
 
-/** Sidewalk ring between the district edge and the lots (metres). */
-export const DISTRICT_MARGIN = 1.8;
+/** Sidewalk ring between the district edge and the lots (metres). 0.9.12: 2.4 (was 1.8), so every side keeps a 3 m walk past the buildings (tests/wideWalks.test.ts). */
+export const DISTRICT_MARGIN = 2.4;
 /** Side of a lot's pad tile (the construction pad / "BUILD" tile / manage zone). */
 export const LOT_PAD = 2;
 /** Depth of the lane in front of a lot: the pad plus a walking strip. */

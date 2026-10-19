@@ -664,8 +664,8 @@ export interface DecorPlace {
   zone: 'market' | 'huts';
 }
 
-/** Half width of every walkway (a 2.5 m clear lane). */
-export const ROUTE_HALF = 1.25;
+/** Half width of every walkway: a 3 m clear lane (0.9.12, Dino: "a lotta room to walk around to not collide"). */
+export const ROUTE_HALF = 1.5;
 
 export interface PlotRoute {
   what: string;
