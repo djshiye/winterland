@@ -93,7 +93,7 @@ describe('SHA256SUMS.txt', () => {
 
   it('knows the computers the releases ship for', () => {
     expect(core.targetOf('linux', 'arm64')).toBe('linux-arm64');
-    expect(core.targetOf('darwin', 'x64')).toBe('darwin-x64');
+    expect(core.targetOf('darwin', 'x64')).toBeNull(); // 0.9.11: Macs on Apple chips only
     expect(core.targetOf('win32', 'ia32')).toBeNull();
   });
 });

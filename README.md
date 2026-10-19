@@ -119,8 +119,8 @@ first run downloads the Electron runtime for each target (~100 MB each) and cach
   run `./winterland`. On distributions that block Chromium's sandbox (some Ubuntu 24.04+ setups report
   *"The SUID sandbox helper binary was found, but is not configured correctly"*), start it with
   `./winterland --no-sandbox`.
-- **macOS:** unzip `Winterland-<version>-darwin-arm64.zip` (Apple silicon, M1 and later) or `darwin-x64.zip` (Intel)
-  and drag `Winterland.app` to Applications. The app isn't notarised by Apple, so the first time *right-click → Open*
+- **macOS:** unzip `Winterland-<version>-darwin-arm64.zip` (Macs with an Apple chip, M1 and later; Intel Macs are not
+  supported from 0.9.11) and drag `Winterland.app` to Applications. The app isn't notarised by Apple, so the first time *right-click → Open*
   it (or *System Settings → Privacy & Security → Open Anyway*).
 
 **Updating:** from 0.9.8 the game itself tells you when a new version is out. A card shows what's new and lets you

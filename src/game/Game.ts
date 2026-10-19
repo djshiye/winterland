@@ -68,7 +68,7 @@ import { JuiceDirector } from '../fx/JuiceDirector';
 import { Soundscape } from '../fx/soundscape';
 import { Fireworks } from '../fx/Fireworks';
 import { HUD } from '../ui/HUD';
-import { readFpsCap, writeFpsCap, type FpsCap } from '../core/fps';
+import { frameDue, readFpsCap, targetFps, writeFpsCap, type FpsCap } from '../core/fps';
 import { menuPause } from '../fx/comfort';
 import { WorldEvents } from '../core/WorldEvents';
 import { Contracts } from '../core/Contracts';
@@ -215,6 +215,8 @@ export class Game {
   /** Frame cap; frames arriving early are skipped (sim and render) so the sim never slows (MAX_DT is 50 ms). */
   fpsCap: FpsCap = readFpsCap();
   private lastFrame = 0;
+  /** False while another window has focus (the frame rate drops to UNFOCUSED_FPS, core/fps.ts). */
+  private focused = true;
   /** Saving is off for `?fresh` pages and after a reset (until the reload). */
   private saving: boolean;
   private saveTimer: number = SAVE.interval;
@@ -305,6 +307,8 @@ export class Game {
     window.addEventListener('resize', () => this.resize());
     window.visualViewport?.addEventListener('resize', () => this.resize());
     window.addEventListener('pagehide', () => this.save());
+    window.addEventListener('blur', () => (this.focused = false));
+    window.addEventListener('focus', () => (this.focused = true));
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') this.save();
     });
@@ -554,11 +558,10 @@ export class Game {
     const loop = (now: number) => {
       if (!this.running) return;
       requestAnimationFrame(loop);
-      if (this.fpsCap) {
-        // allow a little slack so a 60 Hz display under a 60 cap doesn't drop to 30 from jitter
-        if (now - this.lastFrame < 1000 / this.fpsCap - 2) return;
-        this.lastFrame = now;
-      }
+      // 0.9.11: Auto = 60 at most, 30 while another window has focus (core/fps.ts)
+      const due = frameDue(now, this.lastFrame, targetFps(this.fpsCap, this.focused));
+      if (due === null) return;
+      this.lastFrame = due;
       const dt = Math.min((now - this.lastTime) / 1000, MAX_DT);
       this.lastTime = now;
       if (!this.paused && dt > 0) {

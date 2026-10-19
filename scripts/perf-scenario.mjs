@@ -8,14 +8,15 @@
  * quarters, every town lot, amenity and the Grand Market, opens eras 2..N (default 10) with every machine slot and
  * city lot filled, lets the world run for 150 s (crowds, piles, workers), then switches to night and, at each view
  * (yard, village, town, every region and district), renders `frames` frames and prints the draw calls, triangles and
- * the mean / p95 CPU time of renderer.render() (software WebGL in headless Chromium, so the times are only
+ * the mean / p95 CPU time of renderer.render() and (0.9.11) of one 1/60 s simulation step (software WebGL in headless Chromium, so the times are only
  * comparable with each other on the same machine). With --shots, saves one screenshot per view.
  *
  * --tiers: measure every view on each of these graphics tiers (render/Renderer.ts TIERS; default: the stored tier,
  * High on a fresh profile). Draw calls count the shadow pass, the scene and the post passes.
  * --gate N: exit 1 when any view on any tier draws more than N calls (the 0.9.8 perf gate in CI uses 950 at night).
  * --ab: each view is also rendered with instancing off and on (renderer.instancing): draw calls, a pixel diff and the
- * median render() time of both. --breakdown: the 30 biggest draw-call owners per view. --views a,b: only those views.
+ * median render() time of both. --breakdown: the 30 biggest draw-call owners per view.
+ * --tris: the 30 biggest triangle owners per view (scene + shadow pass). --views a,b: only those views.
  * --look dir: after measuring, a day and a night screenshot of every era (the yard for era 1, beside each region's
  * market for eras 2..10, HUD hidden) plus the village, town and the era-10 district, as dir/<view>-day.png and dir/<view>-night.png
  * (the before / after proof of a visual change).
@@ -44,6 +45,7 @@ const tiers = opt('--tiers', '');
 const gate = Number(opt('--gate', '0'));
 const night = !argv.includes('--day');
 const breakdown = argv.includes('--breakdown');
+const trisTop = argv.includes('--tris');
 const ab = argv.includes('--ab');
 
 const W = '__WINTERLAND__';
@@ -131,7 +133,8 @@ const measure = `(() => {
   const keep = ${JSON.stringify(only)};
   if (keep) pts.splice(0, pts.length, ...pts.filter((p) => keep.split(',').includes(p.id)));
   // Counts every draw of one render (main + shadow pass) per owner: the nearest named ancestor path.
-  const drawsByOwner = () => {
+  // tris = true: counts triangles drawn instead of draw calls.
+  const drawsByOwner = (tris = false) => {
     const counts = new Map();
     const label = (o) => {
       const names = [];
@@ -143,8 +146,14 @@ const measure = `(() => {
       if (!o.isMesh && !o.isSprite && !o.isPoints && !o.isLine) return;
       const l = label(o);
       const before = o.onAfterRender, shadow = o.onAfterShadow;
-      o.onAfterRender = function (...a) { const c = counts.get(l) ?? [0, 0]; c[0]++; counts.set(l, c); return before.apply(this, a); };
-      o.onAfterShadow = function (...a) { const c = counts.get(l) ?? [0, 0]; c[1]++; counts.set(l, c); return shadow.apply(this, a); };
+      const n = () => {
+        if (!tris) return 1;
+        const g = o.geometry;
+        const v = Math.min(g.index ? g.index.count : g.attributes.position?.count ?? 0, g.drawRange.count);
+        return Math.round((v / 3) * (o.isInstancedMesh ? o.count : g.isInstancedBufferGeometry ? g.instanceCount : 1));
+      };
+      o.onAfterRender = function (...a) { const c = counts.get(l) ?? [0, 0]; c[0] += n(); counts.set(l, c); return before.apply(this, a); };
+      o.onAfterShadow = function (...a) { const c = counts.get(l) ?? [0, 0]; c[1] += n(); counts.set(l, c); return shadow.apply(this, a); };
       hooked.push([o, before, shadow]);
     });
     W.render();
@@ -160,8 +169,11 @@ const measure = `(() => {
     W.simulate(0.5, 1 / 60);
     const times = [];
     let calls = 0, tris = 0;
+    let simMs = 0;
     for (let i = 0; i < ${frames}; i++) {
-      W.simulate(1 / 60, 1 / 60);
+      const s0 = performance.now();
+      W.game.step(1 / 60);
+      simMs += performance.now() - s0;
       const t0 = performance.now();
       W.render();
       times.push(performance.now() - t0);
@@ -170,8 +182,9 @@ const measure = `(() => {
     }
     times.sort((a, b) => a - b);
     const mean = times.reduce((s, v) => s + v, 0) / times.length;
-    const row = { tier, view: p.id, calls, tris, ms: +mean.toFixed(2), p95: +times[Math.floor(times.length * 0.95)].toFixed(2) };
+    const row = { tier, view: p.id, calls, tris, ms: +mean.toFixed(2), p95: +times[Math.floor(times.length * 0.95)].toFixed(2), sim: +(simMs / ${frames}).toFixed(2) };
     if (${breakdown}) row.top = drawsByOwner();
+    if (${trisTop}) row.topTris = drawsByOwner(true);
     if (${ab}) {
       // same frame with instancing off (every mesh draws itself) vs on: draw calls and a pixel diff
       const r = ctx.renderer;
@@ -306,10 +319,11 @@ if (line) {
   if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify(result, null, 2));
   console.log(`\nmeshes in scene: ${result.meshesInScene}`);
   const pad = (v, n) => String(v ?? '').padStart(n);
-  console.log(`${'tier'.padEnd(8)}${'view'.padEnd(12)}${pad('calls', 7)}${pad('tris', 9)}${pad('ms', 8)}${ab ? `${pad('off', 7)}${pad('on', 7)}${pad('ms off', 8)}${pad('ms on', 8)}${pad('px diff', 9)}` : ''}`);
+  console.log(`${'tier'.padEnd(8)}${'view'.padEnd(12)}${pad('calls', 7)}${pad('tris', 9)}${pad('ms', 8)}${pad('sim ms', 8)}${ab ? `${pad('off', 7)}${pad('on', 7)}${pad('ms off', 8)}${pad('ms on', 8)}${pad('px diff', 9)}` : ''}`);
   for (const v of result.views) {
-    console.log(`${String(v.tier).padEnd(8)}${v.view.padEnd(12)}${pad(v.calls, 7)}${pad(v.tris, 9)}${pad(v.ms, 8)}${ab ? `${pad(v.callsOff, 7)}${pad(v.callsOn, 7)}${pad(v.msOff, 8)}${pad(v.msOn, 8)}${pad(v.pixelsDiff, 9)}` : ''}`);
+    console.log(`${String(v.tier).padEnd(8)}${v.view.padEnd(12)}${pad(v.calls, 7)}${pad(v.tris, 9)}${pad(v.ms, 8)}${pad(v.sim, 8)}${ab ? `${pad(v.callsOff, 7)}${pad(v.callsOn, 7)}${pad(v.msOff, 8)}${pad(v.msOn, 8)}${pad(v.pixelsDiff, 9)}` : ''}`);
     for (const t of v.top ?? []) console.log(`    ${t}`);
+    for (const t of v.topTris ?? []) console.log(`    ${t}`);
   }
   if (gate > 0) {
     const over = result.views.filter((v) => v.calls > gate);

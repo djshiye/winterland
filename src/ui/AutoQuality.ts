@@ -13,17 +13,18 @@
  *   in an earlier version) disables it for good. Its own choice is stored as the tier name in 'winterland:autoQuality'
  *   (0.9.7 stored 'low' after its one-way drop; that now simply means "auto, currently Low").
  * - Measures real time between HUD updates (like PerfOverlay, 0.5 s buckets), skips the first 5 s after load and the
- *   first seconds after each change, skips while the tab is hidden and restarts its streak when the tab comes back.
+ *   first seconds after each change, skips while the tab is hidden or the window is not focused (0.9.11: drawn at 30
+ *   then) and restarts its streak when it comes back.
  * - Test safety: it does nothing for `?noauto`, nor under automation (navigator.webdriver: Playwright / Puppeteer /
  *   headless test runs), and it only counts frames that arrive like a real animation loop (>= ~6 ms apart and < 1 s
  *   apart), so `__WINTERLAND__.simulate()` bursts and pauses never feed it.
  */
 import type { GameContext } from '../core/types';
+import { AUTO_QUALITY_KEY, autoQualityOn } from '../core/autoQuality';
 import { readFpsCap } from '../core/fps';
 import { QUALITIES, type Quality } from '../render/Renderer';
 
-const KEY = 'winterland:autoQuality';
-const QUALITY_KEY = 'winterland:quality';
+const KEY = AUTO_QUALITY_KEY;
 /** Step down under this share of the target frame rate (40 of 60)… */
 const DOWN_FRACTION = 2 / 3;
 const DOWN_SECONDS = 8;
@@ -50,18 +51,7 @@ export class AutoQuality {
     private readonly ctx: GameContext,
     private readonly notify: (q: Quality, up: boolean) => void,
   ) {
-    let ok = true;
-    try {
-      const q = new URLSearchParams(location.search);
-      if (q.has('noauto')) ok = false;
-      if ((navigator as Navigator & { webdriver?: boolean }).webdriver) ok = false;
-      const mark = localStorage.getItem(KEY);
-      if (mark === 'manual') ok = false; // chosen by hand
-      else if (mark === null && localStorage.getItem(QUALITY_KEY) !== null) ok = false; // a hand-set quality from before the marker existed
-    } catch {
-      /* storage unavailable: still fine to run, nothing to read */
-    }
-    this.enabled = ok;
+    this.enabled = autoQualityOn();
     try {
       document.addEventListener('visibilitychange', () => this.restart());
     } catch {
@@ -93,7 +83,8 @@ export class AutoQuality {
   update(): void {
     if (!this.enabled) return;
     const now = performance.now();
-    if (document.hidden) {
+    if (document.hidden || !document.hasFocus()) {
+      // hidden, or another window in front (the game draws at 30 then, core/fps.ts): not a fair sample
       this.restart();
       return;
     }

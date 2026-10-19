@@ -213,6 +213,10 @@ export class PostFX {
   private readonly composite: THREE.ShaderMaterial;
   private w = 1;
   private h = 1;
+  /** MSAA samples of the scene target. */
+  get samples(): number {
+    return this.settings.samples;
+  }
   /** Full-screen passes drawn by the last render (draw calls). */
   passes = 0;
 

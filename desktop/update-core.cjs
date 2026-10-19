@@ -23,7 +23,8 @@ const ASSET_HOSTS = ['objects.githubusercontent.com', 'release-assets.githubuser
 const LIMITS = { sums: 64 * 1024, notes: 128 * 1024, zip: 600 * 1024 * 1024 };
 
 /** The zips a release ships (scripts/package-desktop.mjs, .github/workflows/release.yml). */
-const TARGETS = ['linux-x64', 'linux-arm64', 'win32-x64', 'darwin-arm64', 'darwin-x64'];
+// 0.9.11: no darwin-x64 (Macs on Apple chips only)
+const TARGETS = ['linux-x64', 'linux-arm64', 'win32-x64', 'darwin-arm64'];
 
 /** Why an update stopped. The script reports these back as `--update-failed=<code>`; the game words them. */
 const FAIL_CODES = ['offline', 'norelease', 'nodownload', 'current', 'running', 'checksum', 'files', 'unzip', 'cancelled', 'other'];

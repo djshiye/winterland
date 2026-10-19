@@ -1,6 +1,6 @@
 /**
  * [B4] AutoQuality: 0.9.8 steps one tier down after 8 s under 40 fps and back up after 20 s at ~60 fps (never into a
- * tier it left for being slow), skipping warm-up, hidden tab, manual / noauto / webdriver.
+ * tier it left for being slow), skipping warm-up, hidden tab, unfocused window, manual / noauto / webdriver.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutoQuality } from '../src/ui/AutoQuality';
@@ -9,7 +9,7 @@ let now = 0;
 let store: Record<string, string> = {};
 let search = '';
 let webdriver = false;
-const doc = { hidden: false, addEventListener: () => undefined };
+const doc = { hidden: false, focused: true, hasFocus: () => doc.focused, addEventListener: () => undefined };
 
 function setup(quality: 'high' | 'medium' | 'low' = 'high') {
   const renderer = { quality: quality as string, setQuality: vi.fn((q: string) => void (renderer.quality = q)) };
@@ -34,6 +34,7 @@ beforeEach(() => {
   search = '';
   webdriver = false;
   doc.hidden = false;
+  doc.focused = true;
   vi.stubGlobal('performance', { now: () => now });
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => store[k] ?? null,
@@ -127,6 +128,14 @@ describe('AutoQuality', () => {
     run(aq, 6, 50);
     doc.hidden = true;
     run(aq, 20, 50);
+    expect(setQuality).not.toHaveBeenCalled();
+  });
+
+  it('skips while another window has focus (0.9.11: the game draws at 30 then)', () => {
+    const { aq, setQuality } = setup();
+    run(aq, 6, 50);
+    doc.focused = false;
+    run(aq, 20, 34);
     expect(setQuality).not.toHaveBeenCalled();
   });
 
