@@ -9,7 +9,8 @@
  * - The west belt: honey lattice derricks between snowy pines.
  * - Honey barrel racks, nodding-donkey pumpjack stubs and amber crude seeps in the harvest zone.
  * Open (once bought):
- * - The processing floor in WARM ASPHALT with HONEY LANES (double honey lines along every row, chevrons pointing to
+ * - (0.9.11: the asphalt and board turned cold slate and icy white, a polar tundra; the honey stays as the warm accent.)
+ * - The processing floor in ASPHALT with HONEY LANES (double honey lines along every row, chevrons pointing to
  *   the gate) and cream cell lines; the front yard a forecourt with a honey zebra at the gate; the paths in asphalt
  *   edged honey (palette(7).floor).
  * - Peach forecourt lamps along the yard path (the DIRECTION night light, #ffaa5a) with warm halos at night.

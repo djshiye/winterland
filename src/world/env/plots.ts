@@ -79,8 +79,8 @@ const STYLE: readonly (PlotStyle | null)[] = [
   { hut: 'bunk', wall: 0x7d8c96, roof: 0xb4553a, shop: 0x8a98a2, shopRoof: 0xc0673e, street: 0x8d9095, pave: 0x9fa3a8, line: 0x7f8388, green: 'brazier', beds: ['ridges', 0xb4553a, 'heaps', 0x6f6460], glow: [1], yard: 'cells' },
   // 6 copper + quartz: patina-green deco arcades, flagstone yard, a grove of copper outcrops and quartz clumps
   { hut: 'deco', wall: 0xd8cbb2, roof: 0x4c7a74, shop: 0xe0d2b8, shopRoof: 0x3f706a, street: 0xa7b3a9, pave: 0xb9c2b6, line: 0x8a9490, green: 'lamps', beds: ['outcrop', 0xc0784a, 'crystals', 0xe4eef2], glow: [1], yard: 'flags' },
-  // 7 crude + gas: trailers and a roadside strip on dark asphalt, pumpjacks and a tank farm in the field
-  { hut: 'trailer', wall: 0xe3c07a, roof: 0xc44536, shop: 0xe6d3a8, shopRoof: 0xc44536, street: 0x77757a, pave: 0x8a888a, line: 0xe8d27a, green: 'brazier', beds: ['jack', 0x7a5236, 'tank', 0xd99b26], yard: 'asphalt' },
+  // 7 crude + gas: honey trailers and a roadside strip on cold slate asphalt (0.9.11 tundra), pumpjacks and a tank farm
+  { hut: 'trailer', wall: 0xe3c07a, roof: 0xc44536, shop: 0xe6d3a8, shopRoof: 0xc44536, street: 0x6c7684, pave: 0x8592a0, line: 0xe8d27a, green: 'brazier', beds: ['jack', 0x7a5236, 'tank', 0xd99b26], yard: 'asphalt' },
   // 8 silica + gold: white modular blocks on clean tiles, glass pavilions, sand dunes with gold pans and a clean room
   { hut: 'modular', wall: 0xeee8d8, roof: 0x5c9aa0, shop: 0xf0eadb, shopRoof: 0x45858c, street: 0xd8d6cf, pave: 0xe2e0d8, line: 0xc4c2ba, green: 'kiosk', beds: ['dunes', 0xdfc28c, 'pools', GOLD_POOL], special: ['cleanroom', 0xf3f4f6], glow: [1], yard: 'tiles' },
   // 9 uranium + graphite: quonset barracks, a hazard-striped yard, a fenced grid of glowing pits

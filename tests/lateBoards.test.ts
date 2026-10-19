@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { plotPlaces, regionLayout } from '../src/eras/layout';
+import { landmarkRect89 } from '../src/world/env/ground/landmarks8to9';
 import { GroundKit, eraGround, eraKeepOut, eraOwnsFloor } from '../src/world/env/eraGround';
 import { Rng } from '../src/world/env/common';
 import type { RegionLayout, PlotPlaces } from '../src/eras/layout';
@@ -95,8 +96,11 @@ describe('late-era base boards (eras 8-10)', () => {
       const r = l.rect;
       for (const g of [buildEraWild(n, l)!, buildEraOpen(n, l, plotPlaces(n))!]) {
         const bad: string[] = [];
+        // the signature landmark (eras 8-9) is the one tall thing allowed in the harvest zone
+        const lm = n === 8 || n === 9 ? landmarkRect89(l, n) : [];
         for (const v of vertices(g)) {
           if (v.y <= 2.0) continue;
+          if (lm.some((q) => v.x >= q.minX && v.x <= q.maxX && v.z >= q.minZ && v.z <= q.maxZ)) continue;
           const edge = v.x < r.minX + 4 || v.z < r.minZ + 4;
           const field = v.x > H.minX && v.x < H.maxX && v.z > H.minZ && v.z < H.maxZ && v.y < 2.4;
           if (!edge && !field) bad.push(`${v.y.toFixed(2)} m tall at ${v.x.toFixed(1)}, ${v.z.toFixed(1)}`);
