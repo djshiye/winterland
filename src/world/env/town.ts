@@ -23,10 +23,12 @@ import { buildLampVariants, LAMP_TOP, type LampSpot } from './lamps';
 import { addArch, addBench, addFir, addSnowman, addStall, ARCH_H, FIR_STAR_Y, Placer, box, cyl } from './townProps';
 import { BENCHES, SNOWMAN, STALLS } from '../../town/spots';
 import { GAME_FONT, makeCanvasTexture, toon } from '../../render/materials';
-import type { GameContext } from '../../core/types';
+import { TOWN_SQUARE_LOTS, type GameContext } from '../../core/types';
 
 const T = LAYOUT.town;
 const V = LAYOUT.village;
+/** The square's own lots (0.9.12: LAYOUT.town.lots 8.. are Lantern Lane's, drawn by env/lantern.ts when it opens). */
+const SQUARE_LOTS = T.lots.slice(0, TOWN_SQUARE_LOTS);
 
 export interface TownPart extends EnvPart {
   /** Open the district (instant: final state, silent). Idempotent. */
@@ -125,7 +127,7 @@ export function buildTown(ctx: GameContext, rng: Rng): TownPart {
   const disc = new THREE.CircleGeometry(1, 16).rotateX(-Math.PI / 2);
   const keep = [
     { minX: sq.minX - 0.5, maxX: sq.maxX + 0.5, minZ: sq.minZ - 0.5, maxZ: sq.maxZ + 0.5 },
-    ...T.lots.map((l) => rect(l.x, l.z, T.lotSize + 0.8, T.lotSize + 0.8)),
+    ...SQUARE_LOTS.map((l) => rect(l.x, l.z, T.lotSize + 0.8, T.lotSize + 0.8)),
   ];
   let layer = 0;
   for (let tries = 0; tries < 400 && layer < 34; tries++) {
@@ -136,8 +138,8 @@ export function buildTown(ctx: GameContext, rng: Rng): TownPart {
     flat.add(disc, layer % 3 === 0 ? 0xf8fbff : layer % 3 === 1 ? 0xdde8f3 : 0xeef4fb, x, 0.009 + layer * 0.00035, z, { sx: r, sz: r * rng.range(0.6, 1), ry: rng.range(0, 3) });
     layer++;
   }
-  // the 8 lot outlines: packed snow with a lighter rim
-  for (const l of T.lots) {
+  // the 8 lot outlines: packed snow with a lighter rim (Lantern Lane draws its own, env/lantern.ts)
+  for (const l of SQUARE_LOTS) {
     slab(T.lotSize, T.lotSize, l.x, l.z, 0.026, 0xd6e1ee);
     slab(T.lotSize - 0.5, T.lotSize - 0.5, l.x, l.z, 0.031, 0xdfe9f3, 0.01);
     const h = T.lotSize / 2;

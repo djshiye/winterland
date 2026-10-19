@@ -12,6 +12,7 @@
  */
 import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, TOWN, VILLAGE, type AmenityId, type BusinessDef, type BusinessId, type Rect, type XZ } from '../config';
 import { CARRY_KINDS, LOT_COUNT, type CarryKind, type GameState } from '../core/types';
+import { lotOffered } from './lane';
 import { DEMOLISH_MIN, DEMOLISH_SHARE } from '../eras/data';
 
 const T = LAYOUT.town;
@@ -46,9 +47,10 @@ export function lotOpen(state: GameState, lot: number): boolean {
   return !!st && st.tier < 0 && st.logs <= 0 && st.cash <= 0;
 }
 
-/** The choose() rule: revealed town, lot in range, nothing paid, a visible building whose era has been reached. */
+/** The choose() rule: revealed town, lot in range and offered (Lantern Lane once the new land shows), nothing paid, a visible building whose era has been reached. */
 export function canChoose(state: GameState, lot: number, id: BusinessId): boolean {
   if (!state.town.revealed || !Number.isInteger(lot) || lot < 0 || lot >= LOT_COUNT) return false;
+  if (!lotOffered(state, lot)) return false;
   if (!(id in BUSINESSES) || TOWN.hidden.includes(id)) return false;
   if (!lotOpen(state, lot)) return false;
   return BUSINESSES[id].era <= state.village.level;
@@ -87,6 +89,11 @@ const MANAGE_AT: readonly (readonly [number, number, number, number])[] = [
   [-0.3, 0.6, 4.8, 5.6],
   [-1.95, -1.05, 4.05, 4.85],
   [-1.2, -0.3, 4.05, 4.85],
+  // 0.9.12 Lantern Lane (lots 8..11 face the avenue): on the side away from the lane's other row of lots
+  [1.05, 1.95, 4.05, 4.85],
+  [-1.95, -1.05, 4.05, 4.85],
+  [-1.95, -1.05, 4.05, 4.85],
+  [1.05, 1.95, 4.05, 4.85],
 ];
 
 /**

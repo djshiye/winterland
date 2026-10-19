@@ -13,6 +13,7 @@ import { createGameState, type GameContext, type GameEvents, type Item, type Ite
 import { Townsfolk } from '../src/npc/Townsfolk';
 import { Town } from '../src/town/Town';
 import { BENCHES, SNOWMAN, STALLS } from '../src/town/spots';
+import { LANE_PLAYER_WALK } from '../src/town/lane';
 import { MANAGE_DWELL, MANAGE_STILL_SPEED, amenityFrame, canManage, demolishCost, layoutFor, lotFrame, manageLocal, manageOpens, manageRect, queueSpotOf, worldRect } from '../src/town/rules';
 import { SQUARE_LAMPS } from '../src/world/env/town';
 
@@ -23,7 +24,8 @@ const FRONTS = [0.9, 1.2, 1.5, 1.8];
 const inRect = (r: Rect, x: number, z: number): boolean => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
 const overlap = (a: Rect, b: Rect): boolean => a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
 const gap = (a: Rect, b: Rect): number => Math.hypot(Math.max(a.minX - b.maxX, b.minX - a.maxX, 0), Math.max(a.minZ - b.maxZ, b.minZ - a.maxZ, 0));
-const walkable = (x: number, z: number): boolean => T.walk.some((r) => inRect(r, x, z));
+// 0.9.12: Lantern Lane's lots stand on its own walk (town/lane.ts)
+const walkable = (x: number, z: number): boolean => [...T.walk, LANE_PLAYER_WALK].some((r) => inRect(r, x, z));
 
 describe('demolishCost', () => {
   it('is a share of the cash price, never below the minimum', () => {
@@ -272,7 +274,7 @@ function makeTown(age: number, money = 100000) {
     items: { create: (kind: ItemKind, value?: number): Item => ({ id: 1, kind, value: value ?? 0, object: new THREE.Object3D() }) as Item, release: () => undefined },
     flights: { launch: () => undefined, inFlightTo: () => flying.n },
     hud: { buildPanel: { attach: () => undefined } },
-    environment: { openTownGate: () => undefined },
+    environment: { openTownGate: () => undefined, openLane: () => undefined },
   } as unknown as GameContext;
   const town = new Town(ctx);
   town.reveal(true);

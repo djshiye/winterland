@@ -9,6 +9,7 @@ import { villagePopulation } from '../src/core/demand';
 import { sanitizeState } from '../src/core/Save';
 import { createGameState, LOT_COUNT } from '../src/core/types';
 import { BENCHES, SNOWMAN, STALLS } from '../src/town/spots';
+import { LANE_PLAYER_WALK } from '../src/town/lane';
 import {
   QUEUE_STEP,
   canChoose,
@@ -148,7 +149,8 @@ const R = 0.36; // PLAYER.radius
 /** v of the front of the building body: T1's models (0.9), a centred 3 m box (1.5) and in between. */
 const MODEL_FRONTS = [0.9, 1.2, 1.5];
 const inRect = (r: Rect, x: number, z: number): boolean => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
-const walkable = (x: number, z: number): boolean => T.walk.some((r) => inRect(r, x, z));
+// 0.9.12: Lantern Lane's lots stand on its own walk (town/lane.ts)
+const walkable = (x: number, z: number): boolean => [...T.walk, LANE_PLAYER_WALK].some((r) => inRect(r, x, z));
 const overlap = (a: Rect, b: Rect): boolean => a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
 
 /** Solid rects of lot `lot` for a business: the building (model w × d) and its props. */

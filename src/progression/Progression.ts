@@ -46,6 +46,7 @@ import { MATERIAL_KINDS } from '../core/kinds';
 import { article, formatMoney } from '../ui/format';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
 import { grandMarketOffered } from '../town/rules';
+import { lotOffered } from '../town/lane';
 import { usingGamepad } from '../input/Gamepad';
 import { EraStarter, starterFlag } from './eraStarter';
 import { setGuideGoal } from './guideGoal';
@@ -697,7 +698,7 @@ export class Progression {
     const anyChosen = s.town.lots.some((l) => l.building !== '');
     if (!anyChosen) {
       const cheapest = Math.min(...Object.values(BUSINESSES).filter((d) => !TOWN.hidden.includes(d.id)).map((d) => d.cash));
-      const lot = s.town.lots.findIndex((l) => l.building === '');
+      const lot = s.town.lots.findIndex((l, i) => l.building === '' && lotOffered(s, i));
       const spot = lot >= 0 ? town.padSpot(lot) : null;
       if (spot && money >= cheapest * 0.6) {
         this.setGoal('Build something in the Market Town', rect(spot.x, spot.z, 1.8, 1.8), this.tmpPoint.set(spot.x, 0, spot.z));
@@ -806,7 +807,7 @@ export class Progression {
       }
       // A toy factory chosen on a lot is being paid for above (townGuide's lot payments). None at all: build one.
       if (s.town.lots.some((l) => l.building === 'toyFactory')) return false;
-      const lot = s.town.lots.findIndex((l) => l.building === '');
+      const lot = s.town.lots.findIndex((l, i) => l.building === '' && lotOffered(s, i));
       const spot = lot >= 0 ? this.level.town.padSpot(lot) : null;
       if (!spot || money < BUSINESSES.toyFactory.cash * 0.6) return false;
       this.setGoal('Build a Toy Factory: the Grand Market needs toys', rect(spot.x, spot.z, 1.8, 1.8), this.tmpPoint.set(spot.x, 0, spot.z));

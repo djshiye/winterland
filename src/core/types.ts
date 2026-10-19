@@ -212,7 +212,9 @@ export interface ContractState {
 }
 
 /** Must match LAYOUT.town.lots.length. */
-export const LOT_COUNT = 8;
+export const LOT_COUNT = 12;
+/** 0.9.12: lots 0..7 stand round the square; LOT_COUNT - TOWN_SQUARE_LOTS more line Lantern Lane (town/lane.ts). */
+export const TOWN_SQUARE_LOTS = 8;
 
 // ---------------------------------------------------------------------------
 // 0.9.0 Ages: eras, regions, machines, city districts, market

@@ -78,6 +78,7 @@ import type { CashPile } from '../stations/CashPile';
 import type { Zone } from '../items/Zones';
 import { Business, type StaffSpot } from './Business';
 import { LotPad } from './LotPad';
+import { LANE_PLAYER_WALK, LANE_GAP_WALK, isLaneLot, laneOpen, lotOffered } from './lane';
 import { amenityFrame, amenityOffered, canChoose, canManage, choicesFor, demolishCost, grandMarketFrame, manageOpens, grandMarketOffered, lotFrame, lotOpen, manageRect, paidFraction, settlePaidAmenities, settlePaidGrandMarket, settlePaidLots, type AmenityFrame, type GrandMarketFrame, type LotFrame } from './rules';
 import type { ShopSpot } from './types';
 import { smokeFrom } from '../world/sky/smoke';
@@ -146,6 +147,8 @@ export class Town {
   private readonly amenities: AmenitySite[] = [];
   private readonly market: MarketSite;
   private opened = false;
+  /** 0.9.12: Lantern Lane (lots 8..11, its walk, ground and decor) is shown (town/lane.ts laneOpen). */
+  private laneShown = false;
   /** Demolished businesses waiting for their last in-flight items before their piles are disposed (Business.drain). */
   private readonly graveyard: Business[] = [];
   private smokeTimer = 0;
@@ -189,9 +192,15 @@ export class Town {
     for (const id of AMENITY_IDS) this.amenities.push(this.makeAmenitySite(id));
     // a village level-up can unlock an amenity's pad (the pond needs level 4)
     this.market = this.makeMarketSite();
-    ctx.events.on('village:changed', () => this.refreshAmenities(false));
+    ctx.events.on('village:changed', () => {
+      this.refreshAmenities(false);
+      this.refreshLane(false);
+    });
     // era 2 opens the demolish zones of the lots that are already built
-    ctx.events.on('era:unlocked', () => this.refreshAllManage());
+    ctx.events.on('era:unlocked', () => {
+      this.refreshAllManage();
+      this.refreshLane(false);
+    });
 
     ctx.hud.buildPanel.attach(this);
     if (ctx.state.town.revealed) this.applyReveal(true);
@@ -202,6 +211,11 @@ export class Town {
         ctx.events.emit('town:built', { lot: i, building: l.building, position: new THREE.Vector3(this.lots[i]!.frame.x, 0, this.lots[i]!.frame.z), object: b?.group ?? this.root });
       }
     });
+  }
+
+  /** 0.9.12: Lantern Lane is shown (its lots offered, its walk open). */
+  get laneOpen(): boolean {
+    return this.laneShown;
   }
 
   get revealed(): boolean {
@@ -278,7 +292,7 @@ export class Town {
   /** Where to stand to choose / pay lot `lot` (its pad), or null when it is built or the town is closed. */
   padSpot(lot: number): XZ | null {
     const L = this.lots[lot];
-    if (!L || !this.opened || L.business) return null;
+    if (!L || !this.opened || L.business || !lotOffered(this.ctx.state, lot)) return null;
     return { x: L.pos.x, z: L.pos.z };
   }
 
@@ -422,25 +436,42 @@ export class Town {
     for (const r of T.walk) ctx.colliders.addBounds(r);
     ctx.colliders.addBounds(T.playerWalk); // 0.9.2: up to the lot fronts, not just the square
     ctx.colliders.addBounds(this.market.frame.walk); // the Grand Market's pad lies beyond the square
-    for (const L of this.lots) {
-      const st = ctx.state.town.lots[L.index]!;
-      if (st.building !== '' && st.tier >= 0) {
-        this.makeBusiness(L, true);
-      } else if (st.building !== '') {
-        const pad = this.armPad(L, st.building);
-        pad.show(true);
-        this.refreshHint(L);
-      } else {
-        L.buildPad.show(instant);
-      }
-      this.refreshLook(L, false);
-      this.refreshZone(L);
-      this.refreshManage(L);
-      if (!instant && L.model && L.look === 'sale') ctx.tweens.popIn(L.model, { delay: 0.25 + L.index * 0.07, duration: 0.45 });
-    }
+    for (const L of this.lots) if (!isLaneLot(L.index)) this.showLot(L, instant, L.index);
+    this.refreshLane(true);
     for (const S of this.amenities) if (ctx.state.town.amenities[S.id].tier >= 0) this.showAmenity(S, true);
     if (ctx.state.town.grandMarket.tier >= 0) this.showMarket(true);
     this.refreshAmenities(instant);
+  }
+
+  /** A lot's look on reveal: its building, its chosen pad, or the for-sale sign and BUILD pad. */
+  private showLot(L: Lot, instant: boolean, order: number): void {
+    const ctx = this.ctx;
+    const st = ctx.state.town.lots[L.index]!;
+    if (st.building !== '' && st.tier >= 0) {
+      this.makeBusiness(L, true);
+    } else if (st.building !== '') {
+      const pad = this.armPad(L, st.building);
+      pad.show(true);
+      this.refreshHint(L);
+    } else {
+      L.buildPad.show(instant);
+    }
+    this.refreshLook(L, false);
+    this.refreshZone(L);
+    this.refreshManage(L);
+    if (!instant && L.model && L.look === 'sale') ctx.tweens.popIn(L.model, { delay: 0.25 + order * 0.07, duration: 0.45 });
+  }
+
+  /** 0.9.12: show Lantern Lane once it opens (the Great Lodge built, or a later era). Idempotent. */
+  private refreshLane(instant: boolean): void {
+    if (!this.opened || this.laneShown || !laneOpen(this.ctx.state)) return;
+    this.laneShown = true;
+    const ctx = this.ctx;
+    ctx.colliders.addBounds(LANE_PLAYER_WALK);
+    ctx.colliders.addBounds(LANE_GAP_WALK);
+    ctx.environment.openLane(this.root);
+    let order = 0;
+    for (const L of this.lots) if (isLaneLot(L.index)) this.showLot(L, instant, order++);
   }
 
   // ---- amenities (wave 12) ----------------------------------------------------------------------------------
@@ -631,7 +662,7 @@ export class Town {
 
   /** The panel zone is on exactly while the lot is open (empty, or chosen with nothing paid). */
   private refreshZone(L: Lot): void {
-    L.zone.setEnabled(this.opened && lotOpen(this.ctx.state, L.index));
+    L.zone.setEnabled(this.opened && lotOffered(this.ctx.state, L.index) && lotOpen(this.ctx.state, L.index));
   }
 
   // ---- demolish (0.9.0) -------------------------------------------------------------------------------------

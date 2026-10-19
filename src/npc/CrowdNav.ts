@@ -11,6 +11,7 @@
 import { AMENITY_IDS, LAYOUT, type AmenityId } from '../config';
 import { amenityFrame, amenityToWorld } from '../town/rules';
 import { BENCHES, POND_POSTS, SNOWMAN, STALLS } from '../town/spots';
+import { GAP_IN, GAP_OUT, inAlley, inLane, SPINE_X } from '../town/lane';
 
 /** Radius of a person plus a little air (added to every obstacle). */
 export const PERSON_MARGIN = 0.36;
@@ -396,6 +397,11 @@ function leg(path: Path, ax: number, az: number, bx: number, bz: number, ignore:
  * `ignore`: owner id of the prop the destination belongs to (a bench you sit on, the tree you look at).
  */
 export function planPath(path: Path, ax: number, az: number, bx: number, bz: number, ignore = 0): void {
+  if (!planViaLane(path, ax, az, bx, bz, ignore, planZonePath)) planZonePath(path, ax, az, bx, bz, ignore);
+}
+
+/** planPath north of the town's south fence: through the zone chain lane - square - corridor - street. */
+function planZonePath(path: Path, ax: number, az: number, bx: number, bz: number, ignore: number): void {
   path.clear();
   let cx = ax;
   let cz = az;
@@ -488,6 +494,65 @@ const clampZ = (z: number): number => Math.min(SQUARE.maxZ - SQ_INSET, Math.max(
  * amenity spots on the rim): the route runs between the nearest square points and the real end points are tacked on.
  */
 export function planTownPath(path: Path, ax: number, az: number, bx: number, bz: number, ignore = 0): void {
+  if (!planViaLane(path, ax, az, bx, bz, ignore, planSquarePath)) planSquarePath(path, ax, az, bx, bz, ignore);
+}
+
+/**
+ * 0.9.12 Lantern Lane (town/lane.ts): when either end lies south of the town's fence, plan `path` along the lane's
+ * spine through the fence gap, with `inner` planning the part north of the fence. False (path untouched) otherwise.
+ */
+function planViaLane(path: Path, ax: number, az: number, bx: number, bz: number, ignore: number, inner: (p: Path, ax: number, az: number, bx: number, bz: number, ignore: number) => void): boolean {
+  laneA.x = ax;
+  laneA.z = az;
+  laneB.x = bx;
+  laneB.z = bz;
+  const la = inLane(laneA);
+  const lb = inLane(laneB);
+  const aa = inAlley(laneA);
+  if (aa && !inAlley(laneB)) {
+    // re-planning in the alley between the south lots: onto the spine first, never across a lot
+    path.clear();
+    path.push(SPINE_X, az);
+    if (lb) {
+      path.push(SPINE_X, bz);
+      path.push(bx, bz);
+      return true;
+    }
+    path.push(GAP_IN.x, GAP_IN.z);
+    inner(laneScratch, GAP_IN.x, GAP_IN.z, bx, bz, ignore);
+    for (let i = 0; i < laneScratch.n; i++) path.push(laneScratch.x[i]!, laneScratch.z[i]!);
+    return true;
+  }
+  if (!la && !lb) return false;
+  path.clear();
+  if (la) {
+    // out along the spine to the gap (and on to the other end when it is in the lane too)
+    if (Math.abs(ax - SPINE_X) > 0.05) path.push(SPINE_X, az);
+    if (lb) {
+      path.push(SPINE_X, bz);
+      path.push(bx, bz);
+      return true;
+    }
+    path.push(GAP_OUT.x, GAP_OUT.z);
+    path.push(GAP_IN.x, GAP_IN.z);
+    inner(laneScratch, GAP_IN.x, GAP_IN.z, bx, bz, ignore);
+    for (let i = 0; i < laneScratch.n; i++) path.push(laneScratch.x[i]!, laneScratch.z[i]!);
+    return true;
+  }
+  inner(laneScratch, ax, az, GAP_IN.x, GAP_IN.z, ignore);
+  for (let i = 0; i < laneScratch.n; i++) path.push(laneScratch.x[i]!, laneScratch.z[i]!);
+  path.push(GAP_OUT.x, GAP_OUT.z);
+  path.push(SPINE_X, bz);
+  path.push(bx, bz);
+  return true;
+}
+
+const laneA = { x: 0, z: 0 };
+const laneB = { x: 0, z: 0 };
+const laneScratch = new Path();
+
+/** planTownPath inside the town (square, corridor, street, the south-east lane): both ends north of the south fence. */
+function planSquarePath(path: Path, ax: number, az: number, bx: number, bz: number, ignore: number): void {
   path.clear();
   let sx = ax;
   let sz = az;

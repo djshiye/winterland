@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LAYOUT, VILLAGE } from '../src/config';
-import type { GameContext } from '../src/core/types';
+import { TOWN_SQUARE_LOTS, type GameContext } from '../src/core/types';
 import { Fireworks } from '../src/fx/Fireworks';
 import { STALLS } from '../src/town/spots';
 import { blocked } from '../src/world/env/common';
@@ -78,7 +78,8 @@ describe('decor keep-out', () => {
   it('keeps pines and rocks off the market district and its corridor', () => {
     expect(blocked(mid(T.area.minX, T.area.maxX), mid(T.area.minZ, T.area.maxZ), 1)).toBe(true);
     expect(blocked(T.tree.x, T.tree.z, 1)).toBe(true);
-    for (const l of T.lots) expect(blocked(l.x, l.z, 1)).toBe(true);
+    // the square's lots (Lantern Lane's, 8.., clear their old scatter as the lane opens: Environment.openLane)
+    for (const l of T.lots.slice(0, TOWN_SQUARE_LOTS)) expect(blocked(l.x, l.z, 1)).toBe(true);
     const c = T.walk[0]!;
     expect(blocked(mid(c.minX, c.maxX), mid(c.minZ, c.maxZ), 1)).toBe(true);
   });

@@ -14,7 +14,7 @@ import { EventBus } from '../src/core/EventBus';
 import { legacyTradeDef } from '../src/core/salesMerge';
 import { refundPrice } from '../src/core/refund';
 import { mergeState, migrateState, MIGRATIONS, newSeasonSave, offlineEarnings, SalesMeter, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
-import { createGameState, MATERIAL_KINDS, REGION_SLOTS, type GameContext, type GameEvents, type GameState } from '../src/core/types';
+import { createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type GameContext, type GameEvents, type GameState } from '../src/core/types';
 import { INVEST, MATERIALS } from '../src/eras/data';
 
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
@@ -335,11 +335,14 @@ describe('v3 Market Town fixture', () => {
     sanitizeState(state);
     expect(JSON.stringify(state)).toBe(before);
     expect(state.town.revealed).toBe(true);
-    expect(state.town.lots.map((l) => l.building)).toEqual(save.state.town.lots.map((l) => l.building));
+    expect(state.town.lots.map((l) => l.building)).toEqual([...save.state.town.lots.map((l) => l.building), ...Array<string>(LOT_COUNT - save.state.town.lots.length).fill('')]);
     const mid = state.town.lots[5]!;
     expect(mid).toEqual({ building: 'bakery', tier: -1, logs: 7, cash: 1200 });
     const world = sanitizeWorld(save.world);
-    expect(world.town).toEqual(save.world.town.map((t) => ({ ...t, in: Object.fromEntries(Object.entries(t.in).filter(([, n]) => (n ?? 0) > 0)) })));
+    expect(world.town).toEqual([
+      ...save.world.town.map((t) => ({ ...t, in: Object.fromEntries(Object.entries(t.in).filter(([, n]) => (n ?? 0) > 0)) })),
+      ...Array.from({ length: LOT_COUNT - save.world.town.length }, () => ({ in: {}, out: 0, cash: 0 })), // 0.9.12 Lantern Lane
+    ]);
   });
 
   it('older saves get an empty, hidden town', () => {

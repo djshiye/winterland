@@ -16,6 +16,7 @@
  * - `pruneNewLand` removes old-scatter instances that landed on the new land (the old scatter itself is untouched).
  */
 import * as THREE from 'three';
+import { LANE } from '../../town/lane';
 import { LAYOUT, PALETTE, type Rect } from '../../config';
 import { eraPropGeometry, PROP_RADIUS, PROP_ROLES, strungWires, type PropRole } from '../../assets/frontierProps';
 import { DISTRICTS, ERAS, REGIONS, RIVER_END_Z, RIVER_POND, ROADS, unlockCash } from '../../eras/data';
@@ -221,7 +222,9 @@ function buildRoad(road: (typeof ROADS)[number], rng: Rng, zones: readonly Rect[
   const owners = cutters(ROADS, road.id);
   // kerb stones stand clear of every other road (a street's longer stones keep further off a junction)
   const clear = street ? 0.6 : 0.1;
-  const skip = (x: number, z: number): boolean => zones.some((q) => inRect(q, x, z)) || others.some((q) => inRect(q, x, z, clear));
+  // 0.9.12: no edge stones where Lantern Lane cobbles over the south avenue (env/lantern.ts; both open with the Great Lodge)
+  const paved = road.id === 'southAvenue' ? [LANE] : [];
+  const skip = (x: number, z: number): boolean => zones.some((q) => inRect(q, x, z)) || paved.some((q) => inRect(q, x, z)) || others.some((q) => inRect(q, x, z, clear));
 
   // ---- open: the surface (junction squares owned by another road are left out: one square, one material)
   const b = new Batch();

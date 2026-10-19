@@ -27,6 +27,7 @@ import {
 } from '../src/npc/townRoutes';
 import { LOT_COUNT } from '../src/core/types';
 import { ColliderWorld } from '../src/world/Colliders';
+import { LANE_GAP_WALK, LANE_PLAYER_WALK, LANE_WALK, TOWN_SOUTH, isLaneLot } from '../src/town/lane';
 import { layoutFor, lotFrame, worldRect } from '../src/town/rules';
 import fixture from './fixtures/townColliders.json';
 
@@ -37,12 +38,14 @@ const T = LAYOUT.town;
 function worldWith(filter: (tag: string) => boolean = () => true, extra: (w: ColliderWorld) => void = () => {}): ColliderWorld {
   const w = new ColliderWorld();
   w.setBounds(LAYOUT.yard);
-  for (const r of [...LAYOUT.village.walk, ...T.walk]) w.addBounds(r);
+  for (const r of [...LAYOUT.village.walk, ...T.walk, LANE_PLAYER_WALK, LANE_GAP_WALK]) w.addBounds(r);
   for (const c of DUMP) {
     if (!filter(c.tag)) continue;
     if (c.box) w.addBox(c.box, c.tag);
     else if (c.circle) w.addCircle(c.circle.x, c.circle.z, c.circle.r, c.tag);
   }
+  // 0.9.12: Lantern Lane is open with the south avenue, which carves the town fence's south gap (env/frontier.ts)
+  w.carve('town:fence', { minX: 26, maxX: 30, minZ: TOWN_SOUTH - 0.4, maxZ: TOWN_SOUTH + 0.4 });
   extra(w);
   return w;
 }
@@ -124,7 +127,8 @@ describe('planSquare', () => {
     const w = worldWith();
     const blocked = (x: number, z: number): boolean => w.overlaps(x, z, CLEARANCE);
     expect(planSquare(ENTRY, { x: 18, z: 26.7 }, blocked)).toHaveLength(1);
-    const east = { x: 31.6, z: 24.8 };
+    // straight across the fir from the mouth (0.9.12: the fixture follows the stretched square, where the fir stands)
+    const east = { x: 29.8, z: 32.9 };
     const path = planSquare(ENTRY, east, blocked);
     expect(path.length).toBeGreaterThan(1);
     expect(path[path.length - 1]).toEqual(east);
@@ -186,7 +190,7 @@ describe('stand points for any lot and business', () => {
         const w2 = worldWith((t) => !isLot(t), (cw) => addLot(cw, lot, id));
         const blocked = (x: number, z: number): boolean => w2.overlaps(x, z, CLEARANCE);
         for (const p of standPoints(lot, id)) {
-          expect(inRects([SQUARE_WALK], p.x, p.z), `lot ${lot} ${id}`).toBe(true);
+          expect(inRects([isLaneLot(lot) ? LANE_WALK : SQUARE_WALK], p.x, p.z), `lot ${lot} ${id}`).toBe(true);
           expect(w2.overlaps(p.x, p.z, 0.3), `lot ${lot} ${id} (${p.x.toFixed(2)}, ${p.z.toFixed(2)})`).toBe(false);
           const route = travel({ p: HOME, leg: null }, { p, leg: null }, blocked);
           expect(check(w2, HOME, route), `lot ${lot} ${id} route`).toBeNull();
