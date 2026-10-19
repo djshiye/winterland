@@ -11,7 +11,7 @@
  * priced on the era's band curve (core/ladder.ts costAt), like the other era upgrades. Pure data + pure helpers (no THREE, no GameContext).
  */
 import type { UpgradeDef } from '../config';
-import { ERA_KEYS, ERA_NAMES, REGIONS, type EraKey } from './data';
+import { ERA_KEYS, ERA_NAMES, ERAS, REGIONS, type EraKey } from './data';
 import { eraContent } from './template';
 
 export const ERA_PLAYER_KINDS = ['Carry', 'Boots', 'Tool', 'Pal'] as const;
@@ -31,13 +31,13 @@ export function eraPlayerUpgrades(): Record<EraPlayerUpgradeId, UpgradeDef> {
   const out = {} as Record<EraPlayerUpgradeId, UpgradeDef>;
   ERA_KEYS.forEach((key, i) => {
     const n = i + 2;
-    const name = ERA_NAMES[n]!;
+    const place = ERAS[n]?.region ?? ERA_NAMES[n]!;
     const p = eraContent(n).player;
     const base = { group: 'lumberjack' as const, era: n, costs: [] as number[], requires: { era: n } };
-    out[`${key}Carry`] = { ...base, id: `${key}Carry`, label: p.carry, blurb: `Carry more while you work in the ${name}`, values: ERA_CARRY_VALUES, display: 'count', unit: 'extra items' };
-    out[`${key}Boots`] = { ...base, id: `${key}Boots`, label: p.boots, blurb: `Walk faster through the ${name}`, values: ERA_BOOTS_VALUES, display: 'boost' };
+    out[`${key}Carry`] = { ...base, id: `${key}Carry`, label: p.carry, blurb: `Carry more while you work in ${place}`, values: ERA_CARRY_VALUES, display: 'count', unit: 'extra items' };
+    out[`${key}Boots`] = { ...base, id: `${key}Boots`, label: p.boots, blurb: `Walk faster through ${place}`, values: ERA_BOOTS_VALUES, display: 'boost' };
     out[`${key}Tool`] = { ...base, id: `${key}Tool`, label: p.tool, blurb: `Work the ${eraContent(n).node.label} faster`, values: ERA_TOOL_VALUES, display: 'rate', unit: 'strikes/s' };
-    out[`${key}Pal`] = { ...base, id: `${key}Pal`, label: p.pal, blurb: `A ${name} companion who carries for you`, values: ERA_PAL_VALUES, display: 'count', unit: 'extra items' };
+    out[`${key}Pal`] = { ...base, id: `${key}Pal`, label: p.pal, blurb: `A companion who carries for you in ${place}`, values: ERA_PAL_VALUES, display: 'count', unit: 'extra items' };
   });
   return out;
 }

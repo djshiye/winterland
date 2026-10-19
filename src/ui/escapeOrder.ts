@@ -7,7 +7,7 @@
  * tests/controls097.test.ts.
  */
 
-export const ESCAPE_ORDER = ['update', 'seasonConfirm', 'finale', 'settings', 'map', 'market', 'gate', 'choose', 'manage', 'shop', 'build', 'ageCard'] as const;
+export const ESCAPE_ORDER = ['update', 'seasonConfirm', 'finale', 'settings', 'map', 'market', 'book', 'gate', 'choose', 'manage', 'shop', 'build', 'ageCard'] as const;
 
 export type EscapeTarget = (typeof ESCAPE_ORDER)[number];
 
