@@ -49,7 +49,7 @@ jobs:
       - run: npm test
       - name: Package
         run: node scripts/package-desktop.mjs ${{ matrix.targets }}
-      # 0.9.10: Linux also ships an AppImage per architecture (scripts/package-appimage.mjs), built from the same
+      # 0.9.11: Linux also ships an AppImage per architecture (scripts/package-appimage.mjs), built from the same
       # folders. The AppImage starter comes from AppImage/type2-runtime release 20251108; the script refuses any file
       # that doesn't match its pinned SHA-256.
       - name: AppImages
@@ -124,7 +124,7 @@ jobs:
             case "$z" in Winterland-"${TAG#v}"-*.zip) ;; *) echo "$z doesn't match $TAG (bump package.json)"; exit 1 ;; esac
             unzip -Z1 "$z" | grep -Ec '(^|[/\\])Update Winterland\.(sh|command|cmd)$' > /dev/null || { echo "$z has no updater"; exit 1; }
           done
-          # 0.9.10: the Linux AppImages (x86_64 + aarch64), each with the .zsync Gear Lever and AppImageUpdate read.
+          # 0.9.11: the Linux AppImages (x86_64 + aarch64), each with the .zsync Gear Lever and AppImageUpdate read.
           for a in x86_64 aarch64; do
             f="Winterland-${TAG#v}-$a.AppImage"
             [ -f "$f" ] && [ -f "$f.zsync" ] || { echo "$f (or its .zsync) is missing"; exit 1; }

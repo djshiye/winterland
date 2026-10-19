@@ -50,7 +50,7 @@ jobs:
         if: runner.os == 'Linux'
         run: shellcheck -s bash --severity=warning desktop/updater/update.sh desktop/linux/sandbox-setup.sh
       - run: node scripts/test-updater.mjs
-      # 0.9.10: the Ubuntu sandbox setup (desktop/linux/sandbox-setup.sh) against a pretend system
+      # 0.9.11: the Ubuntu sandbox setup (desktop/linux/sandbox-setup.sh) against a pretend system
       - name: Ubuntu sandbox setup
         if: runner.os == 'Linux'
         run: node scripts/test-linux-sandbox.mjs

@@ -27,7 +27,7 @@
 #   --zip PATH       use this already-downloaded zip instead of downloading it. It is still checked against the
 #                    SHA256SUMS.txt this script fetches itself, so the game's word is never taken for it.
 #   --install DIR    (Linux) the game folder to update, instead of the folder this script is in.
-#   --appimage FILE  (Linux, 0.9.10, with --from-game) the game runs as this AppImage: replace that one file with the
+#   --appimage FILE  (Linux, 0.9.11, with --from-game) the game runs as this AppImage: replace that one file with the
 #                    release's AppImage for this computer instead of swapping folder files. The file keeps its name
 #                    and place (so a menu entry, e.g. from Gear Lever, keeps working) and is swapped in one rename.
 # Plain bash 3.2 (the macOS default) on purpose.

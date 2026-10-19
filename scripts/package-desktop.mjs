@@ -90,7 +90,7 @@ for (const target of targets) {
     writeFileSync(file, f.content);
     chmodSync(file, f.mode);
   }
-  // 0.9.10 (Linux): Ubuntu 23.10+ blocks Chromium's sandbox unless an AppArmor profile allows it; this asks the player
+  // 0.9.11 (Linux): Ubuntu 23.10+ blocks Chromium's sandbox unless an AppArmor profile allows it; this asks the player
   // (once, with their password) to add one. The AppImage runs the same script by itself (scripts/package-appimage.mjs).
   if (platform === 'linux') {
     writeFileSync(join(dir, 'Set up for Ubuntu.sh'), readFileSync(join(root, 'desktop', 'linux', 'sandbox-setup.sh')));

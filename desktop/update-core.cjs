@@ -27,7 +27,7 @@ const LIMITS = { sums: 64 * 1024, notes: 128 * 1024, zip: 600 * 1024 * 1024 };
 const TARGETS = ['linux-x64', 'linux-arm64', 'win32-x64', 'darwin-arm64'];
 
 /**
- * 0.9.10: Linux releases also ship an AppImage per architecture (scripts/package-appimage.mjs), named the AppImage way
+ * 0.9.11: Linux releases also ship an AppImage per architecture (scripts/package-appimage.mjs), named the AppImage way
  * (`Winterland-X.Y.Z-x86_64.AppImage`), listed in the same SHA256SUMS.txt. Older copies only read the zip lines.
  */
 const APPIMAGE_ARCH = { 'linux-x64': 'x86_64', 'linux-arm64': 'aarch64' };
@@ -73,7 +73,7 @@ function targetOf(platform, arch) {
  * Read SHA256SUMS.txt for one target. Exactly one line in the strict `<64 hex>  Winterland-X.Y.Z-<target>.zip` form
  * must name it (anything else, including two such lines, is refused), and every zip line must carry the same version.
  * The release notes (`<64 hex>  RELEASE-NOTES.md`, from 0.9.8) are optional.
- * With `appImage` (0.9.10, a Linux copy running as an AppImage) the file to fetch is that target's
+ * With `appImage` (0.9.11, a Linux copy running as an AppImage) the file to fetch is that target's
  * `Winterland-X.Y.Z-<arch>.AppImage` line instead, under the same rules, and it must carry the zips' version.
  * Returns { version, zipName, sha, notesSha } or null (zipName is the file to download, zip or AppImage).
  */
@@ -133,7 +133,7 @@ function failCodeFromArgv(argv) {
  * The command that installs a downloaded update: a copy of the shipped updater script, run without a shell, never
  * elevated. `script` is that copy, `zip` the checked download, `install` the game folder (Linux, Windows) and `app`
  * the Winterland.app (macOS). Windows PowerShell is started by its full path (never looked up on PATH), hidden.
- * `appImage` (Linux, 0.9.10): the AppImage file to replace, instead of a game folder.
+ * `appImage` (Linux, 0.9.11): the AppImage file to replace, instead of a game folder.
  */
 function installCommand({ platform, script, zip, install, app, appImage, systemRoot }) {
   if (platform === 'win32') {

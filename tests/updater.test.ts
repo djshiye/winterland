@@ -85,7 +85,7 @@ describe('SHA256SUMS.txt', () => {
     expect(core.parseSums(sums, 'beos-x64')).toBeNull();
   });
 
-  it('0.9.10: an AppImage copy picks its AppImage line; zip copies (and older games) ignore those lines', () => {
+  it('0.9.11: an AppImage copy picks its AppImage line; zip copies (and older games) ignore those lines', () => {
     const withImages = `${sums}\n${C}  Winterland-0.9.8-x86_64.AppImage\n${B}  Winterland-0.9.8-aarch64.AppImage`;
     expect(core.parseSums(withImages, 'linux-x64')?.zipName).toBe('Winterland-0.9.8-linux-x64.zip');
     expect(core.parseSums(withImages, 'linux-x64', { appImage: true })).toEqual({ version: '0.9.8', zipName: 'Winterland-0.9.8-x86_64.AppImage', sha: C, notesSha: C });

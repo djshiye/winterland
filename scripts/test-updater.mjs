@@ -390,7 +390,7 @@ if (OS === 'linux') {
   show(s);
 }
 
-// 0.9.10 AppImages (Linux): the game runs as one .AppImage file (often in ~/AppImages, put there by Gear Lever) and the
+// 0.9.11 AppImages (Linux): the game runs as one .AppImage file (often in ~/AppImages, put there by Gear Lever) and the
 // in-game updater has the script replace that file in place with the release's AppImage (--appimage FILE).
 if (OS === 'linux') {
   const cc = run('sh', ['-c', 'command -v cc']).status === 0;

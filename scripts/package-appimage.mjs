@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 0.9.10 (Linux): turns the packaged Linux folders (release/Winterland-linux-<arch>/, from scripts/package-desktop.mjs)
+ * 0.9.11 (Linux): turns the packaged Linux folders (release/Winterland-linux-<arch>/, from scripts/package-desktop.mjs)
  * into AppImages: one file to download, double-click (after ticking "allow executing"), or hand to Gear Lever.
  *
  *   node scripts/package-appimage.mjs <runtime-folder> [linux-x64 linux-arm64]

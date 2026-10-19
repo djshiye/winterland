@@ -19,7 +19,7 @@
  *      starts the new version, or, if anything is off, starts this version again with --update-failed=<reason>.
  * The save (localStorage in the user-data folder) is never read, moved or written here: it is not in the game folder.
  *
- * 0.9.10, AppImages (Linux): a copy started from Winterland-X.Y.Z-<arch>.AppImage runs from a read-only mount, so it
+ * 0.9.11, AppImages (Linux): a copy started from Winterland-X.Y.Z-<arch>.AppImage runs from a read-only mount, so it
  * fetches the release's AppImage instead of the zip, and the script replaces that one file in place (same name and
  * folder, so a menu entry from Gear Lever or the like keeps working; Gear Lever then sees it as up to date).
  *
