@@ -6,12 +6,13 @@
  * refusal (false) plays the 'full' sound and shakes the card, success closes it. Same look as BuildPanel.
  */
 import type { GameContext, ManageRequest } from '../core/types';
-import { h, onTap } from './dom';
+import { h, keyLabel, onTap } from './dom';
 import { formatMoney } from './format';
 import { ICON_CLOSE, ICON_HAMMER } from './icons';
 import { Sheet } from './sheet';
 import './build.css';
 import './ages.css';
+import { markPanel } from './dialog';
 
 export class ManagePanel {
   private readonly sheet: Sheet;
@@ -35,10 +36,12 @@ export class ManagePanel {
     this.titleEl = h('div', 'wl-build-title wl-title');
     this.subEl = h('div', 'wl-build-sub');
     titles.append(this.titleEl, this.subEl);
+    markPanel(root, this.titleEl, 'wl-manage-title');
     head.appendChild(titles);
     const close = h('button', 'wl-build-close', ICON_CLOSE);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
+    close.title = keyLabel('Close', 'Esc');
     onTap(close, () => {
       ctx.audio.play('click');
       this.close();

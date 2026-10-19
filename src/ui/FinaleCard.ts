@@ -115,6 +115,7 @@ export class FinaleCard {
     this.again = h('button', 'wl-btn wl-btn-gold is-b-pine wl-finale-new', 'Start a new season');
     this.again.type = 'button';
     this.again.title = 'Prices go up for good, everything else starts over';
+    this.again.setAttribute('aria-description', this.again.title);
     onTap(this.again, () => {
       ctx.audio.unlock();
       ctx.audio.play('click');
@@ -241,7 +242,7 @@ export class FinaleCard {
     const pct = s.flags.complete ? 100 : c.pct;
     this.progress.innerHTML =
       `<div class="wl-finale-pct">★ ${pct}% complete</div>` +
-      c.parts.map((p) => `<div class="wl-finale-bar${p.done >= p.total ? ' is-done' : ''}"><span>${p.label}</span><i><b style="width:${(p.frac * 100).toFixed(1)}%"></b></i><em>${Math.floor(p.frac * 100)}%</em></div>`).join('');
+      c.parts.map((p) => `<div class="wl-finale-bar${p.done >= p.total ? ' is-done' : ''}"><span>${p.label}</span><i aria-hidden="true"><b style="width:${(p.frac * 100).toFixed(1)}%"></b></i><em>${Math.floor(p.frac * 100)}%</em></div>`).join('');
     const quests = QUEST_DEFS.filter((d) => s.quests[d.id]).length;
     this.grid.innerHTML = this.cells([
       ['Money earned', formatMoney(st.moneyEarned), true],

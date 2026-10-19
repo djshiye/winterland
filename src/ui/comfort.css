@@ -28,6 +28,16 @@
   outline-offset: 3px;
 }
 
+/* 0.9.12: the top buttons sit on the bright world, not on a card: the ring gets a soft ink halo so it reads on snow
+   too, and the button lifts a touch (the gamepad's Back / View steps along them) */
+.wl-hud :is(.wl-hudbtn, .wl-gear, .wl-mute, .wl-erachip, .wl-quests-head):focus-visible {
+  box-shadow:
+    var(--wl-drop),
+    var(--wl-gloss),
+    0 0 0 9px color-mix(in srgb, var(--wl-ink-c) 28%, transparent);
+  transform: translateY(-1px) scale(1.06);
+}
+
 .wl-comfort-intro {
   font-size: 15px;
   line-height: 1.3;

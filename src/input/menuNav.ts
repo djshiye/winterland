@@ -13,8 +13,14 @@
  *   Those keys are taken in the capture phase, so they never also walk the player.
  * - 0.9.8: a focused scroll box (`.wl-scrollbox`, the changelog) takes Up / Down to scroll until it reaches its end;
  *   with the focus on a control that has nothing further that way, Up / Down scroll the menu's scroll box too.
- * - Accessibility: an open modal gets role="dialog" + aria-modal and the label of its title; the objective banner
- *   and toasts are polite live regions, so screen readers announce the next goal.
+ * - Accessibility: an open modal gets role="dialog" + aria-modal and the label of its title (not when the card inside
+ *   is already a labelled dialog, so it is announced once); the objective banner and toasts are polite live regions.
+ * - 0.9.12: stepping into a menu (Tab, arrows, D-pad) lands on its first real choice, never its corner X; Up / Down at
+ *   the edge scroll whatever scrolls in the menu (the stats card's era list too), not only `.wl-scrollbox`.
+ * - 0.9.12: the top buttons (stats, map, market, guidebook, Settings, sound, quests) work as one more menu while the
+ *   gamepad's Back / View button has stepped into them (`toggleBar`): the D-pad moves along them, A presses one and
+ *   hands the pad back to the game (or to the menu it opened), B steps back out. A mouse click on those buttons
+ *   never turns this on, so the arrow keys keep walking after a click.
  * The pure picking rule (`nextInDirection`) is tested in tests/menuNav.test.ts.
  */
 
@@ -34,6 +40,12 @@ const MODAL = '.wl-modal';
 const SHEETS = '.wl-agecard, .wl-shop, .wl-build';
 
 const FOCUSABLE = 'button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+
+/** Corner close buttons: never the first stop when the focus steps into a menu (Enter would shut it by accident). */
+const CLOSE_X = '.wl-card-x, .wl-shop-close, .wl-build-close';
+
+/** The HUD's top buttons, in reading order (the gamepad's Back / View steps into them). */
+const BAR = '.wl-hud .wl-quests-head, .wl-hud .wl-erachip, .wl-hud .wl-hudbtn, .wl-hud .wl-gear, .wl-hud .wl-mute';
 
 /**
  * Pure: the box to move to from `from` going `dir`, or -1. Only boxes that lie in that direction count. The nearest
@@ -114,6 +126,8 @@ function isTypingTarget(el: Element | null): boolean {
 export class MenuNav {
   private lastModal: Element | null = null;
   private acc = 0;
+  /** The gamepad stepped into the top buttons (`toggleBar`); ends as soon as the focus leaves them. */
+  private barOn = false;
 
   constructor(private readonly root: ParentNode = document) {
     window.addEventListener('keydown', this.onKeyDown, true);
@@ -121,7 +135,36 @@ export class MenuNav {
 
   /** The open menu the keyboard / gamepad works in now (modal first), or null. */
   current(): HTMLElement | null {
-    return this.modal() ?? this.sheet();
+    return this.modal() ?? this.bar() ?? this.sheet();
+  }
+
+  /** True while the gamepad has stepped into the top buttons (Back / View). */
+  get inBar(): boolean {
+    return this.bar() !== null;
+  }
+
+  /**
+   * Gamepad Back / View: step into the top buttons (the guidebook first, the pad's way to the book, the stats and the
+   * quest card), or back out of them. Returns false when a modal is open (it owns the pad) or nothing is on show.
+   */
+  toggleBar(): boolean {
+    if (this.inBar) {
+      this.leaveBar();
+      return true;
+    }
+    if (this.modalOpen) return false;
+    const items = this.barControls();
+    if (items.length === 0) return false;
+    this.barOn = true;
+    this.focus(items.find((el) => el.classList.contains('wl-book-btn')) ?? items[0]!);
+    return true;
+  }
+
+  /** Leave the top buttons: the focus goes back to the game (walking). */
+  leaveBar(): void {
+    const a = document.activeElement as HTMLElement | null;
+    this.barOn = false;
+    if (a && a.matches(BAR)) a.blur();
   }
 
   /** True while a modal card (not just a bottom sheet) is open. */
@@ -153,17 +196,17 @@ export class MenuNav {
     }
     const at = a ? items.indexOf(a) : -1;
     if (at < 0) {
-      this.focus(items[0]!);
+      this.focus(firstChoice(items));
       return true;
     }
     const boxes = items.map((el) => el.getBoundingClientRect());
     const i = nextInDirection(boxes[at]!, boxes.filter((_, k) => k !== at), dir);
     if (i < 0) {
-      // at the edge: a scroll box in the menu (the changelog) takes Up / Down, so the arrows read on from the button
+      // at the edge: what scrolls in the menu (the changelog, the stats card's era list, a long shop list) takes
+      // Up / Down, so the arrows read on past the last button
       if (dir === 'up' || dir === 'down') {
-        const box = m.querySelector<HTMLElement>('.wl-scrollbox');
-        const step = box ? scrollStep(box.scrollTop, box.scrollHeight, box.clientHeight, dir) : 0;
-        if (box && step !== 0) box.scrollTop += step;
+        const box = scroller(m, a, dir);
+        if (box) box.scrollTop += scrollStep(box.scrollTop, box.scrollHeight, box.clientHeight, dir);
       }
       return true; // still handled, so the player doesn't walk
     }
@@ -177,7 +220,13 @@ export class MenuNav {
     if (!m) return false;
     const items = this.controls(m);
     const a = document.activeElement as HTMLElement | null;
-    const i = tabIndexAfter(a ? items.indexOf(a) : -1, items.length, back);
+    const at = a ? items.indexOf(a) : -1;
+    // stepping in from outside: the first real choice (Shift+Tab: the last one), not the corner X
+    if (at < 0 && items.length > 0 && !back) {
+      this.focus(firstChoice(items));
+      return true;
+    }
+    const i = tabIndexAfter(at, items.length, back);
     if (i < 0) return false;
     this.focus(items[i]!);
     return true;
@@ -188,7 +237,12 @@ export class MenuNav {
     if (!this.focusInMenu) return false;
     const a = document.activeElement as HTMLElement;
     if (a instanceof HTMLInputElement && a.type === 'range') return true;
-    a.click();
+    const fromBar = this.inBar;
+    // (a place on the map is an SVG group: no click() of its own)
+    if (typeof a.click === 'function') a.click();
+    else a.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    // a top button opened its menu (or toggled the quest card): the pad goes on to that menu, or back to walking
+    if (fromBar) this.leaveBar();
     return true;
   }
 
@@ -218,13 +272,14 @@ export class MenuNav {
           // the first real choice (not the corner X, which Enter would then close by accident)
           const items = this.controls(modal);
           // (the selected tab when the card has tabs)
-          const first = items.find((el) => el.getAttribute('aria-selected') === 'true') ?? items.find((el) => !el.classList.contains('wl-card-x')) ?? items[0];
+          const first = items.find((el) => el.getAttribute('aria-selected') === 'true') ?? firstChoice(items);
           if (first) this.focus(first);
         }
       }
     }
     // focus left on a control that has gone (its menu closed): give the keyboard back to the game
     const a = document.activeElement as HTMLElement | null;
+    if (this.barOn && (!a || !a.matches(BAR) || modal)) this.barOn = false;
     if (a && a !== document.body && this.root instanceof Node && (this.root as Node).contains(a) && !shown(a)) a.blur();
   }
 
@@ -245,12 +300,25 @@ export class MenuNav {
     return best;
   }
 
+  /** The HUD layer while the gamepad is in the top buttons (its controls are only those buttons), else null. */
+  private bar(): HTMLElement | null {
+    if (!this.barOn) return null;
+    const a = document.activeElement as HTMLElement | null;
+    if (!a || !a.matches(BAR)) return null;
+    return a.closest<HTMLElement>('.wl-hud');
+  }
+
+  private barControls(): HTMLElement[] {
+    return Array.from(this.root.querySelectorAll<HTMLElement>(BAR)).filter((el) => shown(el) && !(el as HTMLButtonElement).disabled);
+  }
+
   private sheet(): HTMLElement | null {
     const all = Array.from(this.root.querySelectorAll<HTMLElement>(SHEETS)).filter(shown);
     return all[all.length - 1] ?? null;
   }
 
   private controls(m: HTMLElement): HTMLElement[] {
+    if (m === this.bar()) return this.barControls();
     return Array.from(m.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => shown(el) && !el.closest('[aria-hidden="true"]'));
   }
 
@@ -289,6 +357,25 @@ export class MenuNav {
   };
 }
 
+/** The control to land on when the focus steps into a menu: the first one that isn't a corner X (nor a place on the
+ *  map's picture: the list of places beside it reads first). */
+function firstChoice(items: readonly HTMLElement[]): HTMLElement {
+  return items.find((el) => !el.matches(CLOSE_X) && !(el instanceof SVGElement)) ?? items.find((el) => !el.matches(CLOSE_X)) ?? items[0]!;
+}
+
+/** What Up / Down scrolls at the edge: the scrolling box round the focus, else the first one in the menu with room. */
+function scroller(m: HTMLElement, from: HTMLElement | null, dir: 'up' | 'down'): HTMLElement | null {
+  const room = (el: HTMLElement): boolean => {
+    if (el.scrollHeight <= el.clientHeight + 1) return false; // cheap test first: most elements have nothing to scroll
+    const oy = getComputedStyle(el).overflowY;
+    return (oy === 'auto' || oy === 'scroll') && scrollStep(el.scrollTop, el.scrollHeight, el.clientHeight, dir) !== 0;
+  };
+  for (let el = from?.parentElement ?? null; el && m.contains(el); el = el.parentElement) if (room(el)) return el;
+  if (room(m)) return m;
+  for (const el of m.querySelectorAll<HTMLElement>('*')) if (room(el)) return el;
+  return null;
+}
+
 function zOf(el: HTMLElement): number {
   const z = Number(getComputedStyle(el).zIndex);
   return Number.isFinite(z) ? z : 0;
@@ -297,6 +384,8 @@ function zOf(el: HTMLElement): number {
 /** role="dialog" + aria-modal + a label from the card's title, once per modal. */
 function labelDialog(modal: HTMLElement): void {
   if (modal.getAttribute('role') === 'dialog') return;
+  // the card inside is already a labelled dialog (save-safe, update, finale, offline): one announcement, not two
+  if (modal.querySelector('[role="dialog"], [role="alertdialog"]')) return;
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
   const title = modal.querySelector('.wl-card-title, [class*="-title"]');

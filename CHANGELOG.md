@@ -38,6 +38,16 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Conveyor belts in every era are painted in that era's own colours** instead of the starting area's red and cream.
 - **The lone ninth machine in eras 8 and 9 is linked up too,** and era 10's golden light conduits look solid instead of see-through.
 
+### Keyboard and controller
+
+- **Build with a keyboard or a controller.** Every build card in the town, the era areas and the city can now be picked with Tab, the arrow keys and Enter, or the D-pad and A. The chosen card lights up with a gold ring, and locked cards say why.
+- **Back / View opens the top buttons.** On a controller, Back (or View) steps up to the top buttons: the guidebook, quests, era checklist, map, Settings and sound. Move with the D-pad, press A, or B to step back to the game. Y still opens the map.
+- **Menus open on their first choice,** never on the close button, and the arrow keys scroll long cards like the stats page.
+- **Pick places on the map itself,** not only in the list beside it.
+- **A purchase keeps your place.** After a buy, the shop button stays selected even when you can't afford the next level yet.
+- **Clearer controls list.** Settings > Game lists every key and every controller button, and close buttons show their Esc key when you hover them.
+- **Screen readers:** the sound button says on or off, shop, market and guidebook tabs say which is selected, prices say when you can't afford them yet, the quest and era counts are read in words, the pick-up prompt is read out, and cards are announced once. Key hints like "(T)" no longer show on phones and tablets.
+
 ## 0.9.11 (2026-10-19)
 
 Every era its own place, clearer pads and icons, a guidebook, a cooler-running game and a few cozy touches.

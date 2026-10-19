@@ -27,6 +27,7 @@ import { setEraAccent } from './theme';
 import './era.css';
 import './ages.css';
 import './guide.css';
+import { describeBy } from './dialog';
 
 const IN = 0.45;
 const OUT = 0.3;
@@ -78,6 +79,7 @@ export class AgeCard {
     this.perksEl = h('div', 'wl-era-perks wl-pc-perks');
     this.placeEl = h('div', 'wl-pc-greet');
     this.ruleEl = h('div', 'wl-agecard-rule');
+    describeBy(this.root, [this.placeEl, this.tagEl, this.perksEl, this.ruleEl], 'wl-agecard-d');
     const btns = h('div', 'wl-agecard-btns');
     this.goBtn = h('button', 'wl-agecard-btn is-go', 'Go there');
     this.goBtn.type = 'button';

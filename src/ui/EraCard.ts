@@ -54,6 +54,9 @@ export class EraCard {
     this.nameEl = h('div', 'wl-era-name');
     this.tagEl = h('div', 'wl-era-tag');
     this.perksEl = h('div', 'wl-era-perks');
+    // a passing card with no buttons: read out as a whole when it shows (polite, never interrupting)
+    this.root.setAttribute('role', 'status');
+    this.root.setAttribute('aria-atomic', 'true');
     const stars = h('div', 'wl-era-stars', `<i>${ICON_STAR}</i><i>${ICON_STAR}</i><i>${ICON_STAR}</i>`);
     this.root.append(stars, this.eraEl, this.nameEl, this.tagEl, this.perksEl);
     layer.appendChild(this.root);

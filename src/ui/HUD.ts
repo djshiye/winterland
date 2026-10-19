@@ -69,7 +69,7 @@ import { VillageBadge } from './VillageBadge';
 import { finaleQuiet } from '../core/quiet';
 import { formatMoney } from './format';
 // 0.9.7: dom's backOut settles without overshoot under Reduce motion (it used to be a local copy that ignored it)
-import { backOut, cubicOut } from './dom';
+import { backOut, cubicOut, keyLabel } from './dom';
 import { reducedMotion, steadyHighlights } from '../fx/comfort';
 import { ICON_BOOK, ICON_MAP, ICON_MARKET } from './icons';
 import { escapeTarget } from './escapeOrder';
@@ -254,9 +254,8 @@ export class HUD {
     this.muteBtn = document.createElement('button');
     this.muteBtn.type = 'button';
     this.muteBtn.className = 'wl-mute';
-    this.muteBtn.setAttribute('aria-label', 'Toggle sound');
     this.muteBtn.innerHTML = ICON_SPEAKER;
-    this.muteBtn.classList.toggle('is-muted', ctx.audio.muted);
+    this.syncMute();
     const stop = (e: Event) => e.stopPropagation();
     this.muteBtn.addEventListener('pointerdown', stop);
     this.muteBtn.addEventListener('touchstart', stop, { passive: true });
@@ -270,7 +269,7 @@ export class HUD {
     this.perf = new PerfOverlay(ctx, layer);
     this.settings = new SettingsPanel(ctx, layer, this.perf);
     this.carry = new CarryMeter(ctx, layer);
-    this.settings.onSoundChanged = () => this.muteBtn.classList.toggle('is-muted', ctx.audio.muted);
+    this.settings.onSoundChanged = () => this.syncMute();
 
     // village badge, shop
     this.village = new VillageBadge(ctx, layer);
@@ -292,10 +291,10 @@ export class HUD {
     this.eraChip = new EraChip(ctx, layer);
     this.incomeFeed = new IncomeFeed(ctx, this.moneyEl);
     this.map = new MapPanel(ctx, layer);
-    this.mapBtn = this.makeButton('wl-map-btn', 'Map (T)', ICON_MAP, () => this.map.toggle());
-    this.marketBtn = this.makeButton('wl-market-btn', 'Market (B)', ICON_MARKET, () => this.toggleMarket());
+    this.mapBtn = this.makeButton('wl-map-btn', keyLabel('Map', 'T'), ICON_MAP, () => this.map.toggle());
+    this.marketBtn = this.makeButton('wl-market-btn', keyLabel('Market', 'B'), ICON_MARKET, () => this.toggleMarket());
     this.book = new GuidebookPanel(ctx, layer);
-    this.bookBtn = this.makeButton('wl-book-btn', 'Guidebook (G)', `${ICON_BOOK}<i class="wl-dot" aria-hidden="true"></i>`, () => this.toggleBook(false));
+    this.bookBtn = this.makeButton('wl-book-btn', keyLabel('Guidebook', 'G'), `${ICON_BOOK}<i class="wl-dot" aria-hidden="true"></i>`, () => this.toggleBook(false));
     this.bookBtn.style.display = '';
     this.book.onNewChanged = (fresh) => this.markBookNew(fresh);
     this.markBookNew(this.book.hasNew);
@@ -489,7 +488,7 @@ export class HUD {
 
   private markBookNew(fresh: boolean): void {
     this.bookBtn.classList.toggle('has-new', fresh);
-    const label = fresh ? 'Guidebook (G): a new chapter to read' : 'Guidebook (G)';
+    const label = keyLabel('Guidebook', 'G', fresh ? ': a new chapter to read' : '');
     this.bookBtn.title = label;
     this.bookBtn.setAttribute('aria-label', label);
   }
@@ -529,9 +528,19 @@ export class HUD {
     const { audio } = this.ctx;
     audio.unlock();
     const muted = audio.toggleMute();
-    this.muteBtn.classList.toggle('is-muted', muted);
+    this.syncMute();
     this.settings.sync();
     if (!muted) audio.play('click');
+  }
+
+  /** The sound button shows and says its state: pressed = sound on ("Sound (M)", on / off for screen readers). */
+  private syncMute(): void {
+    const muted = this.ctx.audio.muted;
+    this.muteBtn.classList.toggle('is-muted', muted);
+    const label = keyLabel('Sound', 'M');
+    this.muteBtn.setAttribute('aria-label', label);
+    this.muteBtn.setAttribute('aria-pressed', String(!muted));
+    this.muteBtn.title = `${label}: ${muted ? 'off' : 'on'}`;
   }
 
   /** Esc: close the topmost thing (settings, map, a sheet, the era card), else fold the quest card, else open Settings. */
@@ -882,7 +891,7 @@ export class HUD {
     if (marketLocked !== this.marketLocked) {
       this.marketLocked = marketLocked;
       this.marketBtn.classList.toggle('is-locked', marketLocked);
-      const label = marketLocked ? `Market (B): opens in the ${ERA_NAMES[2]}` : 'Market (B)';
+      const label = keyLabel('Market', 'B', marketLocked ? `: opens in the ${ERA_NAMES[2]}` : '');
       this.marketBtn.title = label;
       this.marketBtn.setAttribute('aria-label', label);
     }

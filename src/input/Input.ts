@@ -308,11 +308,18 @@ export class Input {
     } else {
       this.holdKeys.delete('PadA');
     }
-    if (f.pressed.has(BTN.b) && menu) this.shortcutCb?.('escape');
-    // Start: closes the open menu, else opens Settings (never just folds the quest card like Esc)
-    if (f.pressed.has(BTN.start)) this.shortcutCb?.(menu ? 'escape' : 'menu');
+    // B / Start in the top buttons just step back out to the game (0.9.12)
+    const inBar = nav.inBar;
+    if ((f.pressed.has(BTN.b) || f.pressed.has(BTN.start)) && inBar) nav.leaveBar();
+    else {
+      if (f.pressed.has(BTN.b) && menu) this.shortcutCb?.('escape');
+      // Start: closes the open menu, else opens Settings (never just folds the quest card like Esc)
+      if (f.pressed.has(BTN.start)) this.shortcutCb?.(menu ? 'escape' : 'menu');
+    }
+    // Back / View: step into the top buttons (guidebook, quests, stats ...) or back out (0.9.12; it was a second map)
+    if (f.pressed.has(BTN.back)) nav.toggleBar();
     if (!nav.modalOpen) {
-      if (f.pressed.has(BTN.y) || f.pressed.has(BTN.back)) this.shortcutCb?.('map');
+      if (f.pressed.has(BTN.y)) this.shortcutCb?.('map');
       if (f.pressed.has(BTN.x)) this.shortcutCb?.('market');
       if (f.pressed.has(BTN.lb)) this.shortcutCb?.('zoomOut');
       if (f.pressed.has(BTN.rb)) this.shortcutCb?.('zoomIn');

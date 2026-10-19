@@ -19,6 +19,7 @@ export class VillageBadge {
   private readonly popEl: HTMLSpanElement;
   private readonly happyEl: HTMLSpanElement;
   private readonly fill: HTMLDivElement;
+  private readonly bar: HTMLDivElement;
   private shown = false;
   private appear = 0;
   private bump = 0;
@@ -45,8 +46,15 @@ export class VillageBadge {
     // Wave 12: town happiness chip (hidden until the Market Town is revealed)
     this.happyEl = h('span', 'wl-village-happy');
     this.happyEl.style.display = 'none';
+    this.happyEl.setAttribute('role', 'img');
     top.append(this.nameEl, this.popEl, this.happyEl);
     const bar = h('div', 'wl-village-bar');
+    // a real progress bar for screen readers (the visible fill alone said nothing)
+    bar.setAttribute('role', 'progressbar');
+    bar.setAttribute('aria-label', 'Growth to the next level');
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', '100');
+    this.bar = bar;
     this.fill = h('div', 'wl-village-fill');
     bar.appendChild(this.fill);
     mid.append(top, bar);
@@ -89,7 +97,9 @@ export class VillageBadge {
     this.happyEl.style.display = '';
     // 0.9.6: "Town" names it, so it never reads as the district card's "City happiness"
     this.happyEl.innerHTML = `<span class="wl-village-happy-l">Town</span><i class="wl-village-heart">\u2665</i><span class="wl-village-happy-n">${pct}%</span>`;
-    this.happyEl.title = `Town happiness: every sale pays up to +${Math.round(HAPPINESS.priceBonus * 100)}% (now +${Math.round(HAPPINESS.priceBonus * pct)}%)`;
+    const why = `Town happiness ${pct}%: every sale pays up to +${Math.round(HAPPINESS.priceBonus * 100)}% (now +${Math.round(HAPPINESS.priceBonus * pct)}%)`;
+    this.happyEl.title = why;
+    this.happyEl.setAttribute('aria-label', why);
   }
 
   update(dt: number): boolean {
@@ -159,6 +169,8 @@ export class VillageBadge {
 
   /** Bar, appear pop-in and level-up bump. */
   private animate(dt: number, target: number, maxed: boolean): boolean {
+    const now = String(Math.round(target * 100));
+    if (this.bar.getAttribute('aria-valuenow') !== now) this.bar.setAttribute('aria-valuenow', now);
     if (this.barSnap) {
       this.barShown = target;
       this.barSnap = false;

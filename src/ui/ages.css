@@ -558,6 +558,18 @@
   filter: brightness(1.08);
 }
 
+/* keyboard / gamepad on the map: the focused place gets a thick gold edge (an SVG outline would be a square box) */
+.wl-hud .wl-map-view [data-tp]:focus-visible {
+  outline: none;
+  filter: brightness(1.1);
+}
+
+.wl-map-view [data-tp]:focus-visible :is(rect, circle) {
+  stroke: var(--wl-focus);
+  stroke-width: calc(2.6px * var(--k, 1));
+  stroke-dasharray: none;
+}
+
 .wl-map-num {
   font-size: calc(9px * var(--k, 1));
   font-weight: 700;
