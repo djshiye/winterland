@@ -27,6 +27,7 @@ import { Batch, vcMat } from '../../render/batch';
 import { GAME_FONT, geo, makeCanvasTexture, toonUnique } from '../../render/materials';
 import { blockedNewLand, instanced, occludesNewLand, Rng, type EnvPart, type Placement } from './common';
 import { romanNumeral } from './eras';
+import { clearOfFence } from './clearance';
 import { buildEraOpen, buildEraWild, eraGround, eraKeepOut } from './eraGround';
 import { palette } from '../../render/palette';
 import { moundGeo, pineGeo, pineTallGeo, rockGeo } from './props';
@@ -592,9 +593,8 @@ export function regionPaths(l: RegionLayout): Rect[] {
  * Does a prop of footprint radius `rad` at (x, z) fit inside region n? 0.9.5: props dress only the harvest zone (the
  * era's wild ground), clear of the paths; the yard, processing, market and huts stay clear for what lives there.
  */
-function propFree(l: RegionLayout, x: number, z: number, rad: number): boolean {
-  const r = l.rect;
-  if (x < r.minX + rad + 0.9 || x > r.maxX - rad - 0.9 || z < r.minZ + rad + 0.9 || z > r.maxZ - rad - 0.9) return false;
+export function propFree(l: RegionLayout, x: number, z: number, rad: number): boolean {
+  if (!clearOfFence(l, x, z, rad)) return false; // 0.9.12: FENCE_CLEAR (1.2 m) off the fence line and gate, world/env/clearance.ts
   const H = l.zones.harvest;
   if (!(x > H.minX + rad + 0.6 && x < H.maxX - rad - 0.6 && z > H.minZ + rad + 0.6 && z < H.maxZ - rad - 0.6)) return false;
   if (inZone(nodePatch(l), x, z, rad + 0.3)) return false;
@@ -748,7 +748,8 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   // ---- sign by the gate
   const { texture, paint } = signTexture(n);
   const board = new THREE.Group();
-  board.position.set(l.sign.x, 0, l.sign.z);
+  // 0.9.12 (C3): 2.4 m further west than l.sign, so the camera-facing board clears the gate pillar instead of hiding behind it
+  board.position.set(l.sign.x - 2.4, 0, l.sign.z);
   board.rotation.y = Math.PI / 4;
   const pb = new Batch();
   for (const x of [-1.5, 1.5]) {

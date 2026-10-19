@@ -15,9 +15,11 @@ import { plotPlaces, type RegionLayout } from '../../../eras/layout';
 import type { Rect } from '../../../config';
 import { blockedNewLand, occludesNewLand, type Rng } from '../common';
 import type { EraGroundModule, GroundKit } from '../eraGround';
+import { clearOfFence } from '../clearance';
+import { fenceStrips, softEdge } from './softEdge';
 import { regionPaths, nodePatch } from '../frontier';
 import { landmarkRect, placeLandmark } from './landmarks2to5';
-import { cellSlabs, clearOf, fenceDrifts, fieldstones, lantern, near, shade, snowPatch, steppingPath } from './kit1to3';
+import { cellSlabs, marketWalk, clearOf, fenceDrifts, fieldstones, lantern, near, shade, snowPatch, steppingPath } from './kit1to3';
 
 const P2 = palette(2);
 /** Era 2's tones, all from its palette row. */
@@ -100,6 +102,7 @@ function jarsGeo(): THREE.BufferGeometry {
 /** Free for a dressing piece of radius r: inside `inside`, off the paths, the node patch, the field and `extra`. */
 function freeIn(l: RegionLayout, inside: Rect, x: number, z: number, r: number, h: number, extra: readonly Rect[] = []): boolean {
   if (!(x > inside.minX + r && x < inside.maxX - r && z > inside.minZ + r && z < inside.maxZ - r)) return false;
+  if (!clearOfFence(l, x, z, r)) return false; // 0.9.12: FENCE_CLEAR off the fence line
   if (!clearOf(nodePatch(l), x, z, r, h)) return false;
   if (near(plotPlaces(l.n).field, x, z, r + 0.4)) return false;
   if (regionPaths(l).some((q) => near(q, x, z, r + 0.3))) return false;
@@ -113,7 +116,7 @@ export const era02: EraGroundModule = {
     const H = l.zones.harvest;
     // ---- birch belt outside the west fence (hides nothing: the camera looks toward −X / −Z)
     for (let z = r.minZ + 3; z < r.maxZ - 1; z += rng.range(2.6, 3.6)) {
-      for (const dx of [1.7, 3.6]) {
+      for (const dx of [2.6, 4.5]) { // 0.9.12 (C2): crowns keep clear of the fence line
         const x = r.minX - dx + rng.range(-0.3, 0.3);
         if (blockedNewLand(x, z, 0.8) || occludesNewLand(x, z, 4.4)) continue;
         if (dx > 2 && rng.next() < 0.45) continue;
@@ -157,7 +160,7 @@ export const era02: EraGroundModule = {
     scatter('jars', jarsGeo, 2, 0.8, { ...H, minZ: H.maxZ - 5 });
     // a few boulders and drifts along the far fence (low: nothing behind them is hidden)
     for (let x = r.minX + 3; x < r.maxX - 2; x += rng.range(6, 10)) {
-      const z = r.maxZ - 1.1;
+      const z = r.maxZ - 2.4; // 0.9.12: a boulder keeps FENCE_CLEAR off the far fence
       if (!near(l.zones.huts, x, z, 0) && rng.next() < 0.7) {
         const s = rng.range(0.6, 0.9);
         if (take(x, z, 0.8 * s)) k.put('boulder', boulderGeo, { x, z, ry: rng.range(0, 6.28), sx: s, sy: s, sz: s });
@@ -186,13 +189,18 @@ export const era02: EraGroundModule = {
     // ---- the yard band: fieldstones (the gate, the depot and the dock all stand on them)
     fieldstones(k, { minX: Z.yard.minX + 0.5, maxX: Z.yard.maxX - 0.2, minZ: Z.yard.minZ + 0.5, maxZ: Z.yard.maxZ }, { mortar: C.mortar, stones: [C.stone, shade(C.stone, 1.08), mixHex(C.stone, C.clay, 0.18)] }, rng);
     // ---- the processing floor: granite slabs cell by cell
-    cellSlabs(k, l, P.yardPave, { mortar: C.mortar, slab: mixHex(C.granite, C.stone, 0.4), joint: shade(C.mortar, 0.86) }, rng);
+    // 0.9.12 (T3): the joints between cells are faded to ~30% contrast against the slabs, so the floor stops reading as a floor plan
+    const slabTone = mixHex(C.granite, C.stone, 0.4);
+    cellSlabs(k, l, P.yardPave, { mortar: mixHex(C.mortar, slabTone, 0.7), slab: slabTone, joint: mixHex(shade(C.mortar, 0.86), slabTone, 0.7) }, rng);
     // ---- stepping-stone paths on a clay bed (the yard-edge path already runs over the fieldstones)
     const paths = regionPaths(l);
     for (const q of paths.slice(1)) steppingPath(k, q, { bed: C.clayBed, stone: mixHex(C.granite, 0xffffff, 0.15) }, rng);
     // the customers' walk in from the market gate
-    const mg = l.marketGate;
-    steppingPath(k, { minX: mg.x - 0.8, maxX: mg.x + 0.8, minZ: Math.min(mg.z, mg.z + l.inward * 6), maxZ: Math.max(mg.z, mg.z + l.inward * 6) }, { bed: C.clayBed, stone: mixHex(C.granite, 0xffffff, 0.15) }, rng);
+    for (const q of marketWalk(l)) steppingPath(k, q, { bed: C.clayBed, stone: mixHex(C.granite, 0xffffff, 0.15) }, rng);
+    // ---- 0.9.12 (T2): a broken fringe of pebbles and snow where the floors meet (yard stones, granite slabs, the market streets)
+    const joinSkip = [...fenceStrips(l), ...paths, ...marketWalk(l), { minX: l.gate.x - 2.6, maxX: l.gate.x + 2.6, minZ: l.gate.z - 3, maxZ: l.gate.z + 3 }, { minX: l.marketGate.x - 2.2, maxX: l.marketGate.x + 2.2, minZ: l.marketGate.z - 3, maxZ: l.marketGate.z + 3 }];
+    const joinStone = { stone: mixHex(C.stone, C.clay, 0.5), snow: mixHex(SNOW, C.clay, 0.12) };
+    for (const q of [{ minX: Z.yard.minX + 0.5, maxX: Z.yard.maxX - 0.2, minZ: Z.yard.minZ + 0.5, maxZ: Z.yard.maxZ }, P.yardPave, ...P.streets]) softEdge(k, q, rng, joinStone, joinSkip);
     // ---- stone lanterns: either side of the gate, along the harvest path, by the market walk
     const lc = { body: mixHex(C.granite, C.mortar, 0.3), dark: P2.trim, light: C.light };
     lantern(k, l.gate.x - 2.6, l.gate.z + l.inward * 0.9, 'stone', lc);

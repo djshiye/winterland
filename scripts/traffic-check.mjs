@@ -174,8 +174,8 @@ try {
             }
           }
           for (const [id, p] of prev) {
-            // judged against the camera as it is now (the frame where the vehicle is first missing)
-            if (!cur.has(id) && W.inView(p.x, p.z, 4) && !atDepot(p)) out.push({ t: +t.toFixed(1), id, kind: p.kind, what: 'vanished in view', x: +p.x.toFixed(1), z: +p.z.toFixed(1) });
+            // on screen last frame and its spot still on screen now (a camera cut in between is not a visible vanish)
+            if (!cur.has(id) && p.inView && W.inView(p.x, p.z, 4) && !atDepot(p)) out.push({ t: +t.toFixed(1), id, kind: p.kind, what: 'vanished in view', x: +p.x.toFixed(1), z: +p.z.toFixed(1) });
           }
           prev = cur;
         }

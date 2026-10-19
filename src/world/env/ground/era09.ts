@@ -64,7 +64,7 @@ export const era09: EraGroundModule = {
     if (yard) slab(k.floor, yard, mixHex(p.floor.processing, SNOW, 0.15));
     const proc = inset(Z.processing, 0.6);
     if (proc) mintGlaze(k.floor, k.glow, proc, rng);
-    cellMarks(k.floor, l, P, mixHex(p.accent, p.floor.yard, 0.25));
+    cellMarks(k.floor, l, P, mixHex(mixHex(p.accent, p.floor.yard, 0.25), p.floor.yard, 0.7)); // 0.9.12 (T3): ~30% contrast
     for (const [q, t] of [[Z.market, 0.4], [Z.huts, 0.5]] as const) {
       const r = inset(q, 0.8);
       if (r) slab(k.floor, r, mixHex(p.floor.board, SNOW, t));

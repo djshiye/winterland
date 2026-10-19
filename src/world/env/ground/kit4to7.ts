@@ -14,6 +14,7 @@ import type { Rng } from '../common';
 import { hutFootprint, shopFootprint } from '../plots';
 import { nodePatch } from '../frontier';
 import { marketPlaces } from '../../../eras/market';
+import { clearOfFence, FENCE_CLEAR } from '../clearance';
 
 const Y = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
@@ -210,12 +211,17 @@ export function cellMarks(k: Kit, l: RegionLayout, P: PlotPlaces, color: number,
   for (let z = Y.minZ + 0.5; z <= Y.maxZ + 0.01; z += l.rowPitch) k.tile(Y.maxX - Y.minX - 0.6, w, color, (Y.minX + Y.maxX) / 2, y, Math.min(z, Y.maxZ - 0.05));
 }
 
+/** 0.9.12: a belt tree / gantry keeps FENCE_CLEAR off the fence line: crown radius and the distance in from the fence (world/env/clearance.ts). */
+export const BELT_R = 1.3;
+export const BELT_IN = FENCE_CLEAR + BELT_R + 0.15;
+
 /** Spots along the west fence for the tree belt (step metres apart), off the paths and the keep-out rects. */
-export function beltSpots(l: RegionLayout, paths: readonly Rect[], keep: readonly Rect[], step = 4.2, inset = 1.7): { x: number; z: number }[] {
+export function beltSpots(l: RegionLayout, paths: readonly Rect[], keep: readonly Rect[], step = 4.2, inset = BELT_IN): { x: number; z: number }[] {
   const r = l.rect;
   const out: { x: number; z: number }[] = [];
   for (let z = r.minZ + 2.4; z < r.maxZ - 1.8; z += step) {
     const x = r.minX + inset;
+    if (!clearOfFence(l, x, z, BELT_R)) continue;
     if (hitAny(paths, x, z, 1.4) || hitAny(keep, x, z, 1.2) || hitAny(sightKeep(l, 6.5), x, z, 1.4)) continue;
     out.push({ x, z });
   }
@@ -228,7 +234,7 @@ export function harvestSpots(l: RegionLayout, P: PlotPlaces, avoid: readonly Rec
   const out: { x: number; z: number }[] = [];
   for (let t = 0; t < 600 && out.length < count; t++) {
     const x = rng.range(H.minX + rad + 1.4, H.maxX - rad - 1);
-    const z = rng.range(H.minZ + rad + 1.4, H.maxZ - rad - 1);
+    const z = rng.range(H.minZ + rad + 1.4, H.maxZ - rad - FENCE_CLEAR - 0.1);
     if (inRect(P.field, x, z, rad + 0.4) || hitAny(avoid, x, z, rad + 0.3)) continue;
     if (taken.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + rad + 0.3)) continue;
     taken.push({ x, z, r: rad });

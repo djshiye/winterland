@@ -43,7 +43,7 @@ export const era08: EraGroundModule = {
       boule(k.solid, x, z, 0.9, 0.2);
       boule(k.solid, x - 0.9, z + 0.6, 0.75, -0.3);
     }
-    const farZ = l.inward > 0 ? H.maxZ - 2.2 : H.minZ + 2.2;
+    const farZ = l.inward > 0 ? H.maxZ - 3.4 : H.minZ + 3.4; // 0.9.12: a dune (r 2) keeps FENCE_CLEAR off the far fence
     for (let x = H.minX + 5; x < H.maxX - 3; x += rng.range(5.5, 7.5)) {
       if (!harvestFree(l, P, x, farZ, 2.0, placed)) continue;
       placed.push({ x, z: farZ, r: 2.0 });
@@ -64,7 +64,7 @@ export const era08: EraGroundModule = {
     }
     const proc = inset(Z.processing, 0.6);
     if (proc) terrazzo(k.floor, proc, rng);
-    cellMarks(k.floor, l, P, mixHex(p.accent, p.floor.yard, 0.35));
+    cellMarks(k.floor, l, P, mixHex(mixHex(p.accent, p.floor.yard, 0.35), p.floor.yard, 0.7)); // 0.9.12 (T3): ~30% contrast
     // the market and the huts: a warm snow lawn so the shops and huts sit on their own ground
     for (const [q, t] of [[Z.market, 0.35], [Z.huts, 0.45]] as const) {
       const r = inset(q, 0.8);
