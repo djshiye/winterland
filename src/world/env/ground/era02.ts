@@ -16,6 +16,7 @@ import type { Rect } from '../../../config';
 import { blockedNewLand, occludesNewLand, type Rng } from '../common';
 import type { EraGroundModule, GroundKit } from '../eraGround';
 import { regionPaths, nodePatch } from '../frontier';
+import { landmarkRect, placeLandmark } from './landmarks2to5';
 import { cellSlabs, clearOf, fenceDrifts, fieldstones, lantern, near, shade, snowPatch, steppingPath } from './kit1to3';
 
 const P2 = palette(2);
@@ -106,6 +107,7 @@ function freeIn(l: RegionLayout, inside: Rect, x: number, z: number, r: number, 
 }
 
 export const era02: EraGroundModule = {
+  keepOut: (l) => landmarkRect(l, 2),
   wild(k: GroundKit, l: RegionLayout, rng: Rng): void {
     const r = l.rect;
     const H = l.zones.harvest;
@@ -122,8 +124,11 @@ export const era02: EraGroundModule = {
     // ---- a grove in the harvest zone's west end, with boulders, granite stacks and clay jars
     const grove: Rect = { minX: H.minX + 0.8, maxX: nodePatch(l).minX - 1, minZ: H.minZ + 4, maxZ: H.maxZ - 1 };
     const placed: { x: number; z: number; r: number }[] = [];
+    // the signature landmark (a kiln row) first; nothing else lands on it
+    placeLandmark(k, l, rng, 2);
+    const lm = landmarkRect(l, 2);
     const take = (x: number, z: number, rad: number, h = 1.4): boolean => {
-      if (!freeIn(l, H, x, z, rad, h)) return false;
+      if (!freeIn(l, H, x, z, rad, h, lm)) return false;
       if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + rad)) return false;
       placed.push({ x, z, r: rad });
       return true;
