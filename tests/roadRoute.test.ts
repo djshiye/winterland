@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DISTRICTS, MAX_ERA, ROADS, districtDef, type ERect } from '../src/eras/data';
 import { regionLayout } from '../src/eras/layout';
 import { districtLots, type XZ } from '../src/city/rules';
-import { cityRoute, districtWalkways, gateRoadSpot, inRect, lotStandSpot, routeOver } from '../src/city/roadRoute';
+import { cityRoute, cityWalkRects, crossingAt, districtWalkways, gateRoadSpot, inRect, kerbWait, lotStandSpot, routeOver } from '../src/city/roadRoute';
 
 const EPS = 1e-3;
 
@@ -20,6 +20,23 @@ function checkPath(start: XZ, pts: readonly XZ[], allowed: readonly ERect[], for
         const inside = q.x > f.minX + EPS && q.x < f.maxX - EPS && q.z > f.minZ + EPS && q.z < f.maxZ - EPS;
         expect(inside, `through a building at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBe(false);
       }
+    }
+    prev = p;
+  }
+}
+
+/** Every point along the walk that is on a road lies in a crossing. */
+function offRoad(start: XZ, pts: readonly XZ[], roads: readonly ERect[], crossings: readonly ERect[]): void {
+  let prev = start;
+  for (const p of pts) {
+    for (let k = 0; k <= 40; k++) {
+      const q = { x: prev.x + ((p.x - prev.x) * k) / 40, z: prev.z + ((p.z - prev.z) * k) / 40 };
+      const on = roads.find((r) => inRect(r, q, -0.05));
+      if (!on) continue;
+      expect(crossings.some((c) => inRect(c, q, EPS)), `on the road at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBe(true);
+      // straight across, never diagonally through a junction: hardly any way along the traffic while on the road
+      const along = on.maxX - on.minX >= on.maxZ - on.minZ ? Math.abs(p.x - prev.x) : Math.abs(p.z - prev.z);
+      expect(along, `cuts along the road at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBeLessThanOrEqual(1.2 + EPS);
     }
     prev = p;
   }
@@ -96,7 +113,8 @@ describe('cityRoute: every era from its region gate to every lot of its district
       const g = gateRoadSpot(L);
       const district = DISTRICTS[n]!.rect;
       const roads = ROADS.filter((r) => r.opensAt <= n).map((r) => r.rect);
-      const allowed = [...roads, L.rect, district];
+      const crossings = [...cityWalkRects(n).filter((r) => r.direct), ...crossingAt(n, g)];
+      const allowed = [...cityWalkRects(n), ...crossingAt(n, g), L.rect, district];
       const footprints = districtLots(n).map((f) => f.rect);
       // the gate spot is on the region's road
       expect(roads.some((r) => inRect(r, g))).toBe(true);
@@ -106,11 +124,14 @@ describe('cityRoute: every era from its region gate to every lot of its district
         expect(there, `lot ${f.index}`).not.toBeNull();
         expect(there!.at(-1)).toEqual(spot);
         checkPath(g, there!, allowed, footprints);
-        // and every leg inside the district stays on its walkways
-        for (const p of there!) if (inRect(district, p, -EPS)) expect(districtWalkways(n).some((w) => inRect(w, p, EPS))).toBe(true);
+        // 0.9.12: off the roadway (between the trucks' lanes) except where it crosses: a junction or the gate
+        offRoad(g, there!, roads, crossings);
+        // and every leg inside the district stays on its walkways (the street verge just inside its edge aside)
+        for (const p of there!) if (inRect(district, p, -0.6)) expect(districtWalkways(n).some((w) => inRect(w, p, EPS))).toBe(true);
         const back = cityRoute(n, spot, g)!;
         expect(back.at(-1)).toEqual(g);
         checkPath(spot, back, allowed, footprints);
+        offRoad(spot, back, roads, crossings);
         // the stand spot is just south of the pad tile, outside it
         expect(spot.z).toBeGreaterThan(f.zone.maxZ);
       }
@@ -130,5 +151,40 @@ describe('cityRoute: every era from its region gate to every lot of its district
       expect(len).toBeGreaterThan(40);
       expect(len).toBeLessThan(600);
     }
+  });
+});
+
+describe('kerbWait: people look both ways', () => {
+  const road: ERect = { minX: 40, maxX: 44, minZ: 14, maxZ: 128 };
+  const p = { x: 39.6, z: 61.3 };
+  const goal = { x: 44.4, z: 61.3 };
+  it('steps out on a clear road', () => {
+    expect(kerbWait(p, goal, [road], [])).toBe(false);
+    // a truck far off, or driving away
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 90, fx: 0, fz: 1, speed: 8 }])).toBe(false);
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 72, fx: 0, fz: 1, speed: 8 }])).toBe(false);
+  });
+  it('waits for a truck coming at the crossing, or right by it', () => {
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 76, fx: 0, fz: -1, speed: 8 }])).toBe(true);
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 64, fx: 0, fz: 1, speed: 8 }])).toBe(true);
+  });
+  it('steps out ahead of a slow cart still far off', () => {
+    // 10 m off at 3 m/s: over 3 s away
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 72, fx: 0, fz: -1, speed: 3 }])).toBe(false);
+    // creeping up its queue 3 m off: walks round it
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 64.6, fx: 0, fz: -1, speed: 1 }])).toBe(false);
+  });
+  it('an era buyer brakes for walkers: only one too close to stop makes them wait', () => {
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 73.3, fx: 0, fz: -1, speed: 6, yields: true }])).toBe(false);
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 67.3, fx: 0, fz: -1, speed: 9, yields: true }])).toBe(true);
+  });
+  it('walks round a cart standing in its queue', () => {
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 63, fx: 0, fz: -1, speed: 0 }])).toBe(false);
+    // not measured yet: counted as moving
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 63, fx: 0, fz: -1, speed: NaN }])).toBe(true);
+  });
+  it('never stops on the road itself, or on a walk that stays off it', () => {
+    expect(kerbWait({ x: 42, z: 61.3 }, goal, [road], [{ x: 42, z: 64, fx: 0, fz: -1, speed: 8 }])).toBe(false);
+    expect(kerbWait(p, { x: 39.6, z: 50 }, [road], [{ x: 42, z: 64, fx: 0, fz: -1, speed: 8 }])).toBe(false);
   });
 });

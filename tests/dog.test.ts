@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FOLLOW_DISTANCE, FOLLOW_LAG, FOLLOW_MAX_SPEED, PET_AFTER, PET_DISTANCE, PET_EVERY, followStep, type XZ } from '../src/entities/Dog';
+import { FOLLOW_DISTANCE, FOLLOW_LAG, FOLLOW_MAX_SPEED, PET_AFTER, PET_DISTANCE, PET_EVERY, followStep, restHeading, type XZ } from '../src/entities/Dog';
 
 const DT = 1 / 60;
 
@@ -82,5 +82,21 @@ describe('Pet your pal (0.9.11)', () => {
     expect(PET_AFTER).toBeGreaterThanOrEqual(2);
     expect(PET_EVERY[0]).toBeGreaterThanOrEqual(8);
     expect(PET_EVERY[1]).toBeGreaterThan(PET_EVERY[0]);
+  });
+});
+
+describe('0.9.12 restHeading: the pal settles on free ground', () => {
+  it('keeps its spot behind when that is free', () => {
+    const h = { x: 1, z: 0 };
+    expect(restHeading({ x: 0, z: 0 }, h, () => false)).toBe(h);
+  });
+  it('turns round the player when the spot behind is inside something solid', () => {
+    // a wall west of x = -0.5: the spot behind (x = -1.2) is blocked, the one beside him is not
+    const out = restHeading({ x: 0, z: 0 }, { x: 1, z: 0 }, (x) => x < -0.5);
+    expect(-out.x * FOLLOW_DISTANCE).toBeGreaterThanOrEqual(-0.5);
+  });
+  it('keeps the heading when nothing round him is free', () => {
+    const h = { x: 0, z: 1 };
+    expect(restHeading({ x: 0, z: 0 }, h, () => true)).toBe(h);
   });
 });

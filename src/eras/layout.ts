@@ -601,7 +601,7 @@ export function plotPlaces(n: number): PlotPlaces {
 
   const plan = plotPlan(n);
   const H = Z.huts;
-  const hx0 = H.minX + 2.4; // clear of the path along the column split
+  const hx0 = H.minX + 3.2; // clear of the path along the column split (0.9.12: 3 m clear past the annexes, was 2.4)
   const hx1 = H.maxX - 1.4; // clear of the fence
   const hz0 = H.minZ + 1.2;
   const hz1 = H.maxZ - 1.2;

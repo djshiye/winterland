@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { LAYOUT, PALETTE, rect, townZ } from '../../config';
 import { palisadeMaterial, palisadePostGeometry, PALISADE } from '../../assets/scenery';
 import { Batch, instanced, Rng, vcMat, type EnvPart, type Placement } from './common';
+import { addZebra } from './roadMarks';
 import { addSparkleSpot, registerEra } from './eras';
 import { addBunting, addLightString, addWreath } from './festive';
 import { addPalisade, type FenceLine } from './fences';
@@ -158,11 +159,7 @@ export function buildTown(ctx: GameContext, rng: Rng): TownPart {
     flat.add(stoneGeo, i % 2 ? 0xc3ccd9 : 0xb4c0d0, x + 0.2, 0.04, pz + (i % 3 === 0 ? -0.34 : 0.3), { ry: ((i * 13) % 7) * 0.02, sx: 0.6, sz: 0.9 });
   }
   // zebra crossing over the tricycle road (bars run along the traffic, stepped across it)
-  const barW = 0.42;
-  for (let x = road.minX + 0.45; x < road.maxX - 0.2; x += 0.78) {
-    flat.add(box(barW, 0.018, gate.maxZ - gate.minZ + 0.3), 0xf7fbff, x, 0.03, pz);
-  }
-  for (const z of [gate.minZ - 0.28, gate.maxZ + 0.28]) flat.add(box(road.maxX - road.minX - 0.5, 0.016, 0.1), 0xf6d04d, (road.minX + road.maxX) / 2, 0.03, z);
+  addZebra(flat, { road: '', axis: 'z', at: pz, lo: road.minX, hi: road.maxX, span: gate.maxZ - gate.minZ, y: 0.03 });
   const ground = flat.mesh({ cast: false, receive: true });
   district.add(ground);
 

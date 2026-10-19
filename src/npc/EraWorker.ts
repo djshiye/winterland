@@ -42,7 +42,9 @@ import type { MachineRuntime, RegionRuntime } from '../eras/runtime';
 import type { RegionLayout, XZ } from '../eras/layout';
 import { CharacterRig } from '../render/characters';
 import { cityLotAccess, lotCash, lotNeeds, type PayPad } from '../city/lotAccess';
-import { cityRoute, gateRoadSpot, inRect, lotStandSpot } from '../city/roadRoute';
+import { CROSSERS, cityRoute, gateRoadSpot, inRect, kerbWait, lotStandSpot, type KerbVehicle } from '../city/roadRoute';
+import { ROADS } from '../eras/data';
+import { liveVehicles } from './vehicleView';
 
 // --- tuning -------------------------------------------------------------------------------------------------------
 const ACCEL = 12;
@@ -62,6 +64,8 @@ const MIN_SHIP = 3;
 const FLY = { duration: 0.2, arcHeight: 1.4 } as const;
 /** 1.0: walk-speed factor on the roads between the region and its city district (long trips, never a teleport). */
 export const ROAD_SPEED = 2.2;
+/** 0.9.12: the longest a worker waits at the kerb for traffic before crossing anyway (s). */
+const KERB_PATIENCE = 12;
 
 // --- pure job selection ---------------------------------------------------------------------------------------------
 /** One built machine as the job picker sees it. */
@@ -612,6 +616,8 @@ export class EraWorker {
   private speed = 0;
   private route: XZ[] = [];
   private routeIdx = 0;
+  /** Seconds waited at the kerb for the current crossing. */
+  private kerb = 0;
   private look: XZ | null = null;
   private timer = 0;
   private idle = 0;
@@ -773,6 +779,7 @@ export class EraWorker {
 
   /** Leave the world: lingers until every item in flight to the hands has landed (see `disposed`). */
   dispose(): void {
+    CROSSERS.delete(this.group.position);
     this.disposing = true;
     this.route = [];
     this.routeIdx = 0;
@@ -1137,6 +1144,13 @@ export class EraWorker {
     }
   }
 
+  private roads: readonly { minX: number; maxX: number; minZ: number; maxZ: number }[] | null = null;
+
+  /** The road carriageways open in this worker's era (the region's own era never changes). */
+  private openRoads(): readonly { minX: number; maxX: number; minZ: number; maxZ: number }[] {
+    return (this.roads ??= ROADS.filter((r) => r.opensAt <= this.region.era).map((r) => r.rect));
+  }
+
   private step(dt: number): void {
     const p = this.group.position;
     this.velocity.set(0, 0, 0);
@@ -1148,6 +1162,19 @@ export class EraWorker {
       const d = Math.hypot(dx, dz);
       // 1.0: quicker on the roads to the city (outside the region and the district)
       const road = !inRect(this.region.layout.rect, p) && !inRect(this.cityRect, p);
+      // 0.9.12: on the way to the city, wait at the kerb while traffic is near the crossing
+      const wait = road && kerbWait(p, goal, this.openRoads(), trafficNow(this.ctx.time.elapsed));
+      if (wait && this.kerb < KERB_PATIENCE) {
+        this.kerb += dt;
+        this.speed = 0;
+        this.yaw = dampAngle(this.yaw, yawFromDir(dx, dz), TURN_LAMBDA, dt);
+        this.rig.root.rotation.y = this.yaw;
+        return;
+      }
+      if (!wait) this.kerb = 0;
+      // out on a carriageway: the era buyers brake for us
+      if (road && this.openRoads().some((r) => inRect(r, p))) CROSSERS.add(p);
+      else CROSSERS.delete(p);
       const max = ERA_WORKER.walkSpeed * this.stats.walk * (road ? ROAD_SPEED : 1);
       const target = last ? Math.min(max, 1.2 + d * 4) : max;
       this.speed = approach(this.speed, target, ACCEL * dt);
@@ -1167,9 +1194,39 @@ export class EraWorker {
       }
     } else {
       this.speed = 0;
+      CROSSERS.delete(p);
       if (this.look) this.yaw = dampAngle(this.yaw, yawFromDir(this.look.x - p.x, this.look.z - p.z), TURN_LAMBDA, dt);
     }
     this.rig.root.rotation.y = this.yaw;
+  }
+}
+
+const _f = new THREE.Vector3();
+const _v = new THREE.Vector3();
+
+/** Each vehicle's last sampled place and the speed measured since (m/s; NaN until a second sample). */
+const seen = new Map<string, { x: number; z: number; t: number; speed: number }>();
+/** Shortest gap between two speed samples of one vehicle (s). */
+const SAMPLE_GAP = 0.15;
+
+/**
+ * Every live vehicle's place, heading and speed, for the kerb check (read lazily: only once a worker stands at a kerb).
+ * The speed is measured from its own movement, so a cart stopped in a queue or at a depot reads 0.
+ */
+function* trafficNow(now: number): Generator<KerbVehicle> {
+  if (seen.size > 256) seen.clear(); // ids are per spawn: forget the long gone now and then
+  for (const v of liveVehicles()) {
+    v.facing(_f);
+    v.root.getWorldPosition(_v);
+    let s = seen.get(v.id);
+    if (!s) seen.set(v.id, (s = { x: _v.x, z: _v.z, t: now, speed: NaN }));
+    else if (now - s.t >= SAMPLE_GAP) {
+      s.speed = Math.hypot(_v.x - s.x, _v.z - s.z) / (now - s.t);
+      s.x = _v.x;
+      s.z = _v.z;
+      s.t = now;
+    }
+    yield { x: _v.x, z: _v.z, fx: _f.x, fz: _f.z, speed: s.speed, yields: v.kind.startsWith('eraBuyer') };
   }
 }
 
