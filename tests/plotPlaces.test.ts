@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { Rect } from '../src/config';
 import { CAMERA } from '../src/config';
 import { REGIONS } from '../src/eras/data';
-import { HUT_ANNEX, HUT_D, plotDecor, plotKeepOuts, plotPlaces, plotRoutes, regionLayout, ROUTE_HALF, STREET_MIN_DEPTH, type PlotPlaces, type RegionLayout } from '../src/eras/layout';
+import { HUT_ANNEX, HUT_D, hutBox, plotDecor, plotKeepOuts, plotPlaces, plotRoutes, regionLayout, ROUTE_HALF, STREET_MIN_DEPTH, type PlotPlaces, type RegionLayout } from '../src/eras/layout';
 import { marketPlaces, DOCK_BODY, STALL_BODY } from '../src/eras/market';
 import { LEVEL_PAD_SIZE, levelPadLocal, MACHINE_NOMINAL, machineFrame, toWorld, worldRect } from '../src/eras/rules';
 import { nodePatch, regionPaths } from '../src/world/env/frontier';
@@ -201,6 +201,15 @@ describe('0.9.7 era plot places', () => {
           expect(overlap(shadow(s.r, s.h), m.r), `${s.what} hides ${m.what}`).toBe(false);
         }
       }
+    });
+  }
+});
+
+describe('0.9.12: the west-edge path keeps 3 m clear', () => {
+  for (let n = 2; n <= 10; n++) {
+    it(`era ${n}: every hut and its annex stands 3 m or more east of the column split`, () => {
+      const split = regionLayout(n).zones.yard.maxX;
+      for (const h of plotPlaces(n).huts) expect(hutBox(h, true).minX - split, `hut ${h.role}`).toBeGreaterThanOrEqual(3);
     });
   }
 });
