@@ -181,7 +181,7 @@ describe('machine yard links (eras 2-10)', () => {
         model.dispose();
       }
     }
-  });
+  }, 30_000); // every vertex of nine eras × three fills: ~5 s on a busy runner
 
   it('carries visibly from the producer to the consumer', () => {
     // era 6: the bright beads ride the power line between the two arms' ends (path[1] → path[2])
