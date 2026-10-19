@@ -127,7 +127,8 @@ describe('planSquare', () => {
     const w = worldWith();
     const blocked = (x: number, z: number): boolean => w.overlaps(x, z, CLEARANCE);
     expect(planSquare(ENTRY, { x: 18, z: 26.7 }, blocked)).toHaveLength(1);
-    const east = { x: 31.6, z: 24.8 };
+    // straight across the fir from the mouth (0.9.12: the fixture follows the stretched square, where the fir stands)
+    const east = { x: 29.8, z: 32.9 };
     const path = planSquare(ENTRY, east, blocked);
     expect(path.length).toBeGreaterThan(1);
     expect(path[path.length - 1]).toEqual(east);

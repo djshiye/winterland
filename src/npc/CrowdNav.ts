@@ -11,7 +11,7 @@
 import { AMENITY_IDS, LAYOUT, type AmenityId } from '../config';
 import { amenityFrame, amenityToWorld } from '../town/rules';
 import { BENCHES, POND_POSTS, SNOWMAN, STALLS } from '../town/spots';
-import { GAP_IN, GAP_OUT, inLane, SPINE_X } from '../town/lane';
+import { GAP_IN, GAP_OUT, inAlley, inLane, SPINE_X } from '../town/lane';
 
 /** Radius of a person plus a little air (added to every obstacle). */
 export const PERSON_MARGIN = 0.36;
@@ -508,6 +508,21 @@ function planViaLane(path: Path, ax: number, az: number, bx: number, bz: number,
   laneB.z = bz;
   const la = inLane(laneA);
   const lb = inLane(laneB);
+  const aa = inAlley(laneA);
+  if (aa && !inAlley(laneB)) {
+    // re-planning in the alley between the south lots: onto the spine first, never across a lot
+    path.clear();
+    path.push(SPINE_X, az);
+    if (lb) {
+      path.push(SPINE_X, bz);
+      path.push(bx, bz);
+      return true;
+    }
+    path.push(GAP_IN.x, GAP_IN.z);
+    inner(laneScratch, GAP_IN.x, GAP_IN.z, bx, bz, ignore);
+    for (let i = 0; i < laneScratch.n; i++) path.push(laneScratch.x[i]!, laneScratch.z[i]!);
+    return true;
+  }
   if (!la && !lb) return false;
   path.clear();
   if (la) {

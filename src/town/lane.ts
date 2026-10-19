@@ -19,8 +19,11 @@ const T = LAYOUT.town;
 export const TOWN_SOUTH = T.area.maxZ;
 /** The whole lane (ground, fence line): from the town's south fence down to 0.6 m short of road R1 (z 62). */
 export const LANE: Rect = { minX: T.area.minX, maxX: 39.4, minZ: TOWN_SOUTH, maxZ: 61.4 };
-/** The avenue's centre line, the lane's walking spine. */
-export const SPINE_X = 28;
+/**
+ * The lane's walking spine: down the middle of the alley between the square's two south lots beside the fence gap
+ * (lots 3 and 5; their buildings leave about 1.8 m there), and on down the avenue.
+ */
+export const SPINE_X = (T.lots[3]!.x + T.lots[5]!.x) / 2;
 /** Where walkers keep to inside the lane: between the two rows of lot stations (x 22.5 / 33.1) and their MANAGE tiles. */
 export const LANE_WALK: Rect = { minX: 23.6, maxX: 32.4, minZ: TOWN_SOUTH + 0.4, maxZ: LANE.maxZ - 0.4 };
 /** The player's walk rect for the lane (lot footprints and props keep their own colliders). */
@@ -30,6 +33,14 @@ export const LANE_GAP_WALK: Rect = { minX: 26.2, maxX: 29.8, minZ: T.square.maxZ
 /** Inside the square at the south fence gap, and just past the fence in the lane. */
 export const GAP_IN: XZ = { x: SPINE_X, z: T.square.maxZ - 0.6 };
 export const GAP_OUT: XZ = { x: SPINE_X, z: TOWN_SOUTH + 1.0 };
+
+/** The alley from the square down to the fence gap, between the square's two south lots (north of the lane). */
+export const ALLEY: Rect = { minX: LANE_GAP_WALK.minX, maxX: LANE_GAP_WALK.maxX, minZ: T.square.maxZ, maxZ: TOWN_SOUTH };
+
+/** True for points in that alley (a walker re-planning there keeps to the spine instead of cutting through a lot). */
+export function inAlley(p: XZ): boolean {
+  return p.x >= ALLEY.minX && p.x <= ALLEY.maxX && p.z > ALLEY.minZ && p.z <= ALLEY.maxZ - 0.05;
+}
 
 /** True for the lane's lots. */
 export const isLaneLot = (lot: number): boolean => lot >= TOWN_SQUARE_LOTS;
@@ -76,6 +87,12 @@ export function laneLeg(from: XZ, to: XZ): XZ[] {
 export function viaLane(from: XZ, to: XZ, square: (a: XZ, b: XZ) => XZ[]): XZ[] {
   const a = inLane(from);
   const b = inLane(to);
+  // an end in the alley: straight onto the spine, then on into the lane or up into the square
+  if (inAlley(from) && !inAlley(to)) {
+    const on = { x: SPINE_X, z: from.z };
+    return b ? [on, ...laneLeg(on, to)] : [on, GAP_IN, ...square(GAP_IN, to)];
+  }
+  if (inAlley(to) && !inAlley(from)) return a ? [...laneLeg(from, GAP_OUT), { x: SPINE_X, z: to.z }, to] : [...square(from, GAP_IN), { x: SPINE_X, z: to.z }, to];
   if (!a && !b) return square(from, to);
   if (a && b) return laneLeg(from, to);
   if (b) return [...square(from, GAP_IN), GAP_OUT, ...laneLeg(GAP_OUT, to)];
