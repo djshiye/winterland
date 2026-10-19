@@ -31,6 +31,8 @@ import { inView } from './vehicleView';
 const VERGE = 0.7;
 /** How far along the verge a shopper may come from or go to. */
 const WALK_FAR = 48;
+/** Seconds a shopper rests in the pool before it walks in again. */
+const REST = 2;
 
 /** What the line needs from its market stall. */
 export interface ShopperStall {
@@ -98,6 +100,9 @@ export class EraShoppers {
   private readonly queue: Shopper[] = [];
   private readonly leaving: Shopper[] = [];
   private readonly pool: Shopper[] = [];
+  /** 0.9.12: when each pooled shopper went back (clock seconds): one is reused only after REST, so nobody seems to hop from where one left to where the next one comes in. */
+  private readonly freedAt = new Map<Shopper, number>();
+  private clock = 0;
   private created = 0;
   private spawnTimer = 0.8;
 
@@ -166,6 +171,7 @@ export class EraShoppers {
   }
 
   update(dt: number): void {
+    this.clock += dt;
     if (dt <= 0) return;
     this.spawnStep(dt);
     for (let i = 0; i < this.queue.length; i++) this.stepQueued(this.queue[i]!, i, dt);
@@ -205,7 +211,8 @@ export class EraShoppers {
       this.spawnTimer = 0.4;
       return;
     }
-    const c = this.pool.pop() ?? new Shopper(this.ctx, `npc:shopper${this.stall.era}:${this.created}`, this.created % VARIANTS, this.stall.era);
+    const rested = this.pool.findIndex((q) => this.clock - (this.freedAt.get(q) ?? -Infinity) >= REST);
+    const c = (rested >= 0 ? this.pool.splice(rested, 1)[0] : undefined) ?? new Shopper(this.ctx, `npc:shopper${this.stall.era}:${this.created}`, this.created % VARIANTS, this.stall.era);
     this.created++;
     const s = this.stall;
     c.mode = 'in';
@@ -246,6 +253,7 @@ export class EraShoppers {
     c.group.removeFromParent();
     c.group.scale.setScalar(1);
     this.pool.push(c);
+    this.freedAt.set(c, this.clock);
   }
 
   // ---- queue ----------------------------------------------------------------------------------------------------

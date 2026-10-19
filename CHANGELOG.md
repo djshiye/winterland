@@ -21,6 +21,7 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Buyers no longer vanish in the middle of the road.** Carts, wagons and trucks drive in from the city and the link roads, turn the corners, park in their own lane and drive on until they are out of sight. Passing traffic keeps to the other lane, and parked buyers no longer stand over the fences. Sleds, trikes and shoppers on foot also come and go out of sight.
 - **Fast travel to a city district lands in that district,** on its own street, not beside the district before it.
 - **Roads join up.** Ruts follow the road round corners and stop at junctions, city streets are cozy cobbles that meet the trail cleanly, the south avenue reaches the town, each era's gate has its own paving, and signposts no longer cross.
+- **Nothing pokes through the fences.** Trees, cranes, cacti and boulders keep clear of the fences, gate signs stand clear of the gate posts, the old cart track and pipes end properly, the market walk leads all the way to the stall, and floor joins and grid lines are softer.
 
 ## 0.9.10 (2026-10-18)
 
