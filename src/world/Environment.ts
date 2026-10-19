@@ -18,6 +18,7 @@ import { buildDecor, type ClearItem } from './env/decor';
 import { EraController, resetEras } from './env/eras';
 import { buildFences } from './env/fences';
 import { buildFrontier, pruneInstances, pruneNewLand, type FrontierPart } from './env/frontier';
+import { WinterFun } from './life/WinterFun';
 import { LANE } from '../town/lane';
 import { buildLanternLane } from './env/lantern';
 import { buildGate, type GatePart } from './env/gate';
@@ -69,6 +70,9 @@ export class Environment {
   /** The old-map scatter (pines, rocks, drifts): Lantern Lane clears its patch when it opens. */
   private readonly decorGroup: THREE.Object3D;
   private readonly frontier: FrontierPart;
+  /** 0.9.12: the skating pond and the sledding hill by the village (shown with the new land). */
+  private readonly winterFun: WinterFun;
+  private winterPruned = false;
   /** 0.9.3: hides the peaks that stood on the new land once it shows (env/mountains.ts). */
   private readonly mountains: EnvPart;
   private readonly eras: EraController;
@@ -105,6 +109,7 @@ export class Environment {
     pruneNewLand(decor.group);
     this.decorGroup = decor.group;
     this.frontier = buildFrontier(ctx, this.town.group, roads.trikeTail);
+    this.winterFun = new WinterFun(ctx, this.frontier.group);
     this.chimney = buildings.chimney;
 
     for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, this.town, this.frontier, roads, mountains, decor, buildings, this.snowfall]) {
@@ -185,6 +190,13 @@ export class Environment {
     this.ridgeGate.update?.(dt);
     this.town.update?.(dt);
     this.frontier.update?.(dt);
+    if (!this.winterPruned && this.frontier.group.visible) {
+      // the old scatter keeps era 1 exactly as it was; the hill only clears it once the new land shows
+      this.winterPruned = true;
+      const F = WinterFun.FOOTPRINT;
+      pruneInstances(this.decorGroup, (x, z) => x > F.minX && x < F.maxX && z > F.minZ && z < F.maxZ);
+    }
+    this.winterFun.update(dt);
     this.mountains.update?.(dt);
     this.eras.update(dt);
     // 0.9.8: the sky runs the weather (snowfall amount, the snowstorm event), the northern lights (stronger in the

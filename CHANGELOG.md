@@ -34,6 +34,7 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Room to walk.** The alley from the town square down to Lantern Lane is 3 m wide now (the two shops beside it moved apart), and the path down the west side of the hut greens keeps 3 m clear in every era. Your pal no longer sits inside a hut.
 - **Townsfolk doing things.** People on the era hut greens sit on the benches, build snowmen on the snow piles, sweep their doorsteps, and kids have snowball fights. In the city districts people sweep, sit, and kids pelt each other (and the odd grown-up) with snowballs.
 - **Lantern garlands.** Strings of warm paper lanterns hang from lamp to lamp along every era market street and under the shop eaves, glowing at night, high over everyone's heads.
+- **Skating and sledding.** Once the new land shows, people skate loops on the frozen pond by the village (a pair hand in hand), and kids drag their sleds up a snowy hill beside the customers' path, whizz down and trudge back up while a grown-up watches from a bench. Fewer at night, nobody in a snowstorm.
 - **A finished game may show less than 100 % now.** The new machine spots and lots count towards completion, so an older finished save shows a lower percentage until you build on them. Every trophy you've earned is kept.
 
 ### Connected machine yards
