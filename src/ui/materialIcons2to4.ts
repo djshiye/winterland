@@ -9,15 +9,18 @@ const svg = (inner: string): string => `<svg viewBox="0 0 48 48" aria-hidden="tr
 const g = (inner: string, w = 2.5): string => `<g stroke="${OUT}" stroke-width="${w}">${inner}</g>`;
 
 export const ERA2_4_ICONS: Record<string, string> = {
+  // 0.9.11: a wooden pail heaped with wet clay (was a red dome, too close to the roof tiles at tag size)
   clay: svg(
-    g(`<path d="M6 36c0-9 6-16 18-16s18 7 18 16z" fill="#c26a4a"/>
-       <path d="M13 26c3-3 7-4 11-4" stroke="#e0a07c" stroke-width="2.4" fill="none"/>
-       <path d="M8 36h32" fill="none"/><circle cx="31" cy="29" r="2" fill="#e0a07c" stroke-width="0"/>`),
+    g(`<path d="M9 22h30l-4 20H13z" fill="#a0703f"/>
+       <path d="M10.5 28h27M12 36h24" stroke="#5d6268" stroke-width="2.4" fill="none"/>
+       <path d="M8 23c1-8 7-13 16-13s15 5 16 13z" fill="#c26a4a"/>
+       <path d="M15 16c3-2 6-3 9-3" stroke="#e0a07c" stroke-width="2.4" fill="none"/>`),
   ),
+  // 0.9.11: a little roof of scalloped tiles under a ridge (was three red domes)
   roofTile: svg(
-    g(`<path d="M5 34c0-6 4-10 9-10s9 4 9 10z" fill="#c0583a"/><path d="M25 34c0-6 4-10 9-10s9 4 9 10z" fill="#c0583a"/>
-       <path d="M15 22c0-6 4-10 9-10s9 4 9 10z" fill="#d46a48"/>
-       <path d="M5 38h38" stroke="#e8c9a8" stroke-width="3" fill="none"/>`),
+    g(`<path d="M4 38L14 12h20l10 26z" fill="#c0583a"/>
+       <path d="M8 29c3 3 6 3 8 0 2 3 6 3 8 0 2 3 6 3 8 0 2 3 6 3 8 0M11 21c2 3 5 3 7 0 2 3 5 3 6 0 2 3 5 3 7 0 2 3 5 3 6 0" stroke="#7d3322" stroke-width="2" fill="none"/>
+       <path d="M12 12h24" stroke="#e8c9a8" stroke-width="4" fill="none"/>`),
   ),
   hearth: svg(
     g(`<rect x="8" y="12" width="32" height="28" rx="2" fill="#a7a39b"/>
@@ -25,10 +28,12 @@ export const ERA2_4_ICONS: Record<string, string> = {
        <path d="M15 40V26a9 9 0 0 1 18 0v14z" fill="#b5543c"/><path d="M18 40V27a6 6 0 0 1 12 0v13z" fill="#3a2a24"/>
        <path d="M20 39c0-4 2-6 4-9 2 3 4 5 4 9z" fill="#ffa040" stroke-width="1.6"/>`),
   ),
+  // 0.9.11: three charred sticks with glowing ends (was a black lump, too close to coal)
   charcoal: svg(
-    g(`<path d="M5 36l4-12 9-5 9 3 9-2 7 8 1 8z" fill="#3a3330"/>
-       <path d="M18 19l9 3-6 6-8-3z" fill="#54493f"/>
-       <path d="M14 30l4-2 3 3" stroke="#d8703a" stroke-width="2" fill="none"/><path d="M28 28l5-2" stroke="#d8703a" stroke-width="2" fill="none"/>`),
+    g(`<rect x="5" y="28" width="30" height="10" rx="5" fill="#3a3330"/>
+       <rect x="13" y="16" width="30" height="10" rx="5" fill="#46403b"/>
+       <rect x="9" y="5" width="26" height="10" rx="5" fill="#3a3330" transform="rotate(8 22 10)"/>
+       <circle cx="35" cy="33" r="3.2" fill="#ff8a3a" stroke-width="1.6"/><circle cx="41" cy="21" r="3.2" fill="#ffb060" stroke-width="1.6"/>`),
   ),
   tools: svg(
     g(`<path d="M10 40L36 12" stroke-width="5" stroke="#1f2b46"/><path d="M10 40L36 12" stroke-width="2.5" stroke="#9a6a42"/>
