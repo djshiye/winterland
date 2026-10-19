@@ -2235,6 +2235,11 @@
   height: 0;
 }
 
+/* 0.9.12 (full review G4): a mouse-and-keyboard player gets the keys line only, not the touch swipe hand */
+.wl-hand.is-desktop .wl-hand-track {
+  display: none;
+}
+
 .wl-hand-dot {
   position: absolute;
   left: 0;

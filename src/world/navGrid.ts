@@ -25,6 +25,10 @@ const GOAL_SNAP = 6;
 const START_SNAP = 3;
 /** Extra cost (in cells) of a step onto a cell that touches a blocked one. */
 const WALL_COST = 0.6;
+/** Extra cost (in cells) of a step onto a pad or a pile that is not the goal: ~4 m of detour per cell crossed. */
+const AVOID_COST = 8;
+/** Goal cells keep this far (m) inside the zone's edge (less on a small zone: never past its middle). */
+const GOAL_INSET = 0.45;
 /** A pulled-tight leg is at most this long (m): keeps each line-of-sight test short. */
 const MAX_LEG = 40;
 
@@ -44,6 +48,11 @@ export interface NavSource {
   bounds: Rect;
   extra: readonly Rect[];
   solids: readonly NavSolid[];
+  /**
+   * Walkable but best stepped round: other pads and piles (walking over one in walk-over mode pays it, or picks up or
+   * drops goods). A walk crosses one only when the way round is much longer.
+   */
+  avoid?: readonly Rect[];
 }
 
 export interface XZ {
@@ -73,6 +82,8 @@ export class NavGrid {
   readonly open: Uint8Array;
   /** 1 = open but beside a blocked cell. */
   readonly edge: Uint8Array;
+  /** 1 = open but on a pad or a pile (NavSource.avoid). */
+  readonly avoid: Uint8Array;
 
   constructor(src: NavSource, radius: number) {
     const b = src.bounds;
@@ -103,6 +114,7 @@ export class NavGrid {
     const n = this.nx * this.nz;
     this.open = new Uint8Array(n);
     this.edge = new Uint8Array(n);
+    this.avoid = new Uint8Array(n);
 
     // walkable: the yard shrunk by the radius, the extra rects as they are (centre space)
     if (bounded) this.fill({ minX: b.minX + radius, maxX: b.maxX - radius, minZ: b.minZ + radius, maxZ: b.maxZ - radius });
@@ -111,6 +123,11 @@ export class NavGrid {
     for (const s of src.solids) {
       if (s.kind === 0) this.stampBox(s, radius);
       else this.stampCircle(s.x, s.z, s.r + radius);
+    }
+    for (const r of src.avoid ?? []) {
+      const cr = this.cellRect(r);
+      if (!cr) continue;
+      for (let j = cr[2]; j <= cr[3]; j++) this.avoid.fill(1, j * this.nx + cr[0], j * this.nx + cr[1] + 1);
     }
     // cells touching a closed one (the border row / column is never open: fill stays one cell inside)
     const { nx, nz, open, edge } = this;
@@ -277,7 +294,8 @@ export class NavField {
       this.settled = new Uint8Array(n);
     }
     const goals: number[] = [];
-    const cr = area ? grid.cellRect(area) : null;
+    // goal cells sit a step inside the zone (a walk ending on its very edge can stop just short of it)
+    const cr = area ? grid.cellRect(insetRect(area, GOAL_INSET)) : null;
     if (cr) {
       const [i0, i1, j0, j1] = cr;
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (grid.open[j * grid.nx + i]) goals.push(j * grid.nx + i);
@@ -301,7 +319,7 @@ export class NavField {
   /** Settle up to `budget` more cells (the nearest first). Returns true when the field is complete. */
   step(budget: number): boolean {
     const { grid, dist, next, settled } = this;
-    const { nx, open, edge } = grid;
+    const { nx, open, edge, avoid } = grid;
     const n = open.length;
     let left = budget;
     while (this.heapN > 0 && left > 0) {
@@ -321,7 +339,8 @@ export class NavField {
         // diagonals only past two open sides (no squeezing between two corners)
         if (d >= 4 && (!open[k + ddx] || !open[k + ddz * nx])) continue;
         // the cost of walking from nk into k (the field is walked from nk toward the goal)
-        const nd = dk + (d >= 4 ? 1.41421356 : 1) + (edge[k] ? WALL_COST : 0);
+        // (goal cells, at distance 0, never count as in the way)
+        const nd = dk + (d >= 4 ? 1.41421356 : 1) + (edge[k] ? WALL_COST : 0) + (avoid[nk] && dk > 0 ? AVOID_COST : 0);
         if (nd >= dist[nk]!) continue;
         dist[nk] = nd;
         next[nk] = k;
@@ -442,6 +461,13 @@ export class NavField {
     }
     return top;
   }
+}
+
+/** `r` shrunk by `m` on every side, but never past its centre line. */
+function insetRect(r: Rect, m: number): Rect {
+  const mx = Math.min(m, (r.maxX - r.minX) / 2 - 0.01);
+  const mz = Math.min(m, (r.maxZ - r.minZ) / 2 - 0.01);
+  return { minX: r.minX + Math.max(0, mx), maxX: r.maxX - Math.max(0, mx), minZ: r.minZ + Math.max(0, mz), maxZ: r.maxZ - Math.max(0, mz) };
 }
 
 /** Metres along a polyline from its start to the point on it nearest p, that point's distance from p, and its leg. */

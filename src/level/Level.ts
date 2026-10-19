@@ -528,13 +528,24 @@ export class Level {
   /**
    * 0.9.12 (full review E5): put the player back where they saved (they used to wake up in the era-1 yard even after
    * saving in era 9). Only on open ground they could walk to now (inside the walkable bounds, clear of every
-   * obstacle) and outside every zone, so a load never starts a payment or a pickup by itself; else the yard spawn.
+   * obstacle) and outside every zone, so a load never starts a payment or a pickup by itself (saved on a pad: the
+   * nearest clear step beside it); else the yard spawn.
    */
   private restoreSpot(at: WorldSnapshot['at']): void {
     if (!at || !this.ctx.state.flags.introDone) return;
     const ctx = this.ctx;
-    if (!ctx.colliders.isFree(at.x, at.z, PLAYER.radius) || ctx.zones.anyAt(at.x, at.z)) return;
-    ctx.player.teleport(at.x, at.z);
+    const ok = (x: number, z: number): boolean => ctx.colliders.isFree(x, z, PLAYER.radius) && !ctx.zones.anyAt(x, z);
+    // saved standing on a pad or a pile: the nearest clear step beside it (up to 4 m)
+    for (let r = 0; r <= 4; r += 0.5) {
+      const n = r === 0 ? 1 : Math.ceil((Math.PI * 2 * r) / 0.5);
+      for (let i = 0; i < n; i++) {
+        const x = at.x + r * Math.cos((i / n) * Math.PI * 2);
+        const z = at.z + r * Math.sin((i / n) * Math.PI * 2);
+        if (!ok(x, z)) continue;
+        ctx.player.teleport(x, z);
+        return;
+      }
+    }
   }
 
   forceUnlock(id: PadId): void {

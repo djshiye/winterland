@@ -109,6 +109,8 @@ const FLOAT_POOL = 28;
 const TOAST_STALE = 3;
 /** World-size multiplier of the 3D guide arrow (iso camera looks down on it, so it needs to be chunky). */
 const ARROW_SCALE = 1.5;
+/** 0.9.12: zones up to this size (m²) are pads and piles the guide's walk steps round (not the big area zones). */
+const AVOID_ZONE_M2 = 30;
 
 
 const ICON_CASH = `<svg viewBox="0 0 40 40" aria-hidden="true">
@@ -223,6 +225,8 @@ export class HUD {
   private readonly trail = new GuideTrail();
   private readonly tmpS = new THREE.Vector2();
   private readonly tmpW = new THREE.Vector3();
+  private bannerAt = -10;
+  private bannerRect: { left: number; right: number; bottom: number } | null = null;
   /** 0.9.12: the edge arrow's screen angle while it shows (null hidden), for the guide check. */
   private edgeAngle: number | null = null;
 
@@ -376,7 +380,8 @@ export class HUD {
     this.arrow = HUD.buildArrow();
     this.arrow.visible = false;
     ctx.scene.add(this.arrow);
-    this.route = new GuideRoute(ctx.colliders, PLAYER.radius);
+    // the walk steps round other pads and piles (walking over one pays it, or picks up / drops goods)
+    this.route = new GuideRoute(ctx.colliders, PLAYER.radius, () => ctx.zones.smallAreas(AVOID_ZONE_M2));
     ctx.scene.add(this.trail.object);
 
     ctx.events.on('money:changed', (e) => this.setMoney(e.money, true));
@@ -1108,12 +1113,16 @@ export class HUD {
         dy = this.tmp2.y - cy;
       }
       const mx = 40;
-      const myTop = 96;
       const myBottom = 44;
       // limit along the ray from the centre to the (asymmetric) inner rectangle
       const tx = dx === 0 ? Infinity : (dx > 0 ? w - mx - cx : cx - mx) / Math.abs(dx);
-      const ty = dy === 0 ? Infinity : (dy > 0 ? h - myBottom - cy : cy - myTop) / Math.abs(dy);
-      const t = Math.min(tx, ty);
+      const along = (top: number): number => Math.min(tx, dy === 0 ? Infinity : (dy > 0 ? h - myBottom - cy : cy - top) / Math.abs(dy));
+      let t = along(96);
+      // 0.9.12 (full review V9): never on top of the objective banner: below it where the two would meet
+      const ban = this.bannerBox();
+      if (ban && cy + dy * t < ban.bottom + 30 && Math.abs(cx + dx * t - (ban.left + ban.right) / 2) < (ban.right - ban.left) / 2 + 34) {
+        t = along(Math.min(cy - 40, ban.bottom + 30));
+      }
       const px = cx + dx * t;
       const py = cy + dy * t;
       const ang = Math.atan2(dy, dx);
@@ -1129,6 +1138,19 @@ export class HUD {
       this.edgeEl.style.display = 'none';
       this.edgeAngle = null;
     }
+  }
+
+  /** The objective banner's box in layer pixels while it shows (re-measured at most every half second), else null. */
+  private bannerBox(): { left: number; right: number; bottom: number } | null {
+    const now = this.ctx.time.elapsed;
+    if (now - this.bannerAt > 0.5 || now < this.bannerAt) {
+      this.bannerAt = now;
+      const el = this.objectiveEl;
+      const r = el.getClientRects().length > 0 ? el.getBoundingClientRect() : null;
+      const base = this.layer.getBoundingClientRect();
+      this.bannerRect = r && r.width > 0 && this.objWant ? { left: r.left - base.left, right: r.right - base.left, bottom: r.bottom - base.top } : null;
+    }
+    return this.bannerRect;
   }
 
   /**

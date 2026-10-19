@@ -478,6 +478,17 @@ export class ZoneSystem {
     return false;
   }
 
+  /** 0.9.12: the areas of the enabled zones no bigger than `maxArea` m² (pads and piles: the guide's walk steps round them). */
+  smallAreas(maxArea: number): Rect[] {
+    const out: Rect[] = [];
+    for (const zone of this.zones) {
+      if (!zone.enabled || zone.removed) continue;
+      const a = zone.area;
+      if ((a.maxX - a.minX) * (a.maxZ - a.minZ) <= maxArea) out.push(a);
+    }
+    return out;
+  }
+
   isPlayerIn(area: Rect): boolean {
     const p = this.ctx.player.position;
     return inRect(area, p.x, p.z);

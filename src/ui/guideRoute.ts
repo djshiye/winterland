@@ -46,9 +46,11 @@ export class GuideRoute {
   /** Fields started (new targets and world changes): the guide check counts them. */
   plans = 0;
 
+  /** `avoid`: the pads and piles to step round (ZoneSystem.smallAreas), read when the world is checked. */
   constructor(
     private readonly colliders: ColliderWorld,
     private readonly radius: number,
+    private readonly avoid: () => readonly Rect[] = () => [],
   ) {}
 
   /** Follow the player toward `target` (null clears the walk). `area`: the zone to step into, if any. */
@@ -71,7 +73,7 @@ export class GuideRoute {
       this.startField(now);
     } else if (now - this.revAt >= REVISION_EVERY) {
       this.revAt = now;
-      if (this.colliders.navRevision() !== this.rev) this.startField(now); // keeps the last walk on show meanwhile
+      if (this.revision() !== this.rev) this.startField(now); // keeps the last walk on show meanwhile
     }
     const f = this.field!;
     if (!f.done) f.step(FIELD_BUDGET);
@@ -120,11 +122,18 @@ export class GuideRoute {
     return this.reachableFlag && this.field ? this.field.pathFrom(from) : null;
   }
 
+  /** The colliders' revision folded with the pads and piles to step round. */
+  private revision(): number {
+    let h = this.colliders.navRevision();
+    for (const r of this.avoid()) h = (h * 31 + Math.round(r.minX * 4) * 7 + Math.round(r.minZ * 4) * 13 + Math.round((r.maxX - r.minX) * 4)) | 0;
+    return h;
+  }
+
   private startField(now: number): void {
     this.revAt = now;
-    const rev = this.colliders.navRevision();
+    const rev = this.revision();
     if (!this.grid || rev !== this.rev) {
-      this.grid = new NavGrid(this.colliders.navSource(), this.radius);
+      this.grid = new NavGrid({ ...this.colliders.navSource(), avoid: this.avoid() }, this.radius);
       this.rev = rev;
     }
     this.field = new NavField(this.grid, this.target!, this.area, this.field);

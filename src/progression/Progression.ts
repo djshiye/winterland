@@ -85,6 +85,7 @@ const MANAGE_HINT_NEAR = 6;
 /** ...and stays up this long (seconds) unless the player opens a MANAGE card first. */
 const MANAGE_HINT_SECONDS = 12;
 const MANAGE_HINT_FLAG = 'seen:manageHint' as const;
+const TOWN_VISIT = 'Visit the new Market Town';
 
 const PAD_ORDER = [
   'harvester',
@@ -578,6 +579,15 @@ export class Progression {
     ctx.hud.setGuideTarget(this.guidePoint, area);
   }
 
+  /** 0.9.12: true when the current goal points into `area`. */
+  private isGoal(area: Rect): boolean {
+    const g = this.goalArea;
+    if (!this.objective || !g) return false;
+    const x = (g.minX + g.maxX) / 2;
+    const z = (g.minZ + g.maxZ) / 2;
+    return x >= area.minX && x <= area.maxX && z >= area.minZ && z <= area.maxZ;
+  }
+
   /** 0.9.12: note when goods move in or out of the player's arms or money is spent (the busy hold, G1 / G2). */
   private trackBusy(): void {
     const arms = this.ctx.player.arms.count();
@@ -729,7 +739,7 @@ export class Progression {
         s.flags['seen:town'] = true;
       } else {
         const w = LAYOUT.town.walk[0]!;
-        this.setGoal('Visit the new Market Town', LAYOUT.town.square, this.tmpPoint.set(w.maxX, 0, (w.minZ + w.maxZ) / 2));
+        this.setGoal(TOWN_VISIT, LAYOUT.town.square, this.tmpPoint.set(w.maxX, 0, (w.minZ + w.maxZ) / 2));
         return true;
       }
     }
@@ -1226,6 +1236,9 @@ export class Progression {
 
     // 0.9.12 (full review G1, G2): busy in the current goal's zone (paying, dropping off, picking up): it stays
     if (this.busyHere()) return;
+    // 0.9.12: a first visit, once shown, is walked to the end (it used to swap with the bunkhouse's logs every few
+    // seconds, sending the player back and forth across the yard)
+    if (this.objective === TOWN_VISIT && !s.flags['seen:town'] && this.townGuide()) return;
 
     // 0.9.6 (guide by location): inside an era region its own guide runs first, and Survival's chores (cash piles,
     // logs, the cabin) never drag the arrow back to the yard mid-climb. Quiet when the region has nothing to ask.
@@ -1237,10 +1250,11 @@ export class Progression {
       return;
     }
 
-    // 0. 0.9.12 (G2): standing on a yard pad that is being paid: keep paying it (cash piles never pull the player off)
+    // 0. 0.9.12 (G2): standing on the yard pad the guide sent them to: keep paying it (cash piles never pull them off;
+    // a pad merely walked across is not a goal)
     for (const id of PAD_ORDER) {
       const pad = L.pads[id];
-      if (!pad.visible || pad.remaining <= 0 || money <= 0 || !inArea(pad.zone.area)) continue;
+      if (!pad.visible || pad.remaining <= 0 || money <= 0 || !inArea(pad.zone.area) || !this.isGoal(pad.zone.area)) continue;
       const verb = PAD_VERB[id] ?? 'Build the';
       const noun = PAD_NOUN[id] ?? titleCase(pad.def.label);
       this.setGoal(pad.levelMode ? `Upgrade the ${titleCase(pad.def.label)} (${fmtMoney(pad.remaining)})` : `${verb} ${noun} (${fmtMoney(pad.remaining)})`, pad.zone.area);

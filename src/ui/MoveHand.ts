@@ -2,6 +2,7 @@
  * [B4] Onboarding "drag to move" hand (wave 8). Right after 'intro:done' in a game that has not shown it before
  * (state.flags['seen:moveHand']), an animated hand presses, swipes and lifts near the bottom centre, leaving a fading
  * swipe trail; desktop (hover + fine pointer) also gets a "WASD / arrow keys" caption, touch gets "Drag to move".
+ * 0.9.12 (full review G4): on desktop only the caption shows (the swipe hand is a touch gesture).
  * It goes away once the player has walked about 2 m or after 8 s, whichever comes first, and the flag is set the moment
  * it appears so it never returns (also not after a reload). Everything is driven from update(dt) on simulation time.
  * 0.9.10 (READINESS C6): it steps aside while a card (the era postcard, the settlement card, a notice, the update card)
@@ -90,7 +91,7 @@ export class MoveHand {
     this.last.z = this.ctx.player.position.z;
     this.root.style.display = '';
     this.root.style.opacity = '0';
-    // desktop: the keys line is the real instruction, the hand shows the mouse-drag alternative
+    // desktop: the keys line is the instruction (hud.css hides the touch hand there)
     this.root.classList.toggle('is-desktop', this.desktop);
   }
 
