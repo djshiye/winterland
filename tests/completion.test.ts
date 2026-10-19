@@ -211,7 +211,7 @@ describe('save: trophies and era dates (migration 0.9.7-trophies)', () => {
 
   it('a 0.9.6 save gets its Great Lodge and Grand Market trophies once; its eras keep no dates', () => {
     const { state, report } = loadSave('save-v9-0.9.6-era10.json');
-    expect(report.applied).toEqual(['0.9.7-era-resources', '0.9.7-trophies', '0.9.11-guidebook', '0.9.11-bond-promise']);
+    expect(report.applied).toEqual(['0.9.7-era-resources', '0.9.7-trophies', '0.9.11-guidebook', '0.9.11-bond-promise', '0.9.12-bigger-towns']);
     expect(report.refund).toBe(0);
     expect(state.trophies).toEqual({ lodge: 1, market: 1, complete: 0, runs: [] });
     expect(state.eraAt).toHaveLength(ERA_AT_LENGTH);
@@ -230,7 +230,7 @@ describe('save: trophies and era dates (migration 0.9.7-trophies)', () => {
     const save = load('save-v9-0.9.7-season2.json');
     const { state, report } = loadSave('save-v9-0.9.7-season2.json');
     // only migrations newer than 0.9.7 run (the 0.9.11 Guidebook marks its reached chapters read; old bonds keep their rate)
-    expect(report.applied).toEqual(['0.9.11-guidebook', '0.9.11-bond-promise']);
+    expect(report.applied).toEqual(['0.9.11-guidebook', '0.9.11-bond-promise', '0.9.12-bigger-towns']);
     expect(state.trophies.lodge).toBe(2);
     expect(state.trophies.complete).toBe(1);
     expect(state.trophies.runs).toHaveLength(1);
