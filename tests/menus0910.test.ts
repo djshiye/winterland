@@ -57,7 +57,7 @@ describe('credits', () => {
   });
 
   it('shows the same copyright line as the LICENSE file', () => {
-    expect(readFileSync(resolve(root, 'LICENSE'), 'utf8').split('\n')[0]).toBe(COPYRIGHT);
+    expect(readFileSync(resolve(root, 'LICENSE'), 'utf8').split(/\r?\n/)[0]).toBe(COPYRIGHT);
   });
 
   it('follows package.json: a new dependency shows up, a removed one goes', () => {
