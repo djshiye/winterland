@@ -52,6 +52,7 @@ import {
   emptyLot,
   employment,
   lotBuilt,
+  lotHeightCap,
   lotOpen,
   paidFraction,
   visualHeight,
@@ -300,7 +301,7 @@ export class District {
     if (chosen && frac > 0) {
       if (!L.scaffold) {
         const def = CITY_BUILDINGS[st.building as CityBuildingId];
-        L.scaffold = createCityScaffold(L.frame.w, L.frame.d, era(this.n).colors.ground, Math.min(6, visualHeight(def.height) * 0.7));
+        L.scaffold = createCityScaffold(L.frame.w, L.frame.d, era(this.n).colors.ground, Math.min(6, Math.min(lotHeightCap(this.n, L.index), visualHeight(def.height)) * 0.7));
         L.group.add(L.scaffold.group);
       }
       L.scaffold.setProgress(frac);
@@ -349,7 +350,7 @@ export class District {
     if (L.model || !lotBuilt(st)) return;
     const f = L.frame;
     const seed = this.n * 7 + L.index * 3;
-    const model = createCityBuilding(st.building, seed, { w: f.w, d: f.d });
+    const model = createCityBuilding(st.building, seed, { w: f.w, d: f.d, maxH: lotHeightCap(this.n, L.index) });
     L.model = model;
     L.group.add(model.root);
     this.ctx.occlusion?.addOccluder(model.root); // 0.9.3: fades when it hides the player or a pad
