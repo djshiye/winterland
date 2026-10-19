@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7f8fe0"/>
+      <stop offset="0.55" stop-color="#b3a6ea"/>
+      <stop offset="1" stop-color="#f1c9e2"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe9a8" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffe9a8" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="tile"><rect width="256" height="256" rx="58"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="256" height="256" fill="url(#sky)"/>
+    <circle cx="204" cy="56" r="20" fill="#fff6dc" opacity="0.9"/>
+    <circle cx="212" cy="50" r="18" fill="#9aa2e6" opacity="0.55"/>
+    <!-- back hill -->
+    <path d="M0 176 Q70 140 140 170 T256 160 V256 H0Z" fill="#dfe6fa"/>
+    <!-- front hill -->
+    <path d="M0 200 Q90 164 170 192 T256 186 V256 H0Z" fill="#fbfcff"/>
+    <!-- lantern glow -->
+    <circle cx="186" cy="170" r="26" fill="url(#glow)"/>
+    <!-- cottage -->
+    <rect x="76" y="132" width="76" height="60" rx="5" fill="#a0728f"/>
+    <rect x="76" y="176" width="76" height="16" fill="#8a5f7d"/>
+    <rect x="102" y="150" width="24" height="24" rx="4" fill="#ffd77a"/>
+    <rect x="102" y="150" width="24" height="24" rx="4" fill="none" stroke="#fff3c8" stroke-width="2.5"/>
+    <path d="M114 150V174M102 162H126" stroke="#c98e4a" stroke-width="2"/>
+    <rect x="136" y="160" width="12" height="32" rx="3" fill="#6d4a66"/>
+    <!-- roof -->
+    <path d="M64 138 L114 94 L164 138Z" fill="#7a5a86"/>
+    <path d="M64 138 L114 94 L164 138 Q150 126 140 134 Q128 122 114 132 Q100 122 88 134 Q76 126 64 138Z" fill="#ffffff"/>
+    <rect x="132" y="98" width="12" height="20" rx="2" fill="#8a5f7d"/>
+    <rect x="130" y="94" width="16" height="8" rx="4" fill="#fff"/>
+    <!-- snow at base -->
+    <ellipse cx="114" cy="194" rx="50" ry="7" fill="#fff"/>
+    <!-- lantern post -->
+    <rect x="184.5" y="164" width="3" height="32" rx="1.5" fill="#6d4a66"/>
+    <rect x="178" y="152" width="16" height="16" rx="5" fill="#ffd77a"/>
+    <rect x="180" y="148" width="12" height="5" rx="2.5" fill="#6d4a66"/>
+    <ellipse cx="186" cy="197" rx="10" ry="3" fill="#fff"/>
+    <!-- snowflakes -->
+    <g fill="#fff">
+      <circle cx="48" cy="52" r="4"/><circle cx="96" cy="34" r="3"/>
+      <circle cx="150" cy="62" r="3.5"/><circle cx="40" cy="108" r="2.5"/>
+      <circle cx="214" cy="112" r="3"/><circle cx="64" cy="82" r="2"/>
+      <circle cx="176" cy="26" r="2.5"/>
+    </g>
+    <g stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+      <path d="M120 52v14M113 59h14M115 54l10 10M125 54l-10 10"/>
+      <path d="M26 156v10M21 161h10"/>
+    </g>
+  </g>
+</svg>

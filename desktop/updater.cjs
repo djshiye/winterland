@@ -19,6 +19,10 @@
  *      starts the new version, or, if anything is off, starts this version again with --update-failed=<reason>.
  * The save (localStorage in the user-data folder) is never read, moved or written here: it is not in the game folder.
  *
+ * 0.9.10, AppImages (Linux): a copy started from Winterland-X.Y.Z-<arch>.AppImage runs from a read-only mount, so it
+ * fetches the release's AppImage instead of the zip, and the script replaces that one file in place (same name and
+ * folder, so a menu entry from Gear Lever or the like keeps working; Gear Lever then sees it as up to date).
+ *
  * IPC (desktop/preload.cjs → window.winterlandDesktop.updates; only the game page may ask):
  *   update:info → { supported, canInstall, current, failed }     update:check → { status, version?, notes?, code? }
  *   update:download → { ok, code? } (+ 'update:progress' events)  update:cancel, update:install, update:openPage
@@ -153,9 +157,44 @@ async function fetchBuffer(url, limit) {
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
-/** Where this copy lives: the folder the updater swaps files in (Linux, Windows) or the .app (macOS), or null. */
+let image;
+/**
+ * The AppImage file this copy runs from (Linux), or null. The AppImage starter sets $APPIMAGE (the file) and $APPDIR
+ * (where it is mounted). This copy must really run from that mount, and the file must be a plain file that starts like
+ * an AppImage, so a stray $APPIMAGE can never point the updater at another file.
+ */
+function appImageFile() {
+  if (image !== undefined) return image;
+  image = null;
+  const file = process.env.APPIMAGE;
+  const dir = process.env.APPDIR;
+  if (process.platform !== 'linux' || !file || !dir || !path.isAbsolute(file) || !path.isAbsolute(dir)) return image;
+  try {
+    if (path.dirname(fs.realpathSync(process.execPath)) !== fs.realpathSync(dir)) return image;
+    const real = fs.realpathSync(file);
+    if (!fs.statSync(real).isFile()) return image;
+    const head = Buffer.alloc(16);
+    const fd = fs.openSync(real, 'r');
+    try {
+      fs.readSync(fd, head, 0, head.length, 0);
+    } finally {
+      fs.closeSync(fd);
+    }
+    if (core.isAppImageHead(head)) image = real;
+  } catch {
+    /* not an AppImage we can update */
+  }
+  return image;
+}
+
+/**
+ * Where this copy lives: the folder the updater swaps files in (Linux, Windows), the .app (macOS) or the AppImage file
+ * (Linux, `appImage`), or null.
+ */
 function installTarget() {
   const exe = process.execPath;
+  const file = appImageFile();
+  if (file) return { app: '', folder: path.dirname(file), appImage: file };
   if (process.platform === 'darwin') {
     const appPath = path.resolve(exe, '..', '..', '..');
     return appPath.endsWith('.app') ? { app: appPath, folder: path.dirname(appPath) } : null;
@@ -176,6 +215,7 @@ function canInstall() {
     // download page instead)
     fs.accessSync(target.folder, fs.constants.W_OK);
     if (target.app) fs.accessSync(target.app, fs.constants.W_OK);
+    if (target.appImage) fs.accessSync(target.appImage, fs.constants.W_OK);
     return true;
   } catch {
     return false;
@@ -201,11 +241,14 @@ function cleanTemp() {
   }
 }
 
-/** The environment for the script: the player's own, minus anything that would change how Electron or Node start. */
+/**
+ * The environment for the script: the player's own, minus anything that would change how Electron or Node start, and
+ * this AppImage's own variables (they describe a mount that is gone once the game closes; a new AppImage sets its own).
+ */
 function cleanEnv(env) {
   const out = {};
   for (const [k, v] of Object.entries(env)) {
-    if (/^(ELECTRON_|NODE_OPTIONS$|NODE_PATH$)/i.test(k)) continue;
+    if (/^(ELECTRON_|NODE_OPTIONS$|NODE_PATH$|APPIMAGE$|APPDIR$|ARGV0$|OWD$)/i.test(k)) continue;
     out[k] = v;
   }
   return out;
@@ -242,7 +285,7 @@ function registerUpdater() {
           throw codeOf(err) === 'nodownload' ? new UpdateError('norelease') : err;
         })
       ).toString('utf8');
-      const sums = core.parseSums(text, target);
+      const sums = core.parseSums(text, target, { appImage: appImageFile() !== null });
       if (!sums) return { status: 'error', code: 'nodownload' };
       if (!core.isNewer(sums.version, app.getVersion())) return { status: 'none', version: sums.version };
       latest = sums;
@@ -323,6 +366,7 @@ function registerUpdater() {
         zip: staged.file,
         install: where.folder,
         app: where.app,
+        appImage: where.appImage,
         systemRoot: process.env.SystemRoot,
       });
       await new Promise((resolve, reject) => {
