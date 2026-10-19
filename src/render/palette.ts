@@ -551,6 +551,8 @@ export interface YardLinkLook {
   /** The always-on lamp on every riser head (camera-facing) and, for tubes, the glass tint. */
   lamp: number;
   glass: number;
+  /** Tube glass opacity (0.4 unless set): era 10's pale conduits over its bright floor need more body to read. */
+  glassOpacity?: number;
   belt: BeltLook;
 }
 
@@ -613,7 +615,7 @@ export const YARD_LINKS: Readonly<Record<number, YardLinkLook>> = {
   },
   10: {
     kind: 'tube', carrierShape: 'gem', main: T10Y.body, band: T10Y.accent, post: T10Y.trim, foot: mixHex(T10Y.trim, T10Y.body, 0.4), wire: T10Y.trim,
-    carrier: T10Y.glow, carrierB: T10Y.accent, glow: true, lamp: T10Y.glow, glass: mixHex(T10Y.glow, SNOW, 0.6),
+    carrier: T10Y.glow, carrierB: T10Y.accent, glow: true, lamp: T10Y.glow, glass: mixHex(T10Y.glow, T10Y.accent, 0.35), glassOpacity: 0.72,
     belt: { plank: T10Y.body, rail: T10Y.accent, leg: T10Y.trim, foot: mixHex(T10Y.trim, T10Y.body, 0.4), cross: T10Y.accent, roller: mixHex(T10Y.body, T10Y.trim, 0.3), motor: T10Y.accent, motorD: T10Y.trim, lamp: T10Y.glow },
   },
 };

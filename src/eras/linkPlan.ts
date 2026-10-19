@@ -59,6 +59,12 @@ export interface YardLink {
   kind: string;
   /** Ground plan of the link from the producer's riser to the consumer's: riser, arm end, arm end, riser (world). */
   path: XZ[];
+  /**
+   * A machine alone in its row (the 9th spot of eras 8 and 9) joins the row in front with a BRANCH: from the front
+   * row's span out over the aisle, across it halfway between the rows, and in to a riser inside its own front corner. Its row-side end is a joint on that
+   * span (no riser) when the span is there, else the front machine's riser. Rigid kinds only draw it.
+   */
+  branch?: boolean;
 }
 
 export interface YardLinkPlan {
@@ -118,6 +124,44 @@ export function planYardLinks(L: RegionLayout, machines: readonly (LinkMachine |
       const path = [a, ea, eb, b];
       links.push(forward ? { from: i, to: j, kind: mi.output, path } : { from: j, to: i, kind: mj.output, path: path.reverse() });
     }
+  }
+  // a machine alone in its row: one branch to the nearest machine of the row in front
+  const order = [...rows.keys()].sort((a, b) => a - b);
+  for (let k = 1; k < order.length; k++) {
+    const lone = rows.get(order[k]!)!;
+    const front = rows.get(order[k - 1]!)!;
+    if (lone.length !== 1) continue;
+    const j = lone[0]!;
+    const mj = machines[j];
+    const q = L.slots[j]!;
+    if (!mj) continue;
+    // the front machine nearest in x, and its riser on the side facing the lone one
+    let bi = -1;
+    for (const i of front) if (machines[i] && (bi < 0 || Math.abs(L.slots[i]!.x - q.x) < Math.abs(L.slots[bi]!.x - q.x))) bi = i;
+    if (bi < 0) continue;
+    const mi = machines[bi]!;
+    const pi = L.slots[bi]!;
+    const dir = (q.x >= pi.x ? 1 : -1) as 1 | -1;
+    const sideI = (Math.cos(pi.yaw) >= 0 ? dir : -dir) as 1 | -1;
+    const li = riserLocal(mi.w, mi.d, sideI, dir < 0 ? RISER_IN_WEST : RISER_IN);
+    const a = toWorld({ x: pi.x, z: pi.z }, pi.yaw, li.u, li.v);
+    // the lone machine's riser: inside its front corner on the side facing the front machine
+    const sideJ = (Math.cos(q.yaw) >= 0 ? -dir : dir) as 1 | -1;
+    const lj = riserLocal(mj.w, mj.d, sideJ, dir > 0 ? RISER_IN_WEST : RISER_IN);
+    const b = toWorld({ x: q.x, z: q.z }, q.yaw, lj.u, -lj.v);
+    // start on the front row's span (where that riser's arm meets it), or at the riser when it has no span
+    const same = (u: XZ, v: XZ): boolean => Math.abs(u.x - v.x) < 1e-6 && Math.abs(u.z - v.z) < 1e-6;
+    const arm = links.find((l) => same(l.path[0]!, a) || same(l.path[3]!, a));
+    const start = arm ? (same(arm.path[0]!, a) ? arm.path[1]! : arm.path[2]!) : a;
+    if (Math.abs(b.z - start.z) < 1) continue;
+    if (!arm) riserAt(bi, dir);
+    risers.push({ slot: j, x: b.x, z: b.z });
+    // out over the aisle, across it halfway between the rows, and in to the riser
+    const mid = (start.z + b.z) / 2;
+    const path = [{ x: start.x, z: start.z }, { x: start.x, z: mid }, { x: b.x, z: mid }, b];
+    const feeds = (p: LinkMachine, c: LinkMachine): boolean => c.inputs.some((inp) => inp.kind === p.output);
+    const forward = feeds(mi, mj) || (!feeds(mj, mi) && !(mj.inputs.length === 0 && mi.inputs.length > 0));
+    links.push(forward ? { from: bi, to: j, kind: mi.output, path, branch: true } : { from: j, to: bi, kind: mj.output, path: path.reverse(), branch: true });
   }
   return { links, risers };
 }

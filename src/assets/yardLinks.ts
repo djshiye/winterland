@@ -426,6 +426,7 @@ export function createYardLinksModel(era: number, plan: YardLinkPlan): YardLinks
   const glass = new Kit();
   // risers: their brace leans toward the machine's middle (world Z toward the slot centre)
   for (const r of plan.risers) {
+    if (wire && !plan.links.some((k) => !k.branch && [0, 3].some((e) => k.path[e]!.x === r.x && k.path[e]!.z === r.z))) continue;
     const l = plan.links.find((k) => k.path[0]!.x === r.x && k.path[0]!.z === r.z) ?? plan.links.find((k) => k.path[3]!.x === r.x && k.path[3]!.z === r.z);
     const end = l ? (l.path[0]!.x === r.x && l.path[0]!.z === r.z ? l.path[1]! : l.path[2]!) : { x: r.x, z: r.z + 1 };
     riser(body, glow, look, r.x, r.z, Math.sign(r.z - end.z) || 1);
@@ -433,7 +434,10 @@ export function createYardLinksModel(era: number, plan: YardLinkPlan): YardLinks
   const routes: Route[] = [];
   for (const l of plan.links) {
     const [p0, p1, p2, p3] = l.path as [XZ, XZ, XZ, XZ];
-    if (wire) {
+    if (l.branch && wire) {
+      // the lone machine's branch needs a rigid run (wires would need a mast in the aisle): not drawn
+      continue;
+    } else if (wire) {
       arm(body, look, p0, p1);
       arm(body, look, p3, p2);
       const len = Math.hypot(p1.x - p0.x, p1.z - p0.z) || 1;
@@ -461,7 +465,7 @@ export function createYardLinksModel(era: number, plan: YardLinkPlan): YardLinks
     meshes.push(m);
   }
   if (!glass.batch.empty) {
-    const m = glass.batch.mesh({ cast: false, receive: false, material: toon(look.glass, { transparent: true, opacity: 0.4, depthWrite: false }) });
+    const m = glass.batch.mesh({ cast: false, receive: false, material: toon(look.glass, { transparent: true, opacity: look.glassOpacity ?? 0.4, depthWrite: false }) });
     m.name = 'yardLinks glass';
     m.renderOrder = 1;
     meshes.push(m);
