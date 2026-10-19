@@ -10,6 +10,9 @@
  * - No colliders. If the player ends up > SNAP_DISTANCE away (debug teleport) the dog snaps to its spot.
  * - A small saddlebag with two mini logs shows while the player's arms hold more than the base carry capacity. The scarf
  *   colour follows the upgrade level (level 2+ differs from level 1).
+ * - 0.9.11 pet your pal: stand still beside the sitting pal and it gets a pat now and then (PET_AFTER, then every
+ *   PET_EVERY s): a pink heart floats up, a happy wag and a soft sound. The pal also leaves small paw prints in the snow
+ *   (a second fx/Footprints trail, same rules as the player's).
  * - 3 draw calls (shadow pass included): body (one mesh, vertex colours incl. eyes, scarf and the saddlebag baked in, rebuilt only
  *   when the scarf colour or the bag toggles) casts a shadow = 2, limbs (one InstancedMesh: 4 legs + tail) = 1.
  */
@@ -18,6 +21,7 @@ import { createDog, type DogModel } from '../assets/sled';
 import { ERA_PAL_MODELS } from '../assets/eraPals';
 import { dampAngle } from '../core/math';
 import type { GameContext } from '../core/types';
+import { Footprints } from '../fx/Footprints';
 import { eraPlayerId } from '../eras/playerUpgrades';
 
 /** How far behind the player (along his heading) the dog wants to be, metres. */
@@ -32,6 +36,11 @@ export const SNAP_DISTANCE = 6;
 export const SIT_AFTER = 1.5;
 /** The player counts as moving above this speed, m/s. */
 const MOVING_SPEED = 0.5;
+/** Pet your pal: seconds sitting beside a still player before the first pat, and the gap between pats. */
+export const PET_AFTER = 2.5;
+export const PET_EVERY: readonly [number, number] = [9, 14];
+/** The player must stand this close to the pal for a pat, metres. */
+export const PET_DISTANCE = 1.9;
 
 export interface XZ {
   x: number;
@@ -97,6 +106,9 @@ export class Dog {
   private wagLeft = 0;
   private nextWag = rand(2.5, 6);
   private nextWoof = rand(20, 40);
+  private nextPet = PET_AFTER;
+  private readonly paws: Footprints;
+  private readonly heartAt = new THREE.Vector3();
 
   constructor(
     private readonly ctx: GameContext,
@@ -104,6 +116,7 @@ export class Dog {
   ) {
     this.model = createDog();
     ctx.scene.add(this.model.root);
+    this.paws = new Footprints(ctx, { scale: 0.5, step: 0.3, side: 0.07, name: 'pawprints' });
     this.heading.x = Math.sin(owner.facing);
     this.heading.z = Math.cos(owner.facing);
     this.snap();
@@ -194,6 +207,7 @@ export class Dog {
     if (wantSit !== this.sitting) {
       this.sitting = wantSit;
       if (wantSit) this.nextWoof = rand(20, 40);
+      this.nextPet = PET_AFTER;
     }
     const m = this.model;
     const sitTarget = this.sitting ? 1 : 0;
@@ -207,7 +221,15 @@ export class Dog {
         this.wag(rand(1.2, 2));
         this.nextWag = rand(3, 7);
       }
-      const near = Math.hypot(o.position.x - this.pos.x, o.position.z - this.pos.z) < 3;
+      const gap = Math.hypot(o.position.x - this.pos.x, o.position.z - this.pos.z);
+      if (gap < PET_DISTANCE) {
+        this.nextPet -= dt;
+        if (this.nextPet <= 0) {
+          this.pet();
+          this.nextPet = rand(PET_EVERY[0], PET_EVERY[1]);
+        }
+      }
+      const near = gap < 3;
       if (near) {
         this.nextWoof -= dt;
         if (this.nextWoof <= 0) {
@@ -230,6 +252,17 @@ export class Dog {
 
     this.apply();
     m.animate(this.clock, this.sitting ? 0 : this.speed);
+    this.paws.step(dt, this.pos.x, this.pos.z, vx, vz);
+  }
+
+  /** One pat: a heart floats up over the pal, a happy wag and a soft sound. */
+  private pet(): void {
+    const ctx = this.ctx;
+    this.wag(2);
+    this.heartAt.set(this.pos.x, 1.1, this.pos.z);
+    ctx.hud?.floatText(this.heartAt, '\u2665', { color: '#ff8fb8', size: 30, duration: 1.4, rise: 1.1 });
+    ctx.particles?.sparkle(this.heartAt, 0xffb3cf);
+    ctx.audio?.play(this.era ? 'pop' : 'woof', { volume: this.era ? 0.22 : 0.3 });
   }
 
   private apply(): void {
@@ -239,6 +272,7 @@ export class Dog {
   }
 
   dispose(): void {
+    this.paws.dispose();
     this.model.dispose();
   }
 }

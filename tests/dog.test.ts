@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FOLLOW_DISTANCE, FOLLOW_LAG, FOLLOW_MAX_SPEED, followStep, type XZ } from '../src/entities/Dog';
+import { FOLLOW_DISTANCE, FOLLOW_LAG, FOLLOW_MAX_SPEED, PET_AFTER, PET_DISTANCE, PET_EVERY, followStep, type XZ } from '../src/entities/Dog';
 
 const DT = 1 / 60;
 
@@ -70,5 +70,17 @@ describe('Sled dog follow step', () => {
     }
     expect(px - d.x).toBeGreaterThan(FOLLOW_DISTANCE);
     expect(px - d.x).toBeCloseTo(FOLLOW_DISTANCE + speed * FOLLOW_LAG, 0);
+  });
+});
+
+describe('Pet your pal (0.9.11)', () => {
+  it('a pal sitting on its follow spot is close enough for a pat', () => {
+    expect(FOLLOW_DISTANCE).toBeLessThan(PET_DISTANCE);
+  });
+
+  it('pats are calm: a short wait first, then a long gap', () => {
+    expect(PET_AFTER).toBeGreaterThanOrEqual(2);
+    expect(PET_EVERY[0]).toBeGreaterThanOrEqual(8);
+    expect(PET_EVERY[1]).toBeGreaterThan(PET_EVERY[0]);
   });
 });
