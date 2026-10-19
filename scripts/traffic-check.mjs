@@ -116,7 +116,31 @@ try {
     W.pause();
     W.skipIntro();
     W.climb();
-    W.unlockEra(10);
+    W.advance(1);
+  });
+  // teleports first, era by era (what is open and walkable changes as eras open: the Validator's era-4 district jump
+  // landed 53 m short in a world at era 4, fine at era 10): every open fast-travel point, the player must stand where it lands
+  const hops = [];
+  for (let n = 2; n <= 10; n++) {
+    hops.push(
+      ...(await page.evaluate((n) => {
+        const W = window.__WINTERLAND__;
+        W.unlockEra(n);
+        W.advance(1);
+        const out = [];
+        for (const p of W.travelPoints()) {
+          if (!p.open) continue;
+          W.travel(p.id);
+          W.advance(0.5);
+          const at = W.playerPos();
+          out.push({ era: n, id: p.id, x: p.x, z: p.z, ax: at.x, az: at.z, off: Math.hypot(at.x - p.x, at.z - p.z) });
+        }
+        return out;
+      }, n)),
+    );
+  }
+  await page.evaluate(() => {
+    const W = window.__WINTERLAND__;
     for (const id of Object.keys(W.config.PADS)) W.unlock(id);
     W.advance(2);
   });
@@ -124,21 +148,8 @@ try {
 
   const findings = [];
   const seen = {};
-  // teleports: every open fast-travel point, the player must stand where it lands (walkable, not shoved off)
-  const hops = await page.evaluate(() => {
-    const W = window.__WINTERLAND__;
-    const out = [];
-    for (const p of W.travelPoints()) {
-      if (!p.open) continue;
-      W.travel(p.id);
-      W.advance(0.5);
-      const at = W.playerPos();
-      out.push({ id: p.id, x: p.x, z: p.z, off: Math.hypot(at.x - p.x, at.z - p.z) });
-    }
-    return out;
-  });
-  for (const h of hops) if (h.off > 0.6) findings.push({ view: 'teleports', kind: 'teleport', id: h.id, what: `landed ${h.off.toFixed(1)} m off its point`, x: h.x, z: h.z, t: 0, samples: 1 });
-  log(`teleports: ${hops.length} destinations, ${hops.filter((h) => h.off > 0.6).length} off`);
+  for (const h of hops) if (h.off > 0.6) findings.push({ view: `teleports at era ${h.era}`, kind: 'teleport', id: h.id, what: `landed ${h.off.toFixed(1)} m off its point, at (${h.ax.toFixed(1)}, ${h.az.toFixed(1)})`, x: h.x, z: h.z, t: 0, samples: 1 });
+  log(`teleports: ${hops.length} jumps over eras 2-10, ${hops.filter((h) => h.off > 0.6).length} off`);
   for (const [name, x, z] of VIEWS) {
     const r = await page.evaluate(
       ({ x, z, seconds, SAMPLE, MIN_SPEED, FACING_COS, JUMP_M, DEPOTS }) => {
