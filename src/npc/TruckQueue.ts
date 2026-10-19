@@ -18,6 +18,9 @@ import type { Counter } from '../stations/Counter';
 import type { CashPile } from '../stations/CashPile';
 import { Vehicle, VehicleQueue, type VehicleParts } from './VehicleQueue';
 
+/** The highway's west end (world/env/roads.ts PROFILE starts at x −95): a leaving truck still in view waits there. */
+const HIGHWAY_WEST_END_X = -94;
+
 export interface TruckQueueOptions {
   counter: Counter;
   cash: CashPile;
@@ -45,7 +48,11 @@ export class TruckQueue extends VehicleQueue {
       driveSpeed: T.driveSpeed,
       // travel coordinate u = −x (trucks drive −X)
       spawnU: -T.spawnX,
+      spawnDepot: true, // out of the rocky tunnel
       exitU: -T.exitX,
+      endU: () => -HIGHWAY_WEST_END_X,
+      forward: [-1, 0, 0],
+      trafficKind: 'truck',
       slotU: (i) => -(T.frontX - TRUCK_BED_X + i * T.spacing),
       takeInterval: TIMING.dockTakeInterval,
       boost: () => ctx.upgrades.value('truckDock'),

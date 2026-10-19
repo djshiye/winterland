@@ -23,6 +23,7 @@
 import { DISTRICTS, ERAS, REGIONS, ROADS, regionDef, type ERect, type GateSide } from './data';
 import type { GameState } from '../core/types';
 import { climbOpen, gateMet, padPaid } from './gate';
+import { DISTRICT_MARGIN, districtGrid, districtInner } from '../city/rules';
 
 export interface XZ {
   x: number;
@@ -673,9 +674,23 @@ export function travelPoints(state: GameState): TravelPoint[] {
   for (let n = 2; n < DISTRICTS.length; n++) {
     const d = DISTRICTS[n];
     if (!d) continue;
-    out.push({ id: `district:${n}`, label: d.name, kind: 'district', era: n, x: d.rect.minX - 2, z: (d.rect.minZ + d.rect.maxZ) / 2, open: state.eras.age >= n });
+    const at = districtArrival(n);
+    out.push({ id: `district:${n}`, label: d.name, kind: 'district', era: n, x: at.x, z: at.z, open: state.eras.age >= n });
   }
   return out;
+}
+
+/**
+ * 0.9.12: where fast travel to district n lands: on its own front sidewalk (the south edge, on its street), between its
+ * first two lot columns so it is on no lot pad, and the camera centres on its own lots. It used to land on the street
+ * WEST of the district, 2 m outside it, which is right beside the previous district's houses (Dino: "the teleport to
+ * the 3rd era teleports you to the houses of the first"). Pure.
+ */
+export function districtArrival(n: number): XZ {
+  const d = DISTRICTS[n]!;
+  const inner = districtInner(n);
+  const cols = districtGrid(d.lots).cols;
+  return { x: inner.minX + (inner.maxX - inner.minX) / cols, z: d.rect.maxZ - DISTRICT_MARGIN / 2 };
 }
 
 /**

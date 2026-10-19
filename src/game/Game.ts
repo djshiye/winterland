@@ -81,6 +81,11 @@ import { climbOpen, eraGate, type EraGate } from '../eras/gate';
 import { base, introEra } from '../core/ladder';
 import { cityPopulation, settlementLevel } from '../core/demand';
 import { Level } from '../level/Level';
+import { inView as vehicleInView, liveVehicles } from '../npc/vehicleView';
+import { eraFallback } from '../eras/RegionMarket';
+import type { RegionRuntime } from '../eras/runtime';
+import type { Pile } from '../items/Pile';
+import { MAX_ERA } from '../eras/data';
 
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
 
@@ -122,6 +127,8 @@ export interface DebugApi {
   resume(): void;
   /** Advance the simulation by `seconds` in fixed steps without rendering, then render once. */
   simulate(seconds: number, dt?: number): Record<string, unknown>;
+  /** 0.9.12: advance the simulation like simulate() but render nothing (fast sampling loops: traffic checks). */
+  advance(seconds: number, dt?: number): void;
   render(): void;
   /** Screen-space move override (x right, y up); pass null to release. */
   setMove(x: number | null, y?: number): void;
@@ -181,6 +188,19 @@ export interface DebugApi {
   setSettlement(L: number): void;
   /** 0.9.0: fast travel to a travelPoints() id ('yard', 'town', 'region:3', 'district:5'). */
   travel(id: string): boolean;
+  /**
+   * 0.9.12: every vehicle in the world now (npc/vehicleView.ts): where it is, the way its nose points (fx, fz) and
+   * whether it shows on screen. scripts/traffic-check.mjs compares facing with motion and catches pop-ins in view.
+   */
+  vehicles(): { id: string; kind: string; x: number; z: number; fx: number; fz: number; inView: boolean }[];
+  /** 0.9.12: whether a sphere at (x, z) of radius r shows on screen (the camera's frustum). */
+  inView(x: number, z: number, r?: number): boolean;
+  /** 0.9.12: every fast-travel destination now (eras/layout.ts travelPoints). */
+  travelPoints(): { id: string; x: number; z: number; open: boolean }[];
+  /** 0.9.12: where the player stands now. */
+  playerPos(): { x: number; z: number };
+  /** 0.9.12: top up every open region's loading dock and era 1's counters, so buyers keep coming (traffic checks). */
+  stockDocks(): void;
   /** Write the save now; returns what was written (null when saving is off: `?fresh`, reset, no storage). */
   save(): SaveData | null;
   /** The save that would be written now (not written). */
@@ -727,6 +747,10 @@ export class Game {
         this.simulate(seconds, dt);
         return this.snapshot();
       },
+      advance: (seconds: number, dt = 1 / 60) => {
+        const steps = Math.max(0, Math.round(seconds / (dt > 0 ? dt : 1 / 60)));
+        for (let i = 0; i < steps; i++) this.step(dt > 0 ? dt : 1 / 60);
+      },
       render: () => ctx.renderer.render(),
       setInteract: (on: boolean | null) => {
         ctx.input.interactOverride = on;
@@ -753,6 +777,37 @@ export class Game {
         ctx.events.emit('travel:request', { x: p.x, z: p.z, label: p.label });
         return true;
       },
+      vehicles: () => {
+        const out = [];
+        const p = new THREE.Vector3();
+        const f = new THREE.Vector3();
+        for (const v of liveVehicles()) {
+          v.root.updateMatrixWorld(true);
+          v.root.getWorldPosition(p);
+          v.facing(f);
+          out.push({ id: v.id, kind: v.kind, x: p.x, z: p.z, fx: f.x, fz: f.z, inView: vehicleInView(ctx, p.x, p.z, 4) });
+        }
+        return out;
+      },
+      inView: (x: number, z: number, r = 4) => vehicleInView(ctx, x, z, r),
+      stockDocks: () => {
+        for (let n = 2; n <= MAX_ERA; n++) {
+          const r = this.level.eras.region(n) as (RegionRuntime & { market?: { dockPile: Pile } }) | null;
+          const pile = r?.market?.dockPile;
+          if (pile) pile.fill(eraFallback(n, 'raw'), Math.max(0, Math.min(pile.capacity, 20) - pile.total));
+        }
+        // era 1's counters too: crates for the trikes, logs for the trucks and the train, chairs for the sleds
+        const L = this.level;
+        const top = (c: { pile: Pile } | null, kind: 'crate' | 'log' | 'furniture'): void => {
+          if (c) c.pile.fill(kind, Math.max(0, c.pile.capacity - c.pile.total));
+        };
+        top(L.seCounter, 'crate');
+        top(L.truckCounter, 'log');
+        top(L.platformCounter, 'log');
+        top(L.sledCounter, 'furniture');
+      },
+      travelPoints: () => travelPoints(ctx.state).map((p) => ({ id: p.id, x: p.x, z: p.z, open: p.open })),
+      playerPos: () => ({ x: ctx.player.object.position.x, z: ctx.player.object.position.z }),
       climb: () => {
         const v = this.level.village;
         v.reveal();

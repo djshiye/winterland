@@ -18,6 +18,14 @@ import { createTricycleWithRider, TRIKE_WHEEL_RADIUS } from '../assets/vehicles'
 import type { Counter } from '../stations/Counter';
 import type { CashPile } from '../stations/CashPile';
 import { Vehicle, VehicleQueue, type VehicleParts } from './VehicleQueue';
+import { TRIKE_ROAD_END_Z } from '../eras/data';
+import { climbOpen } from '../eras/gate';
+import type { GameState } from '../core/types';
+
+/** True once the new land shows (world/env/frontier.ts landVisible): then the trike road ends on R1. */
+function landShows(s: GameState): boolean {
+  return climbOpen(s) || s.eras.age >= 2;
+}
 
 export interface TricycleQueueOptions {
   counter: Counter;
@@ -44,7 +52,12 @@ export class TricycleQueue extends VehicleQueue {
       maxQueue: T.maxQueue,
       driveSpeed: T.driveSpeed,
       spawnU: T.spawnZ,
+      spawnFarU: T.road.minZ + 2,
       exitU: T.exitZ,
+      // once the new land shows, the trike road ends on R1 (eras/data.ts TRIKE_ROAD_END_Z)
+      endU: () => (landShows(ctx.state) ? TRIKE_ROAD_END_Z + 0.5 : T.road.maxZ - 1),
+      forward: [0, 0, 1],
+      trafficKind: 'trike',
       slotU: (i) => T.frontZ + TRAY_OFFSET - i * T.spacing,
       takeInterval: TIMING.dockTakeInterval * 1.3,
       boost: () => ctx.upgrades.value('trikeDock'),

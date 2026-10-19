@@ -148,7 +148,7 @@ export class RegionMarket {
       era,
       pile: this.dockPile,
       x: P.dock.x,
-      lane: P.lane,
+      road: layout.road,
       colors: [def.colors.accent, def.colors.body],
       fallback: eraFallback(era, 'raw'),
       boost: () => this.dockValue(),
@@ -164,6 +164,7 @@ export class RegionMarket {
       // shoppers stand on the road side of the stall and face it
       faceYaw: layout.inward > 0 ? 0 : Math.PI,
       inward: layout.inward,
+      road: layout.road,
       fallback: eraFallback(era, 'refined'),
       boost: () => this.stallValue(),
       pay,

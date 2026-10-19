@@ -9,6 +9,11 @@
  * Entities (model + rider rig + cargo Pile + bubble canvas) are pooled per variant, so spawning is free
  * after warm-up and nothing leaks: on despawn the cargo is released to the item pool and the model is
  * detached.
+ *
+ * 0.9.12 (npc/vehicleView.ts): a vehicle only appears or disappears out of the player's sight. It spawns at a depot
+ * (`spawnDepot`: the trucks' tunnel) or at the nearest off-screen point between `spawnU` and `spawnFarU`; a leaving
+ * vehicle vanishes at the first off-screen moment past `exitU`, and one still in view at the road's end (`endU`) waits
+ * there until the camera looks away. Each live vehicle is registered with its facing for the traffic checks.
  */
 import * as THREE from 'three';
 import { TIMING, type DemandLevel, type ProductId } from '../config';
@@ -21,6 +26,7 @@ import type { CharacterRig } from '../render/characters';
 import { createSpeechBubble, type BubbleIcon, type SpeechBubble } from '../assets/shop';
 import type { Counter } from '../stations/Counter';
 import type { CashPile } from '../stations/CashPile';
+import { inView, trackVehicle, untrackVehicle } from './vehicleView';
 
 export interface VehicleParts {
   root: THREE.Group;
@@ -53,7 +59,17 @@ export interface VehicleQueueConfig {
   maxQueue: number;
   driveSpeed: number;
   spawnU: number;
+  /** 0.9.12: a spawn point seen on screen moves back up the road as far as this (toward smaller u). */
+  spawnFarU?: number;
+  /** 0.9.12: vehicles come out of a depot at spawnU (a tunnel): appearing there is fine in view. */
+  spawnDepot?: boolean;
   exitU: number;
+  /** 0.9.12: where the road ends (live: a road can end earlier once the new land shows); a leaving vehicle stops here. */
+  endU: () => number;
+  /** 0.9.12: the vehicle's nose in its model space (pickup −X, trike +Z), for the traffic checks. */
+  forward: readonly [number, number, number];
+  /** Kind name for the traffic checks ('truck', 'trike'). */
+  trafficKind: string;
   /** Travel coordinate where the i-th vehicle in line stops. */
   slotU: (index: number) => number;
   /** Seconds between two loaded units. */
@@ -92,12 +108,14 @@ export class Vehicle {
   timer = 0;
   bouncePhase = 0;
   pitch = 0;
+  /** This trip's id for the traffic checks (pooled vehicles get a new one every spawn). */
+  trip = '';
 
   constructor(
     ctx: GameContext,
     readonly parts: VehicleParts,
     readonly variant: number,
-    id: string,
+    readonly id: string,
     cfg: VehicleQueueConfig,
   ) {
     this.bubble = createSpeechBubble(cfg.bubbleScale);
@@ -167,8 +185,27 @@ export abstract class VehicleQueue {
     for (let i = this.leaving.length - 1; i >= 0; i--) {
       const v = this.leaving[i]!;
       this.stepLeaving(v, dt);
-      if (v.u >= this.cfg.exitU) this.despawn(i);
+      if (v.u >= this.cfg.exitU && !this.seen(v)) this.despawn(i);
     }
+  }
+
+  /** True while vehicle `v` shows on screen (its root's position; 6 m: its size, its shadow, the camera moving this frame). */
+  private seen(v: Vehicle): boolean {
+    const p = v.parts.root.position;
+    return inView(this.ctx, p.x, p.z, 6);
+  }
+
+  /** Where the next vehicle may appear (null: every candidate is in view, try again shortly). */
+  private spawnAt(probe: Vehicle): number | null {
+    const cfg = this.cfg;
+    if (cfg.spawnDepot) return cfg.spawnU;
+    const far = cfg.spawnFarU ?? cfg.spawnU;
+    for (let u = cfg.spawnU; u >= far; u -= 2) {
+      probe.u = u;
+      this.pose(probe);
+      if (!this.seen(probe)) return u;
+    }
+    return null;
   }
 
   // --- spawning ---------------------------------------------------------------
@@ -179,13 +216,20 @@ export abstract class VehicleQueue {
       this.spawnTimer = 0.5;
       return;
     }
+    const variant = this.spawned % this.cfg.variants;
+    let v = this.pools[variant]!.pop();
+    if (!v) v = new Vehicle(this.ctx, this.buildParts(variant), variant, `${this.cfg.idPrefix}:${this.spawned + 1}`, this.cfg);
+    const at = this.spawnAt(v);
+    if (at === null) {
+      this.pools[variant]!.push(v);
+      this.spawnTimer = 0.4;
+      return;
+    }
+    this.spawned++;
     const dm = this.cfg.demand(demandOf(this.ctx.state));
     this.spawnTimer = randRange(dm.gap[0], dm.gap[1]) / (this.cfg.rushScaled ? this.ctx.rush.spawnMult : 1) / this.boost();
-    const variant = this.spawned++ % this.cfg.variants;
-    let v = this.pools[variant]!.pop();
-    if (!v) v = new Vehicle(this.ctx, this.buildParts(variant), variant, `${this.cfg.idPrefix}:${this.spawned}`, this.cfg);
     v.mode = 'queue';
-    v.u = this.cfg.spawnU;
+    v.u = at;
     v.speed = this.cfg.driveSpeed * 0.8;
     v.accelNow = 0;
     v.want = Math.min(this.cfg.maxWant, Math.round(randRange(dm.want[0] - 0.49, dm.want[1] + 0.49)));
@@ -202,11 +246,20 @@ export abstract class VehicleQueue {
     this.ctx.scene.add(v.parts.root);
     this.pose(v);
     this.queue.push(v);
+    const fwd = this.cfg.forward;
+    v.trip = `${this.cfg.idPrefix}#${this.spawned}`;
+    trackVehicle({
+      id: v.trip,
+      kind: this.cfg.trafficKind,
+      root: v.parts.root,
+      facing: (out) => out.set(fwd[0], fwd[1], fwd[2]).transformDirection(v.parts.root.matrixWorld).setY(0).normalize(),
+    });
   }
 
   private despawn(index: number): void {
     const v = this.leaving[index]!;
     this.leaving.splice(index, 1);
+    untrackVehicle(v.trip);
     v.cargo.clear();
     this.ctx.tweens.killTweensOf(v.bubble.sprite);
     v.bubble.sprite.visible = false;
@@ -306,9 +359,12 @@ export abstract class VehicleQueue {
 
   private stepLeaving(v: Vehicle, dt: number): void {
     const prev = v.speed;
-    v.speed = approach(v.speed, this.cfg.driveSpeed * 1.15, this.cfg.accel * dt);
+    // on to the road's end at most, braking for it; a vehicle still in view there waits for the camera to look away
+    const end = this.cfg.endU();
+    const vmax = Math.min(this.cfg.driveSpeed * 1.15, Math.sqrt(2 * this.cfg.decel * Math.max(0, end - v.u)));
+    v.speed = approach(v.speed, vmax, (v.speed > vmax ? this.cfg.decel : this.cfg.accel) * dt);
     v.accelNow = (v.speed - prev) / dt;
-    v.u += v.speed * dt;
+    v.u = Math.min(end, v.u + v.speed * dt);
     if (v.bubbleOn) {
       v.bubbleTimer -= dt;
       if (v.bubbleTimer <= 0) {

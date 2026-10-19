@@ -14,6 +14,8 @@
  *   want · plankPrice into the cash pile, emits 'sale', cheers, shows the check and walks the exit path
  *   carrying the planks; at the end of the path everything is released and the entity returns to a pool.
  * - Entities (rig + carry stack + bubble canvas) are pooled: nothing is created per customer after warm-up.
+ * - 0.9.12 (npc/vehicleView.ts): customers only appear and vanish out of sight: one comes from the first point of the
+ *   snow path past `spawn` the camera can't see, and one leaving walks on down the path until it is off screen.
  */
 import * as THREE from 'three';
 import { ECONOMY, LAYOUT, PLAYER, TIMING, VIP } from '../config';
@@ -23,6 +25,7 @@ import type { GameContext } from '../core/types';
 import { CarryStack } from '../items/CarryStack';
 import { transferOne } from '../items/transfer';
 import { createCharacterRig, type CharacterRig } from '../render/characters';
+import { inView } from './vehicleView';
 import { VIP_VARIANT_BASE } from '../assets/characters';
 import { createSpeechBubble, type SpeechBubble } from '../assets/shop';
 import type { Counter } from '../stations/Counter';
@@ -155,11 +158,23 @@ export class CustomerQueue {
     }
     // rush hour: gaps shrink by rush.spawnMult (read live, 1 outside a rush)
     // 0.9.2 Shop Counter: customers come `dock`× as often
+    const z = this.spawnZ();
+    if (z === null) {
+      this.spawnTimer = 0.4;
+      return;
+    }
     this.spawnTimer = randRange(dm.customerGap[0], dm.customerGap[1]) / rush.spawnMult / this.dock();
-    this.spawn(dm.customerWant, dm.vipChance > 0 && Math.random() < dm.vipChance);
+    this.spawn(dm.customerWant, dm.vipChance > 0 && Math.random() < dm.vipChance, z);
   }
 
-  private spawn(want: readonly [number, number], vip: boolean): void {
+  /** The nearest point down the snow path from `spawn` that is off screen (null: all in view, try again shortly). */
+  private spawnZ(): number | null {
+    const L = LAYOUT.customers;
+    for (let z = L.spawn.z; z <= L.path.maxZ - 0.5; z += 1) if (!inView(this.ctx, L.spawn.x, z, 2.5)) return z;
+    return null;
+  }
+
+  private spawn(want: readonly [number, number], vip: boolean, z: number): void {
     const pool = vip ? this.vipPool : this.pool;
     let c = pool.pop();
     if (!c) {
@@ -188,7 +203,7 @@ export class CustomerQueue {
     c.rig.setSeated(false);
     c.bubble.sprite.visible = false;
     const sp = LAYOUT.customers.spawn;
-    c.group.position.set(sp.x + randRange(-0.15, 0.15), 0, sp.z);
+    c.group.position.set(sp.x + randRange(-0.15, 0.15), 0, z);
     c.group.rotation.y = 0;
     c.rig.root.rotation.y = Math.PI;
     c.group.visible = true;
@@ -286,9 +301,13 @@ export class CustomerQueue {
   // --- leaving --------------------------------------------------------------
   /** Returns true when the customer reached the end of the exit path. */
   private stepLeaving(c: Customer, dt: number): boolean {
-    const path = LAYOUT.customers.exitPath;
-    const wp = path[c.waypoint]!;
-    const arrived = this.moveToward(c, wp.x, wp.z, dt, true);
+    const L = LAYOUT.customers;
+    const path = L.exitPath;
+    // past the path's last point it walks on down the snow path (to its end at most) until it is out of sight
+    const last = path[path.length - 1]!;
+    const beyond = c.waypoint >= path.length;
+    const wp = beyond ? { x: last.x, z: L.path.maxZ - 0.5 } : path[c.waypoint]!;
+    const arrived = this.moveToward(c, wp.x, wp.z, dt, !beyond);
     this.faceStep(c, null, dt);
     this.animate(c, dt);
     if (c.bubbleOn) {
@@ -298,11 +317,9 @@ export class CustomerQueue {
         this.ctx.tweens.popOut(c.bubble.sprite, { duration: 0.25 });
       }
     }
-    if (arrived) {
-      c.waypoint++;
-      if (c.waypoint >= path.length) return true;
-    }
-    return false;
+    if (arrived && !beyond) c.waypoint++;
+    const p = c.group.position;
+    return c.waypoint >= path.length && !inView(this.ctx, p.x, p.z, 2.5);
   }
 
   // --- movement -------------------------------------------------------------

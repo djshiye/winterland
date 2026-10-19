@@ -15,6 +15,13 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 
 - **Investing is a small bonus now.** Bonds, the index fund and ventures used to add about half again on top of what your factories earn, so investing could skip much of an era. They now add about a tenth: still worth a few clicks, never a shortcut past the grind. Bonds pay +4% after 10 minutes, and each product holds a few minutes of your sales. Money you already invested is safe and keeps its value.
 
+### Roads and traffic
+
+- **The train no longer drives backwards.** It has an engine at each end now, so an engine always leads, in to the platform and back out to the tunnel.
+- **Buyers no longer vanish in the middle of the road.** Carts, wagons and trucks drive in from the city and the link roads, turn the corners, park in their own lane and drive on until they are out of sight. Passing traffic keeps to the other lane, and parked buyers no longer stand over the fences. Sleds, trikes and shoppers on foot also come and go out of sight.
+- **Fast travel to a city district lands in that district,** on its own street, not beside the district before it.
+- **Roads join up.** Ruts follow the road round corners and stop at junctions, city streets are cozy cobbles that meet the trail cleanly, the south avenue reaches the town, each era's gate has its own paving, and signposts no longer cross.
+
 ## 0.9.10 (2026-10-18)
 
 A calmer first hour, safer saves and updates, a fairer climb through the eras, tidier town life and prettier fields in eras 6 to 8.

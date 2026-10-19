@@ -4,7 +4,7 @@
  * sales upgrades: `${key}Dock`, `${key}Stall` and a Quality upgrade for every era material.
  */
 import * as THREE from 'three';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TIMING, TRADE_POST, UPGRADES, eraCashMachine } from '../src/config';
 import { valueAt } from '../src/core/ladder';
 import { createGameState, type GameContext, type Item, type ItemKind } from '../src/core/types';
@@ -185,6 +185,12 @@ function fakeCtx() {
   return { ctx, released };
 }
 
+// 0.9.12: every era's buyers share the roads (they keep their distance), so each test sends its vehicles home
+const made: { clear(): void }[] = [];
+afterEach(() => {
+  while (made.length) made.pop()!.clear();
+});
+
 function makeBuyers(opts: { dock?: number } = {}) {
   const { ctx } = fakeCtx();
   const sales: { kind: ItemKind; count: number }[] = [];
@@ -194,12 +200,13 @@ function makeBuyers(opts: { dock?: number } = {}) {
     era: 2,
     pile,
     x: P.dock.x,
-    lane: P.lane,
+    road: regionLayout(2).road,
     colors: [0xff0000, 0x00ff00],
     fallback: 'stone',
     boost: () => opts.dock ?? 1,
     pay: (kind, count) => void sales.push({ kind, count }),
   });
+  made.push(buyers);
   const run = (seconds: number, step = 1 / 30): void => {
     for (let t = 0; t < seconds; t += step) buyers.update(step);
   };
