@@ -17,6 +17,7 @@
 import * as THREE from 'three';
 import type { GameContext } from '../../core/types';
 import { comfort, glowScale, particleScale, reducedMotion, type EffectsLevel } from '../../fx/comfort';
+import { eraSky } from '../../render/palette';
 import { SKY_LIGHT } from '../../render/skyLight';
 import { Rng } from '../env/common';
 import type { SnowfallPart } from '../env/snowfall';
@@ -52,6 +53,11 @@ export class Sky {
   /** Eased cloud cover (the weather's, pulled up during a snowstorm). */
   private clouds = 0.3;
   private time = 0;
+  /** 0.9.11: the era mood the sky is easing into (render/palette.ts EraMood), so walking into an era changes its air. */
+  private readonly mood = { clouds: 0, snow: 1, wind: 1, motes: 1, aurora: 1, sun: new THREE.Color(1, 1, 1) };
+  private readonly moodSun = new THREE.Color();
+  /** False until the first update, which opens straight on the current era's mood (a loaded game doesn't ease in). */
+  private moodSet = false;
 
   constructor(
     private readonly ctx: GameContext,
@@ -80,17 +86,30 @@ export class Sky {
     const era = ctx.renderer.era;
     const center = ctx.cameraRig.target;
 
-    // weather: clouds, snow, wind (a snowstorm overrides the snow and darkens the sky)
+    // the era's mood eases in over about two seconds, alongside the renderer's look fade (no jump at a region border)
+    const m = this.mood;
+    const want = eraSky(era).mood;
+    const k = this.moodSet ? Math.min(1, dt * 1.5) : 1;
+    this.moodSet = true;
+    m.clouds += (want.clouds - m.clouds) * k;
+    m.snow += (want.snow - m.snow) * k;
+    m.wind += (want.wind - m.wind) * k;
+    m.motes += (want.motes - m.motes) * k;
+    m.aurora += (want.aurora - m.aurora) * k;
+    m.sun.lerp(this.moodSun.setHex(want.sun), k);
+
+    // weather: clouds, snow, wind, shifted by the era's mood (a snowstorm overrides the snow and darkens the sky)
     const w = weatherAt(this.time, this.weather);
     const storm = event === 'snowstorm';
-    const cloudsWant = storm ? 0.9 : w.clouds;
+    const cloudsWant = storm ? 0.9 : Math.min(1, Math.max(0, w.clouds + m.clouds));
     this.clouds += (cloudsWant - this.clouds) * Math.min(1, dt * 0.25);
-    this.snowfall.setIntensity(storm ? ctx.worldEvents.snowfall : w.snow);
+    this.snowfall.setIntensity(storm ? ctx.worldEvents.snowfall : w.snow * m.snow);
     this.snowfall.setDarkness(dark);
-    const wind = storm ? 3 : w.wind;
+    const wind = storm ? 3 : w.wind * m.wind;
 
-    // sun path and its colour over the day
+    // sun path and its colour over the day, tinted by the era's mood
     sunAt(ctx.dayNight.enabled ? ctx.dayNight.phase : 0.275, this.clouds, this.sun);
+    this.sun.sun.multiply(m.sun);
     ctx.renderer.setSunPath(this.sun.offset, this.sun.sun, this.sun.hemiSky);
 
     // cloud shadows drift downwind (render/skyLight.ts)
@@ -101,10 +120,10 @@ export class Sky {
     SKY_LIGHT.sky[0] = this.clouds;
 
     // the northern lights (stronger in the aurora event)
-    this.aurora.update(dt, dark, event === 'aurora' ? 1.8 : 1, glowScale(), speed, era);
+    this.aurora.update(dt, dark, Math.min(2, (event === 'aurora' ? 1.8 : 1) * m.aurora), glowScale(), speed, era);
 
     // the era's air, chimney smoke, birds
-    this.motes.update(dt, era, dark, center, wind, particles, speed);
+    this.motes.update(dt, era, dark, center, wind, particles * m.motes, speed);
     this.smoke.update(dt, center, dark, wind, 0.4 + 0.6 * particles, speed);
     this.birds.update(dt, center, dark < 0.3 && !storm && w.snow < 1.2 && particles > 0.3, speed);
     this.life.update(dt);

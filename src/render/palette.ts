@@ -128,24 +128,26 @@ const LOOKS: readonly EraLook[] = [
   { day: DAY, night: NIGHT, grade: { day: grade(0xffffff, 0x000000, 1, 1, 0), night: grade(0xffffff, 0x000000, 1, 1, 0) } },
   // 1 Survival: the forest and the log, amber hearths
   { day: day({ hemi: 0.8 }), night: night({}), grade: { day: grade(0xfffcfa, 0x0d0812, 1.06, 1.03, 0.2), night: grade(0xfff8ee, 0x110b18, 1.08, 1.02, 0.3) } },
-  // 2 Frontier: fieldstone and clay, kiln mouths
-  { day: day({}), night: night({ hemiGround: 0x644a4c }), grade: { day: grade(0xfffcfa, 0x0e0911, 1.05, 1.03, 0.2), night: grade(0xfff6ee, 0x120b16, 1.08, 1.02, 0.3) } },
-  // 3 Iron Age: rust ore, forge orange
-  { day: day({}), night: night({ hemiGround: 0x704a40, sky: 0x241e42 }), grade: { day: grade(0xfffbf8, 0x0f0910, 1.07, 1.05, 0.22), night: grade(0xfff4ea, 0x140b15, 1.1, 1.04, 0.32) } },
-  // 4 Steam Age: coal and brass, gas lamps
-  { day: day({ sun: 1.22, hemi: 0.6, hemiGround: 0x8a7f86 }), night: night({ hemiGround: 0x644c44, hemiSky: 0x6674bc }), grade: { day: grade(0xfefcf8, 0x0e0a10, 1.08, 1.07, 0.24), night: grade(0xfcf4ec, 0x120d15, 1.04, 1.03, 0.34) } },
-  // 5 Industrial: iron pellets and coke, sodium lamps
-  { day: day({ sun: 1.22, hemi: 0.6, hemiGround: 0x9a7c78 }), night: night({ hemiGround: 0x6a5040, sky: 0x221f40 }), grade: { day: grade(0xfffcf8, 0x0e0a10, 1.1, 1.07, 0.22), night: grade(0xfff8e8, 0x130d14, 1.08, 1.04, 0.32) } },
-  // 6 Electric Age: copper and teal, mint bulbs
-  { day: day({ sun: 1.2, hemi: 0.62, hemiGround: 0x7f9a9a }), night: night({ hemiGround: 0x565250, hemiSky: 0x5e7ec4, sky: 0x1a2446 }), grade: { day: grade(0xfcfefc, 0x0a0c11, 1.1, 1.06, 0.2), night: grade(0xfafaf6, 0x0d0f16, 1.08, 1.03, 0.3) } },
-  // 7 Oil: honey lanes, flare peach
-  { day: day({ sun: 1.22, hemi: 0.6, hemiGround: 0x9e8670 }), night: night({ hemiGround: 0x6c4e40 }), grade: { day: grade(0xfffcf6, 0x0f0a10, 1.12, 1.06, 0.22), night: grade(0xfff6e8, 0x130c14, 1.08, 1.03, 0.32) } },
-  // 8 Computer: beige terrazzo, screen mint (10c: a warm sand bounce and firmer sun so the pale campus reads by day)
-  { day: day({ sun: 1.18, hemi: 0.66, hemiGround: 0x9c8a86 }), night: night({ hemiGround: 0x56524e, hemiSky: 0x6678c2 }), grade: { day: grade(0xfffaf2, 0x0d0a12, 1.12, 1.07, 0.2), night: grade(0xfafaf6, 0x0e0e15, 1.06, 1.02, 0.28) } },
-  // 9 Nuclear: mint glaze, aqua pools (10c: a cool mint bounce, firmer sun, more saturation by day)
-  { day: day({ sun: 1.18, hemi: 0.66, hemiGround: 0x7f8ea0 }), night: night({ hemiGround: 0x50564c, hemiSky: 0x5c84c4, sky: 0x18264a }), grade: { day: grade(0xfafefb, 0x0a0d12, 1.12, 1.07, 0.2), night: grade(0xf8fcfa, 0x0d1014, 1.08, 1.02, 0.28) } },
-  // 10 AI: cream hex and gold seams, fusion sun-gold (10c: a warm gold bounce and firmer sun so cream and gold read by day)
-  { day: day({ sun: 1.2, hemi: 0.64, hemiGround: 0x9a8698 }), night: night({ hemiGround: 0x6e5844, hemiSky: 0x6c74c0, sky: 0x221e44 }), grade: { day: grade(0xfffaf0, 0x0e0a12, 1.12, 1.07, 0.18), night: grade(0xfff8ee, 0x110d15, 1.08, 1.02, 0.26) } },
+  // 0.9.11 moods (audit-1.0/cozy, Dino 2026-10-19: every area its own feel). The grades no longer sit near neutral:
+  // each era's light and grade carry its mood, while the art keeps the colour. Cozy, never grim.
+  // 2 Frontier: harvest-gold afternoon over fieldstone and clay, kiln mouths at night
+  { day: day({ sun: 1.16, hemi: 0.66, hemiSky: 0xe6dcf0, hemiGround: 0x9c7c6a }), night: night({ hemiGround: 0x6c4c44 }), grade: { day: grade(0xfff0da, 0x1c0f08, 1.12, 1.05, 0.28), night: grade(0xfff0e0, 0x160c10, 1.1, 1.02, 0.32) } },
+  // 3 Iron Age: forge hills at dusk: cool slate shadows, forge orange glows
+  { day: day({ sun: 1.12, hemi: 0.6, hemiSky: 0xb8c4e8, hemiGround: 0x7a6a78 }), night: night({ hemiGround: 0x744838, sky: 0x221c40 }), grade: { day: grade(0xeceef8, 0x141228, 1.02, 1.09, 0.34), night: grade(0xffece0, 0x180c14, 1.12, 1.05, 0.36) } },
+  // 4 Steam Age: misty railway morning: pale cream, soft low contrast, lifted milky shadows
+  { day: day({ sun: 1.05, hemi: 0.84, hemiSky: 0xe8ecf4, hemiGround: 0xa49a9a }), night: night({ hemiGround: 0x645048, hemiSky: 0x7480bc }), grade: { day: grade(0xfcf8f0, 0x2c2a30, 0.94, 0.9, 0.18), night: grade(0xf8f2ec, 0x1e1a24, 0.98, 0.94, 0.3) } },
+  // 5 Industrial: ember night-shift: copper haze even by day, sodium lamps at night
+  { day: day({ sun: 1.18, hemi: 0.58, hemiSky: 0xe8cfc0, hemiGround: 0x9a6c5c }), night: night({ hemiGround: 0x74503a, sky: 0x2a1c30 }), grade: { day: grade(0xffeacf, 0x24120a, 1.06, 1.07, 0.36), night: grade(0xffe8cc, 0x1c0c0c, 1.12, 1.05, 0.38) } },
+  // 6 Electric Age: twinkle-lit blue hour: cool blue light so the warm bulbs and copper pop
+  { day: day({ sun: 1.12, hemi: 0.66, hemiSky: 0xbcccf4, hemiGround: 0x7a8aa0 }), night: night({ hemiGround: 0x5a5050, hemiSky: 0x5a78cc, sky: 0x162248 }), grade: { day: grade(0xeef6ff, 0x081830, 1.16, 1.06, 0.3), night: grade(0xf4f4ff, 0x0c1020, 1.1, 1.04, 0.34) } },
+  // 7 Oil: polar tundra: cold blue-white air, low pale sun, flare stacks the warmest thing on screen
+  { day: day({ sun: 1.14, hemi: 0.7, hemiSky: 0xd0e0fa, hemiGround: 0x8090a8 }), night: night({ hemiGround: 0x5e4c44, hemiSky: 0x6888cc, sky: 0x141e40 }), grade: { day: grade(0xeef4ff, 0x101a28, 0.96, 1.04, 0.26), night: grade(0xf0f4ff, 0x0c1220, 1.0, 1.03, 0.32) } },
+  // 8 Computer: crisp seaside: high-key, clean, bright, a warm sand bounce
+  { day: day({ sun: 1.2, hemi: 0.68, hemiSky: 0xd8e8fc, hemiGround: 0x9c8a86 }), night: night({ hemiGround: 0x56524e, hemiSky: 0x6678c2 }), grade: { day: grade(0xfffffa, 0x0a1014, 1.14, 1.07, 0.12), night: grade(0xf6fafa, 0x0c0f16, 1.08, 1.02, 0.26) } },
+  // 9 Nuclear: minty glow valley: a soft green cast, glowing nights
+  { day: day({ sun: 1.16, hemi: 0.66, hemiSky: 0xc8ecdc, hemiGround: 0x7a9490 }), night: night({ hemiGround: 0x4e5a4c, hemiSky: 0x5c8cc4, sky: 0x122a40 }), grade: { day: grade(0xf5fff9, 0x0a1a16, 1.1, 1.04, 0.3), night: grade(0xeefff8, 0x081814, 1.1, 1.02, 0.34) } },
+  // 10 AI: dream aurora plateau: lavender twilight even by day, sun-gold fusion
+  { day: day({ sun: 1.16, hemi: 0.68, hemiSky: 0xd8c8f4, hemiGround: 0x9a86a8 }), night: night({ hemiGround: 0x6e5844, hemiSky: 0x7a70c8, sky: 0x221a4c }), grade: { day: grade(0xf6ecff, 0x1a1030, 1.12, 1.03, 0.3), night: grade(0xfaf0ff, 0x160e28, 1.1, 1.02, 0.34) } },
 ];
 
 // ---------------------------------------------------------------------------
@@ -443,31 +445,55 @@ export interface EraSky {
   /** Mixed into the aurora's teal body at night (0 = classic northern lights). */
   auroraTint: number;
   auroraTintAmount: number;
+  /** 0.9.11: the era's weather and light mood (world/sky/Sky.ts eases into it when you walk in). */
+  mood: EraMood;
 }
+
+/**
+ * How an era's sky behaves (0.9.11 moods). The global weather cycle still runs underneath (world/sky/weather.ts); the
+ * mood shifts and scales it, so a forge valley clouds over more often and the tundra is windy and snowy.
+ */
+export interface EraMood {
+  /** Multiplied into the daytime sun colour (white = none): a harvest amber, a cold tundra white… */
+  sun: number;
+  /** Added to the cloud cover (−1 … 1, the result is clamped to 0 … 1). */
+  clouds: number;
+  /** Multiplies the falling snow. */
+  snow: number;
+  /** Multiplies the wind (clouds, smoke and snow drift with it). */
+  wind: number;
+  /** Multiplies how many motes drift in the air (≤ 1.5, still calm). */
+  motes: number;
+  /** Multiplies the northern lights at night. */
+  aurora: number;
+}
+
+const CALM: EraMood = { sun: 0xffffff, clouds: 0, snow: 1, wind: 1, motes: 1, aurora: 1 };
+const mood = (patch: Partial<EraMood>): EraMood => ({ ...CALM, ...patch });
 
 /** One sky per era, each built around the era's main resource (R36). */
 const SKIES: readonly EraSky[] = [
-  { motes: 'none', mote: SNOW, auroraTint: SKY.auroraBody, auroraTintAmount: 0 },
+  { motes: 'none', mote: SNOW, auroraTint: SKY.auroraBody, auroraTintAmount: 0, mood: CALM },
   // 1 Survival: the forest and the log: plain snow, classic green curtains
-  { motes: 'none', mote: SNOW, auroraTint: SKY.auroraBody, auroraTintAmount: 0 },
+  { motes: 'none', mote: SNOW, auroraTint: SKY.auroraBody, auroraTintAmount: 0, mood: CALM },
   // 2 Frontier: clay and kilns: warm kiln dust drifting in the light
-  { motes: 'dust', mote: 0xe9c79a, auroraTint: 0xffb347, auroraTintAmount: 0.12 },
+  { motes: 'dust', mote: 0xe9c79a, auroraTint: 0xffb347, auroraTintAmount: 0.12, mood: mood({ sun: 0xffe0b0, clouds: -0.15, snow: 0.55, wind: 0.8, motes: 1.3 }) },
   // 3 Iron Age: forge sparks rising
-  { motes: 'sparks', mote: 0xff9233, auroraTint: 0xff9233, auroraTintAmount: 0.18 },
+  { motes: 'sparks', mote: 0xff9233, auroraTint: 0xff9233, auroraTintAmount: 0.18, mood: mood({ sun: 0xf2f0ff, clouds: 0.22, snow: 0.9, wind: 0.9, motes: 1.25 }) },
   // 4 Steam Age: soft steam wisps
-  { motes: 'steam', mote: 0xf6f2ec, auroraTint: 0xffbe55, auroraTintAmount: 0.1 },
+  { motes: 'steam', mote: 0xf6f2ec, auroraTint: 0xffbe55, auroraTintAmount: 0.1, mood: mood({ sun: 0xfff4e4, clouds: 0.12, snow: 0.6, wind: 0.45, motes: 1.5, aurora: 0.8 }) },
   // 5 Industrial: coke ash flecks and the odd sodium spark
-  { motes: 'ash', mote: 0xa89c94, auroraTint: 0xffd166, auroraTintAmount: 0.12 },
+  { motes: 'ash', mote: 0xa89c94, auroraTint: 0xffd166, auroraTintAmount: 0.12, mood: mood({ sun: 0xffd4a4, clouds: 0.25, snow: 0.45, wind: 0.7, motes: 1.4, aurora: 0.7 }) },
   // 6 Electric Age: little mint zaps along the wires
-  { motes: 'zaps', mote: 0x7ce8c8, auroraTint: 0x7ce8c8, auroraTintAmount: 0.3 },
-  // 7 Oil: honey heat shimmer
-  { motes: 'shimmer', mote: 0xffc46a, auroraTint: 0xffaa5a, auroraTintAmount: 0.16 },
+  { motes: 'zaps', mote: 0x7ce8c8, auroraTint: 0x7ce8c8, auroraTintAmount: 0.3, mood: mood({ sun: 0xeaf2ff, clouds: 0.08, snow: 1.15, wind: 0.6, motes: 1.2 }) },
+  // 7 Oil: polar tundra (0.9.11): diamond-dust glitter in the cold air, windy and snowy, cool northern lights
+  { motes: 'shimmer', mote: 0xdcecff, auroraTint: 0x9ad8ff, auroraTintAmount: 0.14, mood: mood({ sun: 0xecf2ff, clouds: 0.15, snow: 1.45, wind: 2.2, motes: 0.8, aurora: 1.2 }) },
   // 8 Computer: mint pixels drifting up like screen light
-  { motes: 'pixels', mote: 0x66e0a3, auroraTint: 0x66e0a3, auroraTintAmount: 0.3 },
+  { motes: 'pixels', mote: 0x66e0a3, auroraTint: 0x66e0a3, auroraTintAmount: 0.3, mood: mood({ sun: 0xfffcf4, clouds: -0.2, snow: 0.3, wind: 1.3 }) },
   // 9 Nuclear: aqua glow motes bobbing over the pools
-  { motes: 'glow', mote: 0x70f5d9, auroraTint: 0x70f5d9, auroraTintAmount: 0.35 },
+  { motes: 'glow', mote: 0x70f5d9, auroraTint: 0x70f5d9, auroraTintAmount: 0.35, mood: mood({ sun: 0xf0fff2, snow: 0.6, wind: 0.5, motes: 1.3, aurora: 1.2 }) },
   // 10 AI: sun-gold fusion shimmer
-  { motes: 'fusion', mote: 0xffe082, auroraTint: 0xffe082, auroraTintAmount: 0.3 },
+  { motes: 'fusion', mote: 0xffe082, auroraTint: 0xffe082, auroraTintAmount: 0.3, mood: mood({ sun: 0xf4e8ff, clouds: -0.1, snow: 0.4, wind: 0.3, motes: 1.25, aurora: 1.8 }) },
 ];
 
 /** Era `era`'s sky (clamped like palette()). */

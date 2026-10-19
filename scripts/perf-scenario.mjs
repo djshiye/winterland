@@ -81,7 +81,8 @@ const regionView = (n) =>
   `(() => { const W = ${W}; const L = W.game.level.eras.region(${n}).layout; const M = L.zones.market; W.teleport(M.minX - 1.2, M.maxZ); W.cameraZoom(0.6); })()`;
 const lookSteps = look
   ? [
-      // the HUD hides so the shots show only the world
+      // the HUD hides so the shots show only the world; each view settles its era look at once (the look fade runs on
+      // real time, which a paused harness doesn't have, so a shot would otherwise show part of the previous era's grade)
       `eval:(() => { const s = document.createElement('style'); s.textContent = 'body *:not(canvas){visibility:hidden !important} canvas{visibility:visible !important}'; document.head.appendChild(s); return 'hud hidden'; })()`,
       ...[
         ['era01', `(${W}.teleport(0, 2), ${W}.cameraZoom(0.8))`],
@@ -91,7 +92,7 @@ const lookSteps = look
         ['district10', `(${W}.travel('district:10'), ${W}.cameraZoom(0.5))`],
       ].flatMap(([id, go]) =>
         [['day', 0.25], ['night', 0.75]].flatMap(([when, t]) => [
-          `eval:(${go}, ${W}.setTimeOfDay(${t}), ${W}.simulate(1, 1/60), '${id} ${when}')`,
+          `eval:(${go}, ${W}.setTimeOfDay(${t}), ${W}.simulate(3, 1/60), ${W}.ctx.renderer.render(), ${W}.ctx.renderer.setEra(${W}.ctx.renderer.era, true), '${id} ${when}')`,
           `shot:${path.join(look, `${id}-${when}.png`)}`,
         ]),
       ),
