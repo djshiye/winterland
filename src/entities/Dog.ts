@@ -167,6 +167,11 @@ export class Dog {
     return this.sitting;
   }
 
+  /** Settle down at once: the idle clock jumps past SIT_AFTER (a warm-up spot, fx/WarmUp.ts). */
+  rest(): void {
+    this.idleFor = Math.max(this.idleFor, SIT_AFTER + 0.01);
+  }
+
   update(dt: number): void {
     if (dt <= 0) return;
     const o = this.owner;

@@ -12,6 +12,7 @@ import { SNOW, mixHex, palette } from '../../../render/palette';
 import { plotPlaces } from '../../../eras/layout';
 import { regionPaths } from '../frontier';
 import { geo } from '../../../render/materials';
+import { placeWarmSpot, warmSpotRect } from './warmSpots';
 import { beltSpots, greenBorder, cellMarks, flask, fusionHalo, geode, geodeTree, harvestFree, hexGold, inset, pathLamp, pathLampSpots, slab, FLOOR_Y, beltSnow, harvestDrifts, snowVerge } from './lateKit';
 
 const N = 10;
@@ -25,13 +26,13 @@ function haloSpot(l: RegionLayout): { x: number; z: number } {
   return { x, z: Math.min(H.maxZ - 3, Math.max(H.minZ + 3, z)) };
 }
 
-const haloRect = (l: RegionLayout): Rect => {
+export const haloRect = (l: RegionLayout): Rect => {
   const h = haloSpot(l);
   return { minX: h.x - 2.4, maxX: h.x + 2.4, minZ: h.z - 2.4, maxZ: h.z + 2.4 };
 };
 
 export const era10: EraGroundModule = {
-  keepOut: (l) => [haloRect(l)],
+  keepOut: (l) => [haloRect(l), ...warmSpotRect(l, 10, [haloRect(l)])],
 
   wild(k, l, rng) {
     const P = plotPlaces(N);
@@ -42,6 +43,8 @@ export const era10: EraGroundModule = {
     const h = haloSpot(l);
     const placed: { x: number; z: number; r: number }[] = [{ x: h.x, z: h.z, r: 3.2 }];
     fusionHalo(k.solid, k.glow, h.x, h.z, 1);
+    const w = placeWarmSpot(k, l, rng, 10, [haloRect(l)]);
+    if (w) placed.push({ x: w.x, z: w.z, r: 1.9 });
     k.lamps.push({ x: h.x, y: 1.7, z: h.z, size: 2.6, pool: 5.5 });
     // geodes on a staggered grid
     let row = 0;
