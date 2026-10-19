@@ -76,6 +76,7 @@ const CONTROLS: readonly (readonly [string, string])[] = [
   ['Wheel / + \u2212', 'zoom'],
   ['Esc', 'menu'],
   ['T / B', 'map / market'],
+  ['G', 'guidebook'],
   ['Tab / arrows', 'move through menus'],
   ['M', 'mute'],
   ['F', 'fullscreen (desktop: F11 / Alt+Enter)'],
@@ -471,6 +472,14 @@ export class SettingsPanel {
     controls.appendChild(list);
     controls.appendChild(h('div', 'wl-controls-note', 'Drop-offs happen on their own. Walk over cash to bank it.'));
     pg.appendChild(controls);
+    // 0.9.11: the Guidebook (every good, machine, crew and rule of the eras reached so far)
+    const bookBtn = h('button', 'wl-btn wl-btn-green wl-book-open', 'Open the Guidebook');
+    bookBtn.type = 'button';
+    onTap(bookBtn, () => {
+      ctx.audio.play('click');
+      ctx.events.emit('book:open', {});
+    });
+    pg.appendChild(bookBtn);
 
     const saveRow = h('div', 'wl-btn-row wl-save-row');
     const backup = h('button', 'wl-btn wl-btn-green', 'Back up save');

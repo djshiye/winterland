@@ -945,7 +945,7 @@ export const ERA_ROLE_NAMES: readonly (readonly string[])[] = [
   ['Kiln Feeder', 'Carter', 'Dock Hand', 'Stonebreaker', 'Master Mason', 'Tally Clerk'],
   ['Ore Sorter', 'Rail Carter', 'Lumper', 'Prospector', 'Pit Boss', 'Paymaster'],
   ['Coal Heaver', 'Engine Driver', 'Navvy', 'Coal Picker', 'Chief Engineer', 'Bookkeeper'],
-  ['Crane Hand', 'Teamster', 'Stevedore', 'Slag Raker', 'Plant Manager', 'Payroll Clerk'],
+  ['Crane Hand', 'Teamster', 'Stevedore', 'Pellet Raker', 'Plant Manager', 'Payroll Clerk'],
   ['Coil Winder', 'Tram Driver', 'Freight Hand', 'Copper Scrapper', 'Electrical Foreman', 'Switchboard Clerk'],
   ['Pipefitter', 'Tanker Driver', 'Dockworker', 'Seep Skimmer', 'Toolpusher', 'Accountant'],
   ['Wafer Handler', 'Courier', 'Logistics Tech', 'Sand Sifter', 'Project Lead', 'Data Clerk'],
@@ -1514,7 +1514,7 @@ function qualityUpgrades(): Record<`${MaterialKind}Quality`, UpgradeDef> {
   for (const kind of MATERIAL_KINDS) {
     const m = MATERIALS[kind];
     out[`${kind}Quality`] = {
-      id: `${kind}Quality`, group: 'sales', era: m.era, label: `Fine ${m.label}`, blurb: `${m.label} sells for more, wherever you sell it`,
+      id: `${kind}Quality`, group: 'sales', era: m.era, label: `Fine ${m.label}`, blurb: `Buyers pay more for ${m.label}, wherever you sell it`,
       values: [1, 1.15, 1.3, 1.5, 1.75, 2.0, 2.3, 2.65, 3.05, 3.5, 4.2], costs: [],
       display: 'mult', requires: { era: m.era },
     };

@@ -472,6 +472,17 @@ export const ICON_MARKET = svg(`
   </g>
   <circle cx="35" cy="9" r="6.5" fill="#ffd84a" stroke="${OUT}" stroke-width="2"/>`);
 
+/** 0.9.11 HUD "Guidebook" button: a little open book with a red ribbon. */
+export const ICON_BOOK = svg(`
+  <g stroke="${OUT}" stroke-width="2.6" stroke-linejoin="round">
+    <path d="M24 13c-5-4-12-5-18-4v29c6-1 13 0 18 4 5-4 12-5 18-4V9c-6-1-13 0-18 4z" fill="#c8553d"/>
+    <path d="M24 15c-4-3-10-4-15-3v23c5-.6 11 .4 15 3z" fill="#fff6e4"/>
+    <path d="M24 15c4-3 10-4 15-3v23c-5-.6-11 .4-15 3z" fill="#fbecd0"/>
+    <path d="M24 15v23" fill="none"/>
+  </g>
+  <path d="M31 12.6v13l3-2.4 3 2.4V12.2" fill="#ffd84a" stroke="${OUT}" stroke-width="2"/>
+  <path d="M12 19c3-.4 6 0 8.5 1.3M12 24c3-.4 6 0 8.5 1.3M12 29c3-.4 6 0 8.5 1.3" fill="none" stroke="#c9b38f" stroke-width="2" stroke-linecap="round"/>`);
+
 /** "You are here" / pin for the map list (dark on light). */
 export const ICON_PIN = svg(`
   <path d="M24 44S9 29 9 19a15 15 0 0 1 30 0c0 10-15 25-15 25z" fill="#e8553e" stroke="${OUT}" stroke-width="3"/>
