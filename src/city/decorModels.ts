@@ -1,5 +1,5 @@
 /**
- * [city] 1.0 the street furniture of a city district drawn into Batches (city/decor.ts says where it stands): era-dressed
+ * [city] 0.9.12 the street furniture of a city district drawn into Batches (city/decor.ts says where it stands): era-dressed
  * trees in round planters, hedges, benches, flower boxes / barrels, post boxes, snowmen, bins and bike racks, each with a
  * little snow cap. Everything is built from the cached primitives with a handful of vertices (a district holds ~100
  * items), merged into ONE vertex-coloured mesh by the caller; the few lit bits (fairy lights on trees and hedges) go into

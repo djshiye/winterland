@@ -14,7 +14,7 @@ import { plotPlaces } from '../src/eras/layout';
 import { eraSky, SKY } from '../src/render/palette';
 import { installSkyLight, SKY_LIGHT } from '../src/render/skyLight';
 import { placeSolids } from '../src/world/env/plots';
-import { greenSpots } from '../src/world/life/RegionLife';
+import { greenLegs, greenSpots } from '../src/world/life/RegionLife';
 import { AURORA_WASH, auroraFade, auroraWash } from '../src/world/sky/aurora';
 import { cloudShadowComfort } from '../src/world/sky/Sky';
 import { MOTE_STYLES } from '../src/world/sky/motes';
@@ -217,7 +217,16 @@ describe("the crews' families on their green", () => {
       if (!s.door) expect(Math.hypot(s.x - cx, s.z - cz)).toBeGreaterThan(1.6);
     }
     const solids = placeSolids(n);
-    for (const a of spots) for (const b of spots) expect(segmentClear(a.x, a.z, b.x, b.z, solids)).toBeNull();
+    // 1.0 (EM1): the walks are the legs greenLegs gives (spokes and ring chords), and decor stands off all of them
+    spots.forEach((a, ia) =>
+      spots.forEach((_, ib) => {
+        let p = a;
+        for (const q of greenLegs(spots, ia, ib)) {
+          expect(segmentClear(p.x, p.z, q.x, q.z, solids)).toBeNull();
+          p = { ...p, x: q.x, z: q.z };
+        }
+      }),
+    );
   });
 
   it('only opens a door for a hut that stands', () => {

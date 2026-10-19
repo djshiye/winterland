@@ -24,6 +24,8 @@ import { DISTRICTS, ERAS, REGIONS, ROADS, regionDef, type ERect, type GateSide }
 import type { GameState } from '../core/types';
 import { climbOpen, gateMet, padPaid } from './gate';
 import { DISTRICT_MARGIN, districtGrid, districtInner } from '../city/rules';
+import { CAMERA, TRADE_POST } from '../config';
+import { marketPlaces } from './market';
 
 export interface XZ {
   x: number;
@@ -622,6 +624,360 @@ export function plotPlaces(n: number): PlotPlaces {
 
   const out: PlotPlaces = { plan, huts, green, streets, shops, lamps, yardPave, field, beds };
   placesCache.set(key, out);
+  return out;
+}
+
+// ---- 1.0 lived-in market and huts (EM1) ------------------------------------------------------------------------------
+
+/**
+ * EM1 (audit-1.0 full-review): the market and huts zones were bare slab with one or two props. `plotDecor` fills their
+ * free ground with small vignettes (goods stacks, benches and lamps, notice boards, hand carts, snow piles, one piece
+ * of clutter built from the era's own resources) without ever standing on something somebody walks to or from.
+ *
+ * Who walks where in a bought region (the routes `plotRoutes` lists, each a centre line with a 2.5 m clear walkway):
+ *  - shoppers (npc/EraShoppers.ts): the market gate → `entry` → their place in the queue (front + step · i, shopQueue
+ *    places), and back out the same way;
+ *  - buyer trucks (npc/EraBuyers.ts): along the road lane outside the fence (never inside the zones);
+ *  - the player: market gate → `entry` → the clerk spot, cash pile and vault pad, and the path down the west edge of
+ *    the market and huts (eras/data zones: the line between the west column and the east one) to the huts;
+ *  - the era clerk (npc/EraWorker.ts planPath): cash pile → the front aisle (depth YARD_DEPTH + 0.5) west to the depot.
+ *    The other crew roles only ever walk in the west column (yard, processing, harvest) and out of the gate;
+ *  - the crew's families (world/life/RegionLife.ts): each built hut's door → its door spot on the green → along its
+ *    spoke to the ring round the green's centrepiece (`greenWalk`, which RegionLife.greenSpots reads) and strolls on
+ *    the ring's chords. The rest of the green is free ground.
+ * Pads, counters, the cash pile, the vault, the queue, hut doors and annexes, shop fronts and streets are keep-outs.
+ */
+export type DecorKind = 'crates' | 'sacks' | 'barrels' | 'heap' | 'bench' | 'lamp' | 'snow' | 'notice' | 'cart' | 'sig';
+
+export interface DecorPlace {
+  kind: DecorKind;
+  x: number;
+  z: number;
+  /** Quarter turns only (0, π/2 ...): `hx` / `hz` already include the turn, so the footprint is the plain rect. */
+  yaw: number;
+  /** Footprint half sizes along world X / Z, and the height (metres). */
+  hx: number;
+  hz: number;
+  h: number;
+  /** 'sig' (the era's clutter piece): which of its three; the others: a colour / pose pick 0..2. */
+  v: number;
+  zone: 'market' | 'huts';
+}
+
+/** Half width of every walkway (a 2.5 m clear lane). */
+export const ROUTE_HALF = 1.25;
+
+export interface PlotRoute {
+  what: string;
+  /** Centre line of the walkway (world points, in walking order). */
+  pts: XZ[];
+}
+
+export interface PlotKeepOut {
+  what: string;
+  r: ERect;
+  /** A pad, counter or pile the camera must see: nothing tall may stand toward the camera (+X/+Z) of it either. */
+  sight: boolean;
+}
+
+/** Footprint half sizes (x, z at yaw 0) and height of each decor kind (metres). */
+export const DECOR_SIZE: Readonly<Record<DecorKind, readonly [number, number, number]>> = {
+  crates: [0.55, 0.45, 1.3],
+  sacks: [0.6, 0.45, 0.9],
+  barrels: [0.65, 0.6, 1.15],
+  heap: [0.9, 0.7, 1.0],
+  bench: [0.85, 0.3, 1.0],
+  lamp: [0.15, 0.15, 3.1],
+  snow: [0.75, 0.55, 0.35],
+  notice: [0.85, 0.2, 2.35],
+  cart: [1.0, 0.55, 1.4],
+  sig: [0.85, 0.85, 2.2],
+};
+
+const GREEN_CLEAR = 1.7; // RegionLife CLEAR: keep this far from the centrepiece
+
+/** Hut body (or body + annex) footprint, pure (world/env/plots.ts hutFootprint delegates here). */
+export function hutBox(h: HutPlace, annex: boolean): ERect {
+  const hx = (h.backX !== 0 ? h.d : h.w) / 2;
+  const hz = (h.backX !== 0 ? h.w : h.d) / 2;
+  const r: ERect = { minX: h.x - hx, maxX: h.x + hx, minZ: h.z - hz, maxZ: h.z + hz };
+  if (!annex) return r;
+  if (h.backX < 0) return { ...r, minX: r.minX - HUT_ANNEX };
+  if (h.backX > 0) return { ...r, maxX: r.maxX + HUT_ANNEX };
+  if (h.backZ < 0) return { ...r, minZ: r.minZ - HUT_ANNEX };
+  return { ...r, maxZ: r.maxZ + HUT_ANNEX };
+}
+
+const grow = (r: ERect, m: number): ERect => ({ minX: r.minX - m, maxX: r.maxX + m, minZ: r.minZ - m, maxZ: r.maxZ + m });
+const around = (p: XZ, half: number): ERect => ({ minX: p.x - half, maxX: p.x + half, minZ: p.z - half, maxZ: p.z + half });
+const hit = (a: ERect, b: ERect): boolean => a.minX < b.maxX && b.minX < a.maxX && a.minZ < b.maxZ && b.minZ < a.maxZ;
+const within = (a: ERect, o: ERect): boolean => a.minX >= o.minX && a.maxX <= o.maxX && a.minZ >= o.minZ && a.maxZ <= o.maxZ;
+
+/**
+ * The crew green's walking spots (world/life/RegionLife.ts walks the crew's families between them): the centre, a door
+ * spot per hut (the door's point pulled onto the green), a ring of spots round the centrepiece, and `spoke[i]`, the
+ * ring spot hut i's door opens onto. A walker leaves its door along its spoke to the ring, strolls the ring (chords
+ * inside it) and goes home the same way, so the rest of the green stays free for decor. Pure.
+ */
+export function greenWalk(P: PlotPlaces): { c: XZ; doors: XZ[]; ring: XZ[]; spoke: number[]; r: number } {
+  const G = P.green;
+  const c = { x: (G.minX + G.maxX) / 2, z: (G.minZ + G.maxZ) / 2 };
+  const clampX = (v: number): number => Math.min(G.maxX - 0.4, Math.max(G.minX + 0.4, v));
+  const clampZ = (v: number): number => Math.min(G.maxZ - 0.4, Math.max(G.minZ + 0.4, v));
+  const doors = P.huts.map((h) => {
+    const lz = h.d / 2 + 0.7;
+    return { x: clampX(h.x + lz * Math.sin(h.yaw)), z: clampZ(h.z + lz * Math.cos(h.yaw)) };
+  });
+  const r = Math.min(GREEN_CLEAR + 0.6, Math.max(GREEN_CLEAR, Math.min(G.maxX - G.minX, G.maxZ - G.minZ) / 2 - 0.5));
+  const ring: XZ[] = [];
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2 + 0.3;
+    const p = { x: clampX(c.x + Math.cos(a) * r), z: clampZ(c.z + Math.sin(a) * r) };
+    if (Math.hypot(p.x - c.x, p.z - c.z) >= GREEN_CLEAR - 0.05) ring.push(p);
+  }
+  const spoke = doors.map((d) => {
+    let best = 0;
+    for (let k = 1; k < ring.length; k++) if (Math.hypot(ring[k]!.x - d.x, ring[k]!.z - d.z) < Math.hypot(ring[best]!.x - d.x, ring[best]!.z - d.z)) best = k;
+    return best;
+  });
+  return { c, doors, ring, spoke, r };
+}
+
+const routesCache = new Map<string, PlotRoute[]>();
+const keepCache = new Map<string, PlotKeepOut[]>();
+const decorCache = new Map<string, DecorPlace[]>();
+
+/** Every walker route inside era n's market and huts zones (see the header above), as 2.5 m wide centre lines. Pure. */
+export function plotRoutes(n: number): PlotRoute[] {
+  const def = regionDef(n);
+  const key = `${n}|${def.slots}|${def.room}`;
+  const cached = routesCache.get(key);
+  if (cached) return cached;
+  const L = regionLayout(n);
+  const P = plotPlaces(n);
+  const M = marketPlaces(L);
+  const into = L.inward;
+  const q = TRADE_POST.shopQueue;
+  const place = (i: number): XZ => ({ x: M.front.x + M.step.x * i, z: M.front.z + M.step.z * i });
+  const out: PlotRoute[] = [];
+  out.push({ what: 'customers: market gate to the head of the queue', pts: [M.door, M.entry, M.front] });
+  for (let i = 0; i < q; i++) out.push({ what: `customers: entry to queue place ${i}`, pts: [M.entry, place(i)] });
+  out.push({ what: 'customers: the queue', pts: [place(0), place(q)] });
+  out.push({ what: 'customers: back out of the gate', pts: [M.entry, M.door, { x: M.door.x, z: M.door.z - into * 1.6 }] });
+  out.push({ what: 'vehicles: the road lane and stop at the market', pts: [{ x: M.lane.fromX, z: M.lane.z }, { x: M.lane.toX, z: M.lane.z }, L.vehicleStop] });
+  out.push({ what: 'player: entry to the clerk spot, cash pile and vault pad', pts: [M.entry, { x: M.clerk.x, z: M.front.z }, M.clerk, M.cash, { x: M.vaultPad.x, z: M.vaultPad.z - into * 2.3 }] });
+  // planPath: step out to the front aisle (the band row 0 of the machine grid starts behind), west to the depot
+  const aisle = L.gate.z + into * (YARD_DEPTH + 0.5);
+  out.push({ what: 'clerk: cash pile along the front aisle to the depot', pts: [M.clerk, { x: M.clerk.x, z: aisle }, { x: L.depot.x, z: aisle }, L.depot] });
+  const split = L.zones.yard.maxX;
+  const farZ = into > 0 ? L.rect.maxZ - 1 : L.rect.minZ + 1;
+  out.push({ what: 'player: the path down the west edge', pts: [{ x: split + 1.15, z: L.gate.z + into * YARD_DEPTH }, { x: split + 1.15, z: farZ }] });
+  const W = greenWalk(P);
+  P.huts.forEach((h, i) => {
+    const door = { x: h.x + (h.d / 2 + 0.35) * Math.sin(h.yaw), z: h.z + (h.d / 2 + 0.35) * Math.cos(h.yaw) };
+    out.push({ what: `hut ${h.role}: door out along its spoke to the green's ring`, pts: [door, W.doors[i]!, W.ring[W.spoke[i]!]!] });
+  });
+  // the ring: every chord between its spots (the walkers stroll from spot to spot), and the bend round the centrepiece
+  W.ring.forEach((a, i) => W.ring.slice(i + 1).forEach((b) => out.push({ what: 'green: a stroll round the ring', pts: [a, b] })));
+  const circle = (rad: number): XZ[] => Array.from({ length: 17 }, (_, k) => ({ x: W.c.x + Math.cos((k / 16) * Math.PI * 2) * rad, z: W.c.z + Math.sin((k / 16) * Math.PI * 2) * rad }));
+  out.push({ what: 'green: the bend round the centrepiece', pts: circle(GREEN_CLEAR + 0.4) });
+  routesCache.set(key, out);
+  return out;
+}
+
+/** Ground nothing may stand on, besides the routes: pads, counters, the queue, huts and annexes, shops, streets, the green's centre. Pure. */
+export function plotKeepOuts(n: number): PlotKeepOut[] {
+  const def = regionDef(n);
+  const key = `${n}|${def.slots}|${def.room}`;
+  const cached = keepCache.get(key);
+  if (cached) return cached;
+  const L = regionLayout(n);
+  const P = plotPlaces(n);
+  const M = marketPlaces(L);
+  const out: PlotKeepOut[] = [];
+  for (const [what, p] of [['vault pad', M.vaultPad], ['cash pile', M.cash], ['vault', M.vault], ['dock counter', M.dock], ['stall counter', M.stall]] as const) out.push({ what, r: around(p, 3), sight: true });
+  out.push({ what: 'market gate', r: { minX: M.door.x - 2.5, maxX: M.door.x + 2.5, minZ: Math.min(M.door.z, M.door.z + L.inward * 3), maxZ: Math.max(M.door.z, M.door.z + L.inward * 3) }, sight: false });
+  for (const h of P.huts) out.push({ what: `hut ${h.role} and its annex`, r: grow(hutBox(h, true), 0.7), sight: false });
+  for (const s of P.shops) {
+    const turned = Math.abs(Math.sin(s.yaw)) > 0.5;
+    const hx = (turned ? s.d : s.w) / 2;
+    const hz = (turned ? s.w : s.d) / 2;
+    out.push({ what: s.stall ? 'street stall' : 'shop', r: grow({ minX: s.x - hx, maxX: s.x + hx, minZ: s.z - hz, maxZ: s.z + hz }, 0.5), sight: false });
+  }
+  for (const S of P.streets) out.push({ what: 'street', r: grow(S, 0.4), sight: false });
+  for (const l of P.lamps) out.push({ what: 'street lamp', r: around(l, 0.7), sight: false });
+  const W = greenWalk(P);
+  out.push({ what: 'green centrepiece', r: around(W.c, 1.4), sight: false });
+  // eras 8-10 line the green with planters (world/env/ground/lateKit.ts greenBorder): a 1.4 m frame inside its edge
+  if (n >= 8) {
+    const G = P.green;
+    for (const r of [{ ...G, maxZ: G.minZ + 1.4 }, { ...G, minZ: G.maxZ - 1.4 }, { ...G, maxX: G.minX + 1.4 }, { ...G, minX: G.maxX - 1.4 }]) out.push({ what: 'green border planters', r, sight: false });
+  }
+  for (const s of [-1, 1]) out.push({ what: 'green bench', r: grow({ minX: W.c.x + s * 3.2 - 0.8, maxX: W.c.x + s * 3.2 + 0.8, minZ: W.c.z - 0.23, maxZ: W.c.z + 0.23 }, 0.5), sight: false });
+  keepCache.set(key, out);
+  return out;
+}
+
+/** A vignette: items at offsets from its anchor (local frame, +Z toward the camera). */
+interface VItem {
+  kind: DecorKind;
+  dx: number;
+  dz: number;
+  v?: number;
+}
+
+const VIGNETTES: Readonly<Record<string, readonly VItem[]>> = {
+  goods: [{ kind: 'crates', dx: -0.75, dz: 0 }, { kind: 'sacks', dx: 0.85, dz: -0.05, v: 1 }, { kind: 'barrels', dx: -0.15, dz: 1.25, v: 2 }],
+  stash: [{ kind: 'heap', dx: 0, dz: 0 }, { kind: 'barrels', dx: 1.85, dz: 0.15 }, { kind: 'sacks', dx: -0.2, dz: 1.35 }],
+  clutter0: [{ kind: 'sig', dx: 0, dz: 0, v: 0 }, { kind: 'crates', dx: 1.8, dz: 0.25, v: 1 }],
+  clutter1: [{ kind: 'sig', dx: 0, dz: 0, v: 1 }, { kind: 'sacks', dx: 1.7, dz: 0.3 }],
+  clutter2: [{ kind: 'sig', dx: 0, dz: 0, v: 2 }, { kind: 'barrels', dx: 1.8, dz: 0.2, v: 1 }],
+  bench: [{ kind: 'bench', dx: 0, dz: 0 }, { kind: 'lamp', dx: -1.4, dz: 0 }, { kind: 'snow', dx: 1.75, dz: 0.3 }],
+  notice: [{ kind: 'notice', dx: 0, dz: 0 }, { kind: 'sacks', dx: 1.7, dz: 0.35, v: 2 }, { kind: 'snow', dx: -1.3, dz: 0.95 }],
+  cart: [{ kind: 'cart', dx: 0, dz: 0 }, { kind: 'crates', dx: 1.85, dz: 0.1, v: 2 }],
+  snows: [{ kind: 'snow', dx: 0, dz: 0 }, { kind: 'snow', dx: 1.7, dz: 0.65, v: 1 }],
+  lampSnow: [{ kind: 'lamp', dx: 0, dz: 0 }, { kind: 'snow', dx: 1.15, dz: 0.3 }],
+};
+
+/** What each zone gets, in order (repeats when the free ground allows more). Every era's clutter piece comes early. */
+const RECIPE: Readonly<Record<'market' | 'huts', readonly string[]>> = {
+  market: ['clutter0', 'goods', 'bench', 'cart', 'notice', 'clutter1', 'stash', 'lampSnow', 'goods', 'clutter2', 'snows', 'cart', 'bench', 'goods', 'notice', 'stash'],
+  huts: ['stash', 'bench', 'clutter1', 'goods', 'lampSnow', 'cart', 'clutter2', 'snows', 'goods', 'clutter0', 'bench', 'stash', 'cart', 'lampSnow', 'goods'],
+};
+
+/** Metres of free ground per vignette, and the most each zone takes. */
+const DECOR_AREA = 5;
+const DECOR_MAX = 22;
+const DECOR_CELL = 0.25;
+const DECOR_STEP = 0.75;
+const DECOR_GAP = 0.35;
+
+function distToSeg(px: number, pz: number, a: XZ, b: XZ): number {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const l2 = dx * dx + dz * dz;
+  const t = l2 < 1e-9 ? 0 : Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - a.z) * dz) / l2));
+  return Math.hypot(px - (a.x + t * dx), pz - (a.z + t * dz));
+}
+
+/** Camera-shadow height classes of a decor piece (low, mid, tall): the keep-outs of pads grow toward the camera by its reach. */
+const sightClass = (h: number): number => (h <= 1.0 ? 0 : h <= 1.3 ? 1 : 2);
+const SIGHT_H = [1.0, 1.3, 3.0] as const;
+
+/**
+ * Era n's market and huts decor (2..10), at full growth. Greedy and deterministic: each vignette of a zone's recipe
+ * goes where it fits (every item inside the zone, 1.25 m off every route, off every keep-out, the camera shadow of its
+ * tall items off the pads) and farthest from the vignettes already placed, preferring a tucked corner. The ground is
+ * rasterised once (0.25 m cells, conservative: a cell any route or keep-out touches is blocked). Pure.
+ */
+export function plotDecor(n: number): DecorPlace[] {
+  const def = regionDef(n);
+  const key = `${n}|${def.slots}|${def.room}`;
+  const cached = decorCache.get(key);
+  if (cached) return cached;
+  const L = regionLayout(n);
+  const Z = L.zones;
+  const routes = plotRoutes(n);
+  const keeps = plotKeepOuts(n);
+  const reachK = 1 / Math.tan((CAMERA.pitchDeg * Math.PI) / 180) / Math.SQRT2;
+  const zoneIn = { market: grow(Z.market, -0.8), huts: grow(Z.huts, -0.8) };
+
+  const C = DECOR_CELL;
+  const gx0 = Math.floor(L.zones.yard.maxX) - 1;
+  const gz0 = Math.floor(L.rect.minZ) - 1;
+  const NX = Math.ceil((L.rect.maxX - gx0) / C) + 4;
+  const NZ = Math.ceil((L.rect.maxZ - gz0) / C) + 4;
+  const cellsOf = (r: ERect): [number, number, number, number] => [Math.max(0, Math.floor((r.minX - gx0) / C + 1e-9)), Math.min(NX - 1, Math.ceil((r.maxX - gx0) / C - 1e-9) - 1), Math.max(0, Math.floor((r.minZ - gz0) / C + 1e-9)), Math.min(NZ - 1, Math.ceil((r.maxZ - gz0) / C - 1e-9) - 1)];
+  const fill = (g: Uint8Array, r: ERect): void => {
+    const [x0, x1, z0, z1] = cellsOf(r);
+    for (let iz = z0; iz <= z1; iz++) for (let ix = x0; ix <= x1; ix++) g[iz * NX + ix] = 1;
+  };
+  // one static grid per height class: the routes, the keep-outs (pads grown toward the camera by the class's reach)
+  const route = new Uint8Array(NX * NZ);
+  for (const r of routes) {
+    for (let i = 1; i < r.pts.length; i++) {
+      const a = r.pts[i - 1]!;
+      const b = r.pts[i]!;
+      const [x0, x1, z0, z1] = cellsOf({ minX: Math.min(a.x, b.x) - ROUTE_HALF - C, maxX: Math.max(a.x, b.x) + ROUTE_HALF + C, minZ: Math.min(a.z, b.z) - ROUTE_HALF - C, maxZ: Math.max(a.z, b.z) + ROUTE_HALF + C });
+      for (let iz = z0; iz <= z1; iz++) for (let ix = x0; ix <= x1; ix++) if (!route[iz * NX + ix] && distToSeg(gx0 + (ix + 0.5) * C, gz0 + (iz + 0.5) * C, a, b) < ROUTE_HALF + C * 0.71) route[iz * NX + ix] = 1;
+    }
+  }
+  const statics = SIGHT_H.map((hh) => {
+    const g = route.slice();
+    const reach = hh * reachK + 0.3;
+    for (const k of keeps) fill(g, k.sight ? { minX: k.r.minX - 0.4, maxX: k.r.maxX + reach + 0.4, minZ: k.r.minZ - 0.4, maxZ: k.r.maxZ + reach + 0.4 } : k.r);
+    return g;
+  });
+  const occ = new Uint8Array(NX * NZ);
+  const rectOf = (d: { x: number; z: number; hx: number; hz: number }): ERect => ({ minX: d.x - d.hx, maxX: d.x + d.hx, minZ: d.z - d.hz, maxZ: d.z + d.hz });
+  type Item = { kind: DecorKind; x: number; z: number; hx: number; hz: number; h: number; yaw: number; v: number };
+  /** Does an item fit here? `pad` is extra clearance asked of everything (a tucked corner is when 0.9 m of it fails). */
+  const fits = (d: Item, pad: number): boolean => {
+    const r = grow(rectOf(d), pad);
+    // the whole item sits inside one zone (the 0.9 m tuck test looks past the zone edge on purpose: see edgeNear)
+    if (pad === 0 && !within(r, zoneIn.market) && !within(r, zoneIn.huts)) return false;
+    const st = statics[sightClass(d.h)]!;
+    const [x0, x1, z0, z1] = cellsOf(r);
+    for (let iz = z0; iz <= z1; iz++) for (let ix = x0; ix <= x1; ix++) if (st[iz * NX + ix] || occ[iz * NX + ix]) return false;
+    return true;
+  };
+  const edgeNear = (d: Item): boolean => {
+    const r = grow(rectOf(d), 0.9);
+    return !within(r, zoneIn.market) && !within(r, zoneIn.huts);
+  };
+
+  const make = (item: VItem, ax: number, az: number, turn: number, flip: number): Item => {
+    const [sx, sz, h] = DECOR_SIZE[item.kind];
+    const th = turn * (Math.PI / 2);
+    const dx = item.dx * flip;
+    const x = ax + dx * Math.cos(th) + item.dz * Math.sin(th);
+    const z = az - dx * Math.sin(th) + item.dz * Math.cos(th);
+    const odd = turn % 2 === 1;
+    return { kind: item.kind, x, z, hx: odd ? sz : sx, hz: odd ? sx : sz, h, yaw: th, v: item.v ?? 0 };
+  };
+
+  const out: DecorPlace[] = [];
+  for (const zone of ['market', 'huts'] as const) {
+    const Zi = zoneIn[zone];
+    // free ground: anchors where a 1.8 m square of a middling item fits (counts the room this zone has to fill)
+    let free = 0;
+    for (let x = Zi.minX; x <= Zi.maxX; x += DECOR_STEP) for (let z = Zi.minZ; z <= Zi.maxZ; z += DECOR_STEP) if (fits({ kind: 'sig', x, z, hx: 0.9, hz: 0.9, h: 1, yaw: 0, v: 0 }, 0)) free++;
+    const want = Math.min(DECOR_MAX, Math.round((free * DECOR_STEP * DECOR_STEP) / DECOR_AREA));
+    const recipe = RECIPE[zone];
+    for (let vi = 0; vi < want; vi++) {
+      const tpl = VIGNETTES[recipe[vi % recipe.length]!]!;
+      let best: { score: number; items: Item[] } | null = null;
+      for (let x = Zi.minX; x <= Zi.maxX; x += DECOR_STEP) {
+        for (let z = Zi.minZ; z <= Zi.maxZ; z += DECOR_STEP) {
+          for (let turn = 0; turn < 2; turn++) {
+            for (const flip of [1, -1]) {
+              const first = make(tpl[0]!, x, z, turn, flip);
+              if (!fits(first, 0)) continue;
+              const items: Item[] = [first];
+              for (let i = 1; i < tpl.length; i++) {
+                const it = make(tpl[i]!, x, z, turn, flip);
+                if (!fits(it, 0) || items.some((o) => hit(grow(rectOf(it), 0.05), rectOf(o)))) break;
+                items.push(it);
+              }
+              if (items.length < tpl.length) continue;
+              // farthest from what is placed, and tucked against a wall or a building when it can be
+              const tucked = items.some((it) => edgeNear(it) || !fits(it, 0.9));
+              let near = 7;
+              for (const o of out) near = Math.min(near, Math.hypot(o.x - x, o.z - z));
+              const score = near + (tucked ? 2.2 : 0) + ((Math.round(x * 7 + z * 13 + vi * 5) % 7) / 7) * 0.4;
+              if (!best || score > best.score) best = { score, items };
+            }
+          }
+        }
+      }
+      if (!best) continue;
+      for (const it of best.items) {
+        out.push({ ...it, zone: within(rectOf(it), zoneIn.market) ? 'market' : 'huts' });
+        fill(occ, grow(rectOf(it), DECOR_GAP));
+      }
+    }
+  }
+  decorCache.set(key, out);
   return out;
 }
 

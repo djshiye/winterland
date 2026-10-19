@@ -7,11 +7,12 @@ import { describe, expect, it } from 'vitest';
 import type { Rect } from '../src/config';
 import { CAMERA } from '../src/config';
 import { REGIONS } from '../src/eras/data';
-import { HUT_ANNEX, HUT_D, plotPlaces, regionLayout, STREET_MIN_DEPTH, type PlotPlaces, type RegionLayout } from '../src/eras/layout';
+import { HUT_ANNEX, HUT_D, plotDecor, plotKeepOuts, plotPlaces, plotRoutes, regionLayout, ROUTE_HALF, STREET_MIN_DEPTH, type PlotPlaces, type RegionLayout } from '../src/eras/layout';
 import { marketPlaces, DOCK_BODY, STALL_BODY } from '../src/eras/market';
 import { LEVEL_PAD_SIZE, levelPadLocal, MACHINE_NOMINAL, machineFrame, toWorld, worldRect } from '../src/eras/rules';
 import { nodePatch, regionPaths } from '../src/world/env/frontier';
 import { HUT_MAX_H, hutFootprint, placeSolids, shopFootprint, SHOP_MAX_H } from '../src/world/env/plots';
+import { greenLegs, greenSpots } from '../src/world/life/RegionLife';
 
 const EPS = 1e-6;
 const ERA_NS = REGIONS.filter((r) => r !== null).map((r) => r!.n);
@@ -24,6 +25,21 @@ const grow = (r: Rect, m: number): Rect => ({ minX: r.minX - m, maxX: r.maxX + m
 function shadow(r: Rect, h: number): Rect {
   const reach = h / Math.tan((CAMERA.pitchDeg * Math.PI) / 180) / Math.SQRT2;
   return { minX: r.minX - reach, maxX: r.maxX, minZ: r.minZ - reach, maxZ: r.maxZ };
+}
+
+/** Distance from a point to a rect (0 inside). */
+const distToRect = (x: number, z: number, r: Rect): number => Math.hypot(Math.max(r.minX - x, 0, x - r.maxX), Math.max(r.minZ - z, 0, z - r.maxZ));
+
+/** The least distance from a rect to a polyline, sampled every 5 cm (never under-reports: sampling only overstates the gap by under 5 cm). */
+function distRectToPath(r: Rect, pts: { x: number; z: number }[]): number {
+  let best = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]!;
+    const b = pts[i]!;
+    const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.05));
+    for (let k = 0; k <= steps; k++) best = Math.min(best, distToRect(a.x + ((b.x - a.x) * k) / steps, a.z + ((b.z - a.z) * k) / steps, r));
+  }
+  return best;
 }
 
 /** Every pad, counter and pile of a region the player has to see and reach (slots at full room, so later slots count). */
@@ -128,6 +144,51 @@ describe('0.9.7 era plot places', () => {
         expect(overlap(b, nodePatch(L))).toBe(false);
         for (const q of paths) expect(overlap(b, q), 'bed on a path').toBe(false);
       }
+    });
+
+    it(`era ${n}: EM1 decor lives in the market and huts zones and keeps every walkway 1.25 m clear`, () => {
+      const D = plotDecor(n);
+      const routes = plotRoutes(n);
+      const keeps = plotKeepOuts(n);
+      const rectOf = (d: (typeof D)[number]): Rect => box(d.x, d.z, d.hx, d.hz);
+      // lived in: both zones got something, a piece of the era's own clutter and a lamp for the night
+      expect(D.filter((d) => d.zone === 'market').length, 'market decor').toBeGreaterThanOrEqual(6);
+      expect(D.filter((d) => d.zone === 'huts').length, 'huts decor').toBeGreaterThanOrEqual(4);
+      expect(D.some((d) => d.kind === 'sig'), 'era clutter').toBe(true);
+      expect(D.some((d) => d.kind === 'lamp'), 'a lamp for the night').toBe(true);
+      // the routes found: shoppers, the clerk's aisle, the player's way, the vehicle lane and every hut door
+      const names = routes.map((r) => r.what).join('|');
+      for (const w of ['customers: market gate', 'customers: the queue', 'vehicles', 'player: entry', 'clerk: cash pile', 'player: the path down the west edge', 'hut 0: door', 'hut 6: door', 'green: a stroll round the ring']) expect(names, w).toContain(w);
+      D.forEach((d, i) => {
+        const r = rectOf(d);
+        expect(inside(r, Z[d.zone]), `${d.kind} ${i} inside the ${d.zone} zone`).toBe(true);
+        expect(d.h, `${d.kind} ${i} height`).toBeLessThanOrEqual(3.2);
+        for (const rt of routes) expect(distRectToPath(r, rt.pts), `${d.kind} ${i} at ${d.x.toFixed(1)},${d.z.toFixed(1)} too close to "${rt.what}"`).toBeGreaterThanOrEqual(ROUTE_HALF);
+        for (const k of keeps) expect(overlap(r, k.r), `${d.kind} ${i} on "${k.what}"`).toBe(false);
+        for (let j = i + 1; j < D.length; j++) expect(overlap(r, rectOf(D[j]!)), `decor ${i}/${j}`).toBe(false);
+        for (const q of paths) expect(overlap(r, q), `${d.kind} ${i} on a path`).toBe(false);
+        // hut doors, annexes and shop fronts stay free too
+        for (const h of P.huts) expect(overlap(r, hutRect(h)), `${d.kind} ${i} on hut ${h.role} or its annex`).toBe(false);
+        for (const sh of P.shops) expect(overlap(r, shopFootprint(sh)), `${d.kind} ${i} on a shop`).toBe(false);
+        for (const S of P.streets) expect(overlap(r, S), `${d.kind} ${i} on a street`).toBe(false);
+      });
+      // the hut routes use the same door spots, spokes and ring RegionLife walks the crew's families along
+      const spots = greenSpots(P, P.huts.map(() => true));
+      const at = (p: { x: number; z: number }): Rect => ({ minX: p.x, maxX: p.x, minZ: p.z, maxZ: p.z });
+      for (const sp of spots) {
+        const on = routes.some((rt) => distRectToPath(at(sp), rt.pts) < 0.02);
+        expect(on, `green spot ${sp.x.toFixed(2)},${sp.z.toFixed(2)} is on a route`).toBe(true);
+      }
+      // and every leg of every walk between two spots (greenLegs) is 1.25 m clear of every decor piece
+      spots.forEach((a, ia) =>
+        spots.forEach((_, ib) => {
+          let p: { x: number; z: number } = a;
+          for (const q of greenLegs(spots, ia, ib)) {
+            for (const d of D) expect(distRectToPath(rectOf(d), [p, q]), `${d.kind} at ${d.x.toFixed(1)},${d.z.toFixed(1)} on the green walk ${ia}->${ib}`).toBeGreaterThanOrEqual(ROUTE_HALF);
+            p = q;
+          }
+        }),
+      );
     });
 
     it(`era ${n}: nothing new stands on, or hides from the camera, a pad, counter, pile or the hand node (R22)`, () => {

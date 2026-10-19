@@ -12,6 +12,9 @@
  * - The PROCESSING YARD gets a paved floor with the machine cells marked (the whole room grid, so later slots too).
  * - The HARVEST FIELD gets beds of the era's raw resource east of the hand node (pellet ridges, copper outcrops, pale
  *   dunes, lavender geodes ...).
+ * - 1.0 (EM1): the free ground of the MARKET and HUTS zones is lived in: goods stacks, benches and lamps, notice boards,
+ *   hand carts, snow piles and one clutter piece per era built from its resources (eras/layout.ts plotDecor places them
+ *   off every walker route; buildDecor draws them into the same batches, so they add no draw calls).
  *
  * Draw calls per bought region: statics 1 + glow 1 + huts 1 (+ glow 1) + lamp bulbs 1. Nothing tall stands between
  * a pad and the camera (tests/plotPlaces.test.ts checks every solid's camera shadow against every pad and counter).
@@ -19,7 +22,7 @@
 import * as THREE from 'three';
 import { ERA_CREW_COUNT, ERA_ROLES, eraRoleCount, PALETTE, type Rect } from '../../config';
 import { ERAS } from '../../eras/data';
-import { HUT_ANNEX, plotPlaces, regionLayout, type HutPlace, type PlotPlaces, type ShopPlace } from '../../eras/layout';
+import { HUT_ANNEX, hutBox, plotDecor, plotPlaces, regionLayout, type DecorPlace, type HutPlace, type PlotPlaces, type ShopPlace } from '../../eras/layout';
 import type { GameContext, UpgradeId } from '../../core/types';
 import type { ColliderHandle } from '../Colliders';
 import { Batch } from '../../render/batch';
@@ -118,20 +121,9 @@ export interface PlaceSolid {
 
 const box = (x: number, z: number, hx: number, hz: number): Rect => ({ minX: x - hx, maxX: x + hx, minZ: z - hz, maxZ: z + hz });
 
-/** World footprint of a hut at its biggest (body + annex behind it). */
+/** World footprint of a hut: the body, plus the annex behind it at its biggest (eras/layout.ts hutBox keeps it pure). */
 export function hutFootprint(h: HutPlace, annex: boolean): Rect {
-  // the body is w across its door side and d deep; a hut turned to face ±X lies the other way round
-  const r = h.backX !== 0 ? box(h.x, h.z, h.d / 2, h.w / 2) : box(h.x, h.z, h.w / 2, h.d / 2);
-  if (!annex) return r;
-  return annexRect(h, r);
-}
-
-/** The strip the annex adds behind a hut's body rect `r`. Added to `r` (the union), not on its own. */
-function annexRect(h: HutPlace, r: Rect): Rect {
-  if (h.backX < 0) return { ...r, minX: r.minX - HUT_ANNEX };
-  if (h.backX > 0) return { ...r, maxX: r.maxX + HUT_ANNEX };
-  if (h.backZ < 0) return { ...r, minZ: r.minZ - HUT_ANNEX };
-  return { ...r, maxZ: r.maxZ + HUT_ANNEX };
+  return hutBox(h, annex);
 }
 
 /** Only the annex strip behind a hut (its own collider). */
@@ -161,6 +153,8 @@ export function placeSolids(n: number): PlaceSolid[] {
   for (const h of P.huts) out.push({ what: `hut ${h.role}`, r: hutFootprint(h, true), h: HUT_MAX_H });
   for (const s of P.shops) out.push({ what: s.stall ? 'street stall' : 'shop', r: shopFootprint(s), h: s.h + 0.9 });
   for (const l of P.lamps) out.push({ what: 'lamp', r: box(l.x, l.z, 0.2, 0.2), h: 3.2 });
+  // EM1: the lived-in market and huts (eras/layout.ts plotDecor)
+  for (const d of plotDecor(n)) out.push({ what: `decor ${d.kind}`, r: box(d.x, d.z, d.hx, d.hz), h: d.h });
   const g = greenCentre(P);
   out.push({ what: 'green centre', r: box(g.x, g.z, 0.9, 0.9), h: 2.2 });
   const st = STYLE[n]!;
@@ -956,6 +950,417 @@ function buildGreen(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlaces, acce
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// lived-in market and huts (EM1): the decor eras/layout.ts plotDecor places
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** One era's decor colours: crates, sacks, drums, the hand cart and the heap of its goods (audit-1.0/era-resources-v2.md). */
+interface DecorStyle {
+  crate: number;
+  strap: number;
+  sack: [number, number];
+  /** Drum body colours (picked per drum), and its band. */
+  drum: number[];
+  band: number;
+  cart: number;
+  /** What a heap or a cart load is made of: bricks, lumps, a sand mound, crystals or ingots. */
+  heap: 'bricks' | 'lumps' | 'mound' | 'crystals' | 'ingots';
+  goods: [number, number];
+  wood: number;
+}
+
+const DECOR: readonly (DecorStyle | null)[] = [
+  null,
+  null,
+  // 2 stone + clay bricks: pale pine crates, grain sacks, clay-red bricks and granite
+  { crate: 0xb68a5c, strap: 0x7a5a48, sack: [0xd8c9a6, 0xc7b48c], drum: [0x9a7350, 0x8a6446], band: 0x6e5a4a, cart: 0x9a7350, heap: 'bricks', goods: [0xc27a56, 0xbab4aa], wood: 0x9a7350 },
+  // 3 iron + charcoal: dark timber with iron straps, charcoal sacks, ore
+  { crate: 0x6e5646, strap: 0x3f3d3f, sack: [0x3c3a3b, 0x59514e], drum: [0x594a40, 0x4a3e36], band: 0x2f2e30, cart: 0x6e5646, heap: 'lumps', goods: [0xa65a3e, 0x3a3534], wood: 0x6e5646 },
+  // 4 coal + scrap steam: brass drums, coal sacks, scrap steel
+  { crate: 0x8d6f52, strap: 0x585d61, sack: [0x4a4644, 0x8e949a], drum: [0xb08a4e, 0x9a7a44], band: 0x585d61, cart: 0x585d61, heap: 'lumps', goods: [0x2f2c2b, 0x8e949a], wood: 0x8d6f52 },
+  // 5 taconite + coke: steel crates, rust-red pellet drums, coke sacks
+  { crate: 0x76818a, strap: 0xb4553a, sack: [0x4b4745, 0x8a8280], drum: [0xb4553a, 0x9c4a32], band: 0x4e4a48, cart: 0x6e7880, heap: 'lumps', goods: [0xb4553a, 0x4b4745], wood: 0x8a7258 },
+  // 6 copper + quartz: cream crates with teal straps, quartz sand, copper drums
+  { crate: 0xcdbd9f, strap: 0x3f706a, sack: [0xe4eef2, 0xc0784a], drum: [0x4c7a74, 0xc0784a], band: 0xc0784a, cart: 0x3f706a, heap: 'ingots', goods: [0xc0784a, 0xe4eef2], wood: 0xb59d7c },
+  // 7 crude + gas: yellow plastic crates, bright oil drums, orange sacks
+  { crate: 0xe6b84a, strap: 0xc44536, sack: [0xd8742f, 0xe8d27a], drum: [0xc44536, 0x3f6fa0, 0xe3b23a], band: 0x444a54, cart: 0x6c7684, heap: 'lumps', goods: [0x7a5236, 0xd99b26], wood: 0x8a6a46 },
+  // 8 silica + gold: white crates, sand sacks, gold bars
+  { crate: 0xf0eadb, strap: 0x5c9aa0, sack: [0xe8d8b0, 0xe5c05a], drum: [0xeee8d8, 0xdfeeee], band: 0x5c9aa0, cart: 0x45858c, heap: 'mound', goods: [0xdfc28c, 0xe5c05a], wood: 0xc9b99c },
+  // 9 uranium + graphite: pale steel crates with hazard straps, graphite sacks, yellow drums
+  { crate: 0xc9d1d3, strap: 0xe8c547, sack: [0x6f6c6b, 0x8fa0a4], drum: [0xd9c24a, 0xc9b03c], band: 0x3d3a39, cart: 0x5bb391, heap: 'lumps', goods: [0x86e8c4, 0x6f6c6b], wood: 0x9aa4a8 },
+  // 10 rare earth + helium-3: white pods with lavender straps, lavender sacks, helium canisters
+  { crate: 0xe3d9f6, strap: 0x8f74cf, sack: [0xcfc4ec, 0x9f86dc], drum: [0xc9dcf7, 0xd7c9f2], band: 0x8f74cf, cart: 0x8f74cf, heap: 'crystals', goods: [0x9d84e0, 0xd6e8ff], wood: 0xc6bce0 },
+];
+
+/** A thin snow cap over a w × d top at height y. */
+const cap = (f: Frame, w: number, d: number, y: number, x = 0, z = 0): void => void f.put(geo.box(w, 0.06, d), SNOW, x, y + 0.03, z);
+
+/** A heap of the era's goods (also a cart load), centred on (x, z), up to `r` metres across. */
+function goodsHeap(f: Frame, S: DecorStyle, x: number, y: number, z: number, r: number, seed: number): void {
+  const [a, b] = S.goods;
+  switch (S.heap) {
+    case 'bricks':
+      // staggered courses of clay bricks, a granite block on top
+      for (let layer = 0; layer < 3; layer++) {
+        for (let i = 0; i < 3 - (layer > 1 ? 1 : 0); i++) f.put(geo.box(r * 0.42, 0.16, r * 0.28), shade(a, 0.92 + ((i + layer + seed) % 3) * 0.06), x - r * 0.28 + i * r * 0.28 + (layer % 2) * 0.1, y + 0.08 + layer * 0.17, z + ((layer + i) % 2) * 0.06);
+      }
+      f.put(geo.box(r * 0.4, 0.2, r * 0.3), b, x, y + 0.6, z);
+      cap(f, r * 0.6, r * 0.36, y + 0.7, x, z);
+      break;
+    case 'mound':
+      f.put(geo.sphere(0.5, 14, 8), a, x, y, z, { sx: r * 1.1, sy: 0.5, sz: r * 0.8 });
+      f.put(geo.box(r * 0.5, 0.12, r * 0.26), b, x - r * 0.15, y + 0.18, z + r * 0.12, { ry: 0.3 }).put(geo.box(r * 0.5, 0.12, r * 0.26), shade(b, 0.9), x - r * 0.1, y + 0.3, z + r * 0.1, { ry: 0.25 });
+      break;
+    case 'crystals':
+      for (let i = 0; i < 5; i++) {
+        const cx = x + Math.cos(i * 1.9 + seed) * r * 0.32;
+        const cz = z + Math.sin(i * 1.9 + seed) * r * 0.26;
+        f.put(geo.cone(0.13 + (i % 2) * 0.05, 0.5 + (i % 3) * 0.18, 5), i % 2 ? b : a, cx, y + 0.3 + (i % 3) * 0.09, cz, { rz: (i - 2) * 0.1 });
+      }
+      break;
+    case 'ingots':
+      for (let layer = 0; layer < 3; layer++) for (let i = 0; i < 3 - layer; i++) f.put(geo.box(r * 0.34, 0.14, r * 0.24), shade(a, 0.9 + ((i + layer) % 2) * 0.12), x - ((2 - layer) * r * 0.38) / 2 + i * r * 0.38, y + 0.07 + layer * 0.15, z);
+      f.put(geo.cone(0.12, 0.42, 5), b, x + r * 0.45, y + 0.25, z + 0.18, { rz: -0.15 });
+      f.put(geo.cone(0.1, 0.34, 5), b, x - r * 0.4, y + 0.2, z - 0.15, { rz: 0.2 });
+      break;
+    default: {
+      for (let i = 0; i < 7; i++) {
+        const k = i % 4;
+        f.put(geo.dodecahedron(0.19 + (i % 3) * 0.035), i % 3 === 0 ? b : a, x + Math.cos(i * 2.4 + seed) * r * 0.3 * (k ? 1 : 0.2), y + 0.17 + (k === 3 ? 0.22 : 0), z + Math.sin(i * 2.4 + seed) * r * 0.22 * (k ? 1 : 0.2), { ry: i, sy: 0.85 });
+      }
+      f.put(geo.sphere(0.2, 8, 5), SNOW, x - 0.05, y + 0.52, z, { sy: 0.4, sx: 1.4 });
+    }
+  }
+}
+
+/** A little cart (also the ore / coke cart on rails): body, two wheels, a pull bar, a heap of goods. */
+function cartPiece(f: Frame, S: DecorStyle, seed: number): void {
+  f.put(geo.box(1.25, 0.34, 0.8), S.cart, 0, 0.55, 0);
+  f.put(geo.box(1.33, 0.07, 0.88), shade(S.cart, 0.8), 0, 0.74, 0);
+  for (const z of [-0.47, 0.47]) f.put(geo.cylinder(0.3, 0.3, 0.07, 14), shade(S.wood, 0.7), -0.05, 0.3, z, { rx: Math.PI / 2 }).put(geo.cylinder(0.07, 0.07, 0.1, 8), shade(S.strap, 1.1), -0.05, 0.3, z, { rx: Math.PI / 2 });
+  f.put(geo.box(0.4, 0.05, 0.06), shade(S.wood, 0.8), 0.8, 0.5, -0.25, { rz: 0.1 }).put(geo.box(0.4, 0.05, 0.06), shade(S.wood, 0.8), 0.8, 0.5, 0.25, { rz: 0.1 });
+  // a cart load stays low: bricks and crystals pile up as plain lumps
+  goodsHeap(f, S.heap === 'bricks' || S.heap === 'crystals' ? { ...S, heap: 'lumps' } : S, -0.05, 0.72, 0, 1.0, seed);
+}
+
+/** The era's own clutter piece: variant v (0..2), built round its resources. `g`: the lit parts, `bulb`: lamps. */
+function sigPiece(f: Frame, g: Frame, n: number, S: DecorStyle, v: number): void {
+  const roundBase = (r: number, col: number): void => void f.put(geo.cylinder(r, r + 0.06, 0.1, 14), col, 0, 0.05, 0);
+  switch (n) {
+    case 2: {
+      if (v === 0) {
+        // a pallet of fired clay bricks with a granite sill block on top
+        for (const z of [-0.3, 0, 0.3]) f.put(geo.box(1.5, 0.08, 0.16), 0x8a6446, 0, 0.06, z);
+        for (let layer = 0; layer < 4; layer++) for (const sx of [-1, 1]) for (const sz of [-1, 1]) f.put(geo.box(0.68, 0.15, 0.3), shade(0xc27a56, 0.9 + (((sx + 2) * (sz + 3) + layer) % 3) * 0.07), sx * 0.36 + (layer % 2) * 0.05, 0.19 + layer * 0.16, sz * 0.17);
+        f.put(geo.box(0.9, 0.2, 0.5), 0xbab4aa, 0, 0.93, 0);
+        cap(f, 1.5, 0.78, 0.84, 0, 0);
+      } else if (v === 1) {
+        // three clay pots of different sizes, snow on their lids
+        for (const [x, z, s, c] of [[-0.35, -0.1, 1, 0xc27a56], [0.35, -0.15, 0.85, 0xa86446], [0.0, 0.35, 0.7, 0xd49872]] as const) {
+          f.put(geo.sphere(0.3 * s, 12, 8), c, x, 0.3 * s, z, { sy: 0.95 }).put(geo.cylinder(0.2 * s, 0.17 * s, 0.14, 12), shade(c, 0.85), x, 0.64 * s, z);
+          f.put(geo.cylinder(0.2 * s, 0.2 * s, 0.05, 12), SNOW, x, 0.72 * s, z);
+        }
+      } else {
+        // a stack of granite slabs and an upright block with a mallet leaning on it
+        f.put(geo.box(1.5, 0.18, 0.9), 0xbab4aa, 0, 0.09, 0, { ry: 0.05 }).put(geo.box(1.35, 0.16, 0.8), 0xa69c8e, 0.02, 0.26, 0, { ry: -0.08 }).put(geo.box(1.2, 0.16, 0.7), 0xc2bcb2, 0, 0.42, 0.02, { ry: 0.1 });
+        f.put(geo.box(0.5, 1.1, 0.4), 0xb0aaa0, 0.4, 0.97, 0, { ry: 0.12 });
+        cap(f, 0.55, 0.45, 1.52, 0.4, 0);
+        f.put(geo.cylinder(0.04, 0.04, 0.7, 6), 0x8a6446, -0.35, 0.8, 0.1, { rz: 0.35 }).put(geo.box(0.26, 0.14, 0.14), 0x6e5a4a, -0.46, 1.12, 0.1, { rz: 0.35 });
+        cap(f, 1.2, 0.7, 0.5, 0, 0.02);
+      }
+      break;
+    }
+    case 3: {
+      if (v === 0) {
+        // an anvil on a stump, a glowing ingot cooling on it
+        f.put(geo.cylinder(0.36, 0.42, 0.62, 12), 0x6e5646, 0, 0.31, 0).put(geo.cylinder(0.37, 0.37, 0.06, 12), 0x3f3d3f, 0, 0.5, 0);
+        f.put(geo.box(0.55, 0.16, 0.34), 0x3f3d3f, 0, 0.7, 0).put(geo.box(0.3, 0.22, 0.24), 0x3f3d3f, 0, 0.88, 0).put(geo.box(0.8, 0.14, 0.3), 0x4a4849, 0, 1.06, 0);
+        f.put(geo.cone(0.13, 0.36, 8), 0x4a4849, 0.58, 1.06, 0, { rz: -Math.PI / 2 });
+        g.put(geo.box(0.34, 0.06, 0.12), 0xff8a3d, -0.1, 1.16, 0);
+        cap(f, 0.5, 0.26, 1.13, -0.3, 0);
+        // iron ingots at its foot
+        for (let k = 0; k < 3; k++) f.put(geo.box(0.34, 0.1, 0.16), 0x6a6668, -0.45 + (k % 2) * 0.1, 0.05 + k * 0.1, 0.6 - 0.02 * k);
+      } else if (v === 1) {
+        // an ore cart on a short run of rail
+        for (const z of [-0.33, 0.33]) f.put(geo.box(1.7, 0.06, 0.08), 0x3f3d3f, 0, 0.04, z);
+        for (let x = -0.75; x <= 0.8; x += 0.25) f.put(geo.box(0.1, 0.05, 0.9), 0x6e5646, x, 0.02, 0);
+        f.put(geo.box(1.1, 0.5, 0.64), 0x8a5a44, 0, 0.55, 0).put(geo.box(1.2, 0.08, 0.74), 0x3f3d3f, 0, 0.82, 0);
+        for (const [x, z] of [[-0.38, -0.36], [0.38, -0.36], [-0.38, 0.36], [0.38, 0.36]] as const) f.put(geo.cylinder(0.14, 0.14, 0.06, 10), 0x3f3d3f, x, 0.17, z, { rx: Math.PI / 2 });
+        for (let i = 0; i < 6; i++) f.put(geo.dodecahedron(0.18 + (i % 2) * 0.03), i % 3 ? 0xa65a3e : 0x7a6c64, -0.35 + (i % 3) * 0.35, 0.95 + (i > 2 ? 0.14 : 0), (i % 2) * 0.12 - 0.05, { ry: i });
+        f.put(geo.sphere(0.3, 8, 5), SNOW, 0.05, 1.18, 0, { sy: 0.3, sx: 1.6 });
+      } else {
+        // a charcoal burner's stack: logs piled in three courses between two stakes
+        for (let row = 0; row < 3; row++) for (let i = 0; i < 3 - row; i++) f.put(geo.cylinder(0.17, 0.17, 1.35, 8), i % 2 ? 0x3a3534 : 0x2f2b2a, 0, 0.17 + row * 0.29, (i - (2 - row) / 2) * 0.35, { rz: Math.PI / 2 });
+        for (const x of [-0.72, 0.72]) f.put(geo.box(0.08, 0.9, 0.08), 0x6e5646, x, 0.45, 0.35 - (x > 0 ? 0 : 0.7));
+        cap(f, 1.35, 0.4, 0.78, 0, 0);
+      }
+      break;
+    }
+    case 4: {
+      if (v === 0) {
+        // a coal bin heaped with lumps, a scrap shovel leaning in
+        f.put(geo.box(1.5, 0.1, 0.9), 0x6e5646, 0, 0.05, 0);
+        f.put(geo.box(1.5, 0.62, 0.07), S.crate, 0, 0.4, 0.42).put(geo.box(1.5, 0.62, 0.07), S.crate, 0, 0.4, -0.42).put(geo.box(0.07, 0.62, 0.8), S.crate, -0.72, 0.4, 0).put(geo.box(0.07, 0.62, 0.8), S.crate, 0.72, 0.4, 0);
+        for (const x of [-0.72, 0.72]) for (const z of [-0.42, 0.42]) f.put(geo.box(0.1, 0.7, 0.1), S.strap, x, 0.4, z);
+        for (let i = 0; i < 8; i++) f.put(geo.dodecahedron(0.17 + (i % 3) * 0.02), i % 4 === 3 ? 0x3a3736 : 0x2a2829, -0.45 + (i % 4) * 0.3, 0.74 + (i > 3 ? 0.15 : 0), (i % 2) * 0.3 - 0.15, { ry: i });
+        f.put(geo.sphere(0.22, 8, 5), SNOW, 0.1, 1.0, 0, { sy: 0.3, sx: 1.5 });
+        f.put(geo.cylinder(0.035, 0.035, 1.1, 6), 0x8a6446, 0.5, 0.95, 0.2, { rz: 0.5 }).put(geo.box(0.22, 0.04, 0.2), 0x8e949a, 0.18, 0.52, 0.2, { rz: 0.5 });
+      } else if (v === 1) {
+        // a brass gear on a post, a smaller one meshed beside it
+        f.put(geo.box(0.9, 0.14, 0.5), 0x585d61, -0.15, 0.07, 0).put(geo.cylinder(0.07, 0.08, 1.6, 8), 0x585d61, -0.15, 0.9, 0);
+        for (const [x, y, r, tn] of [[-0.15, 1.3, 0.5, 12], [0.5, 0.78, 0.24, 8]] as const) {
+          f.put(geo.cylinder(r, r, 0.1, 18), 0xb08a4e, x, y, 0.1, { rx: Math.PI / 2 });
+          for (let k = 0; k < tn; k++) {
+            const a = (k / tn) * Math.PI * 2;
+            f.put(geo.box(0.13, 0.13, 0.1), 0xb08a4e, x + Math.cos(a) * (r + 0.05), y + Math.sin(a) * (r + 0.05), 0.1, { rz: a });
+          }
+          f.put(geo.cylinder(r * 0.28, r * 0.28, 0.14, 10), 0x585d61, x, y, 0.1, { rx: Math.PI / 2 });
+        }
+        cap(f, 0.5, 0.2, 1.88, -0.15, 0.1);
+      } else {
+        // a little boiler: brass drum, iron rings, a chimney, a valve wheel, a gauge with a warm hatch
+        roundBase(0.5, 0x585d61);
+        f.put(geo.cylinder(0.36, 0.38, 1.0, 14), 0xb08a4e, 0, 0.6, 0).put(geo.sphere(0.36, 14, 8), 0xb08a4e, 0, 1.1, 0, { sy: 0.7 });
+        for (const y of [0.3, 0.7, 1.0]) f.put(geo.cylinder(0.385, 0.385, 0.06, 14), 0x585d61, 0, y, 0);
+        f.put(geo.cylinder(0.07, 0.08, 0.55, 8), 0x585d61, 0.1, 1.5, 0).put(geo.cylinder(0.1, 0.1, 0.05, 8), SNOW, 0.1, 1.8, 0);
+        f.put(geo.torus(0.13, 0.03, 6, 12), 0x585d61, 0.4, 0.75, 0, { ry: Math.PI / 2 });
+        f.put(geo.cylinder(0.1, 0.1, 0.05, 12), 0xfff3dc, 0, 0.85, 0.37, { rx: Math.PI / 2 });
+        g.put(geo.box(0.24, 0.2, 0.04), 0xff9a4d, 0, 0.3, 0.39);
+      }
+      break;
+    }
+    case 5: {
+      if (v === 0) {
+        // a rack of orange girders on timber sleepers, one stood up beside them
+        for (const x of [-0.5, 0.5]) f.put(geo.box(0.12, 0.12, 0.8), S.wood, x, 0.06, 0);
+        for (let i = 0; i < 3; i++) {
+          const c = i % 2 ? 0xd9762f : 0xb4553a;
+          f.put(geo.box(1.6, 0.07, 0.3), c, 0, 0.16 + i * 0.28, 0).put(geo.box(1.6, 0.2, 0.06), shade(c, 0.9), 0, 0.26 + i * 0.28, 0).put(geo.box(1.6, 0.07, 0.3), c, 0, 0.36 + i * 0.28, 0);
+        }
+        cap(f, 1.6, 0.3, 0.97, 0, 0);
+      } else if (v === 1) {
+        // a pellet hopper on four legs over a heap of rust-red pellets
+        for (const [x, z] of [[-0.42, -0.3], [0.42, -0.3], [-0.42, 0.3], [0.42, 0.3]] as const) f.put(geo.box(0.09, 0.9, 0.09), 0x4e4a48, x, 0.45, z);
+        f.put(geo.box(1.0, 0.45, 0.7), 0xb4553a, 0, 1.0, 0).put(geo.cone(0.28, 0.3, 8), 0xb4553a, 0, 0.62, 0, { rx: Math.PI });
+        for (let i = 0; i < 6; i++) f.put(geo.sphere(0.1, 6, 5), i % 2 ? 0xb4553a : 0x9c4a32, -0.3 + (i % 3) * 0.3, 1.27, (i > 2 ? 0.14 : -0.1));
+        cap(f, 1.0, 0.7, 1.22, 0, 0);
+        f.put(geo.sphere(0.3, 8, 5), 0xb4553a, 0, 0.1, 0.5, { sy: 0.4, sx: 1.3 });
+      } else {
+        // a coke cart: dark lumps with two embers still glowing
+        cartPiece(f, { ...S, cart: 0x6e7880, goods: [0x3a3736, 0x6f6c6b], heap: 'lumps' }, 2);
+        g.put(geo.sphere(0.07, 6, 4), 0xff7a2f, -0.2, 1.0, 0.1).put(geo.sphere(0.06, 6, 4), 0xffa24d, 0.25, 0.98, -0.12);
+      }
+      break;
+    }
+    case 6: {
+      if (v === 0) {
+        // two cable spools on their sides: copper wound on timber flanges
+        for (const [z, s] of [[-0.28, 1], [0.42, 0.78]] as const) {
+          for (const x of [-0.28 * s, 0.28 * s]) f.put(geo.cylinder(0.5 * s, 0.5 * s, 0.06, 16), S.wood, x, 0.5 * s, z, { rz: Math.PI / 2 });
+          f.put(geo.cylinder(0.36 * s, 0.36 * s, 0.5 * s, 14), 0xc0784a, 0, 0.5 * s, z, { rz: Math.PI / 2 }).put(geo.cylinder(0.37 * s, 0.37 * s, 0.1, 14), 0xdc9a68, 0, 0.5 * s, z, { rz: Math.PI / 2 });
+          f.put(geo.cylinder(0.12 * s, 0.12 * s, 0.7 * s, 8), 0x6e5a4a, 0, 0.5 * s, z, { rz: Math.PI / 2 });
+        }
+        f.put(geo.torus(0.14, 0.03, 6, 12), 0xc0784a, 0.55, 0.08, 0.7, { rx: Math.PI / 2 });
+        cap(f, 0.7, 0.1, 1.0, 0, -0.28);
+      } else if (v === 1) {
+        // a teal planter with a cluster of quartz crystals, two of them lit
+        f.put(geo.cylinder(0.5, 0.38, 0.42, 14), 0x3f706a, 0, 0.21, 0).put(geo.cylinder(0.52, 0.52, 0.07, 14), 0xc0784a, 0, 0.4, 0).put(geo.cylinder(0.44, 0.44, 0.05, 14), SNOW, 0, 0.45, 0);
+        for (const [x, z, h, r, tilt] of [[0, 0, 1.0, 0.16, 0], [-0.22, 0.1, 0.7, 0.12, 0.25], [0.2, -0.05, 0.8, 0.13, -0.2], [0.05, 0.22, 0.5, 0.1, -0.1]] as const) {
+          f.put(geo.cone(r, h, 6), 0xe4eef2, x, 0.45 + h / 2, z, { rz: tilt, rx: tilt * 0.4 });
+          if (h > 0.75) g.put(geo.cone(r * 0.55, h * 0.8, 6), 0xbfe9e4, x, 0.45 + h * 0.42, z, { rz: tilt, rx: tilt * 0.4 });
+        }
+      } else {
+        // a pole with a crossarm, three porcelain insulators and a loop of copper wire
+        f.put(geo.box(0.14, 2.0, 0.14), S.wood, 0, 1.0, 0).put(geo.box(1.3, 0.1, 0.1), S.wood, 0, 1.8, 0).put(geo.box(0.5, 0.06, 0.06), S.wood, 0, 1.45, 0, { rz: 0.5 });
+        for (const x of [-0.55, 0, 0.55]) f.put(geo.cylinder(0.05, 0.07, 0.2, 8), 0xdfeeee, x, 1.95, 0).put(geo.sphere(0.07, 6, 4), 0xdfeeee, x, 2.07, 0);
+        f.put(geo.torus(0.4, 0.015, 4, 20), 0xc0784a, 0, 1.75, 0.0, { rx: 0.2, sy: 1.3 });
+        cap(f, 1.3, 0.12, 1.85, 0, 0);
+        f.put(geo.box(0.7, 0.1, 0.4), 0x8a8c8c, 0, 0.05, 0);
+      }
+      break;
+    }
+    case 7: {
+      if (v === 0) {
+        // a rack of gas bottles, two by two
+        for (const [x, z, c] of [[-0.3, -0.22, 0xd99b26], [0.3, -0.22, 0xc44536], [-0.3, 0.26, 0xc44536], [0.3, 0.26, 0xd99b26]] as const) {
+          f.put(geo.cylinder(0.17, 0.17, 1.0, 10), c, x, 0.55, z).put(geo.sphere(0.17, 10, 6), c, x, 1.05, z, { sy: 0.8 }).put(geo.cylinder(0.04, 0.04, 0.16, 6), 0x444a54, x, 1.25, z).put(geo.sphere(0.12, 6, 4), SNOW, x, 1.18, z, { sy: 0.4 });
+        }
+        for (const y of [0.35, 0.9]) f.put(geo.box(1.25, 0.05, 0.05), 0x444a54, 0, y, 0.0).put(geo.box(0.05, 0.05, 0.9), 0x444a54, -0.52, y, 0).put(geo.box(0.05, 0.05, 0.9), 0x444a54, 0.52, y, 0);
+        f.put(geo.box(1.3, 0.08, 0.95), 0x6c7684, 0, 0.04, 0.02);
+      } else if (v === 1) {
+        // a stack of drums: two standing, one lying across the top
+        for (const [x, c] of [[-0.32, S.drum[0]!], [0.32, S.drum[1]!]] as const) {
+          f.put(geo.cylinder(0.28, 0.3, 0.86, 12), c, x, 0.43, 0);
+          for (const y of [0.2, 0.66]) f.put(geo.cylinder(0.305, 0.305, 0.06, 12), S.band, x, y, 0);
+        }
+        f.put(geo.cylinder(0.26, 0.26, 0.74, 12), S.drum[2]!, 0, 1.12, 0, { rz: Math.PI / 2 });
+        for (const x of [-0.24, 0.24]) f.put(geo.cylinder(0.265, 0.265, 0.06, 12), S.band, x, 1.12, 0, { rz: Math.PI / 2 });
+        cap(f, 0.7, 0.3, 1.36, 0, 0);
+      } else {
+        // a roadside fuel pump: yellow body, red stripe, a lit price board and a coiled hose
+        f.put(geo.box(0.8, 0.1, 0.6), 0xb8bcc4, 0, 0.05, 0).put(geo.box(0.5, 1.3, 0.38), 0xe6c84a, 0, 0.75, 0).put(geo.box(0.52, 0.14, 0.4), 0xc44536, 0, 0.5, 0).put(geo.box(0.56, 0.1, 0.44), 0x444a54, 0, 1.45, 0);
+        g.put(geo.box(0.34, 0.24, 0.04), 0xbff0d0, 0, 1.05, 0.2);
+        f.put(geo.torus(0.2, 0.035, 6, 14), 0x2f3036, 0.42, 0.7, 0, { ry: Math.PI / 2 });
+        cap(f, 0.56, 0.44, 1.5, 0, 0);
+      }
+      break;
+    }
+    case 8: {
+      if (v === 0) {
+        // a solar panel on a post, snow along its upper edge
+        f.put(geo.cylinder(0.06, 0.08, 1.0, 8), 0xc4c2ba, 0, 0.5, 0).put(geo.box(0.7, 0.1, 0.5), 0xc4c2ba, 0, 0.05, 0);
+        f.put(geo.box(1.5, 0.06, 0.95), 0xf0eadb, 0, 1.25, 0, { rx: -0.55 }).put(geo.box(1.36, 0.07, 0.82), 0x3a5f7a, 0, 1.26, 0.01, { rx: -0.55 });
+        for (const x of [-0.45, 0, 0.45]) f.put(geo.box(0.03, 0.075, 0.82), 0x7fb0c4, x, 1.27, 0.01, { rx: -0.55 });
+        f.put(geo.box(1.4, 0.05, 0.22), SNOW, 0, 1.52, -0.27, { rx: -0.55 });
+      } else if (v === 1) {
+        // a pallet of gold bars in a pyramid
+        f.put(geo.box(1.6, 0.1, 0.8), 0xc9b99c, 0, 0.05, 0);
+        for (let layer = 0; layer < 3; layer++) for (let i = 0; i < 3 - layer; i++) for (const z of [-0.2, 0.2]) f.put(geo.box(0.5, 0.16, 0.3), shade(GOLD_POOL, 0.9 + ((i + layer + (z > 0 ? 1 : 0)) % 3) * 0.08), -((2 - layer) * 0.55) / 2 + i * 0.55, 0.18 + layer * 0.17, z);
+        f.put(geo.box(0.3, 0.04, 0.12), 0xfff3b0, -0.1, 0.74, 0.2, { ry: 0.3 });
+      } else {
+        // a white server cabinet with rows of lit ports
+        f.put(geo.box(0.72, 1.7, 0.62), 0xeee8d8, 0, 0.85, 0).put(geo.box(0.62, 1.55, 0.04), 0x5c9aa0, 0, 0.85, 0.32);
+        for (let k = 0; k < 6; k++) g.put(geo.box(0.46, 0.05, 0.02), k % 2 ? 0x9fe8d8 : 0xbff0d0, 0, 0.3 + k * 0.22, 0.345);
+        f.put(geo.box(0.8, 0.07, 0.7), 0xc4c2ba, 0, 1.73, 0);
+        cap(f, 0.8, 0.7, 1.76, 0, 0);
+      }
+      break;
+    }
+    case 9: {
+      if (v === 0) {
+        // two hazard drums, a mint glow on their lids
+        for (const [x, z] of [[-0.3, 0], [0.32, 0.15]] as const) {
+          f.put(geo.cylinder(0.3, 0.32, 0.9, 12), S.drum[0]!, x, 0.45, z).put(geo.cylinder(0.325, 0.325, 0.12, 12), S.band, x, 0.3, z).put(geo.cylinder(0.325, 0.325, 0.12, 12), S.band, x, 0.62, z);
+          g.put(geo.circleGround(0.18, 10), 0x86e8c4, x, 0.92, z);
+        }
+        f.put(geo.box(0.5, 0.35, 0.05), 0xe8c547, 0, 0.35, 0.55);
+      } else if (v === 1) {
+        // graphite blocks stacked in courses
+        for (const [x, z, y, ry, c] of [[-0.4, 0, 0.16, 0, 0x5c5b5b], [0.4, 0.02, 0.16, 0.04, 0x4b4a4a], [0, 0, 0.49, 0.08, 0x4b4a4a], [0.1, 0.02, 0.82, -0.1, 0x5c5b5b]] as const) f.put(geo.box(0.8, 0.32, 0.55), c, x, y, z, { ry });
+        cap(f, 0.8, 0.55, 0.98, 0.1, 0.02);
+        f.put(geo.box(0.3, 0.2, 0.05), 0xe8c547, -0.4, 0.2, 0.3);
+      } else {
+        // a hazard warning sign on a post, a mint beacon above it
+        f.put(geo.cylinder(0.05, 0.06, 1.9, 8), 0x8a8f92, 0, 0.95, 0).put(geo.cylinder(0.4, 0.4, 0.05, 3), 0xe8c547, 0, 1.45, 0.05, { rx: Math.PI / 2, ry: Math.PI / 6 }).put(geo.cylinder(0.24, 0.24, 0.06, 3), 0x3d3a39, 0, 1.43, 0.07, { rx: Math.PI / 2, ry: Math.PI / 6 });
+        g.put(geo.sphere(0.14, 8, 6), 0x86e8c4, 0, 2.0, 0);
+        f.put(geo.box(0.6, 0.1, 0.5), 0x8a8f92, 0, 0.05, 0);
+      }
+      break;
+    }
+    default: {
+      if (v === 0) {
+        // a pedestal of rare-earth crystals, three of them glowing
+        f.put(geo.cylinder(0.45, 0.55, 0.45, 16), 0xd9dae6, 0, 0.22, 0).put(geo.torus(0.48, 0.05, 6, 20), 0xb9a3e8, 0, 0.45, 0, { rx: Math.PI / 2 });
+        for (const [x, z, h, r, tilt] of [[0, 0, 1.1, 0.2, 0], [-0.25, 0.12, 0.75, 0.14, 0.3], [0.25, -0.05, 0.85, 0.15, -0.25], [0.08, 0.28, 0.55, 0.11, -0.12], [-0.12, -0.25, 0.6, 0.12, 0.2]] as const) {
+          f.put(geo.cone(r, h, 6), 0xb9a3e8, x, 0.45 + h / 2, z, { rz: tilt, rx: tilt * 0.3 });
+          if (h > 0.7) g.put(geo.cone(r * 0.5, h * 0.75, 6), 0xe6dcff, x, 0.45 + h * 0.4, z, { rz: tilt, rx: tilt * 0.3 });
+        }
+      } else if (v === 1) {
+        // a helium-3 tank on a cradle: white shell, a lavender band, a valve and a lit gauge dot
+        for (const x of [-0.4, 0.4]) f.put(geo.box(0.12, 0.3, 0.6), 0xd9dae6, x, 0.15, 0);
+        f.put(geo.cylinder(0.34, 0.34, 1.0, 14), 0xe6f2ff, 0, 0.5, 0, { rz: Math.PI / 2 });
+        for (const x of [-0.5, 0.5]) f.put(geo.sphere(0.34, 12, 8), 0xe6f2ff, x, 0.5, 0);
+        f.put(geo.cylinder(0.35, 0.35, 0.14, 14), 0xb9a3e8, 0, 0.5, 0, { rz: Math.PI / 2 });
+        f.put(geo.cylinder(0.05, 0.05, 0.16, 6), 0x9aa0b4, 0, 0.9, 0).put(geo.sphere(0.12, 8, 5), SNOW, 0, 0.88, 0, { sy: 0.35, sx: 3.2 });
+        g.put(geo.sphere(0.05, 6, 4), 0xb9a3e8, 0.2, 0.62, 0.32);
+      } else {
+        // a floating-orb lamp: a slim white post, a ring and a softly glowing orb
+        roundBase(0.4, 0xd9dae6);
+        f.put(geo.cylinder(0.05, 0.07, 1.5, 8), 0xf6f1e7, 0, 0.8, 0).put(geo.torus(0.34, 0.04, 6, 24), 0xb9a3e8, 0, 1.7, 0, { rx: Math.PI / 2 });
+        g.put(geo.sphere(0.22, 12, 8), 0xd9c8ff, 0, 1.7, 0);
+      }
+    }
+  }
+}
+
+/** One drum body at (x, z): a barrel, a hazard drum or (era 10) a helium canister; `c` picks its colour. */
+function drum(f: Frame, g: Frame, n: number, S: DecorStyle, x: number, z: number, c: number): void {
+  const col = S.drum[c % S.drum.length]!;
+  if (n === 10) {
+    f.put(geo.cylinder(0.26, 0.26, 0.72, 12), col, x, 0.4, z).put(geo.sphere(0.26, 12, 8), col, x, 0.76, z, { sy: 0.8 }).put(geo.cylinder(0.27, 0.27, 0.1, 12), S.band, x, 0.45, z);
+    f.put(geo.cylinder(0.04, 0.04, 0.12, 6), 0x9aa0b4, x, 1.03, z).put(geo.sphere(0.12, 8, 4), SNOW, x, 0.98, z, { sy: 0.35, sx: 1.2 });
+    return;
+  }
+  f.put(geo.cylinder(0.27, 0.29, 0.85, 12), col, x, 0.425, z);
+  for (const y of [0.2, 0.65]) f.put(geo.cylinder(0.295, 0.295, 0.06, 12), S.band, x, y, z);
+  f.put(geo.cylinder(0.25, 0.25, 0.04, 12), shade(col, 1.15), x, 0.86, z).put(geo.cylinder(0.22, 0.22, 0.04, 12), SNOW, x, 0.9, z);
+  if (n === 9) g.put(geo.circleGround(0.12, 8), 0x86e8c4, x, 0.93, z);
+}
+
+/** Draw every decor piece (statics: body, lit parts, lamp bulbs). No extra draw calls: it all joins the region's batches. */
+function buildDecor(body: Batch, glow: Batch, bulbs: Batch, n: number, st: PlotStyle, items: readonly DecorPlace[]): void {
+  const S = DECOR[n]!;
+  const tilt = (k: number): number => ((k * 7 + n * 3) % 5 - 2) * 0.05;
+  items.forEach((d, i) => {
+    const f = new Frame(body, d.x, d.z, d.yaw);
+    const g = new Frame(glow, d.x, d.z, d.yaw);
+    switch (d.kind) {
+      case 'crates': {
+        if (d.v === 1) {
+          // one open crate heaped with goods
+          f.put(geo.boxBase(1.0, 0.55, 0.8), S.crate, 0, 0, 0).put(geo.box(0.07, 0.55, 0.02), S.strap, -0.3, 0.275, 0.41).put(geo.box(0.07, 0.55, 0.02), S.strap, 0.3, 0.275, 0.41);
+          goodsHeap(f, S, 0, 0.55, 0, 0.9, i);
+        } else {
+          f.put(geo.boxBase(1.0, 0.55, 0.85), S.crate, 0, 0, 0).put(geo.box(0.07, 0.55, 0.02), S.strap, -0.3, 0.275, 0.43).put(geo.box(0.07, 0.55, 0.02), S.strap, 0.3, 0.275, 0.43);
+          f.put(geo.boxBase(0.7, 0.5, 0.65), shade(S.crate, 1.08), -0.1, 0.55, 0.02, { ry: tilt(i) }).put(geo.box(0.06, 0.5, 0.02), S.strap, -0.3, 0.8, 0.36, { ry: tilt(i) });
+          cap(f, 0.74, 0.69, 1.05, -0.1, 0.02);
+        }
+        break;
+      }
+      case 'sacks': {
+        const [a, b] = S.sack;
+        for (const [x, y, z, c] of [[-0.27, 0.25, 0.0, a], [0.27, 0.25, 0.02, b], [0.0, 0.6, 0.0, a]] as const) {
+          f.put(geo.sphere(0.32, 10, 8), c, x, y, z, { sx: 1.0, sy: 0.78, sz: 0.85, ry: tilt(i + x * 3) });
+          f.put(geo.cylinder(0.07, 0.09, 0.1, 6), shade(c, 0.78), x, y + 0.27, z);
+        }
+        f.put(geo.sphere(0.3, 8, 5), SNOW, 0, 0.82, 0, { sy: 0.28, sx: 1.2 });
+        break;
+      }
+      case 'barrels':
+        drum(f, g, n, S, -0.32, -0.15, d.v);
+        drum(f, g, n, S, 0.32, -0.15, d.v + 1);
+        drum(f, g, n, S, 0, 0.3, d.v + 2);
+        break;
+      case 'heap':
+        goodsHeap(f, S, 0, 0, 0, 1.6, i);
+        f.put(geo.sphere(0.5, 10, 5), SNOW, 0.35, 0.0, 0.15, { sx: 0.8, sy: 0.26, sz: 0.8 });
+        break;
+      case 'bench': {
+        const wood = shade(S.wood, 0.9);
+        f.put(geo.box(1.65, 0.08, 0.42), wood, 0, 0.5, 0.02).put(geo.box(1.65, 0.3, 0.06), shade(wood, 0.92), 0, 0.78, -0.2, { rx: -0.12 });
+        for (const x of [-0.65, 0.65]) f.put(geo.boxBase(0.1, 0.5, 0.36), shade(wood, 0.7), x, 0, 0.02);
+        f.put(geo.box(1.6, 0.05, 0.38), SNOW, 0, 0.56, 0.02).put(geo.box(1.6, 0.04, 0.07), SNOW, 0, 0.95, -0.22, { rx: -0.12 });
+        break;
+      }
+      case 'lamp': {
+        const post = shade(st.shopRoof, 0.85);
+        f.put(geo.cylinder(0.06, 0.09, 3.0, 8), post, 0, 1.5, 0).put(geo.box(0.12, 0.08, 0.5), post, 0, 2.95, 0.18);
+        new Frame(bulbs, d.x, d.z, d.yaw).put(geo.sphere(0.17, 10, 8), 0xffffff, 0, 2.82, 0.4);
+        f.put(geo.cylinder(0.14, 0.14, 0.05, 8), SNOW, 0, 3.03, 0);
+        break;
+      }
+      case 'snow':
+        f.put(geo.sphere(0.5, 12, 6), SNOW, 0, 0, 0, { sx: 1.5, sy: 0.5, sz: 1.1 }).put(geo.sphere(0.5, 10, 5), 0xffffff, 0.12, 0.04, -0.05, { sx: 0.9, sy: 0.55, sz: 0.7 });
+        if (d.v === 1) f.put(geo.dodecahedron(0.16), 0x9a948a, -0.3, 0.12, 0.1);
+        break;
+      case 'notice': {
+        for (const x of [-0.55, 0.55]) f.put(geo.boxBase(0.1, 2.0, 0.1), shade(S.wood, 0.75), x, 0, 0);
+        f.put(geo.box(1.4, 0.85, 0.05), S.wood, 0, 1.55, 0).put(geo.box(1.5, 0.07, 0.07), shade(S.wood, 0.7), 0, 1.99, 0).put(geo.box(1.5, 0.07, 0.07), shade(S.wood, 0.7), 0, 1.12, 0);
+        for (let k = 0; k < 4; k++) f.put(geo.box(0.28, 0.34, 0.02), k % 2 ? CREAM : st.shopRoof, -0.48 + k * 0.32, 1.55 + (k % 2) * 0.12 - 0.05, 0.04, { rz: tilt(k + i) });
+        f.put(geo.box(1.7, 0.08, 0.4), shade(st.shopRoof, 0.9), 0, 2.12, 0.0, { rx: 0.08 }).put(geo.box(1.72, 0.05, 0.36), SNOW, 0, 2.18, 0, { rx: 0.08 });
+        break;
+      }
+      case 'cart':
+        cartPiece(f, S, i);
+        cap(f, 0.9, 0.5, 1.0, -0.05, 0);
+        break;
+      case 'sig':
+        sigPiece(f, g, n, S, d.v);
+        break;
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // the runtime part
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -1011,6 +1416,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   for (const b of P.beds) buildBed(body, glow, bedKind(st, b.k), bedColor(st, b.k), b, rng, !!st.glow?.includes(b.k));
   buildFieldDressing(body, glow, st, P, rng, L.node.z);
   buildGreen(body, glow, st, P, e.colors.accent, e.colors.glow);
+  const decor = plotDecor(n);
+  buildDecor(body, glow, bulbs, n, st, decor);
 
   const statics = body.mesh({ cast: true, receive: true });
   statics.name = 'places';
@@ -1025,6 +1432,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   }
   const gc = greenCentre(P);
   ctx.colliders.addBox(box(gc.x, gc.z, 0.8, 0.8), `era:${n}:places`);
+  // the decor stands in the way like the shops do (snow piles and lamp posts are too low / slim to matter)
+  for (const d of decor) if (d.kind !== 'snow' && d.kind !== 'lamp') ctx.colliders.addBox(box(d.x, d.z, d.hx * 0.92, d.hz * 0.92), `era:${n}:decor`);
 
   // ---- huts: one baked mesh (+ glow), re-baked when a hut's stage changes
   const key = e.key;
