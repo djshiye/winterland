@@ -123,7 +123,10 @@ export function regionLayout(n: number): RegionLayout {
   const westW = Math.min(W, Math.max(MIN_WEST, Math.round(W * 0.6)));
   const splitX = r.minX + westW;
   const gx = r.minX + westW / 2;
-  const inner = D - YARD_DEPTH; // depth below the yard
+  // 0.9.12: the yard, machine grid and hand node keep the depth they were laid out for (def.work); the plot past it
+  // is extra market, huts and field
+  const workD = Math.min(D, def.work ?? D);
+  const inner = workD - YARD_DEPTH; // depth below the yard
 
   const room = Math.max(def.slots, def.room);
   // machine grid, laid out for the plot's room (the live slots take its first places): the widest cell (12 → 10 m) that fits every slot and still leaves the harvest zone its depth
@@ -165,7 +168,7 @@ export function regionLayout(n: number): RegionLayout {
   const roadZ = edgeZ - inward * 2; // roads are 4 m wide and touch the gate edge
   const mx = (splitX + r.maxX) / 2;
   // the hand node: a third of the way across the harvest zone, halfway down it (clear of the paths along its edges)
-  const H = zones.harvest;
+  const H = band(r, north, r.minX, splitX, YARD_DEPTH + procDepth, workD);
   const node = { x: H.minX + (H.maxX - H.minX) * 0.35, z: (H.minZ + H.maxZ) / 2, yaw: north ? Math.PI : 0 };
   const road = ROADS.find((q) => q.rect.minX <= gx - 2 && q.rect.maxX >= gx + 2 && Math.abs((q.rect.minZ + q.rect.maxZ) / 2 - roadZ) < 0.01);
   return {
@@ -647,7 +650,7 @@ export function plotPlaces(n: number): PlotPlaces {
  *    the ring's chords. The rest of the green is free ground.
  * Pads, counters, the cash pile, the vault, the queue, hut doors and annexes, shop fronts and streets are keep-outs.
  */
-export type DecorKind = 'crates' | 'sacks' | 'barrels' | 'heap' | 'bench' | 'lamp' | 'snow' | 'notice' | 'cart' | 'sig';
+export type DecorKind = 'crates' | 'sacks' | 'barrels' | 'heap' | 'bench' | 'lamp' | 'snow' | 'notice' | 'cart' | 'sig' | 'fir' | 'shrub';
 
 export interface DecorPlace {
   kind: DecorKind;
@@ -692,6 +695,8 @@ export const DECOR_SIZE: Readonly<Record<DecorKind, readonly [number, number, nu
   notice: [0.85, 0.2, 2.35],
   cart: [1.0, 0.55, 1.4],
   sig: [0.85, 0.85, 2.2],
+  fir: [0.75, 0.75, 2.7],
+  shrub: [0.55, 0.5, 0.8],
 };
 
 const GREEN_CLEAR = 1.7; // RegionLife CLEAR: keep this far from the centrepiece
@@ -837,17 +842,22 @@ const VIGNETTES: Readonly<Record<string, readonly VItem[]>> = {
   cart: [{ kind: 'cart', dx: 0, dz: 0 }, { kind: 'crates', dx: 1.85, dz: 0.1, v: 2 }],
   snows: [{ kind: 'snow', dx: 0, dz: 0 }, { kind: 'snow', dx: 1.7, dz: 0.65, v: 1 }],
   lampSnow: [{ kind: 'lamp', dx: 0, dz: 0 }, { kind: 'snow', dx: 1.15, dz: 0.3 }],
+  // 0.9.12: greenery for the bigger greens and markets (a snowy grove, a pair of bushes, a lone fir with a bench)
+  grove: [{ kind: 'fir', dx: 0, dz: 0 }, { kind: 'fir', dx: 1.65, dz: 0.55, v: 1 }, { kind: 'shrub', dx: 0.55, dz: 1.45 }],
+  shrubs: [{ kind: 'shrub', dx: 0, dz: 0 }, { kind: 'shrub', dx: 1.2, dz: 0.25, v: 1 }],
+  firBench: [{ kind: 'fir', dx: 0, dz: 0, v: 1 }, { kind: 'bench', dx: 1.75, dz: 0.2 }],
 };
 
 /** What each zone gets, in order (repeats when the free ground allows more). Every era's clutter piece comes early. */
 const RECIPE: Readonly<Record<'market' | 'huts', readonly string[]>> = {
-  market: ['clutter0', 'goods', 'bench', 'cart', 'notice', 'clutter1', 'stash', 'lampSnow', 'goods', 'clutter2', 'snows', 'cart', 'bench', 'goods', 'notice', 'stash'],
-  huts: ['stash', 'bench', 'clutter1', 'goods', 'lampSnow', 'cart', 'clutter2', 'snows', 'goods', 'clutter0', 'bench', 'stash', 'cart', 'lampSnow', 'goods'],
+  market: ['clutter0', 'goods', 'bench', 'cart', 'notice', 'shrubs', 'clutter1', 'stash', 'lampSnow', 'goods', 'clutter2', 'grove', 'snows', 'cart', 'bench', 'goods', 'shrubs', 'notice', 'stash'],
+  huts: ['stash', 'grove', 'bench', 'clutter1', 'shrubs', 'goods', 'lampSnow', 'firBench', 'cart', 'clutter2', 'grove', 'snows', 'goods', 'shrubs', 'clutter0', 'bench', 'grove', 'stash', 'cart', 'lampSnow', 'firBench', 'goods', 'shrubs'],
 };
 
-/** Metres of free ground per vignette, and the most each zone takes. */
+/** Metres of free ground per vignette, and the most each zone takes (more in the bigger zones of the later eras). */
 const DECOR_AREA = 5;
 const DECOR_MAX = 22;
+const DECOR_MAX_AREA = 42;
 const DECOR_CELL = 0.25;
 const DECOR_STEP = 0.75;
 const DECOR_GAP = 0.35;
@@ -942,7 +952,8 @@ export function plotDecor(n: number): DecorPlace[] {
     // free ground: anchors where a 1.8 m square of a middling item fits (counts the room this zone has to fill)
     let free = 0;
     for (let x = Zi.minX; x <= Zi.maxX; x += DECOR_STEP) for (let z = Zi.minZ; z <= Zi.maxZ; z += DECOR_STEP) if (fits({ kind: 'sig', x, z, hx: 0.9, hz: 0.9, h: 1, yaw: 0, v: 0 }, 0)) free++;
-    const want = Math.min(DECOR_MAX, Math.round((free * DECOR_STEP * DECOR_STEP) / DECOR_AREA));
+    const cap = Math.max(DECOR_MAX, Math.round(((Zi.maxX - Zi.minX) * (Zi.maxZ - Zi.minZ)) / DECOR_MAX_AREA));
+    const want = Math.min(cap, Math.round((free * DECOR_STEP * DECOR_STEP) / DECOR_AREA));
     const recipe = RECIPE[zone];
     for (let vi = 0; vi < want; vi++) {
       const tpl = VIGNETTES[recipe[vi % recipe.length]!]!;
@@ -1046,7 +1057,13 @@ export function districtArrival(n: number): XZ {
   const d = DISTRICTS[n]!;
   const inner = districtInner(n);
   const cols = districtGrid(d.lots).cols;
-  return { x: inner.minX + (inner.maxX - inner.minX) / cols, z: d.rect.maxZ - DISTRICT_MARGIN / 2 };
+  const { rows } = districtGrid(d.lots);
+  const x = inner.minX + (inner.maxX - inner.minX) / cols;
+  if (rows < 3) return { x, z: d.rect.maxZ - DISTRICT_MARGIN / 2 };
+  // 0.9.12 (validator): a three-row district lands one row in, on the middle row's front walk between its first two
+  // lots, so the camera frames the town instead of the street south of it
+  const ch = (inner.maxZ - inner.minZ) / rows;
+  return { x, z: inner.minZ + (rows - 1) * ch - 1.6 };
 }
 
 /**

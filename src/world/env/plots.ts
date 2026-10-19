@@ -1272,6 +1272,10 @@ function sigPiece(f: Frame, g: Frame, n: number, S: DecorStyle, v: number): void
   }
 }
 
+/** 0.9.12: each era's fir and bush green (warm pine early, cooler later, a soft mint in the AI era), and its berries. */
+const FIR_GREEN: readonly (number | undefined)[] = [undefined, undefined, 0x356b45, 0x2f5f44, 0x3a6448, 0x2f5a4c, 0x2f6656, 0x3b6a4e, 0x2e6a5e, 0x2f7462, 0x5a8f7c];
+const BERRY: readonly (number | undefined)[] = [undefined, undefined, 0xe0604a, 0xff8a4a, 0xffc04a, 0xff7a5a, 0x7ae8e0, 0xffd36b, 0x9be0ff, 0x86e8c4, 0xd9c8ff];
+
 /** One drum body at (x, z): a barrel, a hazard drum or (era 10) a helium canister; `c` picks its colour. */
 function drum(f: Frame, g: Frame, n: number, S: DecorStyle, x: number, z: number, c: number): void {
   const col = S.drum[c % S.drum.length]!;
@@ -1336,6 +1340,25 @@ function buildDecor(body: Batch, glow: Batch, bulbs: Batch, n: number, st: PlotS
         f.put(geo.cylinder(0.06, 0.09, 3.0, 8), post, 0, 1.5, 0).put(geo.box(0.12, 0.08, 0.5), post, 0, 2.95, 0.18);
         new Frame(bulbs, d.x, d.z, d.yaw).put(geo.sphere(0.17, 10, 8), 0xffffff, 0, 2.82, 0.4);
         f.put(geo.cylinder(0.14, 0.14, 0.05, 8), SNOW, 0, 3.03, 0);
+        break;
+      }
+      case 'fir': {
+        // 0.9.12: a snowy fir in the era's own green (v 1: a touch taller), snow on every tier
+        const leaf = FIR_GREEN[n] ?? 0x2f6b4a;
+        const k = d.v === 1 ? 1.12 : 1;
+        f.put(geo.cylinder(0.1, 0.14, 0.55, 6), 0x6b4a36, 0, 0.27, 0);
+        for (const [r, h, y] of [[0.72, 0.95, 0.95], [0.56, 0.82, 1.5], [0.38, 0.7, 2.0]] as const) {
+          f.put(geo.cone(r, h * k, 9), leaf, 0, y * k, 0).put(geo.cone(r * 0.8, h * 0.3 * k, 9), SNOW, 0, (y + h * 0.3) * k, 0);
+        }
+        f.put(geo.sphere(0.55, 10, 5), SNOW, 0.1, 0, 0.05, { sx: 1.3, sy: 0.25, sz: 1.1 });
+        break;
+      }
+      case 'shrub': {
+        // a round snow-capped bush with a few berries in the era's glow colour
+        const leaf = shade(FIR_GREEN[n] ?? 0x2f6b4a, 1.15);
+        f.put(geo.sphere(0.5, 10, 7), leaf, 0, 0.36, 0, { sx: 1.05, sy: 0.75, sz: 0.95 }).put(geo.sphere(0.32, 9, 6), shade(leaf, 0.9), 0.32, 0.26, 0.18, { sy: 0.8 });
+        f.put(geo.sphere(0.44, 10, 5), SNOW, 0, 0.56, 0, { sx: 1.0, sy: 0.38, sz: 0.88 });
+        for (let k = 0; k < 4; k++) g.put(geo.sphere(0.055, 6, 4), BERRY[n] ?? 0xff6b6b, Math.cos(k * 1.7 + i) * 0.42, 0.3 + (k % 2) * 0.12, Math.sin(k * 1.7 + i) * 0.38);
         break;
       }
       case 'snow':

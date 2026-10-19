@@ -364,6 +364,12 @@ export interface RegionLayoutDef {
    * and the live `slots` take the first places in that grid, so raising `slots` up to `room` never moves a machine.
    */
   room: number;
+  /**
+   * 0.9.12 (Dino: "the area towns and everything" much larger): the depth (from the gate edge) the machine yard,
+   * processing grid and hand node are laid out for. The plot is deeper than this; the extra depth goes to a bigger
+   * market, a roomier hut green and a longer field, so no machine, node or facility moves and the pacing is unchanged.
+   */
+  work?: number;
 }
 
 /**
@@ -380,15 +386,15 @@ export interface RegionLayoutDef {
 export const REGIONS: readonly (RegionLayoutDef | null)[] = [
   null,
   null,
-  { n: 2, rect: R(-24, 40, 66, 114), gate: 'north', slots: 8, room: 8 }, // 64 × 48
-  { n: 3, rect: R(-98, -30, 66, 118), gate: 'north', slots: 8, room: 8 }, // 68 × 52
+  { n: 2, rect: R(-24, 40, 66, 122), gate: 'north', slots: 8, room: 8, work: 48 }, // 64 × 56 (0.9.12: was 48 deep)
+  { n: 3, rect: R(-98, -30, 66, 122), gate: 'north', slots: 8, room: 8, work: 52 }, // 68 × 56 (was 52)
   { n: 4, rect: R(-176, -104, 66, 122), gate: 'north', slots: 8, room: 8 }, // 72 × 56
-  { n: 5, rect: R(-178, -100, 132, 192), gate: 'north', slots: 8, room: 8 }, // 78 × 60
-  { n: 6, rect: R(-94, -10, 132, 196), gate: 'north', slots: 8, room: 8 }, // 84 × 64
-  { n: 7, rect: R(-4, 86, 132, 200), gate: 'north', slots: 8, room: 8 }, // 90 × 68
-  { n: 8, rect: R(92, 188, 132, 204), gate: 'north', slots: 9, room: 9 }, // 96 × 72
-  { n: 9, rect: R(90, 192, 218, 294), gate: 'north', slots: 9, room: 9 }, // 102 × 76
-  { n: 10, rect: R(-24, 84, 218, 298), gate: 'north', slots: 10, room: 10 }, // 108 × 80
+  { n: 5, rect: R(-178, -100, 132, 200), gate: 'north', slots: 8, room: 8, work: 60 }, // 78 × 68 (was 60)
+  { n: 6, rect: R(-94, -10, 132, 204), gate: 'north', slots: 8, room: 8, work: 64 }, // 84 × 72 (was 64)
+  { n: 7, rect: R(-4, 86, 132, 208), gate: 'north', slots: 8, room: 8, work: 68 }, // 90 × 76 (was 68)
+  { n: 8, rect: R(92, 188, 132, 208), gate: 'north', slots: 9, room: 9, work: 72 }, // 96 × 76 (was 72)
+  { n: 9, rect: R(90, 192, 218, 304), gate: 'north', slots: 9, room: 9, work: 76 }, // 102 × 86 (was 76)
+  { n: 10, rect: R(-24, 84, 218, 308), gate: 'north', slots: 10, room: 10, work: 80 }, // 108 × 90 (was 80)
 ];
 export function regionDef(n: number): RegionLayoutDef {
   const r = REGIONS[n];

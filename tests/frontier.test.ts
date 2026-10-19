@@ -175,7 +175,7 @@ describe('the new land keeps off the old map', () => {
     for (const r of regions) expect(blockedNewLand((r.rect.minX + r.rect.maxX) / 2, (r.rect.minZ + r.rect.maxZ) / 2)).toBe(true);
     for (const r of ROADS) expect(blockedNewLand(r.rect.minX - 1.4, (r.rect.minZ + r.rect.maxZ) / 2)).toBe(true);
     expect(blockedNewLand(0, 0)).toBe(false);
-    expect(blockedNewLand(-120, 200)).toBe(false);
+    expect(blockedNewLand(-120, 210)).toBe(false); // 0.9.12: south of era V's deeper plot
   });
 });
 
