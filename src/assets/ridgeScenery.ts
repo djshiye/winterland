@@ -15,7 +15,6 @@ import { buildHalos, registerGlow, type HaloSpot } from '../world/env/glow';
 import { instanced, Rng, W, type Placement } from '../world/env/common';
 import { pineGeo, rockGeo } from '../world/env/props';
 import { bushGeo } from './ridge';
-import { SLED_LANE_Z, SLED_RETURN_Z } from './sled';
 
 const R = LAYOUT.ridge;
 const ROAD = LAYOUT.tricycles.road;
@@ -35,18 +34,6 @@ const flat = (b: Batch, w: number, d: number, x: number, z: number, top: number,
 export const PLATFORM_DECK = { minX: 29.0, maxX: 32.0, minZ: -2.6, maxZ: 5.2 };
 /** Log-deck timber pad under LAYOUT.ridge.deck. */
 export const LOG_DECK_PAD = rect(R.deck.x, R.deck.z + 0.7, 3.6, 3.4);
-
-/**
- * Level crossing where the sled lane (arrival row, SLED_LANE_Z) and the return row cross the rail line: a timber deck
- * under each row and a crossbuck on a post beside each approach, off both rows and the rail corridor (±2.4 m, env/common.ts).
- */
-export const LEVEL_CROSSING = {
-  deckHalfX: 1.3,
-  deckHalfZ: 0.75,
-  rows: [SLED_LANE_Z, SLED_RETURN_Z] as readonly number[],
-  /** Post positions: the east one beside the arrival row's approach, the west one beside the return row's. */
-  posts: [{ x: R.rail.x + 2.7, z: SLED_LANE_Z - 1.15 }, { x: R.rail.x - 2.8, z: SLED_RETURN_Z + 1.15 }] as readonly { x: number; z: number }[],
-};
 
 export function buildRidgeScenery(): RidgeScenery {
   const ground = new THREE.Group();
@@ -109,14 +96,6 @@ export function buildRidgeScenery(): RidgeScenery {
     g.add(new THREE.BoxGeometry(0.12, 0.13, zB - zA), PALETTE.metal, rx + s * 0.72, 0.2, (zA + zB) / 2);
     g.add(new THREE.BoxGeometry(0.04, 0.03, zB - zA), 0xdfe6ec, rx + s * 0.72, 0.275, (zA + zB) / 2);
   }
-  // level crossing: timber boards across each sled row where it runs over the rail line
-  const LC = LEVEL_CROSSING;
-  for (const z of LC.rows) {
-    const z0 = Math.max(z - LC.deckHalfZ, zB + 0.0);
-    const z1 = z + LC.deckHalfZ;
-    for (const s of [-1, 1]) flat(g, 0.14, z1 - z0 + 0.1, rx + s * (LC.deckHalfX + 0.07), (z0 + z1) / 2, 0.056, PALETTE.fenceDark, 0.04);
-    for (let q = z0 + 0.15, i = 0; q < z1; q += 0.32, i++) flat(g, LC.deckHalfX * 2, 0.28, rx, q, 0.05, i % 2 ? PALETTE.plank : COLORS.PLANK_WOOD, 0.03);
-  }
   ground.add(g.mesh({ cast: false, receive: true }));
 
   // ties
@@ -149,14 +128,6 @@ export function buildRidgeScenery(): RidgeScenery {
   body.add(new THREE.BoxGeometry(2.0, 0.36, 0.3), 0xd0453a, rx, 0.75, bz);
   for (const s of [-0.55, 0, 0.55]) body.add(new THREE.BoxGeometry(0.22, 0.3, 0.04), 0xffffff, rx + s, 0.75, bz - 0.16);
   body.add(new THREE.BoxGeometry(2.1, 0.06, 0.4), PALETTE.snow, rx, 0.96, bz);
-
-  // crossbucks (white X on a post) facing the sleds that come up to the crossing
-  for (const [i, p] of LC.posts.entries()) {
-    const f = i === 0 ? 1 : -1; // the board faces the approach: east post looks +X, west post −X
-    body.add(new THREE.BoxGeometry(0.11, 1.7, 0.11), PALETTE.fenceDark, p.x, 0.85, p.z);
-    for (const a of [-1, 1]) body.add(new THREE.BoxGeometry(0.06, 1.3, 0.22), 0xf7fbff, p.x + f * 0.08, 1.7, p.z, { rx: (a * Math.PI) / 4 });
-    body.add(new THREE.BoxGeometry(0.08, 0.26, 0.26), 0xd0453a, p.x + f * 0.11, 1.7, p.z);
-  }
 
   // snow-capped signboard at the south end
   body.add(new THREE.BoxGeometry(0.09, 1.0, 0.09), PALETTE.fenceDark, P.minX + 0.2, 0.5, P.maxZ - 0.1);

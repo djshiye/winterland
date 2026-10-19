@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LAYOUT } from '../src/config';
 import { ROADS, type ERect } from '../src/eras/data';
-import { LEVEL_CROSSING } from '../src/assets/ridgeScenery';
-import { SLED_HALF_WIDTH } from '../src/assets/sled';
 import { centreDashes, crosswalkRect, crosswalks } from '../src/world/env/roadMarks';
 import { isStreet } from '../src/world/env/roadJoins';
 
@@ -41,18 +38,6 @@ describe('road markings', () => {
       expect(inside(r, q)).toBe(true);
       for (const o of ROADS) if (o.id !== d.road) expect(hits(q, o.rect)).toBe(false);
       for (const c of cws) if (c.road === d.road) expect(hits(q, crosswalkRect(c))).toBe(false);
-    }
-  });
-
-  it('crossbucks stand off the sled rows, the rail corridor and the ridge stations', () => {
-    const R = LAYOUT.ridge;
-    const half = SLED_HALF_WIDTH + 0.3;
-    const stations: ERect[] = [R.sledCounter.playerZone, R.sledCash.zone, R.platformCash.zone, R.workshop.hopper.zone, R.workshop.bench.zone];
-    for (const p of LEVEL_CROSSING.posts) {
-      const post: ERect = { minX: p.x - 0.1, maxX: p.x + 0.1, minZ: p.z - 0.1, maxZ: p.z + 0.1 };
-      for (const z of LEVEL_CROSSING.rows) expect(hits(post, { minX: -1e3, maxX: 1e3, minZ: z - half, maxZ: z + half })).toBe(false);
-      expect(hits(post, { minX: R.rail.x - 2.4, maxX: R.rail.x + 2.4, minZ: -70, maxZ: 70 })).toBe(false);
-      for (const s of stations) expect(hits(post, s)).toBe(false);
     }
   });
 });
