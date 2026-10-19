@@ -72,14 +72,15 @@ export function maxFootprint(n: number): { w: number; d: number } {
 }
 
 /**
- * 0.9.11 (review T1): Glass Heights (district 8) stands only a street away from era 2's frontier huts, so its two
- * western lot columns build lower (drawn metres): the towers step up away from the log cabins instead of looming
+ * 0.9.11 (review T1): Glass Heights (district 8) stands only a street away from era 2's frontier huts, so its western
+ * lot columns build lower (drawn metres): the towers step up away from the log cabins instead of looming
  * over them. Infinity = no cap. Pure; visual only (the building data and its price are unchanged).
  */
 export function lotHeightCap(n: number, index: number): number {
   if (n !== 8) return Infinity;
   const col = index % districtGrid(districtDef(n).lots).cols;
-  return col === 0 ? 7.5 : col === 1 ? 11 : Infinity;
+  // 0.9.12: six columns on the bigger plot, so the step runs over more of them
+  return [7.5, 11, 15, 20, 26][col] ?? Infinity;
 }
 
 /** The walkable inner area of district n (inside the sidewalk ring). */

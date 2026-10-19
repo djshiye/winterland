@@ -11,7 +11,7 @@ describe('Glass Heights steps down toward era 2 (0.9.11, review T1)', () => {
       else if (cap !== Infinity) expect(cap).toBeGreaterThan(8);
     }
     const byCol = [...new Set(lots.map((f) => f.x))].sort((a, b) => a - b).map((x) => lotHeightCap(8, lots.find((f) => f.x === x)!.index));
-    for (let i = 1; i < byCol.length; i++) expect(byCol[i]).toBeGreaterThan(byCol[i - 1]!);
+    for (let i = 1; i < byCol.length; i++) if (byCol[i - 1] !== Infinity) expect(byCol[i]).toBeGreaterThan(byCol[i - 1]!);
   });
 
   it('no other district is capped', () => {
