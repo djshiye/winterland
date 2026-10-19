@@ -73,10 +73,13 @@ export const ERA5_7_ICONS: Record<string, string> = {
        <circle cx="16.5" cy="17" r="4.5" fill="#a8503a"/><circle cx="25.5" cy="16.5" r="4.5" fill="#8a4232"/><circle cx="34" cy="17.5" r="4.5" fill="#c46a48"/>
        <circle cx="15" cy="34" r="1.3" fill="#d9e0e6" stroke-width="0"/><circle cx="24" cy="34" r="1.3" fill="#d9e0e6" stroke-width="0"/><circle cx="33" cy="34" r="1.3" fill="#d9e0e6" stroke-width="0"/>`),
   ),
+  // 0.9.11: a stack of porous grey coke briquettes (was a rock, too close to iron ore and copper at tag size)
   coke: svg(
-    g(`<path d="M6 34l3-12 9-8 10 2 9-3 6 10-2 13H9z" fill="#8e8a86"/>
-       <path d="M18 14l10 2-4 9-9-1z" fill="#b2aea8"/><path d="M37 13l6 10-7 2-3-8z" fill="#73706c"/>
-       <circle cx="14" cy="30" r="2.4" fill="#ffa040" stroke-width="1.6"/><circle cx="27" cy="32" r="2" fill="#4a4846" stroke-width="1.4"/>
-       <circle cx="34" cy="28" r="2.4" fill="#ffa040" stroke-width="1.6"/><circle cx="22" cy="24" r="1.8" fill="#4a4846" stroke-width="1.4"/>`),
+    g(`<rect x="5" y="28" width="18" height="13" rx="4" fill="#8e8a86"/><rect x="25" y="28" width="18" height="13" rx="4" fill="#7e7a76"/>
+       <rect x="15" y="13" width="18" height="13" rx="4" fill="#a19d98"/>
+       <circle cx="11" cy="33" r="1.8" fill="#4a4846" stroke-width="0"/><circle cx="17" cy="36" r="1.5" fill="#4a4846" stroke-width="0"/>
+       <circle cx="31" cy="33" r="1.8" fill="#4a4846" stroke-width="0"/><circle cx="37" cy="36" r="1.5" fill="#4a4846" stroke-width="0"/>
+       <circle cx="21" cy="18" r="1.8" fill="#4a4846" stroke-width="0"/><circle cx="27" cy="21" r="1.5" fill="#4a4846" stroke-width="0"/>
+       <circle cx="36" cy="16" r="2.4" fill="#ffa040" stroke-width="1.4"/>`),
   ),
 };
