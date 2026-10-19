@@ -367,7 +367,7 @@ describe('investments', () => {
     expect(t.market.invest('index', INVEST.index.min)).toBe(false);
   });
 
-  // 0.9.12: 0.9.6 allowed about +50% of sales (+58% with the Broker); the era pacing curve leaves investing out, so an
+  // 0.9.11: 0.9.6 allowed about +50% of sales (+58% with the Broker); the era pacing curve leaves investing out, so an
   // investor cleared eras a third faster. Every strategy below (hold to the top, sell on a wobble peak, churn on any
   // gain), checked every price tick, now adds about +10% to +14% of what the factories earn.
   it('no investing strategy adds more than ~15% to what the factories earn (a side bonus, not a second factory)', () => {

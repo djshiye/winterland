@@ -617,7 +617,7 @@ export interface InvestProductDef {
 }
 
 export const INVEST: Record<InvestProductId, InvestProductDef> = {
-  // 0.9.12: investing is a side bonus, not a second factory. 0.9.6's rates (bonds +12% per 10 min, the fund ×2.2 and
+  // 0.9.11: investing is a side bonus, not a second factory. 0.9.6's rates (bonds +12% per 10 min, the fund ×2.2 and
   // ventures ×3 an hour) on 10 / 10 / 5 minutes of sales added about +50% to sales income (+58% with the Broker), and the
   // era pacing curve (tests/livePacing.test.ts) leaves investing out, so an investor cleared eras a third faster. Now the
   // best play adds about +10% (at most ~+15% with a maxed Broker, checking every price tick): tests/market.test.ts.
