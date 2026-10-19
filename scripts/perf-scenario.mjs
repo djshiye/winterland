@@ -19,7 +19,7 @@
  * --tris: the 30 biggest triangle owners per view (scene + shadow pass). --views a,b: only those views.
  * --look dir: after measuring, a day and a night screenshot of every era (the yard for era 1, beside each region's
  * market for eras 2..10, HUD hidden) plus the village, town and the era-10 district, as dir/<view>-day.png and dir/<view>-night.png
- * (the before / after proof of a visual change).
+ * (the before / after proof of a visual change). 0.9.12: also dir/eraNN-yard-day/night.png, each region's machine yard.
  * 0.9.10: also prints the first frame drawn in each era region against the next one (the walk-in stutter, G1), and the
  * slowest of the warm-up frames that get each opened region ready ahead of time (render/Renderer.ts warm()).
  * WL_CHROMIUM=/path/to/chrome uses an installed Chromium (scripts/shot.mjs).
@@ -81,6 +81,10 @@ const ERA_KEYS = ['frontier', 'iron', 'steam', 'industrial', 'electric', 'oil', 
 // Region views for --look: next to the region's market zone, at a close play zoom (the player stands on a walkable spot).
 const regionView = (n) =>
   `(() => { const W = ${W}; const L = W.game.level.eras.region(${n}).layout; const M = L.zones.market; W.teleport(M.minX - 1.2, M.maxZ); W.cameraZoom(0.6); })()`;
+// 0.9.12: the machine yard of a region (on the workers' aisle in front of its middle front-row machine, a wider zoom):
+// the belts, pipes and chutes between its machines (assets/yardLinks.ts)
+const yardView = (n) =>
+  `(() => { const W = ${W}; const L = W.game.level.eras.region(${n}).layout; const s0 = L.slots[0]; const row = L.slots.filter((s) => Math.abs(s.z - s0.z) < 0.01); const s = row[Math.floor(row.length / 2)]; W.teleport(s.x - L.cell / 2, s.z - L.inward * (L.rowPitch / 2)); W.cameraZoom(0.9); })()`;
 const lookSteps = look
   ? [
       // the HUD hides so the shots show only the world; each view settles its era look at once (the look fade runs on
@@ -91,6 +95,7 @@ const lookSteps = look
         ['village', `(${W}.travel('village'), ${W}.cameraZoom(0.6))`],
         ['town', `(${W}.travel('town'), ${W}.cameraZoom(0.6))`],
         ...Array.from({ length: Math.max(0, eras - 1) }, (_, i) => [`era${String(i + 2).padStart(2, '0')}`, regionView(i + 2)]),
+        ...Array.from({ length: Math.max(0, eras - 1) }, (_, i) => [`era${String(i + 2).padStart(2, '0')}-yard`, yardView(i + 2)]),
         ['district10', `(${W}.travel('district:10'), ${W}.cameraZoom(0.5))`],
       ].flatMap(([id, go]) =>
         [['day', 0.25], ['night', 0.75]].flatMap(([when, t]) => [

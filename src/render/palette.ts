@@ -503,3 +503,117 @@ const SKIES: readonly EraSky[] = [
 export function eraSky(era: number): EraSky {
   return SKIES[eraIndex(era)]!;
 }
+
+// ---------------------------------------------------------------------------
+// machine yard links (0.9.12: assets/yardLinks.ts, the era belts of assets/machines.ts)
+// ---------------------------------------------------------------------------
+
+/** One roller belt's colours (assets/machines.ts createRollerConveyor; era 1 keeps its own red-and-cream look). */
+export interface BeltLook {
+  /** The belt plate the items ride on, the side rails, the legs, their feet and the cross braces. */
+  plank: number;
+  rail: number;
+  leg: number;
+  foot: number;
+  cross: number;
+  roller: number;
+  /** Drive motor housing, its lid and its little lamp. */
+  motor: number;
+  motorD: number;
+  lamp: number;
+}
+
+/**
+ * How the overhead links between neighbouring machines are built (assets/yardLinks.ts):
+ * flume = an open timber chute with blocks sliding down it; ropeway = cables with hanging ore buckets; tube = a glass
+ * tube with banded collars and capsules / orbs / gems inside; gallery = a covered steel conveyor bridge with pellets
+ * riding through it; cable = power lines on insulators with bright beads running along; pipe = a fat banded pipeline
+ * with glowing flow rings; tray = a cable tray with glowing data packets.
+ */
+export type LinkKind = 'flume' | 'ropeway' | 'tube' | 'gallery' | 'cable' | 'pipe' | 'tray';
+/** What rides a link: shapes of assets/yardLinks.ts carrierGeometry. */
+export type CarrierShape = 'block' | 'bucket' | 'capsule' | 'pellets' | 'bead' | 'ring' | 'packet' | 'orb' | 'gem';
+
+export interface YardLinkLook {
+  kind: LinkKind;
+  carrierShape: CarrierShape;
+  /** Span body (trough, tube collar, truss, pipe), its bands / flanges, the risers and their foot plates. */
+  main: number;
+  band: number;
+  post: number;
+  foot: number;
+  /** Cables, ropes and wires. */
+  wire: number;
+  /** What rides the link, its second shade, and whether it glows (night-registered glow material). */
+  carrier: number;
+  carrierB: number;
+  glow: boolean;
+  /** The always-on lamp on every riser head (camera-facing) and, for tubes, the glass tint. */
+  lamp: number;
+  glass: number;
+  belt: BeltLook;
+}
+
+const S2Y = MACHINE_SHADES[2];
+const S3Y = MACHINE_SHADES[3];
+const S4Y = MACHINE_SHADES[4];
+const S5Y = MACHINE_SHADES[5];
+const T6Y = MACHINE_TONES[6];
+const T7Y = MACHINE_TONES[7];
+const T8Y = MACHINE_TONES[8];
+const T9Y = MACHINE_TONES[9];
+const T10Y = MACHINE_TONES[10];
+
+/**
+ * 0.9.12 (Dino: "the era machine areas don't look as cool as the starting area"): every era's belts and machine links
+ * in its own materials, built around its resource like the machines (MACHINE_SHADES / MACHINE_TONES): era 2 a timber
+ * stone chute, 3 an ore ropeway, 4 brass pneumatic tubes, 5 a covered pellet gallery, 6 copper power lines, 7 a banded
+ * oil pipeline, 8 data cable trays, 9 glowing coolant tubes, 10 golden light conduits. Index = era (2..10).
+ */
+export const YARD_LINKS: Readonly<Record<number, YardLinkLook>> = {
+  2: {
+    kind: 'flume', carrierShape: 'block', main: S2Y.timber, band: S2Y.rope, post: S2Y.timberD, foot: S2Y.stoneD, wire: S2Y.rope,
+    carrier: S2Y.stoneL, carrierB: S2Y.clayL, glow: false, lamp: palette(2).glow, glass: SNOW,
+    belt: { plank: S2Y.plank, rail: S2Y.clayL, leg: S2Y.timberD, foot: S2Y.stoneD, cross: S2Y.timber, roller: S2Y.stoneL, motor: S2Y.clay, motorD: S2Y.clayD, lamp: palette(2).glow },
+  },
+  3: {
+    kind: 'ropeway', carrierShape: 'bucket', main: S3Y.iron, band: S3Y.brass, post: S3Y.timber, foot: S3Y.stone, wire: S3Y.ironD,
+    carrier: S3Y.rust, carrierB: S3Y.oreL, glow: false, lamp: palette(3).glow, glass: SNOW,
+    belt: { plank: S3Y.stone, rail: S3Y.oreL, leg: S3Y.ironD, foot: S3Y.stone, cross: S3Y.rust, roller: S3Y.ironL, motor: S3Y.rust, motorD: S3Y.rustD, lamp: palette(3).glow },
+  },
+  4: {
+    kind: 'tube', carrierShape: 'capsule', main: S4Y.brass, band: S4Y.brassL, post: S4Y.iron, foot: S4Y.brickD, wire: S4Y.ironD,
+    carrier: S4Y.brassL, carrierB: S4Y.brick, glow: false, lamp: palette(4).glow, glass: mixHex(S4Y.cream, 0xbfe8ff, 0.5),
+    belt: { plank: S4Y.cream, rail: S4Y.brass, leg: S4Y.ironD, foot: S4Y.brickD, cross: S4Y.brick, roller: S4Y.ironL, motor: S4Y.brick, motorD: S4Y.brickD, lamp: palette(4).glow },
+  },
+  5: {
+    kind: 'gallery', carrierShape: 'pellets', main: S5Y.orange, band: S5Y.steelL, post: S5Y.steel, foot: S5Y.concreteD, wire: S5Y.steelD,
+    carrier: S5Y.pelletL, carrierB: S5Y.pellet, glow: false, lamp: palette(5).glow, glass: SNOW,
+    belt: { plank: S5Y.concrete, rail: S5Y.orange, leg: S5Y.steelD, foot: S5Y.concreteD, cross: S5Y.steel, roller: S5Y.steelL, motor: S5Y.orange, motorD: S5Y.orangeD, lamp: palette(5).glow },
+  },
+  6: {
+    kind: 'cable', carrierShape: 'bead', main: T6Y.body, band: T6Y.cream, post: T6Y.trim, foot: T6Y.gravel, wire: T6Y.accent,
+    carrier: T6Y.glow, carrierB: T6Y.cream, glow: true, lamp: T6Y.honey, glass: SNOW,
+    belt: { plank: T6Y.cream, rail: T6Y.bodyL, leg: T6Y.trim, foot: T6Y.gravel, cross: T6Y.accent, roller: T6Y.creamD, motor: T6Y.crimson, motorD: T6Y.trim, lamp: T6Y.glow },
+  },
+  7: {
+    kind: 'pipe', carrierShape: 'ring', main: T7Y.body, band: T7Y.accent, post: T7Y.steel, foot: T7Y.concrete, wire: T7Y.trim,
+    carrier: T7Y.glow, carrierB: T7Y.bodyL, glow: true, lamp: T7Y.glow, glass: SNOW,
+    belt: { plank: T7Y.concrete, rail: T7Y.bodyL, leg: T7Y.asphalt, foot: T7Y.concrete, cross: T7Y.accent, roller: T7Y.steel, motor: T7Y.accent, motorD: T7Y.trim, lamp: T7Y.glow },
+  },
+  8: {
+    kind: 'tray', carrierShape: 'packet', main: mixHex(T8Y.body, T8Y.trim, 0.15), band: T8Y.accent, post: T8Y.trim, foot: mixHex(T8Y.trim, T8Y.body, 0.4), wire: T8Y.accent,
+    carrier: T8Y.glow, carrierB: T8Y.accent, glow: true, lamp: T8Y.glow, glass: SNOW,
+    belt: { plank: T8Y.body, rail: T8Y.accent, leg: T8Y.trim, foot: mixHex(T8Y.trim, T8Y.body, 0.4), cross: T8Y.accent, roller: mixHex(T8Y.body, T8Y.trim, 0.35), motor: T8Y.accent, motorD: T8Y.trim, lamp: T8Y.glow },
+  },
+  9: {
+    kind: 'tube', carrierShape: 'orb', main: T9Y.body, band: T9Y.accent, post: T9Y.trim, foot: mixHex(T9Y.trim, T9Y.body, 0.4), wire: T9Y.trim,
+    carrier: T9Y.glow, carrierB: T9Y.accent, glow: true, lamp: T9Y.glow, glass: mixHex(T9Y.glow, SNOW, 0.55),
+    belt: { plank: T9Y.body, rail: T9Y.accent, leg: T9Y.trim, foot: mixHex(T9Y.trim, T9Y.body, 0.4), cross: T9Y.accent, roller: mixHex(T9Y.body, T9Y.trim, 0.35), motor: T9Y.accent, motorD: T9Y.trim, lamp: T9Y.glow },
+  },
+  10: {
+    kind: 'tube', carrierShape: 'gem', main: T10Y.body, band: T10Y.accent, post: T10Y.trim, foot: mixHex(T10Y.trim, T10Y.body, 0.4), wire: T10Y.trim,
+    carrier: T10Y.glow, carrierB: T10Y.accent, glow: true, lamp: T10Y.glow, glass: mixHex(T10Y.glow, SNOW, 0.6),
+    belt: { plank: T10Y.body, rail: T10Y.accent, leg: T10Y.trim, foot: mixHex(T10Y.trim, T10Y.body, 0.4), cross: T10Y.accent, roller: mixHex(T10Y.body, T10Y.trim, 0.3), motor: T10Y.accent, motorD: T10Y.trim, lamp: T10Y.glow },
+  },
+};

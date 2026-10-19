@@ -15,6 +15,7 @@ import type { EraUpgradeId } from '../core/types';
 import { Conveyor } from '../stations/Conveyor';
 import { beltKey, planBelts, type BeltLink } from './belts';
 import { ERAS } from './data';
+import { YARD_LINKS } from '../render/palette';
 import type { Region } from './Region';
 
 /** Belt speed (m/s) at Belts value 1 (Survival's conveyors run 2.6). */
@@ -74,6 +75,8 @@ export class EraBelts {
         to: to.input,
         kind: link.kind as ItemKind,
         itemYaw: 0,
+        // 0.9.12: the era's own belt colours
+        look: YARD_LINKS[this.region.era]?.belt,
         // 0.9.11: what the era builders still need of this kind stays on the pile for them
         keep: () => this.region.crew.hold(link.kind as ItemKind),
       });
