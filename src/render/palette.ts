@@ -130,22 +130,25 @@ const LOOKS: readonly EraLook[] = [
   { day: day({ hemi: 0.8 }), night: night({}), grade: { day: grade(0xfffcfa, 0x0d0812, 1.06, 1.03, 0.2), night: grade(0xfff8ee, 0x110b18, 1.08, 1.02, 0.3) } },
   // 0.9.11 moods (audit-1.0/cozy, Dino 2026-10-19: every area its own feel). The grades no longer sit near neutral:
   // each era's light and grade carry its mood, while the art keeps the colour. Cozy, never grim.
+  // Nights (0.9.11 review V3): each era also gets its own moonlight and sky fill, so the night keeps its mood
+  // instead of one shared blue-purple: warm kiln violet (2), slate (3), misty grey (4), sodium rose (5), electric cyan
+  // (6), icy white (7), sea blue (8), mint (9), lavender (10).
   // 2 Frontier: harvest-gold afternoon over fieldstone and clay, kiln mouths at night
-  { day: day({ sun: 1.16, hemi: 0.66, hemiSky: 0xe6dcf0, hemiGround: 0x9c7c6a }), night: night({ hemiGround: 0x6c4c44 }), grade: { day: grade(0xfff0da, 0x1c0f08, 1.12, 1.05, 0.28), night: grade(0xfff0e0, 0x160c10, 1.1, 1.02, 0.32) } },
+  { day: day({ sun: 1.16, hemi: 0.66, hemiSky: 0xe6dcf0, hemiGround: 0x9c7c6a }), night: night({ hemiGround: 0x7a5040, hemiSky: 0x7a74b8, sky: 0x2a2040, moon: 0xd4c8e4 }), grade: { day: grade(0xfff0da, 0x1c0f08, 1.12, 1.05, 0.28), night: grade(0xffeed8, 0x1a0e0c, 1.1, 1.02, 0.32) } },
   // 3 Iron Age: forge hills at dusk: cool slate shadows, forge orange glows
-  { day: day({ sun: 1.12, hemi: 0.6, hemiSky: 0xb8c4e8, hemiGround: 0x7a6a78 }), night: night({ hemiGround: 0x744838, sky: 0x221c40 }), grade: { day: grade(0xeceef8, 0x141228, 1.02, 1.09, 0.34), night: grade(0xffece0, 0x180c14, 1.12, 1.05, 0.36) } },
+  { day: day({ sun: 1.12, hemi: 0.6, hemiSky: 0xb8c4e8, hemiGround: 0x7a6a78 }), night: night({ hemiGround: 0x744838, hemiSky: 0x6a70b8, sky: 0x221c40, moon: 0xb8bce4 }), grade: { day: grade(0xeceef8, 0x141228, 1.02, 1.09, 0.34), night: grade(0xffece0, 0x180c14, 1.12, 1.05, 0.36) } },
   // 4 Steam Age: misty railway morning: pale cream, soft low contrast, lifted milky shadows
-  { day: day({ sun: 1.05, hemi: 0.84, hemiSky: 0xe8ecf4, hemiGround: 0xa49a9a }), night: night({ hemiGround: 0x645048, hemiSky: 0x7480bc }), grade: { day: grade(0xfcf8f0, 0x2c2a30, 0.94, 0.9, 0.18), night: grade(0xf8f2ec, 0x1e1a24, 0.98, 0.94, 0.3) } },
+  { day: day({ sun: 1.05, hemi: 0.84, hemiSky: 0xe8ecf4, hemiGround: 0xa49a9a }), night: night({ hemiGround: 0x645048, hemiSky: 0x8088b4, sky: 0x262a40, moon: 0xc4c8dc }), grade: { day: grade(0xfcf8f0, 0x2c2a30, 0.94, 0.9, 0.18), night: grade(0xf8f2ec, 0x1e1a24, 0.98, 0.94, 0.3) } },
   // 5 Industrial: ember night-shift: copper haze even by day, sodium lamps at night
-  { day: day({ sun: 1.18, hemi: 0.58, hemiSky: 0xe8cfc0, hemiGround: 0x9a6c5c }), night: night({ hemiGround: 0x74503a, sky: 0x2a1c30 }), grade: { day: grade(0xfff4e6, 0x140a06, 1.06, 1.06, 0.32), night: grade(0xffe8cc, 0x1c0c0c, 1.12, 1.05, 0.38) } },
+  { day: day({ sun: 1.18, hemi: 0.58, hemiSky: 0xe8cfc0, hemiGround: 0x9a6c5c }), night: night({ hemiGround: 0x7c5434, hemiSky: 0x8070a8, sky: 0x2c1c28, moon: 0xd8bcc4 }), grade: { day: grade(0xfff4e6, 0x140a06, 1.06, 1.06, 0.32), night: grade(0xffe2bc, 0x200e0a, 1.12, 1.05, 0.38) } },
   // 6 Electric Age: twinkle-lit blue hour: cool blue light so the warm bulbs and copper pop
-  { day: day({ sun: 1.12, hemi: 0.66, hemiSky: 0xbcccf4, hemiGround: 0x7a8aa0 }), night: night({ hemiGround: 0x5a5050, hemiSky: 0x5a78cc, sky: 0x162248 }), grade: { day: grade(0xeef6ff, 0x081830, 1.16, 1.06, 0.3), night: grade(0xf4f4ff, 0x0c1020, 1.1, 1.04, 0.34) } },
+  { day: day({ sun: 1.12, hemi: 0.66, hemiSky: 0xbcccf4, hemiGround: 0x7a8aa0 }), night: night({ hemiGround: 0x5a5050, hemiSky: 0x4c8cd0, sky: 0x10264a, moon: 0x9cd0f0 }), grade: { day: grade(0xeef6ff, 0x081830, 1.16, 1.06, 0.3), night: grade(0xecfaff, 0x081422, 1.1, 1.04, 0.34) } },
   // 7 Oil: polar tundra: cold blue-white air, low pale sun, flare stacks the warmest thing on screen
-  { day: day({ sun: 1.14, hemi: 0.7, hemiSky: 0xd0e0fa, hemiGround: 0x8090a8 }), night: night({ hemiGround: 0x5e4c44, hemiSky: 0x6888cc, sky: 0x141e40 }), grade: { day: grade(0xeef4ff, 0x101a28, 0.96, 1.04, 0.26), night: grade(0xf0f4ff, 0x0c1220, 1.0, 1.03, 0.32) } },
+  { day: day({ sun: 1.14, hemi: 0.7, hemiSky: 0xd0e0fa, hemiGround: 0x8090a8 }), night: night({ hemiGround: 0x5e4c44, hemiSky: 0x7098d4, sky: 0x141e40, moon: 0xc8dcf8 }), grade: { day: grade(0xeef4ff, 0x101a28, 0.96, 1.04, 0.26), night: grade(0xf0f4ff, 0x0c1220, 1.0, 1.03, 0.32) } },
   // 8 Computer: crisp seaside: high-key, clean, bright, a warm sand bounce
-  { day: day({ sun: 1.2, hemi: 0.68, hemiSky: 0xd8e8fc, hemiGround: 0x9c8a86 }), night: night({ hemiGround: 0x56524e, hemiSky: 0x6678c2 }), grade: { day: grade(0xfffffa, 0x0a1014, 1.14, 1.07, 0.12), night: grade(0xf6fafa, 0x0c0f16, 1.08, 1.02, 0.26) } },
+  { day: day({ sun: 1.2, hemi: 0.68, hemiSky: 0xd8e8fc, hemiGround: 0x9c8a86 }), night: night({ hemiGround: 0x56524e, hemiSky: 0x5c8cc8, sky: 0x142a48, moon: 0xb4d4f0 }), grade: { day: grade(0xfffffa, 0x0a1014, 1.14, 1.07, 0.12), night: grade(0xf6fafa, 0x0c0f16, 1.08, 1.02, 0.26) } },
   // 9 Nuclear: minty glow valley: a soft green cast, glowing nights
-  { day: day({ sun: 1.16, hemi: 0.66, hemiSky: 0xc8ecdc, hemiGround: 0x7a9490 }), night: night({ hemiGround: 0x4e5a4c, hemiSky: 0x5c8cc4, sky: 0x122a40 }), grade: { day: grade(0xf5fff9, 0x0a1a16, 1.1, 1.04, 0.3), night: grade(0xeefff8, 0x081814, 1.1, 1.02, 0.34) } },
+  { day: day({ sun: 1.16, hemi: 0.66, hemiSky: 0xc8ecdc, hemiGround: 0x7a9490 }), night: night({ hemiGround: 0x4e5a4c, hemiSky: 0x58a0bc, sky: 0x10303c, moon: 0xb0e8d8 }), grade: { day: grade(0xf5fff9, 0x0a1a16, 1.1, 1.04, 0.3), night: grade(0xeefff8, 0x081814, 1.1, 1.02, 0.34) } },
   // 10 AI: dream aurora plateau: lavender twilight even by day, sun-gold fusion
   { day: day({ sun: 1.16, hemi: 0.68, hemiSky: 0xd8c8f4, hemiGround: 0x9a86a8 }), night: night({ hemiGround: 0x6e5844, hemiSky: 0x6c74c0, sky: 0x221e44 }), grade: { day: grade(0xf6ecff, 0x1a1030, 1.12, 1.03, 0.3), night: grade(0xfff8ee, 0x120d20, 1.1, 1.03, 0.28) } },
 ];
