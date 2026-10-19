@@ -11,7 +11,7 @@
  * Starts a Vite dev server, opens the game in headless Chromium (software WebGL), pauses the real-time loop and, in a
  * fresh browser context per scenario, every 0.25 simulated seconds reads window.__WINTERLAND__.guide(), walks toward
  * its `steer` point (autopilot) and simulates 0.25 s. Findings: unreachable, stuck (walk length did not drop 1 m in 8 s),
- * flipflop (A -> B -> A within 3 s), churn (over 24 objective changes in 60 s), flash (a goal up for under 1.5 s, not within 3 s of a map jump), blind (target but no steer for over 2 s),
+ * flipflop (A -> B -> A within 3 s), churn (over 24 objective changes in 60 s), flash (a goal up for under 1.5 s that the player did not reach, not within 3 s of a map jump), blind (target but no steer for over 2 s),
  * replan (route planned over ~20 times a minute for one objective), stall (the same objective for 60 s while the player
  * already stands at its target: the guide gives a step nothing completes). On a "Build a quarry in ..." BUILD tile the
  * bot picks that machine (Region.choose, what the choose card does). Recorded but not failures: offpath (how often the
@@ -174,6 +174,7 @@ async function follow(page, run, sim, label) {
   const recent = []; // {t, obj, key} target switches
   const changeTimes = [];
   let planStart = null;
+  let lastRem = null; // metres left on the last step: a goal that ends at its target was done, not a flash
   while (run.t < end - 1e-9) {
     const w0 = Date.now();
     const s = await page.evaluate((k) => window.__gwStep(k), TICK);
@@ -183,6 +184,8 @@ async function follow(page, run, sim, label) {
     const t = run.t;
     run.t += TICK;
     if (g.edgeAngle !== null) run.edge++;
+    const remBefore = lastRem;
+    lastRem = g.target ? g.remaining : 0;
     run.trace.length < 4000 && run.trace.push([r1(t), r1(pos.x), r1(pos.z), g.objective, g.target ? r1(g.target.x) : null, g.target ? r1(g.target.z) : null, r1(g.remaining)]);
 
     // objective changes
@@ -203,7 +206,7 @@ async function follow(page, run, sim, label) {
       if (changeTimes.length > 24) find(run, 'churn', `${changeTimes.length} objective changes in 60 s (latest "${g.objective}")`, {});
       // flash: a goal (text) that was up for under 1.5 s
       const prev = run.changes[run.changes.length - 2];
-      if (prev && prev.text && t - prev.t < 1.5 && !(run.jumpAt != null && t - run.jumpAt < 3)) find(run, 'flash', `"${prev.text}" showed for only ${r1(t - prev.t)} s`, { player: pos });
+      if (prev && prev.text && t - prev.t < 1.5 && !(run.jumpAt != null && t - run.jumpAt < 3) && !(remBefore != null && remBefore < 2)) find(run, 'flash', `"${prev.text}" showed for only ${r1(t - prev.t)} s`, { player: pos });
       curObj = g.objective;
       run.stallSince = null;
       stuckRef = null;

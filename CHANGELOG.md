@@ -36,6 +36,16 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Conveyor belts in every era are painted in that era's own colours** instead of the starting area's red and cream.
 - **The lone ninth machine in eras 8 and 9 is linked up too,** and era 10's golden light conduits look solid instead of see-through.
 
+### A guide you can follow
+
+- **The arrow points the way you can walk.** It follows the path round fences, rivers and buildings instead of pointing through them, and a short trail of gold dots on the ground shows the way when it bends or the goal is off-screen. It finds the way again after fast travel, the map or a reload.
+- **Steadier goals.** A new goal stays up long enough to read, the guide no longer flips back and forth between two goals, and it never pulls you off a pad while you're paying into it.
+- **It tells you where things come from.** "Pick up 40 crates for Iron Ridge" leads you to the right machine or dock first, and new machine sites say what to bring and where to get it.
+- **Expanding comes first.** Once you've met the next era's goal, the guide sends you there before anything else, and the crate crew holds crates back for it.
+- **Town builds say what they need.** The Cocoa Café and the other town builds ask you to bring their logs, and send you to chop more when your arms are empty.
+- **You wake up where you left off.** Reloading puts you back where you were standing (just beside a pad or pile if you were on one), not back at the cabin.
+- **The objective banner and the arrow no longer overlap,** and the on-screen move pad stays hidden on desktop.
+
 ## 0.9.11 (2026-10-19)
 
 Every era its own place, clearer pads and icons, a guidebook, a cooler-running game and a few cozy touches.

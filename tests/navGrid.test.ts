@@ -452,3 +452,50 @@ describe('performance', () => {
     expect(NAV_CELL).toBe(0.5);
   });
 });
+
+describe('NavGrid steps round pads and piles (avoid)', () => {
+  it('a pulled-tight leg never cuts across a pile the walk stepped round', () => {
+    // a row of piles across the straight line (like a machine's output, feed and pay spots), open ground round it
+    const pile = { minX: 15, maxX: 25, minZ: 18, maxZ: 22 };
+    const g = new NavGrid({ ...yard().navSource(), avoid: [pile] }, R);
+    const walk = g.findPath({ x: 5, z: 20 }, { x: 35, z: 20 }, null)!;
+    expect(walk).not.toBeNull();
+    const pts = walk.points;
+    for (let s = 1; s < pts.length; s++) {
+      const a = pts[s - 1]!;
+      const b = pts[s]!;
+      for (let t = 0; t <= 1; t += 0.02) {
+        const x = a.x + (b.x - a.x) * t;
+        const z = a.z + (b.z - a.z) * t;
+        expect(g.isAvoid(x, z), `leg ${s} crosses the pile at ${x.toFixed(2)}, ${z.toFixed(2)}`).toBe(false);
+      }
+    }
+  });
+
+  it('still walks onto a pile that is the goal', () => {
+    const pile = { minX: 15, maxX: 25, minZ: 18, maxZ: 22 };
+    const g = new NavGrid({ ...yard().navSource(), avoid: [pile] }, R);
+    const walk = g.findPath({ x: 5, z: 20 }, { x: 20, z: 20 }, pile)!;
+    const end = walk.points[walk.points.length - 1]!;
+    expect(end.x >= pile.minX && end.x <= pile.maxX && end.z >= pile.minZ && end.z <= pile.maxZ).toBe(true);
+  });
+});
+
+describe('NavGrid avoid: starting on a pile', () => {
+  it('a walk that starts on one pile still steps round the next one', () => {
+    const start = { minX: 3, maxX: 7, minZ: 18, maxZ: 22 };
+    const pile = { minX: 15, maxX: 25, minZ: 18, maxZ: 22 };
+    const g = new NavGrid({ ...yard().navSource(), avoid: [start, pile] }, R);
+    const walk = g.findPath({ x: 5, z: 20 }, { x: 35, z: 20 }, null)!;
+    const pts = walk.points;
+    for (let s = 1; s < pts.length; s++) {
+      const a = pts[s - 1]!;
+      const b = pts[s]!;
+      for (let t = 0; t <= 1; t += 0.02) {
+        const x = a.x + (b.x - a.x) * t;
+        const z = a.z + (b.z - a.z) * t;
+        if (x > 10) expect(g.isAvoid(x, z), `leg ${s} crosses the pile at ${x.toFixed(2)}, ${z.toFixed(2)}`).toBe(false);
+      }
+    }
+  });
+});

@@ -942,7 +942,9 @@ export class Progression {
     const s = this.ctx.state;
     if (s.eras.age < 2) return false;
     const arms = this.ctx.player.arms;
-    const kind = MATERIAL_KINDS.find((k) => arms.count(k) > 0);
+    // 0.9.12: every kind in hand counts (stone for a new site and bricks picked up on the way: the stone goes first)
+    const kinds = MATERIAL_KINDS.filter((k) => arms.count(k) > 0);
+    const kind = kinds[0];
     if (!kind) return false;
     const home = this.nearRegion();
     // 0.9.6: inside a region only that region's machines count (leftover bricks no longer point back to Granite
@@ -950,14 +952,14 @@ export class Progression {
     const order = this.regionHere() ? [home] : [home, ...Array.from({ length: s.eras.age - 1 }, (_, i) => i + 2).filter((n) => n !== home)];
     // 0.9.12 (G10): a machine being built that needs it comes before feeding or shipping it
     for (const n of order) {
-      const site = this.level.eras.region(n)?.chosenSites?.().find((x) => x.pad.extraKind === kind && x.pad.extraLeft > 0);
+      const site = this.level.eras.region(n)?.chosenSites?.().find((x) => kinds.some((k) => k === x.pad.extraKind) && x.pad.extraLeft > 0);
       if (site && this.siteGoal(n, site.slot)) return true;
     }
     for (const n of order) {
       const region = this.level.eras.region(n);
       if (!region) continue;
       for (const m of region.machines) {
-        if (!m || m.wants(kind) <= 0) continue;
+        if (!m || !kinds.some((k) => m.wants(k) > 0)) continue;
         this.setGoal(`Feed the ${m.def.label.toLowerCase()}`, rect(m.feedSpot.x, m.feedSpot.z, 1.6, 1.6), this.tmpPoint.set(m.feedSpot.x, 0, m.feedSpot.z));
         return true;
       }

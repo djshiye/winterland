@@ -162,15 +162,32 @@ export class NavGrid {
     return this.open[j * this.nx + i] === 1;
   }
 
-  /** True when a straight walk from a to b crosses only open cells. */
-  lineOfSight(ax: number, az: number, bx: number, bz: number): boolean {
+  /**
+   * True when a straight walk from a to b crosses only open cells. `skipAvoid`: nor across a pad or a pile on the way
+   * (stepping off the one at a and onto the one at b is fine).
+   */
+  lineOfSight(ax: number, az: number, bx: number, bz: number, skipAvoid = false): boolean {
     const d = Math.hypot(bx - ax, bz - az);
     const steps = Math.max(1, Math.ceil(d / (this.cell * 0.5)));
+    let phase = 0; // 0: still on a's pad, 1: on clear ground, 2: on a pad after clear ground
     for (let s = 0; s <= steps; s++) {
       const t = s / steps;
-      if (!this.isOpen(ax + (bx - ax) * t, az + (bz - az) * t)) return false;
+      const x = ax + (bx - ax) * t;
+      const z = az + (bz - az) * t;
+      if (!this.isOpen(x, z)) return false;
+      if (!skipAvoid) continue;
+      phase = avoidPhase(phase, this.isAvoid(x, z));
+      if (phase === 3) return false;
     }
     return true;
+  }
+
+  /** True on a pad or a pile the walk steps round (NavSource.avoid). */
+  isAvoid(x: number, z: number): boolean {
+    const i = this.ci(x);
+    const j = this.cj(z);
+    if (i < 0 || j < 0 || i >= this.nx || j >= this.nz) return false;
+    return this.avoid[j * this.nx + i] === 1;
   }
 
   /** The open cell nearest (x, z) within `max` metres (rings outward), or -1. */
@@ -395,15 +412,20 @@ export class NavField {
       if (walked > maxMetres) break;
     }
     if (cells.length === 1) cells.push({ ...cells[0]! });
-    // pull tight: from each corner, go as far down the cells as the straight line stays on open ground
+    // pull tight: from each corner, go as far down the cells as the straight line stays on open ground, and off the
+    // pads and piles the cells stepped round (a shortcut must not walk the player into a feed spot)
     const out: XZ[] = [cells[0]!];
     let a = 0;
     while (a < cells.length - 1) {
       let b = a + 1;
       const A = cells[a]!;
+      // phase 3: the cells themselves crossed a pad (no way round): a shortcut across it is then no worse
+      let phase = avoidPhase(avoidPhase(0, g.isAvoid(A.x, A.z)), g.isAvoid(cells[b]!.x, cells[b]!.z));
       while (b + 1 < cells.length) {
         const B = cells[b + 1]!;
-        if (Math.hypot(B.x - A.x, B.z - A.z) > MAX_LEG || !g.lineOfSight(A.x, A.z, B.x, B.z)) break;
+        const next = phase === 3 ? 3 : avoidPhase(phase, g.isAvoid(B.x, B.z));
+        if (Math.hypot(B.x - A.x, B.z - A.z) > MAX_LEG || !g.lineOfSight(A.x, A.z, B.x, B.z, next !== 3)) break;
+        phase = next;
         b++;
       }
       out.push(cells[b]!);
@@ -461,6 +483,17 @@ export class NavField {
     }
     return top;
   }
+}
+
+/**
+ * Walking along a line, past pads and piles: 0 still on the start's pad, 1 on clear ground, 2 on a pad after clear
+ * ground (maybe the end's), 3 clear again after that: a pad was crossed.
+ */
+function avoidPhase(phase: number, onPad: boolean): number {
+  if (phase === 0) return onPad ? 0 : 1;
+  if (phase === 1) return onPad ? 2 : 1;
+  if (phase === 2) return onPad ? 2 : 3;
+  return 3;
 }
 
 /** `r` shrunk by `m` on every side, but never past its centre line. */
