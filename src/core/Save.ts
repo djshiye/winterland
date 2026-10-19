@@ -608,6 +608,14 @@ export const MIGRATIONS: readonly Migration[] = [
       if (state.flags.grandMarket || state.town.grandMarket.tier >= 0) state.trophies.market = Math.max(1, state.trophies.market);
     },
   },
+  {
+    // 0.9.11 Guidebook (ui/GuidebookPanel.ts): a chapter the player has not opened carries a "new" leaf. A save that
+    // already reached its eras before the book existed starts with them read, so the book does not light up all at once.
+    id: '0.9.11-guidebook',
+    run(state) {
+      for (let n = 2; n <= Math.min(state.eras.age, MAX_ERA); n++) state.flags[`seen:book${n}`] = true;
+    },
+  },
 ];
 
 /** Apply every migration this save has not had yet (see MIGRATIONS). `fresh`: a new game, nothing to migrate. */

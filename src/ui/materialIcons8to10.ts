@@ -27,11 +27,11 @@ export const ERA8_10_ICONS: Record<string, string> = {
        <rect x="5" y="34" width="38" height="9" rx="2" fill="#d4ccb5"/>
        <path d="M10 38h28" stroke-width="2" fill="none"/><circle cx="34" cy="28" r="1.4" fill="#7ce8a3" stroke-width="0"/>`),
   ),
+  // 0.9.11: a bundle of pencil-lead rods (was a dark slab, too close to stone and coal)
   graphite: svg(
-    g(`<path d="M6 34l4-14 12-6 14 3 6 11-2 10z" fill="#4a494e"/>
-       <path d="M10 20l12-6 14 3-12 5z" fill="#6e6c73"/>
-       <path d="M24 22l12-5 6 11-14 2z" fill="#3b3a3e"/>
-       <path d="M14 27l7-2" stroke="#b8b6c0" stroke-width="2" fill="none"/>`),
+    g(`<path d="M8 14h28l6 4-6 4H8z" fill="#5a5960"/><path d="M8 24h28l6 4-6 4H8z" fill="#4a494e"/><path d="M8 34h28l6 4-6 4H8z" fill="#5a5960"/>
+       <path d="M36 14v8M36 24v8M36 34v8" fill="none"/>
+       <path d="M12 17h18M12 27h18M12 37h18" stroke="#b8b6c0" stroke-width="1.8" fill="none"/>`),
   ),
   battery: svg(
     g(`<rect x="9" y="10" width="30" height="33" rx="5" fill="#e8b341"/>

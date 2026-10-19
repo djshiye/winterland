@@ -683,6 +683,8 @@ export interface GameEvents {
   'complete:start': { position: THREE.Vector3 };
   /** 0.9.7: open the stats page (the era chip at 100 %, Settings → Stats & trophies). */
   'stats:open': Record<string, never>;
+  /** 0.9.11: open the Guidebook (Settings › Game). */
+  'book:open': Record<string, never>;
   /** The welcome-back card's Collect was pressed (money already added). */
   'offline:collected': { amount: number };
   /** Settings → Reset progress → confirmed. Game wipes the save and reloads the page. */

@@ -48,6 +48,7 @@ import { ContractCard } from './ContractCard';
 import { EraChip, IncomeFeed } from './EraChip';
 import { FinaleCard } from './FinaleCard';
 import { GateCard } from './GateCard';
+import { GuidebookPanel } from './GuidebookPanel';
 import { InteractChip } from './InteractChip';
 import { ManagePanel } from './ManagePanel';
 import { MapPanel } from './MapPanel';
@@ -70,7 +71,7 @@ import { formatMoney } from './format';
 // 0.9.7: dom's backOut settles without overshoot under Reduce motion (it used to be a local copy that ignored it)
 import { backOut, cubicOut } from './dom';
 import { reducedMotion, steadyHighlights } from '../fx/comfort';
-import { ICON_MAP, ICON_MARKET } from './icons';
+import { ICON_BOOK, ICON_MAP, ICON_MARKET } from './icons';
 import { escapeTarget } from './escapeOrder';
 import { installTheme, NightTone, setEraAccent } from './theme';
 import './tokens.css';
@@ -141,6 +142,9 @@ export class HUD {
   private readonly manage: ManagePanel;
   private readonly choose: ChoosePanel;
   private readonly map: MapPanel;
+  /** 0.9.11: the Guidebook (button, G, Settings › Game). */
+  private readonly book: GuidebookPanel;
+  private readonly bookBtn: HTMLButtonElement;
   private readonly market: MarketPanel;
   /** 0.9.0 climb: the era checklist (era chip → 'gate:open'). */
   private readonly gate: GateCard;
@@ -290,6 +294,11 @@ export class HUD {
     this.map = new MapPanel(ctx, layer);
     this.mapBtn = this.makeButton('wl-map-btn', 'Map (T)', ICON_MAP, () => this.map.toggle());
     this.marketBtn = this.makeButton('wl-market-btn', 'Market (B)', ICON_MARKET, () => this.toggleMarket());
+    this.book = new GuidebookPanel(ctx, layer);
+    this.bookBtn = this.makeButton('wl-book-btn', 'Guidebook (G)', `${ICON_BOOK}<i class="wl-dot" aria-hidden="true"></i>`, () => this.toggleBook(false));
+    this.bookBtn.style.display = '';
+    this.book.onNewChanged = (fresh) => this.markBookNew(fresh);
+    this.markBookNew(this.book.hasNew);
     this.autoQuality = new AutoQuality(ctx, (q, up) => {
       this.settings.sync();
       const name = q === 'high' ? 'High' : q === 'medium' ? 'Medium' : 'Low';
@@ -364,6 +373,10 @@ export class HUD {
     ctx.events.on('manage:open', () => this.onlySheet('manage'));
     ctx.events.on('market:open', () => this.onlySheet('market'));
     ctx.events.on('gate:open', () => this.onlySheet('gate'));
+    ctx.events.on('book:open', () => {
+      if (this.settings.isOpen) this.settings.close();
+      if (!this.book.visible) this.toggleBook(false);
+    });
     ctx.events.on('travel:done', (e) => this.toast(`Welcome to ${e.label}`, { small: true, duration: 2.4 }));
     window.addEventListener('keydown', (e) => this.onKey(e));
     // wave 10 keyboard shortcuts (Game turns the keys into events)
@@ -408,7 +421,7 @@ export class HUD {
    */
   closeSheets(): boolean {
     // only when nothing the player opened on purpose is up (Settings, the map, the market, a card)
-    if (this.settings.isOpen || this.map.visible || this.market.visible || this.gate.visible || this.ageCard.visible || this.era.visible) return false;
+    if (this.settings.isOpen || this.map.visible || this.market.visible || this.book.visible || this.gate.visible || this.ageCard.visible || this.era.visible) return false;
     if (this.finale.isOpen || this.updates.isOpen || this.notices.isOpen || this.ctx.input.nav.modalOpen) return false;
     const open = [this.shop, this.build, this.choose, this.manage].filter((p) => p.visible);
     for (const p of open) p.close();
@@ -417,7 +430,7 @@ export class HUD {
 
   /** True while one of the bottom sheets (shop, build, choose, manage, market) is open. */
   private get anySheetOpen(): boolean {
-    return this.shop.visible || this.build.visible || this.choose.visible || this.manage.visible || this.market.visible || this.gate.visible;
+    return this.shop.visible || this.build.visible || this.choose.visible || this.manage.visible || this.market.visible || this.book.visible || this.gate.visible;
   }
 
   /** A round HUD button in the top-right row (Map, Market). Hidden until update() decides it is on show. */
@@ -443,12 +456,13 @@ export class HUD {
   }
 
   /** Close every bottom sheet except `keep` (they share the same spot on screen). */
-  private onlySheet(keep: 'shop' | 'build' | 'choose' | 'manage' | 'market' | 'gate'): void {
+  private onlySheet(keep: 'shop' | 'build' | 'choose' | 'manage' | 'market' | 'book' | 'gate'): void {
     if (keep !== 'shop' && this.shop.visible) this.shop.close();
     if (keep !== 'build' && this.build.visible) this.build.close();
     if (keep !== 'choose' && this.choose.visible) this.choose.close();
     if (keep !== 'manage' && this.manage.visible) this.manage.close();
     if (keep !== 'market' && this.market.visible) this.market.close();
+    if (keep !== 'book' && this.book.visible) this.book.close();
     if (keep !== 'gate' && this.gate.visible) this.gate.close();
   }
 
@@ -462,7 +476,25 @@ export class HUD {
     else this.ctx.events.emit('market:open', {});
   }
 
-  /** T = map, B = market (only once those buttons are on show; never while typing). */
+  /** Open or close the Guidebook (it shares the sheets' spot). `keyboard`: opened with G, so the focus moves in. */
+  private toggleBook(keyboard: boolean): void {
+    if (this.book.visible) {
+      this.book.close();
+      return;
+    }
+    if (this.map.visible) this.map.close();
+    this.onlySheet('book');
+    this.book.open(keyboard);
+  }
+
+  private markBookNew(fresh: boolean): void {
+    this.bookBtn.classList.toggle('has-new', fresh);
+    const label = fresh ? 'Guidebook (G): a new chapter to read' : 'Guidebook (G)';
+    this.bookBtn.title = label;
+    this.bookBtn.setAttribute('aria-label', label);
+  }
+
+  /** T = map, B = market (only once those buttons are on show), G = guidebook; never while typing. */
   private onKey(e: KeyboardEvent): void {
     if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
@@ -470,6 +502,12 @@ export class HUD {
     if (this.settings.isOpen) return;
     if (e.code === 'KeyT' && this.openMap()) e.preventDefault();
     else if (e.code === 'KeyB' && this.openMarket()) e.preventDefault();
+    else if (e.code === 'KeyG') {
+      e.preventDefault();
+      this.ctx.audio.unlock();
+      this.ctx.audio.play('click');
+      this.toggleBook(true);
+    }
   }
 
   /** T / gamepad Y: toggle the map once its button is on show. */
@@ -505,6 +543,7 @@ export class HUD {
       settings: this.settings.isOpen,
       map: this.map.visible,
       market: this.market.visible,
+      book: this.book.visible,
       gate: this.gate.visible,
       choose: this.choose.visible,
       manage: this.manage.visible,
@@ -530,6 +569,9 @@ export class HUD {
         break;
       case 'market':
         this.market.close();
+        break;
+      case 'book':
+        this.book.close();
         break;
       case 'gate':
         this.gate.close();
@@ -686,6 +728,10 @@ export class HUD {
     return this.map;
   }
 
+  get guidebook(): GuidebookPanel {
+    return this.book;
+  }
+
   get marketPanel(): MarketPanel {
     return this.market;
   }
@@ -765,6 +811,7 @@ export class HUD {
     this.manage.update(dt);
     this.choose.update(dt);
     this.market.update(dt);
+    this.book.update(dt);
     this.gate.update(dt);
     this.map.update(dt);
     this.eraChip.update(dt);
@@ -856,6 +903,9 @@ export class HUD {
     }
     this.mapBtn.classList.toggle('is-on', this.map.visible);
     this.marketBtn.classList.toggle('is-on', this.market.visible);
+    this.bookBtn.classList.toggle('is-on', this.book.visible);
+    // phones: the book waits in the bottom-right corner, where a bottom sheet slides over it
+    this.bookBtn.classList.toggle('is-covered', this.anySheetOpen && !this.book.visible);
   }
 
   private writeMoney(): void {

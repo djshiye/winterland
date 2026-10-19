@@ -91,17 +91,20 @@ const MATERIAL_ICONS: Record<string, string> = {
        <circle cx="30" cy="9.5" r="1.8" fill="#e0b03a" stroke-width="1.4"/>
        <path d="M8 30c3 3 3 7 0 8-3-1-3-5 0-8z" fill="#2a2d33" stroke-width="1.8"/>`),
   ),
+  // 0.9.11: a tied sack of plastic pellets (was a bowl of balls, like uranium and iron pellets apart from colour)
   plastic: svg(
-    g(`<path d="M8 28h32l-3 14H11z" fill="#f2f2f2"/>
-       <path d="M6 26h36v4H6z" fill="#dfe6ee"/>
-       <circle cx="15" cy="20" r="5" fill="#48c0e8"/><circle cx="25" cy="16" r="5.5" fill="#48c0e8"/><circle cx="34" cy="20" r="5" fill="#48c0e8"/>
-       <circle cx="20" cy="24" r="4" fill="#79d6f2"/><circle cx="30" cy="25" r="4" fill="#79d6f2"/>`),
+    g(`<path d="M14 16l-3 6c-4 8-3 18 13 18s17-10 13-18l-3-6z" fill="#e9f0f6"/>
+       <path d="M17 8l7 6 7-6" fill="none"/><path d="M14 16h20" stroke-width="3" fill="none"/>
+       <circle cx="18" cy="27" r="3.2" fill="#4fb3e8" stroke-width="1.6"/><circle cx="26" cy="31" r="3.2" fill="#f2c14e" stroke-width="1.6"/>
+       <circle cx="31" cy="24" r="3.2" fill="#e8665a" stroke-width="1.6"/><circle cx="21" cy="35" r="2.6" fill="#7cc28a" stroke-width="1.6"/>`),
   ),
+  // 0.9.11: a round silicon wafer ruled into dies (was a crystal, the same shape as quartz)
   silicon: svg(
-    g(`<path d="M24 5l8 10-1 24H17L16 15z" fill="#8ea2b8"/>
-       <path d="M24 5l8 10-1 24h-5z" fill="#b8c8da"/>
-       <path d="M11 22l7 6v11H8z" fill="#7a8ea6"/><path d="M37 20l5 8-2 11h-8l-1-12z" fill="#a7b9cf"/>
-       <path d="M21 14l-1 14" stroke="#fff" stroke-width="2" fill="none"/>`),
+    g(`<path d="M24 5a19 19 0 1 1-12 4.3L15 13h18l3-3.7A19 19 0 0 0 24 5z" fill="#8fa3c8"/>
+       <circle cx="24" cy="24" r="19" fill="#8fa3c8"/>
+       <path d="M16 6.8h16" stroke-width="3" fill="none"/>
+       <path d="M10 18h28M8 24h32M10 30h28M17 9v30M24 6v36M31 9v30" stroke="#5f7298" stroke-width="1.6" fill="none"/>
+       <path d="M14 13c3-3 6-4 10-4" stroke="#dce6f6" stroke-width="2.4" fill="none"/>`),
   ),
   chip: svg(
     g(`<rect x="10" y="10" width="28" height="28" rx="3" fill="#2f6f4e"/>
@@ -109,12 +112,12 @@ const MATERIAL_ICONS: Record<string, string> = {
        <path d="M15 6v4M22 6v4M29 6v4M36 6v4M15 38v4M22 38v4M29 38v4M36 38v4M6 15h4M6 22h4M6 29h4M6 36h4M38 15h4M38 22h4M38 29h4M38 36h4" stroke="#e8c650" stroke-width="3" fill="none"/>
        <circle cx="19.5" cy="19.5" r="1.6" fill="#e8c650" stroke-width="0"/>`),
   ),
+  // 0.9.11: a lead canister with the radiation trefoil (was a bowl of glowing balls, like plastic and iron pellets)
   uranium: svg(
-    g(`<path d="M8 28h32l-3 14H11z" fill="#3d5259"/>
-       <path d="M6 26h36v4H6z" fill="#56707a"/>
-       <rect x="9" y="33" width="30" height="4" fill="#f2c230" stroke-width="0"/>
-       <circle cx="15" cy="20" r="5" fill="#4ea885"/><circle cx="25" cy="16" r="5.5" fill="#6cc4a0"/><circle cx="34" cy="20" r="5" fill="#4ea885"/>
-       <circle cx="20" cy="24" r="4" fill="#9ee0c4"/><circle cx="30" cy="25" r="4" fill="#6cc4a0"/>`),
+    g(`<rect x="11" y="8" width="26" height="34" rx="5" fill="#6b6f78"/><rect x="9" y="6" width="30" height="6" rx="2" fill="#8a8f99"/>
+       <circle cx="24" cy="26" r="9" fill="#f2d24e"/>
+       <path d="M24 26l-4.5-7.8a9 9 0 0 1 9 0zM24 26l9 0a9 9 0 0 1-4.5 7.8zM24 26l-4.5 7.8a9 9 0 0 1-4.5-7.8z" fill="#2a2a2e" stroke-width="0"/>
+       <circle cx="24" cy="26" r="2" fill="#f2d24e" stroke-width="1.2"/>`),
   ),
   fuelRod: svg(
     g(`<rect x="6" y="10" width="36" height="9" rx="4.5" fill="#8fdcb4"/><rect x="6" y="10" width="7" height="9" rx="3" fill="#5a6470"/><rect x="35" y="10" width="7" height="9" rx="3" fill="#5a6470"/>

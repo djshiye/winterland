@@ -47,6 +47,8 @@ export interface ConveyorOptions {
   kind: ItemKind;
   /** Yaw of items riding the belt (0 = log axis along world X). */
   itemYaw: number;
+  /** 0.9.11: units the belt leaves on `from` (era builders' material, eras/EraBelts.ts). Default none. */
+  keep?: () => number;
 }
 
 interface BeltItem {
@@ -266,7 +268,7 @@ export class Conveyor implements ItemHolder {
     }
 
     // pull the next item from the source
-    if (this.canAccept(o.kind) && (o.to.canAccept(o.kind) || this.items.length < 3) && o.from.count(o.kind) > 0) {
+    if (this.canAccept(o.kind) && (o.to.canAccept(o.kind) || this.items.length < 3) && o.from.count(o.kind) > (o.keep?.() ?? 0)) {
       transferOne(this.ctx, o.from, this, [o.kind], LOAD_FLIGHT);
     }
 

@@ -2,7 +2,7 @@
    the manage + choose sheets (BuildPanel's look, build.css), the world map and the new-era card (era.css look).
    Overrides are prefixed with .wl-hud so they win over hud.css / build.css whatever the import order. */
 
-/* ---- top-right buttons (Map, Market): the same round buttons as the gear / mute ------------------------- */
+/* ---- top-right buttons (Guidebook, Map, Market): the same round buttons as the gear / mute ---------------- */
 
 .wl-hudbtn {
   position: absolute;
@@ -37,12 +37,16 @@
   display: block;
 }
 
-.wl-map-btn {
+.wl-book-btn {
   right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 104px);
 }
 
-.wl-market-btn {
+.wl-map-btn {
   right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 156px);
+}
+
+.wl-market-btn {
+  right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 208px);
 }
 
 /* ---- era chip ------------------------------------------------------------------------------------------ */
@@ -50,7 +54,7 @@
 .wl-erachip {
   position: absolute;
   top: max(var(--wl-pad), env(safe-area-inset-top));
-  right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 156px);
+  right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 208px);
   height: 44px;
   display: flex;
   align-items: center;
@@ -75,7 +79,7 @@
 }
 
 .wl-hud.has-market .wl-erachip {
-  right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 208px);
+  right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 260px);
 }
 
 .wl-erachip-dot {

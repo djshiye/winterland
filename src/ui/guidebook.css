@@ -1,0 +1,290 @@
+/* 0.9.11 Guidebook (ui/GuidebookPanel.ts): the shop's sheet chrome (hud.css .wl-shop*) with chapter chips, a search
+   box and read-only pages. Colours are the theme's tokens only; an era chip / heading takes the era's accent (--c). */
+
+.wl-shop.wl-book {
+  max-height: min(72vh, 600px);
+}
+
+@media (min-width: 700px) {
+  .wl-shop.wl-book {
+    width: 404px;
+  }
+}
+
+.wl-book-tabs .wl-shop-tab {
+  font-size: 13px;
+  padding: 0 4px;
+}
+
+/* ---- chapter chips ------------------------------------------------------------------------------------ */
+
+.wl-book-chapters {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 8px;
+}
+
+.wl-book-chip {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  border: 2px solid color-mix(in oklab, var(--c, var(--wl-pine)), transparent 55%);
+  background: var(--wl-row);
+  color: var(--wl-ink);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wl-book-chip.is-on {
+  background: var(--c, var(--wl-pine));
+  border-color: var(--c, var(--wl-pine));
+  color: var(--c-ink, var(--wl-pine-ink));
+  box-shadow: 0 3px 0 color-mix(in oklab, var(--c, var(--wl-pine)), var(--wl-ink-c) 45%);
+}
+
+.wl-book-chip.is-locked {
+  cursor: default;
+  border-style: dashed;
+  border-color: var(--wl-line);
+  background: var(--wl-well);
+  color: var(--wl-ink-faint);
+}
+
+.wl-book-chip.is-locked svg {
+  width: 15px;
+  height: 15px;
+  opacity: 0.7;
+}
+
+/* the "new" leaf: a small gold dot on a chapter not opened yet */
+.wl-book-leaf {
+  position: absolute;
+  top: -4px;
+  right: -3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--wl-gold);
+  border: 2px solid var(--wl-card);
+}
+
+/* ---- search ------------------------------------------------------------------------------------------- */
+
+.wl-book-find {
+  flex: none;
+  display: block;
+  margin: 0 0 8px;
+}
+
+.wl-book-search {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 17px;
+  border: 2px solid var(--wl-line);
+  background: var(--wl-row);
+  color: var(--wl-ink);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.wl-book-search::placeholder {
+  color: var(--wl-ink-faint);
+}
+
+.wl-book-search:focus-visible {
+  border-color: var(--wl-focus);
+}
+
+/* ---- chapter heading ---------------------------------------------------------------------------------- */
+
+.wl-book-chap {
+  flex: none;
+  margin: 0 0 8px;
+  padding: 8px 12px 8px 14px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--c, var(--wl-pine)) 14%, var(--wl-tile));
+  border-left: 5px solid var(--c, var(--wl-pine));
+  color: var(--wl-ink);
+}
+
+.wl-book-chap-name {
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.wl-book-chap-line {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--wl-ink-soft);
+}
+
+.wl-book-chap-place,
+.wl-book-where {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--wl-ink-soft);
+}
+
+.wl-book-chap-place svg,
+.wl-book-where svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+/* ---- pages -------------------------------------------------------------------------------------------- */
+
+.wl-book-list {
+  gap: 7px;
+}
+
+.wl-book-list:focus-visible {
+  outline: 3px solid var(--wl-focus);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+
+.wl-book-card {
+  align-items: flex-start;
+  padding: 9px 10px;
+}
+
+.wl-book-card .wl-shop-name {
+  font-size: 16px;
+}
+
+.wl-book-text {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--wl-ink-soft);
+}
+
+.wl-book-era {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  vertical-align: 2px;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--c-ink, var(--wl-pine-ink));
+  background: var(--c, var(--wl-pine));
+  text-shadow: none;
+}
+
+.wl-book-recipe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.wl-book-good {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px 0 3px;
+  border-radius: 12px;
+  background: var(--wl-well);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--wl-ink);
+}
+
+.wl-book-good svg {
+  width: 19px;
+  height: 19px;
+  flex: none;
+}
+
+.wl-book-plus,
+.wl-book-arrow {
+  font-size: 13px;
+  color: var(--wl-ink-faint);
+}
+
+.wl-book-arrow {
+  margin: 0 2px;
+}
+
+/* screen-reader words for the recipe row ("Needs … makes …") */
+.wl-book-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.wl-book-empty {
+  padding: 20px 10px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--wl-ink-soft);
+}
+
+/* ---- HUD button --------------------------------------------------------------------------------------- */
+
+.wl-book-btn .wl-dot {
+  display: none;
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--wl-gold);
+  border: 2px solid var(--wl-card);
+}
+
+.wl-book-btn.has-new .wl-dot {
+  display: block;
+}
+
+/* phones: the top row is full (money on the left; map, market, gear and mute on the right), so the book waits in the
+   bottom-right corner under the thumb, and the map and market keep their old spots */
+@media (max-width: 699px) {
+  .wl-hud .wl-book-btn {
+    top: auto;
+    bottom: max(var(--wl-pad), env(safe-area-inset-bottom));
+    right: max(var(--wl-pad), env(safe-area-inset-right));
+  }
+  .wl-hud .wl-book-btn.is-covered,
+  .wl-hud .wl-book-btn.is-on {
+    visibility: hidden;
+  }
+  .wl-hud .wl-map-btn {
+    right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 104px);
+  }
+  .wl-hud .wl-market-btn {
+    right: calc(max(var(--wl-pad), env(safe-area-inset-right)) + 156px);
+  }
+}
