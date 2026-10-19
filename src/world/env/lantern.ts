@@ -34,12 +34,16 @@ export interface LaneProp {
   /** A bench's half length along x (it runs along x; its colliders are two circles along it). */
   hx?: number;
   yaw?: number;
+  /** A fir's size (1 = about 2.2 m). */
+  s?: number;
 }
 
 /** The z between the two rows of lots (benches and the middle lamps stand there). */
 const MID_Z = (T.lots[TOWN_SQUARE_LOTS]!.z + T.lots[TOWN_SQUARE_LOTS + 2]!.z) / 2;
 const NORTH_Z = TOWN_SOUTH + 0.9;
 const SOUTH_Z = LANE.maxZ - 0.7;
+/** The two south firs are smaller and a touch further in, clear of the walk along road R1's verge (city/roadRoute.ts). */
+const FIR_S = LANE.maxZ - 0.8;
 /** Lamps stand just outside the walk, in line with the lot pads' outer edge. */
 const LAMP_W = LANE_WALK.minX - 0.6;
 const LAMP_E = LANE_WALK.maxX + 0.6;
@@ -57,32 +61,32 @@ export const LANE_PROPS: readonly LaneProp[] = [
   // little lit firs in the four corners, clear of the lots
   { kind: 'fir', x: LANE.minX + 0.9, z: NORTH_Z, r: 0.5 },
   { kind: 'fir', x: LANE.maxX - 0.9, z: NORTH_Z, r: 0.5 },
-  { kind: 'fir', x: LANE.minX + 0.9, z: SOUTH_Z, r: 0.5 },
+  { kind: 'fir', x: LANE.minX + 0.9, z: FIR_S, r: 0.36, s: 0.72 },
   // 2.2 m in from the east fence: the R1 / city road signpost stands in that corner (world/env/wayfinding.ts)
-  { kind: 'fir', x: LANE.maxX - 2.2, z: SOUTH_Z, r: 0.5 },
+  { kind: 'fir', x: LANE.maxX - 2.2, z: FIR_S, r: 0.36, s: 0.72 },
 ];
 
 const LIGHTS = [0xffd36b, 0xff8a7a, 0x9be0ff, 0xfff1c2, 0xb8f0a0];
 
 /** A small snowy fir (about 2.2 m) with a few warm fairy lights. */
-function addLittleFir(b: Batch, bulbs: Batch, x: number, z: number, seed: number): void {
-  b.add(cyl(0.09, 0.12, 0.5, 6), PALETTE.trunk, x, 0.25, z);
+function addLittleFir(b: Batch, bulbs: Batch, x: number, z: number, seed: number, s = 1): void {
+  b.add(cyl(0.09 * s, 0.12 * s, 0.5 * s, 6), PALETTE.trunk, x, 0.25 * s, z);
   const tiers: Array<[number, number, number]> = [
     [0.78, 0.95, 0.85],
     [0.6, 0.8, 1.35],
     [0.4, 0.66, 1.8],
   ];
   tiers.forEach(([r, h, y], i) => {
-    b.add(cone(r, h, 8), i % 2 ? 0x2f6b4a : 0x2a5f43, x, y, z);
-    b.add(cone(r * 0.82, h * 0.32, 8), PALETTE.snow, x, y + h * 0.3, z);
+    b.add(cone(r * s, h * s, 8), i % 2 ? 0x2f6b4a : 0x2a5f43, x, y * s, z);
+    b.add(cone(r * 0.82 * s, h * 0.32 * s, 8), PALETTE.snow, x, (y + h * 0.3) * s, z);
   });
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2 + seed;
-    const y = 0.75 + (i % 3) * 0.4;
-    const rr = 0.68 - (i % 3) * 0.17;
+    const y = (0.75 + (i % 3) * 0.4) * s;
+    const rr = (0.68 - (i % 3) * 0.17) * s;
     bulbs.add(box(0.07, 0.07, 0.07), LIGHTS[(i + seed) % LIGHTS.length]!, x + Math.cos(a) * rr, y, z + Math.sin(a) * rr);
   }
-  bulbs.add(box(0.12, 0.12, 0.12), 0xffe27a, x, 2.28, z);
+  bulbs.add(box(0.12, 0.12, 0.12), 0xffe27a, x, 2.28 * s, z);
 }
 
 /** Build the lane's scenery into `parent` and its colliders into ctx.colliders. Call once. */
@@ -144,7 +148,7 @@ export function buildLanternLane(ctx: GameContext, parent: THREE.Object3D): THRE
       addBench(statics, p.x, p.z, p.yaw ?? 0);
       for (const k of [-0.5, 0.5]) ctx.colliders.addCircle(p.x + k, p.z, 0.4, `town:laneBench${i}`);
     } else if (p.kind === 'fir') {
-      addLittleFir(statics, bulbs, p.x, p.z, i);
+      addLittleFir(statics, bulbs, p.x, p.z, i, p.s);
       ctx.colliders.addCircle(p.x, p.z, p.r, 'town:laneFir');
       halos.push({ x: p.x, y: 1.4, z: p.z, size: 1.6, pool: 3.4 });
     } else {

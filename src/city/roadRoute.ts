@@ -11,9 +11,14 @@
  *   lamps on the outer ring), a walk band in front of each lot row (just south of the pads) and four short connectors
  *   from the district edge into the ring, set between the lamp posts, that touch the streets around the block.
  * - `cityRoute(era, a, b)`: the era foreman's way between its region's gate (on the region road) and a lot of its
- *   district, over the roads open by that era and that district's walkways.
+ *   district, over the verges of the roads open by that era and that district's walkways. 0.9.12 (Dino: "clear roads
+ *   where you're meant to walk on, the people and the cars"): people keep to a strip beside each road (`roadVerges`)
+ *   and cross only at junctions and at the gate, so they never walk down the middle between the trucks' lanes.
  */
-import { DISTRICTS, ROADS, districtDef, type ERect } from '../eras/data';
+import { LAYOUT } from '../config';
+import { DISTRICTS, REGIONS, ROADS, districtDef, type ERect } from '../eras/data';
+/** Streets (kerbed, in the city) vs trails (world/env/roadJoins.ts isStreet). */
+const isStreet = (id: string): boolean => id.startsWith('city') || id === 'townEast';
 import { DISTRICT_MARGIN, LOT_PAD, districtLots, type LotFrame, type XZ } from './rules';
 
 /** Shortest shared edge (metres) for two rects to count as joined. */
@@ -21,6 +26,11 @@ const PASS = 1;
 const EPS = 1e-6;
 
 export const inRect = (r: ERect, p: XZ, eps = 1e-4): boolean => p.x >= r.minX - eps && p.x <= r.maxX + eps && p.z >= r.minZ - eps && p.z <= r.maxZ + eps;
+
+/** A rect a route crosses straight from node to node (a junction), instead of along its centre line. */
+export type WalkRect = ERect & { direct?: boolean };
+
+const grow = (r: ERect, m: number): ERect => ({ minX: r.minX - m, maxX: r.maxX + m, minZ: r.minZ - m, maxZ: r.maxZ + m });
 
 const dist = (a: XZ, b: XZ): number => Math.hypot(a.x - b.x, a.z - b.z);
 
@@ -40,7 +50,7 @@ function onCentre(r: ERect, p: XZ): XZ {
  * Waypoints from `a` to `b` over `rects` (see the file header). `a` is not included, `b` is last. Null when the rects
  * do not join `a` to `b` (or there are none).
  */
-export function routeOver(rects: readonly ERect[], a: XZ, b: XZ): XZ[] | null {
+export function routeOver(rects: readonly WalkRect[], a: XZ, b: XZ): XZ[] | null {
   if (rects.length === 0) return null;
   const pre: XZ[] = [];
   const snap = (p: XZ): XZ => {
@@ -116,7 +126,8 @@ export function routeOver(rects: readonly ERect[], a: XZ, b: XZ): XZ[] | null {
     const from = nodes[chain[i - 1]!]!;
     const to = nodes[chain[i]!]!;
     const r = rects[via[chain[i]!]!]!;
-    pts.push(onCentre(r, from), onCentre(r, to), to);
+    if (r.direct) pts.push(to);
+    else pts.push(onCentre(r, from), onCentre(r, to), to);
   }
   if (sb !== b) pts.push(b);
   const out: XZ[] = [];
@@ -209,13 +220,90 @@ export function lotStandSpot(n: number, lot: number): { spot: XZ; look: XZ } {
 // The foreman's road route
 // ---------------------------------------------------------------------------
 
-const routeRects = new Map<number, ERect[]>();
+const routeRects = new Map<number, WalkRect[]>();
 
-/** Every rect a worker of era `era` may walk outside its region: the roads open by then + that era's district walkways. */
-export function cityWalkRects(era: number): readonly ERect[] {
+/** People walk this far (strip centre) outside a road's edge: on a street's kerbside walk, or on a trail's snow. */
+const VERGE_STREET = 0.35;
+const VERGE_TRAIL = 0.7;
+/** Half the width of a verge strip. */
+const VERGE_HALF = 0.15;
+/** Ground no verge runs over: the era regions (behind their fences) and the Market Town (its fence). */
+const VERGE_BLOCKS: readonly ERect[] = [...REGIONS.flatMap((d) => (d ? [grow(d.rect, 0.3)] : [])), grow(LAYOUT.town.area, 0.9)];
+/** Roads whose sides are another walk already: the south avenue runs down Lantern Lane's own cobbled walk. */
+const NO_VERGE = new Set(['southAvenue']);
+
+/** Piece [lo, hi] of a line minus the blocked spans; pieces shorter than 1 m are dropped. */
+function cut(lo: number, hi: number, spans: readonly [number, number][]): [number, number][] {
+  let out: [number, number][] = [[lo, hi]];
+  for (const [a, b] of spans) {
+    const next: [number, number][] = [];
+    for (const [p, q] of out) {
+      if (b <= p || a >= q) next.push([p, q]);
+      else {
+        if (a > p) next.push([p, a]);
+        if (b < q) next.push([b, q]);
+      }
+    }
+    out = next;
+  }
+  return out.filter(([p, q]) => q - p >= 1);
+}
+
+/**
+ * The walk strips beside road `r` (pure): one along each long edge, `VERGE_*` outside it, run past both ends so the
+ * verges of joining roads meet, and cut where they would cross a region or the Market Town.
+ */
+export function roadVerges(r: ERect, street: boolean): ERect[] {
+  const o = street ? VERGE_STREET : VERGE_TRAIL;
+  const ext = o + VERGE_HALF;
+  const alongX = r.maxX - r.minX >= r.maxZ - r.minZ;
+  const out: ERect[] = [];
+  for (const side of [-1, 1]) {
+    const c = alongX ? (side < 0 ? r.minZ - o : r.maxZ + o) : side < 0 ? r.minX - o : r.maxX + o;
+    const lo = (alongX ? r.minX : r.minZ) - ext;
+    const hi = (alongX ? r.maxX : r.maxZ) + ext;
+    const spans: [number, number][] = [];
+    for (const b of VERGE_BLOCKS) {
+      const [c0, c1] = alongX ? [b.minZ, b.maxZ] : [b.minX, b.maxX];
+      if (c + VERGE_HALF <= c0 || c - VERGE_HALF >= c1) continue;
+      spans.push(alongX ? [b.minX, b.maxX] : [b.minZ, b.maxZ]);
+    }
+    for (const [p, q] of cut(lo, hi, spans)) {
+      out.push(alongX ? { minX: p, maxX: q, minZ: c - VERGE_HALF, maxZ: c + VERGE_HALF } : { minX: c - VERGE_HALF, maxX: c + VERGE_HALF, minZ: p, maxZ: q });
+    }
+  }
+  return out;
+}
+
+/** Where two roads join: their overlap, grown over both verges, crossed straight (the crossing). */
+function junctions(roads: readonly ERect[]): WalkRect[] {
+  const out: WalkRect[] = [];
+  const g = VERGE_TRAIL + VERGE_HALF + 0.05;
+  for (let i = 0; i < roads.length; i++) {
+    for (let j = i + 1; j < roads.length; j++) {
+      const p = roads[i]!;
+      const q = roads[j]!;
+      const minX = Math.max(p.minX, q.minX);
+      const maxX = Math.min(p.maxX, q.maxX);
+      const minZ = Math.max(p.minZ, q.minZ);
+      const maxZ = Math.min(p.maxZ, q.maxZ);
+      if (maxX < minX - EPS || maxZ < minZ - EPS || Math.max(maxX - minX, maxZ - minZ) < PASS) continue;
+      out.push({ minX: minX - g, maxX: maxX + g, minZ: minZ - g, maxZ: maxZ + g, direct: true });
+    }
+  }
+  return out;
+}
+
+/**
+ * Every rect a worker of era `era` may walk outside its region: the verges and junctions of the roads open by then,
+ * and that era's district walkways (their connectors meet the street verges on the district's own sidewalk).
+ */
+export function cityWalkRects(era: number): readonly WalkRect[] {
   const hit = routeRects.get(era);
   if (hit) return hit;
-  const out = ROADS.filter((r) => r.opensAt <= era).map((r) => r.rect);
+  const open = ROADS.filter((r) => r.opensAt <= era);
+  const out: WalkRect[] = open.flatMap((r) => (NO_VERGE.has(r.id) ? [] : roadVerges(r.rect, isStreet(r.id))));
+  out.push(...junctions(open.map((r) => r.rect)));
   if (DISTRICTS[era]) out.push(...districtWalkways(era));
   routeRects.set(era, out);
   return out;
@@ -223,7 +311,23 @@ export function cityWalkRects(era: number): readonly ERect[] {
 
 /** Waypoints between two points of era `era`'s outside world (a region gate on its road, a lot's stand spot). */
 export function cityRoute(era: number, a: XZ, b: XZ): XZ[] | null {
-  return routeOver(cityWalkRects(era), a, b);
+  const rects = cityWalkRects(era);
+  const extra = [a, b].flatMap((p) => (rects.some((r) => inRect(r, p)) ? [] : crossingAt(era, p)));
+  return routeOver(extra.length ? [...rects, ...extra] : rects, a, b);
+}
+
+/**
+ * A point on a road (the gate's road spot): the crossing there, a 1.2 m band straight across the road and both its
+ * verges, so the walk to it goes straight over the road like a crosswalk. None off the roads.
+ */
+export function crossingAt(era: number, p: XZ): WalkRect[] {
+  const road = ROADS.find((r) => r.opensAt <= era && inRect(r.rect, p));
+  if (!road) return [];
+  const r = road.rect;
+  const g = VERGE_TRAIL + VERGE_HALF + 0.05;
+  return r.maxX - r.minX >= r.maxZ - r.minZ
+    ? [{ minX: p.x - 0.6, maxX: p.x + 0.6, minZ: r.minZ - g, maxZ: r.maxZ + g, direct: true }]
+    : [{ minX: r.minX - g, maxX: r.maxX + g, minZ: p.z - 0.6, maxZ: p.z + 0.6, direct: true }];
 }
 
 /** Where a region's workers step out onto its road: the lane centre in front of the gate. */

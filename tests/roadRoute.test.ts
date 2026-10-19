@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DISTRICTS, MAX_ERA, ROADS, districtDef, type ERect } from '../src/eras/data';
 import { regionLayout } from '../src/eras/layout';
 import { districtLots, type XZ } from '../src/city/rules';
-import { cityRoute, districtWalkways, gateRoadSpot, inRect, lotStandSpot, routeOver } from '../src/city/roadRoute';
+import { cityRoute, cityWalkRects, crossingAt, districtWalkways, gateRoadSpot, inRect, lotStandSpot, routeOver } from '../src/city/roadRoute';
 
 const EPS = 1e-3;
 
@@ -20,6 +20,18 @@ function checkPath(start: XZ, pts: readonly XZ[], allowed: readonly ERect[], for
         const inside = q.x > f.minX + EPS && q.x < f.maxX - EPS && q.z > f.minZ + EPS && q.z < f.maxZ - EPS;
         expect(inside, `through a building at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBe(false);
       }
+    }
+    prev = p;
+  }
+}
+
+/** Every point along the walk that is on a road lies in a crossing. */
+function offRoad(start: XZ, pts: readonly XZ[], roads: readonly ERect[], crossings: readonly ERect[]): void {
+  let prev = start;
+  for (const p of pts) {
+    for (let k = 0; k <= 40; k++) {
+      const q = { x: prev.x + ((p.x - prev.x) * k) / 40, z: prev.z + ((p.z - prev.z) * k) / 40 };
+      if (roads.some((r) => inRect(r, q, -0.05))) expect(crossings.some((c) => inRect(c, q, EPS)), `on the road at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBe(true);
     }
     prev = p;
   }
@@ -96,7 +108,8 @@ describe('cityRoute: every era from its region gate to every lot of its district
       const g = gateRoadSpot(L);
       const district = DISTRICTS[n]!.rect;
       const roads = ROADS.filter((r) => r.opensAt <= n).map((r) => r.rect);
-      const allowed = [...roads, L.rect, district];
+      const crossings = [...cityWalkRects(n).filter((r) => r.direct), ...crossingAt(n, g)];
+      const allowed = [...cityWalkRects(n), ...crossingAt(n, g), L.rect, district];
       const footprints = districtLots(n).map((f) => f.rect);
       // the gate spot is on the region's road
       expect(roads.some((r) => inRect(r, g))).toBe(true);
@@ -106,11 +119,14 @@ describe('cityRoute: every era from its region gate to every lot of its district
         expect(there, `lot ${f.index}`).not.toBeNull();
         expect(there!.at(-1)).toEqual(spot);
         checkPath(g, there!, allowed, footprints);
+        // 0.9.12: off the roadway (between the trucks' lanes) except where it crosses: a junction or the gate
+        offRoad(g, there!, roads, crossings);
         // and every leg inside the district stays on its walkways
         for (const p of there!) if (inRect(district, p, -EPS)) expect(districtWalkways(n).some((w) => inRect(w, p, EPS))).toBe(true);
         const back = cityRoute(n, spot, g)!;
         expect(back.at(-1)).toEqual(g);
         checkPath(spot, back, allowed, footprints);
+        offRoad(spot, back, roads, crossings);
         // the stand spot is just south of the pad tile, outside it
         expect(spot.z).toBeGreaterThan(f.zone.maxZ);
       }

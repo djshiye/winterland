@@ -99,7 +99,7 @@ const TOWN_GAPS: Record<string, { gap: Rect; wall: Rect; walk?: Rect }> = {
   southAvenue: {
     gap: { minX: 26, maxX: 30, minZ: TOWN_SOUTH - 0.3, maxZ: TOWN_SOUTH + 0.3 },
     wall: { minX: 26, maxX: 30, minZ: TOWN_SOUTH - 0.4, maxZ: TOWN_SOUTH + 0.4 },
-    walk: { minX: 26.2, maxX: 29.8, minZ: LAYOUT.town.square.maxZ - 0.2, maxZ: TOWN_SOUTH + 0.2 },
+    walk: { minX: 25.9, maxX: 28.9, minZ: LAYOUT.town.square.maxZ - 0.2, maxZ: TOWN_SOUTH + 0.2 },
   },
   cityLink: { gap: { minX: 37.7, maxX: 38.3, minZ: 19, maxZ: 23 }, wall: { minX: 37.8, maxX: 38.2, minZ: 19, maxZ: 23 } },
   townEast: { gap: { minX: 37.7, maxX: 38.3, minZ: 27.8, maxZ: 32.6 }, wall: { minX: 37.8, maxX: 38.2, minZ: 27.8, maxZ: 32.6 } },

@@ -770,9 +770,9 @@ export const LAYOUT = {
       { x: 19.0, z: 17.8, face: { x: 0, z: 1 } },
       { x: 24.6, z: 17.8, face: { x: 0, z: 1 } },
       { x: 19.0, z: townZ(35.8), face: { x: 0, z: -1 } },
-      { x: 24.6, z: townZ(35.8), face: { x: 0, z: -1 } },
+      { x: 24.0, z: townZ(35.8), face: { x: 0, z: -1 } },
       { x: 30.2, z: 17.8, face: { x: 0, z: 1 } },
-      { x: 30.2, z: townZ(35.8), face: { x: 0, z: -1 } },
+      { x: 30.8, z: townZ(35.8), face: { x: 0, z: -1 } },
       { x: 35.0, z: townZ(23.8), face: { x: -1, z: 0 } },
       { x: 35.0, z: townZ(30.4), face: { x: -1, z: 0 } },
       // 0.9.12 Lantern Lane (Dino: "the town areas should be much larger"): four more lots south of the town, either

@@ -21,7 +21,7 @@ export const TOWN_SOUTH = T.area.maxZ;
 export const LANE: Rect = { minX: T.area.minX, maxX: 39.4, minZ: TOWN_SOUTH, maxZ: 61.4 };
 /**
  * The lane's walking spine: down the middle of the alley between the square's two south lots beside the fence gap
- * (lots 3 and 5; their buildings leave about 1.8 m there), and on down the avenue.
+ * (lots 3 and 5; 0.9.12: moved apart so their buildings leave 3 m there), and on down the avenue.
  */
 export const SPINE_X = (T.lots[3]!.x + T.lots[5]!.x) / 2;
 /** Where walkers keep to inside the lane: between the two rows of lot stations (x 22.5 / 33.1) and their MANAGE tiles. */
@@ -29,7 +29,7 @@ export const LANE_WALK: Rect = { minX: 23.6, maxX: 32.4, minZ: TOWN_SOUTH + 0.4,
 /** The player's walk rect for the lane (lot footprints and props keep their own colliders). */
 export const LANE_PLAYER_WALK: Rect = { minX: LANE.minX + 0.4, maxX: LANE.maxX - 0.4, minZ: TOWN_SOUTH - 0.2, maxZ: LANE.maxZ };
 /** The walk through the south fence gap between the square and the lane (the avenue's own, world/env/frontier.ts TOWN_GAPS). */
-export const LANE_GAP_WALK: Rect = { minX: 26.2, maxX: 29.8, minZ: T.square.maxZ - 0.2, maxZ: TOWN_SOUTH + 0.2 };
+export const LANE_GAP_WALK: Rect = { minX: 25.9, maxX: 28.9, minZ: T.square.maxZ - 0.2, maxZ: TOWN_SOUTH + 0.2 };
 /** Inside the square at the south fence gap, and just past the fence in the lane. */
 export const GAP_IN: XZ = { x: SPINE_X, z: T.square.maxZ - 0.6 };
 export const GAP_OUT: XZ = { x: SPINE_X, z: TOWN_SOUTH + 1.0 };
