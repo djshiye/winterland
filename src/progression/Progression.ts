@@ -172,6 +172,7 @@ export class Progression {
   /** 0.9.7: the five-step guide of a newly opened era region (eraStarter.ts). */
   private readonly starter = new EraStarter();
   private objective: string | null = null;
+  private prevObjective: string | null = null;
   private objectiveSince = -10;
   /** 0.9.12: the current goal's zone (the busy hold), its arrow point and when that last moved. */
   private goalArea: Rect | null = null;
@@ -544,9 +545,12 @@ export class Progression {
     }
     const arms = ctx.player.arms.count();
     const own = arms !== this.goalArms && now - this.objectiveSince >= GUIDE_MIN;
-    const wait = !own && now - this.objectiveSince < GUIDE_DWELL;
+    // going straight back to the goal just before is never the player's own doing (A → B → A is a flip-flop)
+    const back = text === this.prevObjective;
+    const wait = (!own || back) && now - this.objectiveSince < GUIDE_DWELL;
     if (text !== this.objective) {
       if (wait) return; // keep the current hint a moment
+      this.prevObjective = this.objective;
       this.objective = text;
       this.objectiveSince = now;
       this.goalArms = arms;

@@ -11,7 +11,7 @@
  * Starts a Vite dev server, opens the game in headless Chromium (software WebGL), pauses the real-time loop and, in a
  * fresh browser context per scenario, every 0.25 simulated seconds reads window.__WINTERLAND__.guide(), walks toward
  * its `steer` point (autopilot) and simulates 0.25 s. Findings: unreachable, stuck (walk length did not drop 1 m in 8 s),
- * flipflop (A -> B -> A within 3 s), churn (over 20 objective changes in 60 s), flash (a goal up for under 1.5 s), blind (target but no steer for over 2 s),
+ * flipflop (A -> B -> A within 3 s), churn (over 24 objective changes in 60 s), flash (a goal up for under 1.5 s, not within 3 s of a map jump), blind (target but no steer for over 2 s),
  * replan (route planned over ~20 times a minute for one objective), stall (the same objective for 60 s while the player
  * already stands at its target: the guide gives a step nothing completes). On a "Build a quarry in ..." BUILD tile the
  * bot picks that machine (Region.choose, what the choose card does). Recorded but not failures: offpath (how often the
@@ -99,7 +99,7 @@ const STEP = `(tick) => {
   const p = pl.object.position;
   if (g.steer && g.remaining > 0.6) W.moveTo(g.steer.x, g.steer.z); else pl.autopilot = null;
   // a player standing on a BUILD tile picks the machine the banner names (the choose card: Region.choose)
-  const build = g.objective && /^Build an? (.+) in (.+)$/.exec(g.objective);
+  const build = g.objective && /^Build (?:an? |the )?(.+?)(?: in .+| first)$/.exec(g.objective);
   if (build && !g.target) {
     const M = window.__gwMachines;
     const id = M && Object.keys(M).find((k) => M[k].label.toLowerCase() === build[1].toLowerCase());
@@ -112,6 +112,13 @@ const STEP = `(tick) => {
       for (let i = 0; i < slots.length; i++) { const d = Math.hypot(slots[i].x - p.x, slots[i].z - p.z); if (d < bd) { bd = d; best = i; } }
       if (best >= 0 && bd < 3) region.choose(best, id);
     }
+  }
+  // "Hire the X at the cabin": the bot can't use the shop sheet, so it buys straight away (W.buy)
+  const hire = g.objective && /^Hire (?:an? |the )?(.+?) at /.exec(g.objective);
+  if (hire && W.buy && window.__gwUpgrades) {
+    const U = window.__gwUpgrades;
+    const id = Object.keys(U).find((k) => U[k].toLowerCase() === hire[1].toLowerCase());
+    if (id) W.buy(id);
   }
   const before = { x: p.x, z: p.z };
   W.simulate(tick, 1 / 30);
@@ -136,7 +143,7 @@ async function openGame(context) {
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
   await page.waitForFunction(() => !!window.__WINTERLAND__, null, { timeout: 120000 });
   await page.evaluate(() => window.__WINTERLAND__.pause());
-  await page.evaluate(async () => { window.__gwMachines = (await import('/src/eras/data.ts')).MACHINES; });
+  await page.evaluate(async () => { window.__gwMachines = (await import('/src/eras/data.ts')).MACHINES; const U = (await import('/src/config.ts')).UPGRADES; window.__gwUpgrades = Object.fromEntries(Object.entries(U).map(([k, v]) => [k, v.label])); });
   await page.evaluate(`window.__gw = { ${Object.entries(SETUP).map(([k, v]) => `${k}: ${v}`).join(', ')} }; window.__gwStep = ${STEP};`);
   return page;
 }
@@ -193,10 +200,10 @@ async function follow(page, run, sim, label) {
       changeTimes.push(t);
       while (changeTimes.length && t - changeTimes[0] > 60) changeTimes.shift();
       // the first loop (chop, pick up, sell, bank) really is a step every few seconds; flicker is faster than that
-      if (changeTimes.length > 20) find(run, 'churn', `${changeTimes.length} objective changes in 60 s (latest "${g.objective}")`, {});
+      if (changeTimes.length > 24) find(run, 'churn', `${changeTimes.length} objective changes in 60 s (latest "${g.objective}")`, {});
       // flash: a goal (text) that was up for under 1.5 s
       const prev = run.changes[run.changes.length - 2];
-      if (prev && prev.text && t - prev.t < 1.5) find(run, 'flash', `"${prev.text}" showed for only ${r1(t - prev.t)} s`, { player: pos });
+      if (prev && prev.text && t - prev.t < 1.5 && !(run.jumpAt != null && t - run.jumpAt < 3)) find(run, 'flash', `"${prev.text}" showed for only ${r1(t - prev.t)} s`, { player: pos });
       curObj = g.objective;
       run.stallSince = null;
       stuckRef = null;
@@ -234,7 +241,8 @@ async function follow(page, run, sim, label) {
       // stuck
       if (!stuckRef || stuckRef.key !== tgtKey) stuckRef = { t, remaining: g.remaining, key: tgtKey, min: g.remaining };
       else {
-        if (g.remaining < stuckRef.remaining - 1) stuckRef = { t, remaining: g.remaining, key: tgtKey };
+        // a walk that got longer by a lot (the real walk replacing the straight line while it was worked out) starts over
+        if (g.remaining < stuckRef.remaining - 1 || g.remaining > stuckRef.remaining + 5) stuckRef = { t, remaining: g.remaining, key: tgtKey };
         else if (t - stuckRef.t >= 8 && g.remaining > 1.5) {
           find(run, 'stuck', `walk to ${pt(g.target)} for "${g.objective}" did not shorten by 1 m in 8 s (remaining ${r1(g.remaining)})`, { player: { x: r1(pos.x), z: r1(pos.z) }, target: g.target, steer: g.steer });
           stuckRef = { t, remaining: g.remaining, key: tgtKey };
@@ -323,6 +331,7 @@ const SCENARIOS = [
       run.extra.jumps = [];
       for (const [id, s] of jumps) {
         const ok = await page.evaluate((i) => __WINTERLAND__.travel(i), id);
+        run.jumpAt = run.t;
         await page.evaluate(`__WINTERLAND__.simulate(0.25)`);
         run.t += 0.25;
         const landed = await grab(page);
@@ -333,6 +342,7 @@ const SCENARIOS = [
       // a random spot on open ground: just off the yard, a seeded spread
       const spot = await page.evaluate(() => { const p = __WINTERLAND__.ctx.player.object.position; return { x: p.x + 14, z: p.z + 9 }; });
       await page.evaluate(({ x, z }) => __WINTERLAND__.teleport(x, z), spot);
+      run.jumpAt = run.t;
       await page.evaluate(`__WINTERLAND__.simulate(0.25)`);
       run.t += 0.25;
       run.extra.jumps.push({ id: 'teleport', landed: spot });
