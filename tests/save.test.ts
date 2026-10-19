@@ -7,13 +7,15 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DAYNIGHT, OFFLINE, PRESTIGE, QUARTERS, SAVE, UPGRADES, VILLAGE } from '../src/config';
 import { salePrice } from '../src/core/demand';
-import { authoredMax, LEGACY_LEVEL_CAP } from '../src/core/ladder';
+import { authoredMax, LEGACY_LEVEL_CAP, valueAt } from '../src/core/ladder';
+import { Economy } from '../src/core/Economy';
+import { Market } from '../src/core/Market';
 import { EventBus } from '../src/core/EventBus';
 import { legacyTradeDef } from '../src/core/salesMerge';
 import { refundPrice } from '../src/core/refund';
-import { mergeState, migrateState, newSeasonSave, offlineEarnings, SalesMeter, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
-import { createGameState, MATERIAL_KINDS, REGION_SLOTS, type GameContext, type GameEvents } from '../src/core/types';
-import { MATERIALS } from '../src/eras/data';
+import { mergeState, migrateState, MIGRATIONS, newSeasonSave, offlineEarnings, SalesMeter, sanitizeState, sanitizeWorld, type SaveData } from '../src/core/Save';
+import { createGameState, MATERIAL_KINDS, REGION_SLOTS, type GameContext, type GameEvents, type GameState } from '../src/core/types';
+import { INVEST, MATERIALS } from '../src/eras/data';
 
 const load = (name: string): SaveData => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const fixture = (): SaveData => load('save-v1-town.json');
@@ -431,5 +433,60 @@ describe('v8 climb save fixture', () => {
     const world = sanitizeWorld(save.world);
     expect(sanitizeWorld(JSON.parse(JSON.stringify(world)))).toEqual(world);
     expect(world.eras[2]!.slots.length).toBe(REGION_SLOTS[2]!);
+  });
+});
+
+describe('0.9.11 bonds bought before the rate cut keep their promise (migration 0.9.11-bond-promise)', () => {
+  const bondMigration = () => MIGRATIONS.filter((m) => m.id === '0.9.11-bond-promise');
+  const oldSave = (broker: number) => {
+    const state = createGameState();
+    state.eras.age = 3;
+    state.upgrades.broker = broker;
+    state.market.investments.push(
+      { id: 1, product: 'bond', era: 0, principal: 100_000, value: 100_000, age: 300 }, // unmatured
+      { id: 2, product: 'bond', era: 0, principal: 50_000, value: 56_000, age: 900 }, // matured under the old rate
+      { id: 3, product: 'index', era: 0, principal: 20_000, value: 23_000, age: 600 },
+    );
+    state.market.nextId = 4;
+    return state;
+  };
+  const market = (state: GameState) => {
+    const events = new EventBus<GameEvents>();
+    const economy = new Economy(events, state, 0);
+    const ctx = { events, state, economy, upgrades: { value: (id: string) => valueAt(UPGRADES[id as keyof typeof UPGRADES], state.upgrades[id as keyof typeof state.upgrades] ?? 0) } } as unknown as GameContext;
+    return { m: new Market(ctx), economy };
+  };
+
+  it('an unmatured bond pays the old +12% (× √Broker) at maturity; matured bonds and other products are untouched', () => {
+    for (const [broker, payout] of [[0, 1.12], [9, 1 + 0.12 * Math.sqrt(3.5)]] as const) {
+      const state = oldSave(broker);
+      const report = migrateState(state, false, { salesRate: 0 }, bondMigration());
+      expect(report.applied).toEqual(['0.9.11-bond-promise']);
+      const [b1, b2, i3] = state.market.investments;
+      expect(b1!.value).toBeCloseTo(100_000 * payout, 6);
+      expect(b2!.value).toBe(56_000);
+      expect(i3!.value).toBe(23_000);
+      const { m, economy } = market(state);
+      m.update(INVEST.bond.lock! - 300 + 1); // past maturity: the promised value stays (the new +4% does not replace it)
+      expect(b1!.value).toBeCloseTo(100_000 * payout, 6);
+      expect(m.withdraw(1)).toBe(Math.round(100_000 * payout));
+      expect(economy.money).toBe(Math.round(100_000 * payout));
+    }
+  });
+
+  it('cashing out such a bond early still returns the deposit only; the migration runs once', () => {
+    const state = oldSave(0);
+    migrateState(state, false, { salesRate: 0 }, bondMigration());
+    const { m } = market(state);
+    expect(m.withdraw(1)).toBe(100_000);
+    state.market.investments.push({ id: 9, product: 'bond', era: 0, principal: 10_000, value: 10_000, age: 0 });
+    expect(migrateState(state, false, { salesRate: 0 }, bondMigration()).applied).toEqual([]);
+    expect(state.market.investments.find((p) => p.id === 9)!.value).toBe(10_000); // new bonds earn the new rate
+  });
+
+  it('a fresh game marks it applied without running it', () => {
+    const state = createGameState();
+    migrateState(state, true);
+    expect(state.migrations['0.9.11-bond-promise']).toBe(true);
   });
 });
