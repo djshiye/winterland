@@ -22,7 +22,7 @@
  *   A pad is re-armed only for a new choice: re-arming on every progress report dropped the pad's in-flight count, so
  *   each bundle / brick paid while the district was active used to count twice.
  *
- * Draw calls: pavement 1, lamps 1 (+ bulbs 1, + night halos 1), every building 2 (+1 pivot), every pad ~3.
+ * Draw calls: pavement 1, lamps 1 (+ bulbs 1, + night halos 1), street furniture 1 (city/decor.ts, its lights in the bulbs), every building 2 (+1 pivot), every pad ~3.
  */
 import { faceCameraUpright, fadeManageSign, manageSignFoot } from '../fx/manageSign';
 import * as THREE from 'three';
@@ -40,6 +40,8 @@ import type { ColliderHandle } from '../world/Colliders';
 import type { Zone } from '../items/Zones';
 import type { Crowd } from '../npc/Crowd';
 import { DistrictLife } from './DistrictLife';
+import { districtDecor, districtLamps } from './decor';
+import { drawDecor } from './decorModels';
 import { buildHalos, bulbMaterial, type HaloSpot } from '../world/env/glow';
 import {
   canChoose,
@@ -540,7 +542,7 @@ export const districtMaterial = (n: number): string => String(DISTRICT_MATERIAL[
 // scenery: pavement + lamps
 // ---------------------------------------------------------------------------
 
-/** One group: the era-styled pavement (one merged mesh), the street lamps (one mesh), their bulbs and night halos. */
+/** One group: the era-styled pavement (one merged mesh), the street lamps (one mesh), their bulbs and night halos, the street furniture (one mesh). */
 function buildScenery(n: number): THREE.Group {
   const S = SURFACE[n]!;
   const def = districtDef(n);
@@ -609,17 +611,16 @@ function buildScenery(n: number): THREE.Group {
     bulbs.add(geo.sphere(1, 8, 6), S.bulb, x + ax, h - 0.2, z + az, { sx: 0.2, sy: 0.24, sz: 0.2 });
     spots.push({ x: x + ax, y: h - 0.2, z: z + az, size: 2.0, pool: 4.6 });
   };
-  for (let z = r.minZ + 4; z < r.maxZ - 2; z += 7) {
-    lampAt(r.minX + 0.9, z, 'w');
-    lampAt(r.maxX - 0.9, z, 'e');
-  }
-  for (let x = r.minX + 8; x < r.maxX - 6; x += 8) {
-    lampAt(x, r.minZ + 0.9, 'n');
-    lampAt(x, r.maxZ - 0.9, 's');
-  }
+  for (const l of districtLamps(n)) lampAt(l.x, l.z, l.side);
   const pm = poles.mesh({ cast: true });
   pm.name = 'lamps';
   group.add(pm);
+  // street furniture (city/decor.ts): ONE solid mesh; its fairy lights ride in the lamps' bulb batch (no extra draw call)
+  const furniture = new Batch();
+  drawDecor(n, districtDecor(n), furniture, bulbs, S.bulb);
+  const fm = furniture.mesh({ cast: true, receive: true });
+  fm.name = 'street-furniture';
+  group.add(fm);
   const bm = new THREE.Mesh(bulbs.geometry(), bulbMaterial());
   bm.name = 'lamp-bulbs';
   bm.castShadow = false;

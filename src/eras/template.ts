@@ -157,3 +157,14 @@ export function contentMachines(n: number): string[] {
   const m = eraContent(n).machines;
   return [...m.ext, ...m.proc, ...(m.more ?? []), m.premium, m.cash];
 }
+
+/**
+ * 0.9.12: a balanced full build of era n's `slots` machine slots: one of every machine (content order, no cash
+ * machine), then the extractors in turn on the slots left over, so every processor stays fed (tests/eraChains.test.ts,
+ * scripts/econ-curve.mjs and the soak build their regions with it).
+ */
+export function fullBuild(n: number, slots: number): string[] {
+  const m = eraContent(n).machines;
+  const one = [...m.ext, ...m.proc, ...(m.more ?? []), m.premium];
+  return Array.from({ length: slots }, (_, s) => (s < one.length ? one[s]! : m.ext[(s - one.length) % m.ext.length]!));
+}

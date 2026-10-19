@@ -380,21 +380,34 @@ export interface RegionLayoutDef {
 export const REGIONS: readonly (RegionLayoutDef | null)[] = [
   null,
   null,
-  { n: 2, rect: R(-24, 40, 66, 114), gate: 'north', slots: 7, room: 8 }, // 64 × 48
-  { n: 3, rect: R(-98, -30, 66, 118), gate: 'north', slots: 7, room: 8 }, // 68 × 52
-  { n: 4, rect: R(-176, -104, 66, 122), gate: 'north', slots: 7, room: 8 }, // 72 × 56
-  { n: 5, rect: R(-178, -100, 132, 192), gate: 'north', slots: 7, room: 8 }, // 78 × 60
-  { n: 6, rect: R(-94, -10, 132, 196), gate: 'north', slots: 7, room: 8 }, // 84 × 64
-  { n: 7, rect: R(-4, 86, 132, 200), gate: 'north', slots: 7, room: 8 }, // 90 × 68
-  { n: 8, rect: R(92, 188, 132, 204), gate: 'north', slots: 8, room: 9 }, // 96 × 72
-  { n: 9, rect: R(90, 192, 218, 294), gate: 'north', slots: 8, room: 9 }, // 102 × 76
-  { n: 10, rect: R(-24, 84, 218, 298), gate: 'north', slots: 9, room: 10 }, // 108 × 80
+  { n: 2, rect: R(-24, 40, 66, 114), gate: 'north', slots: 8, room: 8 }, // 64 × 48
+  { n: 3, rect: R(-98, -30, 66, 118), gate: 'north', slots: 8, room: 8 }, // 68 × 52
+  { n: 4, rect: R(-176, -104, 66, 122), gate: 'north', slots: 8, room: 8 }, // 72 × 56
+  { n: 5, rect: R(-178, -100, 132, 192), gate: 'north', slots: 8, room: 8 }, // 78 × 60
+  { n: 6, rect: R(-94, -10, 132, 196), gate: 'north', slots: 8, room: 8 }, // 84 × 64
+  { n: 7, rect: R(-4, 86, 132, 200), gate: 'north', slots: 8, room: 8 }, // 90 × 68
+  { n: 8, rect: R(92, 188, 132, 204), gate: 'north', slots: 9, room: 9 }, // 96 × 72
+  { n: 9, rect: R(90, 192, 218, 294), gate: 'north', slots: 9, room: 9 }, // 102 × 76
+  { n: 10, rect: R(-24, 84, 218, 298), gate: 'north', slots: 10, room: 10 }, // 108 × 80
 ];
 export function regionDef(n: number): RegionLayoutDef {
   const r = REGIONS[n];
   if (!r) throw new Error(`no region ${n}`);
   return r;
 }
+
+/**
+ * 0.9.12 (Dino: "the town areas should be much larger, with more areas to build on"): the city grid. Every district is
+ * CITY_GRID.w × CITY_GRID.d metres (was 30 × 28) with CITY_GRID.street-wide streets between them; the grid starts on
+ * the city's west street (x 44) and its first row at z 14, and the last row ends 4 m short of R2 (z 128). The grid
+ * streets (ROADS cityV1/cityV2/cityH1/cityH2) are derived from it.
+ */
+export const CITY_GRID = { x0: 44, z0: 14, w: 44, d: 34, street: 4 } as const;
+/** West edge of grid column c (0..2) and north edge of grid row r (0..2). */
+export const cityCol = (c: number): number => CITY_GRID.x0 + c * (CITY_GRID.w + CITY_GRID.street);
+export const cityRow = (r: number): number => CITY_GRID.z0 + r * (CITY_GRID.d + CITY_GRID.street);
+/** East edge of the whole city grid (the skyline starts past it). */
+export const CITY_EAST = cityCol(2) + CITY_GRID.w;
 
 /**
  * Roads (player-walkable once offered). `opensAt`: the era whose expansion pad must be OFFERED or previewed (era 2 =
@@ -414,10 +427,10 @@ export const ROADS: readonly { id: string; rect: ERect; opensAt: number }[] = [
   // corridor mouth's walk across the square to the city's west street
   { id: 'townEast', rect: R(32, 40, 27.8, 32.6), opensAt: 2 },
   { id: 'cityWest', rect: R(40, 44, 14, 128.6), opensAt: 2 },
-  { id: 'cityV1', rect: R(74, 78, 14, 128.6), opensAt: 4 },
-  { id: 'cityV2', rect: R(108, 112, 14, 128.6), opensAt: 7 },
-  { id: 'cityH1', rect: R(40, 142, 42, 46), opensAt: 3 },
-  { id: 'cityH2', rect: R(40, 142, 74, 78), opensAt: 6 },
+  { id: 'cityV1', rect: R(cityCol(1) - 4, cityCol(1), 14, 128.6), opensAt: 4 },
+  { id: 'cityV2', rect: R(cityCol(2) - 4, cityCol(2), 14, 128.6), opensAt: 7 },
+  { id: 'cityH1', rect: R(40, CITY_EAST, cityRow(1) - 4, cityRow(1)), opensAt: 3 },
+  { id: 'cityH2', rect: R(40, CITY_EAST, cityRow(2) - 4, cityRow(2)), opensAt: 6 },
 ];
 
 /**
@@ -443,24 +456,25 @@ export interface DistrictDef {
   /** Lots in this district (laid out by city/rules.ts districtLots). */
   lots: number;
 }
-const D = (n: number, minX: number, minZ: number, lots: number): DistrictDef => ({ n, name: era(n).district, rect: R(minX, minX + 30, minZ, minZ + 28), lots });
+const D = (n: number, col: number, row: number, lots: number): DistrictDef => ({ n, name: era(n).district, rect: R(cityCol(col), cityCol(col) + CITY_GRID.w, cityRow(row), cityRow(row) + CITY_GRID.d), lots });
 /**
- * DISTRICTS[n] for eras 2..10: a 3×3 grid, columns x 44/78/112, rows z 14/46/78 (30 × 28 m each), in reading order
- * from the corner nearest the town (0.9.3; before, the numbers were scattered over the grid): II III IV / V VI VII /
- * VIII IX X. Same plots and lot counts per era as before, so a save finds its buildings on the new plot.
+ * DISTRICTS[n] for eras 2..10: a 3×3 grid (CITY_GRID) in reading order from the corner nearest the town (0.9.3): II III
+ * IV / V VI VII / VIII IX X. 0.9.12: 12/15/18 lots (0.9.11: 6/8/9/12) on bigger plots, always a full 3-row grid; a save's buildings keep
+ * their lot numbers. The settlement levels still read the 0.9.11 lot counts (core/demand.ts SETTLEMENT_BASIS), so the
+ * new lots are room to build, not a longer climb.
  */
 export const DISTRICTS: readonly (DistrictDef | null)[] = [
   null,
   null,
-  D(2, 44, 14, 6),
-  D(3, 78, 14, 6),
-  D(4, 112, 14, 6),
-  D(5, 44, 46, 8),
-  D(6, 78, 46, 8),
-  D(7, 112, 46, 8),
-  D(8, 44, 78, 9),
-  D(9, 78, 78, 9),
-  D(10, 112, 78, 12),
+  D(2, 0, 0, 12),
+  D(3, 1, 0, 12),
+  D(4, 2, 0, 12),
+  D(5, 0, 1, 15),
+  D(6, 1, 1, 15),
+  D(7, 2, 1, 15),
+  D(8, 0, 2, 18),
+  D(9, 1, 2, 18),
+  D(10, 2, 2, 18),
 ];
 export function districtDef(n: number): DistrictDef {
   const d = DISTRICTS[n];
@@ -551,8 +565,8 @@ export const CITY_RANKS: readonly { name: string; minPopulation: number; minEra:
   { name: 'Town', minPopulation: 0, minEra: 1 },
   { name: 'City', minPopulation: 500, minEra: 2 },
   { name: 'Big City', minPopulation: 5_000, minEra: 5 },
-  { name: 'Megacity', minPopulation: 40_000, minEra: 8 },
-  { name: 'Metropolis', minPopulation: 100_000, minEra: 10 },
+  { name: 'Megacity', minPopulation: 80_000, minEra: 8 }, // 0.9.12: 40k → 80k with twice the lots (era 7 alone could hold 40k)
+  { name: 'Metropolis', minPopulation: 200_000, minEra: 10 },
 ];
 
 /** City income is credited every this many seconds (an 'income' event each time). */

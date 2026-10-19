@@ -1294,8 +1294,10 @@ export const CLIMB = {
    * 0.9.10: re-solved once on fresh curves that count contract income (scripts/econ-curve.mjs): era 2 120, +5 an era,
    * era 10 160, waiting 69-78 %. The fresh curves earn less in eras 3-10 than 0.9.9's without contracts (era 3 read 168
    * minutes on the old prices, matching the sales-only vclimb's 190), so contracts are what keeps those eras in range.
+   * 0.9.12: re-solved on fresh curves for the bigger plots (one more machine slot per region, 1.5-2x the district
+   * lots): era 2 120, +5 an era, era 10 160 again; prices 7-20 % higher, each era about as long as in 0.9.11.
    */
-  bandTilt: [1, 1, 2.67, 11.52, 7.9, 7.96, 7.78, 4.65, 4.58, 3.93, 3.3] as readonly number[],
+  bandTilt: [1, 1, 2.87, 12.74, 8.69, 8.62, 9.02, 5.59, 4.73, 4.22, 3.73] as readonly number[],
   /**
    * 0.9.9 (Dino: "each era's stuff needs to be SIGNIFICANTLY more expensive"): per-band price growth from one level to
    * the next (index = band; stepGrowth for bands not listed), sized from each era's live income growth Lv 0 → Lv 10

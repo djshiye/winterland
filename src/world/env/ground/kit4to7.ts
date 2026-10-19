@@ -9,7 +9,7 @@ import { Batch } from '../../../render/batch';
 import { geo } from '../../../render/materials';
 import { SNOW, SNOW_SHADE } from '../../../render/palette';
 import type { Rect } from '../../../config';
-import type { PlotPlaces, RegionLayout } from '../../../eras/layout';
+import { plotDecor, type PlotPlaces, type RegionLayout } from '../../../eras/layout';
 import type { Rng } from '../common';
 import { hutFootprint, shopFootprint } from '../plots';
 import { nodePatch } from '../frontier';
@@ -268,6 +268,8 @@ export function snowAvoid(l: RegionLayout, P: PlotPlaces, keep: readonly Rect[])
     grown(P.yardPave, 0.4), grown(P.field, 0.6), grown(P.green, 0.4), grown(nodePatch(l), 0.8), grown(yardBand(l), 1.2),
     ...P.streets.map((r) => grown(r, 0.4)), ...marketKeep(l),
     ...P.huts.map((h) => grown(hutFootprint(h, true), 0.5)), ...P.shops.map((sh) => grown(shopFootprint(sh), 0.5)),
+    // 1.0 (EM1): the market and huts decor (eras/layout.ts plotDecor)
+    ...plotDecor(l.n).map((d) => grown({ minX: d.x - d.hx, maxX: d.x + d.hx, minZ: d.z - d.hz, maxZ: d.z + d.hz }, 0.3)),
     ...keep,
   ];
 }

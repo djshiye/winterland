@@ -10,7 +10,7 @@
  * simply runs without saving. `?fresh` in the URL ignores (but does not delete) the save.
  */
 import { AMENITIES, AMENITY_IDS, BUSINESSES, CLIMB, CONTRACTS, DAYNIGHT, ECONOMY, GATE, OFFLINE, PRESTIGE, PRIORITIES, QUARTERS, SAVE, SETTLEMENT, UPGRADES, VILLAGE, type BusinessId } from '../config';
-import { CARRY_KINDS, createGameState, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type CarryKind, type FlagId, type GameContext, type GameState, type InvestmentState, type ItemKind, type RunRecord } from './types';
+import { CARRY_KINDS, createGameState, DISTRICT_LOTS, LOT_COUNT, MATERIAL_KINDS, REGION_SLOTS, type CarryKind, type FlagId, type GameContext, type GameState, type InvestmentState, type ItemKind, type RunRecord } from './types';
 import { cleanEraAt } from './completion';
 import { maxStored, valueAt } from './ladder';
 import { legacyMastery, MASTERY_KEEP, masteryPayout, refundPrice } from './refund';
@@ -627,6 +627,22 @@ export const MIGRATIONS: readonly Migration[] = [
       for (const p of state.market.investments) {
         if (p.product === 'bond' && p.age < (INVEST.bond.lock ?? 0) && p.value <= p.principal) p.value = p.principal * payout;
       }
+    },
+  },
+  {
+    // 0.9.12 bigger towns (eras/data.ts DISTRICTS, REGIONS): every region gets the machine slot its plot had paved but
+    // left empty (REGION_SLOTS 7-9 → 8-10) and every district twice the lots (DISTRICT_LOTS). mergeState already lays a
+    // saved region / district over the longer fresh arrays (the new slots and lots load empty); this step only makes
+    // sure of it, so no older save can come out short. Settlement levels keep the 0.9.11 basis (core/demand.ts
+    // SETTLEMENT_BASIS), so a save keeps its level and nothing is refunded or moved.
+    id: '0.9.12-bigger-towns',
+    run(state) {
+      state.eras.regions.forEach((r, n) => {
+        while (r.slots.length < (REGION_SLOTS[n] ?? 0)) r.slots.push({ machine: '', tier: -1, cash: 0, extra: 0 });
+      });
+      state.city.districts.forEach((d, n) => {
+        while (d.lots.length < (DISTRICT_LOTS[n] ?? 0)) d.lots.push({ building: '', tier: -1, cash: 0, extra: 0 });
+      });
     },
   },
 ];

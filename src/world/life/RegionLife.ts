@@ -9,6 +9,10 @@
  * a pad, a belt or a machine. Walks that would pass through the centrepiece bend round it. No colliders: they never
  * block the player.
  *
+ * 1.0 (EM1): the walks keep to a small part of the green so the rest can hold decor (eras/layout.ts plotDecor): a door
+ * opens onto ITS spoke (a straight line to the ring spot nearest it, `greenWalk`), people stroll the ring's chords, and
+ * go home the same way. `greenLegs` is that rule, pure.
+ *
  * Cheap: one small instanced crowd (npc/Crowd.ts, 5 draw calls + 5 in the shadow pass while anyone is out, none
  * otherwise), only for the region the player stands in; walking away releases everyone. Nothing is saved.
  */
@@ -17,7 +21,7 @@ import { ERA_CREW_COUNT, ERA_ROLES, eraRoleCount } from '../../config';
 import { approach, clamp, dampAngle } from '../../core/math';
 import type { GameContext, UpgradeId } from '../../core/types';
 import { ERAS } from '../../eras/data';
-import { plotPlaces, type PlotPlaces } from '../../eras/layout';
+import { greenWalk, plotPlaces, type PlotPlaces, type XZ } from '../../eras/layout';
 import { regionAt } from '../../eras/playerUpgrades';
 import { COAT_COLORS, Crowd, TRIM_COLORS, type CrowdPerson } from '../../npc/Crowd';
 
@@ -35,14 +39,16 @@ interface Spot {
   door: boolean;
   /** Ring spots round the centrepiece take one person each. */
   taken: boolean;
+  /** A door spot: the index (in the spot list) of the ring spot its spoke ends on. */
+  via: number;
 }
 
 interface Walker {
   p: CrowdPerson;
   spot: number;
-  /** The leg: up to two points (a bend round the centrepiece, then the spot). */
-  px: [number, number];
-  pz: [number, number];
+  /** The waypoints of the walk (spokes, bends round the centrepiece, then the spot). */
+  px: number[];
+  pz: number[];
   n: number;
   i: number;
   x: number;
@@ -63,31 +69,35 @@ function hutBuilt(role: number, level: number): boolean {
 }
 
 /**
- * The green's spots (pure): a door spot per built hut, then a ring round the centrepiece. Exported for tests.
- * `built[i]` says whether hut i stands.
+ * The green's spots (pure): a door spot per built hut, then a ring round the centrepiece (eras/layout.ts greenWalk
+ * has the numbers). Exported for tests. `built[i]` says whether hut i stands.
  */
 export function greenSpots(P: PlotPlaces, built: readonly boolean[]): Spot[] {
-  const G = P.green;
-  const cx = (G.minX + G.maxX) / 2;
-  const cz = (G.minZ + G.maxZ) / 2;
-  const inX = (v: number): number => clamp(v, G.minX + 0.4, G.maxX - 0.4);
-  const inZ = (v: number): number => clamp(v, G.minZ + 0.4, G.maxZ - 0.4);
+  const W = greenWalk(P);
   const out: Spot[] = [];
-  P.huts.forEach((h, i) => {
+  const hutOf: number[] = [];
+  P.huts.forEach((_, i) => {
     if (!built[i]) return;
-    // the door point (local +Z), pulled onto the green
-    const lz = h.d / 2 + 0.7;
-    out.push({ x: inX(h.x + lz * Math.sin(h.yaw)), z: inZ(h.z + lz * Math.cos(h.yaw)), face: NaN, door: true, taken: false });
+    out.push({ x: W.doors[i]!.x, z: W.doors[i]!.z, face: NaN, door: true, taken: false, via: -1 });
+    hutOf.push(i);
   });
-  const r = Math.min(CLEAR + 0.6, Math.max(CLEAR, Math.min(G.maxX - G.minX, G.maxZ - G.minZ) / 2 - 0.5));
-  for (let k = 0; k < 7; k++) {
-    const a = (k / 7) * Math.PI * 2 + 0.3;
-    const x = inX(cx + Math.cos(a) * r);
-    const z = inZ(cz + Math.sin(a) * r);
-    if (Math.hypot(x - cx, z - cz) < CLEAR - 0.05) continue;
-    // face the centrepiece (Crowd yaw: 0 faces +Z)
-    out.push({ x, z, face: Math.atan2(cx - x, cz - z), door: false, taken: false });
-  }
+  const doors = out.length;
+  for (const p of W.ring) out.push({ x: p.x, z: p.z, face: Math.atan2(W.c.x - p.x, W.c.z - p.z), door: false, taken: false, via: -1 });
+  hutOf.forEach((hut, k) => (out[k]!.via = doors + W.spoke[hut]!));
+  return out;
+}
+
+/**
+ * The waypoints (after leaving spot `from`) of a walk to spot `to` (pure): out of a door along its spoke to the ring,
+ * round the ring, and into a door along its spoke, so every straight leg is a spoke or a chord of the ring.
+ */
+export function greenLegs(spots: readonly Spot[], from: number, to: number): XZ[] {
+  const a = spots[from]!;
+  const b = spots[to]!;
+  const out: XZ[] = [];
+  if (a.door && a.via >= 0) out.push(spots[a.via]!);
+  if (b.door && b.via >= 0 && !out.includes(spots[b.via]!)) out.push(spots[b.via]!);
+  if (out[out.length - 1] !== b) out.push(b);
   return out;
 }
 
@@ -187,41 +197,48 @@ export class RegionLife {
     if (!p) return;
     p.kid = Math.random() < 0.2;
     p.appear = 0;
-    const w: Walker = { p, spot: d, px: [0, 0], pz: [0, 0], n: 0, i: 0, x: s.x, z: s.z, yaw: 0, speed: 0, timer: 0.3, visits: 2 + Math.floor(Math.random() * 3), home: false, fading: false, chatty: Math.random() < 0.5 };
+    const w: Walker = { p, spot: d, px: [], pz: [], n: 0, i: 0, x: s.x, z: s.z, yaw: 0, speed: 0, timer: 0.3, visits: 2 + Math.floor(Math.random() * 3), home: false, fading: false, chatty: Math.random() < 0.5 };
     this.walkers.push(w);
   }
 
-  /** Walk to spot `to`, bending round the centrepiece when the straight line would cross it. */
+  /** Walk to spot `to` along its legs (greenLegs), bending round the centrepiece when a straight leg would cross it. */
   private walkTo(w: Walker, to: number): void {
     const from = this.spots[w.spot];
     if (from && !from.door) from.taken = false;
     const s = this.spots[to]!;
     if (!s.door) s.taken = true;
-    w.spot = to;
-    w.n = 0;
-    w.i = 0;
     const G = this.places!.green;
     const cx = (G.minX + G.maxX) / 2;
     const cz = (G.minZ + G.maxZ) / 2;
-    // closest approach of the segment to the centre
-    const dx = s.x - w.x;
-    const dz = s.z - w.z;
-    const len2 = dx * dx + dz * dz || 1;
-    const t = clamp(((cx - w.x) * dx + (cz - w.z) * dz) / len2, 0, 1);
-    const qx = w.x + dx * t - cx;
-    const qz = w.z + dz * t - cz;
-    const q = Math.hypot(qx, qz);
-    if (q < CLEAR && t > 0 && t < 1) {
-      // bend out round the centrepiece on the side the line already passes
-      const ux = q > 1e-3 ? qx / q : -dz / Math.sqrt(len2);
-      const uz = q > 1e-3 ? qz / q : dx / Math.sqrt(len2);
-      w.px[0] = clamp(cx + ux * (CLEAR + 0.4), G.minX + 0.4, G.maxX - 0.4);
-      w.pz[0] = clamp(cz + uz * (CLEAR + 0.4), G.minZ + 0.4, G.maxZ - 0.4);
-      w.n = 1;
+    const legs = greenLegs(this.spots, w.spot, to);
+    w.spot = to;
+    w.px.length = 0;
+    w.pz.length = 0;
+    w.i = 0;
+    let x = w.x;
+    let z = w.z;
+    for (const p of legs) {
+      // closest approach of the leg to the centre
+      const dx = p.x - x;
+      const dz = p.z - z;
+      const len2 = dx * dx + dz * dz || 1;
+      const t = clamp(((cx - x) * dx + (cz - z) * dz) / len2, 0, 1);
+      const qx = x + dx * t - cx;
+      const qz = z + dz * t - cz;
+      const q = Math.hypot(qx, qz);
+      if (q < CLEAR && t > 0 && t < 1) {
+        // bend out round the centrepiece on the side the line already passes
+        const ux = q > 1e-3 ? qx / q : -dz / Math.sqrt(len2);
+        const uz = q > 1e-3 ? qz / q : dx / Math.sqrt(len2);
+        w.px.push(clamp(cx + ux * (CLEAR + 0.4), G.minX + 0.4, G.maxX - 0.4));
+        w.pz.push(clamp(cz + uz * (CLEAR + 0.4), G.minZ + 0.4, G.maxZ - 0.4));
+      }
+      w.px.push(p.x);
+      w.pz.push(p.z);
+      x = p.x;
+      z = p.z;
     }
-    w.px[w.n] = s.x;
-    w.pz[w.n] = s.z;
-    w.n++;
+    w.n = w.px.length;
   }
 
   private step(w: Walker, dt: number, dark: number, target: number): void {

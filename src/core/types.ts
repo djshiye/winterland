@@ -550,9 +550,9 @@ export function createGameState(): GameState {
 }
 
 /** Machine slots per region, index = era (must match eras/data.ts REGIONS[n].slots; tests/eras.test.ts checks). */
-export const REGION_SLOTS: readonly number[] = [0, 0, 7, 7, 7, 7, 7, 7, 8, 8, 9];
+export const REGION_SLOTS: readonly number[] = [0, 0, 8, 8, 8, 8, 8, 8, 9, 9, 10];
 /** Lots per city district, index = era (must match eras/data.ts DISTRICTS[n].lots). */
-export const DISTRICT_LOTS: readonly number[] = [0, 0, 6, 6, 6, 8, 8, 8, 9, 9, 12];
+export const DISTRICT_LOTS: readonly number[] = [0, 0, 12, 12, 12, 15, 15, 15, 18, 18, 18];
 
 /** 0.9.5: level 0 for every era player upgrade (`${key}Carry` / `Boots` / `Tool` / `Pal`, eras/playerUpgrades.ts). */
 function eraPlayerLevels(): Record<`${(typeof ERA_KEYS)[number]}${'Carry' | 'Boots' | 'Tool' | 'Pal'}`, number> {
