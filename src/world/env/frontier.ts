@@ -30,6 +30,21 @@ import { romanNumeral } from './eras';
 import { buildEraOpen, buildEraWild, eraGround, eraKeepOut } from './eraGround';
 import { palette } from '../../render/palette';
 import { moundGeo, pineGeo, pineTallGeo, rockGeo } from './props';
+import { addApron, addGatePaving, mixColor, shadeColor, TRAIL_COLOR } from './roadPaving';
+import {
+  arcSegments,
+  axisEnds,
+  cutters,
+  gatePavings,
+  isStreet,
+  overlapArea,
+  RUT_WIDTH,
+  rutPlan,
+  surfacePieces,
+  TERMINALS,
+  townApron,
+  type RoadEnd,
+} from './roadJoins';
 import { buildWayfinding } from './wayfinding';
 
 /** The slice of the game state the new land follows (the tests pass a plain object). */
@@ -183,59 +198,157 @@ function gateZones(): Rect[] {
   return out;
 }
 
-function buildRoad(i: number, road: (typeof ROADS)[number], rng: Rng, zones: readonly Rect[]): { open: THREE.Mesh; ghost: THREE.Mesh } {
+/** Surface colours: the dirt trail (roadPaving TRAIL_COLOR) and the cobbled city street (warm grey, no centre lines). */
+const STREET_COLOR = 0xaea69c;
+const STREET_KERB = 0xddd5c8;
+const surfaceOf = (id: string): number => (isStreet(id) ? STREET_COLOR : TRAIL_COLOR);
+const RUTS = rutPlan();
+const GATE_PAVINGS = gatePavings();
+const ROAD_Y = 0.03;
+
+function buildRoad(road: (typeof ROADS)[number], rng: Rng, zones: readonly Rect[]): { open: THREE.Mesh; ghost: THREE.Mesh } {
   const r = road.rect;
   const w = r.maxX - r.minX;
   const d = r.maxZ - r.minZ;
   const cx = (r.minX + r.maxX) / 2;
   const cz = (r.minZ + r.maxZ) / 2;
-  const city = road.id.startsWith('city');
+  const street = isStreet(road.id);
   const alongX = w >= d;
-  const y = 0.03 + i * 0.0016;
+  const y = ROAD_Y;
+  const base = surfaceOf(road.id);
   const others = ROADS.filter((o) => o.id !== road.id).map((o) => o.rect);
-  const skip = (x: number, z: number): boolean => zones.some((q) => inRect(q, x, z)) || others.some((q) => inRect(q, x, z, 0.1));
+  const owners = cutters(ROADS, road.id);
+  // kerb stones stand clear of every other road (a street's longer stones keep further off a junction)
+  const clear = street ? 0.6 : 0.1;
+  const skip = (x: number, z: number): boolean => zones.some((q) => inRect(q, x, z)) || others.some((q) => inRect(q, x, z, clear));
 
-  // ---- open: surface, edge stones, ruts / dashes
+  // ---- open: the surface (junction squares owned by another road are left out: one square, one material)
   const b = new Batch();
-  b.add(geo.box(w, 0.05, d), city ? 0x4b4e57 : 0xc9c0b0, cx, y - 0.025, cz);
-  const kerb = city ? 0x9a9ca6 : 0x8f8a80;
-  const len = alongX ? w : d;
-  for (let t = 1.0; t < len - 0.5; t += rng.range(2.4, 3.2)) {
-    for (const side of [-1, 1]) {
-      const along = (alongX ? r.minX : r.minZ) + t;
-      const across = (alongX ? cz : cx) + side * ((alongX ? d : w) / 2 - 0.12);
-      const x = alongX ? along : across;
-      const z = alongX ? across : along;
-      if (skip(x, z)) continue;
-      const sl = rng.range(0.4, 0.7);
-      const tint = shade(kerb, rng.range(0.85, 1.1));
-      b.add(geo.box(alongX ? sl : 0.26, 0.14, alongX ? 0.26 : sl), tint, x, y + 0.05, z, { ry: rng.range(-0.15, 0.15) });
-    }
+  const glow = new Batch();
+  for (const p of surfacePieces(ROADS, road.id)) {
+    b.add(geo.box(p.maxX - p.minX, 0.05, p.maxZ - p.minZ), base, (p.minX + p.maxX) / 2, y - 0.025, (p.minZ + p.maxZ) / 2);
   }
-  if (city) {
-    for (let t = 1.5; t < len - 1.5; t += 3.2) {
-      const x = alongX ? r.minX + t : cx;
-      const z = alongX ? cz : r.minZ + t;
-      if (skip(x, z)) continue;
-      b.add(geo.box(alongX ? 1.2 : 0.12, 0.012, alongX ? 0.12 : 1.2), 0xf0e6b0, x, y + 0.008, z);
+  // ---- blend: two steps of mixed colour where this road ends in a junction owned by a road of another surface, or at a
+  // terminal that meets the town's paving
+  const band = (x0: number, x1: number, z0: number, z1: number, color: number, lift: number): void => {
+    b.add(geo.box(x1 - x0, 0.01, z1 - z0), color, (x0 + x1) / 2, y - 0.001 + lift, (z0 + z1) / 2);
+  };
+  const blendEnd = (end: RoadEnd, edge: number, to: number): void => {
+    for (const [k, t] of [[0, 0.62], [1, 0.3]] as const) {
+      const a0 = k * 0.55;
+      const a1 = a0 + 0.55;
+      const c = mixColor(base, to, t);
+      if (end === 'minX') band(edge + a0, edge + a1, r.minZ, r.maxZ, c, 0.005 - k * 0.001);
+      else if (end === 'maxX') band(edge - a1, edge - a0, r.minZ, r.maxZ, c, 0.005 - k * 0.001);
+      else if (end === 'minZ') band(r.minX, r.maxX, edge + a0, edge + a1, c, 0.005 - k * 0.001);
+      else band(r.minX, r.maxX, edge - a1, edge - a0, c, 0.005 - k * 0.001);
+    }
+  };
+  const [endLo, endHi] = axisEnds(r);
+  for (const o of ROADS) {
+    if (!owners.includes(o.rect)) continue;
+    const s = overlapArea(r, o.rect)!;
+    const to = surfaceOf(o.id);
+    if (to === base) continue;
+    const lo = alongX ? s.minX <= r.minX + 1e-6 : s.minZ <= r.minZ + 1e-6;
+    const hi = alongX ? s.maxX >= r.maxX - 1e-6 : s.maxZ >= r.maxZ - 1e-6;
+    if (lo) blendEnd(endLo, alongX ? s.maxX : s.maxZ, to);
+    else if (hi) blendEnd(endHi, alongX ? s.minX : s.minZ, to);
+  }
+  for (const t of TERMINALS) {
+    if (t.id !== road.id || t.blend === undefined) continue;
+    blendEnd(t.end, t.end === 'minX' ? r.minX : t.end === 'maxX' ? r.maxX : t.end === 'minZ' ? r.minZ : r.maxZ, t.blend);
+  }
+
+  // ---- edge stones
+  const len = alongX ? w : d;
+  if (street) {
+    // a continuous soft kerb of low pale stones, and a cobble speckle over the surface
+    for (let t = 0.6; t < len - 0.4; t += 1.15) {
+      for (const side of [-1, 1]) {
+        const along = (alongX ? r.minX : r.minZ) + t;
+        const across = (alongX ? cz : cx) + side * ((alongX ? d : w) / 2 - 0.15);
+        const x = alongX ? along : across;
+        const z = alongX ? across : along;
+        if (skip(x, z)) continue;
+        b.add(geo.box(alongX ? 1.0 : 0.28, 0.08, alongX ? 0.28 : 1.0), shadeColor(STREET_KERB, rng.range(0.92, 1.04)), x, y + 0.04, z, { ry: rng.range(-0.04, 0.04) });
+      }
+    }
+    for (let along = (alongX ? r.minX : r.minZ) + 0.8; along < (alongX ? r.maxX : r.maxZ) - 0.6; along += 1.1) {
+      for (let across = (alongX ? r.minZ : r.minX) + 0.6; across < (alongX ? r.maxZ : r.maxX) - 0.5; across += 0.9) {
+        if (rng.next() < 0.5) continue;
+        const x = (alongX ? along : across) + rng.range(-0.2, 0.2);
+        const z = (alongX ? across : along) + rng.range(-0.2, 0.2);
+        if (others.some((q) => inRect(q, x, z, 0.3))) continue;
+        b.add(geo.box(rng.range(0.4, 0.62), 0.012, rng.range(0.26, 0.4)), shadeColor(base, rng.range(0.86, 1.1)), x, y + 0.006, z, { ry: rng.range(-0.3, 0.3) });
+      }
+    }
+    // the street's mouth on a through road: two angled stones at its corners (a rounded kerb return), and a kerb across a dead end
+    for (const o of ROADS) {
+      if (!owners.includes(o.rect)) continue;
+      const s = overlapArea(r, o.rect)!;
+      const atLo = alongX ? s.minX <= r.minX + 1e-6 : s.minZ <= r.minZ + 1e-6;
+      const edge = atLo ? (alongX ? s.maxX : s.maxZ) : alongX ? s.minX : s.minZ;
+      for (const side of [-1, 1]) {
+        const across = (alongX ? cz : cx) + side * ((alongX ? d : w) / 2 - 0.2);
+        const along = edge + (atLo ? 0.2 : -0.2);
+        b.add(geo.box(0.5, 0.08, 0.26), shadeColor(STREET_KERB, 0.97), alongX ? along : across, y + 0.04, alongX ? across : along, { ry: (alongX ? 1 : -1) * side * (atLo ? -1 : 1) * 0.7 });
+      }
+    }
+    for (const t of TERMINALS) {
+      if (t.id !== road.id || t.blend !== undefined) continue;
+      const atLo = t.end === 'minX' || t.end === 'minZ';
+      const along = (atLo ? (alongX ? r.minX : r.minZ) : alongX ? r.maxX : r.maxZ) + (atLo ? 0.2 : -0.2);
+      for (let a = -(alongX ? d : w) / 2 + 0.6; a < (alongX ? d : w) / 2 - 0.4; a += 0.9) {
+        b.add(geo.box(alongX ? 0.28 : 0.9, 0.08, alongX ? 0.9 : 0.28), shadeColor(STREET_KERB, rng.range(0.92, 1.04)), alongX ? along : cx + a, y + 0.04, alongX ? cz + a : along);
+      }
     }
   } else {
-    for (const side of [-0.8, 0.8]) {
-      b.add(geo.box(alongX ? w - 1 : 0.34, 0.012, alongX ? 0.34 : d - 1), 0xb3a995, alongX ? cx : cx + side, y + 0.008, alongX ? cz + side : cz);
+    for (let t = 1.0; t < len - 0.5; t += rng.range(2.4, 3.2)) {
+      for (const side of [-1, 1]) {
+        const along = (alongX ? r.minX : r.minZ) + t;
+        const across = (alongX ? cz : cx) + side * ((alongX ? d : w) / 2 - 0.12);
+        const x = alongX ? along : across;
+        const z = alongX ? across : along;
+        if (skip(x, z)) continue;
+        const sl = rng.range(0.4, 0.7);
+        const tint = shadeColor(0x8f8a80, rng.range(0.85, 1.1));
+        b.add(geo.box(alongX ? sl : 0.26, 0.14, alongX ? 0.26 : sl), tint, x, y + 0.05, z, { ry: rng.range(-0.15, 0.15) });
+      }
     }
+    // wheel ruts: stop at every junction, one curved pair round an L corner (roadJoins.ts rutPlan)
+    for (const l of RUTS.lines) {
+      if (l.road !== road.id) continue;
+      const lw = Math.abs(l.x1 - l.x0) || RUT_WIDTH;
+      const ld = Math.abs(l.z1 - l.z0) || RUT_WIDTH;
+      b.add(geo.box(l.x1 === l.x0 ? RUT_WIDTH : lw, 0.012, l.z1 === l.z0 ? RUT_WIDTH : ld), 0xb3a995, (l.x0 + l.x1) / 2, y + 0.008, (l.z0 + l.z1) / 2);
+    }
+    for (const a of RUTS.arcs) {
+      if (a.road !== road.id) continue;
+      for (const [x0, z0, x1, z1] of arcSegments(a)) {
+        const sl = Math.hypot(x1 - x0, z1 - z0);
+        b.add(geo.box(sl + 0.06, 0.012, RUT_WIDTH), 0xb3a995, (x0 + x1) / 2, y + 0.008, (z0 + z1) / 2, { ry: -Math.atan2(z1 - z0, x1 - x0) });
+      }
+    }
+    if (road.id === 'southAvenue') addApron(b, townApron(), rng);
+    for (const gp of GATE_PAVINGS) if (gp.road === road.id) addGatePaving(b, glow, gp, y, rng);
   }
   const open = b.mesh({ cast: false, receive: true });
+  if (!glow.empty) {
+    const g = glow.mesh({ cast: false, receive: false, material: GLOW });
+    open.add(g);
+  }
 
   // ---- ghost: faint untrodden strip with surveyor stakes
   const g = new Batch();
-  g.add(geo.box(w, 0.03, d), 0xdfe8f4, cx, 0.016 + i * 0.0006, cz);
+  g.add(geo.box(w, 0.03, d), 0xdfe8f4, cx, 0.016, cz);
   for (let t = 2; t < len - 1; t += 9) {
     for (const side of [-1, 1]) {
       const along = (alongX ? r.minX : r.minZ) + t;
       const across = (alongX ? cz : cx) + side * ((alongX ? d : w) / 2 - 0.15);
       const x = alongX ? along : across;
       const z = alongX ? across : along;
-      if (skip(x, z)) continue;
+      if (zones.some((q) => inRect(q, x, z)) || others.some((q) => inRect(q, x, z, 0.1))) continue;
       g.add(geo.box(0.07, 0.8, 0.07), 0x8a6a46, x, 0.4, z);
       g.add(geo.box(0.3, 0.17, 0.03), 0xd0453a, x + 0.15, 0.72, z);
     }
@@ -835,7 +948,7 @@ export function buildFrontier(ctx: GameContext, town: THREE.Object3D, trikeTail?
   const rng = new Rng(4242);
   const zones = gateZones();
   const roads: RoadVis[] = ROADS.map((road, i) => {
-    const { open, ghost } = buildRoad(i, road, rng, zones);
+    const { open, ghost } = buildRoad(road, rng, zones);
     open.visible = false;
     group.add(open, ghost);
     return { id: road.id, opensAt: road.opensAt, rect: road.rect, open, ghost, walked: false };
