@@ -367,27 +367,47 @@ describe('investments', () => {
     expect(t.market.invest('index', INVEST.index.min)).toBe(false);
   });
 
-  it('eight hours of optimal re-investing with no sales income adds less than half of what the factories earn', () => {
-    const rate = 100_000; // $/s the meter still reads, as if the factories kept selling (generous: no sales are paid in)
-    for (const seed of [11, 12, 13]) {
-      const t = setup({ age: 5, money: 1e9, rng: seeded(seed), upgrades: { broker: CLIMB.bondBrokerMax } });
-      t.market.setSalesRate(() => rate);
-      const start = t.market.netWorth();
-      const step = MARKET.tick * 15; // re-balance every minute
-      for (let s = 0; s < 8 * 3600; s += step) {
-        for (const p of [...t.market.positions()]) {
-          if (p.product === 'bond' ? t.market.matured(p) : p.value > p.principal) t.market.withdraw(p.id);
+  // 0.9.11: 0.9.6 allowed about +50% of sales (+58% with the Broker); the era pacing curve leaves investing out, so an
+  // investor cleared eras a third faster. Every strategy below (hold to the top, sell on a wobble peak, churn on any
+  // gain), checked every price tick, now adds about +10% to +14% of what the factories earn.
+  it('no investing strategy adds more than ~15% to what the factories earn (a side bonus, not a second factory)', () => {
+    const rate = 100_000; // $/s the meter reads, as if the factories kept selling (generous: no sales are paid in)
+    const H = 3600;
+    const strategies = {
+      hold: (w: number, top: boolean) => top,
+      peak: (w: number, top: boolean) => w >= 1.06 || (top && w >= 1),
+      churn: (w: number) => w > 1.01,
+    };
+    for (const [broker, most] of [[1, 0.13], [CLIMB.bondBrokerMax, 0.16]] as const) {
+      for (const [name, sell] of Object.entries(strategies)) {
+        let sum = 0;
+        for (const seed of [11, 12, 13]) {
+          const t = setup({ age: 5, money: 1e12, rng: seeded(seed), upgrades: { broker } });
+          t.market.setSalesRate(() => rate);
+          const start = t.market.netWorth();
+          for (let s = 0; s < 4 * H; s += MARKET.tick) {
+            for (const p of [...t.market.positions()]) {
+              if (p.product === 'bond') {
+                if (t.market.matured(p)) t.market.withdraw(p.id);
+                continue;
+              }
+              const def = INVEST[p.product];
+              const trend = p.principal * Math.min(def.top ?? 1, (1 + def.rate) ** (p.age / H));
+              if (sell(p.value / trend, trend >= p.principal * (def.top ?? 1) - 1e-6)) t.market.withdraw(p.id);
+            }
+            t.market.invest('bond', t.market.room('bond'));
+            t.market.invest('index', t.market.room('index'));
+            t.market.invest('venture', t.market.room('venture'), 5);
+            t.market.update(MARKET.tick);
+          }
+          sum += (t.market.netWorth() - start) / (rate * 4 * H);
         }
-        t.market.invest('bond', t.market.room('bond'));
-        t.market.invest('index', t.market.room('index'));
-        t.market.invest('venture', t.market.room('venture'), 5);
-        run(t.market, step, MARKET.tick * 5);
+        const share = sum / 3;
+        expect(share, `broker ${broker} ${name}`).toBeGreaterThan(0.05); // still worth doing
+        expect(share, `broker ${broker} ${name}`).toBeLessThan(most);
       }
-      const gain = t.market.netWorth() - start;
-      expect(gain, `seed ${seed}`).toBeGreaterThan(0);
-      expect(gain, `seed ${seed}`).toBeLessThan(0.6 * rate * 8 * 3600);
     }
-  }, 30_000);
+  }, 60_000);
 
   it('caps the index fund and ventures at their share of net worth, like bonds', () => {
     const { market } = setup({ age: 3, money: 100_000 });
