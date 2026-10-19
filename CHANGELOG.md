@@ -33,6 +33,7 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 
 - **Machines in eras 2 to 10 are linked up like a real production line.** Neighbouring machines are joined overhead in each era's own style, with goods visibly travelling between them: a timber stone chute, an ore ropeway with swinging buckets, brass capsule tubes, a covered pellet bridge, copper power lines with bright sparks, an oil pipeline with glowing flow rings, data cable trays, glowing coolant tubes and golden light conduits. They light up softly at night and stay well above everyone's heads.
 - **Conveyor belts in every era are painted in that era's own colours** instead of the starting area's red and cream.
+- **The lone ninth machine in eras 8 and 9 is linked up too,** and era 10's golden light conduits look solid instead of see-through.
 
 ## 0.9.11 (2026-10-19)
 

@@ -120,7 +120,14 @@ describe('machine yard links (eras 2-10)', () => {
           void j;
         }),
       );
-      expect(plan.links.length, `era ${n}`).toBe(pairs);
+      expect(plan.links.filter((l) => !l.branch).length, `era ${n}`).toBe(pairs);
+      // a machine alone in its row (the 9th spot of eras 8 and 9) branches straight to the row in front
+      const lone = L.slots.filter((a) => L.slots.filter((b) => Math.abs(a.z - b.z) < 0.01).length === 1).length;
+      const branches = plan.links.filter((l) => l.branch);
+      expect(branches.length, `era ${n} branches`).toBe(lone);
+      for (const b of branches) {
+        expect([b.from, b.to].some((i) => L.slots.filter((s) => Math.abs(s.z - L.slots[i]!.z) < 0.01).length === 1)).toBe(true);
+      }
       expect(pairs, `era ${n}`).toBeGreaterThan(2);
       // a missing machine breaks its two links, and an empty region has none
       const holed = machines.map((m, i) => (i === 1 ? null : m));
@@ -174,7 +181,7 @@ describe('machine yard links (eras 2-10)', () => {
         model.dispose();
       }
     }
-  });
+  }, 30_000); // every vertex of nine eras × three fills: ~5 s on a busy runner
 
   it('carries visibly from the producer to the consumer', () => {
     // era 6: the bright beads ride the power line between the two arms' ends (path[1] → path[2])
