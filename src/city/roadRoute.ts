@@ -356,3 +356,40 @@ export function crossingAt(era: number, p: XZ): WalkRect[] {
 export function gateRoadSpot(L: { gate: { x: number; z: number }; inward: number }): XZ {
   return { x: L.gate.x, z: L.gate.z - L.inward * 2 };
 }
+
+/** A vehicle as the kerb check sees it: where it is and the way it heads (unit XZ). */
+export interface KerbVehicle {
+  x: number;
+  z: number;
+  fx: number;
+  fz: number;
+}
+
+/** How far a vehicle heading for a crossing still makes a walker wait (m), and how near one always does. */
+const KERB_SEE = 18;
+const KERB_NEAR = 4.5;
+
+/**
+ * Pure: should a walker at `p`, about to step from the kerb toward `goal` over one of `roads`, wait for traffic? True
+ * while `p` is off every carriageway, the way ahead runs onto one, and a vehicle is near that leg or coming at it.
+ * (0.9.12: people look both ways, so they never walk out in front of a turning truck.)
+ */
+export function kerbWait(p: XZ, goal: XZ, roads: readonly ERect[], vehicles: Iterable<KerbVehicle>): boolean {
+  const dx = goal.x - p.x;
+  const dz = goal.z - p.z;
+  const len = Math.hypot(dx, dz);
+  if (len < 0.05 || roads.some((r) => inRect(r, p))) return false;
+  const k = Math.min(0.6, len) / len;
+  const ahead = { x: p.x + dx * k, z: p.z + dz * k };
+  if (!roads.some((r) => inRect(r, ahead))) return false;
+  for (const v of vehicles) {
+    // nearest point of the leg to the vehicle
+    const t = Math.max(0, Math.min(1, ((v.x - p.x) * dx + (v.z - p.z) * dz) / (len * len)));
+    const qx = p.x + dx * t - v.x;
+    const qz = p.z + dz * t - v.z;
+    const d = Math.hypot(qx, qz);
+    if (d < KERB_NEAR) return true;
+    if (d < KERB_SEE && qx * v.fx + qz * v.fz > 0) return true;
+  }
+  return false;
+}

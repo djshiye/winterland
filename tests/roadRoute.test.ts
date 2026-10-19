@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DISTRICTS, MAX_ERA, ROADS, districtDef, type ERect } from '../src/eras/data';
 import { regionLayout } from '../src/eras/layout';
 import { districtLots, type XZ } from '../src/city/rules';
-import { cityRoute, cityWalkRects, crossingAt, districtWalkways, gateRoadSpot, inRect, lotStandSpot, routeOver } from '../src/city/roadRoute';
+import { cityRoute, cityWalkRects, crossingAt, districtWalkways, gateRoadSpot, inRect, kerbWait, lotStandSpot, routeOver } from '../src/city/roadRoute';
 
 const EPS = 1e-3;
 
@@ -151,5 +151,25 @@ describe('cityRoute: every era from its region gate to every lot of its district
       expect(len).toBeGreaterThan(40);
       expect(len).toBeLessThan(600);
     }
+  });
+});
+
+describe('kerbWait: people look both ways', () => {
+  const road: ERect = { minX: 40, maxX: 44, minZ: 14, maxZ: 128 };
+  const p = { x: 39.6, z: 61.3 };
+  const goal = { x: 44.4, z: 61.3 };
+  it('steps out on a clear road', () => {
+    expect(kerbWait(p, goal, [road], [])).toBe(false);
+    // a truck far off, or driving away
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 90, fx: 0, fz: 1 }])).toBe(false);
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 72, fx: 0, fz: 1 }])).toBe(false);
+  });
+  it('waits for a truck coming at the crossing, or right by it', () => {
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 76, fx: 0, fz: -1 }])).toBe(true);
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 64, fx: 0, fz: 1 }])).toBe(true);
+  });
+  it('never stops on the road itself, or on a walk that stays off it', () => {
+    expect(kerbWait({ x: 42, z: 61.3 }, goal, [road], [{ x: 42, z: 64, fx: 0, fz: -1 }])).toBe(false);
+    expect(kerbWait(p, { x: 39.6, z: 50 }, [road], [{ x: 42, z: 64, fx: 0, fz: -1 }])).toBe(false);
   });
 });
