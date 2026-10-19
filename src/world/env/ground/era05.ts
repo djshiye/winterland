@@ -23,6 +23,7 @@ import { Rng } from '../common';
 import { pineGeo, pineTallGeo } from '../props';
 import { nodePatch, regionPaths } from '../frontier';
 import type { EraGroundModule, GroundKit } from '../eraGround';
+import { landmarkRect, placeLandmark } from './landmarks2to5';
 import { around, beltSpots, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, sightKeep, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
 
 const T = MACHINE_TONES[5];
@@ -66,9 +67,14 @@ export function era05Solids(l: RegionLayout): GroundSolid[] {
   ];
 }
 
-function keepOut(l: RegionLayout): Rect[] {
+function baseKeepOut(l: RegionLayout): Rect[] {
   const b = batteryPlace(l);
   return [{ minX: b.chimney.x - 1.5, maxX: b.x1 + 0.6, minZ: b.z - b.d / 2 - 1.2, maxZ: b.z + b.d / 2 + 1 }].map((r) => clip(r, l.rect));
+}
+
+/** The era's own keep-outs plus the signature landmark's footprint. */
+function keepOut(l: RegionLayout): Rect[] {
+  return [...baseKeepOut(l), ...landmarkRect(l, 5, baseKeepOut(l))];
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -186,6 +192,7 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
   const f = new Kit(kit.floor);
   const g = new Kit(kit.glow);
   const P = plotPlaces(l.n);
+  placeLandmark(kit, l, rng, 5, baseKeepOut(l));
   battery(k, g, f, l, kit);
 
   // the west belt: a gantry crane every third spot, snowy pines between
