@@ -106,6 +106,11 @@ export interface JobView {
   cash?: { value: number; bundles: number; spot: XZ };
   /** 0.9.6: the hand-node pile (the player's harvest: landed units, kind, worker spot, full). Absent = none. */
   node?: { kind: ItemKind; count: number; full: boolean; spot: XZ };
+  /**
+   * 0.9.11: units per kind every pile and the dock keep for the region's foremen (EraCrew.hold): everyone but a
+   * foreman takes only the stock above it. Absent = none (a foreman's own view).
+   */
+  hold?: Owed;
 }
 
 /** 0.9.9: a chosen, unbuilt machine slot (`site<n>`) or city lot (`lot<n>`) that still owes cash. */
@@ -247,7 +252,7 @@ export function pickJob(view: JobView, capacity: number, claims: Claims, at: XZ,
   for (const m of view.machines) sources.push({ from: m.slot, kind: m.output, count: m.outCount, pos: m.take });
   for (const [kind, count] of Object.entries(view.dock) as [ItemKind, number][]) sources.push({ from: 'dock', kind, count, pos: view.dockSpot });
   if (view.node && view.node.count > 0) sources.push({ from: 'node', kind: view.node.kind, count: view.node.count, pos: view.node.spot });
-  const avail = (s: Source): number => s.count - (claims.sources.get(srcId(s.from, s.kind)) ?? 0);
+  const avail = (s: Source): number => s.count - (claims.sources.get(srcId(s.from, s.kind)) ?? 0) - (view.hold?.get(s.kind) ?? 0);
   // 0.9.6 (F3): a full machine pile a processor still wants is fed, never shipped (shipper / clerk help with it)
   const fullPile = (s: Source): boolean => typeof s.from === 'number' && !!view.machines.find((m) => m.slot === s.from)?.outFull;
 
@@ -633,6 +638,8 @@ export class EraWorker {
   private readonly cityRect: { minX: number; maxX: number; minZ: number; maxZ: number };
   /** Units still owed per material, held back from the depot (EraCrew keeps it current). */
   owed: Owed = NO_OWED;
+  /** 0.9.11: units the region's piles keep for its foremen (EraCrew keeps it current; foremen ignore it). */
+  held: Owed = NO_OWED;
 
   constructor(
     readonly ctx: GameContext,
@@ -854,7 +861,8 @@ export class EraWorker {
     const cash = this.role === 'clerk' ? { value: m.cash.value, bundles: m.cash.pile.count('cash'), spot: m.clerkSpot } : undefined;
     const nd = r.node;
     const node = nd ? { kind: nd.yields, count: nd.pile.count(nd.yields), full: nd.pile.isFull(), spot: nd.pileSpot } : undefined;
-    return { machines, sites, lots, pays, dock, cash, node, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
+    const hold = this.role === 'foreman' ? undefined : this.held;
+    return { machines, sites, lots, pays, dock, cash, node, hold, dockSpot: r.dockSpot, depotSpot: r.depotSpot, depotAccepts: (k) => r.depot.canAccept(k), dockAccepts: (k) => r.dock.canAccept(k) };
   }
 
   /** 0.9.9: the era's chosen machine slots (region pads) and city lots (with a city) that still owe cash. */

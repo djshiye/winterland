@@ -36,12 +36,13 @@ import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/type
 import type { Zone } from '../items/Zones';
 import { createConstructionTexture, createPadModel, createPadSign, hangPriceTag, setPadSignLabel, type ShelterIcon } from '../assets/pads';
 import { PadFeel, PadRing, playPadCelebrate } from '../fx/PadRing';
-import { PAD_CASH_FLIGHT, motionScale } from '../fx/padJuice';
+import { PAD_CASH_FLIGHT, motionScale, signHeight } from '../fx/padJuice';
+import { MATERIALS, isMaterial } from '../eras/data';
 
 export type ConstructionIcon = ShelterIcon;
 
 const SIGN_HEIGHT = 1.7;
-const SIGN_SCALE = 0.72;
+const SIGN_SCALE = 0.85;
 
 export interface ConstructionTarget {
   /** Floating sign text, e.g. 'HUT'. */
@@ -107,6 +108,10 @@ export class ConstructionPad implements ItemHolder {
   private readonly feel: PadFeel;
   private readonly area: Rect;
   private readonly tmpPos = new THREE.Vector3();
+  /** The "Needs <item>" hint already floated this visit. */
+  private hinted = false;
+  /** Sign height, eased up over the player's stack while they stand on the pad (signHeight). */
+  private signY = SIGN_HEIGHT;
 
   constructor(
     readonly ctx: GameContext,
@@ -290,10 +295,32 @@ export class ConstructionPad implements ItemHolder {
         (this.target.extra !== null && this.extraLeft - this.pendingExtra > 0 && arms.count(this.target.extra.kind) > 0));
     const afford = eager && this.affordable();
     const paying = this.pendingLogs + this.pendingCash + this.pendingExtra > 0;
-    this.feel.update(dt, t, this.pulse, afford, eager || paying, this.ctx.zones.isPlayerIn(this.area));
+    const inside = this.ctx.zones.isPlayerIn(this.area);
+    this.hintWrongLoad(inside);
+    this.feel.update(dt, t, this.pulse, afford, eager || paying, inside);
     this.ring.update(dt, t, afford);
     this.sign.quaternion.copy(this.ctx.camera.quaternion);
-    this.sign.position.y = SIGN_HEIGHT + Math.sin(t * 2.2 + this.opts.x) * 0.05 * motionScale();
+    const top = inside && arms.size > 0 ? arms.topWorldPosition(this.tmpPos).y : 0;
+    this.signY += (signHeight(SIGN_HEIGHT, inside, top) - this.signY) * Math.min(1, dt * 8);
+    this.sign.position.y = this.signY + Math.sin(t * 2.2 + this.opts.x) * 0.05 * motionScale();
+  }
+
+  /**
+   * 0.9.11 (Dino stood on the Tile Kiln with bricks while it wanted clay): stepping on with full arms of things this
+   * pad does not take floats "Needs Clay" over it once per visit, so a look-alike load is never a silent no.
+   */
+  private hintWrongLoad(inside: boolean): void {
+    if (!inside) {
+      this.hinted = false;
+      return;
+    }
+    const e = this.target.extra;
+    if (this.hinted || this.lockNote !== null || !e || this.extraLeft <= 0) return;
+    const arms = this.ctx.player.arms;
+    if (arms.count() === 0 || arms.count(e.kind) > 0 || (this.logsLeft > 0 && arms.count('log') > 0)) return;
+    this.hinted = true;
+    const name = isMaterial(e.kind) ? MATERIALS[e.kind].label : e.kind === 'toy' ? 'Toys' : e.kind === 'crate' ? 'Crates' : e.kind;
+    this.ctx.hud?.floatText(this.tmpPos.copy(this.object.position).setY(signHeight(SIGN_HEIGHT, true, arms.topWorldPosition(this.tmpPos).y) + 1.7), `Needs ${name}`, { color: '#ffe3a3', size: 26, duration: 1.8, rise: 0.9 });
   }
 
   // --- ItemHolder -----------------------------------------------------------
