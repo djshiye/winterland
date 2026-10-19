@@ -697,11 +697,12 @@ export class Progression {
     sources.sort((a, b) => dist(a) - dist(b));
     // 0.9.12: the piles ran dry for a moment while this build is the goal: keep it (more logs are on the way) rather
     // than hand the banner to another goal and back again
-    if (!sources[0] && (this.objective === need.pick || this.objective === need.text)) {
-      sources.push(L.treeFeller ? LAYOUT.ridge.deck.zone : L.dropZone.zone.area);
-    }
+    const mine = this.objective === need.pick || this.objective === need.text;
+    if (!sources[0] && mine) sources.push(this.objective === need.pick && this.goalArea ? this.goalArea : L.treeFeller ? LAYOUT.ridge.deck.zone : L.dropZone.zone.area);
     if (!sources[0]) return false;
-    this.setGoal(need.pick, sources[0]);
+    // the pile already pointed at stays the goal while it has logs (no hopping between the deck and the drop zone)
+    const keep = this.objective === need.pick && this.goalArea ? sources.find((r) => sameArea(r, this.goalArea!)) : undefined;
+    this.setGoal(need.pick, keep ?? sources[0]);
     return true;
   }
 
@@ -1505,4 +1506,8 @@ export class Progression {
 
 function flagOf(rule: RevealRule): FlagId {
   return rule.flag ?? `reveal:${rule.id}`;
+}
+
+function sameArea(a: Rect, b: Rect): boolean {
+  return Math.abs(a.minX - b.minX) < 0.01 && Math.abs(a.maxX - b.maxX) < 0.01 && Math.abs(a.minZ - b.minZ) < 0.01 && Math.abs(a.maxZ - b.maxZ) < 0.01;
 }
