@@ -34,6 +34,7 @@ import { ExportDepot } from './ExportDepot';
 import { HandNode, handNodePlace } from './HandNode';
 import { regionLayout, type RegionLayout, type XZ } from './layout';
 import { EraBelts } from './EraBelts';
+import { YardLinks } from './YardLinks';
 import { EraLevelPad } from './LevelPad';
 import { Machine } from './Machine';
 import { RegionMarket } from './RegionMarket';
@@ -77,6 +78,8 @@ export class Region implements RegionRuntime {
   readonly node: HandNode | null;
   /** 0.9.5: conveyor belts between the machines (from Lv 1 of the era's Belts upgrade). */
   readonly belts: EraBelts;
+  /** 0.9.12: overhead pipes, chutes and cables between neighbouring machines (visual only, eras/linkPlan.ts). */
+  readonly links: YardLinks;
   /** 0.9.5: the sales counter and its buyer trucks (the depot hands goods to it first). */
   readonly market: RegionMarket;
 
@@ -183,6 +186,8 @@ export class Region implements RegionRuntime {
     for (const S of this.slots) this.refreshSlot(S, true);
     this.syncLevelPads(true);
     this.belts.sync(true);
+    this.links = new YardLinks(this);
+    this.links.sync();
 
     // ---- workers --------------------------------------------------------------------------------------------------
     this.crew = new EraCrew(ctx, this);
@@ -211,6 +216,7 @@ export class Region implements RegionRuntime {
     }
     for (const L of this.levelPads.values()) L.pad.update(dt);
     this.belts.update(dt);
+    this.links.update(dt);
     if (this.sign.visible) {
       this.sign.quaternion.copy(ctx.camera.quaternion);
       this.sign.position.y = SIGN_HEIGHT + Math.sin(ctx.time.elapsed * 2) * 0.05 * motionScale();

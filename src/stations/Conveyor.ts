@@ -28,6 +28,7 @@
 import * as THREE from 'three';
 import { ITEM_SIZE, type XZ } from '../config';
 import { createRollerConveyor, type RollerConveyorModel } from '../assets/machines';
+import type { BeltLook } from '../render/palette';
 import { UP } from '../core/math';
 import { Ease } from '../core/Tween';
 import type { GameContext, Item, ItemHolder, ItemKind, Slot } from '../core/types';
@@ -47,6 +48,8 @@ export interface ConveyorOptions {
   kind: ItemKind;
   /** Yaw of items riding the belt (0 = log axis along world X). */
   itemYaw: number;
+  /** 0.9.12: the belt's colours (era regions, render/palette.ts YARD_LINKS); default era 1's red and cream. */
+  look?: BeltLook;
   /** 0.9.11: units the belt leaves on `from` (era builders' material, eras/EraBelts.ts). Default none. */
   keep?: () => number;
 }
@@ -97,7 +100,7 @@ export class Conveyor implements ItemHolder {
     readonly opts: ConveyorOptions,
   ) {
     this.id = opts.id;
-    this.model = createRollerConveyor(opts.path, opts.width, opts.beltY);
+    this.model = createRollerConveyor(opts.path, opts.width, opts.beltY, opts.look);
     this.path = this.model.path;
     this.object.add(this.model.root);
     this.object.visible = false;

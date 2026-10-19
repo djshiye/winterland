@@ -29,6 +29,11 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **More to look at.** Street trees, benches, planters and little touches in every district, and the bare market squares and hut yards in eras 2 to 10 now have stalls, crates and clutter that fit their era. Every path stays clear.
 - **A finished game may show less than 100 % now.** The new machine spots and lots count towards completion, so an older finished save shows a lower percentage until you build on them. Every trophy you've earned is kept.
 
+### Connected machine yards
+
+- **Machines in eras 2 to 10 are linked up like a real production line.** Neighbouring machines are joined overhead in each era's own style, with goods visibly travelling between them: a timber stone chute, an ore ropeway with swinging buckets, brass capsule tubes, a covered pellet bridge, copper power lines with bright sparks, an oil pipeline with glowing flow rings, data cable trays, glowing coolant tubes and golden light conduits. They light up softly at night and stay well above everyone's heads.
+- **Conveyor belts in every era are painted in that era's own colours** instead of the starting area's red and cream.
+
 ## 0.9.11 (2026-10-19)
 
 Every era its own place, clearer pads and icons, a guidebook, a cooler-running game and a few cozy touches.

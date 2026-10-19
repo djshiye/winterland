@@ -24,7 +24,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { COLORS, LAYOUT, PALETTE, UPGRADES, type XZ } from '../config';
 import { Batch, bake, vcMat } from '../render/batch';
 import { geo, mesh, toon, toonUnique } from '../render/materials';
-import { MACHINE_SHADES, palette } from '../render/palette';
+import { MACHINE_SHADES, palette, type BeltLook } from '../render/palette';
 import { glowMaterial } from '../render/paletteMaterials';
 import { BeltPath, type BeltSample } from '../stations/beltPath';
 
@@ -759,6 +759,9 @@ const ROLLER_R = 0.07;
 const ROLLER_PITCH = 0.16;
 const SEGMENT_LEN = 1.0;
 
+/** Era 1's belt: light plank, cream rails, dark timber legs, a red motor (the 0.9.8 look; Validator: contrast with the dirt yard). */
+const ERA1_BELT: BeltLook = { plank: T.plank, rail: TRIM, leg: WOOD_D, foot: WOOD_D, cross: IRON, roller: T.blade, motor: LACQUER, motorD: LACQUER_D, lamp: COLORS.SAW_GLOW };
+
 const rollerGeoCache = new Map<number, THREE.BufferGeometry>();
 function rollerGeometry(len: number): THREE.BufferGeometry {
   const cached = rollerGeoCache.get(len);
@@ -775,7 +778,9 @@ function rollerGeometry(len: number): THREE.BufferGeometry {
   return merged;
 }
 
-export function createRollerConveyor(waypoints: readonly XZ[], width: number, beltY: number): RollerConveyorModel {
+export function createRollerConveyor(waypoints: readonly XZ[], width: number, beltY: number, look?: BeltLook): RollerConveyorModel {
+  // 0.9.12: era regions paint their belts in their own materials (render/palette.ts YARD_LINKS); era 1 keeps red and cream
+  const C = look ?? ERA1_BELT;
   const path = new BeltPath(waypoints);
   const root = new THREE.Group();
   const total = path.length;
@@ -822,11 +827,11 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
       const mz = (az + bz) / 2 - oz;
       const chordLen = Math.hypot(bx - ax, bz - az) + 0.03;
       const yaw = Math.atan2(bx - ax, bz - az);
-      part(bt, T.plank, width, 0.04, chordLen, mx, beltY - 0.17, mz, yaw);
+      part(bt, C.plank, width, 0.04, chordLen, mx, beltY - 0.17, mz, yaw);
       for (const side of [-1, 1]) {
         a.set(ax + nax * half * side - ox, az + naz * half * side - oz);
         b.set(bx + nbx * half * side - ox, bz + nbz * half * side - oz);
-        part(bt, TRIM, 0.09, railH, a.distanceTo(b) + 0.03, (a.x + b.x) / 2, beltY - railH / 2 + 0.03, (a.y + b.y) / 2, Math.atan2(b.x - a.x, b.y - a.y));
+        part(bt, C.rail, 0.09, railH, a.distanceTo(b) + 0.03, (a.x + b.x) / 2, beltY - railH / 2 + 0.03, (a.y + b.y) / 2, Math.atan2(b.x - a.x, b.y - a.y));
       }
     }
     // legs: one pair near the middle of every second segment, plus the very ends
@@ -835,10 +840,10 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
       for (const side of [-1, 1]) {
         const lx = sm.x + sm.dz * half * side - ox;
         const lz = sm.z - sm.dx * half * side - oz;
-        part(bt, WOOD_D, 0.09, legH, 0.09, lx, legH / 2, lz, sm.yaw);
-        part(bt, WOOD_D, 0.24, 0.04, 0.24, lx, 0.02, lz, sm.yaw);
+        part(bt, C.leg, 0.09, legH, 0.09, lx, legH / 2, lz, sm.yaw);
+        part(bt, C.foot, 0.24, 0.04, 0.24, lx, 0.02, lz, sm.yaw);
       }
-      part(bt, IRON, width + 0.2, 0.06, 0.07, 0, beltY - 0.27, 0, sm.yaw);
+      part(bt, C.cross, width + 0.2, 0.06, 0.07, 0, beltY - 0.27, 0, sm.yaw);
     }
     segments.push(seg);
     batches.push(bt);
@@ -857,10 +862,10 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
     const motorPart = (color: number, w: number, h: number, d: number, lx: number, ly: number, lz: number): void => {
       part(batches[0]!, color, w, h, d, mx + lx * c + lz * sn, ly, mz - lx * sn + lz * c, yaw);
     };
-    motorPart(LACQUER, 0.36, 0.34, 0.5, 0, beltY - 0.3, 0);
-    motorPart(LACQUER_D, 0.2, 0.06, 0.4, 0, beltY - 0.09, 0);
-    motorPart(COLORS.SAW_GLOW, 0.1, 0.1, 0.1, 0, beltY - 0.04, 0.12);
-    motorPart(IRON, 0.1, 0.34, 0.1, 0, (beltY - 0.3) / 2 - 0.02, -0.12);
+    motorPart(C.motor, 0.36, 0.34, 0.5, 0, beltY - 0.3, 0);
+    motorPart(C.motorD, 0.2, 0.06, 0.4, 0, beltY - 0.09, 0);
+    motorPart(C.lamp, 0.1, 0.1, 0.1, 0, beltY - 0.04, 0.12);
+    motorPart(C.cross, 0.1, 0.34, 0.1, 0, (beltY - 0.3) / 2 - 0.02, -0.12);
   }
   for (let i = 0; i < nSeg; i++) segments[i]!.add(batches[i]!.mesh());
 
@@ -868,7 +873,7 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
   const rollerLen = width - 0.02;
   const geometry = rollerGeometry(rollerLen);
   const count = Math.max(1, Math.floor(total / ROLLER_PITCH));
-  const rollers = new THREE.InstancedMesh(geometry, toon(T.blade), count);
+  const rollers = new THREE.InstancedMesh(geometry, toon(C.roller), count);
   // 0.9.11 (perf): the rollers sit under the belt plate, whose own shadow covers theirs; drawing thousands of them in
   // the shadow pass too doubled their cost
   rollers.castShadow = false;
