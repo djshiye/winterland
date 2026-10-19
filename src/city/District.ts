@@ -153,7 +153,7 @@ export class District {
     crowd?: () => Crowd,
   ) {
     this.n = n;
-    this.life = crowd ? new DistrictLife(ctx, n, crowd) : null;
+    this.life = crowd ? new DistrictLife(ctx, n, crowd, this.root) : null;
     const def = districtDef(n);
     this.root.name = `district:${n}`;
     this.root.add(buildScenery(n));

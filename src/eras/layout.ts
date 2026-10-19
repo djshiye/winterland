@@ -992,6 +992,92 @@ export function plotDecor(n: number): DecorPlace[] {
   return out;
 }
 
+/** 0.9.12 (Dino: "people doing things"): a place on era n's green where someone stops to do something. */
+export interface GreenActivity {
+  kind: 'sit' | 'snowman';
+  /** Where they stand or sit, and the way they face. */
+  x: number;
+  z: number;
+  yaw: number;
+  /** The ring spot (greenWalk ring index) they walk from: the leg from it to (ax, az), then to (x, z), is clear. */
+  ring: number;
+  ax: number;
+  az: number;
+  /** A snowman's own spot (where it grows), beside the builder. */
+  sx?: number;
+  sz?: number;
+}
+
+const activityCache = new Map<string, GreenActivity[]>();
+
+/**
+ * Era n's activity places (pure, cached): a seat on every huts-zone bench, and a snowman beside a snow pile, each
+ * with a ring spot whose straight leg to it keeps 0.35 m off every other decor piece, hut, annex and the centrepiece
+ * (people stay walkers of the ring, they just step off it). Places no leg reaches are left out.
+ */
+export function greenActivities(n: number): GreenActivity[] {
+  const def = regionDef(n);
+  const key = `${n}|${def.slots}|${def.room}`;
+  const cached = activityCache.get(key);
+  if (cached) return cached;
+  const P = plotPlaces(n);
+  const W = greenWalk(P);
+  const decor = plotDecor(n);
+  const rectOf = (d: DecorPlace): ERect => ({ minX: d.x - d.hx, maxX: d.x + d.hx, minZ: d.z - d.hz, maxZ: d.z + d.hz });
+  const huts = P.huts.map((h) => grow(hutBox(h, true), 0.35));
+  const clear = (a: XZ, b: XZ, skip: DecorPlace | null): boolean => {
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    const steps = Math.max(1, Math.ceil(len / 0.15));
+    for (let k = 0; k <= steps; k++) {
+      const t = k / steps;
+      const q = { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
+      if (Math.hypot(q.x - W.c.x, q.z - W.c.z) < GREEN_CLEAR) return false;
+      const inR = (r: ERect): boolean => q.x > r.minX && q.x < r.maxX && q.z > r.minZ && q.z < r.maxZ;
+      if (huts.some(inR)) return false;
+      for (const d of decor) if (d !== skip && d.kind !== 'snow' && inR(grow(rectOf(d), 0.35))) return false;
+    }
+    return true;
+  };
+  const nearestRing = (p: XZ, skip: DecorPlace | null): number => {
+    let best = -1;
+    let bd = Infinity;
+    W.ring.forEach((r, k) => {
+      const d = Math.hypot(r.x - p.x, r.z - p.z);
+      if (d < bd && clear(r, p, skip)) {
+        bd = d;
+        best = k;
+      }
+    });
+    return best;
+  };
+  const out: GreenActivity[] = [];
+  for (const d of decor) {
+    if (d.zone !== 'huts') continue;
+    if (d.kind === 'bench') {
+      // the seat (its front is +Z turned by its yaw, the backrest behind), approached from 0.9 m in front
+      const fx = Math.sin(d.yaw);
+      const fz = Math.cos(d.yaw);
+      const seat = { x: d.x + fx * 0.06, z: d.z + fz * 0.06 };
+      const a = { x: d.x + fx * 0.9, z: d.z + fz * 0.9 };
+      const ring = nearestRing(a, d);
+      if (ring >= 0) out.push({ kind: 'sit', x: seat.x, z: seat.z, yaw: d.yaw, ring, ax: a.x, az: a.z });
+    } else if (d.kind === 'snow' && d.v === 0) {
+      // a snowman grows out of the snow pile (its ground is already clear of every walk and pad); the builder packs
+      // it from 0.55 m off the pile's long side
+      const alongX = d.hx >= d.hz;
+      for (const side of [1, -1]) {
+        const st = alongX ? { x: d.x, z: d.z + side * (d.hz + 0.55) } : { x: d.x + side * (d.hx + 0.55), z: d.z };
+        const ring = nearestRing(st, d);
+        if (ring < 0) continue;
+        out.push({ kind: 'snowman', x: st.x, z: st.z, yaw: Math.atan2(d.x - st.x, d.z - st.z), ring, ax: st.x, az: st.z, sx: d.x, sz: d.z });
+        break;
+      }
+    }
+  }
+  activityCache.set(key, out);
+  return out;
+}
+
 /**
  * True while era n's expansion pad takes payment (docs/EXPANSION.md §C): era n is next, the climb is open (Great
  * Lodge), and its gate is met: every upgrade introduced before era n at shown level 10·(n − 1) and the settlement at

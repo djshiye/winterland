@@ -18,6 +18,8 @@ import type { CityLotState, GameContext } from '../core/types';
 import { COAT_COLORS, TRIM_COLORS, type Crowd, type CrowdPerson } from '../npc/Crowd';
 import { lifeRoute, lifeSpots, lifeTarget, type LifeSpot } from './lifePlan';
 import { lotBuilt } from './rules';
+import type * as THREE from 'three';
+import { GreenProps } from '../world/life/greenProps';
 
 /** Metres around the district within which its life runs (the iso camera sees ~15 m around the player). */
 export const LIFE_NEAR = 22;
@@ -37,6 +39,14 @@ const DWELL: Record<LifeSpot['kind'], readonly [number, number]> = { shop: [2.5,
 /** Spot kinds one person at a time (two shoppers never share a window, two people never one bench seat). */
 const EXCLUSIVE: Record<LifeSpot['kind'], boolean> = { shop: true, bench: true, park: true, walk: false, door: false };
 const NIGHT_LANTERN = 0.45;
+/** 0.9.12 (Dino: "people doing things"): a grown-up stepping out by day sweeps the doorstep now and then. */
+const SWEEP_CHANCE = 0.3;
+/** A kid and another idle walker (kid or grown-up) this far apart (m), with a clear line, have a snowball fight for a while (s). */
+const FIGHT_RANGE: readonly [number, number] = [1.6, 11]; // district spots sit ~9-10 m apart
+const FIGHT_TIME: readonly [number, number] = [8, 14];
+/** A snowball's flight time (s): a base plus this much per metre thrown. */
+const BALL_FLIGHT = 0.4;
+const BALL_PER_M = 0.055;
 
 interface Walker {
   p: CrowdPerson;
@@ -59,6 +69,22 @@ interface Walker {
   i: number;
   faceYaw: number;
   sitting: boolean;
+  /** 0.9.12: seconds still sweeping the doorstep (0: not), and a snowball fight (the other kid, time left, next throw). */
+  sweep: number;
+  fight: { mate: Walker; timer: number; throwIn: number } | null;
+  /** A kid already lingered once at this spot hoping for a snowball mate. */
+  waited: boolean;
+}
+
+interface Ball {
+  ax: number;
+  az: number;
+  bx: number;
+  bz: number;
+  t: number;
+  /** Seconds in the air. */
+  dur: number;
+  to: Walker;
 }
 
 export class DistrictLife {
@@ -71,17 +97,21 @@ export class DistrictLife {
   private checkT = 0;
   private spawnT = 0;
   private near = false;
+  private readonly balls: Ball[] = [];
+  private props: GreenProps | null = null;
   private readonly area: { minX: number; maxX: number; minZ: number; maxZ: number };
 
   /**
    * @param ctx    game services
    * @param n      the district (era 2..10)
    * @param crowd  the city's shared crowd (made on first use)
+   * @param parent where the brooms and snowballs go (none: no props, e.g. in tests)
    */
   constructor(
     private readonly ctx: GameContext,
     readonly n: number,
     private readonly crowd: () => Crowd,
+    private readonly parent?: THREE.Object3D,
   ) {
     const r = districtDef(n).rect;
     this.area = { minX: r.minX - LIFE_NEAR, maxX: r.maxX + LIFE_NEAR, minZ: r.minZ - LIFE_NEAR, maxZ: r.maxZ + LIFE_NEAR };
@@ -134,6 +164,35 @@ export class DistrictLife {
     }
     const dark = this.ctx.dayNight ? this.ctx.dayNight.darkness : 0;
     for (let i = this.walkers.length - 1; i >= 0; i--) this.step(this.walkers[i]!, dt, dark);
+    this.stepProps(dt);
+  }
+
+  /** Brooms and snowballs this frame. */
+  private stepProps(dt: number): void {
+    for (let i = this.balls.length - 1; i >= 0; i--) {
+      const b = this.balls[i]!;
+      b.t += dt / b.dur;
+      if (b.t >= 1) {
+        if (this.walkers.includes(b.to)) b.to.p.cheer = 1;
+        this.balls.splice(i, 1);
+      }
+    }
+    const sweeping = this.walkers.some((w) => w.sweep > 0);
+    if (!this.parent || (!sweeping && !this.balls.length)) {
+      if (this.props) this.props.group.visible = false;
+      return;
+    }
+    if (!this.props) {
+      this.props = new GreenProps();
+      this.parent.add(this.props.group);
+    }
+    const P = this.props;
+    P.group.visible = true;
+    P.begin();
+    const t = this.ctx.time?.elapsed ?? 0;
+    for (const w of this.walkers) if (w.sweep > 0) P.broom(w.x, w.z, w.yaw, Math.sin(t * 5 + w.rnd * 7));
+    for (const b of this.balls) P.ball(b.ax + (b.bx - b.ax) * b.t, 0.9 + Math.sin(b.t * Math.PI) * (0.6 + b.dur), b.az + (b.bz - b.az) * b.t);
+    P.end();
   }
 
   /** Release everyone at once (the player walked away). */
@@ -141,6 +200,7 @@ export class DistrictLife {
     for (const w of this.walkers) this.crowdOf().release(w.p);
     this.walkers.length = 0;
     this.taken.fill(null);
+    this.balls.length = 0;
   }
 
   // ---- plan -------------------------------------------------------------------------------------------------------
@@ -186,6 +246,8 @@ export class DistrictLife {
     w.spot = s;
     w.mode = 'dwell';
     w.timer = 0.4;
+    // now and then a grown-up sweeps the snow off the doorstep first (by day)
+    if (!w.p.kid && (this.ctx.dayNight?.darkness ?? 0) < 0.4 && Math.random() < SWEEP_CHANCE) w.timer = w.sweep = 6 + Math.random() * 4;
   }
 
   private spawn(x: number, z: number): Walker | null {
@@ -213,6 +275,9 @@ export class DistrictLife {
       i: 0,
       faceYaw: Number.NaN,
       sitting: false,
+      sweep: 0,
+      fight: null,
+      waited: false,
     };
     p.x = x;
     p.z = z;
@@ -284,6 +349,8 @@ export class DistrictLife {
     w.mode = w.mode === 'home' ? 'home' : 'walk';
     w.faceYaw = target.yaw;
     w.sitting = false;
+    w.sweep = 0;
+    w.fight = null;
   }
 
   /** Head for a door and go in (no door left: pop out where one stands). */
@@ -318,6 +385,10 @@ export class DistrictLife {
     p.walk = approach(p.walk, clamp(w.speed / 1.4, 0, 1), dt * 6);
     p.phase += dt * w.speed * 3.4;
     p.sit = approach(p.sit, w.sitting && w.n <= w.i ? 1 : 0, dt * 3.2);
+    if (w.sweep > 0) w.sweep = Math.max(0, w.sweep - dt);
+    p.work = approach(p.work, w.sweep > 0 ? 1 : 0, dt * 3);
+    p.wave = approach(p.wave, 0, dt * 2);
+    p.cheer = approach(p.cheer, 0, dt * 1.6);
     const shop = w.mode === 'dwell' && w.spot >= 0 && this.spots[w.spot]?.kind === 'shop';
     p.talk = approach(p.talk, shop && w.rnd < 0.4 ? 0.6 : 0, dt * 2);
     p.headPitch = approach(p.headPitch, shop ? -0.12 : 0, dt * 2);
@@ -340,8 +411,17 @@ export class DistrictLife {
       w.fading = true; // in through the door
       return;
     }
+    if (w.fight) return this.fightStep(w, dt);
     w.timer -= dt;
     if (w.timer > 0) return;
+    if (w.p.kid && this.startFight(w)) return;
+    if (w.p.kid && !w.waited && Math.random() < 0.5) {
+      // no one to play with yet: hang about a little in case another kid comes by
+      w.waited = true;
+      w.timer = 4 + Math.random() * 5;
+      return;
+    }
+    w.waited = false;
     w.visits--;
     if (w.visits <= 0) return this.goHome(w);
     const next = this.freeSpot(w.spot, false);
@@ -350,6 +430,48 @@ export class DistrictLife {
       return;
     }
     this.walkTo(w, next);
+  }
+
+  /** A kid done dwelling: anyone else idling (not sitting or sweeping) in throwing range, with nothing solid between them, starts a snowball fight. */
+  private startFight(w: Walker): boolean {
+    for (const o of this.walkers) {
+      if (o === w || o.fight || o.sweep > 0 || o.fading || o.mode !== 'dwell' || o.n > o.i || o.sitting) continue;
+      const d = Math.hypot(o.x - w.x, o.z - w.z);
+      if (d < FIGHT_RANGE[0] || d > FIGHT_RANGE[1] || !this.clearLine(w.x, w.z, o.x, o.z, d)) continue;
+      const time = FIGHT_TIME[0] + Math.random() * (FIGHT_TIME[1] - FIGHT_TIME[0]);
+      w.fight = { mate: o, timer: time, throwIn: 0.4 + Math.random() * 0.5 };
+      o.fight = { mate: w, timer: time, throwIn: 1.2 + Math.random() * 0.8 };
+      return true;
+    }
+    return false;
+  }
+
+  /** True when a snowball thrown from a to b meets no wall, tree or prop on the way. */
+  private clearLine(ax: number, az: number, bx: number, bz: number, d: number): boolean {
+    const steps = Math.ceil(d / 0.4);
+    for (let k = 1; k < steps; k++) {
+      const t = k / steps;
+      if (this.ctx.colliders.overlaps(ax + (bx - ax) * t, az + (bz - az) * t, 0.08)) return false;
+    }
+    return true;
+  }
+
+  private fightStep(w: Walker, dt: number): void {
+    const f = w.fight!;
+    const m = f.mate;
+    f.timer -= dt;
+    if (f.timer <= 0 || m.fight?.mate !== w || m.fading || !this.walkers.includes(m)) {
+      w.fight = null;
+      w.timer = 0.5 + Math.random();
+      return;
+    }
+    w.faceYaw = Math.atan2(m.x - w.x, m.z - w.z);
+    f.throwIn -= dt;
+    if (f.throwIn <= 0) {
+      f.throwIn = 1.3 + Math.random() * 1.2;
+      w.p.wave = 1;
+      if (this.balls.length < 6) this.balls.push({ ax: w.x, az: w.z, bx: m.x, bz: m.z, t: 0, dur: BALL_FLIGHT + Math.hypot(m.x - w.x, m.z - w.z) * BALL_PER_M, to: m });
+    }
   }
 
   private walk(w: Walker, dt: number): void {
