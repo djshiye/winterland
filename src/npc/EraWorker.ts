@@ -42,7 +42,7 @@ import type { MachineRuntime, RegionRuntime } from '../eras/runtime';
 import type { RegionLayout, XZ } from '../eras/layout';
 import { CharacterRig } from '../render/characters';
 import { cityLotAccess, lotCash, lotNeeds, type PayPad } from '../city/lotAccess';
-import { cityRoute, gateRoadSpot, inRect, kerbWait, lotStandSpot, type KerbVehicle } from '../city/roadRoute';
+import { CROSSERS, cityRoute, gateRoadSpot, inRect, kerbWait, lotStandSpot, type KerbVehicle } from '../city/roadRoute';
 import { ROADS } from '../eras/data';
 import { liveVehicles } from './vehicleView';
 
@@ -779,6 +779,7 @@ export class EraWorker {
 
   /** Leave the world: lingers until every item in flight to the hands has landed (see `disposed`). */
   dispose(): void {
+    CROSSERS.delete(this.group.position);
     this.disposing = true;
     this.route = [];
     this.routeIdx = 0;
@@ -1162,7 +1163,7 @@ export class EraWorker {
       // 1.0: quicker on the roads to the city (outside the region and the district)
       const road = !inRect(this.region.layout.rect, p) && !inRect(this.cityRect, p);
       // 0.9.12: on the way to the city, wait at the kerb while traffic is near the crossing
-      const wait = road && kerbWait(p, goal, this.openRoads(), trafficNow());
+      const wait = road && kerbWait(p, goal, this.openRoads(), trafficNow(this.ctx.time.elapsed));
       if (wait && this.kerb < KERB_PATIENCE) {
         this.kerb += dt;
         this.speed = 0;
@@ -1171,6 +1172,9 @@ export class EraWorker {
         return;
       }
       if (!wait) this.kerb = 0;
+      // out on a carriageway: the era buyers brake for us
+      if (road && this.openRoads().some((r) => inRect(r, p))) CROSSERS.add(p);
+      else CROSSERS.delete(p);
       const max = ERA_WORKER.walkSpeed * this.stats.walk * (road ? ROAD_SPEED : 1);
       const target = last ? Math.min(max, 1.2 + d * 4) : max;
       this.speed = approach(this.speed, target, ACCEL * dt);
@@ -1190,6 +1194,7 @@ export class EraWorker {
       }
     } else {
       this.speed = 0;
+      CROSSERS.delete(p);
       if (this.look) this.yaw = dampAngle(this.yaw, yawFromDir(this.look.x - p.x, this.look.z - p.z), TURN_LAMBDA, dt);
     }
     this.rig.root.rotation.y = this.yaw;
@@ -1199,12 +1204,29 @@ export class EraWorker {
 const _f = new THREE.Vector3();
 const _v = new THREE.Vector3();
 
-/** Every live vehicle's place and heading, for the kerb check (read lazily: only once a worker stands at a kerb). */
-function* trafficNow(): Generator<KerbVehicle> {
+/** Each vehicle's last sampled place and the speed measured since (m/s; NaN until a second sample). */
+const seen = new Map<string, { x: number; z: number; t: number; speed: number }>();
+/** Shortest gap between two speed samples of one vehicle (s). */
+const SAMPLE_GAP = 0.15;
+
+/**
+ * Every live vehicle's place, heading and speed, for the kerb check (read lazily: only once a worker stands at a kerb).
+ * The speed is measured from its own movement, so a cart stopped in a queue or at a depot reads 0.
+ */
+function* trafficNow(now: number): Generator<KerbVehicle> {
+  if (seen.size > 256) seen.clear(); // ids are per spawn: forget the long gone now and then
   for (const v of liveVehicles()) {
     v.facing(_f);
     v.root.getWorldPosition(_v);
-    yield { x: _v.x, z: _v.z, fx: _f.x, fz: _f.z };
+    let s = seen.get(v.id);
+    if (!s) seen.set(v.id, (s = { x: _v.x, z: _v.z, t: now, speed: NaN }));
+    else if (now - s.t >= SAMPLE_GAP) {
+      s.speed = Math.hypot(_v.x - s.x, _v.z - s.z) / (now - s.t);
+      s.x = _v.x;
+      s.z = _v.z;
+      s.t = now;
+    }
+    yield { x: _v.x, z: _v.z, fx: _f.x, fz: _f.z, speed: s.speed, yields: v.kind.startsWith('eraBuyer') };
   }
 }
 

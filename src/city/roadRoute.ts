@@ -357,21 +357,46 @@ export function gateRoadSpot(L: { gate: { x: number; z: number }; inward: number
   return { x: L.gate.x, z: L.gate.z - L.inward * 2 };
 }
 
+/**
+ * People out on a carriageway right now (era foremen crossing a road: npc/EraWorker.ts adds and removes them). The
+ * era buyers' vehicles (npc/EraBuyers.ts) brake for anyone here in their path, as drivers do at a crossing.
+ */
+export const CROSSERS = new Set<XZ>();
+
 /** A vehicle as the kerb check sees it: where it is and the way it heads (unit XZ). */
 export interface KerbVehicle {
   x: number;
   z: number;
   fx: number;
   fz: number;
+  /** How fast it is going (m/s; NaN = not measured yet, counted as moving). */
+  speed: number;
+  /** It brakes for people on the road (an era buyer): only one too close to stop makes a walker wait. */
+  yields?: boolean;
 }
 
-/** How far a vehicle heading for a crossing still makes a walker wait (m), and how near one always does. */
+/** Slower than this a vehicle is standing (a cart in its queue, a truck at its depot): nobody waits for it (m/s). */
+const KERB_STILL = 0.4;
+
+/**
+ * A vehicle coming at the crossing makes a walker wait while it would get there within KERB_TIME seconds (about the
+ * time to cross, with a margin; one not measured yet: while within KERB_SEE m). One moving right by the leg always
+ * does: within KERB_NEAR m, or KERB_NEAR_SLOW m when it only creeps (a cart moving up its queue, under KERB_SLOW m/s).
+ */
+const KERB_TIME = 3;
 const KERB_SEE = 18;
 const KERB_NEAR = 4.5;
+const KERB_NEAR_SLOW = 2.2;
+const KERB_SLOW = 2;
+/** A yielding vehicle's braking (m/s², npc/EraBuyers.ts DECEL) and the room it keeps, front to walker (m). */
+const YIELD_DECEL = 8;
+const YIELD_ROOM = 3.5;
 
 /**
  * Pure: should a walker at `p`, about to step from the kerb toward `goal` over one of `roads`, wait for traffic? True
- * while `p` is off every carriageway, the way ahead runs onto one, and a vehicle is near that leg or coming at it.
+ * while `p` is off every carriageway, the way ahead runs onto one, and a moving vehicle is near that leg or coming at
+ * it (a standing one, a cart waiting in its queue, makes nobody wait: people walk round it). An era buyer brakes for
+ * people on the road (CROSSERS), so only one too close to stop in time makes a walker wait for it.
  * (0.9.12: people look both ways, so they never walk out in front of a turning truck.)
  */
 export function kerbWait(p: XZ, goal: XZ, roads: readonly ERect[], vehicles: Iterable<KerbVehicle>): boolean {
@@ -383,13 +408,17 @@ export function kerbWait(p: XZ, goal: XZ, roads: readonly ERect[], vehicles: Ite
   const ahead = { x: p.x + dx * k, z: p.z + dz * k };
   if (!roads.some((r) => inRect(r, ahead))) return false;
   for (const v of vehicles) {
+    if (v.speed < KERB_STILL) continue;
     // nearest point of the leg to the vehicle
     const t = Math.max(0, Math.min(1, ((v.x - p.x) * dx + (v.z - p.z) * dz) / (len * len)));
     const qx = p.x + dx * t - v.x;
     const qz = p.z + dz * t - v.z;
     const d = Math.hypot(qx, qz);
-    if (d < KERB_NEAR) return true;
-    if (d < KERB_SEE && qx * v.fx + qz * v.fz > 0) return true;
+    if (d < (v.speed < KERB_SLOW ? KERB_NEAR_SLOW : KERB_NEAR)) return true;
+    if (qx * v.fx + qz * v.fz <= 0) continue; // heading away
+    if (Number.isNaN(v.speed)) {
+      if (d < KERB_SEE) return true;
+    } else if (v.yields ? d < (v.speed * v.speed) / (2 * YIELD_DECEL) + YIELD_ROOM : d < v.speed * KERB_TIME) return true;
   }
   return false;
 }

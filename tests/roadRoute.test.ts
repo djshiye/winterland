@@ -161,15 +161,30 @@ describe('kerbWait: people look both ways', () => {
   it('steps out on a clear road', () => {
     expect(kerbWait(p, goal, [road], [])).toBe(false);
     // a truck far off, or driving away
-    expect(kerbWait(p, goal, [road], [{ x: 42, z: 90, fx: 0, fz: 1 }])).toBe(false);
-    expect(kerbWait(p, goal, [road], [{ x: 42, z: 72, fx: 0, fz: 1 }])).toBe(false);
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 90, fx: 0, fz: 1, speed: 8 }])).toBe(false);
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 72, fx: 0, fz: 1, speed: 8 }])).toBe(false);
   });
   it('waits for a truck coming at the crossing, or right by it', () => {
-    expect(kerbWait(p, goal, [road], [{ x: 42, z: 76, fx: 0, fz: -1 }])).toBe(true);
-    expect(kerbWait(p, goal, [road], [{ x: 42, z: 64, fx: 0, fz: 1 }])).toBe(true);
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 76, fx: 0, fz: -1, speed: 8 }])).toBe(true);
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 64, fx: 0, fz: 1, speed: 8 }])).toBe(true);
+  });
+  it('steps out ahead of a slow cart still far off', () => {
+    // 10 m off at 3 m/s: over 3 s away
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 72, fx: 0, fz: -1, speed: 3 }])).toBe(false);
+    // creeping up its queue 3 m off: walks round it
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 64.6, fx: 0, fz: -1, speed: 1 }])).toBe(false);
+  });
+  it('an era buyer brakes for walkers: only one too close to stop makes them wait', () => {
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 73.3, fx: 0, fz: -1, speed: 6, yields: true }])).toBe(false);
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 67.3, fx: 0, fz: -1, speed: 9, yields: true }])).toBe(true);
+  });
+  it('walks round a cart standing in its queue', () => {
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 63, fx: 0, fz: -1, speed: 0 }])).toBe(false);
+    // not measured yet: counted as moving
+    expect(kerbWait(p, goal, [road], [{ x: 42, z: 63, fx: 0, fz: -1, speed: NaN }])).toBe(true);
   });
   it('never stops on the road itself, or on a walk that stays off it', () => {
-    expect(kerbWait({ x: 42, z: 61.3 }, goal, [road], [{ x: 42, z: 64, fx: 0, fz: -1 }])).toBe(false);
-    expect(kerbWait(p, { x: 39.6, z: 50 }, [road], [{ x: 42, z: 64, fx: 0, fz: -1 }])).toBe(false);
+    expect(kerbWait({ x: 42, z: 61.3 }, goal, [road], [{ x: 42, z: 64, fx: 0, fz: -1, speed: 8 }])).toBe(false);
+    expect(kerbWait(p, { x: 39.6, z: 50 }, [road], [{ x: 42, z: 64, fx: 0, fz: -1, speed: 8 }])).toBe(false);
   });
 });
