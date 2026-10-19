@@ -160,8 +160,10 @@ const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 let image;
 /**
  * The AppImage file this copy runs from (Linux), or null. The AppImage starter sets $APPIMAGE (the file) and $APPDIR
- * (where it is mounted). This copy must really run from that mount, and the file must be a plain file that starts like
- * an AppImage, so a stray $APPIMAGE can never point the updater at another file.
+ * (where it is mounted). This copy must really run from that mount, or from the copy of it that the AppImage's
+ * starter makes on Ubuntu 23.10+ (desktop/linux/sandbox-setup.sh: ${XDG_DATA_HOME:-~/.local/share}/Winterland/app),
+ * and the file must be a plain file that starts like an AppImage, so a stray $APPIMAGE can never point the updater at
+ * another file.
  */
 function appImageFile() {
   if (image !== undefined) return image;
@@ -170,7 +172,10 @@ function appImageFile() {
   const dir = process.env.APPDIR;
   if (process.platform !== 'linux' || !file || !dir || !path.isAbsolute(file) || !path.isAbsolute(dir)) return image;
   try {
-    if (path.dirname(fs.realpathSync(process.execPath)) !== fs.realpathSync(dir)) return image;
+    const data = path.isAbsolute(process.env.XDG_DATA_HOME ?? '') ? process.env.XDG_DATA_HOME : path.join(os.homedir(), '.local', 'share');
+    const from = path.dirname(fs.realpathSync(process.execPath));
+    const copy = path.join(data, 'Winterland', 'app');
+    if (from !== fs.realpathSync(dir) && !(fs.existsSync(copy) && from === fs.realpathSync(copy))) return image;
     const real = fs.realpathSync(file);
     if (!fs.statSync(real).isFile()) return image;
     const head = Buffer.alloc(16);

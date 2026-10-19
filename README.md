@@ -124,11 +124,13 @@ first run downloads the Electron runtime for each target (~100 MB each) and cach
   and run `./winterland` from a terminal in that folder.
 - **Ubuntu 23.10 / 24.04 and later** block the game's sandbox until Ubuntu's AppArmor allows it (otherwise the game
   closes at once, or says *"The SUID sandbox helper binary was found, but is not configured correctly"*). The AppImage
-  asks for this itself the first time, in a window, with Ubuntu's password prompt. With the zip, run
-  `./"Set up for Ubuntu.sh"` once in that folder (run it again if you move the folder). Either way it adds a small
-  profile in `/etc/apparmor.d/` (`winterland-appimage` or `winterland`) that only lets Winterland use the sandbox: the
-  sandbox stays on and the game gets no other rights. Delete that file to undo it. Please don't start the game with
-  `--no-sandbox`: that turns off a main layer of protection.
+  asks for this itself the first time, in a window, with Ubuntu's password prompt. On those Ubuntu versions it also
+  copies the game into your own `~/.local/share/Winterland/app` (about 300 MB, refreshed after each update) and starts
+  it from there, because the AppImage's own temporary folder can't safely be named in a profile. With the zip, run
+  `./"Set up for Ubuntu.sh"` once in that folder (run it again if you move the folder). Either way it adds one small
+  profile in `/etc/apparmor.d/` (`winterland-appimage` or `winterland`) for that one program path, which lets it use
+  the sandbox and nothing more: the sandbox stays on and the game gets no other rights. Delete that file (and the
+  copy) to undo it. Please don't start the game with `--no-sandbox`: that turns off a main layer of protection.
 - **macOS:** unzip `Winterland-<version>-darwin-arm64.zip` (Macs with an Apple chip, M1 and later; Intel Macs are not
   supported from 0.9.11) and drag `Winterland.app` to Applications. The app isn't notarised by Apple, so the first time *right-click → Open*
   it (or *System Settings → Privacy & Security → Open Anyway*).

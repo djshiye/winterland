@@ -12,6 +12,8 @@
  *
  * An AppImage is that starter followed by a squashfs image of the game folder plus:
  *   AppRun                 starts the game, after desktop/linux/sandbox-setup.sh checks Ubuntu lets its sandbox run
+ *                          (on Ubuntu 23.10+ it starts a copy in the player's own folder instead: see that script)
+ *   .winterland-build      version + app.asar hash, so that copy is refreshed after each update
  *   winterland.desktop     name, icon and category for menus (Gear Lever reads it)
  *   winterland.png         the icon (scripts/appimage/winterland.png); .DirIcon points at it
  * The starter's .upd_info section names where updates come from (gh-releases-zsync, the AppImage standard), so Gear
@@ -96,10 +98,11 @@ X-AppImage-Version=${pkg.version}
 
 const appRun = `#!/bin/sh
 # Winterland's AppImage starter (scripts/package-appimage.mjs). On Ubuntu 23.10+ the sandbox check may ask, once, to
-# let Winterland use Chromium's sandbox; it never turns the sandbox off.
+# let Winterland use Chromium's sandbox, and then names the copy of the game in the player's own folder to start
+# (desktop/linux/sandbox-setup.sh explains why). It never turns the sandbox off.
 HERE="$(dirname "$(readlink -f "$0")")"
-"$HERE/sandbox-setup.sh" --appimage --ask || exit 1
-exec "$HERE/winterland" "$@"
+GAME="$("$HERE/sandbox-setup.sh" --appimage --ask)" || exit 1
+exec "\${GAME:-$HERE/winterland}" "$@"
 `;
 
 for (const target of targets) {
@@ -121,6 +124,9 @@ for (const target of targets) {
   copyFileSync(join(root, 'desktop', 'linux', 'sandbox-setup.sh'), join(appDir, 'sandbox-setup.sh'));
   chmodSync(join(appDir, 'sandbox-setup.sh'), 0o755);
   writeFileSync(join(appDir, 'winterland.desktop'), desktopEntry, { mode: 0o644 });
+  // which build this is: the copy sandbox-setup.sh makes on Ubuntu is refreshed when this changes
+  const asar = createHash('sha256').update(readFileSync(join(appDir, 'resources', 'app.asar'))).digest('hex');
+  writeFileSync(join(appDir, '.winterland-build'), `${pkg.version} ${asar}\n`, { mode: 0o644 });
   copyFileSync(join(root, 'scripts', 'appimage', 'winterland.png'), join(appDir, 'winterland.png'));
   symlinkSync('winterland.png', join(appDir, '.DirIcon'));
 
