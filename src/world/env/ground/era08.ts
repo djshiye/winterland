@@ -9,13 +9,14 @@ import { SNOW, mixHex, palette } from '../../../render/palette';
 import { plotPlaces } from '../../../eras/layout';
 import { regionPaths } from '../frontier';
 import { geo } from '../../../render/materials';
+import { placeWarmSpot, warmSpotRect } from './warmSpots';
 import { landmarkDiscs, landmarkRect89, placeLandmark89 } from './landmarks8to9';
 import { beltSpots, greenBorder, boule, cellMarks, cypress, dune, harvestFree, inset, pathLamp, pathLampSpots, slab, solarRow, terrazzo, FLOOR_Y, beltSnow, harvestDrifts, snowVerge } from './lateKit';
 
 const N = 8;
 
 export const era08: EraGroundModule = {
-  keepOut: (l) => landmarkRect89(l, 8),
+  keepOut: (l) => [...landmarkRect89(l, 8), ...warmSpotRect(l, 8)],
   wild(k, l, rng) {
     const P = plotPlaces(N);
     const belt = beltSpots(l, 4.6, rng);
@@ -26,6 +27,8 @@ export const era08: EraGroundModule = {
     // the signature landmark (a little lighthouse on a frozen shore) first; nothing else lands on it
     placeLandmark89(k, l, rng, 8);
     placed.push(...landmarkDiscs(l, 8));
+    const w8 = placeWarmSpot(k, l, rng, 8);
+    if (w8) placed.push({ x: w8.x, z: w8.z, r: 1.9 });
     // solar rows: a tidy array on the harvest ground, rows 3.4 m apart
     for (let z = H.minZ + 3; z < H.maxZ - 2.5; z += 3.2) {
       for (let x = l.rect.minX + 7.8; x < H.maxX - 3; x += 6.6) {

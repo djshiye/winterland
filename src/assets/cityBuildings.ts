@@ -938,10 +938,10 @@ function landmark(b: Build, n: number): void {
 
 const partsCache = new Map<string, Parts>();
 
-function buildParts(def: CityBuildingDef, seed: number, W: number, D: number): Parts {
+function buildParts(def: CityBuildingDef, seed: number, W: number, D: number, maxH = Infinity): Parts {
   const n = def.era;
   const st = styleOf(n);
-  const H = visualHeight(def.height);
+  const H = Math.min(maxH, visualHeight(def.height));
   const b = new Build(st, W, D, H, seed);
   switch (def.kind) {
     case 'park':
@@ -965,17 +965,18 @@ function buildParts(def: CityBuildingDef, seed: number, W: number, D: number): P
  * Build the model of city building `id` (an id of eras/data.ts CITY_BUILDINGS) for a `fit` footprint (default: the
  * widest lot of its era). `seed` varies the walls a little (seeds 0..2 are distinct variants, geometry is cached).
  */
-export function createCityBuilding(id: CityBuildingId | string, seed = 1, fit?: { w: number; d: number }): CityBuildingModel {
+export function createCityBuilding(id: CityBuildingId | string, seed = 1, fit?: { w: number; d: number; maxH?: number }): CityBuildingModel {
   const def = CITY_BUILDINGS[id as CityBuildingId];
   if (!def) throw new Error(`no city building ${id}`);
   const f = fit ?? maxFootprint(def.era);
   const W = Math.round(f.w * 100) / 100;
   const D = Math.round(f.d * 100) / 100;
   const variant = ((seed % 3) + 3) % 3;
-  const key = `${id}|${variant}|${W}|${D}`;
+  const maxH = fit?.maxH ?? Infinity;
+  const key = `${id}|${variant}|${W}|${D}|${maxH}`;
   let parts = partsCache.get(key);
   if (!parts) {
-    parts = buildParts(def, variant, W, D);
+    parts = buildParts(def, variant, W, D, maxH);
     partsCache.set(key, parts);
   }
   const root = new THREE.Group();
@@ -1005,7 +1006,7 @@ export function createCityBuilding(id: CityBuildingId | string, seed = 1, fit?: 
     root,
     w: W,
     d: D,
-    height: visualHeight(def.height),
+    height: Math.min(maxH, visualHeight(def.height)),
     animate: (t: number): void => {
       if (pivot) pivot.rotation.y = t * speed;
     },
