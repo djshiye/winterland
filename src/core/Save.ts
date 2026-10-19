@@ -63,6 +63,12 @@ export interface WorldSnapshot {
    * (absent before 0.9.5 → empty).
    */
   eras: { slots: { in: Partial<Record<ItemKind, number>>; out: number }[]; dock: Partial<Record<ItemKind, number>>; market?: { dock: Partial<Record<ItemKind, number>>; stall: Partial<Record<ItemKind, number>>; cash: number } }[];
+  /**
+   * 0.9.12 (full review E5): where the player stood (world XZ), so a load puts them back there instead of the era-1
+   * yard. Absent in older saves and a New Season (→ the yard spawn); Level.restoreWorld only uses a spot that is still
+   * open ground outside every zone.
+   */
+  at?: { x: number; z: number };
 }
 
 export interface SaveData {
@@ -813,7 +819,14 @@ export function sanitizeWorld(w: unknown): WorldSnapshot {
           : undefined,
       };
     }),
+    ...savedSpot(o.at),
   };
+}
+
+/** 0.9.12 (E5): the saved player spot, only as two finite numbers inside the world (anything else: the yard spawn). */
+function savedSpot(at: unknown): { at?: { x: number; z: number } } {
+  if (!isObj(at) || !isNum(at.x) || !isNum(at.z) || Math.abs(at.x) > 5000 || Math.abs(at.z) > 5000) return {};
+  return { at: { x: at.x, z: at.z } };
 }
 
 /** Units of removed kinds (core/resourcesV2.ts LEGACY_KINDS) that `k` replaces, from a raw saved arms record. */

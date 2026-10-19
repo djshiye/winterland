@@ -8,7 +8,7 @@
  * - Progression: *when* pads appear, phases, intro cinematic, tutorial guide, camera moments.
  */
 import * as THREE from 'three';
-import { CAMERA, LAYOUT, PADS, type PadIdConst, type XZ } from '../config';
+import { CAMERA, LAYOUT, PADS, PLAYER, type PadIdConst, type XZ } from '../config';
 import type { WorldSnapshot } from '../core/Save';
 import { CARRY_KINDS, type CarryKind, type GameContext, type ItemKind, type PadId } from '../core/types';
 import { EraWorld } from '../eras/EraWorld';
@@ -469,6 +469,8 @@ export class Level {
       }),
       // 0.9.0 era regions: machine piles and import docks (workers' loads go back to their dock)
       eras: this.eras.snapshot(),
+      // 0.9.12 (E5): where the player stands (a load puts them back here), once the game proper has begun
+      ...(this.ctx.state.flags.introDone ? { at: { x: round2(this.ctx.player.object.position.x), z: round2(this.ctx.player.object.position.z) } } : {}),
     };
   }
 
@@ -520,6 +522,19 @@ export class Level {
     this.eras.restore(w.eras);
     // Last: the drop zone takes its own logs first, then the spill, up to its capacity.
     fillPile(this.dropZone.pile, 'log', w.piles.dropZone + spill);
+    this.restoreSpot(w.at);
+  }
+
+  /**
+   * 0.9.12 (full review E5): put the player back where they saved (they used to wake up in the era-1 yard even after
+   * saving in era 9). Only on open ground they could walk to now (inside the walkable bounds, clear of every
+   * obstacle) and outside every zone, so a load never starts a payment or a pickup by itself; else the yard spawn.
+   */
+  private restoreSpot(at: WorldSnapshot['at']): void {
+    if (!at || !this.ctx.state.flags.introDone) return;
+    const ctx = this.ctx;
+    if (!ctx.colliders.isFree(at.x, at.z, PLAYER.radius) || ctx.zones.anyAt(at.x, at.z)) return;
+    ctx.player.teleport(at.x, at.z);
   }
 
   forceUnlock(id: PadId): void {
@@ -577,3 +592,5 @@ function pathMidpoint(path: readonly XZ[], out: THREE.Vector3): THREE.Vector3 {
   const b = path[path.length - 1]!;
   return out.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
 }
+
+const round2 = (v: number): number => Math.round(v * 100) / 100;

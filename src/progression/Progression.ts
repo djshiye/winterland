@@ -50,6 +50,7 @@ import { lotOffered } from '../town/lane';
 import { usingGamepad } from '../input/Gamepad';
 import { EraStarter, starterFlag } from './eraStarter';
 import { setGuideGoal } from './guideGoal';
+import { handNodePlace } from '../eras/HandNode';
 
 /** " (hold A)" with a gamepad (0.9.7), " (hold E)" with a keyboard, " (hold)" on touch, for the guide's pickup / payment hints. */
 function holdHint(): string {
@@ -62,8 +63,15 @@ function holdHint(): string {
 }
 
 const GUIDE_INTERVAL = 0.25;
-/** Minimum time an objective stays on screen before it may change. */
-const GUIDE_DWELL = 0.7;
+/**
+ * Minimum time an objective (and its arrow target) stays on screen before it may change (0.9.12, full review G1: it
+ * was 0.7 s and the banner flickered ~30 times a minute). The player's own doing moves it at once: see setGoal.
+ */
+export const GUIDE_DWELL = 3;
+/** 0.9.12 (G1, G2): while the player stands in the current goal's zone and this recently moved goods or paid, it stays. */
+const BUSY_HOLD = 1.2;
+/** The player's own doing (picking up, putting down) may change the goal at once, but not faster than this. */
+const GUIDE_MIN = 0.5;
 const PICKUP_STAY_UNTIL = 6;
 /** Seconds between "visit the cabin" reminders once the shop has been visited. */
 const SHOP_REMINDER = 120;
@@ -122,6 +130,8 @@ const PHASE_OF_PAD: Record<PadId, Phase> = {
 
 type IntroState = 'pending' | 'playing' | 'done';
 
+/** "crates", "stone", "bricks": an item's name in a guide line. */
+const matName = (kind: ItemKind): string => MATERIALS[kind as keyof typeof MATERIALS]?.label.toLowerCase() ?? `${kind}s`;
 const titleCase = (s: string): string => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 const centerOf = (r: Rect, out: THREE.Vector3): THREE.Vector3 => out.set((r.minX + r.maxX) / 2, 0, (r.minZ + r.maxZ) / 2);
 
@@ -162,6 +172,16 @@ export class Progression {
   private readonly starter = new EraStarter();
   private objective: string | null = null;
   private objectiveSince = -10;
+  /** 0.9.12: the current goal's zone (the busy hold), its arrow point and when that last moved. */
+  private goalArea: Rect | null = null;
+  private targetKey = '';
+  private targetSince = -10;
+  /** What the player carried when the current goal was set (a change is their own doing: the guide may move at once). */
+  private goalArms = -1;
+  /** Last time goods moved in or out of the player's arms, or money was spent (the busy hold). */
+  private lastBusy = -10;
+  private busyArms = -1;
+  private busyMoney = 0;
   private readonly guidePoint = new THREE.Vector3();
   private readonly tmpPoint = new THREE.Vector3();
   /** The MANAGE tip: when it came up (−1 = not yet) and the sign it points at. */
@@ -280,6 +300,7 @@ export class Progression {
       this.ruleAcc = 0;
       this.evaluateReveals();
     }
+    this.trackBusy();
     this.guideAcc += dt;
     if (this.guideAcc >= GUIDE_INTERVAL) {
       this.guideAcc = 0;
@@ -506,6 +527,12 @@ export class Progression {
   // Tutorial guide
   // ---------------------------------------------------------------------------
 
+  /**
+   * Show one goal: the banner text, the era chip's line and the arrow (into `area`, at `point` or the area's centre).
+   * 0.9.12 (full review G1): a new goal waits until the current one has been up GUIDE_DWELL seconds, and so does a new
+   * arrow target for the same text, unless what the player carries changed since it was set (they picked something up
+   * or put it down: the next step shows at once, GUIDE_MIN apart). So the banner and the arrow never flip-flop.
+   */
   private setGoal(text: string | null, area: Rect | null, point?: THREE.Vector3, chip?: string): void {
     const ctx = this.ctx;
     const now = ctx.time.elapsed;
@@ -514,25 +541,62 @@ export class Progression {
     if (text && ctx.input.holdToInteract && /^(Pick up|Pay for|Bring logs to|Build the Great Lodge)/.test(text)) {
       text += holdHint();
     }
+    const arms = ctx.player.arms.count();
+    const own = arms !== this.goalArms && now - this.objectiveSince >= GUIDE_MIN;
+    const wait = !own && now - this.objectiveSince < GUIDE_DWELL;
     if (text !== this.objective) {
-      if (now - this.objectiveSince < GUIDE_DWELL) return; // keep the current hint a moment
+      if (wait) return; // keep the current hint a moment
       this.objective = text;
       this.objectiveSince = now;
+      this.goalArms = arms;
       ctx.hud.setObjective(text);
       setGuideGoal(ctx.state, goal, chip); // 0.9.10 (C2): the era chip names the same goal
     }
     if (!text || (!area && !point)) {
+      this.goalArea = null;
+      this.targetKey = '';
       ctx.hud.setGuideTarget(null);
       return;
     }
+    if (point) this.tmpPoint.copy(point);
+    else centerOf(area!, this.tmpPoint);
+    const key = `${Math.round(this.tmpPoint.x * 2)},${Math.round(this.tmpPoint.z * 2)}`;
+    if (key !== this.targetKey) {
+      // the same goal elsewhere (the bigger cash pile, another machine): not faster than the banner itself
+      if (this.targetKey !== '' && now - this.targetSince < GUIDE_DWELL && !own && this.objectiveSince !== now) return;
+      this.targetKey = key;
+      this.targetSince = now;
+      this.goalArms = arms;
+    }
+    this.guidePoint.copy(this.tmpPoint);
+    this.goalArea = area ? { ...area } : rect(this.guidePoint.x, this.guidePoint.z, 1.6, 1.6);
     // No arrow while the player already stands in the target zone.
     if (area && ctx.zones.isPlayerIn(area)) {
       ctx.hud.setGuideTarget(null);
       return;
     }
-    if (point) this.guidePoint.copy(point);
-    else centerOf(area!, this.guidePoint);
     ctx.hud.setGuideTarget(this.guidePoint, area);
+  }
+
+  /** 0.9.12: note when goods move in or out of the player's arms or money is spent (the busy hold, G1 / G2). */
+  private trackBusy(): void {
+    const arms = this.ctx.player.arms.count();
+    const money = this.ctx.economy.money;
+    // money only counts while the player stands in the goal's zone (crews spend too)
+    const spent = money < this.busyMoney - 0.5 && !!this.goalArea && this.ctx.zones.isPlayerIn(this.goalArea);
+    if ((this.busyArms >= 0 && arms !== this.busyArms) || spent) this.lastBusy = this.ctx.time.elapsed;
+    this.busyArms = arms;
+    this.busyMoney = money;
+  }
+
+  /**
+   * 0.9.12 (full review G1, G2): the player stands in the current goal's zone and is busy there (paying, dropping off,
+   * picking up): the goal stays until they stop or step out, so the guide never pulls them off a pad mid-payment.
+   */
+  private busyHere(): boolean {
+    if (!this.objective || !this.goalArea) return false;
+    if (this.ctx.time.elapsed - this.lastBusy > BUSY_HOLD) return false;
+    return this.ctx.zones.isPlayerIn(this.goalArea);
   }
 
   /** The most useful village pad right now: the Great Lodge, else the first plot whose cash part is affordable. */
@@ -603,6 +667,8 @@ export class Progression {
     // 0.9.2: once the foreman hauls the logs and pays for this site, fetching / paying hints are noise; logs already in
     // hand still get a place to go
     if (need.crew && this.ctx.upgrades.isHired('foreman') && armsLogs === 0) return false;
+    // 0.9.12 (G3): all paid (the site is about to finish): no "Pay for the shelter ($0)" flash
+    if (need.logsLeft <= 0 && need.cashLeft < 0.5) return false;
     const want = Math.min(need.logsLeft, arms.capacity);
     if (need.logsLeft <= 0 || armsLogs >= want) {
       const spotArea = rect(need.spot.x, need.spot.z, 2.4, 2.4);
@@ -714,7 +780,19 @@ export class Progression {
       if (st.tier >= 0 || s.village.level < def.era) continue;
       const cashLeft = def.cash - st.cash;
       if (cashLeft > 0 && money < cashLeft) continue;
+      // 0.9.12 (G7): an amenity takes logs too: fetch them, bring them, then pay (it never said so: a 40-minute stall)
       const pad = LAYOUT.town.amenities[id].pad;
+      const logsLeft = def.logs - st.logs;
+      if (
+        this.pursue({
+          spot: pad,
+          logsLeft,
+          cashLeft,
+          text: logsLeft > 0 ? `Bring logs to the ${def.label}` : `Pay for the ${def.label} (${fmtMoney(cashLeft)})`,
+          pick: `Pick up ${logsLeft} logs for the ${def.label}`,
+        })
+      )
+        return true;
       this.setGoal(`Build the ${def.label} on the square`, rect(pad.x, pad.z, 1.8, 1.8), this.tmpPoint.set(pad.x, 0, pad.z));
       return true;
     }
@@ -856,6 +934,11 @@ export class Progression {
     // 0.9.6: inside a region only that region's machines count (leftover bricks no longer point back to Granite
     // Hollow from the Steam Age); what nothing here wants goes to this region's depot
     const order = this.regionHere() ? [home] : [home, ...Array.from({ length: s.eras.age - 1 }, (_, i) => i + 2).filter((n) => n !== home)];
+    // 0.9.12 (G10): a machine being built that needs it comes before feeding or shipping it
+    for (const n of order) {
+      const site = this.level.eras.region(n)?.chosenSites?.().find((x) => x.pad.extraKind === kind && x.pad.extraLeft > 0);
+      if (site && this.siteGoal(n, site.slot)) return true;
+    }
     for (const n of order) {
       const region = this.level.eras.region(n);
       if (!region) continue;
@@ -873,28 +956,111 @@ export class Progression {
   }
 
   /**
+   * 0.9.12 (full review G6, G8): the next expansion pad, step by step, once its gate is met (or something is paid in):
+   * the cash ("Expand to Granite Hollow ($1.5M)"), then its goods: in hand → the pad; else where to get them (crates
+   * at the processor, an era material at the machine that makes it) → "Pick up 40 crates for Granite Hollow". `force`:
+   * also while less than half the cash is in hand (else the caller lets the cash piles speak first).
+   */
+  private expansionGuide(force: boolean): boolean {
+    const s = this.ctx.state;
+    const next = s.eras.age + 1;
+    const era = ERAS[next];
+    if (!era || !expansionOffered(s, next)) return false;
+    const paid = s.eras.regions[next]!;
+    const cashLeft = era.unlock.cash - paid.cash;
+    const extraLeft = era.unlock.extra.count - paid.extra;
+    if (cashLeft <= 0 && extraLeft <= 0) return false;
+    const pad = regionLayout(next).expansionPad;
+    const padArea = rect(pad.x, pad.z, 2, 2);
+    if (cashLeft > 0) {
+      if (!force && this.ctx.economy.money < cashLeft * 0.5) return false;
+      this.setGoal(`Expand to ${era.region} (${formatMoney(cashLeft)})`, padArea, this.tmpPoint.set(pad.x, 0, pad.z));
+      return true;
+    }
+    const kind = era.unlock.extra.kind;
+    if (this.ctx.player.arms.count(kind) === 0 && this.fetchFor(kind, extraLeft, era.region)) return true;
+    this.setGoal(`Bring ${extraLeft} ${matName(kind)} to ${era.region}`, padArea, this.tmpPoint.set(pad.x, 0, pad.z));
+    return true;
+  }
+
+  /**
+   * 0.9.12 (full review G8, G10): send the player to fetch `count` × `kind` for `what` (the expansion, a machine being
+   * built): crates at the processor's output; an era material at a machine that makes it (one with stock first, newest
+   * region first), else an import dock holding some, else the region's hand node. False when nothing makes it.
+   */
+  private fetchFor(kind: ItemKind, count: number, what: string): boolean {
+    const text = `Pick up ${count} ${matName(kind)} for ${what}`;
+    if (kind === 'crate') {
+      const proc = this.level.processor;
+      if (!proc) return false;
+      this.setGoal(text, proc.outputZone.area);
+      return true;
+    }
+    const s = this.ctx.state;
+    const here = this.regionHere();
+    const order = [...(here ? [here] : []), ...Array.from({ length: Math.max(0, s.eras.age - 1) }, (_, i) => s.eras.age - i).filter((n) => n !== here)];
+    let fallback: { x: number; z: number } | null = null;
+    for (const n of order) {
+      const region = this.level.eras.region(n);
+      if (!region) continue;
+      let maker: (typeof region.machines)[number] = null;
+      for (const m of region.machines) {
+        if (!m || m.def.output !== kind) continue;
+        if (!maker || (m.output.count(kind) > maker.output.count(kind))) maker = m;
+      }
+      const at = maker && maker.output.count(kind) > 0 ? maker.takeSpot : region.dock.count(kind) > 0 ? region.dockSpot : null;
+      if (at) {
+        this.setGoal(text, rect(at.x, at.z, 1.6, 1.6), this.tmpPoint.set(at.x, 0, at.z));
+        return true;
+      }
+      if (!fallback && maker) fallback = maker.takeSpot;
+      if (!fallback && region.node?.yields === kind) {
+        const node = handNodePlace(region.layout);
+        if (node) fallback = node;
+      }
+    }
+    if (!fallback) return false;
+    this.setGoal(text, rect(fallback.x, fallback.z, 1.6, 1.6), this.tmpPoint.set(fallback.x, 0, fallback.z));
+    return true;
+  }
+
+  /**
+   * 0.9.12 (full review G9, G10): a machine chosen on a slot and still being built: what it needs next, at its pad.
+   * Goods for it in hand → "Bring stone to the brick kiln"; cash owed (and some in hand) → "Pay for the brick kiln";
+   * goods still to come → where to get them ("Pick up 9 stone for the brick kiln"), else its pad.
+   */
+  private siteGoal(n: number, slot = -1): boolean {
+    const region = this.level.eras.region(n);
+    const sites = region?.chosenSites?.() ?? [];
+    const site = slot >= 0 ? sites.find((x) => x.slot === slot) : sites[0];
+    if (!site) return false;
+    const label = MACHINES[site.machine as keyof typeof MACHINES]?.label.toLowerCase() ?? 'machine';
+    const pad = site.pad;
+    const at = this.tmpPoint;
+    const point = (): THREE.Vector3 => centerOf(pad.area, at);
+    const kind = pad.extraKind;
+    const need = kind ? pad.extraLeft : 0;
+    if (kind && need > 0 && this.ctx.player.arms.count(kind) > 0) {
+      this.setGoal(`Bring ${need} ${matName(kind)} to the ${label}`, pad.area, point());
+      return true;
+    }
+    if (pad.cashLeft > 0 && this.ctx.economy.money > 0) {
+      this.setGoal(`Pay for the ${label} (${fmtMoney(pad.cashLeft)})`, pad.area, point());
+      return true;
+    }
+    if (kind && need > 0 && this.fetchFor(kind, need, `the ${label}`)) return true;
+    this.setGoal(pad.cashLeft > 0 ? `Pay for the ${label} (${fmtMoney(pad.cashLeft)})` : `Build the ${label}`, pad.area, point());
+    return true;
+  }
+
+  /**
    * 0.9.0 era hints, only once the climb is open (the Great Lodge) or an era is reached (the Survival guide stays
-   * 0.8.0's): the next expansion pad once half its cash is in hand, then the first machine of the newest region.
+   * 0.8.0's): the next expansion pad (0.9.12: as soon as its gate is met), then the first machine of the newest region.
    */
   private eraGuide(): boolean {
     const s = this.ctx.state;
     if (!climbOpen(s) && s.eras.age < 2) return false;
-    const next = s.eras.age + 1;
-    const era = ERAS[next];
-    if (era && expansionOffered(s, next)) {
-      const paid = s.eras.regions[next]!;
-      const cashLeft = era.unlock.cash - paid.cash;
-      const extraLeft = era.unlock.extra.count - paid.extra;
-      if (cashLeft <= 0 || this.ctx.economy.money >= cashLeft * 0.5) {
-        const pad = regionLayout(next).expansionPad;
-        const what = MATERIALS[era.unlock.extra.kind as keyof typeof MATERIALS]?.label.toLowerCase() ?? `${era.unlock.extra.kind}s`;
-        const text = cashLeft > 0 ? `Expand to ${era.region} (${formatMoney(cashLeft)})` : `Bring ${extraLeft} ${what} to ${era.region}`;
-        if (cashLeft > 0 || extraLeft > 0) {
-          this.setGoal(text, rect(pad.x, pad.z, 2, 2), this.tmpPoint.set(pad.x, 0, pad.z));
-          return true;
-        }
-      }
-    }
+    if (this.expansionGuide(true)) return true;
     // The newest region with nothing chosen on any slot: build its first machine (the extractor).
     const n = s.eras.age;
     if (n < 2 || s.eras.regions[n]!.slots.some((slot) => slot.machine !== '')) return false;
@@ -926,6 +1092,35 @@ export class Progression {
         this.setGoal(text, rect(pad.x, pad.z, pad.size, pad.size));
         return true;
       }
+    } else if (target.startsWith('region:')) {
+      // 0.9.12 (G9): an era machine to build: the chosen slot's pad (pay / bring its goods), else the first empty slot
+      const n = Number(target.slice(7));
+      if (n > s.eras.age) {
+        if (this.expansionGuide(true)) return true;
+      } else {
+        const sites = this.level.eras.region(n)?.chosenSites?.() ?? [];
+        const mine = sites.find((x) => x.machine === goal.action.id) ?? sites[0];
+        if (mine && this.siteGoal(n, mine.slot)) return true;
+        const slots = s.eras.regions[n]?.slots ?? [];
+        const free = slots.findIndex((slot) => slot.machine === '');
+        const place = free >= 0 ? regionLayout(n).slots[free] : undefined;
+        if (place) {
+          this.setGoal(text, rect(place.x, place.z, 3, 3), this.tmpPoint.set(place.x, 0, place.z));
+          return true;
+        }
+      }
+    } else if (target === 'village') {
+      // 0.9.12: grow the village: its next shelter (or the Great Lodge) when one is on offer, else its gate
+      const need = this.villageNeed();
+      const spot = need?.spot;
+      if (spot) {
+        this.setGoal(text, rect(spot.x, spot.z, 2.4, 2.4), this.tmpPoint.set(spot.x, 0, spot.z));
+        return true;
+      }
+      const g = LAYOUT.village.gate;
+      const gx = (g.minX + g.maxX) / 2;
+      this.setGoal(text, rect(gx, 12, g.maxX - g.minX, 2.4), this.tmpPoint.set(gx, 0, 12));
+      return true;
     } else if (target === 'quarters') {
       const q = LAYOUT.ridge.quarters.pad;
       this.setGoal(text, rect(q.x, q.z, 2, 2));
@@ -1029,6 +1224,9 @@ export class Progression {
     const padPayable = (pad: (typeof L.pads)[PadId]): boolean =>
       pad.visible && pad.remaining > 0 && (money >= pad.remaining || (inArea(pad.zone.area) && money > 0));
 
+    // 0.9.12 (full review G1, G2): busy in the current goal's zone (paying, dropping off, picking up): it stays
+    if (this.busyHere()) return;
+
     // 0.9.6 (guide by location): inside an era region its own guide runs first, and Survival's chores (cash piles,
     // logs, the cabin) never drag the arrow back to the yard mid-climb. Quiet when the region has nothing to ask.
     const here = this.regionHere();
@@ -1038,6 +1236,20 @@ export class Progression {
       this.setGoal(null, null);
       return;
     }
+
+    // 0. 0.9.12 (G2): standing on a yard pad that is being paid: keep paying it (cash piles never pull the player off)
+    for (const id of PAD_ORDER) {
+      const pad = L.pads[id];
+      if (!pad.visible || pad.remaining <= 0 || money <= 0 || !inArea(pad.zone.area)) continue;
+      const verb = PAD_VERB[id] ?? 'Build the';
+      const noun = PAD_NOUN[id] ?? titleCase(pad.def.label);
+      this.setGoal(pad.levelMode ? `Upgrade the ${titleCase(pad.def.label)} (${fmtMoney(pad.remaining)})` : `${verb} ${noun} (${fmtMoney(pad.remaining)})`, pad.zone.area);
+      return;
+    }
+
+    // 0b. 0.9.12 (G11): from era 2 on, the era's next step comes before every era-1 delivery (leftover crates no
+    // longer send the player back to the Toy Factory); only era goods already in hand come first.
+    if (s.eras.age >= 2 && (this.eraGoodsInHand() || this.eraGuide() || this.climbGuide())) return;
 
     // 1. An unlock pad we can pay right now.
     for (const id of PAD_ORDER) {
@@ -1049,6 +1261,11 @@ export class Progression {
         return;
       }
     }
+
+    // 1b. 0.9.12 (G6, G8): the next era's gate is met: the expansion is the goal (its cash once half of it is in hand,
+    // then its crates: in hand → the pad, else the processor's output). Optional town content waits.
+    const gateMet = expansionOffered(s, s.eras.age + 1);
+    if (gateMet && this.expansionGuide(false)) return;
 
     // 2. Toys in hand → the Grand Market (0.9.2); crates in hand → the toy factory while the Grand Market still needs
     // toys, else the tricycles.
@@ -1083,9 +1300,7 @@ export class Progression {
     if (this.townGoodsInHand()) return;
     // 2d. 0.9.0: era materials in hand feed a machine that wants them, else the export depot.
     if (this.eraGoodsInHand()) return;
-    // 2e. 0.9.10 (READINESS C3): from era 2 on, Survival's chores (cash piles, crates, chairs, logs, the cabin, the town)
-    // never outrank the current era's next step; only what is already in the player's hands comes first.
-    if (s.eras.age >= 2 && (this.eraGuide() || this.climbGuide())) return;
+    // (2e, 0.9.10 C3: from era 2 on the era's next step outranks Survival's chores: step 0b above, 0.9.12)
 
     // 2b. Timber Ridge is open but the player has not been through the east gate yet.
     if (s.unlocked.ridge && !s.unlocked.treeFeller && !s.flags['seen:ridge']) {
@@ -1110,11 +1325,12 @@ export class Progression {
       return;
     }
 
-    const need = this.villageNeed();
+    // (0.9.12, G6: once the next era's gate is met, the village and the town's optional buildings wait)
+    const need = gateMet ? null : this.villageNeed();
     if (need && this.pursue(need)) return;
     if (quarters && this.pursue(quarters)) return;
     // 3c. Wave 9: the Market Town (first visit, the first building, paying for chosen lots, keeping shops stocked).
-    if (this.townGuide()) return;
+    if (!gateMet && this.townGuide()) return;
     // 3d. 0.9.0: the next expansion, the first machine of a new region.
     if (this.eraGuide()) return;
 
@@ -1178,11 +1394,13 @@ export class Progression {
       return;
     }
 
-    // 5. Cash waiting (the bigger pile first).
+    // 5. Cash waiting (the bigger pile first). 0.9.12 (G1): not while the player is chopping the giant log (the banner
+    // used to swap between "Chop" and "Walk over the cash" every couple of seconds).
+    const chopNow = inArea(L.giantLog.chopZone.area) && !L.dropZone.isFull && !s.unlocked.harvester;
     // Once the cash tubes or a cashier bank the piles, only point at a big backlog.
     let pile = L.walkInCash;
     for (const p of [...L.cashPiles(), ...L.town.tills()]) if (p.value > pile.value) pile = p;
-    if (pile.value > (L.cashTubes || ctx.upgrades.isHired('cashier') ? CASH_BACKLOG : 0)) {
+    if (!chopNow && pile.value > (L.cashTubes || ctx.upgrades.isHired('cashier') ? CASH_BACKLOG : 0)) {
       this.setGoal('Walk over the cash to bank it', pile.zone.area); // 0.9.10 (C8): banking is walking over it
       return;
     }
@@ -1219,8 +1437,9 @@ export class Progression {
       return;
     }
 
-    // 6b. 0.9.0 climb: the era gate's next goal (it covers the cabin reminder and the machine level pads below).
-    if (this.climbGuide()) return;
+    // 6b. 0.9.0 climb: the era gate's next goal (it covers the cabin reminder and the machine level pads below);
+    // 0.9.12 (G6): the expansion itself once its gate is met, even before half its cash is in hand.
+    if (this.climbGuide() || this.expansionGuide(true)) return;
 
     // 7. The cabin shop, when something is affordable (first visit, then a reminder now and then).
     if (L.shopMat.visible && L.shopMat.hasAffordable) {
@@ -1242,7 +1461,7 @@ export class Progression {
 
     // 9. Logs waiting in the drop zone (unless both belts carry them away).
     const belts = !!L.westConveyor && !!L.eastConveyor;
-    const chopping = inArea(L.giantLog.chopZone.area) && !L.dropZone.isFull && dropCount < 4 && !s.unlocked.harvester;
+    const chopping = chopNow && dropCount < 4;
     if ((!belts || (trucksWaiting > 0 && !L.truckLoader)) && !ctx.upgrades.isHired('logHauler') && !armsFull && dropCount > 0 && !chopping) {
       this.setGoal('Pick up the logs', L.dropZone.zone.area);
       return;

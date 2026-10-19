@@ -30,5 +30,5 @@ export function chipGoalText(text: string): string {
 
 /** True for the expansion pad step (Progression eraGuide: "Expand to Iron Ridge ($50M)", "Bring 35 bricks to Iron Ridge"). */
 export function isExpandGoal(text: string): boolean {
-  return /^Expand to |^Bring \d+ .+ to /.test(text);
+  return /^Expand to |^Bring \d+ .+ to |^Pick up \d+ .+ for [A-Z]/.test(text); // 0.9.12: fetching the expansion's goods
 }

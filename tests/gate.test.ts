@@ -224,7 +224,7 @@ describe('nextGoal', () => {
 
   it('puts an unmet prereq first', () => {
     const goal = nextGoal(lodge(), 1e12)!;
-    expect(goal.action).toEqual({ kind: 'build', target: 'pad:harvester' });
+    expect(goal.action).toEqual({ kind: 'build', target: 'pad:harvester', id: 'harvester' });
     expect(goal.text).toBe('Build the Harvester first');
   });
 

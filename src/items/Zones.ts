@@ -472,6 +472,12 @@ export class ZoneSystem {
     }
   }
 
+  /** 0.9.12: true when (x, z) lies in an enabled zone (a load never drops the player onto a pad or a pile). */
+  anyAt(x: number, z: number): boolean {
+    for (const zone of this.zones) if (zone.enabled && !zone.removed && inRect(zone.area, x, z)) return true;
+    return false;
+  }
+
   isPlayerIn(area: Rect): boolean {
     const p = this.ctx.player.position;
     return inRect(area, p.x, p.z);
