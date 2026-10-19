@@ -32,6 +32,7 @@ import { clearOfFence } from './clearance';
 import { buildEraOpen, buildEraWild, eraGround, eraKeepOut } from './eraGround';
 import { palette } from '../../render/palette';
 import { moundGeo, pineGeo, pineTallGeo, rockGeo } from './props';
+import { addRoadMarks } from './roadMarks';
 import { addApron, addGatePaving, mixColor, shadeColor, TRAIL_COLOR } from './roadPaving';
 import {
   arcSegments,
@@ -337,6 +338,7 @@ function buildRoad(road: (typeof ROADS)[number], rng: Rng, zones: readonly Rect[
     if (road.id === 'southAvenue') addApron(b, townApron(), rng);
     for (const gp of GATE_PAVINGS) if (gp.road === road.id) addGatePaving(b, glow, gp, y, rng);
   }
+  addRoadMarks(b, road.id);
   const open = b.mesh({ cast: false, receive: true });
   if (!glow.empty) {
     const g = glow.mesh({ cast: false, receive: false, material: GLOW });
