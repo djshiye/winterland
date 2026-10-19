@@ -114,7 +114,7 @@ export function questTarget(s: GameState, id: string): string | undefined {
   const newest = Math.max(2, Math.min(MAX_ERA, s.eras.age));
   if (/^(city\d+|city1)$/.test(id)) return `district:${newest}`;
   if (/^(materials\d+|machine1|machines6)$/.test(id)) return `region:${newest}`;
-  if (id === 'invest1') return 'town';
+  if (id === 'invest1' || id === 'trade1') return 'town';
   return SURVIVAL_QUEST_TARGETS[id];
 }
 
