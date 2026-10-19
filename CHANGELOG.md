@@ -32,6 +32,8 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Districts open on the town.** Fast travel to the bigger districts now lands you among their lots instead of on the street south of them.
 - **Clear roads and walks.** Zebra crossings at every era market gate, at the Market Town's exits and wherever a city district's sidewalk meets a street, and soft centre lines on the city streets. Era foremen now walk beside the roads, cross straight over at the corners and crossings (never cutting through a junction), and wait at the kerb while a truck goes by. Era buyers brake for anyone already crossing.
 - **Room to walk.** The alley from the town square down to Lantern Lane is 3 m wide now (the two shops beside it moved apart), and the path down the west side of the hut greens keeps 3 m clear in every era. Your pal no longer sits inside a hut.
+- **Townsfolk doing things.** People on the era hut greens sit on the benches, build snowmen on the snow piles, sweep their doorsteps, and kids have snowball fights. In the city districts people sweep, sit, and kids pelt each other (and the odd grown-up) with snowballs.
+- **Lantern garlands.** Strings of warm paper lanterns hang from lamp to lamp along every era market street and under the shop eaves, glowing at night, high over everyone's heads.
 - **A finished game may show less than 100 % now.** The new machine spots and lots count towards completion, so an older finished save shows a lower percentage until you build on them. Every trophy you've earned is kept.
 
 ### Connected machine yards

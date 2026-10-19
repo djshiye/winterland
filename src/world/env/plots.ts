@@ -28,6 +28,7 @@ import type { ColliderHandle } from '../Colliders';
 import { Batch } from '../../render/batch';
 import { geo } from '../../render/materials';
 import { bulbMaterial } from './glow';
+import { addLanternGarland, type V3 } from './festive';
 import { Rng } from './common';
 import { MACHINE_TONES, mixHex, palette } from '../../render/palette';
 import { addChimney } from '../sky/smoke';
@@ -950,6 +951,56 @@ function buildGreen(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlaces, acce
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// 0.9.12 lantern garlands (Dino: "lantern garlands over the streets and along roof edges")
+// ---------------------------------------------------------------------------------------------------------------------
+
+export interface Garland {
+  a: V3;
+  b: V3;
+  sag: number;
+  seed: number;
+  /** Under a shop's eave (against its front, over its doorstep) rather than across the street. */
+  eave: boolean;
+}
+
+/** Lamp posts this far apart (or nearer) along the market street are strung together (metres). */
+const GARLAND_SPAN = 10;
+/** Where a garland ties on to a lamp post: just under its arm. */
+const GARLAND_POST_Y = 2.88;
+
+/**
+ * Pure: era n's garlands. Paper lanterns strung from lamp to lamp along the market street (their lowest point well
+ * over everyone's heads), and scalloped under the front eave of every shop (stalls and the round quonset / dome
+ * shops of eras 9 and 10 aside: their neon is their own).
+ */
+export function plotGarlands(n: number): Garland[] {
+  const st = STYLE[n];
+  if (!st) return [];
+  const P = plotPlaces(n);
+  const out: Garland[] = [];
+  for (let i = 0; i + 1 < P.lamps.length; i++) {
+    const a = P.lamps[i]!;
+    const b = P.lamps[i + 1]!;
+    const d = Math.hypot(b.x - a.x, b.z - a.z);
+    if (d < 1 || d > GARLAND_SPAN) continue;
+    out.push({ a: { x: a.x, y: GARLAND_POST_Y, z: a.z }, b: { x: b.x, y: GARLAND_POST_Y, z: b.z }, sag: 0.12 + d * 0.02, seed: i, eave: false });
+  }
+  P.shops.forEach((s, i) => {
+    if (s.stall) return;
+    // the eave's front edge in the shop's own frame: [half width, height, depth out from the centre]
+    const e: [number, number, number] | null =
+      st.hut === 'deco' ? [s.w / 2 + 0.04, 2.44, s.d / 2 + 1.31] : st.hut === 'trailer' ? [s.w / 2 + 0.28, s.h - 0.02, s.d / 2 + 0.76] : st.hut === 'modular' ? [s.w / 2 + 0.13, s.h - 0.12, s.d / 2 + 0.12] : st.hut === 'quonset' || st.hut === 'pod' ? null : [s.w / 2 + 0.12, s.h - 0.04, s.d / 2 + 0.25];
+    if (!e) return;
+    const c = Math.cos(s.yaw);
+    const sn = Math.sin(s.yaw);
+    const at = (lx: number): V3 => ({ x: s.x + lx * c + e[2] * sn, y: e[1], z: s.z - lx * sn + e[2] * c });
+    const k = Math.max(2, Math.round((e[0] * 2) / 1.8));
+    for (let j = 0; j < k; j++) out.push({ a: at(-e[0] + (j * 2 * e[0]) / k), b: at(-e[0] + ((j + 1) * 2 * e[0]) / k), sag: 0.09, seed: i * 3 + j, eave: true });
+  });
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // lived-in market and huts (EM1): the decor eras/layout.ts plotDecor places
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -1441,6 +1492,9 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   buildGreen(body, glow, st, P, e.colors.accent, e.colors.glow);
   const decor = plotDecor(n);
   buildDecor(body, glow, bulbs, n, st, decor);
+  // 0.9.12 lantern garlands: in the lamps' bulb batch (no extra draw call), warm paper tinted with the era's glow
+  const paper = [mix(e.colors.glow, 0xffd27a, 0.55), 0xffc067, mix(e.colors.accent, 0xfff0d0, 0.45), 0xfff0c2];
+  for (const g of plotGarlands(n)) addLanternGarland(bulbs, g.a, g.b, g.sag, g.seed, paper);
 
   const statics = body.mesh({ cast: true, receive: true });
   statics.name = 'places';

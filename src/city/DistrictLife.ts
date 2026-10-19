@@ -448,10 +448,12 @@ export class DistrictLife {
 
   /** True when a snowball thrown from a to b meets no wall, tree or prop on the way. */
   private clearLine(ax: number, az: number, bx: number, bz: number, d: number): boolean {
+    const C = this.ctx.colliders as GameContext['colliders'] | undefined; // a bare test world has none
+    if (!C) return true;
     const steps = Math.ceil(d / 0.4);
     for (let k = 1; k < steps; k++) {
       const t = k / steps;
-      if (this.ctx.colliders.overlaps(ax + (bx - ax) * t, az + (bz - az) * t, 0.08)) return false;
+      if (C.overlaps(ax + (bx - ax) * t, az + (bz - az) * t, 0.08)) return false;
     }
     return true;
   }
