@@ -37,10 +37,13 @@ export const era09: EraGroundModule = {
       aquaPool(k.solid, k.glow, x, midZ, 1);
       k.lamps.push({ x, y: 0.4, z: midZ, size: 1.4, pool: 3.4 });
     }
-    // crystal clusters on a staggered grid either side
+    // crystal clusters either side: a loose, jittered and thinned grid (0.9.11, review T5: an even grid read as polka dots)
     let row = 0;
-    for (let z = H.minZ + 2.6; z < H.maxZ - 2; z += 4.2, row++) {
-      for (let x = H.minX + 5 + (row % 2) * 3; x < H.maxX - 2.5; x += 6) {
+    for (let z0 = H.minZ + 2.6; z0 < H.maxZ - 2; z0 += 4.2, row++) {
+      for (let x0 = H.minX + 5 + (row % 2) * 3; x0 < H.maxX - 2.5; x0 += 6) {
+        if (rng.next() < 0.35) continue;
+        const x = x0 + rng.range(-1.4, 1.4);
+        const z = z0 + rng.range(-1.1, 1.1);
         if (!harvestFree(l, P, x, z, 1.1, placed)) continue;
         placed.push({ x, z, r: 1.1 });
         crystalCluster(k.solid, k.glow, x, z, rng.range(0.75, 1.0), rng);
