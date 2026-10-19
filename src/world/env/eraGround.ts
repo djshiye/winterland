@@ -36,6 +36,7 @@ import { era07 } from './ground/era07';
 import { era08 } from './ground/era08';
 import { era09 } from './ground/era09';
 import { era10 } from './ground/era10';
+import { pathEnds } from './ground/softEdge';
 
 /** Everything an era module builds into. Read-only for modules except through its batches and lists. */
 export class GroundKit {
@@ -141,6 +142,7 @@ export function buildEraOpen(n: number, l: RegionLayout, P: PlotPlaces): THREE.G
   if (!m?.open) return null;
   const k = new GroundKit();
   m.open(k, l, P, new Rng(7700 + n * 61));
+  pathEnds(k, l, eraKeepOut(n, l)); // 0.9.12 (C5): no zone path stops dead in plain ground
   return k.build(`region${n}:ground`);
 }
 

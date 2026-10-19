@@ -3,7 +3,8 @@
  * rail (LAYOUT.ridge.rail, +Z), stop with the flatcars beside the platform (stopZ), load pine logs from the
  * platform counter one by one (items/transfer.ts: the logs visibly fly onto the flatcars), pay
  * salePrice(state, 'pine', ECONOMY.pinePrice, want) into the platform cash pile, emit 'sale' {buyer: 'train',
- * kind: 'log'}, honk and back out into the tunnel (0.9.9: the line is a terminus, LAYOUT.ridge.rail.endZ). stats.logsSold
+ * kind: 'log'}, honk and run back into the tunnel (0.9.9: the line is a terminus, LAYOUT.ridge.rail.endZ; 0.9.12: the train is
+ * push-pull, so the rear engine leads it out and it never reads as driving backwards). stats.logsSold
  * counts the logs.
  *
  * - Demand (trainGap between trains, trainWant for the order) is read live from DEMAND at spawn, never cached.
@@ -21,6 +22,7 @@ import { createSpeechBubble, type SpeechBubble } from '../assets/shop';
 import { createTrain, TRAIN_AXLE_RADIUS, TRAIN_CARGO_CAPACITY, type TrainModel } from '../assets/train';
 import type { CashPile } from '../stations/CashPile';
 import type { Counter } from '../stations/Counter';
+import { trackVehicle, untrackVehicle } from './vehicleView';
 
 export interface TrainQueueOptions {
   counter: Counter;
@@ -118,6 +120,8 @@ export class TrainQueue {
   private model: TrainModel | null = null;
   private cargo: TrainCargo | null = null;
   private bubble: SpeechBubble | null = null;
+  /** Trains sent so far (each trip's id for the traffic checks). */
+  private trips = 0;
 
   constructor(
     readonly ctx: GameContext,
@@ -169,7 +173,7 @@ export class TrainQueue {
         const prev = this.speed;
         this.speed = approach(this.speed, DRIVE_SPEED * 1.2, ACCEL * 1.3 * dt);
         this.accelNow = (this.speed - prev) / dt;
-        this.z -= this.speed * dt; // backs out into the tunnel
+        this.z -= this.speed * dt; // out into the tunnel, the rear engine leading
         if (this.z <= LAYOUT.ridge.rail.spawnZ) {
           this.despawn();
           return;
@@ -204,10 +208,13 @@ export class TrainQueue {
     this.mode = 'arrive';
     this.ctx.scene.add(this.model.root);
     this.pose();
+    this.trips++;
+    trackVehicle({ id: `train#${this.trips}`, kind: 'train', root: this.model.root, facing: (out) => out.set(0, 0, this.heading) });
   }
 
   private despawn(): void {
     const m = this.model!;
+    untrackVehicle(`train#${this.trips}`);
     this.cargo!.reset(0);
     this.ctx.tweens.killTweensOf(this.bubble!.sprite);
     this.bubble!.sprite.visible = false;
@@ -270,7 +277,7 @@ export class TrainQueue {
     this.ctx.audio.play('chime', { pitch: 0.45, volume: 0.8 });
     if (times > 1) this.ctx.tweens.delay(0.22, () => this.ctx.audio.play('chime', { pitch: 0.5, volume: 0.8 }));
     this.ctx.tweens.squash(m.body, 0.06, 0.4);
-    m.root.localToWorld(tmpV.copy(m.chimney));
+    m.root.localToWorld(tmpV.copy(this.leadChimney()));
     this.ctx.particles.puff(tmpV, { color: 0xffffff, count: 4, size: 0.7, life: 1.1 });
   }
 
@@ -299,6 +306,16 @@ export class TrainQueue {
     return false;
   }
 
+  /** +1 while the train runs in (+Z, the front engine leads), −1 once it heads back out (the rear engine leads). */
+  get heading(): 1 | -1 {
+    return this.mode === 'leave' ? -1 : 1;
+  }
+
+  /** The leading engine's chimney (root space): it does the puffing. */
+  private leadChimney(): THREE.Vector3 {
+    return this.heading === 1 ? this.model!.chimney : this.model!.chimneyRear;
+  }
+
   private pose(): void {
     this.model!.root.position.set(LAYOUT.ridge.rail.x, 0, this.z);
   }
@@ -318,7 +335,7 @@ export class TrainQueue {
     this.smokeTimer -= dt;
     if (this.smokeTimer <= 0) {
       this.smokeTimer = this.speed > 1 ? 0.22 : 0.65;
-      m.root.localToWorld(tmpV.copy(m.chimney));
+      m.root.localToWorld(tmpV.copy(this.leadChimney()));
       this.ctx.particles.puff(tmpV, { color: 0xf3f6f9, count: 1, size: 0.5, life: 1.2 });
     }
     if (this.bubbleOn && this.bubble!.sprite.visible) {

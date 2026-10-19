@@ -13,6 +13,7 @@ import { geo } from '../../../render/materials';
 import { mixHex, SNOW } from '../../../render/palette';
 import type { RegionLayout } from '../../../eras/layout';
 import type { Rng } from '../common';
+import { marketPlaces } from '../../../eras/market';
 import type { GroundKit } from '../eraGround';
 
 /** Multiply a hex colour's channels by k (clamped). */
@@ -201,4 +202,21 @@ export function lantern(k: GroundKit, x: number, z: number, style: 'stone' | 'ir
     s.add(geo.cone(0.17, 0.12, 8), c.dark, x + 0.4, 1.57, z);
     k.lamps.push({ x: x + 0.4, y: 1.38, z, size: 1.4, pool: 4.0 });
   }
+}
+
+/**
+ * 0.9.12 (C5): the customers' walk in from the market gate, now carried all the way to the stall's queue line (the
+ * walk is the gate-to-stall column, the strip is the line the shoppers queue along), so it ends at the counter instead
+ * of stopping dead in plain ground 6 m in. Pure, world rects.
+ */
+export function marketWalk(l: RegionLayout): Rect[] {
+  const mg = l.marketGate;
+  const M = marketPlaces(l);
+  const span = (a: number, b: number): [number, number] => [Math.min(mg.z + l.inward * a, mg.z + l.inward * b), Math.max(mg.z + l.inward * a, mg.z + l.inward * b)];
+  const [wz0, wz1] = span(0, 7.4);
+  const [sz0, sz1] = span(6.3, 7.4);
+  return [
+    { minX: mg.x - 0.8, maxX: mg.x + 0.8, minZ: wz0, maxZ: wz1 },
+    { minX: mg.x - 0.8, maxX: M.stall.x + 1.6, minZ: sz0, maxZ: sz1 },
+  ];
 }

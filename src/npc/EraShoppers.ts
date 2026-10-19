@@ -8,6 +8,9 @@
  * TRADE_POST.patience seconds pays for what it holds (or, empty-handed, keeps waiting for the next delivery).
  * New shoppers only come while the stall has goods or the line is empty, so a quiet market shows one waiting shopper.
  * Entities (rig + carry stack + bubble) are pooled.
+ * 0.9.12: shoppers no longer pop in at the gate and fade out on the road in plain view. They walk in along the snowy
+ * verge beside the road from a point the camera can't see, cross to the gate, and leave the same way, vanishing only
+ * once out of sight (npc/vehicleView.ts).
  */
 import * as THREE from 'three';
 import { PLAYER, TIMING, TRADE_POST } from '../config';
@@ -21,6 +24,15 @@ import { createSpeechBubble, type SpeechBubble } from '../assets/shop';
 import { MATERIAL_KINDS, type MaterialKind } from '../eras/data';
 import type { XZ } from '../eras/layout';
 import { buyerScale } from './EraBuyers';
+import { ROADS } from '../eras/data';
+import { inView } from './vehicleView';
+
+/** Shoppers walk the snow this far outside the road's outer edge (parked buyers fill the road's outer lane). */
+const VERGE = 0.7;
+/** How far along the verge a shopper may come from or go to. */
+const WALK_FAR = 48;
+/** Seconds a shopper rests in the pool before it walks in again. */
+const REST = 2;
 
 /** What the line needs from its market stall. */
 export interface ShopperStall {
@@ -35,6 +47,8 @@ export interface ShopperStall {
   readonly faceYaw: number;
   /** Unit vector from the gate into the region (+1 / −1 along Z): shoppers leave this far out onto the road. */
   readonly inward: number;
+  /** 0.9.12: the road in front of the market (regionLayout(n).road): shoppers walk along its verge. */
+  readonly road?: string;
   readonly fallback: MaterialKind;
   /** The Stall value (≥ 1). */
   boost(): number;
@@ -86,6 +100,9 @@ export class EraShoppers {
   private readonly queue: Shopper[] = [];
   private readonly leaving: Shopper[] = [];
   private readonly pool: Shopper[] = [];
+  /** 0.9.12: when each pooled shopper went back (clock seconds): one is reused only after REST, so nobody seems to hop from where one left to where the next one comes in. */
+  private readonly freedAt = new Map<Shopper, number>();
+  private clock = 0;
   private created = 0;
   private spawnTimer = 0.8;
 
@@ -117,21 +134,57 @@ export class EraShoppers {
     for (let i = this.leaving.length - 1; i >= 0; i--) this.despawn(i);
   }
 
+  /** The verge line's z (the road's outer edge, VERGE beyond it), or the gate's z without a road. */
+  private vergeZ(): number {
+    const r = this.stall.road ? ROADS.find((q) => q.id === this.stall.road)?.rect : undefined;
+    if (!r) return this.stall.door.z;
+    return this.stall.inward > 0 ? r.minZ - VERGE : r.maxZ + VERGE;
+  }
+
+  /** The verge's x span (the road's length). */
+  private vergeSpan(): [number, number] {
+    const r = this.stall.road ? ROADS.find((q) => q.id === this.stall.road)?.rect : undefined;
+    return r ? [r.minX + 1, r.maxX - 1] : [this.stall.door.x, this.stall.door.x];
+  }
+
+  /**
+   * The nearest point along the verge in direction `dir` (then the other way) that the camera can't see: where a
+   * shopper comes from. Null when every point is in view. Without a road (tests): the gate itself.
+   */
+  private offscreenVergeX(dir: 1 | -1): XZ | null {
+    if (!this.stall.road) return { x: this.stall.door.x, z: this.stall.door.z };
+    const z = this.vergeZ();
+    const [lo, hi] = this.vergeSpan();
+    for (const d of [dir, -dir]) {
+      for (let k = 6; k <= WALK_FAR; k += 1.5) {
+        const x = this.stall.door.x + d * k;
+        if (x < lo || x > hi) break;
+        if (!inView(this.ctx, x, z, 2.5)) return { x, z };
+      }
+    }
+    return null;
+  }
+
   private slot(i: number): XZ {
     const s = this.stall;
     return { x: s.front.x + s.step.x * i, z: s.front.z + s.step.z * i };
   }
 
   update(dt: number): void {
+    this.clock += dt;
     if (dt <= 0) return;
     this.spawnStep(dt);
     for (let i = 0; i < this.queue.length; i++) this.stepQueued(this.queue[i]!, i, dt);
     for (let i = this.leaving.length - 1; i >= 0; i--) {
       const c = this.leaving[i]!;
-      if (this.walk(c, dt, true)) {
+      const done = this.walk(c, dt, true);
+      // gone only out of sight: on the verge walk away (or at its end, once the camera looks away)
+      const p = c.group.position;
+      if ((c.path.length <= 1 || done) && !inView(this.ctx, p.x, p.z, 2.5)) {
         this.despawn(i);
         continue;
       }
+      if (done) c.speed = 0;
       if (c.bubbleOn) {
         c.timer -= dt;
         if (c.timer <= 0) {
@@ -153,7 +206,13 @@ export class EraShoppers {
     }
     const scale = buyerScale(this.stall.era, this.stall.boost());
     this.spawnTimer = randRange(TRADE_POST.shopGap[0], TRADE_POST.shopGap[1]) / scale.rate;
-    const c = this.pool.pop() ?? new Shopper(this.ctx, `npc:shopper${this.stall.era}:${this.created}`, this.created % VARIANTS, this.stall.era);
+    const from = this.offscreenVergeX(Math.random() < 0.5 ? 1 : -1);
+    if (from === null) {
+      this.spawnTimer = 0.4;
+      return;
+    }
+    const rested = this.pool.findIndex((q) => this.clock - (this.freedAt.get(q) ?? -Infinity) >= REST);
+    const c = (rested >= 0 ? this.pool.splice(rested, 1)[0] : undefined) ?? new Shopper(this.ctx, `npc:shopper${this.stall.era}:${this.created}`, this.created % VARIANTS, this.stall.era);
     this.created++;
     const s = this.stall;
     c.mode = 'in';
@@ -168,12 +227,19 @@ export class EraShoppers {
     c.stack.clear();
     c.rig.setCarrying(false);
     c.rig.setSeated(false);
-    c.yaw = yawFromDir(s.entry.x - s.door.x, s.entry.z - s.door.z);
+    const vz = this.vergeZ();
+    const doorX = s.door.x + randRange(-0.3, 0.3);
+    if (!s.road) {
+      // no road (tests): in at the gate as before
+      c.group.position.set(doorX, 0, s.door.z);
+      c.path = [s.entry];
+    } else {
+      c.group.position.set(from.x, 0, vz);
+      c.path = [{ x: doorX, z: vz }, { x: doorX, z: s.door.z }, s.entry];
+    }
+    c.yaw = yawFromDir(c.path[0]!.x - c.group.position.x, c.path[0]!.z - c.group.position.z);
     c.rig.root.rotation.y = c.yaw;
-    c.group.position.set(s.door.x + randRange(-0.3, 0.3), 0, s.door.z);
-    c.path = [s.entry];
     this.ctx.scene.add(c.group);
-    this.ctx.tweens.popIn(c.group, { duration: 0.35 });
     this.queue.push(c);
   }
 
@@ -187,6 +253,7 @@ export class EraShoppers {
     c.group.removeFromParent();
     c.group.scale.setScalar(1);
     this.pool.push(c);
+    this.freedAt.set(c, this.clock);
   }
 
   // ---- queue ----------------------------------------------------------------------------------------------------
@@ -272,7 +339,14 @@ export class EraShoppers {
     const s = this.stall;
     c.mode = 'out';
     c.timer = 1.0;
-    c.path = [s.entry, s.door, { x: s.door.x, z: s.door.z - s.inward * 1.6 }];
+    if (!s.road) c.path = [s.entry, s.door, { x: s.door.x, z: s.door.z - s.inward * 1.6 }];
+    else {
+      const vz = this.vergeZ();
+      const [lo, hi] = this.vergeSpan();
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      const far = Math.max(lo, Math.min(hi, s.door.x + dir * WALK_FAR));
+      c.path = [s.entry, s.door, { x: s.door.x, z: vz }, { x: far, z: vz }];
+    }
     this.leaving.push(c);
   }
 
@@ -284,7 +358,6 @@ export class EraShoppers {
     const last = c.path.length === 1;
     if (this.moveToward(c, p.x, p.z, dt, !last || leaving)) {
       c.path.shift();
-      if (leaving && c.path.length === 1) this.ctx.tweens.popOut(c.group, { duration: 0.45 });
       if (c.path.length === 0) return true;
     }
     if (leaving) c.rig.root.rotation.y = c.yaw;

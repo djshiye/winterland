@@ -15,10 +15,12 @@ import { plotPlaces, type RegionLayout } from '../../../eras/layout';
 import type { Rect } from '../../../config';
 import { blockedNewLand, occludesNewLand, type Rng } from '../common';
 import type { EraGroundModule, GroundKit } from '../eraGround';
+import { clearOfFence } from '../clearance';
+import { fenceStrips, softEdge } from './softEdge';
 import { nodePatch, regionPaths } from '../frontier';
 import { landmarkRect, placeLandmark } from './landmarks2to5';
 import { placeWarmSpot, warmSpotRect } from './warmSpots';
-import { clearOf, fenceDrifts, lantern, near, shade, slab, snowPatch, snowVerge } from './kit1to3';
+import { clearOf, marketWalk, fenceDrifts, lantern, near, shade, slab, snowPatch, snowVerge } from './kit1to3';
 
 const P3 = palette(3);
 /** Era 3's tones, all from its palette row (warm: never near-black, DIRECTION). */
@@ -148,17 +150,21 @@ function cartTrack(k: GroundKit, q: Rect, rng: Rng): void {
     k.solid.add(BOX(), shade(C.timber, rng.range(0.92, 1.06)), x, 0.05, z, alongX ? { sx: 0.24, sy: 0.06, sz: 1.5 } : { sx: 1.5, sy: 0.06, sz: 0.24 });
   }
   // 0.9.9: a buffer stop at the track's start (west for the era's cart track): two dark posts, a red beam with white stripes, a snow cap
-  const bx = alongX ? q.minX + 0.12 : cx;
-  const bz = alongX ? cz : q.minZ + 0.12;
-  for (const s of [-0.45, 0.45]) k.solid.add(BOX(), C.ironDark, alongX ? bx : cx + s, 0.3, alongX ? cz + s : bz, { sx: 0.16, sy: 0.6, sz: 0.16 });
-  k.solid.add(BOX(), 0xd0453a, bx, 0.52, bz, alongX ? { sx: 0.2, sy: 0.24, sz: 1.2 } : { sx: 1.2, sy: 0.24, sz: 0.2 });
-  for (const s of [-0.36, 0, 0.36]) k.solid.add(BOX(), 0xffffff, alongX ? bx + 0.11 : cx + s, 0.52, alongX ? cz + s : bz + 0.11, alongX ? { sx: 0.03, sy: 0.2, sz: 0.14 } : { sx: 0.14, sy: 0.2, sz: 0.03 });
-  k.solid.add(BOX(), SNOW, bx, 0.68, bz, alongX ? { sx: 0.26, sy: 0.05, sz: 1.3 } : { sx: 1.3, sy: 0.05, sz: 0.26 });
+  // 0.9.12 (C4): and one at the far end too, so the rails never end in the open (`dir` = the way the stop faces along the track)
+  const bufferStop = (bx: number, bz: number, dir: 1 | -1): void => {
+    for (const s of [-0.45, 0.45]) k.solid.add(BOX(), C.ironDark, alongX ? bx : cx + s, 0.3, alongX ? cz + s : bz, { sx: 0.16, sy: 0.6, sz: 0.16 });
+    k.solid.add(BOX(), 0xd0453a, bx, 0.52, bz, alongX ? { sx: 0.2, sy: 0.24, sz: 1.2 } : { sx: 1.2, sy: 0.24, sz: 0.2 });
+    for (const s of [-0.36, 0, 0.36]) k.solid.add(BOX(), 0xffffff, alongX ? bx + dir * 0.11 : cx + s, 0.52, alongX ? cz + s : bz + dir * 0.11, alongX ? { sx: 0.03, sy: 0.2, sz: 0.14 } : { sx: 0.14, sy: 0.2, sz: 0.03 });
+    k.solid.add(BOX(), SNOW, bx, 0.68, bz, alongX ? { sx: 0.26, sy: 0.05, sz: 1.3 } : { sx: 1.3, sy: 0.05, sz: 0.26 });
+  };
+  bufferStop(alongX ? q.minX + 0.12 : cx, alongX ? cz : q.minZ + 0.12, 1);
+  bufferStop(alongX ? q.maxX - 0.12 : cx, alongX ? cz : q.maxZ - 0.12, -1);
   for (const s of [-0.45, 0.45]) k.solid.add(BOX(), C.iron, alongX ? cx : cx + s, 0.11, alongX ? cz + s : cz, alongX ? { sx: len - 0.3, sy: 0.07, sz: 0.08 } : { sx: 0.08, sy: 0.07, sz: len - 0.3 });
 }
 
 function freeIn(l: RegionLayout, inside: Rect, x: number, z: number, r: number, h: number): boolean {
   if (!(x > inside.minX + r && x < inside.maxX - r && z > inside.minZ + r && z < inside.maxZ - r)) return false;
+  if (!clearOfFence(l, x, z, r)) return false; // 0.9.12: FENCE_CLEAR off the fence line
   if (!clearOf(nodePatch(l), x, z, r, h)) return false;
   if (near(plotPlaces(l.n).field, x, z, r + 0.4)) return false;
   return !regionPaths(l).some((q) => near(q, x, z, r + 0.3));
@@ -171,7 +177,7 @@ export const era03: EraGroundModule = {
     const H = l.zones.harvest;
     // ---- dark firs outside the west fence
     for (let z = r.minZ + 2.5; z < r.maxZ - 1; z += rng.range(2.4, 3.4)) {
-      for (const dx of [1.6, 3.5]) {
+      for (const dx of [2.7, 4.6]) { // 0.9.12 (C2): crowns keep clear of the fence line
         const x = r.minX - dx + rng.range(-0.3, 0.3);
         if (blockedNewLand(x, z, 0.8) || occludesNewLand(x, z, 4.8)) continue;
         if (dx > 2 && rng.next() < 0.4) continue;
@@ -265,13 +271,14 @@ export const era03: EraGroundModule = {
     }
     // ---- the cart track between the machines and the field, a cart parked at its west end
     const paths = regionPaths(l);
-    const track = paths[2]!;
+    // 0.9.12 (C4): the track stops short of the cross path (1.1 m half width + a 0.8 m run-off) and ends in a buffer stop
+    const track: Rect = { ...paths[2]!, maxX: Math.min(paths[2]!.maxX, paths[1]!.minX - 0.8) };
     cartTrack(k, track, rng);
     const cz = (track.minZ + track.maxZ) / 2;
     k.put('cart', cartGeo, { x: track.minX + 1.4, z: cz });
     // the other paths: gravel with timber edging; the customers' walk in from the market gate
-    const mg = l.marketGate;
-    for (const q of [paths[1]!, { minX: mg.x - 0.8, maxX: mg.x + 0.8, minZ: Math.min(mg.z, mg.z + l.inward * 6), maxZ: Math.max(mg.z, mg.z + l.inward * 6) }]) {
+    const walks = marketWalk(l);
+    for (const q of [paths[1]!, ...walks]) {
       oreGravel(k, q, rng, 0.8);
       const alongX = q.maxX - q.minX >= q.maxZ - q.minZ;
       for (const s of [0, 1]) {
@@ -281,10 +288,14 @@ export const era03: EraGroundModule = {
       }
     }
     // ---- snow verges: banked along the track, the gravel paths and the processing floor's edges
-    const verged = [track, paths[1]!, { minX: mg.x - 0.8, maxX: mg.x + 0.8, minZ: Math.min(mg.z, mg.z + l.inward * 6), maxZ: Math.max(mg.z, mg.z + l.inward * 6) }];
+    const verged = [track, paths[1]!, walks[0]!];
     const noVerge = [...paths, Y, nodePatch(l), plotPlaces(l.n).field];
     for (const q of verged) snowVerge(k, q, rng, P3.floor.board, noVerge.filter((s) => s !== q));
     snowVerge(k, Y, rng, P3.floor.board, paths);
+    // ---- 0.9.12 (T2): a broken fringe of ore grit and snow where the red gravel, the clay floor and the market's grey paving meet
+    const joinSkip = [...fenceStrips(l), ...paths, ...walks, { minX: l.gate.x - 2.6, maxX: l.gate.x + 2.6, minZ: l.gate.z - 3, maxZ: l.gate.z + 3 }, { minX: l.marketGate.x - 2.2, maxX: l.marketGate.x + 2.2, minZ: l.marketGate.z - 3, maxZ: l.marketGate.z + 3 }];
+    const joinStone = { stone: mixHex(C.gravel, 0xe3d3c6, 0.5), snow: mixHex(SNOW, C.gravel, 0.05) };
+    for (const q of [band, Y, Z.market, ...P.streets]) softEdge(k, q, rng, joinStone, joinSkip);
     // ---- forge-orange iron lanterns: at the gate, along the track, by the market walk
     const lc = { body: C.timber, dark: C.ironDark, light: C.light };
     lantern(k, l.gate.x - 2.6, l.gate.z + l.inward * 0.9, 'iron', lc);

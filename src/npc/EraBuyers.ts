@@ -13,6 +13,10 @@
  * keep up with a levelled region and little is left to sell cheaply at the depot.
  * 0.9.7: each era sends its own vehicle (assets/eraVehicles.ts: a pony cart, an ox wagon … a hover pod), tinted by the
  * variant's colour; the model animates its own wheels, bounce and draught animal.
+ * 0.9.12: vehicles no longer pop in and out on the road in front of the market. Each one drives a ROUTE over the road
+ * network (eras/traffic.ts: in from the city or the next link road, along the drive lane, into the stop lane's queue,
+ * back out and on down the road), turns its nose along it, and only appears or disappears where the camera can't see
+ * it (npc/vehicleView.ts). On the drive lane a vehicle keeps its distance behind any other buyer (of any era).
  */
 import * as THREE from 'three';
 import { TIMING, TRADE_POST } from '../config';
@@ -25,6 +29,9 @@ import type { CharacterRig } from '../render/characters';
 import { Pile } from '../items/Pile';
 import { transferOne } from '../items/transfer';
 import { MATERIAL_KINDS, type MaterialKind } from '../eras/data';
+import { buyerRoute, headingAt, pointAt, roadOpenAt, type BuyerRoute } from '../eras/traffic';
+import type { XZ } from '../eras/layout';
+import { inView, trackVehicle, untrackVehicle } from './vehicleView';
 
 /** What the queue needs from its loading dock (eras/RegionMarket.ts). */
 export interface BuyerPost {
@@ -33,7 +40,8 @@ export interface BuyerPost {
   readonly pile: Pile;
   /** Counter centre (world x) the beds line up with. */
   readonly x: number;
-  readonly lane: { z: number; fromX: number; toX: number };
+  /** The road in front of the market (regionLayout(n).road): the vehicles' route runs along it. */
+  readonly road: string;
   /** Vehicle paints (2 variants). */
   readonly colors: readonly [number, number];
   /** What a truck asks for at an empty counter (the era's main product). */
@@ -50,7 +58,8 @@ class Truck {
   readonly bubble: SpeechBubble;
   readonly cargo: Pile;
   mode: Mode = 'queue';
-  u = 0;
+  /** Distance along the route. */
+  s = 0;
   speed = 0;
   want = 0;
   kind: MaterialKind | null = null;
@@ -59,7 +68,11 @@ class Truck {
   takeTimer = 0;
   idle = 0;
   timer = 0;
-  fading = false;
+  /** Waiting in view at the route's end (it vanishes once the camera looks away). */
+  parked = false;
+  readonly id: string;
+  /** This trip's id for the traffic checks (pooled vehicles get a new one every spawn). */
+  trip = '';
 
   constructor(
     ctx: GameContext,
@@ -68,6 +81,7 @@ class Truck {
     readonly variant: number,
     id: string,
   ) {
+    this.id = id;
     this.bubble = createSpeechBubble(1.3);
     this.bubble.sprite.visible = false;
     this.bubble.sprite.position.set(0, model.bubbleY, 0);
@@ -77,6 +91,15 @@ class Truck {
 }
 
 const tmp = new THREE.Vector3();
+const tmpXZ: XZ = { x: 0, z: 0 };
+const tmpH: XZ = { x: 0, z: 0 };
+/** How big a vehicle is for the view test: its length, its shadow and a margin for the camera moving this frame. */
+const VIEW_R = 6;
+/** On the drive lane a vehicle stops this far behind the one ahead, and slows within FOLLOW_SLOW of it. */
+const FOLLOW_STOP = 5.2;
+const FOLLOW_SLOW = 9;
+/** Every era's vehicles out on the roads (they share the drive lanes), for keeping distance. */
+const ROAD_TRUCKS = new Set<Truck>();
 const ACCEL = 6;
 const DECEL = 8;
 
@@ -107,6 +130,8 @@ export class EraBuyers {
   private readonly pools: Truck[][] = [[], []];
   private spawnTimer = 1.2;
   private spawned = 0;
+  private route: BuyerRoute | null = null;
+  private routeAge = -1;
 
   constructor(
     private readonly ctx: GameContext,
@@ -130,24 +155,59 @@ export class EraBuyers {
     }
   }
 
-  private slotU(i: number): number {
-    return -(this.post.x - TRUCK_BED_X + i * TRADE_POST.spacing);
+  /** The route for the roads open now (rebuilt when a new era opens a link road). */
+  private currentRoute(): BuyerRoute {
+    const age = this.ctx.state?.eras?.age ?? this.post.era;
+    if (!this.route || this.routeAge !== age) {
+      this.routeAge = age;
+      this.route = buyerRoute(this.post.road, this.post.x - TRUCK_BED_X, TRADE_POST.maxQueue, TRADE_POST.spacing, (id) => roadOpenAt(Math.max(age, this.post.era), id));
+    }
+    return this.route;
+  }
+
+  private slotS(i: number): number {
+    return this.currentRoute().sFront - i * TRADE_POST.spacing;
   }
 
   update(dt: number): void {
     if (dt <= 0) return;
     this.spawnStep(dt);
     for (let i = 0; i < this.queue.length; i++) this.stepQueued(this.queue[i]!, i, dt);
-    const exitU = -this.post.lane.toX;
+    const r = this.currentRoute();
     for (let i = this.leaving.length - 1; i >= 0; i--) {
       const t = this.leaving[i]!;
       this.stepLeaving(t, dt);
-      if (!t.fading && t.u >= exitU - 1.5) {
-        t.fading = true;
-        this.ctx.tweens.popOut(t.model.root, { duration: 0.3 });
-      }
-      if (t.u >= exitU) this.despawn(i);
+      // gone only where nobody sees it go: past the pull-out and off screen (or at the route's end, once off screen)
+      if (t.s >= r.sOut && !this.seen(t.s)) this.despawn(i);
     }
+  }
+
+  /** True when a vehicle at route distance `s` would show on screen. */
+  private seen(s: number): boolean {
+    const p = pointAt(this.currentRoute(), s, tmpXZ);
+    return inView(this.ctx, p.x, p.z, VIEW_R);
+  }
+
+  /**
+   * Where a new vehicle may appear: the nearest point up the route from the queue that is off screen and clear of other
+   * vehicles (null: none right now, try again shortly).
+   */
+  private spawnS(): number | null {
+    const r = this.currentRoute();
+    for (let s = r.sMerge - 2; s >= 0; s -= 1.5) {
+      if (this.seen(s)) continue;
+      const p = pointAt(r, s, tmpXZ);
+      let clear = true;
+      for (const o of ROAD_TRUCKS) {
+        o.model.root.getWorldPosition(tmp);
+        if (Math.hypot(tmp.x - p.x, tmp.z - p.z) < FOLLOW_SLOW) {
+          clear = false;
+          break;
+        }
+      }
+      if (clear) return s;
+    }
+    return null;
   }
 
   // ---- spawning -------------------------------------------------------------------------------------------------
@@ -159,6 +219,11 @@ export class EraBuyers {
       this.spawnTimer = 0.5;
       return;
     }
+    const at = this.spawnS();
+    if (at === null) {
+      this.spawnTimer = 0.4;
+      return;
+    }
     const scale = buyerScale(this.post.era, this.post.boost());
     this.spawnTimer = randRange(TRADE_POST.gap[0], TRADE_POST.gap[1]) / scale.rate;
     const variant = this.spawned++ % 2;
@@ -168,7 +233,7 @@ export class EraBuyers {
       t = new Truck(this.ctx, model, rig, variant, `npc:trader${this.post.era}:${this.spawned}`);
     }
     t.mode = 'queue';
-    t.u = -this.post.lane.fromX;
+    t.s = at;
     t.speed = TRADE_POST.driveSpeed * 0.8;
     t.want = Math.min(BED_MAX, Math.round(Math.min(TRADE_POST.maxWant, randRange(TRADE_POST.want[0] - 0.49, TRADE_POST.want[1] + 0.49)) * scale.size));
     t.kind = null;
@@ -177,20 +242,24 @@ export class EraBuyers {
     t.takeTimer = 0;
     t.idle = 0;
     t.timer = 0;
-    t.fading = false;
+    t.parked = false;
     t.bubble.sprite.visible = false;
     t.rig.setSeated(true);
     t.model.root.visible = true;
     t.model.root.scale.setScalar(1);
     this.ctx.scene.add(t.model.root);
     this.pose(t);
-    this.ctx.tweens.popIn(t.model.root, { duration: 0.35 });
     this.queue.push(t);
+    ROAD_TRUCKS.add(t);
+    t.trip = `${t.id}#${this.spawned}`;
+    trackVehicle({ id: t.trip, kind: `eraBuyer:${this.post.era}`, root: t.model.root, facing: (out) => this.facing(t, out) });
   }
 
   private despawn(i: number): void {
     const t = this.leaving[i]!;
     this.leaving.splice(i, 1);
+    ROAD_TRUCKS.delete(t);
+    untrackVehicle(t.trip);
     t.cargo.clear();
     this.ctx.tweens.killTweensOf(t.bubble.sprite);
     this.ctx.tweens.killTweensOf(t.model.root);
@@ -209,27 +278,51 @@ export class EraBuyers {
 
   // ---- driving --------------------------------------------------------------------------------------------------
   private driveTo(t: Truck, target: number, dt: number): boolean {
-    const dist = target - t.u;
+    const dist = target - t.s;
     if (dist <= 0.01 && t.speed < 0.2) {
-      t.u = target;
+      t.s = target;
       t.speed = 0;
       return true;
     }
     const boost = Math.min(1.5, Math.max(1, this.post.boost()));
-    const vmax = Math.min(TRADE_POST.driveSpeed * boost, Math.sqrt(2 * DECEL * Math.max(0, dist)) + 0.35);
+    const vmax = Math.min(TRADE_POST.driveSpeed * boost, Math.sqrt(2 * DECEL * Math.max(0, dist)) + 0.35, this.follow(t));
     t.speed = approach(t.speed, vmax, (t.speed > vmax ? DECEL : ACCEL * boost) * dt);
     const step = t.speed * dt;
     if (step >= dist) {
-      t.u = target;
+      t.s = target;
       t.speed = 0;
       return true;
     }
-    t.u += step;
+    t.s += step;
     return false;
   }
 
+  /**
+   * Top speed that keeps a safe gap on the drive lane: 0 right behind another vehicle heading the same way, easing
+   * off within FOLLOW_SLOW. Parked queues sit in the other lane, so only traffic on the move ahead counts. Infinity
+   * when the way is clear (or once in this market's own stop lane, where the queue slots space vehicles).
+   */
+  private follow(t: Truck): number {
+    const r = this.currentRoute();
+    if (t.s >= r.sMerge && t.s <= r.sOut) return Infinity;
+    const p = pointAt(r, t.s, tmpXZ);
+    const h = headingAt(r, t.s, tmpH);
+    let cap = Infinity;
+    for (const o of ROAD_TRUCKS) {
+      if (o === t) continue;
+      o.model.root.getWorldPosition(tmp);
+      const dx = tmp.x - p.x;
+      const dz = tmp.z - p.z;
+      const along = dx * h.x + dz * h.z;
+      const side = Math.abs(dx * h.z - dz * h.x);
+      if (along <= 0 || along > FOLLOW_SLOW || side > 1.3) continue;
+      cap = Math.min(cap, along <= FOLLOW_STOP ? 0 : ((along - FOLLOW_STOP) / (FOLLOW_SLOW - FOLLOW_STOP)) * TRADE_POST.driveSpeed + o.speed * 0.5);
+    }
+    return cap;
+  }
+
   private stepQueued(t: Truck, index: number, dt: number): void {
-    t.atSlot = this.driveTo(t, this.slotU(index), dt);
+    t.atSlot = this.driveTo(t, this.slotS(index), dt);
     this.animate(t, dt);
     if (index !== 0 || !t.atSlot) return;
     if (t.mode === 'queue') this.serve(t, dt);
@@ -308,8 +401,12 @@ export class EraBuyers {
   }
 
   private stepLeaving(t: Truck, dt: number): void {
-    t.speed = approach(t.speed, TRADE_POST.driveSpeed * 1.15, ACCEL * dt);
-    t.u += t.speed * dt;
+    const end = this.currentRoute().length;
+    // on down the road; at the route's end (a road end) it waits until the camera looks away
+    const vmax = Math.min(TRADE_POST.driveSpeed * 1.15, this.follow(t), Math.sqrt(2 * DECEL * Math.max(0, end - t.s)));
+    t.speed = approach(t.speed, vmax, (t.speed > vmax ? DECEL : ACCEL) * dt);
+    t.s = Math.min(end, t.s + t.speed * dt);
+    t.parked = t.s >= end - 0.05;
     if (t.bubbleOn) {
       t.timer -= dt;
       if (t.timer <= 0) {
@@ -320,8 +417,19 @@ export class EraBuyers {
     this.animate(t, dt);
   }
 
+  /** The vehicle's nose: models face −X, turned to the route's heading. */
+  private facing(t: Truck, out: THREE.Vector3): THREE.Vector3 {
+    const y = t.model.root.rotation.y;
+    return out.set(-Math.cos(y), 0, Math.sin(y));
+  }
+
   private pose(t: Truck): void {
-    t.model.root.position.set(-t.u, 0, this.post.lane.z);
+    const r = this.currentRoute();
+    const p = pointAt(r, t.s, tmpXZ);
+    t.model.root.position.set(p.x, 0, p.z);
+    const h = headingAt(r, t.s, tmpH);
+    // a model facing −X turned by yaw y points at (−cos y, sin y)
+    t.model.root.rotation.y = Math.atan2(h.z, -h.x);
   }
 
   private animate(t: Truck, dt: number): void {
@@ -330,6 +438,6 @@ export class EraBuyers {
     const moving = Math.min(1, t.speed / (TRADE_POST.driveSpeed * 0.5));
     m.animate(dt, t.speed, moving);
     t.rig.animate(dt, 0);
-    if (t.bubble.sprite.visible) t.bubble.sprite.position.y = m.bubbleY + Math.sin((this.ctx.time.elapsed + t.u) * 4.5) * 0.04;
+    if (t.bubble.sprite.visible) t.bubble.sprite.position.y = m.bubbleY + Math.sin((this.ctx.time.elapsed + t.s) * 4.5) * 0.04;
   }
 }

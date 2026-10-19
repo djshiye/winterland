@@ -12,6 +12,8 @@
  *   U-turn on the open snow SOUTH of the lane and leave along a second line toward exitX. The dogs and the sled
  *   all follow the same path, so what the sled sweeps is exactly what tests/sled.test.ts validates.
  * - A loaded-but-unpaid sled holds chairs that no pile counts; `loadedPieces` reports them so the save keeps them.
+ * - 0.9.12 (npc/vehicleView.ts): a sled only appears and vanishes off screen. It sets off from the first point of the
+ *   track the camera can't see, and one still in view at the exit carries on to the track's end and waits there.
  */
 import * as THREE from 'three';
 import { ECONOMY, LAYOUT, TIMING } from '../config';
@@ -36,6 +38,7 @@ import {
 import { createSpeechBubble, type SpeechBubble } from '../assets/shop';
 import type { CashPile } from '../stations/CashPile';
 import type { Counter } from '../stations/Counter';
+import { inView, trackVehicle, untrackVehicle } from './vehicleView';
 
 export interface SledQueueOptions {
   counter: Counter;
@@ -91,6 +94,8 @@ export class SledQueue {
   private model: SledModel | null = null;
   private cargo: Pile | null = null;
   private bubble: SpeechBubble | null = null;
+  /** Sleds sent so far (each trip's id for the traffic checks). */
+  private trips = 0;
   private readonly track: SledTrack;
   /** Where the convoy overlaps the train corridor: on the arrival lane and on the return line. */
   private readonly bands: { arrive: CrossingBand; leave: CrossingBand };
@@ -141,7 +146,11 @@ export class SledQueue {
     switch (this.mode) {
       case 'idle':
         this.timer -= dt;
-        if (this.timer <= 0) this.spawn();
+        if (this.timer <= 0) {
+          const at = this.spawnS();
+          if (at === null) this.timer = 0.4;
+          else this.spawn(at);
+        }
         return;
       case 'arrive':
         if (this.holdForTrain(this.bands.arrive, true, dt)) break;
@@ -157,7 +166,7 @@ export class SledQueue {
         break;
       case 'leave':
         this.leave(dt);
-        if (this.s >= this.track.sExit) {
+        if (this.s >= this.track.sExit && !this.seenAt(this.s)) {
           this.despawn();
           return;
         }
@@ -167,7 +176,19 @@ export class SledQueue {
   }
 
   // --- life cycle ----------------------------------------------------------------------------
-  private spawn(): void {
+  /** True when the sled at track distance `s` shows on screen (its team runs ~4 m ahead of it). */
+  private seenAt(s: number): boolean {
+    this.track.at(s + 2, tmpP);
+    return inView(this.ctx, tmpP.x, tmpP.z, 6.5);
+  }
+
+  /** Where a sled may set off: the latest off-screen point of the track up to the lane's spawn point (null: none). */
+  private spawnS(): number | null {
+    for (let s = this.track.sStart; s >= 0; s -= 1) if (!this.seenAt(s)) return s;
+    return null;
+  }
+
+  private spawn(at: number): void {
     if (!this.model) {
       this.model = createSled();
       this.cargo = new Pile(this.ctx, {
@@ -185,7 +206,7 @@ export class SledQueue {
     const dm = demandOf(this.ctx.state);
     this.want = Math.min(SLED_CARGO_CAPACITY, Math.max(1, Math.round(randRange(dm.sledWant[0] - 0.49, dm.sledWant[1] + 0.49))));
     this.cargo!.clear();
-    this.s = this.track.sStart;
+    this.s = at;
     this.committedArrive = false;
     this.committedLeave = false;
     this.speed = DRIVE_SPEED * 0.8;
@@ -200,9 +221,13 @@ export class SledQueue {
     this.ctx.scene.add(this.model.root);
     this.pose();
     this.model.poseTeam(this.pairs, this.gait, 0, 0, 0); // the dogs must not flash at the neutral pose for a frame
+    const sled = this.model.sled;
+    this.trips++;
+    trackVehicle({ id: `sled#${this.trips}`, kind: 'sled', root: sled, facing: (out) => out.set(Math.sin(sled.rotation.y), 0, Math.cos(sled.rotation.y)) });
   }
 
   private despawn(): void {
+    untrackVehicle(`sled#${this.trips}`);
     this.cargo!.clear();
     this.ctx.tweens.killTweensOf(this.bubble!.sprite);
     this.bubble!.sprite.visible = false;
@@ -325,10 +350,12 @@ export class SledQueue {
     const t = this.track;
     const turning = this.s > t.sLoopStart - 1 && this.s < t.sLoopEnd + 0.5;
     const prev = this.speed;
-    const vmax = turning ? TURN_SPEED : DRIVE_SPEED * 1.15;
+    // past the exit it runs on to the track's end at most (and waits there while in view)
+    const end = t.length - 3;
+    const vmax = Math.min(turning ? TURN_SPEED : DRIVE_SPEED * 1.15, Math.sqrt(2 * DECEL * Math.max(0, end - this.s)));
     this.speed = approach(this.speed, vmax, (this.speed > vmax ? DECEL : ACCEL) * dt);
     this.accelNow = (this.speed - prev) / dt;
-    this.s += this.speed * dt;
+    this.s = Math.min(end, this.s + this.speed * dt);
   }
 
   // --- pose + animation ---------------------------------------------------------------------------

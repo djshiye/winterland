@@ -30,6 +30,8 @@ export interface Junction {
   roads: string[];
   /** Arms that do not follow the era trail (to the town, the city). */
   extra?: Arm[];
+  /** 0.9.12: false = no trail arms (a neighbouring post, under 15 m away, already points the way along the trail). */
+  trail?: boolean;
 }
 
 /** A sign arm: unit direction along a world axis and its text. */
@@ -41,8 +43,8 @@ export interface Arm {
 const LAST_ERA = 10;
 
 export const JUNCTIONS: readonly Junction[] = [
-  { id: 'avenue', at: { x: 28, z: 64 }, post: { x: 31.1, z: 60.7 }, roads: ['southAvenue', 'r1'], extra: [{ dir: { x: 0, z: -1 }, text: 'Market Town' }] },
-  { id: 'cityCorner', at: { x: 42, z: 64 }, post: { x: 38.9, z: 60.7 }, roads: ['r1', 'cityWest'], extra: [{ dir: { x: 0, z: -1 }, text: 'Market Town · City' }, { dir: { x: 0, z: 1 }, text: 'R2 · Eras V–VIII' }] },
+  { id: 'avenue', at: { x: 28, z: 64 }, post: { x: 24.9, z: 60.7 }, roads: ['southAvenue', 'r1'], extra: [{ dir: { x: 0, z: -1 }, text: 'Market Town' }] },
+  { id: 'cityCorner', at: { x: 42, z: 64 }, post: { x: 38.9, z: 60.7 }, roads: ['r1', 'cityWest'], trail: false, extra: [{ dir: { x: 0, z: -1 }, text: 'Market Town · City' }, { dir: { x: 0, z: 1 }, text: 'R2 · Eras V–VIII' }] },
   { id: 'westCorner', at: { x: -182, z: 64 }, post: { x: -178.4, z: 60.7 }, roads: ['r1', 'westLink'] },
   { id: 'westFoot', at: { x: -182, z: 130 }, post: { x: -178.4, z: 126.7 }, roads: ['westLink', 'r2'] },
   { id: 'cityWestFoot', at: { x: 42, z: 128.3 }, post: { x: 38.9, z: 126.7 }, roads: ['cityWest', 'r2'], extra: [{ dir: { x: 0, z: -1 }, text: 'City · Market Town' }] },
@@ -114,6 +116,7 @@ const LOOK = 4;
  * when there are eras that way), then the junction's extra arms. Directions are world axes. Pure.
  */
 export function signArms(j: Junction): Arm[] {
+  if (j.trail === false) return [...(j.extra ?? [])];
   const line = eraTrail(LAST_ERA);
   const stops: TrailStop[] = [];
   for (let n = 2; n <= LAST_ERA; n++) {
@@ -131,11 +134,19 @@ export function signArms(j: Junction): Arm[] {
   return [...arms, ...(j.extra ?? [])];
 }
 
+/**
+ * 0.9.12: the plan-view footprint of each arm of a post (from the post along the arm's axis), for the tests that keep
+ * posts apart and arms from crossing. Pure.
+ */
+export function armSegments(j: Junction): Array<{ x0: number; z0: number; x1: number; z1: number }> {
+  return signArms(j).map((a) => ({ x0: j.post.x, z0: j.post.z, x1: j.post.x + a.dir.x * (ARM_W + 0.12), z1: j.post.z + a.dir.z * (ARM_W + 0.12) }));
+}
+
 // ---------------------------------------------------------------------------
 // Meshes
 // ---------------------------------------------------------------------------
 
-const ARM_W = 3.2;
+export const ARM_W = 3.2;
 const ARM_H = 0.66;
 const ROW_PX = 80;
 const ATLAS_W = 768;

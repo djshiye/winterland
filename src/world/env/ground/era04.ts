@@ -270,7 +270,7 @@ function open(kit: GroundKit, l: RegionLayout, P: PlotPlaces, rng: Rng): void {
   }
   const specks = Math.round(((Y.maxX - Y.minX) * (Y.maxZ - Y.minZ)) / 3.2);
   for (let i = 0; i < specks; i++) f.tile(0.1, 0.1, rng.next() < 0.7 ? EMBER : BRASS_L, rng.range(Y.minX + 0.3, Y.maxX - 0.3), 0.0335, rng.range(Y.minZ + 0.3, Y.maxZ - 0.3), rng.range(0, 3));
-  cellMarks(f, l, P, BRASS, 0.035, 0.1);
+  cellMarks(f, l, P, mixHex(BRASS, SLATE, 0.7), 0.035, 0.1); // 0.9.12 (T3): ~30% contrast
   // front yard: a cinder apron between red-brick kerbs
   const B = yardBand(l);
   f.tile(B.maxX - B.minX, B.maxZ - B.minZ, mixHex(SLATE, SNOW, 0.22), (B.minX + B.maxX) / 2, 0.022, (B.minZ + B.maxZ) / 2);

@@ -547,8 +547,9 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
   const cz = (r.minZ + r.maxZ) / 2;
   const dz = r.maxZ - r.minZ;
   const len = r.maxX - r.minX;
-  // a raked strip under every bed
-  body.add(geo.box(len, 0.02, dz + 0.3), mix(color, SNOW, kind === 'outcrop' || kind === 'crystals' ? 0.86 : 0.72), (r.minX + r.maxX) / 2, 0.02, cz);
+  // a raked strip under every bed (0.9.12, T4: under an ore node or a quartz cluster it is a soft round worn patch, not a pale square)
+  if (kind === 'outcrop' || kind === 'crystals') body.add(geo.circleGround(1, 28), mix(color, SNOW, 0.6), (r.minX + r.maxX) / 2, 0.02, cz, { sx: len / 2 + 0.55, sz: dz / 2 + 0.7 });
+  else body.add(geo.box(len, 0.02, dz + 0.3), mix(color, SNOW, 0.72), (r.minX + r.maxX) / 2, 0.02, cz);
   const glowTo = lit ? glow : body;
   switch (kind) {
     case 'dunes': {
@@ -879,7 +880,15 @@ function buildFieldDressing(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlac
       }
       for (const [key, x0] of rows) {
         const z = key / 10 + 0.9;
-        if (tanksX - x0 > 0.3) body.add(geo.box(tanksX - x0, 0.14, 0.14), 0x8a8580, (x0 + tanksX) / 2, 0.2, z);
+        if (tanksX - x0 > 0.3) {
+          body.add(geo.box(tanksX - x0, 0.14, 0.14), 0x8a8580, (x0 + tanksX) / 2, 0.2, z);
+          // 0.9.12 (C4): both ends turn down into the ground: an elbow stub, a flange collar and a little valve cap, never mid-air
+          for (const [ex, ew] of [[x0, 1], [tanksX, -1]] as const) {
+            body.add(geo.box(0.14, 0.2, 0.14), 0x8a8580, ex + ew * 0.07, 0.1, z);
+            body.add(geo.circleGround(0.3, 12), 0x6f6a66, ex + ew * 0.07, 0.03, z);
+            body.add(geo.cylinder(0.11, 0.11, 0.06, 10), 0xd9a441, ex + ew * 0.07, 0.31, z);
+          }
+        }
       }
       break;
     }

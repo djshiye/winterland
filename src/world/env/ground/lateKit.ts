@@ -17,6 +17,7 @@ import { SNOW, mixHex, palette } from '../../../render/palette';
 import type { Rng } from '../common';
 import type { PlotPlaces, RegionLayout } from '../../../eras/layout';
 import { nodePatch, regionPaths } from '../frontier';
+import { clearOfFence, FENCE_CLEAR } from '../clearance';
 
 const shade = (c: number, k: number): number => {
   const col = new THREE.Color(c);
@@ -324,6 +325,10 @@ export function clearOfFront(l: RegionLayout, r: Rect, h: number): boolean {
   return mustSee(l).every((s) => !overlaps(shadow, s));
 }
 
+/** Crown radius of a belt tree and its distance in from the fence line (FENCE_CLEAR + radius + a little jitter room). */
+export const BELT_R = 1.3;
+export const BELT_IN = FENCE_CLEAR + BELT_R + 0.15;
+
 /**
  * The tree belt: spots along the region's west strip and its gate (north) strip, the two edges the camera looks
  * toward (-X / -Z), so a tree there never hides a pad, the player or a counter. `step` metres apart, clear of the
@@ -333,15 +338,16 @@ export function beltSpots(l: RegionLayout, step: number, rng: Rng): { x: number;
   const r = l.rect;
   const out: { x: number; z: number; s: number }[] = [];
   const clear = frontSpots(l);
-  const ok = (x: number, z: number): boolean => clear.every((c) => Math.hypot(c.x - x, c.z - z) > c.r) && clearOfFront(l, sq(x, z, 1.4), 3.8);
-  const edge = l.gate.side === 'north' ? r.minZ + 1.7 : r.maxZ - 1.7;
+  // 0.9.12: a belt tree's crown (up to 1.5 m) keeps FENCE_CLEAR off the fence line (world/env/clearance.ts)
+  const ok = (x: number, z: number): boolean => clear.every((c) => Math.hypot(c.x - x, c.z - z) > c.r) && clearOfFront(l, sq(x, z, 1.4), 3.8) && clearOfFence(l, x, z, BELT_R);
+  const edge = l.gate.side === 'north' ? r.minZ + BELT_IN : r.maxZ - BELT_IN;
   for (let z = r.minZ + 2.2; z < r.maxZ - 1.5; z += step) {
-    const x = r.minX + 1.7 + rng.range(-0.15, 0.15);
+    const x = r.minX + BELT_IN + rng.range(-0.1, 0.1);
     if (ok(x, z)) out.push({ x, z, s: rng.range(0.85, 1.12) });
   }
   if (l.gate.side === 'north') {
     for (let x = r.minX + 2.2 + step; x < r.maxX - 2; x += step) {
-      const z = edge + rng.range(-0.15, 0.15);
+      const z = edge + rng.range(-0.1, 0.1);
       if (ok(x, z)) out.push({ x, z, s: rng.range(0.8, 1.05) });
     }
   }
@@ -355,7 +361,8 @@ export function beltSpots(l: RegionLayout, step: number, rng: Rng): { x: number;
 export function harvestFree(l: RegionLayout, P: PlotPlaces, x: number, z: number, rad: number, placed: readonly { x: number; z: number; r: number }[]): boolean {
   const H = l.zones.harvest;
   if (!(x > H.minX + rad + 0.8 && x < H.maxX - rad - 0.8 && z > H.minZ + rad + 0.8 && z < H.maxZ - rad - 0.8)) return false;
-  if (x < l.rect.minX + 3.4 + rad) return false; // the tree belt
+  if (x < l.rect.minX + BELT_IN + BELT_R + rad) return false; // the tree belt
+  if (!clearOfFence(l, x, z, rad)) return false;
   if (inRect(nodePatch(l), x, z, rad + 0.6)) return false;
   if (inRect(P.field, x, z, rad + 0.5)) return false;
   if (regionPaths(l).some((q) => inRect(q, x, z, rad + 0.4))) return false;

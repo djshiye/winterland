@@ -263,8 +263,8 @@ function open(kit: GroundKit, l: RegionLayout, P: PlotPlaces, rng: Rng): void {
     }
   }
   const walk = mixHex(SODIUM, T.accent, 0.25);
-  for (let z = Y.minZ + 0.5; z <= Y.maxZ + 0.01; z += l.rowPitch) f.tile(Y.maxX - Y.minX - 0.6, 0.3, walk, (Y.minX + Y.maxX) / 2, 0.035, Math.min(z, Y.maxZ - 0.2));
-  cellMarks(f, l, P, mixHex(walk, plate, 0.35), 0.0345, 0.1);
+  for (let z = Y.minZ + 0.5; z <= Y.maxZ + 0.01; z += l.rowPitch) f.tile(Y.maxX - Y.minX - 0.6, 0.3, mixHex(walk, plate, 0.6), (Y.minX + Y.maxX) / 2, 0.035, Math.min(z, Y.maxZ - 0.2)); // 0.9.12 (T3): softer walkway bands
+  cellMarks(f, l, P, mixHex(walk, plate, 0.8), 0.0345, 0.1); // 0.9.12 (T3): ~30% contrast
   // paths: pale concrete slabs with a yellow edge line
   for (const q of regionPaths(l)) {
     const w = q.maxX - q.minX;
