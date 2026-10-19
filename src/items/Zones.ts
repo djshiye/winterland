@@ -16,12 +16,22 @@
  *   cash collection) is never gated. `interactHeld` is always true when the setting is off.
  * - Optional ground marker: rounded-rectangle outline (white, ~0.06 thick, slightly inset, y≈0.02,
  *   unlit, transparent ~0.35) that brightens/pulses while the player is inside. Hidden when disabled.
+ * - 0.9.11 forgiving reach (full review I1-I5): a zone's `reach` says how close the player's CENTRE must come to the
+ *   rectangle. 'exact' (custom zones, payments, Jack) is the old centre-inside test. 'body' (pickups, drop-offs and cash
+ *   piles) counts the whole body plus slack: in once the centre is within REACH.enter of the rect, out only past
+ *   REACH.leave and after REACH.grace s, so drifting along a counter never stutters. A soft halo the width of that slack
+ *   glows round the outline while the player is in range, and fainter as they walk up to a zone with something to move.
+ * - 0.9.11 (I7): in walk-over mode (hold to interact off) a 'pay' zone only pays while the player is slower than
+ *   PAY_WALK_MAX m/s, so running across a pad spends nothing.
+ * - 0.9.11 (I6): a drop-off from the player's arms that takes only some kinds floats "Takes Stone" once per visit when
+ *   the player arrives carrying nothing it takes.
  *
  * NOTE: ctx.player is created AFTER ctx.zones, so it is only read inside update().
  */
 import * as THREE from 'three';
-import { PALETTE, TIMING, type Rect } from '../config';
+import { PALETTE, PLAYER, TIMING, type Rect } from '../config';
 import { damp, inRect } from '../core/math';
+import { itemLabel } from '../ui/agesLogic';
 import { ALL_ITEM_KINDS, type GameContext, type Item, type ItemHolder, type ItemKind } from '../core/types';
 import { basic } from '../render/materials';
 import type { FlightOptions } from './FlightSystem';
@@ -37,6 +47,28 @@ export interface ZoneOptions {
   onEnter?: () => void;
   onExit?: () => void;
   onStay?: (dt: number) => void;
+  /** How close the player must come (default 'exact': centre inside the rect). */
+  reach?: ZoneReach;
+}
+
+/** 'exact': the player's centre inside the rect. 'body': the body touching it, with slack and a sticky exit (REACH). */
+export type ZoneReach = 'exact' | 'body';
+
+/**
+ * 0.9.11 forgiving reach (full review I1): distances from the player's centre to the zone's rect, in metres. `enter` is
+ * the body radius plus 0.2 m of slack; `leave` adds 0.35 m so a player drifting along a counter keeps flowing; `grace`
+ * keeps a transfer going a moment after they step out; `near` is how far beyond `enter` the halo starts to glimmer.
+ */
+export const REACH = { enter: PLAYER.radius + 0.2, leave: PLAYER.radius + 0.55, grace: 0.25, near: 0.7 } as const;
+
+/** 0.9.11 (I7): in walk-over mode a pay zone only pays below this speed (m/s); walking pace is 4+. */
+export const PAY_WALK_MAX = 1.0;
+
+/** Distance from (x, z) to the rect (0 inside). */
+export function rectDistance(r: Rect, x: number, z: number): number {
+  const dx = x < r.minX ? r.minX - x : x > r.maxX ? x - r.maxX : 0;
+  const dz = z < r.minZ ? r.minZ - z : z > r.maxZ ? z - r.maxZ : 0;
+  return dx === 0 ? dz : dz === 0 ? dx : Math.hypot(dx, dz);
 }
 
 export interface TransferZoneOptions {
@@ -63,6 +95,8 @@ export interface TransferZoneOptions {
    * 'give' (default: drop-offs, cash collection) is automatic.
    */
   kind?: 'take' | 'give' | 'pay';
+  /** Default: 'exact' for 'pay', 'body' otherwise. */
+  reach?: ZoneReach;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,6 +107,13 @@ const MARKER_Y = 0.02;
 const MARKER_INSET = 0.1;
 const MARKER_THICKNESS = 0.06;
 const MARKER_IDLE_OPACITY = 0.35;
+/** Halo (0.9.11): width beyond the rect for an 'exact' zone ('body' zones use REACH.enter), and its peak opacity. */
+const HALO_EXACT = 0.14;
+const HALO_OPACITY = 0.7;
+/** Warm lantern gold: reads on snow, cobbles and every era's ground (a white glow vanished on the snow). */
+const HALO_COLOR = 0xffc45e;
+const MARKER_WHITE = new THREE.Color(PALETTE.zoneMarker);
+const MARKER_GOLD = new THREE.Color(HALO_COLOR);
 
 function roundedRectPath(p: THREE.Path, x0: number, y0: number, x1: number, y1: number, r: number): void {
   p.moveTo(x0 + r, y0);
@@ -101,18 +142,50 @@ function makeMarkerGeometry(area: Rect): THREE.BufferGeometry {
   return new THREE.ShapeGeometry(shape, 8).rotateX(-Math.PI / 2);
 }
 
+/** Flat rounded band from the rect's edge out to `width` beyond it (the in-range halo), centred on the origin. */
+function makeHaloGeometry(area: Rect, width: number): THREE.BufferGeometry {
+  const w = Math.max(0.3, area.maxX - area.minX);
+  const d = Math.max(0.3, area.maxZ - area.minZ);
+  const ri = Math.min(0.45, w / 2 - 0.01, d / 2 - 0.01);
+  const shape = new THREE.Shape();
+  roundedRectPath(shape, -w / 2 - width, -d / 2 - width, w / 2 + width, d / 2 + width, ri + width);
+  const hole = new THREE.Path();
+  roundedRectPath(hole, -w / 2, -d / 2, w / 2, d / 2, ri);
+  shape.holes.push(hole);
+  const g = new THREE.ShapeGeometry(shape, 8).rotateX(-Math.PI / 2);
+  // fade out from the rect's edge (alpha 1) to the band's outer edge (alpha 0): vertex colours with alpha
+  const pos = g.getAttribute('position');
+  const rgba = new Float32Array(pos.count * 4);
+  const r = { minX: -w / 2, maxX: w / 2, minZ: -d / 2, maxZ: d / 2 };
+  for (let i = 0; i < pos.count; i++) {
+    const a = 1 - Math.min(1, rectDistance(r, pos.getX(i), pos.getZ(i)) / Math.max(0.01, width));
+    rgba.set([1, 1, 1, a], i * 4);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(rgba, 4));
+  return g;
+}
+
 export class Zone {
   readonly id: string;
   area: Rect;
   enabled: boolean;
   playerInside = false;
   marker: THREE.Object3D | null = null;
+  /** In-range halo round the marker (0.9.11). */
+  halo: THREE.Mesh | null = null;
+  readonly reach: ZoneReach;
+  /** @internal seconds the player has been past `leave` while still counted inside (grace) */
+  outFor = 0;
   /** @internal */
   removed = false;
   /** @internal */
   markerLevel = 0;
   /** @internal */
   markerMaterial: THREE.MeshBasicMaterial | null = null;
+  /** @internal */
+  haloMaterial: THREE.MeshBasicMaterial | null = null;
+  /** @internal the outline is tinted toward gold (reset to white once the level settles at 0) */
+  markerTint = false;
   /** @internal */
   readonly onEnter: (() => void) | undefined;
   /** @internal */
@@ -127,11 +200,28 @@ export class Zone {
     this.onEnter = opts.onEnter;
     this.onExit = opts.onExit;
     this.onStay = opts.onStay;
+    this.reach = opts.reach ?? 'exact';
+  }
+
+  /** Centre distance at which the player counts as arriving. */
+  get enterDist(): number {
+    return this.reach === 'body' ? REACH.enter : 0;
+  }
+
+  /** Halo width round the outline: the reach slack. */
+  get haloWidth(): number {
+    return this.reach === 'body' ? REACH.enter : HALO_EXACT;
+  }
+
+  /** True when the player near this zone has something to move (drives the walk-up glimmer). @internal */
+  ready(_ctx: GameContext): boolean {
+    return false;
   }
 
   setEnabled(on: boolean): void {
     this.enabled = on;
     if (this.marker) this.marker.visible = on;
+    if (!on && this.halo) this.halo.visible = false;
   }
 
   setArea(r: Rect): void {
@@ -141,6 +231,12 @@ export class Zone {
       m.geometry.dispose();
       m.geometry = makeMarkerGeometry(this.area);
       m.position.set((r.minX + r.maxX) / 2, MARKER_Y, (r.minZ + r.maxZ) / 2);
+    }
+    const h = this.halo;
+    if (h) {
+      h.geometry.dispose();
+      h.geometry = makeHaloGeometry(this.area, this.haloWidth);
+      h.position.set((r.minX + r.maxX) / 2, MARKER_Y - 0.002, (r.minZ + r.maxZ) / 2);
     }
   }
 
@@ -170,10 +266,12 @@ class TransferZone extends Zone {
   private fullTimer = 0;
   /** An 'interact:prompt' {on:true} is currently showing for this zone. */
   private prompting = false;
+  /** The wrong-load hint already floated this visit (I6). */
+  private hinted = false;
   private readonly tmpTop = new THREE.Vector3();
 
   constructor(private readonly t: TransferZoneOptions) {
-    super({ id: t.id, area: t.area, enabled: t.enabled, marker: t.marker });
+    super({ id: t.id, area: t.area, enabled: t.enabled, marker: t.marker, reach: t.reach ?? (t.kind === 'pay' ? 'exact' : 'body') });
     this.base = t.interval ?? TIMING.pickupInterval;
     this.interval = this.base;
   }
@@ -186,6 +284,11 @@ class TransferZone extends Zone {
   protected override left(): void {
     this.interval = this.base;
     this.timer = 0;
+    this.hinted = false;
+  }
+
+  override ready(_ctx: GameContext): boolean {
+    return this.hasTransferable();
   }
 
   override tick(ctx: GameContext, dt: number): void {
@@ -204,6 +307,15 @@ class TransferZone extends Zone {
       return;
     }
     this.setPrompt(ctx, false);
+    if (kind === 'pay' && ctx.input.holdToInteract === false) {
+      // walk-over mode: crossing a pad at walking pace pays nothing (I7); slow down or stop on it to pay
+      const v = ctx.player.velocity;
+      if (v && Math.hypot(v.x, v.z) > PAY_WALK_MAX) {
+        this.interval = this.base;
+        this.timer = Math.max(this.timer, t.delay ?? 0);
+        return;
+      }
+    }
     this.timer -= dt;
     let moved = 0;
     while (this.timer <= 0 && moved < 4) {
@@ -217,6 +329,7 @@ class TransferZone extends Zone {
         this.timer = 0;
         this.interval = this.base; // nothing to move: next burst starts slow again
         if (!t.cashAmount) this.checkFull(ctx); // a full / fully reserved pad is not a "full stack"
+        if (moved === 0) this.hintWrongLoad(ctx);
         break;
       }
       moved++;
@@ -224,6 +337,25 @@ class TransferZone extends Zone {
       this.interval = Math.max(TIMING.minInterval, this.interval * 0.88);
       t.onTransfer?.(item);
     }
+  }
+
+  /**
+   * I6: a drop-off from the arms that takes only some kinds, reached with arms full of none of them, floats
+   * "Takes Stone" over the zone once per visit (a look-alike load is never a silent no).
+   */
+  private hintWrongLoad(ctx: GameContext): void {
+    const t = this.t;
+    // payments (construction pads) float their own "Needs Clay" (stations/ConstructionPad.ts)
+    if (this.hinted || t.kind === 'pay' || !t.kinds || t.kinds.length > 3 || t.from !== ctx.player.arms) return;
+    const arms = t.from;
+    if (arms.count() === 0) return;
+    const v = ctx.player.velocity;
+    if (v && Math.hypot(v.x, v.z) > PAY_WALK_MAX) return; // only once they stop here, not while walking past
+    for (let i = 0; i < t.kinds.length; i++) if (arms.count(t.kinds[i]!) > 0) return;
+    this.hinted = true;
+    const a = this.area;
+    const names = t.kinds.map(itemLabel).join(' or ');
+    ctx.hud?.floatText(this.tmpTop.set((a.minX + a.maxX) / 2, 2.2, (a.minZ + a.maxZ) / 2), `Takes ${names}`, { color: '#ffe3a3', size: 24, duration: 1.8, rise: 0.8 });
   }
 
   /** Emit 'interact:prompt' only on a change of state. */
@@ -299,6 +431,12 @@ export class ZoneSystem {
       zone.markerMaterial?.dispose();
       zone.marker = null;
     }
+    if (zone.halo) {
+      zone.halo.removeFromParent();
+      zone.halo.geometry.dispose();
+      zone.haloMaterial?.dispose();
+      zone.halo = null;
+    }
   }
 
   isPlayerIn(area: Rect): boolean {
@@ -311,7 +449,18 @@ export class ZoneSystem {
     for (let i = 0; i < this.zones.length; i++) {
       const z = this.zones[i]!;
       if (z.removed) continue;
-      const inside = z.enabled && inRect(z.area, p.x, p.z);
+      const d = z.enabled ? rectDistance(z.area, p.x, p.z) : Infinity;
+      let inside: boolean;
+      if (z.reach === 'exact') inside = d === 0;
+      else if (!z.playerInside) inside = d <= REACH.enter;
+      else if (d <= REACH.leave) {
+        z.outFor = 0;
+        inside = true;
+      } else {
+        z.outFor += dt;
+        inside = z.enabled && z.outFor < REACH.grace;
+      }
+      if (inside && !z.playerInside) z.outFor = 0;
       if (inside && !z.playerInside) {
         z.playerInside = true;
         z.handleEnter();
@@ -323,7 +472,7 @@ export class ZoneSystem {
       if (inside) z.onStay?.(dt);
       if (z.removed) continue;
       z.tick(this.ctx, dt);
-      if (z.markerMaterial) this.animateMarker(z, inside, dt);
+      if (z.markerMaterial) this.animateMarker(z, inside, d, dt);
     }
     if (this.needsCompact) {
       this.needsCompact = false;
@@ -347,14 +496,39 @@ export class ZoneSystem {
       this.ctx.scene.add(m);
       zone.marker = m;
       zone.markerMaterial = mat;
+      const hm = mat.clone();
+      hm.color.setHex(HALO_COLOR);
+      hm.vertexColors = true;
+      hm.opacity = 0;
+      const h = new THREE.Mesh(makeHaloGeometry(zone.area, zone.haloWidth), hm);
+      h.position.set(m.position.x, MARKER_Y - 0.002, m.position.z);
+      h.renderOrder = 1;
+      h.visible = false;
+      h.name = `zoneHalo:${zone.id}`;
+      this.ctx.scene.add(h);
+      zone.halo = h;
+      zone.haloMaterial = hm;
     }
     return zone;
   }
 
-  private animateMarker(z: Zone, inside: boolean, dt: number): void {
-    z.markerLevel = damp(z.markerLevel, inside ? 1 : 0, 14, dt);
+  private animateMarker(z: Zone, inside: boolean, d: number, dt: number): void {
+    // in range: full glow; walking up to a zone with something to move (within REACH.near of arriving): a glimmer
+    const near = !inside && z.enabled && d <= z.enterDist + REACH.near && z.ready(this.ctx);
+    z.markerLevel = damp(z.markerLevel, inside ? 1 : near ? 0.4 : 0, 14, dt);
     // 0.9.7: the marker glows steady with calmer effects / Reduce motion (it used to flicker at 9 rad/s)
     const pulse = inside && !steadyHighlights() ? 0.12 * Math.sin(this.ctx.time.elapsed * 9) : 0;
     z.markerMaterial!.opacity = MARKER_IDLE_OPACITY + z.markerLevel * (0.62 - MARKER_IDLE_OPACITY) + pulse * z.markerLevel;
+    // the outline warms from white to lantern gold as the player arrives
+    if (z.markerLevel > 0.002 || z.markerTint) {
+      z.markerMaterial!.color.lerpColors(MARKER_WHITE, MARKER_GOLD, Math.min(1, z.markerLevel));
+      z.markerTint = z.markerLevel > 0.002;
+    }
+    const h = z.halo;
+    if (h) {
+      const show = z.enabled && z.markerLevel > 0.02;
+      if (h.visible !== show) h.visible = show;
+      if (show) z.haloMaterial!.opacity = HALO_OPACITY * z.markerLevel;
+    }
   }
 }

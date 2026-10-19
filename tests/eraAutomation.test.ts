@@ -188,11 +188,15 @@ describe('machine level upgrades', () => {
       expect(-p.u - half, `era ${n}`).toBeGreaterThan(MACHINE_NOMINAL.w / 2); // off the machine
       expect(-p.u + half, `era ${n}`).toBeLessThan(L.cell / 2); // inside the cell
       expect(Math.abs(p.v) + half).toBeLessThanOrEqual(MACHINE_NOMINAL.d / 2 + 0.01);
-      // 0.9.9: the MANAGE zone shares its side (the camera's), behind it toward the machine's back, never on it
-      const m = machineFrame(MACHINE_NOMINAL.w, MACHINE_NOMINAL.d).manage;
+      // 0.9.11: the MANAGE zone stands on the working side, in front of the level pad (never on it), clear of the feed
+      // zone and short of the belt lane
+      const f = machineFrame(MACHINE_NOMINAL.w, MACHINE_NOMINAL.d);
+      const m = f.manage;
       expect(m.u1).toBeLessThan(-MACHINE_NOMINAL.w / 2);
+      expect(m.u1 + 0.6).toBeLessThan(f.feed.u0);
       expect(-m.u0, `era ${n}`).toBeLessThan(L.cell / 2);
-      expect(m.v1).toBeLessThan(p.v - half);
+      expect(m.v0).toBeGreaterThan(p.v + half + 0.3);
+      expect(m.v1).toBeLessThan(BELT_LANE - 0.35);
     }
   });
 });

@@ -75,14 +75,26 @@ export function machineFrame(w: number, d: number): MachineFrame {
     outPile: { u: PILE_OUT_U, v: pv },
     feed: { u0: -PILE_U - 0.9, u1: -PILE_U + 0.9, v0: front + 0.2, v1: front + 1.8 },
     take: { u0: PILE_OUT_U - 1.0, u1: PILE_OUT_U + 1.0, v0: front + 0.2, v1: front + 1.8 },
-    // 0.9.9: on the level pad's side, at the back corner (the corner nearest the camera, which sits toward +X/+Z while
-    // machines face the gate, north): the MANAGE board stands in plain sight instead of behind the machine
-    manage: { u0: -w / 2 - 1.4, u1: -w / 2 - 0.4, v0: -d / 2, v1: -d / 2 + 1.2 },
+    // 0.9.11 (full review I4/O2): on the working side, in front of the level pad and beside the feed zone, so a swap
+    // is a few steps along the front instead of a walk round the machine. 0.75 m clear of the feed zone, 0.35 m clear
+    // of the pad behind it, short of the belt lane in front; the board stands at its camera-side edge (Machine.ts)
+    manage: { u0: Math.min(-w / 2 - 0.6, -PILE_U - 1.75) - 1.6, u1: Math.min(-w / 2 - 0.6, -PILE_U - 1.75), v0: front + 0.35, v1: front + 1.75 },
     feedSpot: { u: -PILE_U, v: pv + 0.75 },
     takeSpot: { u: PILE_OUT_U, v: pv + 0.75 },
     door: { u: 0, v: front, y: 1.0 },
   };
 }
+
+/**
+ * 0.9.11: where an era machine's MANAGE board stands (local u, v): just past the tile's front edge, near its outer end.
+ * The camera looks from local −u/−v, so the tile shows in front of the board and the board's shadow on the view falls
+ * on open ground in front of the machine, not on the feed zone (tests/manageBoards.test.ts).
+ */
+export function manageBoardLocal(f: Pick<MachineFrame, 'manage'>): { u: number; v: number } {
+  return { u: f.manage.u0 + 0.35, v: f.manage.v1 + MANAGE_BOARD_GAP };
+}
+/** Gap between the tile's front edge and the board's post (fx/manageSign MANAGE_POST_GAP). */
+const MANAGE_BOARD_GAP = 0.18;
 
 /** 0.9.5: an era machine's level pad (the tile its type's level is bought on), beside the body away from MANAGE. */
 export const LEVEL_PAD_SIZE = 1.9;

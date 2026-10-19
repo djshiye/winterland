@@ -15,7 +15,8 @@
  * - Every batch: stats.materialsMade += batch, 'material:made'. snapshot() counts items in flight toward the piles and
  *   the inputs of the running cycle, so a save mid-cycle loses nothing.
  */
-import { faceCameraUpright, fadeManageSign, manageSignFoot } from '../fx/manageSign';
+import { faceCameraUpright, fadeManageSign } from '../fx/manageSign';
+import { manageOpens } from '../town/rules';
 import * as THREE from 'three';
 import { TIMING, type Rect } from '../config';
 import { createMachineModel, type MachineModel } from '../assets/eraMachines';
@@ -29,7 +30,7 @@ import type { ColliderHandle } from '../world/Colliders';
 import { ERAS, MACHINE_PILES, type MachineDef } from './data';
 import type { SlotPlace, XZ } from './layout';
 import type { MachineRuntime } from './runtime';
-import { OUTPUT_CAPACITY, inputCap, levelPadLocal, machineFrame, toWorld, worldRect, type LRect, type MachineFrame } from './rules';
+import { OUTPUT_CAPACITY, inputCap, levelPadLocal, machineFrame, manageBoardLocal, toWorld, worldRect, type LRect, type MachineFrame } from './rules';
 
 /** The MANAGE label over the info zone: big enough to read from the usual camera distance. */
 
@@ -173,9 +174,36 @@ export class Machine implements MachineRuntime {
       this.input = null;
     }
     const manage = w(f.manage);
-    this.zones.push(ctx.zones.add({ id: `${id}:manage`, area: manage, marker: true, onEnter: hooks.onManage, onExit: hooks.onManageExit }));
+    // 0.9.11: like the town's manage tiles (#68), the card waits until the player stops on the tile (or stays a
+    // moment): walking along the front past it never opens it
+    let manageIn = 0;
+    let manageShown = false;
+    this.zones.push(
+      ctx.zones.add({
+        id: `${id}:manage`,
+        area: manage,
+        marker: true,
+        onEnter: () => {
+          manageIn = 0;
+          manageShown = false;
+        },
+        onStay: (dt) => {
+          manageIn += dt;
+          if (manageShown) return;
+          const v = ctx.player?.velocity;
+          if (!manageOpens(manageIn, v ? Math.hypot(v.x, v.z) : 0)) return;
+          manageShown = true;
+          hooks.onManage();
+        },
+        onExit: () => {
+          manageShown = false;
+          hooks.onManageExit();
+        },
+      }),
+    );
     this.sign = createManageSign(def.label);
-    const foot = manageSignFoot(manage, place);
+    const board = manageBoardLocal(f);
+    const foot = toWorld(at, yaw, board.u, board.v);
     this.sign.position.set(foot.x, 0, foot.z);
     (parent ?? ctx.scene).add(this.sign);
     // 0.9.5: fades when it hides the player or its level pad (like the town and city buildings)

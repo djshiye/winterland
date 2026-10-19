@@ -36,7 +36,8 @@ export interface TownPart extends EnvPart {
 
 /** Lamp posts around the square (mouth, north, south, east edges) and beside the corridor gate. */
 export const SQUARE_LAMPS: readonly LampSpot[] = [
-  { x: 16.2, z: 25.0 },
+  // 0.9.11: on the fence line beside the gate post (it stood 1 m in, closing the gap between the entrance and the stall)
+  { x: 15.2, z: 24.75 },
   { x: 16.2, z: 29.2 },
   { x: 21.8, z: 21.7 },
   { x: 27.4, z: 21.7 },
