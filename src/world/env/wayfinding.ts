@@ -15,7 +15,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LAYOUT, PALETTE } from '../../config';
-import { ERAS, RIVER_POND, ROADS, type ERect } from '../../eras/data';
+import { ERAS, RIVER_POND, ROADS, cityCol, type ERect } from '../../eras/data';
 import { eraTrail, type XZ } from '../../eras/layout';
 import { Batch } from '../../render/batch';
 import { GAME_FONT, geo, makeCanvasTexture, toonUnique } from '../../render/materials';
@@ -48,8 +48,8 @@ export const JUNCTIONS: readonly Junction[] = [
   { id: 'westCorner', at: { x: -182, z: 64 }, post: { x: -178.4, z: 60.7 }, roads: ['r1', 'westLink'] },
   { id: 'westFoot', at: { x: -182, z: 130 }, post: { x: -178.4, z: 126.7 }, roads: ['westLink', 'r2'] },
   { id: 'cityWestFoot', at: { x: 42, z: 128.3 }, post: { x: 38.9, z: 126.7 }, roads: ['cityWest', 'r2'], extra: [{ dir: { x: 0, z: -1 }, text: 'City · Market Town' }] },
-  { id: 'cityV1Foot', at: { x: 76, z: 128.3 }, post: { x: 72.9, z: 126.7 }, roads: ['cityV1', 'r2'], extra: [{ dir: { x: 0, z: -1 }, text: 'City' }] },
-  { id: 'cityV2Foot', at: { x: 110, z: 128.3 }, post: { x: 106.9, z: 126.7 }, roads: ['cityV2', 'r2'], extra: [{ dir: { x: 0, z: -1 }, text: 'City' }] },
+  { id: 'cityV1Foot', at: { x: cityCol(1) - 2, z: 128.3 }, post: { x: cityCol(1) - 5.1, z: 126.7 }, roads: ['cityV1', 'r2'], extra: [{ dir: { x: 0, z: -1 }, text: 'City' }] },
+  { id: 'cityV2Foot', at: { x: cityCol(2) - 2, z: 128.3 }, post: { x: cityCol(2) - 5.1, z: 126.7 }, roads: ['cityV2', 'r2'], extra: [{ dir: { x: 0, z: -1 }, text: 'City' }] },
   { id: 'eastCorner', at: { x: 196, z: 130 }, post: { x: 192.4, z: 126.7 }, roads: ['r2', 'eastLink'] },
   { id: 'eastFoot', at: { x: 196, z: 216 }, post: { x: 192.4, z: 212.7 }, roads: ['eastLink', 'r3'] },
 ];

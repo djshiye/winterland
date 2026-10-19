@@ -13,21 +13,22 @@
 import * as THREE from 'three';
 import { geo, toonUnique } from '../../render/materials';
 import { skylineCount } from '../../city/rules';
+import { CITY_EAST } from '../../eras/data';
 import { registerGlow } from './glow';
 
 /** Towers at Metropolis size. */
 export const SKYLINE_MAX = 220;
 /** Where towers may stand. */
-export const SKYLINE_AREA = { minX: 146, maxX: 300, minZ: -20, maxZ: 140 } as const;
+export const SKYLINE_AREA = { minX: CITY_EAST + 4, maxX: CITY_EAST + 158, minZ: -20, maxZ: 140 } as const;
 /** Towers keep x - z >= this (the diagonal behind the districts, which the camera looks along). */
-export const SKYLINE_DIAGONAL = 140;
+export const SKYLINE_DIAGONAL = CITY_EAST - 2;
 /**
  * 0.9.7 (R5): in front of that diagonal, low-rise blocks join the districts to the towers so the city reads as one
- * growing metropolis. They keep LOW_MIN_X clear of the districts (east edge x 142), stay north of LOW_MAX_Z (clear of
+ * growing metropolis. They keep LOW_MIN_X clear of the districts (0.9.12: east edge CITY_EAST, x 184), stay north of LOW_MAX_Z (clear of
  * road R2 and the era regions) and never stand taller than LOW_MAX_H, so their camera shadow (toward -X / -Z, 0.64 m
  * per metre of height) never reaches a district lot.
  */
-export const LOW_MIN_X = 148;
+export const LOW_MIN_X = CITY_EAST + 6;
 export const LOW_MAX_Z = 124;
 export const LOW_MAX_H = 8;
 const CELL = 8.6;

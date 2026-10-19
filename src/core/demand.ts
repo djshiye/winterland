@@ -3,7 +3,7 @@
  * (call them at spawn / pay time; never cache the result).
  */
 import { AMENITIES, AMENITY_IDS, BUSINESSES, DEMAND, ECONOMY, HAPPINESS, PRESTIGE, SETTLEMENT, UPGRADES, VILLAGE, type BusinessId, type DemandLevel, type ProductId } from '../config';
-import { CITY_BUILDINGS, DISTRICTS, INVEST_MAX_POSITIONS, MAX_ERA, REGIONS } from '../eras/data';
+import { CITY_BUILDINGS, INVEST_MAX_POSITIONS, MAX_ERA } from '../eras/data';
 import { cityTotals, type CityTotals } from '../city/rules';
 import { valueAt } from './ladder';
 import type { GameState } from './types';
@@ -112,15 +112,25 @@ const sig2 = (v: number): number => {
 };
 
 /**
+ * 0.9.12: the city the settlement levels are measured against: the 0.9.11 slot and lot counts. The bigger plots (one
+ * more machine slot per region, twice the district lots) are room to build, not a longer climb, so every level still
+ * asks for the population it asked for in 0.9.11 (a save keeps its level, and the gate's homes-per-level stay).
+ */
+export const SETTLEMENT_BASIS = {
+  slots: [0, 0, 7, 7, 7, 7, 7, 7, 8, 8, 9],
+  lots: [0, 0, 6, 6, 6, 8, 8, 8, 9, 9, 12],
+} as const;
+
+/**
  * Settlement anchors A_k for k = 2..MAX_ERA (index = era; 0 and 1 are 0): anchorShare × the cumulative city capacity
  * through era k, where district k has (lots − 2) homes + one work building + one landmark and every region slot holds
  * a staffed machine. `slots(n)` is the slot count of region n (default REGIONS; the tests pass the 0.10 counts).
  */
-export function settlementAnchors(slots: (n: number) => number = (n) => REGIONS[n]?.slots ?? 0): number[] {
+export function settlementAnchors(slots: (n: number) => number = (n) => SETTLEMENT_BASIS.slots[n] ?? 0, lotsOf: (n: number) => number = (n) => SETTLEMENT_BASIS.lots[n] ?? 0): number[] {
   const out = [0, 0];
   let cap = 0;
   for (let k = 2; k <= MAX_ERA; k++) {
-    const lots = DISTRICTS[k]?.lots ?? 0;
+    const lots = lotsOf(k);
     const home = Object.values(CITY_BUILDINGS).find((d) => d.era === k && d.kind === 'home')?.people ?? 0;
     cap += Math.max(0, lots - 2) * home + slots(k) * machineStaff(k);
     out.push(sig2(SETTLEMENT.anchorShare * cap));

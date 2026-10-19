@@ -72,7 +72,7 @@ const measure = async (n) => {
       for (let lot = 0; lot < W.config.LAYOUT.town.lots.length; lot++) W.buildTown(lot, ids[lot % ids.length]);
       for (const id of Object.keys(W.config.AMENITIES)) W.buildAmenity(id);
       const { MACHINES, ERAS, cityBuildingsOfEra } = await import('/src/eras/data.ts');
-      const { contentMachines } = await import('/src/eras/template.ts');
+      const { fullBuild } = await import('/src/eras/template.ts');
       const { REGION_SLOTS, DISTRICT_LOTS } = await import('/src/core/types.ts');
       const { introEra } = await import('/src/core/ladder.ts');
       const { UPGRADES, CONTRACTS } = await import('/src/config.ts');
@@ -93,13 +93,13 @@ const measure = async (n) => {
       ctx.upgrades.setLevel(`${ERAS[n].key}Crew`, 1);
       W.setSettlement(5 * (n - 1));
       for (let k = 2; k < n; k++) {
-        const ck = contentMachines(k).filter((x) => MACHINES[x]);
-        for (let s = 0; s < REGION_SLOTS[k]; s++) W.buildMachine(k, s, ck[s % ck.length]);
+        const ck = fullBuild(k, REGION_SLOTS[k]);
+        for (let s = 0; s < REGION_SLOTS[k]; s++) W.buildMachine(k, s, ck[s]);
         const cb = cityBuildingsOfEra(k);
         for (let l = 0; l < DISTRICT_LOTS[k]; l++) W.buildCity(k, l, cb[l % cb.length]);
       }
-      const cm = contentMachines(n).filter((x) => MACHINES[x]);
-      for (let s = 0; s < REGION_SLOTS[n]; s++) W.buildMachine(n, s, cm[s % cm.length]);
+      const cm = fullBuild(n, REGION_SLOTS[n]);
+      for (let s = 0; s < REGION_SLOTS[n]; s++) W.buildMachine(n, s, cm[s]);
       for (const q of QUEST_DEFS) if (questEra(q.id) < n) ctx.state.quests[q.id] = true;
       ctx.events.emit('village:changed', { population: ctx.state.village.population, level: ctx.state.village.level });
       W.simulate(5);

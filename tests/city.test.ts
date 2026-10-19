@@ -225,8 +225,8 @@ describe('rank', () => {
     // R13: Big City from era 5, Megacity from era 8 (the first eras whose districts can hold that many people)
     expect(rankFor(6000, 4)).toBe(1);
     expect(rankFor(6000, 5)).toBe(2);
-    expect(rankFor(50_000, 7)).toBe(2);
-    expect(rankFor(50_000, 8)).toBe(3);
+    expect(rankFor(90_000, 7)).toBe(2);
+    expect(rankFor(90_000, 8)).toBe(3);
     expect(rankFor(200_000, 9)).toBe(3);
     expect(rankFor(200_000, 10)).toBe(CITY_RANKS.length - 1);
   });
@@ -238,8 +238,8 @@ describe('skyline', () => {
     expect(skylineCount(499)).toBe(0);
     expect(skylineCount(500)).toBeGreaterThan(0);
     expect(skylineCount(5_000)).toBeLessThan(skylineCount(40_000));
-    expect(skylineCount(40_000)).toBeLessThan(skylineCount(100_000));
-    expect(skylineCount(100_000)).toBe(SKYLINE_MAX);
+    expect(skylineCount(40_000)).toBeLessThan(skylineCount(150_000));
+    expect(skylineCount(200_000)).toBe(SKYLINE_MAX);
     expect(skylineCount(1e7)).toBe(SKYLINE_MAX);
   });
 

@@ -55,13 +55,13 @@ const minutes = (m) => (capMinutes > 0 ? Math.min(m, capMinutes) : m) * 60;
 const ECONOMY_SETUP = `async (n) => {
   const W = __WINTERLAND__;
   const { MACHINES } = await import('/src/eras/data.ts');
-  const { contentMachines, eraContent } = await import('/src/eras/template.ts');
+  const { eraContent, fullBuild } = await import('/src/eras/template.ts');
   const { REGION_SLOTS } = await import('/src/core/types.ts');
   W.unlockEra(n);
   W.setAllUpgrades(10);
   W.setSettlement(5 * n);
-  const ids = contentMachines(n).filter((id) => MACHINES[id]);
-  for (let s = 0; s < REGION_SLOTS[n]; s++) W.buildMachine(n, s, ids[s % ids.length]);
+  const ids = fullBuild(n, REGION_SLOTS[n]);
+  for (let s = 0; s < REGION_SLOTS[n]; s++) W.buildMachine(n, s, ids[s]);
   const region = W.game.level.eras.region(n);
   const mk = W.ctx.market;
   const sold = {}, dumped = {};

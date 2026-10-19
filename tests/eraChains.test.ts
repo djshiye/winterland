@@ -10,7 +10,7 @@ import { costAt, introEra } from '../src/core/ladder';
 import { UPGRADES, type UpgradeDef } from '../src/config';
 import { MACHINES, MATERIALS, MAX_ERA, isMaterial, machinesOfEra, type MachineId } from '../src/eras/data';
 import { NODE_STRIKES_PER_ROW, nodeStrikeBonus } from '../src/eras/HandNode';
-import { contentMachines, eraContent } from '../src/eras/template';
+import { eraContent, fullBuild } from '../src/eras/template';
 import { BED_MAX, buyerScale } from '../src/npc/EraBuyers';
 
 const eras = Array.from({ length: MAX_ERA - 1 }, (_, i) => i + 2);
@@ -89,10 +89,9 @@ describe('eras 5 and 10 have main resources of their own (F5, decision 15, era r
 });
 
 describe('balanced chains (F3): one extractor feeds its processor', () => {
-  /** Steady-state uptime of each processor of a full build (contentMachines repeated over the slots), supply shared. */
+  /** Steady-state uptime of each processor of a full build (fullBuild: one of each, then extractors), supply shared. */
   function uptimes(n: number): number[] {
-    const ids = contentMachines(n).filter((id): id is MachineId => id in MACHINES);
-    const built = Array.from({ length: REGION_SLOTS[n]! }, (_, s) => ids[s % ids.length]!);
+    const built = fullBuild(n, REGION_SLOTS[n]!) as MachineId[];
     const up = built.map(() => 1);
     for (let round = 0; round < 60; round++) {
       const supply = new Map<string, number>();
