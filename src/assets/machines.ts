@@ -869,9 +869,10 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
   const geometry = rollerGeometry(rollerLen);
   const count = Math.max(1, Math.floor(total / ROLLER_PITCH));
   const rollers = new THREE.InstancedMesh(geometry, toon(T.blade), count);
-  rollers.castShadow = true;
+  // 0.9.11 (perf): the rollers sit under the belt plate, whose own shadow covers theirs; drawing thousands of them in
+  // the shadow pass too doubled their cost
+  rollers.castShadow = false;
   rollers.receiveShadow = true;
-  rollers.frustumCulled = false;
   rollers.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   root.add(rollers);
   const rx = new Float32Array(count);
@@ -899,7 +900,13 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
   const qs = new THREE.Quaternion();
   const axisX = new THREE.Vector3(1, 0, 0);
   const rollerY = beltY - ROLLER_R;
-  const setRollers = (spin: number, segmentScale?: ArrayLike<number>): void => {
+  // 0.9.11 (perf): setRollers only records the spin; the matrices are rebuilt when three is about to draw the rollers
+  // (onBeforeRender runs only for meshes in view), so belts out of view cost nothing each frame. The new matrices upload
+  // with the next frame: one frame behind, invisible on a spinning roller.
+  let wantSpin = 0;
+  let wantScale: ArrayLike<number> | undefined;
+  let dirty = false;
+  const applyRollers = (spin: number, segmentScale?: ArrayLike<number>): void => {
     qs.setFromAxisAngle(axisX, spin);
     for (let i = 0; i < count; i++) {
       qa.set(ryq[i * 4]!, ryq[i * 4 + 1]!, ryq[i * 4 + 2]!, ryq[i * 4 + 3]!).multiply(qs);
@@ -911,7 +918,20 @@ export function createRollerConveyor(waypoints: readonly XZ[], width: number, be
     }
     rollers.instanceMatrix.needsUpdate = true;
   };
-  setRollers(0);
+  const setRollers = (spin: number, segmentScale?: ArrayLike<number>): void => {
+    wantSpin = spin;
+    wantScale = segmentScale;
+    dirty = true;
+  };
+  rollers.onBeforeRender = () => {
+    if (!dirty) return;
+    dirty = false;
+    applyRollers(wantSpin, wantScale);
+  };
+  applyRollers(0);
+  // culled by the belt's extent (built at full scale; the build pop only shrinks the rollers toward their spots)
+  rollers.computeBoundingSphere();
+  rollers.boundingSphere!.radius += ROLLER_R;
 
   for (const s of segments) root.add(s);
   let finalized = false;

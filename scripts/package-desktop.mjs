@@ -4,7 +4,7 @@
  * portable folder per target into release/. Unzip and run — no installer, no admin rights.
  *
  *   node scripts/package-desktop.mjs                 # linux-x64, linux-arm64, win32-x64
- *   node scripts/package-desktop.mjs darwin-arm64 darwin-x64   # macOS (Apple silicon, Intel)
+ *   node scripts/package-desktop.mjs darwin-arm64              # macOS (Apple chips; Intel Macs are not supported from 0.9.11)
  *   node scripts/package-desktop.mjs win32-x64       # just one (any of the above, or e.g. linux-armv7l)
  *
  * Works from any host OS: Electron binaries for the other platforms are downloaded (and cached) on first use, and
@@ -25,6 +25,11 @@ const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const electronVersion = JSON.parse(readFileSync(join(root, 'node_modules/electron/package.json'), 'utf8')).version;
 const targets = process.argv.slice(2).length ? process.argv.slice(2) : ['linux-x64', 'linux-arm64', 'win32-x64'];
 const out = join(root, 'release');
+// 0.9.11 (Dino): Macs are supported on Apple chips only, and the updater knows no Intel Mac download
+if (targets.includes('darwin-x64')) {
+  console.error('darwin-x64 is not built any more: Macs are supported on Apple chips only (darwin-arm64).');
+  process.exit(1);
+}
 
 const run = (cmd, args, opts = {}) => {
   const r = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32', ...opts });

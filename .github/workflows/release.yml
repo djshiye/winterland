@@ -1,5 +1,5 @@
 # Push a tag like v0.2.0 to build the desktop apps and attach them to a GitHub Release.
-# Windows is built on a real Windows runner, macOS (Apple silicon + Intel) on a Mac runner, Linux x64 + arm64 on Ubuntu.
+# Windows is built on a real Windows runner, macOS (Apple chips only, from 0.9.11) on a Mac runner, Linux x64 + arm64 on Ubuntu.
 # Or run it by hand (Actions → Release → Run workflow) on main with a tag like v0.9.0: GitHub creates that tag on the
 # commit and publishes the release. Left empty, the manual run is just a test build.
 # If docs/releases/<tag>.md exists, it opens the release notes (GitHub's generated list of changes follows it).
@@ -34,7 +34,7 @@ jobs:
           - os: windows-latest
             targets: win32-x64
           - os: macos-latest
-            targets: darwin-arm64 darwin-x64
+            targets: darwin-arm64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:

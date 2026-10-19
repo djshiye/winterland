@@ -20,6 +20,8 @@
  *     Low    no shadows, pixel ratio 1, drawn straight to the screen (no post);
  *     Medium 1024² shadows, pixel ratio ≤ 1.5, post: outlines, bloom (3 levels), grade, vignette (render/PostFX.ts);
  *     High   2048² shadows, pixel ratio ≤ 2, post as Medium with 4 bloom levels, 4× MSAA and a gentle depth of field.
+ *   0.9.11 (running hot on Macs): the screen canvas smooths edges only on Low (post tiers draw one full-screen picture
+ *   onto it), and at a Retina pixel ratio the scene target uses at most 2× MSAA (samples()), same look, less work.
  *   `stats` = the last frame's draw calls / triangles: shadow pass, scene and post passes together.
  * - 0.9.8 era looks: `eraSource` (set by the Environment) says which era the camera is in (1 outside the regions); its
  *   palette look (render/palette.ts EraLook: its daylight, a warm night and a day / night colour grade) crossfades in over
@@ -55,6 +57,8 @@ const LOOK_FADE = 1.6;
 /** Bloom by day / at night (× the Glow comfort setting). */
 const BLOOM_DAY = 0.45;
 const BLOOM_NIGHT = 1.15;
+/** Pixel ratio from which the scene target needs no more than 2× MSAA (see samples()). */
+const RETINA_RATIO = 1.75;
 /** Ink outline strength. */
 const OUTLINE = 0.7;
 
@@ -178,7 +182,6 @@ export class Renderer {
   private readonly gradeB = { tint: new THREE.Color(), lift: new THREE.Color() };
 
   constructor(readonly container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     try {
       this.q = parseQuality(localStorage.getItem(QUALITY_KEY)) ?? 'high';
       const raw = localStorage.getItem(SCALE_KEY);
@@ -186,6 +189,9 @@ export class Renderer {
     } catch {
       /* storage unavailable */
     }
+    // 0.9.11: with the post stack on, the screen only receives one full-screen picture, so smoothing its edges is
+    // wasted work every frame; Low (drawn straight to the screen) keeps it. Fixed for the session (a context setting).
+    this.renderer = new THREE.WebGLRenderer({ antialias: !TIERS[this.q].post, powerPreference: 'high-performance' });
     // shadow, scene and post passes all count toward `stats` (reset once per frame in render())
     this.renderer.info.autoReset = false;
     this.renderer.setPixelRatio(this.pixelRatio());
@@ -408,7 +414,16 @@ export class Renderer {
   private makePost(): void {
     this.post?.dispose();
     const t = TIERS[this.q];
-    this.post = t.post ? new PostFX({ bloomLevels: t.bloomLevels, dof: t.dof, samples: t.samples }) : null;
+    this.post = t.post ? new PostFX({ bloomLevels: t.bloomLevels, dof: t.dof, samples: this.samples() }) : null;
+  }
+
+  /**
+   * 0.9.11: MSAA samples of the scene target. At a pixel ratio of ~2 (Retina) the extra pixels already smooth edges,
+   * so High's 4× drops to 2× there and the picture looks the same for half the memory traffic.
+   */
+  private samples(): number {
+    const s = TIERS[this.q].samples;
+    return this.pixelRatio() >= RETINA_RATIO ? Math.min(s, 2) : s;
   }
 
   /** Wave 10: render resolution scale 0.5..1 (persisted 'winterland:scale', default 1). Multiplies the pixel ratio. */
@@ -452,6 +467,8 @@ export class Renderer {
 
   /** Match the drawing buffer to the container (CameraRig.resize handles the frustum). */
   resize(): void {
+    // moved to a screen of another density (or the Resolution slider): rebuild the post stack for its MSAA
+    if (this.post && this.post.samples !== this.samples()) this.makePost();
     this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.setSize(this.width, this.height);
     if (this.post) {

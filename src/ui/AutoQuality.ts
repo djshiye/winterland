@@ -13,7 +13,8 @@
  *   in an earlier version) disables it for good. Its own choice is stored as the tier name in 'winterland:autoQuality'
  *   (0.9.7 stored 'low' after its one-way drop; that now simply means "auto, currently Low").
  * - Measures real time between HUD updates (like PerfOverlay, 0.5 s buckets), skips the first 5 s after load and the
- *   first seconds after each change, skips while the tab is hidden and restarts its streak when the tab comes back.
+ *   first seconds after each change, skips while the tab is hidden or the window is not focused (0.9.11: drawn at 30
+ *   then) and restarts its streak when it comes back.
  * - Test safety: it does nothing for `?noauto`, nor under automation (navigator.webdriver: Playwright / Puppeteer /
  *   headless test runs), and it only counts frames that arrive like a real animation loop (>= ~6 ms apart and < 1 s
  *   apart), so `__WINTERLAND__.simulate()` bursts and pauses never feed it.
@@ -93,7 +94,8 @@ export class AutoQuality {
   update(): void {
     if (!this.enabled) return;
     const now = performance.now();
-    if (document.hidden) {
+    if (document.hidden || !document.hasFocus()) {
+      // hidden, or another window in front (the game draws at 30 then, core/fps.ts): not a fair sample
       this.restart();
       return;
     }
