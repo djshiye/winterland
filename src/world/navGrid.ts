@@ -25,8 +25,11 @@ const GOAL_SNAP = 6;
 const START_SNAP = 3;
 /** Extra cost (in cells) of a step onto a cell that touches a blocked one. */
 const WALL_COST = 0.6;
-/** Extra cost (in cells) of a step onto a pad or a pile that is not the goal: ~4 m of detour per cell crossed. */
-const AVOID_COST = 8;
+/**
+ * Extra cost (in cells) of a step onto a pad or a pile that is not the goal: ~15 m of detour per cell crossed (walking
+ * over one drops or picks up goods).
+ */
+const AVOID_COST = 30;
 /** Goal cells keep this far (m) inside the zone's edge (less on a small zone: never past its middle). */
 const GOAL_INSET = 0.45;
 /** A pulled-tight leg is at most this long (m): keeps each line-of-sight test short. */

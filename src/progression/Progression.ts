@@ -695,6 +695,11 @@ export class Progression {
     if ((L.treeFeller?.deck.count('log') ?? 0) > 0) sources.push(LAYOUT.ridge.deck.zone);
     const dist = (a: Rect): number => Math.hypot((a.minX + a.maxX) / 2 - need.spot.x, (a.minZ + a.maxZ) / 2 - need.spot.z);
     sources.sort((a, b) => dist(a) - dist(b));
+    // 0.9.12: the piles ran dry for a moment while this build is the goal: keep it (more logs are on the way) rather
+    // than hand the banner to another goal and back again
+    if (!sources[0] && (this.objective === need.pick || this.objective === need.text)) {
+      sources.push(L.treeFeller ? LAYOUT.ridge.deck.zone : L.dropZone.zone.area);
+    }
     if (!sources[0]) return false;
     this.setGoal(need.pick, sources[0]);
     return true;
