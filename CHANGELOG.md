@@ -4,6 +4,16 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
+## Unreleased
+
+### Easier to carry
+
+- **Easy pickups.** Piles, counters and drop-offs now count your whole body, with a little slack: walk up until you touch the spot and goods start flowing, and they keep flowing if you drift a bit. The spot glows gold while you're in range.
+- **Walking across a pad pays nothing.** With hold-to-interact off (phones and tablets), a pad only spends once you slow down or stop on it.
+- **"Takes Stone".** Stop at a machine, shop or counter with the wrong goods and it tells you what it takes.
+- **A clearer market square.** The bench by the first shop and the lamp by the entrance moved out of the way.
+- **MANAGE signs on the working side.** Each era machine's MANAGE sign now stands in front, beside its feed spot, and its card opens when you stop on it, not while you walk past.
+
 ## 0.9.11 (2026-10-19)
 
 Every era its own place, clearer pads and icons, a guidebook, a cooler-running game and a few cozy touches.

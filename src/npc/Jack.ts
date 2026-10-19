@@ -261,6 +261,7 @@ export class JackCart {
       to: this.sink,
       kinds: JACK_KINDS,
       kind: 'give',
+      reach: 'exact', // Jack buys at a discount: only a deliberate step onto his mat sells (no forgiving reach)
       delay: JACK.delay,
       interval: jackInterval(this.ctx.upgrades.value('jack')),
       marker: true,
