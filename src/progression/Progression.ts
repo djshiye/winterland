@@ -532,7 +532,7 @@ export class Progression {
     }
     if (point) this.guidePoint.copy(point);
     else centerOf(area!, this.guidePoint);
-    ctx.hud.setGuideTarget(this.guidePoint);
+    ctx.hud.setGuideTarget(this.guidePoint, area);
   }
 
   /** The most useful village pad right now: the Great Lodge, else the first plot whose cash part is affordable. */

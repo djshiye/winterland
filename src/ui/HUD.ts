@@ -11,7 +11,9 @@
  *   every frame via ctx.cameraRig.worldToScreen.
  * - setObjective: top-centre banner with the current hint; animates out/in on change; null hides.
  * - setGuideTarget: a bouncing 3D arrow hovering above the world point; when the point is
- *   off-screen, a DOM arrow pinned to the screen edge points toward it. null hides both.
+ *   off-screen, a DOM arrow pinned to the screen edge points toward it. null hides both. 0.9.12: the edge arrow
+ *   points along the walk there (ui/guideRoute.ts: round fences, buildings and the river, not through them), and a
+ *   trail of gold dots (GuideTrail) shows the way when it bends or the target is off-screen.
  * - toast: big centred title + optional subtitle that pops in and fades out.
  * - Mute toggle button top-right (calls ctx.audio.toggleMute()); a gear button next to it opens Settings
  *   (sound / music / graphics / show-FPS switches, reset progress with an in-page confirmation). PerfOverlay is the
@@ -32,7 +34,7 @@
  *   is up (the "Pause when a menu is open" switch), and `closeSheets()` lets a paused player walk away from a sheet.
  */
 import * as THREE from 'three';
-import { PALETTE } from '../config';
+import { PALETTE, PLAYER, type Rect } from '../config';
 import { toggleFullscreen } from '../platform/desktop';
 import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
@@ -80,6 +82,8 @@ import './hud.css';
 import { ICON_INK } from './iconKit';
 import { CREAM, GOLD } from '../render/palette';
 import { hexCss } from './icons';
+import { GuideRoute } from './guideRoute';
+import { GuideTrail } from './GuideTrail';
 
 export interface FloatTextOptions {
   color?: string;
@@ -213,6 +217,14 @@ export class HUD {
   private guideScale = 0;
   private guideTime = 0;
   private guideSnap = true;
+  /** 0.9.12: the zone the guide points into (null: just the point). */
+  private guideArea: Rect | null = null;
+  private readonly route: GuideRoute;
+  private readonly trail = new GuideTrail();
+  private readonly tmpS = new THREE.Vector2();
+  private readonly tmpW = new THREE.Vector3();
+  /** 0.9.12: the edge arrow's screen angle while it shows (null hidden), for the guide check. */
+  private edgeAngle: number | null = null;
 
   private readonly tmp2 = new THREE.Vector2();
   private readonly tmp3 = new THREE.Vector3();
@@ -364,6 +376,8 @@ export class HUD {
     this.arrow = HUD.buildArrow();
     this.arrow.visible = false;
     ctx.scene.add(this.arrow);
+    this.route = new GuideRoute(ctx.colliders, PLAYER.radius);
+    ctx.scene.add(this.trail.object);
 
     ctx.events.on('money:changed', (e) => this.setMoney(e.money, true));
     // 0.9.0: one bottom sheet at a time; T / B open the map / market; a trip ends with a welcome
@@ -667,13 +681,14 @@ export class HUD {
     this.objWant = text;
   }
 
-  /** Point the guide arrows at a world position (null hides them). */
-  setGuideTarget(world: THREE.Vector3 | null): void {
+  /** Point the guide arrows at a world position (null hides them). `area`: the zone to step into there (0.9.12). */
+  setGuideTarget(world: THREE.Vector3 | null, area: Rect | null = null): void {
     if (!world) {
       this.hasGuide = false;
       return;
     }
     this.guideTarget.copy(world);
+    this.guideArea = area;
     if (!this.hasGuide && this.guideScale < 0.05) this.guideSnap = true;
     this.hasGuide = true;
   }
@@ -1027,10 +1042,16 @@ export class HUD {
     const target = this.hasGuide ? 1 : 0;
     this.guideScale += (target - this.guideScale) * (1 - Math.exp(-12 * dt));
     if (Math.abs(target - this.guideScale) < 0.01) this.guideScale = target;
+    const player = this.ctx.player.object.position;
+    const still = reducedMotion();
+    // 0.9.12: the walk to the target (planned on change, kept steady otherwise)
+    this.route.update(this.ctx.time.elapsed, player, this.hasGuide ? this.guideTarget : null, this.guideArea);
 
     if (this.guideScale <= 0) {
       this.arrow.visible = false;
       this.edgeEl.style.display = 'none';
+      this.edgeAngle = null;
+      this.trail.update(dt, null, player, false, this.guideTime, still);
       return;
     }
 
@@ -1044,7 +1065,6 @@ export class HUD {
 
     // 3D bouncing arrow
     // 0.9.7: with Reduce motion the arrow hovers still (no bounce, spin or squash)
-    const still = reducedMotion();
     const bob = still ? 0.2 : Math.abs(Math.sin(this.guideTime * 3.4)) * 0.55;
     this.arrow.visible = true;
     this.arrow.position.set(this.guidePos.x, this.guidePos.y + 3.3 + bob, this.guidePos.z);
@@ -1057,15 +1077,36 @@ export class HUD {
     const rig = this.ctx.cameraRig;
     this.tmp3.copy(this.guidePos);
     this.tmp3.y += 1;
+    const offScreen = this.hasGuide && !rig.isOnScreen(this.tmp3, 28);
+    // 0.9.12: the dots show the way while it bends round something or the target is out of sight (never over a sheet)
+    const walk = this.route.walk;
+    const straight = Math.hypot(this.guideTarget.x - player.x, this.guideTarget.z - player.z);
+    const bends = !!walk && this.route.remaining > straight * 1.12 + 1.0;
+    this.trail.update(dt, walk, player, this.hasGuide && !this.anySheetOpen && (offScreen || bends), this.guideTime, still);
     // 0.9.6: never over an open panel (shop, build, checklist ...): the edge arrow waits until it closes
-    if (this.hasGuide && !this.anySheetOpen && !rig.isOnScreen(this.tmp3, 28)) {
-      rig.worldToScreen(this.tmp3, this.tmp2);
+    const steer = this.route.steer;
+    if (offScreen && !this.anySheetOpen && steer) {
+      // 0.9.12: aim along the walk: from the player toward where to walk now (the steer point), not straight at the target
       const w = this.ctx.renderer.width;
       const h = this.ctx.renderer.height;
       const cx = w / 2;
       const cy = h / 2;
-      const dx = this.tmp2.x - cx;
-      const dy = this.tmp2.y - cy;
+      let dx = 0;
+      let dy = 0;
+      this.tmpW.set(player.x, 0.5, player.z);
+      const fromOk = rig.worldToScreen(this.tmpW, this.tmpS);
+      const fx = this.tmpS.x;
+      const fy = this.tmpS.y;
+      this.tmpW.set(steer.x, 0.5, steer.z);
+      if (fromOk && rig.worldToScreen(this.tmpW, this.tmpS)) {
+        dx = this.tmpS.x - fx;
+        dy = this.tmpS.y - fy;
+      }
+      if (Math.hypot(dx, dy) < 1) {
+        rig.worldToScreen(this.tmp3, this.tmp2);
+        dx = this.tmp2.x - cx;
+        dy = this.tmp2.y - cy;
+      }
       const mx = 40;
       const myTop = 96;
       const myBottom = 44;
@@ -1076,8 +1117,9 @@ export class HUD {
       const px = cx + dx * t;
       const py = cy + dy * t;
       const ang = Math.atan2(dy, dx);
+      this.edgeAngle = ang;
       const pulse = steadyHighlights() ? 1 : 1 + 0.12 * Math.sin(this.guideTime * 7);
-      const nudge = reducedMotion() ? 0 : 4 * Math.sin(this.guideTime * 7);
+      const nudge = still ? 0 : 4 * Math.sin(this.guideTime * 7);
       const ox = Math.cos(ang) * nudge;
       const oy = Math.sin(ang) * nudge;
       const e = this.edgeEl.style;
@@ -1085,6 +1127,38 @@ export class HUD {
       e.transform = `translate3d(${(px + ox).toFixed(1)}px, ${(py + oy).toFixed(1)}px, 0) rotate(${ang.toFixed(3)}rad) scale(${(pulse * this.guideScale).toFixed(3)})`;
     } else {
       this.edgeEl.style.display = 'none';
+      this.edgeAngle = null;
     }
+  }
+
+  /**
+   * 0.9.12: what the guide shows right now, for the guide check (scripts/guide-walk.mjs) and tests: the target, where
+   * the walk says to go now, the walk's corners and length, whether a walk exists, the edge arrow's screen angle (null
+   * while hidden), the trail's dot count and how many times the walk was planned.
+   */
+  guideInfo(): {
+    objective: string | null;
+    target: { x: number; z: number } | null;
+    steer: { x: number; z: number } | null;
+    walk: { x: number; z: number }[] | null;
+    remaining: number;
+    reachable: boolean;
+    edgeAngle: number | null;
+    trail: number;
+    plans: number;
+  } {
+    const p = this.ctx.player.object.position;
+    const walk = this.route.fullWalk(p);
+    return {
+      objective: this.objWant,
+      target: this.hasGuide ? { x: this.guideTarget.x, z: this.guideTarget.z } : null,
+      steer: this.route.steer,
+      walk: walk ? walk.points.map((q) => ({ x: q.x, z: q.z })) : null,
+      remaining: this.route.remaining,
+      reachable: this.route.reachable,
+      edgeAngle: this.edgeAngle,
+      trail: this.trail.count,
+      plans: this.route.plans,
+    };
   }
 }
