@@ -44,7 +44,7 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Expanding comes first.** Once you've met the next era's goal, the guide sends you there before anything else, and the crate crew holds crates back for it.
 - **Town builds say what they need.** The Cocoa Café and the other town builds ask you to bring their logs, and send you to chop more when your arms are empty.
 - **You wake up where you left off.** Reloading puts you back where you were standing (just beside a pad or pile if you were on one), not back at the cabin.
-- **The objective banner and the arrow no longer overlap,** and the on-screen move pad stays hidden on desktop.
+- **The arrow keeps clear of the banner and the corner cards** (money, Winterland, quests, buttons), and the on-screen move pad stays hidden on desktop.
 
 ## 0.9.11 (2026-10-19)
 

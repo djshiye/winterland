@@ -225,8 +225,8 @@ export class HUD {
   private readonly trail = new GuideTrail();
   private readonly tmpS = new THREE.Vector2();
   private readonly tmpW = new THREE.Vector3();
-  private bannerAt = -10;
-  private bannerRect: { left: number; right: number; bottom: number } | null = null;
+  private boxesAt = -10;
+  private readonly boxes: Box[] = [];
   /** 0.9.12: the edge arrow's screen angle while it shows (null hidden), for the guide check. */
   private edgeAngle: number | null = null;
 
@@ -1118,13 +1118,9 @@ export class HUD {
       const tx = dx === 0 ? Infinity : (dx > 0 ? w - mx - cx : cx - mx) / Math.abs(dx);
       const along = (top: number): number => Math.min(tx, dy === 0 ? Infinity : (dy > 0 ? h - myBottom - cy : cy - top) / Math.abs(dy));
       let t = along(96);
-      // 0.9.12 (full review V9): never on top of the objective banner: below it where the two would meet
-      const ban = this.bannerBox();
-      if (ban && cy + dy * t < ban.bottom + 30 && Math.abs(cx + dx * t - (ban.left + ban.right) / 2) < (ban.right - ban.left) / 2 + 34) {
-        t = along(Math.min(cy - 40, ban.bottom + 30));
-      }
-      const px = cx + dx * t;
-      const py = cy + dy * t;
+      // 0.9.12 (full review V9): never on top of the objective banner or a corner card (money, Winterland, quests, the
+      // buttons, the carry count): it slides along the screen edge to just past the card
+      const [px, py] = clearOfBoxes(cx + dx * t, cy + dy * t, this.hudBoxes(), w, h, mx);
       const ang = Math.atan2(dy, dx);
       this.edgeAngle = ang;
       const pulse = steadyHighlights() ? 1 : 1 + 0.12 * Math.sin(this.guideTime * 7);
@@ -1140,17 +1136,31 @@ export class HUD {
     }
   }
 
-  /** The objective banner's box in layer pixels while it shows (re-measured at most every half second), else null. */
-  private bannerBox(): { left: number; right: number; bottom: number } | null {
+  /**
+   * The boxes the edge arrow keeps off, in layer pixels (re-measured at most every half second): every small card
+   * showing on the HUD layer (the objective banner, money, Winterland, quests, the buttons, the carry count), not the
+   * toasts, sheets or the arrow itself.
+   */
+  private hudBoxes(): readonly Box[] {
     const now = this.ctx.time.elapsed;
-    if (now - this.bannerAt > 0.5 || now < this.bannerAt) {
-      this.bannerAt = now;
-      const el = this.objectiveEl;
-      const r = el.getClientRects().length > 0 ? el.getBoundingClientRect() : null;
+    if (now - this.boxesAt > 0.5 || now < this.boxesAt) {
+      this.boxesAt = now;
+      this.boxes.length = 0;
       const base = this.layer.getBoundingClientRect();
-      this.bannerRect = r && r.width > 0 && this.objWant ? { left: r.left - base.left, right: r.right - base.left, bottom: r.bottom - base.top } : null;
+      for (const el of Array.from(this.layer.children)) {
+        if (el === this.edgeEl || el === this.toastEl || el.getClientRects().length === 0) continue;
+        if (el === this.objectiveEl && !this.objWant) continue;
+        // a card with parts (the quests chip and its open list): each visible part counts, not the empty box round them
+        const parts = el.children.length > 0 ? Array.from(el.children) : [el];
+        for (const part of parts) {
+          if (part.getClientRects().length === 0) continue;
+          const r = part.getBoundingClientRect();
+          if (r.width <= 0 || r.height <= 0 || r.width > base.width * 0.5 || r.height > base.height * 0.5) continue;
+          this.boxes.push({ left: r.left - base.left, right: r.right - base.left, top: r.top - base.top, bottom: r.bottom - base.top });
+        }
+      }
     }
-    return this.bannerRect;
+    return this.boxes;
   }
 
   /**
@@ -1183,4 +1193,44 @@ export class HUD {
       plans: this.route.plans,
     };
   }
+}
+
+interface Box {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** The edge arrow keeps this far (px, its half size and a little air) off a HUD card. */
+const EDGE_CLEAR = 34;
+
+/**
+ * Move the edge arrow at (x, y) off every card it sits on (grown by EDGE_CLEAR): the shortest slide up, down, left or
+ * right that stays on screen (`m` from the sides); a few rounds for cards stacked in a corner.
+ */
+function clearOfBoxes(x: number, y: number, boxes: readonly Box[], w: number, h: number, m: number): [number, number] {
+  for (let round = 0; round < 4; round++) {
+    const b = boxes.find((q) => x > q.left - EDGE_CLEAR && x < q.right + EDGE_CLEAR && y > q.top - EDGE_CLEAR && y < q.bottom + EDGE_CLEAR);
+    if (!b) break;
+    const moves: [number, number][] = [
+      [x, b.bottom + EDGE_CLEAR],
+      [x, b.top - EDGE_CLEAR],
+      [b.right + EDGE_CLEAR, y],
+      [b.left - EDGE_CLEAR, y],
+    ];
+    let best: [number, number] | null = null;
+    let bestD = Infinity;
+    for (const [nx, ny] of moves) {
+      if (nx < m || nx > w - m || ny < m || ny > h - m) continue;
+      const d = Math.hypot(nx - x, ny - y);
+      if (d < bestD) {
+        bestD = d;
+        best = [nx, ny];
+      }
+    }
+    if (!best) break;
+    [x, y] = best;
+  }
+  return [x, y];
 }
