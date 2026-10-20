@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FOLLOW_DISTANCE, FOLLOW_LAG, FOLLOW_MAX_SPEED, PET_AFTER, PET_DISTANCE, PET_EVERY, followStep, restHeading, type XZ } from '../src/entities/Dog';
+import { FOLLOW_DISTANCE, FOLLOW_LAG, FOLLOW_MAX_SPEED, PET_AFTER, PET_DISTANCE, PET_EVERY, FIRE_CLEAR, followStep, nearFire, restHeading, type XZ } from '../src/entities/Dog';
 
 const DT = 1 / 60;
 
@@ -98,5 +98,24 @@ describe('0.9.12 restHeading: the pal settles on free ground', () => {
   it('keeps the heading when nothing round him is free', () => {
     const h = { x: 0, z: 1 };
     expect(restHeading({ x: 0, z: 0 }, h, () => true)).toBe(h);
+  });
+});
+
+describe('0.9.12 the pal keeps clear of a warm-up fire', () => {
+  it('turns round the player instead of sitting at the fire when he stopped walking away from it', () => {
+    const fire = { x: 0, z: 0 };
+    const player = { x: 0, z: 1 };
+    // walked away from the fire (+z) and stopped 1 m from it: the usual spot behind him is 0.2 m from the fire
+    const h = restHeading(player, { x: 0, z: 1 }, (x, z) => nearFire(fire, x, z));
+    const sx = player.x - h.x * FOLLOW_DISTANCE;
+    const sz = player.z - h.z * FOLLOW_DISTANCE;
+    expect(Math.hypot(sx - fire.x, sz - fire.z)).toBeGreaterThanOrEqual(FIRE_CLEAR);
+  });
+  it('keeps its spot behind when that is already clear of the fire', () => {
+    const h = { x: 0, z: -1 };
+    expect(restHeading({ x: 0, z: 1 }, h, (x, z) => nearFire({ x: 0, z: 0 }, x, z))).toBe(h);
+  });
+  it('without a fire nothing is blocked', () => {
+    expect(nearFire(null, 0, 0)).toBe(false);
   });
 });

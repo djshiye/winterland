@@ -80,7 +80,7 @@ export class WarmUp implements Updatable {
       this.puffIn = 0.6;
     }
     if (!on || !spot) return;
-    if (speed < WARM.speed) pl.dog?.rest?.();
+    if (speed < WARM.speed) pl.dog?.rest?.(spot);
     this.puffIn -= dt;
     if (this.puffIn > 0) return;
     this.puffIn = WARM.puffEvery;

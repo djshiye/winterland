@@ -549,15 +549,58 @@ function buildShop(body: Batch, glow: Batch, st: PlotStyle, s: ShopPlace, i: num
       break;
     }
     case 'modular': {
-      // a glass pavilion: thin white frame, a glazed front, a canopy blade
+      // 0.9.13 (review EM2): three silhouettes by index (pavilion with a canopy blade / two storeys with a rooftop sign /
+      // a set-back upper storey with a planter strip), the canopy and accent colour cycling through the era's palette.
+      const rf = st.roofs ?? [st.shopRoof];
+      const acc = rf[i % rf.length]!;
+      const v = i % 3;
+      const glassY = (y0: number, y1: number): void => {
+        g.put(geo.box(w - 0.5, y1 - y0, 0.05), 0xbfeff0, 0, (y0 + y1) / 2, d / 2 - 0.15);
+        for (const x of [-w / 2 + 0.15, -w / 6, w / 6, w / 2 - 0.15]) f.put(geo.box(0.08, y1 - y0, 0.1), wall, x, (y0 + y1) / 2, d / 2 - 0.12);
+      };
       f.put(geo.boxBase(w, 0.2, d), 0xd6d4cc, 0, 0, 0);
-      f.put(geo.boxBase(w - 0.2, h - 0.3, d - 0.4), shade(wall, 0.96), 0, 0.2, -0.2);
-      f.put(geo.box(w + 0.3, 0.18, d + 0.2), wall, 0, h, 0);
-      f.put(geo.box(w + 0.32, 0.05, d + 0.22), SNOW, 0, h + 0.11, 0);
-      g.put(geo.box(w - 0.5, h - 0.8, 0.05), 0xbfeff0, 0, (h - 0.1) / 2 + 0.2, d / 2 - 0.15);
-      for (const x of [-w / 2 + 0.15, -w / 6, w / 6, w / 2 - 0.15]) f.put(geo.box(0.08, h - 0.3, 0.1), wall, x, 0.2 + (h - 0.3) / 2, d / 2 - 0.12);
-      f.put(geo.box(w * 0.55, 0.08, 1.0), st.shopRoof, -w * 0.15, 2.3, d / 2 + 0.35);
-      f.put(geo.box(w * 0.4, 0.3, 0.06), accent, -w * 0.15, h - 0.35, d / 2 - 0.08);
+      if (v === 0) {
+        f.put(geo.boxBase(w - 0.2, h - 0.3, d - 0.4), shade(wall, 0.96), 0, 0.2, -0.2);
+        f.put(geo.box(w + 0.3, 0.18, d + 0.2), wall, 0, h, 0);
+        f.put(geo.box(w + 0.32, 0.05, d + 0.22), SNOW, 0, h + 0.11, 0);
+        glassY(0.2, h - 0.15);
+        // the canopy blade, with a bright fascia
+        f.put(geo.box(w * 0.55, 0.08, 1.0), acc, -w * 0.15, 2.3, d / 2 + 0.35);
+        f.put(geo.box(w * 0.55, 0.16, 0.06), shade(acc, 0.85), -w * 0.15, 2.26, d / 2 + 0.85);
+        f.put(geo.box(w * 0.4, 0.3, 0.06), acc, -w * 0.15, h - 0.35, d / 2 - 0.08);
+      } else if (v === 1) {
+        // lower glazed storey, a cantilevered upper storey with lit windows, a sign box on the roof
+        f.put(geo.boxBase(w - 0.2, 1.8, d - 0.4), shade(wall, 0.96), 0, 0.2, -0.2);
+        glassY(0.2, 1.95);
+        f.put(geo.box(w, 0.14, d - 0.1), acc, 0, 2.03, -0.05);
+        f.put(geo.boxBase(w - 0.1, h - 2.1, d - 0.1), wall, 0, 2.1, -0.05);
+        for (const x of [-w / 3, 0, w / 3]) {
+          f.put(geo.box(w * 0.22 + 0.1, 0.62, 0.05), shade(wall, 0.7), x, 2.1 + (h - 2.1) / 2, d / 2 - 0.1);
+          g.put(geo.box(w * 0.22, 0.52, 0.05), 0xbfeff0, x, 2.1 + (h - 2.1) / 2, d / 2 - 0.08);
+        }
+        f.put(geo.box(w + 0.1, 0.16, d), wall, 0, h + 0.08, -0.05);
+        f.put(geo.box(w + 0.12, 0.05, d + 0.02), SNOW, 0, h + 0.18, -0.05);
+        f.put(geo.boxBase(w * 0.42, 0.6, 0.26), wall, -w * 0.2, h + 0.16, d / 2 - 0.45);
+        g.put(geo.box(w * 0.34, 0.4, 0.05), mix(WINDOW, acc, 0.45), -w * 0.2, h + 0.46, d / 2 - 0.3);
+      } else {
+        // lower glazed storey under a flat slab edged with a planter, a smaller upper storey set back
+        const lh = 2.45;
+        f.put(geo.boxBase(w - 0.2, lh - 0.2, d - 0.4), shade(wall, 0.96), 0, 0.2, -0.2);
+        glassY(0.2, lh - 0.2);
+        f.put(geo.box(w + 0.1, 0.18, d - 0.05), wall, 0, lh, -0.02);
+        f.put(geo.box(w + 0.12, 0.05, d - 0.03), SNOW, 0, lh + 0.11, -0.02);
+        f.put(geo.boxBase(w - 0.3, 0.2, 0.34), shade(acc, 0.8), 0, lh + 0.1, d / 2 - 0.3);
+        const nb = Math.max(5, Math.round(w / 0.5));
+        for (let k = 0; k < nb; k++) {
+          const x = -w / 2 + 0.3 + (k * (w - 0.6)) / (nb - 1);
+          f.put(geo.sphere(0.17, 7, 5), k % 3 === 1 ? acc : 0x7fae6a, x, lh + 0.38, d / 2 - 0.3);
+        }
+        const uh = Math.max(0.95, h - lh + 0.25);
+        f.put(geo.boxBase(w - 1.3, uh, d - 1.3), wall, 0, lh + 0.1, -0.5);
+        f.put(geo.box(w - 1.1, 0.14, d - 1.1), acc, 0, lh + 0.1 + uh + 0.05, -0.5);
+        g.put(geo.box(w - 1.9, uh - 0.4, 0.05), 0xbfeff0, 0, lh + 0.1 + uh / 2, d / 2 - 1.15 + 0.03);
+        f.put(geo.box(w * 0.4, 0.07, 0.75), acc, w * 0.2, 2.2, d / 2 + 0.15);
+      }
       goodsOut();
       break;
     }
@@ -576,15 +619,187 @@ function buildShop(body: Batch, glow: Batch, st: PlotStyle, s: ShopPlace, i: num
       break;
     }
     case 'pod': {
-      // a dome shop: a drum with a glowing band of windows under a lavender dome and a ring at its crown
+      // a dome shop: a drum with a glowing band of windows under a dome in the era's cycling colours; even shops add a
+      // small side dome, odd ones a crown antenna ring (0.9.13, review EM2)
+      const rc = st.roofs ? st.roofs[i % st.roofs.length]! : st.shopRoof;
       const r = Math.min(w, d) / 2;
+      const top = 0.2 + h;
       f.put(geo.cylinder(r + 0.15, r + 0.25, 0.2, 22), 0xd9dae6, 0, 0.1, 0);
       f.put(geo.cylinder(r, r, h - r * 0.55, 22), wall, 0, 0.2 + (h - r * 0.55) / 2, 0);
-      f.put(geo.sphere(r, 22, 10), st.shopRoof, 0, 0.2 + h - r * 0.55, 0, { sy: 0.55 });
+      f.put(geo.sphere(r, 22, 10), rc, 0, 0.2 + h - r * 0.55, 0, { sy: 0.55 });
       f.put(geo.sphere(r * 0.6, 14, 6), SNOW, 0, 0.2 + h - r * 0.1, 0, { sy: 0.18 });
-      g.put(geo.torus(r + 0.01, 0.09, 6, 30), 0xe6dcff, 0, 1.5, 0, { rx: Math.PI / 2 });
+      g.put(geo.torus(r + 0.01, 0.09, 6, 30), mix(0xe6dcff, rc, 0.25), 0, 1.5, 0, { rx: Math.PI / 2 });
       f.put(geo.box(1.0, 1.6, 0.4), shade(wall, 0.92), 0, 0.8, r - 0.1);
-      f.put(geo.box(0.7, 1.4, 0.06), st.shopRoof, 0, 0.72, r + 0.12);
+      f.put(geo.box(0.7, 1.4, 0.06), rc, 0, 0.72, r + 0.12);
+      if (i % 2 === 0) {
+        const r2 = Math.min(0.55, r * 0.3);
+        const x2 = (i % 4 === 0 ? 1 : -1) * (w / 2 - r2);
+        const z2 = -(d / 2 - r2);
+        const h2 = 1.5;
+        f.put(geo.cylinder(r2, r2, h2, 14), shade(wall, 0.96), x2, 0.2 + h2 / 2, z2);
+        f.put(geo.sphere(r2, 14, 8), shade(rc, 1.08), x2, 0.2 + h2, z2, { sy: 0.6 });
+        f.put(geo.sphere(r2 * 0.55, 10, 5), SNOW, x2, 0.2 + h2 + r2 * 0.4, z2, { sy: 0.2 });
+        g.put(geo.box(0.22, 0.4, 0.04), WINDOW, x2, 1.0, z2 + r2 + 0.005);
+      } else {
+        const mast = 0.55;
+        f.put(geo.cylinder(0.03, 0.03, mast, 6), 0xb8b6c6, 0, top + r * 0.08 + mast / 2 - 0.05, 0);
+        g.put(geo.torus(0.26, 0.04, 6, 18), mix(0xe6dcff, rc, 0.25), 0, top + r * 0.08 + mast * 0.6, 0, { rx: Math.PI / 2 });
+        g.put(geo.sphere(0.07, 6, 5), WINDOW, 0, top + r * 0.08 + mast, 0);
+      }
+      goodsOut();
+      break;
+    }
+    case 'cottage': {
+      // era 3 (review EM2): a half-timbered forge-shop on a rubble plinth, a steep roof, a slatted wooden canopy on two
+      // iron brackets and a lantern by the door
+      const stone = i % 2 ? 0x9a948a : 0x8a8479;
+      const timber = i % 2 ? 0x5a4130 : 0x6b4a32;
+      const roofC = i % 2 ? st.shopRoof : shade(st.shopRoof, 0.84);
+      const iron = 0x3a3634;
+      const sb = 0.95;
+      const doorX = w / 2 - 0.75;
+      const zt = d / 2 - 0.03;
+      f.put(geo.boxBase(w - 0.06, sb, d - 0.06), stone, 0, 0, 0);
+      for (let k = 0; k < 9; k++) {
+        f.put(geo.box(0.42, 0.24, 0.05), k % 2 ? shade(stone, 1.12) : shade(stone, 0.88), -w / 2 + 0.35 + k * ((w - 0.7) / 8), 0.2 + ((k * 5 + i) % 3) * 0.28, d / 2 - 0.03);
+      }
+      f.put(geo.box(w, 0.08, d), shade(stone, 0.78), 0, sb, 0);
+      f.put(geo.boxBase(w - 0.1, h - sb, d - 0.1), wall, 0, sb, 0);
+      // timber frame: posts, rails and two braces in the upper panels
+      for (const x of [-w / 2 + 0.08, 0, doorX - 0.55, w / 2 - 0.08]) f.put(geo.box(0.13, h - sb, 0.06), timber, x, (sb + h) / 2, zt);
+      for (const y of [sb + 0.06, 2.1, h - 0.06]) f.put(geo.box(w - 0.1, 0.12, 0.06), timber, 0, y, zt);
+      const ph = h - 0.06 - 2.16 - 0.06;
+      for (const [a, b, sg] of [[-w / 2 + 0.08, 0, 1], [doorX - 0.55, w / 2 - 0.08, -1]] as const) {
+        const bw = b - a - 0.13;
+        f.put(geo.box(Math.hypot(bw, ph), 0.09, 0.06), timber, (a + b) / 2, 2.16 + 0.06 + ph / 2, zt, { rz: sg * Math.atan2(ph, bw) });
+      }
+      f.put(geo.box(0.55, 0.22, 0.05), accent, (0 + doorX - 0.55) / 2, (2.16 + h) / 2, zt + 0.01);
+      // window and door
+      f.put(geo.box(1.5, 0.98, 0.05), shade(wall, 0.62), -0.8, 1.55, zt);
+      g.put(geo.box(1.3, 0.78, 0.05), WINDOW, -0.8, 1.55, zt + 0.015);
+      f.put(geo.box(0.04, 0.78, 0.03), timber, -0.8, 1.55, zt + 0.045);
+      f.put(geo.box(1.3, 0.04, 0.03), timber, -0.8, 1.55, zt + 0.045);
+      f.put(geo.box(0.8, 1.6, 0.1), shade(st.shopRoof, 0.95), doorX, 0.8, d / 2 + 0.01);
+      f.put(geo.box(1.0, 0.12, 0.1), timber, doorX, 1.68, d / 2);
+      // a lantern by the door
+      f.put(geo.box(0.04, 0.04, 0.12), iron, w / 2 - 0.22, 1.98, d / 2 + 0.03);
+      f.put(geo.box(0.12, 0.03, 0.12), iron, w / 2 - 0.22, 1.9, d / 2 + 0.09).put(geo.box(0.12, 0.03, 0.12), iron, w / 2 - 0.22, 1.74, d / 2 + 0.09);
+      g.put(geo.box(0.08, 0.14, 0.08), WINDOW, w / 2 - 0.22, 1.82, d / 2 + 0.09);
+      // steep roof and a stone chimney
+      f.gable(w, d, h, 1.05, roofC);
+      f.put(geo.boxBase(0.5, 1.25, 0.5), stone, -w / 2 + 0.75, h + 0.3, -d / 4);
+      f.put(geo.box(0.62, 0.08, 0.62), shade(stone, 0.8), -w / 2 + 0.75, h + 1.55, -d / 4);
+      // slatted wooden canopy on two iron brackets
+      const n = Math.round((w - 0.2) / 0.28);
+      for (let k = 0; k < n; k++) f.put(geo.box(0.2, 0.04, 0.88), k % 2 ? shade(timber, 1.25) : shade(timber, 1.45), -(w - 0.3) / 2 + (k * (w - 0.3)) / (n - 1), 2.32, d / 2 + 0.46, { rx: 0.3 });
+      f.put(geo.box(w - 0.1, 0.07, 0.07), iron, 0, 2.16, d / 2 + 0.88).put(geo.box(w - 0.1, 0.07, 0.07), iron, 0, 2.45, d / 2 + 0.05);
+      for (const sx of [-1, 1]) {
+        const x = sx * (w / 2 - 0.65);
+        f.put(geo.box(0.05, 0.05, 0.9), iron, x, 2.14, d / 2 + 0.46);
+        f.put(geo.box(0.04, 0.04, 1.08), iron, x, 2.52, d / 2 + 0.455, { rx: 0.66 });
+        f.put(geo.torus(0.07, 0.015, 5, 10), iron, x, 2.14, d / 2 + 0.92, { ry: Math.PI / 2 });
+      }
+      goodsOut();
+      break;
+    }
+    case 'row': {
+      // era 4 (review EM2): a brick shop front with a tall arched window, quoins, a chimney pot and a cast-iron and glass canopy
+      const iron = 0x2f4a3c;
+      const brass = 0xc9a24a;
+      const stoneC = 0xcfc8ba;
+      const roofC = i % 2 ? st.shopRoof : shade(st.shopRoof, 0.86);
+      const doorX = w / 2 - 0.75;
+      f.put(geo.boxBase(w, 0.5, d), 0x6b6f72, 0, 0, 0);
+      f.put(geo.boxBase(w - 0.1, h - 0.5, d - 0.1), wall, 0, 0.5, 0);
+      for (const sx of [-1, 1]) {
+        for (let k = 0, y = 0.7; y < h - 0.25; k++, y += 0.4) {
+          const qw = k % 2 ? 0.16 : 0.26;
+          f.put(geo.box(qw, 0.2, 0.1), stoneC, sx * (w / 2 - qw / 2), y, d / 2 - 0.05);
+        }
+      }
+      f.put(geo.box(w, 0.12, d), stoneC, 0, h - 0.06, 0);
+      // the tall arched shop window
+      f.put(geo.box(1.6, 1.2, 0.06), stoneC, -0.8, 1.35, d / 2 - 0.02).put(geo.cylinder(0.8, 0.8, 0.06, 18), stoneC, -0.8, 1.95, d / 2 - 0.02, { rx: Math.PI / 2 });
+      g.put(geo.box(1.4, 1.1, 0.05), WINDOW, -0.8, 1.35, d / 2 + 0.005).put(geo.cylinder(0.7, 0.7, 0.05, 16), WINDOW, -0.8, 1.95, d / 2 + 0.005, { rx: Math.PI / 2 });
+      f.put(geo.box(0.04, 1.85, 0.03), iron, -0.8, 1.72, d / 2 + 0.035);
+      f.put(geo.box(1.4, 0.04, 0.03), iron, -0.8, 1.35, d / 2 + 0.035).put(geo.box(1.4, 0.04, 0.03), iron, -0.8, 1.95, d / 2 + 0.035);
+      f.put(geo.box(1.8, 0.07, 0.14), stoneC, -0.8, 0.74, d / 2);
+      // door, fanlight, brass plaque
+      f.put(geo.box(0.8, 1.6, 0.1), iron, doorX, 0.8, d / 2 + 0.01);
+      f.put(geo.sphere(0.04, 6, 4), brass, doorX + 0.28, 0.85, d / 2 + 0.07);
+      g.put(geo.box(0.7, 0.2, 0.05), WINDOW, doorX, 1.74, d / 2 + 0.02);
+      f.put(geo.box(0.9, 0.2, 0.05), brass, doorX, 2.02, d / 2 + 0.0);
+      // roof and chimney with pots
+      f.gable(w, d, h, 0.8, roofC);
+      f.put(geo.boxBase(0.6, 1.0, 0.5), shade(wall, 0.85), -w / 2 + 0.8, h + 0.2, -d / 4);
+      f.put(geo.box(0.7, 0.08, 0.6), stoneC, -w / 2 + 0.8, h + 1.2, -d / 4);
+      for (const dx of [-0.14, 0.14]) f.put(geo.cylinder(0.09, 0.11, 0.3, 8), 0xb0623f, -w / 2 + 0.8 + dx, h + 1.39, -d / 4);
+      // cast-iron and glass canopy: tension rods, ribs, pale panes, a scalloped valance
+      const nr = 5;
+      const span = w - 0.4;
+      for (let k = 0; k < nr; k++) f.put(geo.box(0.05, 0.06, 0.9), iron, -span / 2 + (k * span) / (nr - 1), 2.4, d / 2 + 0.46, { rx: 0.3 });
+      for (let k = 0; k < nr - 1; k++) f.put(geo.box(span / (nr - 1) - 0.07, 0.025, 0.82), 0xcfe3e0, -span / 2 + ((k + 0.5) * span) / (nr - 1), 2.42, d / 2 + 0.46, { rx: 0.3 });
+      f.put(geo.box(w - 0.2, 0.07, 0.07), iron, 0, 2.27, d / 2 + 0.87).put(geo.box(w - 0.2, 0.07, 0.07), iron, 0, 2.53, d / 2 + 0.05);
+      const nv = Math.round(w / 0.4);
+      for (let k = 0; k < nv; k++) f.put(geo.cylinder(0.1, 0.1, 0.03, 8), iron, -(w - 0.5) / 2 + (k * (w - 0.5)) / (nv - 1), 2.2, d / 2 + 0.87, { rx: Math.PI / 2 });
+      for (const sx of [-1, 1]) {
+        f.put(geo.box(0.04, 0.04, 1.02), iron, sx * (w / 2 - 0.6), 2.535, d / 2 + 0.435, { rx: 0.545 });
+        f.put(geo.sphere(0.05, 6, 4), brass, sx * (w / 2 - 0.1), 2.3, d / 2 + 0.87);
+      }
+      goodsOut();
+      break;
+    }
+    case 'bunk': {
+      // era 5 (review EM2): a corrugated works-store: ribbed steel cladding, a roller-shutter door, an enamel sign band,
+      // a flat steel canopy and a parapet roof (a clerestory monitor on every other shop, a stack on the rest)
+      const steel = 0x5c6670;
+      const base = shade(wall, 0.82);
+      const doorX = w / 2 - 0.95;
+      f.put(geo.boxBase(w, 0.3, d), 0x77797c, 0, 0, 0);
+      f.put(geo.boxBase(w - 0.08, h - 0.3, d - 0.08), base, 0, 0.3, 0);
+      const stripH = h - 0.3 - 0.1;
+      const nF = Math.round(w / 0.17);
+      const pF = (w - 0.08) / nF;
+      for (let k = 0; k < nF; k++) {
+        const x = -(w - 0.08) / 2 + (k + 0.5) * pF;
+        if ((x > doorX - 0.85 && x < doorX + 0.85) || (x > -w / 2 + 0.3 && x < -w / 2 + 2.0)) continue;
+        f.put(geo.box(pF * 0.72, stripH, 0.04), k % 2 ? shade(wall, 1.08) : wall, x, 0.3 + stripH / 2, d / 2 - 0.02);
+      }
+      const nS = Math.round(d / 0.3);
+      for (const sx of [-1, 1]) {
+        for (let k = 0; k < nS; k++) f.put(geo.box(0.04, stripH, ((d - 0.08) / nS) * 0.72), k % 2 ? shade(wall, 1.08) : wall, sx * (w / 2 - 0.02), 0.3 + stripH / 2, -(d - 0.08) / 2 + ((k + 0.5) * (d - 0.08)) / nS);
+      }
+      // roller-shutter door: housing, panel, slats
+      f.put(geo.box(1.56, 0.3, 0.14), steel, doorX, 2.05, d / 2);
+      f.put(geo.boxBase(1.4, 1.9, 0.06), shade(steel, 1.15), doorX, 0, d / 2 - 0.01);
+      for (let k = 0; k < 9; k++) f.put(geo.box(1.4, 0.035, 0.02), shade(steel, 0.8), doorX, 0.2 + k * 0.2, d / 2 + 0.03);
+      // lit shop window
+      f.put(geo.box(1.7, 1.0, 0.06), steel, -w / 2 + 1.2, 1.5, d / 2 - 0.01);
+      g.put(geo.box(1.5, 0.8, 0.05), WINDOW, -w / 2 + 1.2, 1.5, d / 2 + 0.03);
+      for (const dx of [-0.25, 0.25]) f.put(geo.box(0.04, 0.8, 0.03), steel, -w / 2 + 1.2 + dx, 1.5, d / 2 + 0.06);
+      // enamel sign band
+      const sy = h - 0.33;
+      f.put(geo.box(w - 0.3, 0.46, 0.06), CREAM, 0, sy, d / 2 - 0.01);
+      f.put(geo.box(w - 0.42, 0.34, 0.06), accent, 0, sy, d / 2 + 0.005);
+      for (let k = 0; k < 5; k++) f.put(geo.box(0.22 + (k % 2) * 0.12, 0.14, 0.02), CREAM, (k - 2) * 0.55, sy, d / 2 + 0.04);
+      // parapet roof
+      f.put(geo.box(w, 0.16, d), shade(base, 0.8), 0, h + 0.08, 0);
+      const pc = shade(wall, 0.9);
+      f.put(geo.box(w, 0.32, 0.12), pc, 0, h + 0.3, d / 2 - 0.06).put(geo.box(w, 0.32, 0.12), pc, 0, h + 0.3, -d / 2 + 0.06);
+      for (const sx of [-1, 1]) f.put(geo.box(0.12, 0.32, d - 0.24), pc, sx * (w / 2 - 0.06), h + 0.3, 0);
+      f.put(geo.box(w - 0.24, 0.05, d - 0.24), SNOW, 0, h + 0.18, 0);
+      if (i % 2) {
+        f.put(geo.boxBase(w * 0.5, 0.55, d * 0.35), base, 0, h + 0.16, -0.3);
+        f.put(geo.box(w * 0.54, 0.08, d * 0.39), steel, 0, h + 0.74, -0.3);
+        g.put(geo.box(w * 0.44, 0.26, 0.05), WINDOW, 0, h + 0.46, -0.3 + d * 0.175 + 0.005);
+      } else {
+        f.put(geo.cylinder(0.15, 0.19, 1.3, 10), steel, -w / 2 + 0.6, h + 0.8, -d / 4);
+        f.put(geo.cylinder(0.22, 0.17, 0.12, 10), shade(steel, 0.8), -w / 2 + 0.6, h + 1.5, -d / 4);
+      }
+      // flat steel canopy on two tie rods
+      f.put(geo.box(w - 0.2, 0.07, 0.9), shade(steel, 1.2), 0, 2.25, d / 2 + 0.47, { rx: 0.08 });
+      f.put(geo.box(w - 0.2, 0.14, 0.05), steel, 0, 2.19, d / 2 + 0.92);
+      for (const sx of [-1, 1]) f.put(geo.box(0.04, 0.04, 1.05), steel, sx * (w / 2 - 0.55), 2.52, d / 2 + 0.45, { rx: 0.56 });
       goodsOut();
       break;
     }

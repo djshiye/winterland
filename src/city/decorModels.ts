@@ -238,3 +238,6 @@ export function drawDecor(n: number, items: readonly DecorItem[], solid: Batch, 
     }
   }
 }
+
+/** The era's furniture colours (city/verge.ts paints the outer-edge planting from the same look). */
+export const eraLook = (n: number): Look => LOOK[n]!;

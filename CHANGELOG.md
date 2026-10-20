@@ -114,6 +114,14 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **You wake up where you left off.** Reloading puts you back where you were standing (just beside a pad or pile if you were on one), not back at the cabin.
 - **The arrow keeps clear of the banner and the corner cards** (money, Winterland, quests, buttons), and the on-screen move pad stays hidden on desktop.
 
+### Every era looks its own
+
+- **Jack's cart dresses for the era.** His swap cart wears each era's colours, from terracotta in the Frontier to lavender and gold in the AI era, with a smarter straight trim from the Oil Age on.
+- **Market shops of their time.** Iron Age shops are half-timbered forges with wooden canopies, Steam Age shops are brick with iron-and-glass canopies, Industrial shops are corrugated works stores with roller shutters. Computer Age pavilions now come in three shapes and four colours, and the AI era's dome shops in four colours with little side domes and antenna rings.
+- **Crew icons tell you who's who.** Each era's crew icon shows that era's headgear (flat cap, miner's lamp, goggles, hard hat, clean-room hood, bubble hood, a friendly robot) and each job its own tool badge: scoop, flag, rucksack, basket, mallet or ledger.
+- **City edges finished.** Where a district meets open snow, a soft snowbank with little firs, bushes and hedges now edges the pavement.
+- **Calmer floors.** The Industrial era's brick yard and the Nuclear era's glazed slabs no longer read as zig-zags and polka dots.
+- **Your pal keeps clear of the fire.** Warming up at a fire, your pal always sits a safe step away from it.
 
 ## 0.9.11 (2026-10-19)
 

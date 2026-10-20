@@ -80,8 +80,14 @@ export function mintGlaze(body: Batch, glow: Batch | null, r: Rect, rng: Rng, y 
       const cx = x + sw / 2 + 0.08;
       const cz = z + sd / 2 + 0.08;
       body.add(geo.box(sw, 0.006, sd), shade(base, k), cx, y + 0.003, cz);
-      // the glaze: a lighter, rounded pool off-centre on the slab
-      body.add(geo.circleGround(1, 14), mixHex(base, p.floor.processing, 0.75), cx - sw * 0.12, y + 0.0068, cz - sd * 0.12, { sx: sw * 0.3, sz: sd * 0.24 });
+      // the glaze: a faint, rounded pool on about one slab in three, its size, place and turn varied by a hash of the slab
+      // (0.9.12 review T5: one pool on every slab in a grid read as polka dots; the hash keeps the rng draws unchanged)
+      const hsh = (Math.imul(Math.round(x * 10) | 0, 73856093) ^ Math.imul(Math.round(z * 10) | 0, 19349663)) >>> 0;
+      if (hsh % 3 === 0) {
+        const u = ((hsh >>> 4) & 255) / 255;
+        const v = ((hsh >>> 12) & 255) / 255;
+        body.add(geo.circleGround(1, 14), mixHex(base, p.floor.processing, 0.4), cx + (u - 0.5) * sw * 0.4, y + 0.0068, cz + (v - 0.5) * sd * 0.4, { sx: sw * (0.18 + 0.16 * v), sz: sd * (0.14 + 0.12 * u), ry: u * Math.PI });
+      }
     }
   }
   // a soft aqua drain channel along the far edge (lit only in its little grates, so it never reads as a laser line)

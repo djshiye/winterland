@@ -229,11 +229,12 @@ function wild(kit: GroundKit, l: RegionLayout, rng: Rng): void {
 /** One herringbone course pattern over rect R: bricks w × h set at ±45°, in a few brick tones. */
 function herringbone(f: Kit, R: Rect, y: number, rng: Rng): void {
   // 0.9.11 (review T5): close tones and a brick-coloured grout, so the courses read as a calm brick floor, not a zig-zag carpet
-  const tones = [BRICK, mixHex(BRICK, BRICK_D, 0.18), mixHex(BRICK, BRICK_L, 0.3), mixHex(BRICK, BRASS, 0.06)];
+  // 0.9.12 (review T5 again): tones and grout closer still, so even close up the courses are a texture, not a pattern
+  const tones = [BRICK, mixHex(BRICK, BRICK_D, 0.1), mixHex(BRICK, BRICK_L, 0.16), mixHex(BRICK, BRASS, 0.04)];
   const bw = 0.5;
   const bh = 0.2;
   const step = (bw + 0.05) / Math.SQRT2;
-  f.tile(R.maxX - R.minX, R.maxZ - R.minZ, mixHex(BRICK, BRICK_D, 0.4), (R.minX + R.maxX) / 2, y - 0.002, (R.minZ + R.maxZ) / 2);
+  f.tile(R.maxX - R.minX, R.maxZ - R.minZ, mixHex(BRICK, BRICK_D, 0.22), (R.minX + R.maxX) / 2, y - 0.002, (R.minZ + R.maxZ) / 2);
   for (let j = 0, z = R.minZ + 0.25; z < R.maxZ - 0.2; j++, z += step) {
     for (let i = 0, x = R.minX + 0.25 + (j % 2) * step; x < R.maxX - 0.2; i++, x += step * 2) {
       f.tile(bw, bh, rng.pick(tones), x, y, z, Math.PI / 4);

@@ -98,25 +98,48 @@ function signMaterial(): THREE.Material {
   return signMat;
 }
 
-function addWheel(b: Batch, sx: number): void {
+/** Per-era cart colours (eras 2..10; era 1 is the frozen red / green / yellow benchmark). `modern`: straight valance + pale trim. */
+interface CartPalette {
+  readonly awning: number;
+  readonly body: number;
+  readonly panel: number;
+  readonly rim: number;
+  readonly modern: boolean;
+}
+export const JACK_CART_PALETTES: Readonly<Record<number, CartPalette>> = {
+  1: { awning: RED, body: GREEN, panel: YELLOW, rim: RED, modern: false },
+  2: { awning: 0xc9693f, body: 0xb9714a, panel: 0xe9b84a, rim: 0xc9693f, modern: false }, // Frontier: terracotta, clay, harvest gold
+  3: { awning: 0xb5502a, body: 0x6b7280, panel: 0xd9a24a, rim: 0x5d636e, modern: false }, // Iron Age: rust, iron grey
+  4: { awning: 0x3a8f63, body: 0x27704c, panel: 0xc9a23c, rim: 0xb88a2e, modern: false }, // Steam Age: bottle green, brass
+  5: { awning: 0xf08a2a, body: 0x7a8794, panel: 0xf0b83a, rim: 0xe07a22, modern: false }, // Industrial: sodium orange, steel
+  6: { awning: 0x2f9c92, body: 0x4fae9e, panel: 0xc9774a, rim: 0xb8693f, modern: false }, // Electric: patina teal, copper
+  7: { awning: 0xe3a52e, body: 0xb8473a, panel: 0xf0c05a, rim: 0xb8473a, modern: true }, // Oil: honey, tundra red
+  8: { awning: 0x2f86b5, body: 0x2a9aa0, panel: 0xf4f7f8, rim: 0x2f86b5, modern: true }, // Computer: sea blue, teal, white
+  9: { awning: 0x4cc9a0, body: 0x3aa98a, panel: 0xf2f8f4, rim: 0x3aa98a, modern: true }, // Nuclear: mint, white
+  10: { awning: 0x9a82d6, body: 0x7f68c0, panel: 0xe8c04a, rim: 0xe8b53a, modern: true }, // AI: lavender, gold
+};
+const TRIM = 0xfaf3e2;
+
+function addWheel(b: Batch, sx: number, rim: number): void {
   const x = sx * 0.98;
   const y = 0.4;
   const z = -0.05;
   b.add(geo.cylinder(0.36, 0.36, 0.08, 16), WOOD_L, x, y, z, { rz: Math.PI / 2 });
-  b.add(geo.torus(0.38, 0.045, 6, 18), RED, x, y, z, { ry: Math.PI / 2 });
+  b.add(geo.torus(0.38, 0.045, 6, 18), rim, x, y, z, { ry: Math.PI / 2 });
   b.add(geo.cylinder(0.1, 0.1, 0.14, 8), GOLD, x, y, z, { rz: Math.PI / 2 });
   for (let k = 0; k < 3; k++) b.add(geo.box(0.11, 0.7, 0.06), WOOD_D, x, y, z, { rx: (k * Math.PI) / 3 });
 }
 
-/** The cart model. */
-export function createJackCartModel(): JackCartModel {
+/** The cart model, wearing `era`'s colours (default / unknown: era 1's red-cream-green-yellow). */
+export function createJackCartModel(era = 1): JackCartModel {
   const b = new Batch();
+  const pal = JACK_CART_PALETTES[era] ?? JACK_CART_PALETTES[1]!;
 
-  for (const sx of [-1, 1]) addWheel(b, sx);
+  for (const sx of [-1, 1]) addWheel(b, sx, pal.rim);
 
-  // body: painted green box with a yellow front panel and a plank counter
-  b.add(geo.box(1.7, 0.5, 0.9), GREEN, 0, 0.65, 0);
-  b.add(geo.box(1.5, 0.3, 0.03), YELLOW, 0, 0.65, 0.455);
+  // body: a painted box (era 1 green) with a front panel (era 1 yellow) and a plank counter
+  b.add(geo.box(1.7, 0.5, 0.9), pal.body, 0, 0.65, 0);
+  b.add(geo.box(1.5, 0.3, 0.03), pal.panel, 0, 0.65, 0.455);
   b.add(geo.box(1.76, 0.06, 1.04), WOOD_L, 0, COUNTER_Y, 0);
   b.add(geo.box(1.76, 0.1, 0.06), WOOD_D, 0, 0.45, 0.45); // front skirt
   // pull shafts + crossbar at the back
@@ -134,11 +157,13 @@ export function createJackCartModel(): JackCartModel {
   const slope = Math.atan2(0.32, 1.5);
   for (let i = 0; i < STRIPES; i++) {
     const x = (i - (STRIPES - 1) / 2) * STRIPE_W;
-    const c = i % 2 === 0 ? RED : CREAM;
+    const c = i % 2 === 0 ? pal.awning : CREAM;
     b.add(geo.box(STRIPE_W, 0.05, 1.534), c, x, 1.94, 0.2, { rx: slope });
     b.add(geo.box(STRIPE_W, 0.12, 0.04), c, x, 1.7, 0.96);
-    b.add(geo.cone(STRIPE_W / 2, 0.1, 6), c, x, 1.59, 0.96, { rz: Math.PI });
+    if (pal.modern) b.add(geo.box(STRIPE_W, 0.1, 0.04), c, x, 1.59, 0.96); // straight valance
+    else b.add(geo.cone(STRIPE_W / 2, 0.1, 6), c, x, 1.59, 0.96, { rz: Math.PI });
   }
+  if (pal.modern) b.add(geo.box(STRIPE_W * STRIPES, 0.025, 0.05), TRIM, 0, 1.535, 0.96); // thin pale trim strip
 
   // the heap of odds and ends on the back half of the counter
   b.add(geo.box(0.3, 0.12, 0.2), WOOD_D, -0.62, 1.02, -0.28, { ry: 0.3 }); // boot
@@ -288,6 +313,9 @@ export function createJackModel(): CharacterModel {
 /** Gallery entries: the cart alone, Jack alone and the two together. */
 export const jackCatalog: Record<string, () => THREE.Object3D> = {
   jackCart: () => createJackCartModel().root,
+  jackCartFrontier: () => createJackCartModel(2).root,
+  jackCartOil: () => createJackCartModel(7).root,
+  jackCartAI: () => createJackCartModel(10).root,
   jack: () => createJackModel().root,
   jackStall: () => {
     const g = new THREE.Group();
