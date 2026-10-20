@@ -22,7 +22,7 @@
 import * as THREE from 'three';
 import { ERA_CREW_COUNT, ERA_ROLES, eraRoleCount, PALETTE, type Rect } from '../../config';
 import { ERAS } from '../../eras/data';
-import { HUT_ANNEX, hutBox, plotDecor, plotPlaces, regionLayout, type DecorPlace, type HutPlace, type PlotPlaces, type ShopPlace } from '../../eras/layout';
+import { greenPlaza, HUT_ANNEX, hutBox, PLAZA_HALF, plotDecor, plotPlaces, regionLayout, type DecorPlace, type HutPlace, type PlotPlaces, type ShopPlace } from '../../eras/layout';
 import type { GameContext, UpgradeId } from '../../core/types';
 import type { ColliderHandle } from '../Colliders';
 import { Batch } from '../../render/batch';
@@ -972,6 +972,14 @@ function buildGreen(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlaces, acce
   // a soft lawn of trodden snow with a ring path round the centre
   body.add(geo.box(G.maxX - G.minX, 0.015, G.maxZ - G.minZ), mix(st.pave, 0xf4f8ff, 0.55), c.x, 0.025, c.z);
   body.add(geo.ringGround(1.5, 2.2, 28), st.pave, c.x, 0.035, c.z);
+  // 0.9.12 polish: a big green gets a little plaza pattern so its middle doesn't read empty: an outer ring walk and four
+  // walks out toward its corners (flat, walked over like the rest of the green; eras/layout.ts keeps decor off them)
+  const plaza = greenPlaza(P);
+  if (plaza) {
+    const walk = mix(st.pave, 0xf4f8ff, 0.22);
+    body.add(geo.ringGround(plaza.R - 2 * PLAZA_HALF, plaza.R, 56), walk, c.x, 0.034, c.z);
+    for (const [a, b] of plaza.corner) body.add(geo.box(2 * PLAZA_HALF, 0.012, Math.hypot(b.x - a.x, b.z - a.z)), walk, (a.x + b.x) / 2, 0.032, (a.z + b.z) / 2, { ry: Math.atan2(b.x - a.x, b.z - a.z) });
+  }
   // benches either side
   for (const s of [-1, 1]) {
     body.add(geo.boxBase(1.6, 0.1, 0.45), shade(st.wall, 0.85), c.x + s * 3.2, 0.42, c.z);
