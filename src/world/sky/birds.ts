@@ -23,7 +23,7 @@ const SIZE = 1.5;
 /** Birds leave once this far from the camera target (m). */
 const AWAY = 34;
 
-function bodyGeometry(): THREE.BufferGeometry {
+export function bodyGeometry(): THREE.BufferGeometry {
   const b = new Batch();
   b.add(geo.sphere(1, 12, 8), SKY.birdBack, 0, 0, 0, { sx: 0.11, sy: 0.1, sz: 0.15 });
   b.add(geo.sphere(1, 12, 8), SKY.birdBreast, 0, -0.025, 0.035, { sx: 0.1, sy: 0.08, sz: 0.11 });
@@ -34,7 +34,7 @@ function bodyGeometry(): THREE.BufferGeometry {
   return b.geometry().scale(SIZE, SIZE, SIZE);
 }
 
-function wingGeometry(side: 1 | -1): THREE.BufferGeometry {
+export function wingGeometry(side: 1 | -1): THREE.BufferGeometry {
   const b = new Batch();
   b.add(geo.box(0.2, 0.018, 0.11), SKY.birdBack, side * 0.1, 0, 0);
   b.add(geo.box(0.04, 0.02, 0.1), SNOW, side * 0.17, 0.008, 0); // the white wing bar

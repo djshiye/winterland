@@ -19,6 +19,7 @@ import { EraController, resetEras } from './env/eras';
 import { buildFences } from './env/fences';
 import { buildFrontier, pruneInstances, pruneNewLand, type FrontierPart } from './env/frontier';
 import { WinterFun } from './life/WinterFun';
+import { Critters } from './life/Critters';
 import { LANE } from '../town/lane';
 import { buildLanternLane } from './env/lantern';
 import { buildGate, type GatePart } from './env/gate';
@@ -72,6 +73,7 @@ export class Environment {
   private readonly frontier: FrontierPart;
   /** 0.9.12: the skating pond and the sledding hill by the village (shown with the new land). */
   private readonly winterFun: WinterFun;
+  private readonly critters: Critters;
   private winterPruned = false;
   /** 0.9.3: hides the peaks that stood on the new land once it shows (env/mountains.ts). */
   private readonly mountains: EnvPart;
@@ -110,6 +112,8 @@ export class Environment {
     this.decorGroup = decor.group;
     this.frontier = buildFrontier(ctx, this.town.group, roads.trikeTail);
     this.winterFun = new WinterFun(ctx, this.frontier.group);
+    this.critters = new Critters(ctx);
+    this.root.add(this.critters.group);
     this.chimney = buildings.chimney;
 
     for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, this.town, this.frontier, roads, mountains, decor, buildings, this.snowfall]) {
@@ -197,6 +201,7 @@ export class Environment {
       pruneInstances(this.decorGroup, (x, z) => x > F.minX && x < F.maxX && z > F.minZ && z < F.maxZ);
     }
     this.winterFun.update(dt);
+    this.critters.update(dt);
     this.mountains.update?.(dt);
     this.eras.update(dt);
     // 0.9.8: the sky runs the weather (snowfall amount, the snowstorm event), the northern lights (stronger in the
