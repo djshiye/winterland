@@ -67,7 +67,7 @@ export function terrazzo(body: Batch, r: Rect, rng: Rng, y = FLOOR_Y): void {
  */
 export function mintGlaze(body: Batch, glow: Batch | null, r: Rect, rng: Rng, y = FLOOR_Y): void {
   const p = palette(9);
-  const base = p.floor.yard;
+  const base = mixHex(p.floor.yard, 0xe2e5e3, 0.45); // 0.9.13 (E3): paler glaze, so the white concrete leads and the mint is an accent
   const slab = 3.6;
   const w = r.maxX - r.minX;
   const d = r.maxZ - r.minZ;

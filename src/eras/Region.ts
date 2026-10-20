@@ -20,6 +20,9 @@ import * as THREE from 'three';
 import { PALETTE, PLAYER, TIMING, rect } from '../config';
 import { createMatModel, createPadSign, createShopSign } from '../assets/pads';
 import { createDepotModel, createDockModel } from '../assets/eraMachines';
+import { createSurveyKit, KIT_CRATES } from '../assets/surveyKit';
+import { vcMat } from '../render/batch';
+import type { ColliderHandle } from '../world/Colliders';
 import type { MaterialKind, GameContext, ItemKind } from '../core/types';
 import type { WorldSnapshot } from '../core/Save';
 import { Pile } from '../items/Pile';
@@ -62,6 +65,9 @@ interface SlotSite {
   machine: Machine | null;
 }
 
+const kitM = new THREE.Matrix4();
+const kitZero = new THREE.Vector3(0, 0, 0);
+
 export class Region implements RegionRuntime {
   readonly era: number;
   readonly layout: RegionLayout;
@@ -86,6 +92,9 @@ export class Region implements RegionRuntime {
   private readonly slots: SlotSite[] = [];
   /** 0.9.5: one level pad per machine type, beside the first built machine of that type (slot index). */
   private readonly levelPads = new Map<MachineId, { pad: EraLevelPad; slot: number }>();
+  /** 0.9.13 (E10): the empty slots' survey kits (two mirrored variants, one instance per slot) and their crate colliders. */
+  private readonly kits: THREE.InstancedMesh[];
+  private readonly kitColliders: (ColliderHandle | null)[];
   private readonly sign: THREE.Mesh;
   /** 0.9.6 (F6): "COUNTERS FULL" over the export depot while it sells straight away at the plain depot price. */
   readonly fullSign: THREE.Mesh;
@@ -182,6 +191,17 @@ export class Region implements RegionRuntime {
       });
       this.slots.push({ index: i, lotPad, zone, pad: null, pads: [], machine: null });
     });
+    // 0.9.13 (E10): an empty slot shows a survey kit (stakes, a flag, crates), as instances of two mirrored variants
+    this.kits = [false, true].map((mirror) => {
+      const m = new THREE.InstancedMesh(createSurveyKit(era, mirror), vcMat(), Math.max(1, L.slots.length));
+      m.name = `region${era}:surveyKits`;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.count = L.slots.length;
+      this.root.add(m);
+      return m;
+    });
+    this.kitColliders = L.slots.map(() => null);
     this.belts = new EraBelts(ctx, this);
     for (const S of this.slots) this.refreshSlot(S, true);
     this.syncLevelPads(true);
@@ -258,6 +278,28 @@ export class Region implements RegionRuntime {
     return this.ctx.state.eras.regions[this.era]!.slots[i]!;
   }
 
+  /** 0.9.13 (E10): slot `i`'s survey kit on (no machine standing yet) or off, with its crate stack's collider. */
+  private showKit(i: number, on: boolean): void {
+    const p = this.layout.slots[i]!;
+    const kit = this.kits[i % 2]!;
+    const other = this.kits[(i + 1) % 2]!;
+    kitM.makeRotationY(p.yaw).setPosition(p.x, 0, p.z);
+    if (!on) kitM.scale(kitZero);
+    kit.setMatrixAt(i, kitM);
+    other.setMatrixAt(i, kitM.makeScale(0, 0, 0));
+    kit.instanceMatrix.needsUpdate = true;
+    other.instanceMatrix.needsUpdate = true;
+    kit.computeBoundingSphere();
+    const cur = this.kitColliders[i];
+    if (on && !cur) {
+      const c = toWorld(p, p.yaw, (i % 2 ? -1 : 1) * KIT_CRATES.u, KIT_CRATES.v);
+      this.kitColliders[i] = this.ctx.colliders.addBox(rect(c.x, c.z, KIT_CRATES.half * 2, KIT_CRATES.half * 2), `era:${this.era}:kit`);
+    } else if (!on && cur) {
+      this.ctx.colliders.remove(cur);
+      this.kitColliders[i] = null;
+    }
+  }
+
   /** Slot centre as a world point (effects, events). */
   private slotPos(i: number): THREE.Vector3 {
     const p = this.layout.slots[i]!;
@@ -267,6 +309,7 @@ export class Region implements RegionRuntime {
   /** Show exactly what the slot's state says: BUILD tile, construction pad, or the machine. */
   private refreshSlot(S: SlotSite, instant: boolean): void {
     const st = this.state(S.index);
+    this.showKit(S.index, st.tier < 0 || st.machine === '');
     if (st.machine === '') {
       S.pad?.hide();
       S.lotPad.show(instant);

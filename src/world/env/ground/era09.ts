@@ -14,6 +14,11 @@ import { landmarkDiscs, landmarkRect89, placeLandmark89 } from './landmarks8to9'
 import { aquaPool, beltSpots, greenBorder, cask, cellMarks, crystalCluster, harvestFree, inset, mintGlaze, mintPine, pathLamp, pathLampSpots, slab, FLOOR_Y, beltSnow, harvestDrifts, snowVerge } from './lateKit';
 
 const N = 9;
+/** 0.9.13 (E3): white concrete and hazard stripes, so era 9 is not one green by day. */
+const CONCRETE = 0xe2e5e3;
+const HAZARD = 0xe8c547;
+const HAZARD_D = 0x4a4d50;
+const STRIPE = 0.9;
 
 export const era09: EraGroundModule = {
   keepOut: (l) => [...landmarkRect89(l, 9), ...warmSpotRect(l, 9)],
@@ -67,7 +72,7 @@ export const era09: EraGroundModule = {
     const p = palette(N);
     const Z = l.zones;
     const yard = inset(Z.yard, 0.6);
-    if (yard) slab(k.floor, yard, mixHex(p.floor.processing, SNOW, 0.15));
+    if (yard) slab(k.floor, yard, CONCRETE); // 0.9.13 (E3): white concrete, not a third mint
     const proc = inset(Z.processing, 0.6);
     if (proc) mintGlaze(k.floor, k.glow, proc, rng);
     cellMarks(k.floor, l, P, mixHex(mixHex(p.accent, p.floor.yard, 0.25), p.floor.yard, 0.7)); // 0.9.12 (T3): ~30% contrast
@@ -76,11 +81,17 @@ export const era09: EraGroundModule = {
       if (r) slab(k.floor, r, mixHex(p.floor.board, SNOW, t));
     }
     for (const q of regionPaths(l)) {
-      slab(k.floor, q, mixHex(p.floor.processing, SNOW, 0.45), FLOOR_Y + 0.002);
+      slab(k.floor, q, mixHex(CONCRETE, SNOW, 0.35), FLOOR_Y + 0.002);
+      // 0.9.13 (E3): hazard-striped kerbs (yellow and charcoal) instead of a second mint line
       const alongX = q.maxX - q.minX > q.maxZ - q.minZ;
+      const len = alongX ? q.maxX - q.minX : q.maxZ - q.minZ;
       for (const s of [-1, 1]) {
-        if (alongX) k.floor.add(geo.box(q.maxX - q.minX, 0.004, 0.16), p.accent, (q.minX + q.maxX) / 2, FLOOR_Y + 0.006, s < 0 ? q.minZ + 0.08 : q.maxZ - 0.08);
-        else k.floor.add(geo.box(0.16, 0.004, q.maxZ - q.minZ), p.accent, s < 0 ? q.minX + 0.08 : q.maxX - 0.08, FLOOR_Y + 0.006, (q.minZ + q.maxZ) / 2);
+        for (let t = 0, i = 0; t < len - 0.05; t += STRIPE, i++) {
+          const w = Math.min(STRIPE, len - t);
+          const c = i % 2 ? HAZARD : HAZARD_D;
+          if (alongX) k.floor.add(geo.box(w, 0.004, 0.16), c, q.minX + t + w / 2, FLOOR_Y + 0.006, s < 0 ? q.minZ + 0.08 : q.maxZ - 0.08);
+          else k.floor.add(geo.box(0.16, 0.004, w), c, s < 0 ? q.minX + 0.08 : q.maxX - 0.08, FLOOR_Y + 0.006, q.minZ + t + w / 2);
+        }
       }
     }
     // every floor sits in the snow: white verges with soft drifts heaped along them
