@@ -4,6 +4,17 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
+## Unreleased
+
+### Livelier harvest fields
+
+- **Worked fields.** Every era's harvest field now looks dug and worked: terraced quarry benches and a haul ramp in eras 2 to 6, a row of oil derricks in era 7, a sand terrace in era 8, a hazard-striped concrete wall in era 9 and a rocky crater rim in era 10. The heaps, slabs, ridges and pools come in three sizes and sit at their own angles instead of a neat grid.
+- **Things at work.** Each field has two working props: a crane swinging its load over the pit, an ore cart running along the top bench, a turning headframe wheel, a flickering flare, or scanner drones drifting over the dunes, the pits and the crater.
+- **Trodden paths.** A worn track runs from each hand node toward the yard, with cart ruts from the ramp.
+- **Empty machine slots look like building sites.** Survey stakes and string, a flag and a stack of crates wait on every slot until its machine goes up.
+- **Fliers have shadows.** The sleigh, the airship and the drones cast a soft shadow on the ground, so they read as flying, not parked on a roof or in the market lane.
+- **Era 9 in white and yellow.** The Nuclear era gets white concrete and hazard-striped kerbs by day and a deep blue night sky, so its green glow stands out.
+
 ## 0.9.12 (2026-10-20)
 
 Easier pickups, a guide arrow that follows the path, bigger and livelier towns, a belt for every machine, and the whole game playable with a keyboard, a controller or a phone.

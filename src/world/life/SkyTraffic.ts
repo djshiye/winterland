@@ -215,8 +215,8 @@ function blobTexture(): THREE.Texture | null {
   const g = cv.getContext('2d');
   if (!g) return null;
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  grad.addColorStop(0, 'rgba(255,255,255,0.85)');
-  grad.addColorStop(0.5, 'rgba(255,255,255,0.45)');
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.55, 'rgba(255,255,255,0.6)');
   grad.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 64);
@@ -241,7 +241,7 @@ export class SkyTraffic {
       color: 0x2a2440,
       map: tex,
       transparent: true,
-      opacity: tex ? 0.32 : 0.12,
+      opacity: tex ? 0.5 : 0.12,
       depthWrite: false,
       polygonOffset: true,
       polygonOffsetFactor: -2,
