@@ -17,6 +17,9 @@
  * network (eras/traffic.ts: in from the city or the next link road, along the drive lane, into the stop lane's queue,
  * back out and on down the road), turns its nose along it, and only appears or disappears where the camera can't see
  * it (npc/vehicleView.ts). On the drive lane a vehicle keeps its distance behind any other buyer (of any era).
+ * 0.9.13 (review B5): each vehicle keeps the route it was given until it is gone. A new era opening a link road
+ * rebuilds the route for new vehicles only: before, every vehicle on the road kept its distance along the route, which
+ * on the new (longer) route was a point up to 80 m away, so all of them jumped in one frame.
  */
 import * as THREE from 'three';
 import { TIMING, TRADE_POST } from '../config';
@@ -29,7 +32,7 @@ import type { CharacterRig } from '../render/characters';
 import { Pile } from '../items/Pile';
 import { transferOne } from '../items/transfer';
 import { MATERIAL_KINDS, type MaterialKind } from '../eras/data';
-import { buyerRoute, headingAt, pointAt, roadOpenAt, type BuyerRoute } from '../eras/traffic';
+import { buyerRoute, headingAt, pointAt, queueSlots, roadOpenAt, type BuyerRoute } from '../eras/traffic';
 import { CROSSERS } from '../city/roadRoute';
 import type { XZ } from '../eras/layout';
 import { inView, trackVehicle, untrackVehicle } from './vehicleView';
@@ -43,6 +46,8 @@ export interface BuyerPost {
   readonly x: number;
   /** The road in front of the market (regionLayout(n).road): the vehicles' route runs along it. */
   readonly road: string;
+  /** 0.9.13: the market gate's x (the shoppers' walk across the road): no vehicle in line parks across it. */
+  readonly gateX?: number;
   /** Vehicle paints (2 variants). */
   readonly colors: readonly [number, number];
   /** What a truck asks for at an empty counter (the era's main product). */
@@ -71,6 +76,8 @@ class Truck {
   timer = 0;
   /** Waiting in view at the route's end (it vanishes once the camera looks away). */
   parked = false;
+  /** 0.9.13: the route this vehicle drives (the one current when it appeared). */
+  route!: BuyerRoute;
   readonly id: string;
   /** This trip's id for the traffic checks (pooled vehicles get a new one every spawn). */
   trip = '';
@@ -101,8 +108,11 @@ const FOLLOW_STOP = 5.2;
 const FOLLOW_SLOW = 9;
 /** Every era's vehicles out on the roads (they share the drive lanes), for keeping distance. */
 const ROAD_TRUCKS = new Set<Truck>();
-/** A vehicle stops this far (centre to walker) behind someone crossing in its path, that wide either side of it. */
-const CROSS_STOP = 2.8;
+/**
+ * A vehicle stops this far (centre to walker) behind someone crossing in its path, that wide either side of it.
+ * 0.9.13: 3.6 (was 2.8, which left a pony's nose 15 cm from the walker; npc/EraShoppers.ts).
+ */
+const CROSS_STOP = 3.6;
 const CROSS_SIDE = 1.6;
 const ACCEL = 6;
 const DECEL = 8;
@@ -164,31 +174,31 @@ export class EraBuyers {
     const age = this.ctx.state?.eras?.age ?? this.post.era;
     if (!this.route || this.routeAge !== age) {
       this.routeAge = age;
-      this.route = buyerRoute(this.post.road, this.post.x - TRUCK_BED_X, TRADE_POST.maxQueue, TRADE_POST.spacing, (id) => roadOpenAt(Math.max(age, this.post.era), id));
+      const slots = queueSlots(this.post.x - TRUCK_BED_X, TRADE_POST.maxQueue, TRADE_POST.spacing, this.post.gateX);
+      this.route = buyerRoute(this.post.road, slots, (id) => roadOpenAt(Math.max(age, this.post.era), id));
     }
     return this.route;
   }
 
-  private slotS(i: number): number {
-    return this.currentRoute().sFront - i * TRADE_POST.spacing;
+  private slotS(t: Truck, i: number): number {
+    return t.route.slots[i]!;
   }
 
   update(dt: number): void {
     if (dt <= 0) return;
     this.spawnStep(dt);
     for (let i = 0; i < this.queue.length; i++) this.stepQueued(this.queue[i]!, i, dt);
-    const r = this.currentRoute();
     for (let i = this.leaving.length - 1; i >= 0; i--) {
       const t = this.leaving[i]!;
       this.stepLeaving(t, dt);
       // gone only where nobody sees it go: past the pull-out and off screen (or at the route's end, once off screen)
-      if (t.s >= r.sOut && !this.seen(t.s)) this.despawn(i);
+      if (t.s >= t.route.sOut && !this.seen(t.route, t.s)) this.despawn(i);
     }
   }
 
-  /** True when a vehicle at route distance `s` would show on screen. */
-  private seen(s: number): boolean {
-    const p = pointAt(this.currentRoute(), s, tmpXZ);
+  /** True when a vehicle at distance `s` along route `r` would show on screen. */
+  private seen(r: BuyerRoute, s: number): boolean {
+    const p = pointAt(r, s, tmpXZ);
     return inView(this.ctx, p.x, p.z, VIEW_R);
   }
 
@@ -199,7 +209,7 @@ export class EraBuyers {
   private spawnS(): number | null {
     const r = this.currentRoute();
     for (let s = r.sMerge - 2; s >= 0; s -= 1.5) {
-      if (this.seen(s)) continue;
+      if (this.seen(r, s)) continue;
       const p = pointAt(r, s, tmpXZ);
       let clear = true;
       for (const o of ROAD_TRUCKS) {
@@ -237,6 +247,7 @@ export class EraBuyers {
       t = new Truck(this.ctx, model, rig, variant, `npc:trader${this.post.era}:${this.spawned}`);
     }
     t.mode = 'queue';
+    t.route = this.currentRoute();
     t.s = at;
     t.speed = TRADE_POST.driveSpeed * 0.8;
     t.want = Math.min(BED_MAX, Math.round(Math.min(TRADE_POST.maxWant, randRange(TRADE_POST.want[0] - 0.49, TRADE_POST.want[1] + 0.49)) * scale.size));
@@ -307,7 +318,7 @@ export class EraBuyers {
    * when the way is clear (or once in this market's own stop lane, where the queue slots space vehicles).
    */
   private follow(t: Truck): number {
-    const r = this.currentRoute();
+    const r = t.route;
     const p = pointAt(r, t.s, tmpXZ);
     const h = headingAt(r, t.s, tmpH);
     let cap = Infinity;
@@ -334,7 +345,7 @@ export class EraBuyers {
   }
 
   private stepQueued(t: Truck, index: number, dt: number): void {
-    t.atSlot = this.driveTo(t, this.slotS(index), dt);
+    t.atSlot = this.driveTo(t, this.slotS(t, index), dt);
     this.animate(t, dt);
     if (index !== 0 || !t.atSlot) return;
     if (t.mode === 'queue') this.serve(t, dt);
@@ -413,7 +424,7 @@ export class EraBuyers {
   }
 
   private stepLeaving(t: Truck, dt: number): void {
-    const end = this.currentRoute().length;
+    const end = t.route.length;
     // on down the road; at the route's end (a road end) it waits until the camera looks away
     const vmax = Math.min(TRADE_POST.driveSpeed * 1.15, this.follow(t), Math.sqrt(2 * DECEL * Math.max(0, end - t.s)));
     t.speed = approach(t.speed, vmax, (t.speed > vmax ? DECEL : ACCEL) * dt);
@@ -436,7 +447,7 @@ export class EraBuyers {
   }
 
   private pose(t: Truck): void {
-    const r = this.currentRoute();
+    const r = t.route;
     const p = pointAt(r, t.s, tmpXZ);
     t.model.root.position.set(p.x, 0, p.z);
     const h = headingAt(r, t.s, tmpH);

@@ -42,9 +42,9 @@ import type { MachineRuntime, RegionRuntime } from '../eras/runtime';
 import type { RegionLayout, XZ } from '../eras/layout';
 import { CharacterRig } from '../render/characters';
 import { cityLotAccess, lotCash, lotNeeds, type PayPad } from '../city/lotAccess';
-import { CROSSERS, cityRoute, gateRoadSpot, inRect, kerbWait, lotStandSpot, type KerbVehicle } from '../city/roadRoute';
+import { CROSSERS, cityRoute, gateRoadSpot, inRect, kerbWait, lotStandSpot } from '../city/roadRoute';
 import { ROADS } from '../eras/data';
-import { liveVehicles } from './vehicleView';
+import { trafficNow } from './vehicleView';
 
 // --- tuning -------------------------------------------------------------------------------------------------------
 const ACCEL = 12;
@@ -1198,35 +1198,6 @@ export class EraWorker {
       if (this.look) this.yaw = dampAngle(this.yaw, yawFromDir(this.look.x - p.x, this.look.z - p.z), TURN_LAMBDA, dt);
     }
     this.rig.root.rotation.y = this.yaw;
-  }
-}
-
-const _f = new THREE.Vector3();
-const _v = new THREE.Vector3();
-
-/** Each vehicle's last sampled place and the speed measured since (m/s; NaN until a second sample). */
-const seen = new Map<string, { x: number; z: number; t: number; speed: number }>();
-/** Shortest gap between two speed samples of one vehicle (s). */
-const SAMPLE_GAP = 0.15;
-
-/**
- * Every live vehicle's place, heading and speed, for the kerb check (read lazily: only once a worker stands at a kerb).
- * The speed is measured from its own movement, so a cart stopped in a queue or at a depot reads 0.
- */
-function* trafficNow(now: number): Generator<KerbVehicle> {
-  if (seen.size > 256) seen.clear(); // ids are per spawn: forget the long gone now and then
-  for (const v of liveVehicles()) {
-    v.facing(_f);
-    v.root.getWorldPosition(_v);
-    let s = seen.get(v.id);
-    if (!s) seen.set(v.id, (s = { x: _v.x, z: _v.z, t: now, speed: NaN }));
-    else if (now - s.t >= SAMPLE_GAP) {
-      s.speed = Math.hypot(_v.x - s.x, _v.z - s.z) / (now - s.t);
-      s.x = _v.x;
-      s.z = _v.z;
-      s.t = now;
-    }
-    yield { x: _v.x, z: _v.z, fx: _f.x, fz: _f.z, speed: s.speed, yields: v.kind.startsWith('eraBuyer') };
   }
 }
 

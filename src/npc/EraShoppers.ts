@@ -11,6 +11,10 @@
  * 0.9.12: shoppers no longer pop in at the gate and fade out on the road in plain view. They walk in along the snowy
  * verge beside the road from a point the camera can't see, cross to the gate, and leave the same way, vanishing only
  * once out of sight (npc/vehicleView.ts).
+ * 0.9.13 (review B1, B7): a shopper leaves toward the far side of the road (never a road end a few metres off, where it
+ * stood in plain view for good while the next ones piled up on it), walks on until it is out of sight, waits at the kerb
+ * while a vehicle comes, and the buyers brake for it on the road (city/roadRoute.ts CROSSERS). One still in view at the
+ * far end after STAND_MAX seconds, or the oldest past LEAVE_MAX leaving, fades out, so the leaving list never grows.
  */
 import * as THREE from 'three';
 import { PLAYER, TIMING, TRADE_POST } from '../config';
@@ -24,13 +28,33 @@ import { createSpeechBubble, type SpeechBubble } from '../assets/shop';
 import { MATERIAL_KINDS, type MaterialKind } from '../eras/data';
 import type { XZ } from '../eras/layout';
 import { buyerScale } from './EraBuyers';
-import { ROADS } from '../eras/data';
-import { inView } from './vehicleView';
+import { ROADS, type ERect } from '../eras/data';
+import { CROSSERS, inRect, kerbWait, type KerbVehicle } from '../city/roadRoute';
+import { inView, trafficNow } from './vehicleView';
 
 /** Shoppers walk the snow this far outside the road's outer edge (parked buyers fill the road's outer lane). */
 const VERGE = 0.7;
-/** How far along the verge a shopper may come from or go to. */
+/** How far along the verge a shopper may come from. */
 const WALK_FAR = 48;
+/** 0.9.13 (B1): a leaving shopper walks on along the verge up to this far (it vanishes once out of sight on the way) … */
+const LEAVE_FAR = 120;
+/** … toward a side with at least this much road (era II, VIII, IX: the road ends a few metres east of the gate). */
+const LEAVE_MIN = 30;
+/** Seconds a shopper may stand in view at the verge's far end before it fades, and the most leaving at once. */
+const STAND_MAX = 20;
+const LEAVE_MAX = 12;
+const FADE = 1;
+/** Seconds a shopper waits at the kerb for traffic before it crosses anyway (npc/EraWorker.ts KERB_PATIENCE). */
+const KERB_PATIENCE = 12;
+/**
+ * The kerb check treats the road as this much wider on both sides: a shopper waits on the verge itself, and a step back
+ * inside the gate (which opens right on the road's edge), clear of a vehicle going by in the near lane.
+ */
+const KERB_GROW = 0.4;
+/** The buyers see a crossing shopper this far ahead along its walk (m), so a vehicle in the far lane brakes in time. */
+const CROSS_AHEAD = 1.5;
+/** A shopper behind one waiting at the kerb stops this far back (m). */
+const KERB_GAP = 0.75;
 /** Seconds a shopper rests in the pool before it walks in again. */
 const REST = 2;
 
@@ -64,6 +88,16 @@ const ACCEL = 12;
 const TURN = 14;
 const tmp = new THREE.Vector3();
 
+/**
+ * Traffic as a shopper sees it: every vehicle on the move counts, the buyers too (they brake for people on the road, but
+ * one in the near lane only sees a shopper step out at the last moment, so shoppers let them pass), measured from the
+ * front of the vehicle (a cart moving up its line has its pony a couple of metres ahead of its middle).
+ */
+function* carefully(vehicles: Iterable<KerbVehicle>): Generator<KerbVehicle> {
+  for (const v of vehicles) yield { ...v, x: v.x + v.fx * NOSE_AHEAD, z: v.z + v.fz * NOSE_AHEAD, yields: false };
+}
+const NOSE_AHEAD = 1.6;
+
 class Shopper {
   readonly group = new THREE.Group();
   readonly rig: CharacterRig;
@@ -83,6 +117,12 @@ class Shopper {
   timer = 0;
   bubbleOn = false;
   bob = Math.random() * 10;
+  /** Seconds waited at the kerb, stood in view at the verge's end, and the fade-out left (0: not fading). */
+  kerb = 0;
+  stood = 0;
+  fade = 0;
+  /** Where the buyers see this shopper while it crosses (CROSSERS): a step ahead, so they brake as it steps out. */
+  readonly cross: XZ = { x: 0, z: 0 };
 
   constructor(ctx: GameContext, id: string, variant: number, era: number) {
     this.rig = createCharacterRig('customer', variant, era);
@@ -104,6 +144,9 @@ export class EraShoppers {
   private readonly freedAt = new Map<Shopper, number>();
   private clock = 0;
   private created = 0;
+  private roadRect: ERect | null | undefined;
+  /** The carriageway the kerb check looks at (the road, KERB_INSET in from its edges). */
+  private lane: ERect | null = null;
   private spawnTimer = 0.8;
 
   constructor(
@@ -134,16 +177,26 @@ export class EraShoppers {
     for (let i = this.leaving.length - 1; i >= 0; i--) this.despawn(i);
   }
 
+  /** The road in front of the market (null without one: tests). */
+  private road(): ERect | null {
+    if (this.roadRect === undefined) {
+      const r = (this.stall.road ? ROADS.find((q) => q.id === this.stall.road)?.rect : undefined) ?? null;
+      this.roadRect = r;
+      this.lane = r && { minX: r.minX, maxX: r.maxX, minZ: r.minZ - KERB_GROW, maxZ: r.maxZ + KERB_GROW };
+    }
+    return this.roadRect;
+  }
+
   /** The verge line's z (the road's outer edge, VERGE beyond it), or the gate's z without a road. */
   private vergeZ(): number {
-    const r = this.stall.road ? ROADS.find((q) => q.id === this.stall.road)?.rect : undefined;
+    const r = this.road();
     if (!r) return this.stall.door.z;
     return this.stall.inward > 0 ? r.minZ - VERGE : r.maxZ + VERGE;
   }
 
   /** The verge's x span (the road's length). */
   private vergeSpan(): [number, number] {
-    const r = this.stall.road ? ROADS.find((q) => q.id === this.stall.road)?.rect : undefined;
+    const r = this.road();
     return r ? [r.minX + 1, r.maxX - 1] : [this.stall.door.x, this.stall.door.x];
   }
 
@@ -175,8 +228,28 @@ export class EraShoppers {
     if (dt <= 0) return;
     this.spawnStep(dt);
     for (let i = 0; i < this.queue.length; i++) this.stepQueued(this.queue[i]!, i, dt);
+    // B1: never more than LEAVE_MAX on their way out (the oldest fades first)
+    for (let i = 0, over = this.leaving.length - LEAVE_MAX; i < this.leaving.length && over > 0; i++) {
+      const c = this.leaving[i]!;
+      if (c.fade > 0) over--;
+      else if (c.path.length <= 1) {
+        c.fade = FADE;
+        over--;
+      }
+    }
     for (let i = this.leaving.length - 1; i >= 0; i--) {
       const c = this.leaving[i]!;
+      if (c.fade > 0) {
+        c.fade -= dt;
+        c.speed = approach(c.speed, 0, ACCEL * dt);
+        c.group.scale.setScalar(Math.max(0.001, c.fade / FADE));
+        if (c.fade <= 0) {
+          this.despawn(i);
+          continue;
+        }
+        this.animate(c, dt);
+        continue;
+      }
       const done = this.walk(c, dt, true);
       // gone only out of sight: on the verge walk away (or at its end, once the camera looks away)
       const p = c.group.position;
@@ -184,7 +257,12 @@ export class EraShoppers {
         this.despawn(i);
         continue;
       }
-      if (done) c.speed = 0;
+      if (done) {
+        c.speed = 0;
+        c.velocity.set(0, 0, 0);
+        // B1: still in view at the far end after a while: a gentle fade (never a pile of shoppers there)
+        if ((c.stood += dt) >= STAND_MAX) c.fade = FADE;
+      }
       if (c.bubbleOn) {
         c.timer -= dt;
         if (c.timer <= 0) {
@@ -222,6 +300,9 @@ export class EraShoppers {
     c.takeTimer = 0;
     c.idle = 0;
     c.timer = 0;
+    c.kerb = 0;
+    c.stood = 0;
+    c.fade = 0;
     c.bubbleOn = false;
     c.bubble.sprite.visible = false;
     c.stack.clear();
@@ -246,6 +327,7 @@ export class EraShoppers {
   private despawn(i: number): void {
     const c = this.leaving[i]!;
     this.leaving.splice(i, 1);
+    CROSSERS.delete(c.cross);
     c.stack.clear();
     this.ctx.tweens.killTweensOf(c.bubble.sprite);
     this.ctx.tweens.killTweensOf(c.group);
@@ -343,9 +425,13 @@ export class EraShoppers {
     else {
       const vz = this.vergeZ();
       const [lo, hi] = this.vergeSpan();
-      const dir = Math.random() < 0.5 ? 1 : -1;
-      const far = Math.max(lo, Math.min(hi, s.door.x + dir * WALK_FAR));
-      c.path = [s.entry, s.door, { x: s.door.x, z: vz }, { x: far, z: vz }];
+      // B1: either way along the road, but never toward a road end a few metres off (the shopper stood there in view)
+      const room = (d: number): number => (d > 0 ? hi - s.door.x : s.door.x - lo);
+      let dir = Math.random() < 0.5 ? 1 : -1;
+      if (room(dir) < LEAVE_MIN && room(-dir) > room(dir)) dir = -dir;
+      const far = Math.max(lo, Math.min(hi, s.door.x + dir * LEAVE_FAR));
+      // onto the verge a step toward where it is going, clear of anyone waiting there to cross the other way
+      c.path = [s.entry, s.door, { x: s.door.x + dir * 1.0, z: vz }, { x: far, z: vz }];
     }
     this.leaving.push(c);
   }
@@ -356,11 +442,58 @@ export class EraShoppers {
     const p = c.path[0];
     if (!p) return true;
     const last = c.path.length === 1;
+    const lane = this.road() && this.lane;
+    if (lane) {
+      // B7: wait at the kerb while a vehicle comes, and once out on the road the buyers brake for us
+      const at = c.group.position;
+      const wait = kerbWait(at, p, [lane], carefully(trafficNow(this.ctx.time.elapsed)));
+      if (wait && c.kerb < KERB_PATIENCE) {
+        c.kerb += dt;
+        c.speed = 0;
+        c.velocity.set(0, 0, 0);
+        c.yaw = dampAngle(c.yaw, yawFromDir(p.x - at.x, p.z - at.z), TURN, dt);
+        c.rig.root.rotation.y = c.yaw;
+        return false;
+      }
+      if (!wait) c.kerb = 0;
+      // one waiting at the kerb right ahead: wait behind them, not on their spot (never out on the road)
+      if (!inRect(lane, at) && this.kerbQueue(c, p)) {
+        c.speed = 0;
+        c.velocity.set(0, 0, 0);
+        return false;
+      }
+      if (inRect(lane, at)) {
+        const d = Math.hypot(p.x - at.x, p.z - at.z) || 1;
+        const k = Math.min(CROSS_AHEAD, d) / d;
+        c.cross.x = at.x + (p.x - at.x) * k;
+        c.cross.z = at.z + (p.z - at.z) * k;
+        CROSSERS.add(c.cross);
+      } else CROSSERS.delete(c.cross);
+    }
     if (this.moveToward(c, p.x, p.z, dt, !last || leaving)) {
       c.path.shift();
       if (c.path.length === 0) return true;
     }
     if (leaving) c.rig.root.rotation.y = c.yaw;
+    return false;
+  }
+
+  /** True while another shopper waits at the kerb just ahead of `c` on its way to `to`. */
+  private kerbQueue(c: Shopper, to: XZ): boolean {
+    const at = c.group.position;
+    const dx = to.x - at.x;
+    const dz = to.z - at.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.05) return false;
+    for (const list of [this.queue, this.leaving]) {
+      for (const o of list) {
+        if (o === c || o.kerb <= 0) continue;
+        const ox = o.group.position.x - at.x;
+        const oz = o.group.position.z - at.z;
+        const along = (ox * dx + oz * dz) / len;
+        if (along > 0 && along < KERB_GAP && Math.abs(ox * dz - oz * dx) / len < 0.45) return true;
+      }
+    }
     return false;
   }
 
