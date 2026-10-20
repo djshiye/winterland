@@ -135,7 +135,7 @@ export class AgeCard {
       }),
     );
     this.placeEl.textContent = `Greetings from ${e.region}!`;
-    this.ruleEl.textContent = ERAS[n + 1] ? gateRuleText(n + 1) : `Raise ${e.region}'s machines, crew and upgrades to Lv ${gateNeed(n)}.`;
+    this.ruleEl.textContent = ERAS[n + 1] ? gateRuleText(n + 1) : `Raise the ${e.region} machines, crew and upgrades to Lv ${gateNeed(n)}.`;
     setEraAccent(this.root, n);
     this.stay = 0;
     this.hovered = false;

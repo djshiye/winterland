@@ -466,7 +466,7 @@ export class SettingsPanel {
 
     // Game
     const pg = page('game');
-    this.holdSwitch = sw(pg, 'Hold to interact', 'Hold E, Space or press to pick up and pay', () => {
+    this.holdSwitch = sw(pg, 'Hold to interact', 'Hold E, Space or A to pick up and pay', () => {
       ctx.audio.play('click');
       const on = !ctx.input.holdToInteract;
       ctx.input.setHoldToInteract(on);
@@ -488,7 +488,7 @@ export class SettingsPanel {
     const padList = h('div', 'wl-controls-list');
     for (const [keys, what] of PAD_CONTROLS) padList.appendChild(h('div', 'wl-controls-item', `<b>${keys}</b> ${what}`));
     controls.appendChild(padList);
-    controls.appendChild(h('div', 'wl-controls-note', 'Drop-offs happen on their own. Walk over cash to bank it.'));
+    controls.appendChild(h('div', 'wl-controls-note', 'Drop-offs and cash need no key: just walk up to them.'));
     pg.appendChild(controls);
     // 0.9.11: the Guidebook (every good, machine, crew and rule of the eras reached so far)
     const bookBtn = h('button', 'wl-btn wl-btn-green wl-book-open', 'Open the Guidebook');

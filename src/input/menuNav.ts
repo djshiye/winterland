@@ -123,6 +123,11 @@ function isTypingTarget(el: Element | null): boolean {
   return tag === 'INPUT' && (el as HTMLInputElement).type !== 'range' && (el as HTMLInputElement).type !== 'checkbox';
 }
 
+/** A one-line text box (text, search ...), where Up / Down would only jump the caret to an end. */
+function lineInput(el: Element | null): boolean {
+  return el instanceof HTMLInputElement && ['text', 'search', 'email', 'url', 'tel', 'password'].includes(el.type);
+}
+
 export class MenuNav {
   private lastModal: Element | null = null;
   private acc = 0;
@@ -334,7 +339,9 @@ export class MenuNav {
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const target = e.target instanceof Element ? e.target : null;
-    if (isTypingTarget(target)) return;
+    // 0.9.12: a one-line text box (the guidebook search) has no use for Up / Down, so they step on out of it
+    // (Left / Right and every other key still type and move the caret)
+    if (isTypingTarget(target) && !(lineInput(target) && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))) return;
     if (e.key === 'Tab') {
       // Tab steps into an open menu (a sheet too) and never out of it
       if (this.cycle(e.shiftKey)) e.preventDefault();

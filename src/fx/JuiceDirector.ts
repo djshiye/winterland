@@ -399,7 +399,7 @@ export class JuiceDirector {
           ctx.audio.play('fanfare', { volume: 0.8 });
           const n = burstCount(50);
           if (n > 0) ctx.particles.confetti(this.playerSpot(this.tmp), n);
-          ctx.hud.toast(`${ERAS[FINAL_GATE - 1]!.region} is done!`, { sub: 'The era chip shows the last pieces for 100 %', duration: 3.4 });
+          ctx.hud.toast(`${ERAS[FINAL_GATE - 1]!.region} is done!`, { sub: 'The era chip shows the last pieces for 100%', duration: 3.4 });
         }
         return;
       }

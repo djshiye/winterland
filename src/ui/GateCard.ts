@@ -336,7 +336,7 @@ export class GateCard {
     if (this.barFill.style.width !== w) this.barFill.style.width = w;
     const c = completion(s);
     this.missing = final && g.ready ? nextMissing(s) : null;
-    if (final) this.text(this.nextEl, g.ready ? 'Every upgrade is at Lv 10!' : `Then ${FINAL_NAME}: the last pieces for 100 %`);
+    if (final) this.text(this.nextEl, g.ready ? 'Every upgrade is at Lv 10!' : `Then ${FINAL_NAME}: the last pieces for 100%`);
     else this.text(this.nextEl, g.ready ? 'Every upgrade is ready!' : `Then the ${expansionCostText(n).replace(/^Expansion/, 'expansion')}`);
 
     // a pad with something already paid in stays on sale (grandfathered), whatever the checklist says

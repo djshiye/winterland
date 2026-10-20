@@ -94,7 +94,7 @@ export function starterSteps(n: number): StarterStep[] {
     d: front.maxZ - front.minZ,
     chip: 'Walk to the import dock',
   });
-  const last = n >= 10 ? `Get everything in ${era.region} to Lv 10; the era chip then shows the last pieces for 100 %` : `Get everything in ${era.region} to Lv 10 to open the next era`;
+  const last = n >= 10 ? `Get everything in ${era.region} to Lv 10, then the era chip shows the last pieces` : `Get everything in ${era.region} to Lv 10 to open the next era`;
   steps.push({ kind: 'read', text: tag(5, last), spot: null, w: 0, d: 0, chip: `Everything in ${era.region} to Lv 10` });
   return steps;
 }

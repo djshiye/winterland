@@ -22,7 +22,7 @@
  */
 import { PRIORITIES, QUARTERS, UPGRADES, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
-import { authoredMax, valueAt } from '../core/ladder';
+import { authoredMax, eraCapShown, valueAt } from '../core/ladder';
 import type { GameContext } from '../core/types';
 import { ERAS } from '../eras/data';
 import { regionLayout } from '../eras/layout';
@@ -182,7 +182,7 @@ export class ShopPanel {
     // crew priorities: the first thing on the Crew tab (the cards are appended after it)
     this.prio = h('div', 'wl-prio');
     this.woodRow = this.makePrioRow('Wood', PRIORITIES.wood, WOOD_LABEL, 'wood');
-    this.townRow = this.makePrioRow('Town', PRIORITIES.town, TOWN_LABEL, 'town');
+    this.townRow = this.makePrioRow('Shops', PRIORITIES.town, TOWN_LABEL, 'town');
     this.prio.appendChild(this.woodRow.root);
     this.prio.appendChild(this.townRow.root);
     this.prio.appendChild(h('div', 'wl-prio-hint', "Who gets the wood when it's short, and which shop the porter stocks first."));
@@ -326,7 +326,7 @@ export class ShopPanel {
     }
     const matEra = this.place < 2 && age >= 2 && ERAS[age] ? age : 0;
     this.eraMatNote.style.display = matEra ? '' : 'none';
-    if (matEra) this.eraMatText.textContent = `${ERAS[matEra]!.region}'s crew, Industry and sales upgrades are on its own shop mat.`;
+    if (matEra) this.eraMatText.textContent = `The ${ERAS[matEra]!.region} crew, Industry and sales upgrades are on its own shop mat.`;
     for (const hd of this.eraHeaders) {
       // 0.9.6 (P1-7): era headers only at their own era's mat, so the cabin never shows an empty "ERA II" header
       const here = this.place >= 2 && hd.era === this.place;
@@ -545,7 +545,9 @@ export class ShopPanel {
         for (let i = 0; i < c.pips.length; i++) c.pips[i]!.classList.toggle('on', i < lvl);
       }
       if (c.lv && !climb) {
-        const lv = `Lv ${lvl}/${up.maxLevel(id)}`;
+        // 0.9.12 (M3): before the Great Lodge the cap is below 10, while the guidebook says Lv 10: say when 10 comes
+        const max = up.maxLevel(id);
+        const lv = max < eraCapShown() ? `Lv ${lvl}/${max} · 10 after the Lodge` : `Lv ${lvl}/${max}`;
         if (c.lv.textContent !== lv) c.lv.textContent = lv;
       }
       if (climb) {

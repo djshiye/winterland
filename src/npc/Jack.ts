@@ -15,7 +15,7 @@
  * - The yard cart (id 'jack:yard') stays hidden, with its zone and collider off, until state.flags.shopRevealed.
  */
 import * as THREE from 'three';
-import { JACK, MATERIALS, isMaterial } from '../eras/data';
+import { JACK, MATERIALS, isMaterial, lowerLabel } from '../eras/data';
 import { TIMING, UPGRADES, type Rect } from '../config';
 import { createJackCartModel, createJackModel, type JackCartModel } from '../assets/jack';
 import { dampAngle, wrapAngle } from '../core/math';
@@ -77,7 +77,7 @@ export function jackColliderRect(at: XZ, yaw: number, halfW = 1.06, halfD = 0.55
 
 /** Lower-case display name of an item kind ("log", "iron ore"). */
 export function jackItemName(kind: ItemKind): string {
-  return isMaterial(kind) ? MATERIALS[kind].label.toLowerCase() : kind;
+  return isMaterial(kind) ? lowerLabel(MATERIALS[kind].label) : kind;
 }
 
 /**
