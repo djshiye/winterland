@@ -23,10 +23,10 @@ import { geo } from '../../render/materials';
 import { bulbMaterial } from '../env/glow';
 
 /** The sledding hill: an ellipsoid mound (centre, half sizes along X / Z, height), metres. */
-export const SLED_HILL = { x: 4.6, z: 45.5, rx: 3.4, rz: 6.2, h: 2.7 } as const;
+export const SLED_HILL = { x: 4.6, z: 49.6, rx: 3.4, rz: 5.8, h: 2.7 } as const;
 /** The packed track down the hill's +Z face (x), where a ride ends on the flat (z), and the way back up (x). */
 export const TRACK_X = SLED_HILL.x - 0.7;
-export const RUN_END_Z = SLED_HILL.z + SLED_HILL.rz + 4.4;
+export const RUN_END_Z = SLED_HILL.z + SLED_HILL.rz + 3.8;
 const CLIMB_X = SLED_HILL.x + 1.8;
 /** The pond's ice ellipse. */
 const POND = {

@@ -5,7 +5,7 @@ import { VILLAGE } from '../src/config';
 import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
 import { IncomeWindow, INCOME_BUCKET, INCOME_BUCKETS } from '../src/core/incomeWindow';
-import { Quests, trioRoomWarning } from '../src/core/quests';
+import { Quests, trioMakeRoomNote, trioRoomWarning } from '../src/core/quests';
 import { mergeState, sanitizeState } from '../src/core/Save';
 import { createGameState, type GameEvents, type GameState, type ItemKind } from '../src/core/types';
 import { CITY_BUILDINGS, DISTRICTS, type CityBuildingId, type CityBuildingKind } from '../src/eras/data';
@@ -81,10 +81,16 @@ describe('city choose card warns before a lot blocks the quest trio (R4)', () =>
     lots[2]!.building = ofKind(2, 'home');
     expect(trioRoomWarning(s, 2, 1, 'work')).toContain(`${homes - 1} more homes`);
     expect(trioRoomWarning(s, 2, 1, 'home')).toBeUndefined();
+    // a district already full of workplaces: say one has to come down, on the card and on the built workplace
+    for (let i = 3; i < lots.length; i++) lots[i]!.building = ofKind(2, 'work');
+    expect(trioRoomWarning(s, 2, 1, 'work')).toBe(`Your quests need ${homes - 1} more homes and the landmark here, more than the empty lots. Take down a workplace or park to make room`);
+    expect(trioMakeRoomNote(s, 2, 3, 'work')).toBe(`Your quests need ${homes - 1} more homes and the landmark here. Taking this down makes room`);
+    expect(trioMakeRoomNote(s, 2, 2, 'home')).toBeUndefined();
     // both goals done: no warning
     s.quests.trio2homes = true;
     s.quests.trio2landmark = true;
     expect(trioRoomWarning(s, 2, 1, 'work')).toBeUndefined();
+    expect(trioMakeRoomNote(s, 2, 3, 'work')).toBeUndefined();
   });
 });
 

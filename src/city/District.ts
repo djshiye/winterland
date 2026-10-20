@@ -29,7 +29,7 @@ import * as THREE from 'three';
 import { CITY_BUILDINGS, CITY_HAPPINESS_BONUS, DISTRICT_MATERIAL, ERA_NAMES, districtDef, era, type CityBuildingDef, type CityBuildingId } from '../eras/data';
 import type { ChooseOption, GameContext } from '../core/types';
 import { climbMult, settledCityTotals } from '../core/demand';
-import { trioRoomWarning } from '../core/quests';
+import { trioMakeRoomNote, trioRoomWarning } from '../core/quests';
 import { Batch } from '../render/batch';
 import { SNOW, mixHex, palette } from '../render/palette';
 import { geo } from '../render/materials';
@@ -99,6 +99,8 @@ const SURFACE: readonly (Surface | null)[] = [
 ];
 
 const PER_FRAME = 2;
+/** 0.9.12 (V4): heights (m) a tower is checked at for hiding a lot's MANAGE board (its post and its board). */
+const SIGN_HEIGHTS = [1.0, 2.2] as const;
 
 /**
  * Free a dropped construction site's own merged base geometry (each scaffold merges a fresh one). The shell's unit box
@@ -269,6 +271,9 @@ export class District {
       L.sign.position.set(foot.x, 0, foot.z);
       L.sign.visible = false;
       this.root.add(L.sign);
+      // 0.9.12 (V4): a tower in front of a built lot's MANAGE board opens up while the board shows (the player is near)
+      const sign = L.sign;
+      this.ctx.occlusion?.addTarget(sign, 1.4, () => sign.visible && (sign.material as THREE.Material).visible, SIGN_HEIGHTS);
       this.refresh(L, false);
     }
   }
@@ -428,6 +433,8 @@ export class District {
       if (def.happiness > 0) rows.push({ label: 'Happiness', value: `+${Math.round(def.happiness * 100)}%` });
     }
     rows.push({ label: 'City happiness', value: `${Math.round(t.happiness * 100)}%` });
+    const room = trioMakeRoomNote(ctx.state, this.n, L.index, def.kind);
+    if (room) rows.push({ label: 'Quests', value: room });
     return {
       key: this.key(L),
       title: def.label,

@@ -165,8 +165,12 @@ export const CAMERA = {
   distance: 70,
   /** World units visible vertically at zoom 1. */
   viewHeight: 16,
-  /** On narrow (portrait) screens never show fewer than this many units across. */
-  minViewWidth: 12,
+  /**
+   * On narrow (portrait) screens never show fewer than this many units across. 0.9.12 (P1): 16, was 12 (a 390 px phone
+   * started with the counter, cash piles and pads off-screen); a portrait phone now draws the world at the same scale as
+   * the same phone held sideways.
+   */
+  minViewWidth: 16,
   /** Exponential damping rate for follow (higher = snappier). */
   followLambda: 5,
   /** Phase-5 zoom multiplier (<1 shows more of the world). */

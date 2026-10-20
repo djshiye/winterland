@@ -1288,6 +1288,10 @@
     gap: 1px;
     font-size: 14px;
   }
+  /* 0.9.12 (P2): the heart says "town happiness" here (its label says it to screen readers), so the settlement name fits */
+  .wl-village-happy-l {
+    display: none;
+  }
   .wl-village-top {
     gap: 4px;
   }
@@ -1298,6 +1302,11 @@
   .wl-hud.has-village .wl-objective {
     top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 50px);
   }
+}
+
+/* 0.9.12: no room beside a side sheet (ui/bannerStack.ts MIN_ROOM): the banner waits until the sheet closes */
+.wl-hud .is-squeezed {
+  visibility: hidden !important;
 }
 
 /* ---- shop ------------------------------------------------------------------------------------------ */
@@ -1535,10 +1544,7 @@
   line-height: 1.15;
   font-weight: 500;
   color: var(--wl-ink-soft);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  /* 0.9.12 (V7): the whole blurb shows, never "carries extra log…" (it wraps to a third line on the narrowest phones) */
 }
 
 .wl-pips {
@@ -1581,11 +1587,10 @@
 .wl-shop-delta {
   margin-top: 3px;
   font-size: 13px;
-  line-height: 1.1;
+  line-height: 1.15;
   color: var(--wl-info-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* 0.9.12 (V7): wraps instead of cutting ("0 extra items → 2 extra i…" on phones and the side card) */
+  overflow-wrap: anywhere;
 }
 
 .wl-shop-buy {
@@ -1894,6 +1899,27 @@
   --q-top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 56px + 32px);
 }
 
+/* 0.9.12 (V13): short wide windows (800 x 600, landscape tablets): a wider, tighter list, so titles sit on one line
+   and the open list takes about a quarter of the height instead of a third (QuestPanel SHORT_SCREEN: it starts folded) */
+@media (min-width: 641px) and (max-height: 650px) {
+  .wl-quests {
+    width: min(270px, calc(100vw - 2 * var(--wl-pad) - 120px));
+  }
+  .wl-quests-body {
+    gap: 4px;
+    padding: 5px;
+  }
+  .wl-quest {
+    padding: 3px 6px 4px;
+  }
+  .wl-quest-line {
+    margin-top: 3px;
+  }
+  .wl-quest-bar {
+    height: 13px;
+  }
+}
+
 /* the shop side card / bottom sheet owns the screen while it is open */
 .wl-hud.shop-open .wl-quests {
   display: none;
@@ -2071,14 +2097,8 @@
   .wl-hud.has-quests.has-season.has-village .wl-objective {
     top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 56px + 32px + 32px);
   }
-  /* quest list open: the objective banner moves to the bottom (above the rush pill) instead of hiding under the card */
-  .wl-hud.quests-open .wl-objective,
-  .wl-hud.quests-open.has-village .wl-objective,
-  .wl-hud.quests-open.has-season .wl-objective,
-  .wl-hud.quests-open.has-season.has-village .wl-objective {
-    top: auto;
-    bottom: calc(max(var(--wl-pad), env(safe-area-inset-bottom)) + 130px);
-  }
+  /* 0.9.12 (P4): these tops are only the first frame's; ui/bannerStack.ts measures the HUD above the banner and keeps
+     it in place when the quest list opens (the list drops below it; it used to park the banner at the bottom) */
 }
 
 /* ---- wave 8: rush hour banner --------------------------------------------------------------------- */
@@ -2724,12 +2744,7 @@
   }
 }
 
-/* phones: the full-width objective banner steps below the one-line contract chip (unless it is parked at the bottom) */
-@media (max-width: 640px) {
-  .wl-hud.has-contract:not(.quests-open) .wl-objective {
-    margin-top: 36px;
-  }
-}
+/* phones: the full-width objective banner steps below the one-line contract chip: ui/bannerStack.ts measures it (0.9.12) */
 
 /* 0.9.8: narrow phones with every HUD button out (eras 2+): a smaller money pill so "$155,456" never runs under the
    stats button */

@@ -279,22 +279,45 @@ export class Quests {
   }
 }
 
+/** What era n's quest trio still wants in its district, ignoring lot `skip`: homes and the landmark, and the empty lots left. */
+function trioNeeds(s: GameState, n: number, skip: number): { homes: number; landmark: number; free: number } | null {
+  const lots = s.city.districts[n]?.lots;
+  if (!lots) return null;
+  const others = lots.filter((_, i) => i !== skip);
+  const chosen = (k: CityBuildingKind): number => others.filter((l) => l.building !== '' && CITY_BUILDINGS[l.building].kind === k).length;
+  const target = Math.max(1, (DISTRICTS[n]?.lots ?? 2) - 2);
+  return {
+    homes: s.quests[`trio${n}homes`] ? 0 : Math.max(0, target - chosen('home')),
+    landmark: s.quests[`trio${n}landmark`] || chosen('landmark') > 0 ? 0 : 1,
+    free: others.filter((l) => l.building === '').length,
+  };
+}
+
+const wantText = (homes: number, landmark: number): string =>
+  [homes > 0 ? `${homes} more home${homes === 1 ? '' : 's'}` : '', landmark ? 'the landmark' : ''].filter(Boolean).join(' and ');
+
 /**
  * 0.9.12 (R4): a heads-up on the city choose card. Era n's quest trio wants (lots − 2) homes and the landmark in its
  * district, so a park or a workplace on lot `lot` can leave too few lots and force a demolish later. Returns the
  * warning when picking a building of `kind` there would do that (undefined when it is fine or both goals are done).
+ * When even this lot can't make room any more (a district already full of workplaces), it says what has to come down.
  */
 export function trioRoomWarning(s: GameState, n: number, lot: number, kind: CityBuildingKind): string | undefined {
   if (kind === 'home' || kind === 'landmark') return undefined;
-  const lots = s.city.districts[n]?.lots;
-  if (!lots) return undefined;
-  const others = lots.filter((_, i) => i !== lot);
-  const chosen = (k: CityBuildingKind): number => others.filter((l) => l.building !== '' && CITY_BUILDINGS[l.building].kind === k).length;
-  const target = Math.max(1, (DISTRICTS[n]?.lots ?? 2) - 2);
-  const homes = s.quests[`trio${n}homes`] ? 0 : Math.max(0, target - chosen('home'));
-  const landmark = s.quests[`trio${n}landmark`] || chosen('landmark') > 0 ? 0 : 1;
-  const free = others.filter((l) => l.building === '').length;
-  if (homes + landmark <= free) return undefined;
-  const want = [homes > 0 ? `${homes} more home${homes === 1 ? '' : 's'}` : '', landmark ? 'the landmark' : ''].filter(Boolean).join(' and ');
+  const t = trioNeeds(s, n, lot);
+  if (!t || t.homes + t.landmark <= t.free) return undefined;
+  const want = wantText(t.homes, t.landmark);
+  if (t.homes + t.landmark > t.free + 1) return `Your quests need ${want} here, more than the empty lots. Take down a workplace or park to make room`;
   return `Leaves too few lots for your quests: ${want} here`;
+}
+
+/**
+ * 0.9.12 (R4, Validator note): the manage card of a built workplace or park, when the district has no room left for
+ * its quest trio (more homes and landmark wanted than empty lots), says this building can make room.
+ */
+export function trioMakeRoomNote(s: GameState, n: number, lot: number, kind: CityBuildingKind): string | undefined {
+  if (kind === 'home' || kind === 'landmark') return undefined;
+  const t = trioNeeds(s, n, lot);
+  if (!t || t.homes + t.landmark <= t.free) return undefined;
+  return `Your quests need ${wantText(t.homes, t.landmark)} here. Taking this down makes room`;
 }
