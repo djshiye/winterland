@@ -477,6 +477,25 @@ export class ZoneSystem {
     return this.zones.some((z0) => x > z0.area.minX - margin && x < z0.area.maxX + margin && z > z0.area.minZ - margin && z < z0.area.maxZ + margin);
   }
 
+  /** 0.9.12: true when a player at (x, z) would be in an enabled zone, reach included (a load never drops the player onto a pad or a pile). */
+  anyAt(x: number, z: number): boolean {
+    for (const zone of this.zones) if (zone.enabled && !zone.removed && rectDistance(zone.area, x, z) <= zone.enterDist) return true;
+    return false;
+  }
+
+  /** 0.9.12: the areas of the enabled zones no bigger than `maxArea` m² (pads and piles: the guide's walk steps round them). */
+  smallAreas(maxArea: number): Rect[] {
+    const out: Rect[] = [];
+    for (const zone of this.zones) {
+      if (!zone.enabled || zone.removed) continue;
+      const a = zone.area;
+      // grown by the reach (body zones fire with the body touching them), plus half a walk cell
+      const g = zone.enterDist + 0.25;
+      if ((a.maxX - a.minX) * (a.maxZ - a.minZ) <= maxArea) out.push({ minX: a.minX - g, maxX: a.maxX + g, minZ: a.minZ - g, maxZ: a.maxZ + g });
+    }
+    return out;
+  }
+
   isPlayerIn(area: Rect): boolean {
     const p = this.ctx.player.position;
     return inRect(area, p.x, p.z);

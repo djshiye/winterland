@@ -102,6 +102,18 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **The market is easier to read.** Each price line is coloured by the same % it shows, the Prices and Invest tabs open with one plain line of help, the bond text says a better Stock Broker pays more, and every investment says how much you can put in.
 - **While you were away, in full.** The guidebook says offline earnings never exceed a fifth of everything you've earned, that quests, contracts and Jack don't count, and that a hidden browser tab pauses the game.
 
+### A guide you can follow
+
+- **The arrow points the way you can walk.** It follows the path round fences, rivers and buildings instead of pointing through them, and a short trail of gold dots on the ground shows the way when it bends or the goal is off-screen. It finds the way again after fast travel, the map or a reload.
+- **Steadier goals.** A new goal stays up long enough to read, the guide no longer flips back and forth between two goals, and it never pulls you off a pad while you're paying into it.
+- **It tells you where things come from.** "Pick up 40 crates for Iron Ridge" leads you to the right machine or dock first, and new machine sites say what to bring and where to get it.
+- **Expanding comes first.** Once you've met the next era's goal, the guide sends you there before anything else, and the crate crew holds crates back for it.
+- **Town builds say what they need.** The Cocoa Café and the other town builds ask you to bring their logs, and send you to chop more when your arms are empty.
+- **The arrow takes you all the way.** It stays up until you're standing on the pad that does the work, city goals point at a free lot rather than the whole district, and an empty maker sends you to feed it first.
+- **You wake up where you left off.** Reloading puts you back where you were standing (just beside a pad or pile if you were on one), not back at the cabin.
+- **The arrow keeps clear of the banner and the corner cards** (money, Winterland, quests, buttons), and the on-screen move pad stays hidden on desktop.
+
+
 ## 0.9.11 (2026-10-19)
 
 Every era its own place, clearer pads and icons, a guidebook, a cooler-running game and a few cozy touches.

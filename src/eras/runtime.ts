@@ -63,6 +63,15 @@ export interface RegionRuntime {
    * price and where a worker stands beside it. Absent in test fakes = none.
    */
   payPads?(): readonly { readonly slot: number; readonly pad: PayPad; readonly total: number; readonly spot: XZ }[];
+  /**
+   * 0.9.12 (guide): chosen, unbuilt machine slots with their construction pad on show: what is still owed and the pad's
+   * tile. Absent in test fakes = none.
+   */
+  chosenSites?(): readonly {
+    readonly slot: number;
+    readonly machine: string;
+    readonly pad: { readonly cashLeft: number; readonly extraLeft: number; readonly extraKind: ItemKind | null; readonly area: Rect };
+  }[];
   /** 0.9.6: the era's hand node pile (the player's harvest) and where a worker stands to take from it; null = none. */
   readonly node?: { readonly pile: Pile; readonly pileSpot: XZ; readonly yields: ItemKind } | null;
   /**

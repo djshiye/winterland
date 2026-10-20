@@ -106,7 +106,8 @@ export class ConstructionPad implements ItemHolder {
   private readonly sign: THREE.Mesh;
   private readonly ring: PadRing;
   private readonly feel: PadFeel;
-  private readonly area: Rect;
+  /** The pad's tile (its zones): 0.9.12, the guide points into it. */
+  readonly area: Rect;
   private readonly tmpPos = new THREE.Vector3();
   /** The "Needs <item>" hint already floated this visit. */
   private hinted = false;
