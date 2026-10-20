@@ -33,7 +33,7 @@ function broomGeometry(): THREE.BufferGeometry {
 
 function ballGeometry(): THREE.BufferGeometry {
   const b = new Batch();
-  b.add(geo.sphere(0.075, 8, 6), 0xffffff, 0, 0, 0);
+  b.add(geo.sphere(0.1, 8, 6), 0xffffff, 0, 0, 0);
   return b.geometry();
 }
 
@@ -77,7 +77,7 @@ export class GreenProps {
   readonly group = new THREE.Group();
   private readonly snowmen = new Pool(snowmanGeometry(), 8, 'snowmen', true);
   private readonly brooms = new Pool(broomGeometry(), 4, 'brooms', false);
-  private readonly balls = new Pool(ballGeometry(), 6, 'snowballs', false);
+  private readonly balls = new Pool(ballGeometry(), 30, 'snowballs', false);
 
   constructor() {
     this.group.name = 'green-props';
@@ -94,7 +94,7 @@ export class GreenProps {
   snowman(x: number, z: number, yaw: number, g: number): void {
     if (g <= 0.01) return;
     const k = 0.25 + 0.75 * g;
-    this.snowmen.put(_m.compose(_p.set(x, 0, z), _q.setFromEuler(_e.set(0, yaw, 0)), _s.set(0.85 * (0.6 + 0.4 * g), 0.85 * k, 0.85 * (0.6 + 0.4 * g))));
+    this.snowmen.put(_m.compose(_p.set(x, 0, z), _q.setFromEuler(_e.set(0, yaw, 0)), _s.set(1.05 * (0.6 + 0.4 * g), 1.05 * k, 1.05 * (0.6 + 0.4 * g))));
   }
 
   /** A broom held by someone at (x, z) facing `yaw`, swept side to side by `sweep` (−1 … 1). */
@@ -106,9 +106,9 @@ export class GreenProps {
     this.brooms.put(_m.compose(_p.set(bx, 0.02, bz), _q.setFromEuler(_e.set(-0.45, yaw, sweep * 0.35, 'YXZ')), _s.set(1, 1, 1)));
   }
 
-  /** A snowball at (x, y, z). */
-  ball(x: number, y: number, z: number): void {
-    this.balls.put(_m.compose(_p.set(x, y, z), _q.identity(), _s.set(1, 1, 1)));
+  /** A snowball at (x, y, z), `k` its size (the bits of a burst one are smaller). */
+  ball(x: number, y: number, z: number, k = 1): void {
+    this.balls.put(_m.compose(_p.set(x, y, z), _q.identity(), _s.set(k, k, k)));
   }
 
   end(): void {

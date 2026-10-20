@@ -972,6 +972,24 @@ function buildGreen(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlaces, acce
   // a soft lawn of trodden snow with a ring path round the centre
   body.add(geo.box(G.maxX - G.minX, 0.015, G.maxZ - G.minZ), mix(st.pave, 0xf4f8ff, 0.55), c.x, 0.025, c.z);
   body.add(geo.ringGround(1.5, 2.2, 28), st.pave, c.x, 0.035, c.z);
+  // 0.9.12 polish: a big green gets a little plaza pattern so its middle doesn't read empty: an outer ring walk and four
+  // walks out toward its corners (flat, walked over like the rest of the green)
+  const hw = (G.maxX - G.minX) / 2;
+  const hd = (G.maxZ - G.minZ) / 2;
+  if (hw * hd * 4 >= 400) {
+    const R = Math.min(hw, hd) * 0.58;
+    const walk = mix(st.pave, 0xf4f8ff, 0.22);
+    body.add(geo.ringGround(R - 0.4, R, 56), walk, c.x, 0.034, c.z);
+    for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
+      const dx = sx * hw;
+      const dz = sz * hd;
+      const len = Math.hypot(dx, dz);
+      const r0 = 2.1;
+      const r1 = len * 0.82;
+      const m = (r0 + r1) / 2 / len;
+      body.add(geo.box(0.4, 0.012, r1 - r0), walk, c.x + dx * m, 0.032, c.z + dz * m, { ry: Math.atan2(dx, dz) });
+    }
+  }
   // benches either side
   for (const s of [-1, 1]) {
     body.add(geo.boxBase(1.6, 0.1, 0.45), shade(st.wall, 0.85), c.x + s * 3.2, 0.42, c.z);

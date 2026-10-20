@@ -41,6 +41,9 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Hanging shop signs and sky sounds.** The shops of eras II to V hang out a sign over the street, carved wood on an iron bracket and later an enamel plate in the era's colours. You hear sleigh bells, the airship's propeller or a passing drone now and then, in the eras they fly over.
 - **A centrepiece in every era market.** Each market square has its own, ringed with winter flowers and plenty of room to walk round: a lantern bearer and a smith on their plinths, a street clock, a girder arch, a lit fountain, a little derrick, a glowing data pillar, a fountain of glowing water and a floating orb.
 - **Icicles and snowdrifts.** Icicles hang from the eaves of the huts and shops in eras II to VIII, and soft drifts bank up against their side and back walls.
+- **Easier to spot the fun.** Snowballs and snowmen are bigger, a hit bursts into a little puff of snow, more kids come out to play, and every green already has a snowman or two standing when you arrive.
+- **Plazas on the big greens.** The larger hut greens in eras V to X get a ring walk and four paths out to their corners, so their middles no longer look empty.
+- **The sledding hill sits nearer the road.** You can watch the sledders from R1 without zooming out.
 - **A finished game may show less than 100 % now.** The new machine spots and lots count towards completion, so an older finished save shows a lower percentage until you build on them. Every trophy you've earned is kept.
 
 ### Connected machine yards
