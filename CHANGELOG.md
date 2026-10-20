@@ -73,6 +73,18 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Granite Hollow by name.** The Great Lodge card now sends you "On to Granite Hollow", the place you see on the map.
 - **Down leaves the guidebook search box,** so you can reach the pages with the arrow keys.
 
+### Phones and small screens
+
+- **See more on a phone.** Held upright, a phone now shows about a third more of the world, the same scale as held sideways, so the counter, cash piles and pads are on screen from the start.
+- **A tidier top bar on phones.** The era checklist chip moved next to the quests button, so the village badge has its whole row: its name, population and town happiness no longer get cut off or hide under the chip.
+- **The goal banner stays put.** Opening the quest list on a phone no longer throws the goal banner to the bottom of the screen; the list opens just under it instead.
+- **A readable map on phones.** The map is drawn bigger and you drag it to look around, so region and district names are a real size. It opens centred on you.
+- **Price tags no longer pile up.** When signs and price tags would cover each other, the one nearest you shows and the others step aside until you walk closer.
+- **Tall towers open up wider** around you in the later city districts, so you can see the street and the MANAGE board you are standing by.
+- **Big numbers read easily.** The village badge shows "468K" people instead of "468085".
+- **Shop lines wrap** instead of being cut off ("2 extra i…").
+- **Short windows** (like 800 x 600) start with the quest list folded, and when you open it, it is wider and tighter.
+
 ## 0.9.11 (2026-10-19)
 
 Every era its own place, clearer pads and icons, a guidebook, a cooler-running game and a few cozy touches.

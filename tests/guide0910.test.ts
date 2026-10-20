@@ -65,6 +65,10 @@ describe('quest panel on a fresh game (C5)', () => {
     expect(questStartCollapse(null, 390, true)).toEqual({ early: false, preferred: true });
     expect(questStartCollapse('1', 1920, true)).toEqual({ early: false, preferred: true });
     expect(questStartCollapse('0', 390, true)).toEqual({ early: false, preferred: false });
+    // 0.9.12 (V13): short windows (800 x 600) start folded too; a stored choice still wins
+    expect(questStartCollapse(null, 800, true, 600)).toEqual({ early: false, preferred: true });
+    expect(questStartCollapse(null, 1280, true, 720)).toEqual({ early: false, preferred: false });
+    expect(questStartCollapse('0', 800, true, 600)).toEqual({ early: false, preferred: false });
   });
 });
 
