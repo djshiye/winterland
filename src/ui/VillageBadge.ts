@@ -8,6 +8,7 @@ import { HAPPINESS, VILLAGE } from '../config';
 import { cityPopulation, settlementLevel, settlementName, settlementPop, townHappiness } from '../core/demand';
 import type { GameContext } from '../core/types';
 import { eraLabel, romanNumeral } from '../world/env/eras';
+import { formatPopulation } from './agesLogic';
 import { backOut, h } from './dom';
 import { ICON_HOUSE, ICON_PERSON } from './icons';
 import './era.css';
@@ -126,7 +127,7 @@ export class VillageBadge {
     }
     if (v.population !== this.lastPop) {
       this.lastPop = v.population;
-      this.popEl.innerHTML = `<i class="wl-village-person">${ICON_PERSON}</i>${v.population}`;
+      this.popEl.innerHTML = `<i class="wl-village-person">${ICON_PERSON}</i>${formatPopulation(v.population)}`;
     }
 
     this.refreshHappy();
@@ -157,7 +158,8 @@ export class VillageBadge {
     const pop = cityPopulation(s);
     if (pop !== this.lastPop) {
       this.lastPop = pop;
-      this.popEl.innerHTML = `<i class="wl-village-person">${ICON_PERSON}</i>${pop}`;
+      // 0.9.12 (V5): "468K", not "468085" (the long number pushed the badge past its row)
+      this.popEl.innerHTML = `<i class="wl-village-person">${ICON_PERSON}</i>${formatPopulation(pop)}`;
     }
     this.refreshHappy();
     // the next level must be in a band the age allows (level 5(k − 1) + j needs age ≥ k)

@@ -6,8 +6,11 @@
  * Wide screens (> PHONE_MAX): a column from the objective's own CSS spot downward, objective first, then rush, then
  *   event, GAP apart. Each banner is centred on the screen when that is clear of the HUD on its rows, else centred in
  *   the free room between the left and right HUD elements (narrowed to fit, text wraps).
- * Phones: rush and event stay bottom-centre (hud.css); the event sits right above the rush pill, and the objective,
- *   when the open quest list parks it at the bottom, sits above both.
+ * Phones: rush and event stay bottom-centre (hud.css); the event sits right above the rush pill. 0.9.12 (P2, P4): the
+ *   objective sits GAP under the lowest piece of the top HUD (money pill, buttons, village badge, season chip, quests
+ *   chip with the era chip beside it, contract chip), measured, so a contract or season chip never covers it, and it
+ *   never moves when the quest list opens: the list drops below the banner instead (it used to park the banner at the
+ *   bottom of the screen).
  * Toasts follow through two CSS variables on the layer: --wl-banner-bottom (wide: the big centre toast starts below the
  *   column) and --wl-pill-stack (phones: the small bottom toast sits above the pills).
  *
@@ -29,6 +32,8 @@ export interface Box {
 export const PHONE_MAX = 640;
 /** Space between two stacked banners and between a banner and the HUD beside it (px). */
 export const GAP = 8;
+/** Narrowest room (px) a wide-screen banner is drawn in; narrower, it waits out of sight (a side sheet is open). */
+export const MIN_ROOM = 220;
 /** Seconds between two layout passes (the banners move with tweens; this only has to follow their sizes). */
 const INTERVAL = 0.1;
 
@@ -50,6 +55,24 @@ export function freeSpan(width: number, obstacles: readonly Box[], top: number, 
   return { min, max };
 }
 
+/**
+ * [PURE] Phones: the objective's top, GAP below the lowest of the top-HUD boxes' bottoms (`floor` when none show).
+ */
+export function phoneObjectiveTop(bottoms: readonly number[], floor: number): number {
+  let y = floor;
+  for (const b of bottoms) if (Number.isFinite(b)) y = Math.max(y, b + GAP);
+  return y;
+}
+
+/**
+ * [PURE] Phones, quest list open: how far to push the list down so it starts GAP below the objective banner (0 when the
+ * banner already ends above where the list starts, or there is no banner).
+ */
+export function questListShift(listTop: number, objectiveBottom: number | null): number {
+  if (objectiveBottom === null) return 0;
+  return Math.max(0, Math.round(objectiveBottom + GAP - listTop));
+}
+
 /** Centre x for a banner `w` wide: the screen centre when it fits in the span there, else the span's own centre. */
 export function centreIn(width: number, span: { min: number; max: number }, w: number): number {
   const mid = width / 2;
@@ -60,6 +83,10 @@ export function centreIn(width: number, span: { min: number; max: number }, w: n
 
 /** HUD children that are never obstacles: the managed banners themselves, effects, modals and transient cards. */
 const IGNORE = /\b(wl-objective|wl-rush|wl-event|wl-float|wl-coin|wl-edge|wl-toast|wl-hand|wl-perf|wl-modal|wl-era|wl-chip)\b/;
+
+/** Phones: the top-HUD pieces the objective goes under (folded quest list / open quest list). */
+const PHONE_TOP = '.wl-money, .wl-mute, .wl-hudbtn, .wl-village, .wl-season, .wl-quests-head, .wl-erachip, .wl-contract';
+const PHONE_TOP_OPEN = '.wl-money, .wl-mute, .wl-hudbtn, .wl-village, .wl-season, .wl-quests-head, .wl-erachip';
 
 const shown = (el: HTMLElement): boolean => el.offsetParent !== null && el.style.visibility !== 'hidden';
 
@@ -89,11 +116,13 @@ export class BannerStack {
     if (phone !== this.phone) {
       // a resize across the breakpoint: back to the stylesheet's spots before laying out the other way
       for (const el of [this.objective, this.rush, this.event]) {
+        el.classList.remove('is-squeezed');
         el.style.left = '';
         el.style.top = '';
         el.style.bottom = '';
         el.style.maxWidth = '';
       }
+      this.layer.querySelector<HTMLElement>('.wl-quests-body')?.style.removeProperty('margin-top');
       this.phone = phone;
       this.layer.style.removeProperty('--wl-banner-bottom');
       this.layer.style.removeProperty('--wl-pill-stack');
@@ -127,6 +156,10 @@ export class BannerStack {
       let h = el.offsetHeight;
       const span = freeSpan(width, obstacles, y, y + h, margin);
       const room = span.max - span.min;
+      // 0.9.12: a side sheet (market, shop) leaves a sliver: step aside until it closes rather than a word per line
+      const squeezed = room < MIN_ROOM;
+      if (el.classList.contains('is-squeezed') !== squeezed) el.classList.toggle('is-squeezed', squeezed);
+      if (squeezed) continue;
       if (el.offsetWidth > room) {
         el.style.maxWidth = `${Math.round(room)}px`;
         h = el.offsetHeight;
@@ -139,7 +172,9 @@ export class BannerStack {
   }
 
   private layoutPhone(): void {
-    const height = this.layer.clientHeight / uiScale();
+    const k = uiScale();
+    const height = this.layer.clientHeight / k;
+    this.placePhoneObjective(k);
     // the rush pill keeps its stylesheet spot; the event goes right above it while both show
     let stackTop = Infinity;
     if (shown(this.rush)) stackTop = this.rush.offsetTop;
@@ -150,21 +185,37 @@ export class BannerStack {
     }
     // the small bottom toast goes above the pills (hud.css .wl-toast.is-small)
     this.setVar('--wl-pill-stack', stackTop === Infinity ? 0 : height - stackTop + GAP);
-    // the objective parked at the bottom (quest list open): above the pills
-    const obj = this.objective;
-    if (!this.isParked() || stackTop === Infinity) {
-      if (obj.style.bottom) obj.style.bottom = '';
-      return;
-    }
-    obj.style.bottom = '';
-    const cssBottom = height - obj.offsetTop - obj.offsetHeight;
-    const need = height - stackTop + GAP;
-    if (cssBottom < need) this.set(obj, 'bottom', need);
   }
 
-  /** The stylesheet puts the objective at the bottom (phones with the quest list open). */
-  private isParked(): boolean {
-    return this.layer.classList.contains('quests-open');
+  /**
+   * Phones: the objective GAP under the top HUD (layer px ÷ the Interface size `k`), and an open quest list pushed below
+   * it. The quest list and the contract chip under it only count while the list is folded (open, they go under the banner).
+   */
+  private placePhoneObjective(k: number): void {
+    const layer = this.layer;
+    const top = layer.getBoundingClientRect().top;
+    const open = layer.classList.contains('quests-open');
+    const body = layer.querySelector<HTMLElement>('.wl-quests-body');
+    const sel = open ? PHONE_TOP_OPEN : PHONE_TOP;
+    const bottoms: number[] = [];
+    for (const el of Array.from(layer.querySelectorAll<HTMLElement>(sel))) {
+      if (!shown(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.height < 2 || r.top - top > layer.clientHeight / 2) continue; // bottom-row buttons are not the top HUD
+      bottoms.push((r.bottom - top) / k);
+    }
+    const obj = this.objective;
+    if (obj.style.bottom) obj.style.bottom = '';
+    this.set(obj, 'top', phoneObjectiveTop(bottoms, 12));
+    if (!body) return;
+    let shift = 0;
+    if (open && this.objectiveOn()) {
+      body.style.marginTop = '';
+      const listTop = (body.getBoundingClientRect().top - top) / k;
+      shift = questListShift(listTop, obj.offsetTop + obj.offsetHeight);
+    }
+    const m = shift > 0 ? `${shift}px` : '';
+    if (body.style.marginTop !== m) body.style.marginTop = m;
   }
 
   private setVar(name: string, px: number): void {
