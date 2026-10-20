@@ -196,15 +196,16 @@ export interface ActiveQuest {
 export class Quests {
   private check = 0;
   private gap = 0;
-  private readonly income = new IncomeWindow();
-  /** Rewards fixed when a quest first shows (era 2+), so the number on the panel never drifts. */
-  private readonly rewards = new Map<string, number>();
+  private readonly income: IncomeWindow;
 
+  /** `carried`: the saved sales rate ($/s), so a quest first shown just after a load is not priced from an empty window. */
   constructor(
     private readonly state: GameState,
     private readonly economy: Economy,
     private readonly events: EventBus<GameEvents>,
+    carried = 0,
   ) {
+    this.income = new IncomeWindow(carried);
     events.on('sale', (e) => {
       if (e.buyer !== 'jack') this.income.add(e.amount);
     });
@@ -230,13 +231,16 @@ export class Quests {
     return ordered.slice(0, ACTIVE_QUESTS).map((def) => ({ def, progress: Math.min(def.target, Math.max(0, def.progress(this.state))), reward: this.rewardOf(def) }));
   }
 
-  /** def.reward in era 1; from era 2 on at least QUEST_INCOME_SECONDS of recent sales, fixed when first asked. */
+  /**
+   * def.reward in era 1; from era 2 on at least QUEST_INCOME_SECONDS of recent sales, fixed when first asked.
+   * 0.9.12 (E4): the fixed reward is saved (state.questRewards), so a reload no longer turns $120,000 into $5,000.
+   */
   private rewardOf(def: QuestDef): number {
     if (this.state.eras.age < 2) return def.reward;
-    let r = this.rewards.get(def.id);
+    let r = this.state.questRewards[def.id];
     if (r === undefined) {
       r = Math.max(def.reward, sig2Money(this.income.rate * QUEST_INCOME_SECONDS));
-      this.rewards.set(def.id, r);
+      this.state.questRewards[def.id] = r;
     }
     return r;
   }
@@ -269,8 +273,28 @@ export class Quests {
   private complete(def: QuestDef, reward: number): void {
     this.state.quests[def.id] = true;
     this.gap = COMPLETE_GAP;
-    this.rewards.delete(def.id);
+    delete this.state.questRewards[def.id];
     this.economy.add(reward);
     this.events.emit('quest:done', { id: def.id, title: def.title, reward });
   }
+}
+
+/**
+ * 0.9.12 (R4): a heads-up on the city choose card. Era n's quest trio wants (lots − 2) homes and the landmark in its
+ * district, so a park or a workplace on lot `lot` can leave too few lots and force a demolish later. Returns the
+ * warning when picking a building of `kind` there would do that (undefined when it is fine or both goals are done).
+ */
+export function trioRoomWarning(s: GameState, n: number, lot: number, kind: CityBuildingKind): string | undefined {
+  if (kind === 'home' || kind === 'landmark') return undefined;
+  const lots = s.city.districts[n]?.lots;
+  if (!lots) return undefined;
+  const others = lots.filter((_, i) => i !== lot);
+  const chosen = (k: CityBuildingKind): number => others.filter((l) => l.building !== '' && CITY_BUILDINGS[l.building].kind === k).length;
+  const target = Math.max(1, (DISTRICTS[n]?.lots ?? 2) - 2);
+  const homes = s.quests[`trio${n}homes`] ? 0 : Math.max(0, target - chosen('home'));
+  const landmark = s.quests[`trio${n}landmark`] || chosen('landmark') > 0 ? 0 : 1;
+  const free = others.filter((l) => l.building === '').length;
+  if (homes + landmark <= free) return undefined;
+  const want = [homes > 0 ? `${homes} more home${homes === 1 ? '' : 's'}` : '', landmark ? 'the landmark' : ''].filter(Boolean).join(' and ');
+  return `Leaves too few lots for your quests: ${want} here`;
 }

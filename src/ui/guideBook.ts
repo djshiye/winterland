@@ -112,7 +112,7 @@ function survivalEntries(): BookEntry[] {
   }
   for (const id of AMENITY_IDS) {
     const a = AMENITIES[id];
-    out.push({ id: `town:${id}`, era: 1, section: 'town', name: a.label, text: `${a.blurb}. Happier townsfolk pay better prices.`, icon: { glyph: 'star' }, where: 'Market Town square' });
+    out.push({ id: `town:${id}`, era: 1, section: 'town', name: a.label, text: `${a.blurb}. A happier town makes your mill and Market Town sales pay more.`, icon: { glyph: 'star' }, where: 'Market Town square' });
   }
   out.push({ id: 'town:greatLodge', era: 1, section: 'town', name: 'Great Lodge', text: 'The crown of the village. Build it at Winter City to finish Survival and open the road to the next era.', icon: { glyph: 'star' }, where: 'At the end of the village street' });
   out.push({ id: 'town:grandMarket', era: 1, section: 'town', name: 'Grand Market', text: 'A great market hall for the town. It needs logs, cash and toy trains from the Toy Factory.', icon: { glyph: 'market' }, where: 'Market Town' });
@@ -208,20 +208,20 @@ const TIPS: readonly { id: string; era: number; name: string; text: string; icon
   { id: 'chop', era: 1, name: 'Chop and carry', text: 'Stand by the giant log and you chop by yourself. To pick up a pile, stand on it (with a keyboard or controller, hold E or A). Walk to a counter or hopper to drop things off: no key needed.', icon: { glyph: 'log' } },
   { id: 'cash', era: 1, name: 'Collect your cash', text: 'Buyers leave cash piles by their counters. Walk over a pile to bank it.', icon: { glyph: 'coin' } },
   { id: 'pads', era: 1, name: 'Pads', text: 'Stand on a pad to pay for it, a little at a time (with a keyboard or controller, hold E or A). Walking across pays nothing. A built machine comes back as a level pad.', icon: { glyph: 'hammer' } },
-  { id: 'shop', era: 1, name: 'The shop', text: "Stand on the cabin's doormat to open the shop. Tap an upgrade's price to buy one level. Upgrades go up to Lv 10 once the Great Lodge is built.", icon: { glyph: 'gear' } },
+  { id: 'shop', era: 1, name: 'The shop', text: "Stand on the cabin's doormat to open the shop. Tap an upgrade's price to buy one level. Upgrades go up to Lv 10 once the Great Lodge is built. Each era's own Carry, Boots, Tool and Pal upgrades work only inside that era's region.", icon: { glyph: 'gear' } },
   { id: 'crew', era: 1, name: 'Crew', text: 'Hire helpers in the shop. Each one takes a job off your hands, and levels make them faster.', icon: { glyph: 'worker' } },
   { id: 'village', era: 1, name: 'The village', text: 'Shelters bring villagers. More villagers raise the village level: Camp, Hamlet, Village, Town and Winter City. Every level brings better prices and new things to build.', icon: { glyph: 'house' } },
   { id: 'quests', era: 1, name: 'Quests and contracts', text: 'The quest card lists small goals with a reward. Contracts ask for a batch of goods and pay a bonus.', icon: { glyph: 'star' } },
-  { id: 'away', era: 1, name: 'While you were away', text: 'The game saves by itself. While it is closed, you earn a quarter of your usual income, for up to 2 hours. The desktop game keeps playing at full speed while it is minimised.', icon: { glyph: 'coin' } },
+  { id: 'away', era: 1, name: 'While you were away', text: 'The game saves by itself. While it is closed, you earn a quarter of your usual sales and rent, for up to 2 hours, and never more than a fifth of everything you have earned so far. Quests, contracts and Jack do not count. The desktop game keeps playing at full speed while it is minimised; in a browser, a hidden tab pauses the game.', icon: { glyph: 'coin' } },
   { id: 'eras', era: 2, name: 'Eras and the gate', text: 'To open the next era, raise everything this era added to Lv 10, grow to its settlement level, then buy the expansion pad. The era chip at the top shows your next goal.', icon: { glyph: 'pin' } },
   { id: 'slots', era: 2, name: 'Building machines', text: 'Choose a machine for an empty slot, then pay on its construction pad with cash and the materials it asks for.', icon: { glyph: 'hammer' } },
   { id: 'eraShop', era: 2, name: "The era's own shop", text: "Each era has its own shop mat in its region, with that era's crew, gear and upgrades.", icon: { glyph: 'gear' } },
   { id: 'belts', era: 2, name: 'Belts', text: 'The Belts upgrade links machines that feed each other, so goods roll along by themselves.', icon: { glyph: 'gear' } },
-  { id: 'market', era: 2, name: 'Selling in the regions', text: 'Each region has a loading dock for buyer vehicles and a market stall for shoppers. Bigger docks and stalls bring buyers more often.', icon: { glyph: 'market' } },
-  { id: 'settlement', era: 2, name: 'Settlement and the city', text: "Build homes in the era's city district to grow your settlement. Workplaces, parks and landmarks earn money and make the city happier.", icon: { glyph: 'house' } },
+  { id: 'market', era: 2, name: 'Selling in the regions', text: 'Each region has a loading dock for buyer vehicles and a market stall for shoppers. They pay the same price as the export depot: bigger docks and stalls bring buyers more often, and Quality raises the price everywhere. Town happiness and the northern lights lift only mill and Market Town sales.', icon: { glyph: 'market' } },
+  { id: 'settlement', era: 2, name: 'Settlement and the city', text: "Build homes in the era's city district to grow your settlement; machine staff count too. Workplaces and landmarks earn money once residents fill their jobs, and residents from every district count. Parks only make the city happier. Each new settlement level leaves a gift on the avenue: walk over it to collect.", icon: { glyph: 'house' } },
   { id: 'map', era: 2, name: 'Map and travel', text: 'Press T or tap the map button to see every region and travel there in a moment.', icon: { glyph: 'map' } },
   { id: 'trade', era: 2, name: 'The Market', text: 'Press B or tap the market button to watch prices, trade goods and invest your savings.', icon: { glyph: 'market' } },
-  { id: 'foreman', era: 2, name: 'Foremen', text: 'A foreman brings materials to what you chose to build, then pays for it. They never choose for you.', icon: { glyph: 'worker' } },
+  { id: 'foreman', era: 2, name: 'Foremen', text: 'A foreman brings materials to what you chose to build, then pays for it. They never choose for you. They always leave you part of your cash (40% in the eras, a fifth at the mill), so a build can wait while you still have money.', icon: { glyph: 'worker' } },
 ];
 
 // ---------------------------------------------------------------------------

@@ -321,6 +321,8 @@ export interface ChooseOption {
   costText: string;
   /** Why it can't be chosen right now (shown greyed out); undefined = available. */
   locked?: string;
+  /** 0.9.12 (R4): a heads-up under the stat line (still choosable), e.g. it would leave too few lots for a quest. */
+  warn?: string;
 }
 
 /** 'choose:open': pick what to build on an empty slot / lot (ui/ChoosePanel.ts renders it). */
@@ -374,6 +376,8 @@ export interface GameState {
   clock: number;
   /** Wave 8: quests completed (core/quests.ts ids → true). Rewards are paid on completion. */
   quests: Partial<Record<string, boolean>>;
+  /** 0.9.12 (E4): a shown era quest's reward, fixed the first time it shows, so a reload never changes it (quest id → $). */
+  questRewards: Record<string, number>;
   /** Wave 9: the Market Town. */
   town: TownState;
   /** Wave 11: what the crew favours when wood or deliveries are short (config PRIORITIES). */
@@ -528,6 +532,7 @@ export function createGameState(): GameState {
     trophies: { lodge: 0, market: 0, complete: 0, runs: [] },
     clock: 24, // DAYNIGHT.startAt × cycleSeconds (literal: this file imports only types from config)
     quests: {},
+    questRewards: {},
     town: {
       revealed: false,
       lots: Array.from({ length: LOT_COUNT }, () => ({ building: '', tier: -1, logs: 0, cash: 0 })),

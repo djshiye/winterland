@@ -14,7 +14,7 @@
  *
  * Wiring (ui/HUD.ts): constructor `this.era = new EraCard(ctx, layer);`  update(): `this.era.update(dt);`
  */
-import { SETTLEMENT, VILLAGE } from '../config';
+import { SETTLEMENT, UPGRADES, VILLAGE } from '../config';
 import { bandsWith, founderScarf, renownAt, settlementBand, settlementName } from '../core/demand';
 import type { GameContext } from '../core/types';
 import { ERAS } from '../eras/data';
@@ -77,8 +77,9 @@ export class EraCard {
     this.eraEl.textContent = settlementTitle(lv);
     this.nameEl.textContent = def.name;
     this.tagEl.textContent = TAGLINES[lv] ?? '';
-    this.perksEl.replaceChildren(...def.perks.map((p) => h('span', 'wl-era-perk', p)));
-    this.perksEl.style.display = def.perks.length ? '' : 'none';
+    const perks = villagePerks(lv);
+    this.perksEl.replaceChildren(...perks.map((p) => h('span', 'wl-era-perk', p)));
+    this.perksEl.style.display = perks.length ? '' : 'none';
     this.root.setAttribute('aria-label', `Settlement: ${def.name}`);
     this.t = 0;
     this.lastOpacity = '';
@@ -127,9 +128,23 @@ export class EraCard {
   }
 }
 
+/**
+ * 0.9.12 (R5): a village level's perk chips: VILLAGE.levels' own perks (frozen era-1 data) plus every hire that level
+ * opens, read from the upgrades' requirements, so "Sled Dog for hire", "Town Porter for hire" and "Foreman for hire"
+ * show up where they unlock (all three are era 2 gate rows).
+ */
+export function villagePerks(lv: number): string[] {
+  const out = [...(VILLAGE.levels[lv]?.perks ?? [])];
+  for (const def of Object.values(UPGRADES)) {
+    if (def.requires?.villageLevel !== lv || (def.group !== 'crew' && def.id !== 'dog')) continue;
+    if (!out.some((p) => p.includes(def.label))) out.push(`${def.label} for hire`);
+  }
+  return out;
+}
+
 /** The perk chips of a settlement level-up (from `from` to `level`): Renown, the gift and what the band positions crossed bring (and the Founder's Scarf at 20). */
 export function settlementPerks(level: number, from: number, gift: number): string[] {
-  const out = [`Renown \u00d7${renownAt(level).toFixed(2)}`, `${formatMoney(gift)} gift on the avenue`];
+  const out = [`Renown \u00d7${renownAt(level).toFixed(2)}`, `${formatMoney(gift)} gift: walk over it on the avenue`];
   const crossed = (j: number): boolean => bandsWith(level, j) > bandsWith(Math.max(from, SETTLEMENT.band), j);
   if (crossed(1)) out.push('New quests');
   if (crossed(3)) out.push(`City happiness +${Math.round(SETTLEMENT.decorHappiness * 100)}%`);

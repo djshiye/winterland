@@ -29,8 +29,8 @@ export const ERA_ROLE_JOBS: Readonly<Record<EraRole, string>> = {
   shipper: 'Ships finished goods to the depot',
   porter: 'Carries imports from the dock to the machines',
   clerk: 'Banks the takings',
-  foreman: 'Pays for new machines and buildings',
-  gatherer: 'Hauls the hand-node pile to the machines',
+  foreman: 'Brings materials to what you chose to build, then pays, leaving you 40% of your cash',
+  gatherer: 'Brings the hand-node pile and full extractors to the machines, and keeps a reserve on the dock',
 };
 
 export interface EraContent {

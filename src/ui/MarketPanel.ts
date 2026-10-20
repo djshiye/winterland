@@ -7,7 +7,7 @@
  * Rows are built once (one per material, one card per product); refresh() rewrites only what changed, and runs when
  * something marked the panel dirty (at most ~5 times a second) or every second while open, because prices tick.
  */
-import { ERAS, ERA_NAMES, INVEST, MACHINES, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
+import { ERAS, ERA_NAMES, INVEST, MACHINES, MARKET, MATERIALS, SURVIVAL_VALUE, type InvestProductId } from '../eras/data';
 import { ORDER_MAX_UNITS } from '../core/Market';
 import { investMaxPositions } from '../core/demand';
 import type { GameContext, InvestmentState, ItemKind, MaterialKind } from '../core/types';
@@ -178,6 +178,8 @@ export class MarketPanel {
     const kinds = Object.keys(MATERIALS) as MaterialKind[];
     // --- Prices
     const prices = h('div', 'wl-mk-section');
+    // 0.9.12 (M2): plain-words help at the top of Prices
+    prices.appendChild(h('div', 'wl-mk-note', 'Prices move every few seconds. The % shows the last minute. Selling lots of one good at once floods the market and lowers its price for a while.'));
     for (const kind of kinds) this.priceRows.push(this.makePriceRow(kind, prices));
     this.survival = h('div', 'wl-mk-survival');
     this.buildSurvival(prices);
@@ -189,6 +191,8 @@ export class MarketPanel {
     this.sections.set('trade', trade);
     // --- Invest
     const invest = h('div', 'wl-mk-section');
+    // 0.9.12 (M2): an intro note for Invest
+    invest.appendChild(h('div', 'wl-mk-note', 'Put spare cash to work. Bonds are safe, funds and ventures grow faster but wobble.'));
     for (const id of ['bond', 'index', 'venture'] as InvestProductId[]) this.products.push(this.makeProduct(id, invest));
     this.positionTitle = h('div', 'wl-mk-subtitle');
     invest.appendChild(this.positionTitle);
@@ -522,7 +526,9 @@ export class MarketPanel {
       setCls(r.change, `wl-mk-change ${cls(ch)}`);
       const flood = market.pressure(r.kind);
       put(r.hint, flood >= FLOOD_HINT ? `Flooded −${Math.round(flood * 100)}%` : '');
-      const hist = market.history(r.kind);
+      // 0.9.12 (M1): draw the same window the % uses (last ticks+1 values) and colour by the sign of that %
+      const ring = market.history(r.kind);
+      const hist = ring.slice(-(Math.round(60 / MARKET.tick) + 1));
       let lo = Infinity;
       let hi = -Infinity;
       for (const v of hist) {
@@ -533,11 +539,12 @@ export class MarketPanel {
       const stepX = 60 / Math.max(1, hist.length - 1);
       let pts = '';
       for (let i = 0; i < hist.length; i++) pts += `${(i * stepX).toFixed(1)},${(22 - ((hist[i]! - lo) / span) * 20).toFixed(1)} `;
-      if (pts !== r.shownSpark) {
-        r.shownSpark = pts;
+      const key = `${ch >= 0 ? '+' : '-'}${pts}`;
+      if (key !== r.shownSpark) {
+        r.shownSpark = key;
         r.line.setAttribute('points', pts);
         // the token colours (ui/tokens.css), so the colour-blind palette and the night cards apply here too
-        r.line.style.stroke = hist[hist.length - 1]! >= hist[0]! ? 'var(--wl-good-text)' : 'var(--wl-bad-text)';
+        r.line.style.stroke = ch >= 0 ? 'var(--wl-good-text)' : 'var(--wl-bad-text)';
       }
     }
     for (const s of this.survivalRows) put(s.el, `${materialLabel(s.kind)} <b>${formatMoney(market.unitValue(s.kind))}</b>`);
@@ -616,10 +623,12 @@ export class MarketPanel {
   }
 
   private productNote(id: InvestProductId): string {
-    if (id === 'bond') return `Pays ${pct(this.ctx.market.bondPayout() - 1)} after ${formatDuration(INVEST.bond.lock ?? 0)}`;
+    // 0.9.12 (R6): say how much can go in (its cap was never shown until reached)
+    const room = ` · invest up to ${formatMoney(Math.floor(this.ctx.market.capOf(id)))}`;
+    if (id === 'bond') return `Pays ${pct(this.ctx.market.bondPayout() - 1)} after ${formatDuration(INVEST.bond.lock ?? 0)}${room}`;
     const tenMin = (r: number): string => pct((1 + r) ** (1 / 6) - 1);
-    if (id === 'index') return `About ${tenMin(INVEST.index.rate)} every 10 minutes, up to ×${INVEST.index.top ?? 1}, no lock`;
-    return `About ${tenMin(INVEST.venture.rate)} every 10 minutes, up to ×${INVEST.venture.top ?? 1}, can dip hard`;
+    if (id === 'index') return `About ${tenMin(INVEST.index.rate)} every 10 minutes, up to ×${INVEST.index.top ?? 1}, no lock${room}`;
+    return `About ${tenMin(INVEST.venture.rate)} every 10 minutes, up to ×${INVEST.venture.top ?? 1}, can dip hard${room}`;
   }
 
   private refreshPositions(): void {
