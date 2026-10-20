@@ -472,6 +472,11 @@ export class ZoneSystem {
     }
   }
 
+  /** 0.9.12: true if (x, z) lies within `margin` of any pad (critters keep off them). */
+  nearAny(x: number, z: number, margin: number): boolean {
+    return this.zones.some((z0) => x > z0.area.minX - margin && x < z0.area.maxX + margin && z > z0.area.minZ - margin && z < z0.area.maxZ + margin);
+  }
+
   isPlayerIn(area: Rect): boolean {
     const p = this.ctx.player.position;
     return inRect(area, p.x, p.z);

@@ -1,74 +1,64 @@
-/** Ambience: footprint helpers (pure) and the night-market era flag. */
+/** 0.9.12: footprints in the snow (world/life/Footprints.ts). */
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { LAYOUT } from '../src/config';
-import { FADE_SECONDS, MAX_ALPHA, SIDE_OFFSET, footprintAllowed, noPrintAreas, printAlpha, printPlacement } from '../src/fx/Footprints';
-import { eraFor } from '../src/world/env/eras';
+import type { GameContext } from '../src/core/types';
+import { Crowd } from '../src/npc/Crowd';
+import { Footprints } from '../src/world/life/Footprints';
 
-describe('footprintAllowed', () => {
-  it('lays prints on open snow', () => {
-    expect(footprintAllowed(-13, 20)).toBe(true);
-    expect(footprintAllowed(-30, 40)).toBe(true);
-    expect(footprintAllowed(20, -40)).toBe(true);
-  });
+const stub = () => {
+  const player = { position: new THREE.Vector3(0, 0, 0), dog: null };
+  return { player, ctx: { player } as unknown as GameContext };
+};
 
-  it('skips the yard dirt (including the expanded north part), the road, the village and the town district', () => {
-    expect(footprintAllowed(0, 0)).toBe(false);
-    expect(footprintAllowed(0, LAYOUT.expandedMinZ + 1)).toBe(false);
-    expect(footprintAllowed(LAYOUT.tricycles.laneX, 20)).toBe(false);
-    expect(footprintAllowed(4.5, 20)).toBe(false); // village street
-    expect(footprintAllowed(24, 27)).toBe(false); // town square
-  });
-
-  it('every skip area is a real rectangle', () => {
-    for (const a of noPrintAreas()) {
-      expect(a.maxX).toBeGreaterThan(a.minX);
-      expect(a.maxZ).toBeGreaterThan(a.minZ);
+describe('footprints', () => {
+  it('a walk leaves a print about every stride, left and right of the path, that fill back in', () => {
+    const { ctx, player } = stub();
+    const f = new Footprints(ctx);
+    for (let t = 0; t < 4; t += 0.0125) {
+      player.position.z += 0.05;
+      f.update(0.0125);
     }
-  });
-});
-
-describe('printPlacement', () => {
-  const out = { x: 0, z: 0 };
-  it('offsets right / left of the heading by SIDE_OFFSET', () => {
-    // heading +Z (yaw 0): right-hand side is +X
-    printPlacement(1, 2, 0, 1, out);
-    expect(out.x).toBeCloseTo(1 + SIDE_OFFSET);
-    expect(out.z).toBeCloseTo(2);
-    printPlacement(1, 2, 0, -1, out);
-    expect(out.x).toBeCloseTo(1 - SIDE_OFFSET);
-    // heading +X (yaw 90 deg): right-hand side is -Z
-    printPlacement(0, 0, Math.PI / 2, 1, out);
-    expect(out.x).toBeCloseTo(0);
-    expect(out.z).toBeCloseTo(-SIDE_OFFSET);
-  });
-
-  it('is exactly SIDE_OFFSET from the path for any heading', () => {
-    for (const yaw of [0.3, 1.9, -2.4, 3]) {
-      printPlacement(5, -3, yaw, 1, out);
-      expect(Math.hypot(out.x - 5, out.z + 3)).toBeCloseTo(SIDE_OFFSET);
+    // 16 m walked at a 0.42 m stride
+    expect(f.live).toBeGreaterThan(34);
+    expect(f.live).toBeLessThan(40);
+    const xs = new Set<number>();
+    const m = new THREE.Matrix4();
+    const p = new THREE.Vector3();
+    for (let i = 0; i < f.mesh.count; i++) {
+      f.mesh.getMatrixAt(i, m);
+      xs.add(Math.sign(p.setFromMatrixPosition(m).x));
     }
+    expect([...xs].sort()).toEqual([-1, 1]);
+    f.update(60);
+    expect(f.live).toBe(0);
   });
-});
-
-describe('printAlpha', () => {
-  it('starts visible, fades monotonically after the ease-in and is gone after 7 s', () => {
-    expect(FADE_SECONDS).toBe(7);
-    expect(printAlpha(0)).toBeGreaterThan(0);
-    expect(printAlpha(0.2)).toBeLessThanOrEqual(MAX_ALPHA);
-    let prev = printAlpha(0.2);
-    for (let t = 0.5; t < FADE_SECONDS; t += 0.5) {
-      const a = printAlpha(t);
-      expect(a).toBeLessThan(prev);
-      prev = a;
+  it('standing still or jumping across the map leaves none', () => {
+    const { ctx, player } = stub();
+    const f = new Footprints(ctx);
+    for (let t = 0; t < 2; t += 0.05) f.update(0.05);
+    player.position.set(40, 0, 40);
+    f.update(0.05);
+    expect(f.live).toBe(0);
+  });
+  it('townsfolk walking nearby leave prints; skaters and sitters do not', () => {
+    const { ctx } = stub();
+    const f = new Footprints(ctx);
+    const walkers = new Crowd(4);
+    const skaters = new Crowd(4);
+    skaters.prints = false;
+    const a = walkers.acquire(0xff0000, 0xffffff)!;
+    const b = walkers.acquire(0xff0000, 0xffffff)!;
+    const c = skaters.acquire(0xff0000, 0xffffff)!;
+    for (const p of [a, b, c]) p.appear = 1;
+    b.sit = 1;
+    for (let t = 0; t < 2; t += 0.05) {
+      for (const p of [a, b, c]) p.x += 0.1;
+      f.update(0.05);
     }
-    expect(printAlpha(FADE_SECONDS)).toBe(0);
-    expect(printAlpha(99)).toBe(0);
-    expect(printAlpha(-1)).toBe(0);
-  });
-});
-
-describe('night market era flag', () => {
-  it('appears at Winter City (level 4) and stays', () => {
-    expect([0, 1, 2, 3, 4, 5].map((l) => eraFor(l).nightMarket)).toEqual([false, false, false, false, true, true]);
+    // one walker, 4 m: a print every stride (each one lands a little past 0.42 m at this pace)
+    expect(f.live).toBeGreaterThanOrEqual(6);
+    expect(f.live).toBeLessThanOrEqual(9);
+    walkers.dispose();
+    skaters.dispose();
   });
 });

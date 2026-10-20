@@ -98,6 +98,31 @@ export function addLightString(batch: Batch, a: V3, b: V3, sag: number, seed = 0
   batch.add(bulbGeo(), colors[(steps * 7 + seed) % colors.length]!, b.x, b.y - 0.05, b.z);
 }
 
+let lantern: THREE.BufferGeometry | null = null;
+let lanternCap: THREE.BufferGeometry | null = null;
+
+/**
+ * 0.9.12 (Dino: lantern garlands): a wire from a to b with a round paper lantern hanging every ~0.62 m, each with a dark
+ * cap and foot. Goes into a Batch painted for the bulb material, so the lanterns glow warm at night.
+ */
+export function addLanternGarland(batch: Batch, a: V3, b: V3, sag: number, seed = 0, colors: readonly number[] = WARM_BULBS): void {
+  lantern ??= new THREE.SphereGeometry(0.085, 9, 6).scale(1, 1.25, 1);
+  lanternCap ??= new THREE.CylinderGeometry(0.045, 0.05, 0.035, 6);
+  const len = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
+  const steps = Math.max(4, Math.round(len / 0.31));
+  for (let i = 0; i < steps; i++) {
+    ropePoint(a, b, sag, i / steps, p0);
+    ropePoint(a, b, sag, (i + 1) / steps, p1);
+    segment(batch, rope, 0x3a2c24, p0, p1, 0.6);
+    if (i % 2 === 0) continue;
+    const y = p0.y - 0.15;
+    segment(batch, rope, 0x3a2c24, p0, { x: p0.x, y: y + 0.12, z: p0.z }, 0.4);
+    batch.add(lantern, colors[(i * 5 + seed) % colors.length]!, p0.x, y, p0.z);
+    batch.add(lanternCap, 0x4a3426, p0.x, y + 0.115, p0.z);
+    batch.add(lanternCap, 0x4a3426, p0.x, y - 0.115, p0.z);
+  }
+}
+
 /** A wreath (green ring, red berries, a bow) hung on a post, turned to face the iso camera. */
 export function addWreath(batch: Batch, x: number, y: number, z: number, scale = 1): void {
   const face = Math.PI / 4;

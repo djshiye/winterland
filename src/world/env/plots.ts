@@ -28,6 +28,7 @@ import type { ColliderHandle } from '../Colliders';
 import { Batch } from '../../render/batch';
 import { geo } from '../../render/materials';
 import { bulbMaterial } from './glow';
+import { addLanternGarland, type V3 } from './festive';
 import { Rng } from './common';
 import { MACHINE_TONES, mixHex, palette } from '../../render/palette';
 import { addChimney } from '../sky/smoke';
@@ -97,6 +98,8 @@ const STYLE: readonly (PlotStyle | null)[] = [
 
 const SNOW = PALETTE.snow;
 const CREAM = 0xfff3dc;
+/** Icicles: pale blue ice. */
+const ICE = 0xd6eefa;
 const WINDOW = 0xffd88a;
 const DOOR_D = 0.08;
 
@@ -241,6 +244,28 @@ class Frame {
     // gable ends
     this.put(geo.box(0.12, rise * 0.9, d * 0.7), color, w / 2 - 0.02, y + rise * 0.35, 0);
     this.put(geo.box(0.12, rise * 0.9, d * 0.7), color, -w / 2 + 0.02, y + rise * 0.35, 0);
+    if (snow) this.winter(w, d, y, half);
+    return this;
+  }
+  /**
+   * 0.9.12 (Dino: "icicles and snowdrifts"): icicles of steady, varied lengths along both eaves, and soft drifts
+   * banked against the side and back walls (never the front, where the door is). The drifts are low and hug the
+   * walls: they stand in nobody's way.
+   */
+  winter(w: number, d: number, eaveY: number, half: number): this {
+    const n = Math.max(4, Math.round((w + 0.3) / 0.27));
+    for (const s of [1, -1]) {
+      for (let k = 0; k < n; k++) {
+        const len = 0.1 + (((k * 7 + (s > 0 ? 3 : 0)) % 5) / 4) * 0.26;
+        if ((k * 5 + (s > 0 ? 1 : 2)) % 7 === 0) continue;
+        this.put(geo.cone(0.045, len, 5), ICE, -(w + 0.3) / 2 + ((k + 0.5) * (w + 0.3)) / n, eaveY - 0.02 - len / 2, s * (half - 0.02), { rx: Math.PI });
+      }
+    }
+    for (const s of [1, -1]) {
+      this.put(geo.sphere(0.5, 10, 6), SNOW, s * (w / 2 + 0.12), 0, -d * 0.12, { sx: 0.5, sy: 0.42, sz: d * 0.7 });
+      this.put(geo.sphere(0.4, 9, 5), 0xffffff, s * (w / 2 + 0.1), 0.02, -d * 0.3, { sx: 0.45, sy: 0.5, sz: 0.9 });
+    }
+    this.put(geo.sphere(0.5, 10, 6), SNOW, 0, 0, -(d / 2 + 0.12), { sx: w * 0.75, sy: 0.4, sz: 0.5 });
     return this;
   }
 }
@@ -411,6 +436,49 @@ function buildHut(body: Batch, glow: Batch, st: PlotStyle, h: HutPlace, stage: n
 // market street, yard, field, green
 // ---------------------------------------------------------------------------------------------------------------------
 
+/** Lowest point of a shop's hanging sign (m): over every head. */
+export const SIGN_BOTTOM = 1.95;
+/** The default shop's striped awning: from the wall out this far (the hanging signs hang just past its edge). */
+const AWNING_OUT = 0.95;
+
+/**
+ * 0.9.12 (Dino: "era signs"): the gabled shops of eras II-V hang out a sign over the street, just past the awning's
+ * edge, in their era's own style: a carved wooden board on chains from a curled iron bracket in II-IV, an enamel plate
+ * in the era's colours on a steel arm in V. Each carries an emblem in the colour of the goods the street trades in. The
+ * shops of VI-X already carry their own lit signs. Nothing reaches below SIGN_BOTTOM.
+ */
+function buildShopSign(body: Batch, n: number, st: PlotStyle, s: ShopPlace, i: number, c: { accent: number }, goods: [number, number]): void {
+  if (n > 5 || st.hut === 'deco' || st.hut === 'trailer' || st.hut === 'modular' || st.hut === 'quonset' || st.hut === 'pod') return;
+  const f = new Frame(body, s.x, s.z, s.yaw);
+  const front = s.d / 2;
+  // near one corner (alternating along the street), in the plane across the front
+  const x = (i % 2 ? -1 : 1) * (s.w / 2 - 0.3);
+  const H = 0.48;
+  const Wd = 0.62;
+  const z0 = front + AWNING_OUT + 0.06;
+  const zc = z0 + Wd / 2;
+  const yb = SIGN_BOTTOM + 0.05;
+  const yc = yb + H / 2;
+  const arm = Math.min(s.h - 0.3, 2.62);
+  const metal = n <= 4 ? 0x3a3634 : 0x8a9096;
+  // the bracket: out from the wall over the awning, a stay under it, two hangers down to the board
+  f.put(geo.box(0.05, 0.05, z0 + Wd + 0.12 - front), metal, x, arm, (front + z0 + Wd + 0.12) / 2);
+  f.put(geo.box(0.035, 0.035, 0.55), metal, x, arm + 0.17, front + 0.22, { rx: -0.7 });
+  for (const dz of [-Wd / 2 + 0.06, Wd / 2 - 0.06]) f.put(geo.box(0.015, arm - yb - H, 0.015), metal, x, (arm + yb + H) / 2, zc + dz);
+  if (n <= 4) {
+    f.put(geo.torus(0.06, 0.012, 5, 10), metal, x, arm + 0.05, z0 + Wd + 0.16, { ry: Math.PI / 2 });
+    f.put(geo.box(0.07, H, Wd), 0x6b4a32, x, yc, zc);
+    f.put(geo.box(0.08, H - 0.08, Wd - 0.08), 0xa47c55, x, yc, zc);
+    for (const sx of [-1, 1]) f.put(geo.cylinder(0.14, 0.14, 0.02, 14), goods[0], x + sx * 0.045, yc, zc, { rz: Math.PI / 2 });
+  } else {
+    f.put(geo.box(0.05, H, Wd), CREAM, x, yc, zc);
+    f.put(geo.box(0.06, H - 0.07, Wd - 0.07), c.accent, x, yc, zc);
+    for (const sx of [-1, 1]) f.put(geo.cylinder(0.14, 0.14, 0.02, 14), CREAM, x + sx * 0.035, yc, zc, { rz: Math.PI / 2 });
+    for (const sx of [-1, 1]) f.put(geo.cylinder(0.09, 0.09, 0.02, 12), goods[0], x + sx * 0.042, yc, zc, { rz: Math.PI / 2 });
+  }
+  f.put(geo.box(0.1, 0.05, Wd - 0.1), SNOW, x, yb + H + 0.03, zc);
+}
+
 function buildShop(body: Batch, glow: Batch, st: PlotStyle, s: ShopPlace, i: number, accent: number, goods: [number, number]): void {
   const f = new Frame(body, s.x, s.z, s.yaw);
   const g = new Frame(glow, s.x, s.z, s.yaw);
@@ -529,7 +597,7 @@ function buildShop(body: Batch, glow: Batch, st: PlotStyle, s: ShopPlace, i: num
       g.put(geo.box(w - 1.7, 1.15, 0.06), WINDOW, -0.85, 1.25, d / 2 + 0.03);
       f.put(geo.box(0.8, 1.6, 0.1), shade(st.shopRoof, 0.95), w / 2 - 0.75, 0.8, d / 2 + 0.01);
       sign(h - 0.45, d / 2 + 0.03);
-      stripe(2.25, d / 2 + 0.45, 0.95, 0.38);
+      stripe(2.25, d / 2 + AWNING_OUT / 2 - 0.025, AWNING_OUT, 0.38);
       // goods outside: a crate and a barrel in the era's resource colours
       goodsOut();
     }
@@ -950,6 +1018,78 @@ function buildGreen(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlaces, acce
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// 0.9.12 lantern garlands (Dino: "lantern garlands over the streets and along roof edges")
+// ---------------------------------------------------------------------------------------------------------------------
+
+export interface Garland {
+  a: V3;
+  b: V3;
+  sag: number;
+  seed: number;
+  /** Under a shop's eave (against its front, over its doorstep) rather than across the street. */
+  eave: boolean;
+}
+
+/** Lamp posts this far apart (or nearer) along the market street are strung together (metres). */
+const GARLAND_SPAN = 10;
+/** Where a garland ties on to a lamp post: just under its arm. */
+const GARLAND_POST_Y = 2.88;
+
+/** A shop's front eave edge in its own frame: [half width, height, depth out from the centre], or null (round shops). */
+function shopEave(st: PlotStyle, s: ShopPlace): [number, number, number] | null {
+  if (st.hut === 'deco') return [s.w / 2 + 0.04, 2.44, s.d / 2 + 1.31];
+  if (st.hut === 'trailer') return [s.w / 2 + 0.28, s.h - 0.02, s.d / 2 + 0.76];
+  if (st.hut === 'modular') return [s.w / 2 + 0.13, s.h - 0.12, s.d / 2 + 0.12];
+  if (st.hut === 'quonset' || st.hut === 'pod') return null;
+  return [s.w / 2 + 0.12, s.h - 0.04, s.d / 2 + 0.25];
+}
+
+/** 0.9.12: icicles along the front eave of the flat-roofed shops of eras VI-VIII (the gabled ones get theirs in Frame.gable). */
+function shopIcicles(body: Batch, st: PlotStyle, s: ShopPlace, i: number): void {
+  if (st.hut !== 'deco' && st.hut !== 'trailer' && st.hut !== 'modular') return;
+  const e = shopEave(st, s)!;
+  const f = new Frame(body, s.x, s.z, s.yaw);
+  const n = Math.max(4, Math.round((e[0] * 2) / 0.27));
+  // the deco arcade's slab is 0.18 thick, the others' roof edges about as much
+  const y = e[1] - 0.09;
+  for (let k = 0; k < n; k++) {
+    if ((k * 5 + i) % 7 === 0) continue;
+    const len = 0.1 + (((k * 7 + i) % 5) / 4) * 0.24;
+    f.put(geo.cone(0.045, len, 5), ICE, -e[0] + ((k + 0.5) * 2 * e[0]) / n, y - len / 2, e[2] - 0.03, { rx: Math.PI });
+  }
+}
+
+/**
+ * Pure: era n's garlands. Paper lanterns strung from lamp to lamp along the market street (their lowest point well
+ * over everyone's heads), and scalloped under the front eave of every shop (stalls and the round quonset / dome
+ * shops of eras 9 and 10 aside: their neon is their own).
+ */
+export function plotGarlands(n: number): Garland[] {
+  const st = STYLE[n];
+  if (!st) return [];
+  const P = plotPlaces(n);
+  const out: Garland[] = [];
+  for (let i = 0; i + 1 < P.lamps.length; i++) {
+    const a = P.lamps[i]!;
+    const b = P.lamps[i + 1]!;
+    const d = Math.hypot(b.x - a.x, b.z - a.z);
+    if (d < 1 || d > GARLAND_SPAN) continue;
+    out.push({ a: { x: a.x, y: GARLAND_POST_Y, z: a.z }, b: { x: b.x, y: GARLAND_POST_Y, z: b.z }, sag: 0.12 + d * 0.02, seed: i, eave: false });
+  }
+  P.shops.forEach((s, i) => {
+    if (s.stall) return;
+    const e = shopEave(st, s);
+    if (!e) return;
+    const c = Math.cos(s.yaw);
+    const sn = Math.sin(s.yaw);
+    const at = (lx: number): V3 => ({ x: s.x + lx * c + e[2] * sn, y: e[1], z: s.z - lx * sn + e[2] * c });
+    const k = Math.max(2, Math.round((e[0] * 2) / 1.8));
+    for (let j = 0; j < k; j++) out.push({ a: at(-e[0] + (j * 2 * e[0]) / k), b: at(-e[0] + ((j + 1) * 2 * e[0]) / k), sag: 0.09, seed: i * 3 + j, eave: true });
+  });
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // lived-in market and huts (EM1): the decor eras/layout.ts plotDecor places
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -1291,6 +1431,104 @@ function drum(f: Frame, g: Frame, n: number, S: DecorStyle, x: number, z: number
 }
 
 /** Draw every decor piece (statics: body, lit parts, lamp bulbs). No extra draw calls: it all joins the region's batches. */
+/**
+ * 0.9.12 (Dino: "plaza centrepieces"): the market's centrepiece, in its era's own style, on a round snowy kerb with
+ * winter flowers. II-III a statue on a plinth (a lantern bearer, a smith with his hammer), IV a street clock, V a
+ * girder sculpture, VI a lit deco fountain, VII a little oil derrick monument, VIII a glowing data pillar, IX a fountain
+ * of glowing aqua water, X an orb floating over a ring. About 2.3 m across (DECOR_SIZE.centre), its collider the same.
+ */
+function buildCentre(f: Frame, g: Frame, b: Frame, n: number, S: DecorStyle, accent: number, glowC: number): void {
+  const stone = n <= 4 ? 0xb4aca0 : n <= 7 ? 0xa9adb0 : 0xdcdfe4;
+  const leaf = shade(FIR_GREEN[n] ?? 0x2f6b4a, 1.1);
+  // the round kerb and its bed of winter flowers
+  f.put(geo.cylinder(1.12, 1.15, 0.3, 24), stone, 0, 0.15, 0);
+  f.put(geo.cylinder(1.0, 1.0, 0.04, 24), SNOW, 0, 0.31, 0);
+  for (let k = 0; k < 10; k++) {
+    const a = (k / 10) * Math.PI * 2;
+    f.put(geo.sphere(0.17, 8, 6), leaf, Math.cos(a) * 0.8, 0.4, Math.sin(a) * 0.8, { sy: 0.7 });
+    g.put(geo.sphere(0.07, 6, 4), k % 2 ? (BERRY[n] ?? 0xff6b6b) : 0xfff3f0, Math.cos(a + 0.2) * 0.84, 0.52, Math.sin(a + 0.2) * 0.84);
+  }
+  const plinth = (h: number): void => {
+    f.put(geo.boxBase(0.75, h, 0.75), shade(stone, 0.92), 0, 0.3, 0).put(geo.box(0.85, 0.08, 0.85), shade(stone, 1.05), 0, 0.3 + h, 0);
+    f.put(geo.box(0.8, 0.05, 0.8), SNOW, 0, 0.36 + h, 0);
+  };
+  // a stylised figure standing at height y, the arm raised with what it holds
+  const figure = (y: number, bronze: number, hold: (x: number, y: number) => void): void => {
+    const k = 1.35;
+    const o = { sx: k, sy: k, sz: k };
+    f.put(geo.capsule(0.2, 0.42, 4, 8), bronze, 0, y + 0.42 * k, 0, o).put(geo.sphere(0.17, 10, 8), bronze, 0, y + 0.95 * k, 0, o);
+    f.put(geo.sphere(0.12, 8, 5), SNOW, 0, y + 1.07 * k, 0, { sx: k, sy: 0.45 * k, sz: k });
+    f.put(geo.capsule(0.06, 0.38, 3, 6), bronze, 0.24 * k, y + 0.85 * k, 0, { rz: -0.5, ...o }).put(geo.capsule(0.06, 0.3, 3, 6), bronze, -0.22 * k, y + 0.45 * k, 0, { rz: 0.2, ...o });
+    hold(0.38 * k, y + 1.12 * k);
+  };
+  const bronze = mix(0x6f6252, accent, 0.25);
+  switch (n) {
+    case 2:
+      plinth(0.8);
+      figure(1.12, bronze, (x, y) => {
+        f.put(geo.box(0.16, 0.2, 0.16), 0x3a3634, x, y + 0.02, 0);
+        b.put(geo.sphere(0.07, 8, 6), 0xffc067, x, y + 0.02, 0);
+      });
+      break;
+    case 3:
+      plinth(0.8);
+      figure(1.12, mix(0x4a4848, accent, 0.2), (x, y) => {
+        f.put(geo.box(0.04, 0.36, 0.04), 0x6e5646, x, y - 0.05, 0, { rz: -0.3 }).put(geo.box(0.2, 0.12, 0.12), 0x3f3d3f, x + 0.06, y + 0.14, 0, { rz: -0.3 });
+      });
+      f.put(geo.boxBase(0.4, 0.2, 0.22), 0x3f3d3f, -0.15, 1.12, 0.12);
+      break;
+    case 4: {
+      // a street clock: a fluted iron post with a glowing four-faced clock
+      f.put(geo.cylinder(0.12, 0.16, 1.9, 10), 0x2f3033, 0, 1.25, 0);
+      f.put(geo.box(0.5, 0.5, 0.5), 0x2f3033, 0, 2.4, 0).put(geo.cone(0.34, 0.3, 4), 0x2f3033, 0, 2.8, 0, { ry: Math.PI / 4 });
+      for (let k = 0; k < 4; k++) {
+        const a = (k * Math.PI) / 2;
+        b.put(geo.cylinder(0.19, 0.19, 0.02, 16), 0xfff1c8, Math.sin(a) * 0.26, 2.4, Math.cos(a) * 0.26, { rx: Math.PI / 2, rz: 0, ry: a });
+        f.put(geo.box(0.02, 0.14, 0.01), 0x2a2a2a, Math.sin(a) * 0.28, 2.43, Math.cos(a) * 0.28, { ry: a });
+      }
+      f.put(geo.sphere(0.24, 8, 5), SNOW, 0, 2.95, 0, { sy: 0.3 });
+      break;
+    }
+    case 5:
+      // a riveted girder arch, steel and the era's rust red
+      for (const x of [-0.45, 0.45]) f.put(geo.boxBase(0.18, 1.8, 0.18), x < 0 ? S.drum[0]! : 0x76818a, x, 0.3, 0);
+      f.put(geo.box(1.1, 0.2, 0.2), S.drum[0]!, 0, 2.2, 0).put(geo.box(0.12, 1.3, 0.06), 0x76818a, 0, 1.4, 0, { rz: 0.8 });
+      f.put(geo.box(1.15, 0.05, 0.24), SNOW, 0, 2.33, 0);
+      break;
+    case 6:
+    case 9: {
+      // a two-tier fountain; in IX its water glows aqua
+      const water = n === 9 ? 0x86e8c4 : 0xbfe6f2;
+      const w = n === 9 ? b : f;
+      w.put(geo.cylinder(0.92, 0.92, 0.04, 24), water, 0, 0.3, 0);
+      f.put(geo.cylinder(0.12, 0.16, 1.1, 10), stone, 0, 0.85, 0).put(geo.cylinder(0.5, 0.36, 0.14, 18), stone, 0, 1.42, 0);
+      w.put(geo.cylinder(0.44, 0.44, 0.03, 18), water, 0, 1.49, 0);
+      f.put(geo.cylinder(0.06, 0.08, 0.5, 8), stone, 0, 1.75, 0);
+      if (n === 6) b.put(geo.sphere(0.16, 12, 8), mix(glowC, 0xffffff, 0.4), 0, 2.08, 0);
+      else for (let k = 0; k < 6; k++) b.put(geo.sphere(0.05, 6, 4), water, Math.cos(k) * 0.3, 1.62 + (k % 3) * 0.08, Math.sin(k) * 0.3);
+      break;
+    }
+    case 7:
+      // a little derrick monument with a lamp at its crown
+      for (const [x, z] of [[-0.35, -0.35], [0.35, -0.35], [-0.35, 0.35], [0.35, 0.35]] as const) f.put(geo.box(0.06, 2.2, 0.06), 0x444a54, x * 0.6, 1.4, z * 0.6, { rx: -z * 0.28, rz: x * 0.28 });
+      for (const y of [0.9, 1.5]) f.put(geo.box(0.6 - (y - 0.9) * 0.3, 0.05, 0.05), 0xc44536, 0, y, 0.2 - (y - 0.9) * 0.08);
+      b.put(geo.sphere(0.1, 8, 6), 0xffd36b, 0, 2.5, 0);
+      break;
+    case 8:
+      // a glowing data pillar: a white column with lit bands
+      f.put(geo.cylinder(0.3, 0.34, 2.0, 16), 0xf0eadb, 0, 1.3, 0);
+      for (const y of [0.9, 1.4, 1.9]) b.put(geo.cylinder(0.31, 0.31, 0.06, 16), mix(glowC, 0xffffff, 0.3), 0, y, 0);
+      f.put(geo.cylinder(0.32, 0.32, 0.05, 16), SNOW, 0, 2.33, 0);
+      break;
+    default:
+      // X: an orb floating over a glowing ring
+      f.put(geo.cylinder(0.35, 0.45, 0.4, 16), 0xe3d9f6, 0, 0.5, 0);
+      b.put(geo.torus(0.5, 0.04, 6, 24), mix(glowC, 0xffffff, 0.3), 0, 1.25, 0, { rx: Math.PI / 2 });
+      b.put(geo.sphere(0.34, 16, 12), mix(accent, 0xffffff, 0.35), 0, 1.75, 0);
+      break;
+  }
+}
+
 function buildDecor(body: Batch, glow: Batch, bulbs: Batch, n: number, st: PlotStyle, items: readonly DecorPlace[]): void {
   const S = DECOR[n]!;
   const tilt = (k: number): number => ((k * 7 + n * 3) % 5 - 2) * 0.05;
@@ -1298,6 +1536,9 @@ function buildDecor(body: Batch, glow: Batch, bulbs: Batch, n: number, st: PlotS
     const f = new Frame(body, d.x, d.z, d.yaw);
     const g = new Frame(glow, d.x, d.z, d.yaw);
     switch (d.kind) {
+      case 'centre':
+        buildCentre(f, g, new Frame(bulbs, d.x, d.z, d.yaw), n, S, ERAS[n]!.colors.accent, ERAS[n]!.colors.glow);
+        break;
       case 'crates': {
         if (d.v === 1) {
           // one open crate heaped with goods
@@ -1441,6 +1682,14 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   buildGreen(body, glow, st, P, e.colors.accent, e.colors.glow);
   const decor = plotDecor(n);
   buildDecor(body, glow, bulbs, n, st, decor);
+  // 0.9.12 lantern garlands: in the lamps' bulb batch (no extra draw call), warm paper tinted with the era's glow
+  const paper = [mix(e.colors.glow, 0xffd27a, 0.55), 0xffc067, mix(e.colors.accent, 0xfff0d0, 0.45), 0xfff0c2];
+  for (const g of plotGarlands(n)) addLanternGarland(bulbs, g.a, g.b, g.sag, g.seed, paper);
+  P.shops.forEach((s, i) => {
+    if (s.stall) return;
+    buildShopSign(body, n, st, s, i, e.colors, goods);
+    shopIcicles(body, st, s, i);
+  });
 
   const statics = body.mesh({ cast: true, receive: true });
   statics.name = 'places';
