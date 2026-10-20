@@ -33,12 +33,14 @@ export type AmbientSound =
   | 'sleigh'
   | 'shopBell'
   | 'crunch'
-  | 'gust';
+  | 'gust'
+  | 'whirr'
+  | 'putter';
 
 export const AMBIENT_SOUNDS: readonly AmbientSound[] = [
   'chickadee', 'tweet', 'owl', 'woodpecker', 'crackle', 'chink', 'tink', 'bellows', 'cart', 'chuffs', 'hiss', 'clank',
   'trainFar', 'thump', 'zap', 'wireSing', 'ting', 'creak', 'beep', 'keys', 'bubble', 'drip', 'glitter', 'swell',
-  'sleigh', 'shopBell', 'crunch', 'gust',
+  'sleigh', 'shopBell', 'crunch', 'gust', 'whirr', 'putter',
 ];
 
 /** C-lydian-ish high notes for the AI era's glitter (matches the Golden Halo theme). */
@@ -385,6 +387,22 @@ class Voice {
         // a whistling gust over the open snow
         this.noise(0, 'bandpass', 800, 1300, 3, 2.8, 1, 1.1, 0.4);
         break;
+      case 'whirr': {
+        // 0.9.12: a delivery drone passing over: two buzzing rotors swelling in and fading, the pitch dipping as it goes
+        const f = rr(170, 200);
+        this.tone(0, 'sawtooth', f * 1.12, f * 0.9, 2.6, 0.5, 1.0, 900);
+        this.tone(0.04, 'sawtooth', f * 1.5, f * 1.22, 2.6, 0.3, 1.0, 1100);
+        break;
+      }
+      case 'putter': {
+        // 0.9.12: the little airship's propeller puttering overhead, in and out again
+        const n = 18 + Math.floor(this.r() * 8);
+        for (let i = 0; i < n; i++) {
+          const k = Math.sin((i / (n - 1)) * Math.PI);
+          this.noise(i * 0.13, 'bandpass', 240, 200, 2.2, 0.1, 0.25 + k * 0.75, 0.01);
+        }
+        break;
+      }
     }
   }
 }

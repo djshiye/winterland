@@ -412,6 +412,49 @@ function buildHut(body: Batch, glow: Batch, st: PlotStyle, h: HutPlace, stage: n
 // market street, yard, field, green
 // ---------------------------------------------------------------------------------------------------------------------
 
+/** Lowest point of a shop's hanging sign (m): over every head. */
+export const SIGN_BOTTOM = 1.95;
+/** The default shop's striped awning: from the wall out this far (the hanging signs hang just past its edge). */
+const AWNING_OUT = 0.95;
+
+/**
+ * 0.9.12 (Dino: "era signs"): the gabled shops of eras II-V hang out a sign over the street, just past the awning's
+ * edge, in their era's own style: a carved wooden board on chains from a curled iron bracket in II-IV, an enamel plate
+ * in the era's colours on a steel arm in V. Each carries an emblem in the colour of the goods the street trades in. The
+ * shops of VI-X already carry their own lit signs. Nothing reaches below SIGN_BOTTOM.
+ */
+function buildShopSign(body: Batch, n: number, st: PlotStyle, s: ShopPlace, i: number, c: { accent: number }, goods: [number, number]): void {
+  if (n > 5 || st.hut === 'deco' || st.hut === 'trailer' || st.hut === 'modular' || st.hut === 'quonset' || st.hut === 'pod') return;
+  const f = new Frame(body, s.x, s.z, s.yaw);
+  const front = s.d / 2;
+  // near one corner (alternating along the street), in the plane across the front
+  const x = (i % 2 ? -1 : 1) * (s.w / 2 - 0.3);
+  const H = 0.48;
+  const Wd = 0.62;
+  const z0 = front + AWNING_OUT + 0.06;
+  const zc = z0 + Wd / 2;
+  const yb = SIGN_BOTTOM + 0.05;
+  const yc = yb + H / 2;
+  const arm = Math.min(s.h - 0.3, 2.62);
+  const metal = n <= 4 ? 0x3a3634 : 0x8a9096;
+  // the bracket: out from the wall over the awning, a stay under it, two hangers down to the board
+  f.put(geo.box(0.05, 0.05, z0 + Wd + 0.12 - front), metal, x, arm, (front + z0 + Wd + 0.12) / 2);
+  f.put(geo.box(0.035, 0.035, 0.55), metal, x, arm + 0.17, front + 0.22, { rx: -0.7 });
+  for (const dz of [-Wd / 2 + 0.06, Wd / 2 - 0.06]) f.put(geo.box(0.015, arm - yb - H, 0.015), metal, x, (arm + yb + H) / 2, zc + dz);
+  if (n <= 4) {
+    f.put(geo.torus(0.06, 0.012, 5, 10), metal, x, arm + 0.05, z0 + Wd + 0.16, { ry: Math.PI / 2 });
+    f.put(geo.box(0.07, H, Wd), 0x6b4a32, x, yc, zc);
+    f.put(geo.box(0.08, H - 0.08, Wd - 0.08), 0xa47c55, x, yc, zc);
+    for (const sx of [-1, 1]) f.put(geo.cylinder(0.14, 0.14, 0.02, 14), goods[0], x + sx * 0.045, yc, zc, { rz: Math.PI / 2 });
+  } else {
+    f.put(geo.box(0.05, H, Wd), CREAM, x, yc, zc);
+    f.put(geo.box(0.06, H - 0.07, Wd - 0.07), c.accent, x, yc, zc);
+    for (const sx of [-1, 1]) f.put(geo.cylinder(0.14, 0.14, 0.02, 14), CREAM, x + sx * 0.035, yc, zc, { rz: Math.PI / 2 });
+    for (const sx of [-1, 1]) f.put(geo.cylinder(0.09, 0.09, 0.02, 12), goods[0], x + sx * 0.042, yc, zc, { rz: Math.PI / 2 });
+  }
+  f.put(geo.box(0.1, 0.05, Wd - 0.1), SNOW, x, yb + H + 0.03, zc);
+}
+
 function buildShop(body: Batch, glow: Batch, st: PlotStyle, s: ShopPlace, i: number, accent: number, goods: [number, number]): void {
   const f = new Frame(body, s.x, s.z, s.yaw);
   const g = new Frame(glow, s.x, s.z, s.yaw);
@@ -530,7 +573,7 @@ function buildShop(body: Batch, glow: Batch, st: PlotStyle, s: ShopPlace, i: num
       g.put(geo.box(w - 1.7, 1.15, 0.06), WINDOW, -0.85, 1.25, d / 2 + 0.03);
       f.put(geo.box(0.8, 1.6, 0.1), shade(st.shopRoof, 0.95), w / 2 - 0.75, 0.8, d / 2 + 0.01);
       sign(h - 0.45, d / 2 + 0.03);
-      stripe(2.25, d / 2 + 0.45, 0.95, 0.38);
+      stripe(2.25, d / 2 + AWNING_OUT / 2 - 0.025, AWNING_OUT, 0.38);
       // goods outside: a crate and a barrel in the era's resource colours
       goodsOut();
     }
@@ -1495,6 +1538,9 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   // 0.9.12 lantern garlands: in the lamps' bulb batch (no extra draw call), warm paper tinted with the era's glow
   const paper = [mix(e.colors.glow, 0xffd27a, 0.55), 0xffc067, mix(e.colors.accent, 0xfff0d0, 0.45), 0xfff0c2];
   for (const g of plotGarlands(n)) addLanternGarland(bulbs, g.a, g.b, g.sag, g.seed, paper);
+  P.shops.forEach((s, i) => {
+    if (!s.stall) buildShopSign(body, n, st, s, i, e.colors, goods);
+  });
 
   const statics = body.mesh({ cast: true, receive: true });
   statics.name = 'places';

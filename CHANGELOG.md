@@ -38,6 +38,7 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Animals about.** Little finches land near you to hop and peck, then flutter off when you, your dog or a cart comes close. A cat sits and watches you go by and trots off if you get too near, and deer graze in the snow between the areas, bounding away as you walk up. They stay in when it is dark or stormy.
 - **Footprints in the snow.** You, your dog and the townsfolk walking near you leave soft prints that slowly fill back in, so the busy ways between huts, shops and gates wear into trodden paths while you watch.
 - **Something of each era in the sky.** A reindeer sleigh circles over the towns of eras II to IV, a little airship in the era's colours drifts over eras V to VII with its gondola windows lit, and delivery drones ferry parcels between the market and the huts in eras VIII to X.
+- **Hanging shop signs and sky sounds.** The shops of eras II to V hang out a sign over the street, carved wood on an iron bracket and later an enamel plate in the era's colours. You hear sleigh bells, the airship's propeller or a passing drone now and then, in the eras they fly over.
 - **A finished game may show less than 100 % now.** The new machine spots and lots count towards completion, so an older finished save shows a lower percentage until you build on them. Every trophy you've earned is kept.
 
 ### Connected machine yards
