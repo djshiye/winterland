@@ -38,17 +38,17 @@ const REMEASURE = 3;
 export const MAX_HOLES = 4;
 /** Hole radius around the player (metres) in a low building. */
 const PLAYER_HOLE = 1.6;
-/** 0.9.12 (V4): the widest hole around the player, cut through the city's tallest towers. */
-const PLAYER_HOLE_MAX = 3.6;
+/** 0.9.12 (V4): the widest hole around the player, cut through the city's tallest towers (review E7: 3.6 m still hid the player among the late eras' 15-storey towers). */
+const PLAYER_HOLE_MAX = 5.2;
 
 /**
  * [PURE] Hole radius around the player through a building `height` m tall: 1.6 m through a hut or a low shop, opening
- * up to 3.6 m through a 22 m tower, so the street around the player and the MANAGE board beside them show too (a 1.6 m
+ * up to 5.2 m through a 24 m tower, so the street around the player and the MANAGE board beside them show too (a 1.6 m
  * dithered patch high up a tower read as a smudge, review V4).
  */
 export function playerHoleRadius(height: number): number {
   if (!(height > 6)) return PLAYER_HOLE;
-  return Math.min(PLAYER_HOLE_MAX, PLAYER_HOLE + (height - 6) * 0.13);
+  return Math.min(PLAYER_HOLE_MAX, PLAYER_HOLE + (height - 6) * 0.2);
 }
 
 interface Target {

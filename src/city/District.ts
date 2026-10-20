@@ -41,7 +41,7 @@ import type { ColliderHandle } from '../world/Colliders';
 import type { Zone } from '../items/Zones';
 import type { Crowd } from '../npc/Crowd';
 import { DistrictLife } from './DistrictLife';
-import { districtDecor, districtLamps } from './decor';
+import { decorColliders, districtDecor, districtLamps } from './decor';
 import { drawDecor } from './decorModels';
 import { districtVerge, drawVerge } from './verge';
 import { buildHalos, bulbMaterial, type HaloSpot } from '../world/env/glow';
@@ -163,6 +163,9 @@ export class District {
     this.root.add(buildScenery(n));
     ctx.scene.add(this.root);
     ctx.colliders.addBounds(def.rect);
+    // E9: the street furniture and lamp posts block the player like the region props do (all kept off the walks)
+    for (const it of districtDecor(n)) for (const c of decorColliders(it)) ctx.colliders.addCircle(c.x, c.z, c.r, `district:${n}:decor`);
+    for (const l of districtLamps(n)) ctx.colliders.addCircle(l.x, l.z, 0.17, `district:${n}:lamp`);
     this.inflated = { minX: def.rect.minX - 12, maxX: def.rect.maxX + 12, minZ: def.rect.minZ - 12, maxZ: def.rect.maxZ + 12 };
     for (const frame of districtLots(n)) {
       const group = new THREE.Group();

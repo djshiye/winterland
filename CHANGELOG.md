@@ -4,6 +4,13 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
+## Unreleased
+
+### Arriving in a city district
+- Fast travel to a city district now lands you on its front street with every lot ahead of you, instead of behind the front row where a building hid you and you seemed to stand on its roof.
+- Among the tall towers of the later eras the see-through window around you is wider, so you never lose sight of yourself.
+- City benches, hedges, planters, bike racks and lamp posts are solid now, like the ones in the regions; the walks stay clear.
+
 ## 0.9.12 (2026-10-20)
 
 Easier pickups, a guide arrow that follows the path, bigger and livelier towns, a belt for every machine, and the whole game playable with a keyboard, a controller or a phone.

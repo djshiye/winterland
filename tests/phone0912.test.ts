@@ -56,8 +56,8 @@ describe('V4: towers open up around the player', () => {
   it('a low building keeps the small hole, the tallest towers a wide one', () => {
     expect(playerHoleRadius(4)).toBe(1.6);
     expect(playerHoleRadius(14)).toBeGreaterThan(2.5);
-    expect(playerHoleRadius(22)).toBeCloseTo(3.6, 5);
-    expect(playerHoleRadius(60)).toBe(3.6);
+    expect(playerHoleRadius(22)).toBeCloseTo(4.8, 5);
+    expect(playerHoleRadius(60)).toBe(5.2);
   });
 });
 

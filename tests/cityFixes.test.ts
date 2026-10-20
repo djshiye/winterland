@@ -39,7 +39,7 @@ function makeCtx(state: GameState) {
     player: { position: new THREE.Vector3(), arms: { count: () => 0 }, back: {} },
     economy: { money: 1e9, spend: () => true, add: () => undefined },
     upgrades: { value: () => 1 },
-    colliders: { addBounds: () => undefined, addBox: () => ({}), remove: () => undefined },
+    colliders: { addBounds: () => undefined, addBox: () => ({}), addCircle: () => ({}), remove: () => undefined },
     zones: {
       add: (opts: FakeZone['opts'] & { area: unknown; enabled: boolean }) => {
         const z: FakeZone = { area: opts.area, enabled: opts.enabled, playerInside: false, opts, setEnabled: (on) => void (z.enabled = on) };
