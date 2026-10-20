@@ -5,15 +5,19 @@
  * Who gets a belt (planBelts): every built processor input is linked to the nearest built machine (another slot) that
  * makes that kind, at most one belt into each input: first as many belts as fit with one belt out of each machine (a
  * maximum matching, shorter links preferred), then (0.9.6, F3) the inputs still without one, from a producer that
- * already feeds a belt (a splitter: two belts pull from one pile). Machines at most one row apart only. A belt never
+ * already feeds a belt (a splitter: two belts pull from one pile). Machines at most MAX_ROW_GAP rows apart. A belt never
  * shares its stretch of lane or corridor with another belt on the same level: when the ground level is taken there,
- * it runs on a raised level (an overhead conveyor, `level` 1 or 2), so nearly every input gets its belt in any build
- * order.
+ * it runs on a raised level (an overhead conveyor, `level` 1 or 2), and (0.9.12) never crosses one on the same
+ * level either, so nearly every input gets its belt in any build
+ * order. 0.9.12 (Dino: "the conveyor doesn't go from the pellet mine to the steel mill"): the plan first gives every
+ * processor that can have one at least one belt in, and only then the most belts, so a machine is never left standing
+ * with no belt while its neighbours get two.
  * Whatever has no belt is still carried by the crew.
  *
  * The path (beltRoute): from just in front of the producer's output pile, along the producer row's BELT LANE (a line
  * in front of the machines' feed / take zones, toward the front yard), then, for a neighbouring row, down the column
- * gap between two cells (beside the workers' aisle, not on it) to the consumer row's lane, ending in front of the
+ * gap between two cells (beside the workers' aisle, not on it; 0.9.12: past the row between, for a machine two rows
+ * away) to the consumer row's lane, ending in front of the
  * consumer's input hopper. Items hop from the pile onto the belt and off it into the hopper (stations/Conveyor.ts).
  */
 import type { MachineDef } from './data';
@@ -35,6 +39,9 @@ const IN_U = -1.4;
 export const CORRIDOR_OFFSET = 0.6;
 /** Belts closer than this (centre to centre) would touch. */
 const CLEAR = 0.9;
+
+/** 0.9.12: a belt reaches a machine at most this many rows away (was 1; the corridor runs past the row between). */
+export const MAX_ROW_GAP = 2;
 
 /** 0.9.6: belt levels: 0 = on the ground (rollers at waist height), 1 and 2 = raised overhead (EraBelts BELT_LIFT). */
 export const BELT_LEVELS = 3;
@@ -64,21 +71,21 @@ function lanePoint(L: RegionLayout, i: number, u: number): XZ {
   return toWorld({ x: p.x, z: p.z }, p.yaw, u, BELT_LANE);
 }
 
-/** The belt path from slot `a`'s output pile to slot `b`'s input hopper, or null when they are more than a row apart. */
+/** The belt path from slot `a`'s output pile to slot `b`'s input hopper, or null when they are too many rows apart. */
 export function beltRoute(L: RegionLayout, a: number, b: number): XZ[] | null {
   return beltRoutes(L, a, b)[0] ?? null;
 }
 
 /**
- * Every way a belt can run from slot `a` to slot `b` (empty when they are more than a row apart): the straight lane
- * run in one row; into the next row down the corridor nearest the middle of the trip first, then (0.9.6) the corridors
- * nearest its start and its end, so a busy stretch of lane can be avoided.
+ * Every way a belt can run from slot `a` to slot `b` (empty when they are more than MAX_ROW_GAP rows apart): the
+ * straight lane run in one row; into another row down the corridor nearest the middle of the trip first, then (0.9.6)
+ * the corridors nearest its start and its end, so a busy stretch of lane can be avoided.
  */
 export function beltRoutes(L: RegionLayout, a: number, b: number): XZ[][] {
   if (a === b || !L.slots[a] || !L.slots[b]) return [];
   const ra = rowOf(L, a);
   const rb = rowOf(L, b);
-  if (Math.abs(ra - rb) > 1) return [];
+  if (Math.abs(ra - rb) > MAX_ROW_GAP) return [];
   const start = lanePoint(L, a, OUT_U);
   const end = lanePoint(L, b, IN_U);
   if (ra === rb) return [[start, end]];
@@ -120,11 +127,21 @@ function segments(path: readonly XZ[]): Seg[] {
   return out;
 }
 
-/** Two belts would run on top of each other (parallel and overlapping, closer than CLEAR). Crossings are allowed. */
+/**
+ * Two belts would run into each other: parallel and overlapping (closer than CLEAR), or (0.9.12) crossing, where the
+ * rollers would cut through each other (a two-row belt's corridor over the middle row's lane). Perpendicular runs
+ * that stay more than CLEAR / 2 apart are fine.
+ */
 function overlaps(a: readonly Seg[], b: readonly Seg[]): boolean {
+  const half = CLEAR / 2;
   for (const s of a) {
     for (const t of b) {
-      if (s.dir !== t.dir || Math.abs(s.at - t.at) >= CLEAR) continue;
+      if (s.dir !== t.dir) {
+        // s runs along one axis at s.at, t along the other at t.at: they meet at (t.at on s, s.at on t)
+        if (t.at > s.lo - half && t.at < s.hi + half && s.at > t.lo - half && s.at < t.hi + half) return true;
+        continue;
+      }
+      if (Math.abs(s.at - t.at) >= CLEAR) continue;
       if (Math.min(s.hi, t.hi) - Math.max(s.lo, t.lo) > -CLEAR) return true;
     }
   }
@@ -150,19 +167,24 @@ export function planBelts(L: RegionLayout, machines: SlotMachines): BeltLink[] {
       inputs.push({ to, kind: inp.kind, opts });
     }
   });
-  // a small exhaustive search (a region has at most a dozen inputs): the most belts, then the fewest splitters (two
-  // belts out of one pile), then the fewest raised belts, then the shortest; ties keep the first found (deterministic)
+  // a small exhaustive search (a region has at most a dozen inputs): the most processors with a belt in (0.9.12), then
+  // the most belts, then the fewest splitters (two belts out of one pile), then the fewest raised belts, then the
+  // shortest; ties keep the first found (deterministic)
   type Pick = { i: number; from: number; path: XZ[]; level: number; len: number };
   const segs: Seg[][][] = Array.from({ length: BELT_LEVELS }, () => []);
   const outs = new Map<number, number>();
+  // belts into each processor so far, and the processors still ahead from input i on (for the bound below)
+  const ins = new Map<number, number>();
+  const ahead = inputs.map((_, i) => new Set(inputs.slice(i).map((x) => x.to)));
   const cur: Pick[] = [];
   let best: Pick[] = [];
-  let bestKey: number[] = [-1];
+  let bestKey: number[] = [-1, -1];
   let budget = 40_000;
+  const fed = (): number => [...ins.values()].filter((n) => n > 0).length;
   const key = (p: readonly Pick[]): number[] => {
     let splits = 0;
     for (const n of outs.values()) splits += Math.max(0, n - 1);
-    return [p.length, -splits, -p.filter((x) => x.level > 0).length, -p.reduce((s, x) => s + x.len, 0)];
+    return [fed(), p.length, -splits, -p.filter((x) => x.level > 0).length, -p.reduce((s, x) => s + x.len, 0)];
   };
   const better = (a: number[], b: number[]): boolean => {
     for (let k = 0; k < a.length; k++) if (a[k] !== b[k]) return a[k]! > b[k]!;
@@ -170,7 +192,10 @@ export function planBelts(L: RegionLayout, machines: SlotMachines): BeltLink[] {
   };
   const dfs = (i: number): void => {
     if (budget-- <= 0) return;
-    if (cur.length + (inputs.length - i) < bestKey[0]!) return;
+    // nothing down this branch can beat the best plan: too few processors fed, or as many but too few belts
+    let canFeed = fed();
+    if (i < inputs.length) for (const to of ahead[i]!) if (!ins.get(to)) canFeed++;
+    if (canFeed < bestKey[0]! || (canFeed === bestKey[0] && cur.length + (inputs.length - i) < bestKey[1]!)) return;
     if (i === inputs.length) {
       const k = key(cur);
       if (better(k, bestKey)) {
@@ -186,9 +211,11 @@ export function planBelts(L: RegionLayout, machines: SlotMachines): BeltLink[] {
         if (segs[level]!.some((t) => overlaps(s, t))) continue;
         segs[level]!.push(s);
         outs.set(o.from, (outs.get(o.from) ?? 0) + 1);
+        ins.set(inp.to, (ins.get(inp.to) ?? 0) + 1);
         cur.push({ i, from: o.from, path: o.path, level, len: o.len });
         dfs(i + 1);
         cur.pop();
+        ins.set(inp.to, ins.get(inp.to)! - 1);
         outs.set(o.from, outs.get(o.from)! - 1);
         segs[level]!.pop();
       }

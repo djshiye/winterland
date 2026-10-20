@@ -7,9 +7,9 @@
 import { describe, expect, it } from 'vitest';
 import { ERA_ROLES, ERA_ROLE_NAMES, UPGRADES, eraRoleCount } from '../src/config';
 import { costAt, introEra, valueAt } from '../src/core/ladder';
-import { BELT_LANE, BELT_LEVELS, CORRIDOR_OFFSET, beltRoute, planBelts, rowOf, type SlotMachines } from '../src/eras/belts';
+import { BELT_LANE, BELT_LEVELS, CORRIDOR_OFFSET, beltRoute, beltRoutes, planBelts, rowOf, type SlotMachines } from '../src/eras/belts';
 import { ERAS, MACHINES, MAX_ERA, machinesOfEra, type MachineId } from '../src/eras/data';
-import { contentMachines } from '../src/eras/template';
+import { contentMachines, fullBuild } from '../src/eras/template';
 import { regionLayout } from '../src/eras/layout';
 import { LEVEL_PAD_SIZE, MACHINE_NOMINAL, levelPadLocal, machineFrame, toWorld } from '../src/eras/rules';
 import { NO_CLAIMS, pickJob, type JobMachine, type JobView } from '../src/npc/EraWorker';
@@ -235,6 +235,72 @@ describe('conveyor belts (planBelts)', () => {
     }
   });
 
+  it('0.9.12 (Dino: no belt from the pellet mine to the steel mill): every processor with a producer gets a belt in, in any balanced build', () => {
+    let seed = 7;
+    const rnd = (): number => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (let n = 2; n <= MAX_ERA; n++) {
+      const L = regionLayout(n);
+      const full = fullBuild(n, L.slots.length) as MachineId[];
+      for (let t = 0; t < 150; t++) {
+        // a balanced build in a random order, some slots still empty
+        const order = [...full].sort(() => rnd() - 0.5);
+        const built = order.map((id) => (rnd() < 0.75 ? id : null));
+        const machines: SlotMachines = built.map((id) => (id ? MACHINES[id] : null));
+        const belts = planBelts(L, machines);
+        machines.forEach((m, i) => {
+          if (m?.kind !== 'processor') return;
+          if (!machines.some((p, j) => p && j !== i && m.inputs.some((x) => x.kind === p.output))) return;
+          expect(belts.some((b) => b.to === i), `era ${n} slot ${i} in ${built.map((id) => id ?? '-').join(',')}`).toBe(true);
+        });
+        // and no two belts on the same level cut through each other where they cross
+        for (let x = 0; x < belts.length; x++) {
+          for (let y = x + 1; y < belts.length; y++) {
+            const p = belts[x]!;
+            const q = belts[y]!;
+            if (p.level !== q.level) continue;
+            for (let k = 1; k < p.path.length; k++) {
+              for (let j = 1; j < q.path.length; j++) {
+                const [a1, a2, b1, b2] = [p.path[k - 1]!, p.path[k]!, q.path[j - 1]!, q.path[j]!];
+                const ah = Math.abs(a1.z - a2.z) < 1e-6;
+                if (ah === Math.abs(b1.z - b2.z) < 1e-6) continue;
+                const [h1, h2, v1, v2] = ah ? [a1, a2, b1, b2] : [b1, b2, a1, a2];
+                const cross = v1.x > Math.min(h1.x, h2.x) - 0.35 && v1.x < Math.max(h1.x, h2.x) + 0.35 && h1.z > Math.min(v1.z, v2.z) - 0.35 && h1.z < Math.max(v1.z, v2.z) + 0.35;
+                expect(cross, `era ${n} belts ${p.from}->${p.to} and ${q.from}->${q.to} cross on level ${p.level}`).toBe(false);
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('no belt route runs through a machine body', () => {
+    for (let n = 2; n <= MAX_ERA; n++) {
+      const L = regionLayout(n);
+      const inBody = (q: { x: number; z: number }): number => L.slots.findIndex((s) => {
+        const c = Math.cos(s.yaw);
+        const sn = Math.sin(s.yaw);
+        const dx = q.x - s.x;
+        const dz = q.z - s.z;
+        const u = dx * c - dz * sn;
+        const v = dx * sn + dz * c;
+        return Math.abs(u) < MACHINE_NOMINAL.w / 2 && Math.abs(v) < MACHINE_NOMINAL.d / 2;
+      });
+      for (let a = 0; a < L.slots.length; a++) {
+        for (let b = 0; b < L.slots.length; b++) {
+          for (const path of beltRoutes(L, a, b)) {
+            for (let k = 1; k < path.length; k++) {
+              for (let f = 0; f <= 1; f += 0.02) {
+                const q = { x: path[k - 1]!.x + (path[k]!.x - path[k - 1]!.x) * f, z: path[k - 1]!.z + (path[k]!.z - path[k - 1]!.z) * f };
+                expect(inBody(q), `era ${n} ${a}->${b}`).toBe(-1);
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
   it('nothing to link: no belts (an extractor alone, or a processor with no producer)', () => {
     const L = regionLayout(2);
     expect(planBelts(L, [ext] as never)).toEqual([]);
@@ -256,8 +322,9 @@ describe('conveyor belts (planBelts)', () => {
       const xb = down[1]!.x;
       const fromBoundary = (((xb - (L.slots[0]!.x - L.cell / 2)) % L.cell) + L.cell) % L.cell;
       expect(Math.min(fromBoundary, L.cell - fromBoundary), `era ${n}`).toBeCloseTo(CORRIDOR_OFFSET, 6);
-      // two rows apart: no belt
-      if (L.slots.length > 2 * cols) expect(beltRoute(L, 0, 2 * cols)).toBeNull();
+      // 0.9.12: two rows apart, the corridor runs past the row between; three rows apart: no belt
+      if (L.slots.length > 2 * cols) expect(beltRoute(L, 0, 2 * cols), `era ${n}`).toHaveLength(4);
+      if (L.slots.length > 3 * cols) expect(beltRoute(L, 0, 3 * cols)).toBeNull();
       expect(rowOf(L, cols)).toBe(1);
     }
   });
