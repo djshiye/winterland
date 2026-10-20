@@ -4,7 +4,9 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
-## Unreleased
+## 0.9.12 (2026-10-20)
+
+Easier pickups, a guide arrow that follows the path, bigger and livelier towns, a belt for every machine, and the whole game playable with a keyboard, a controller or a phone.
 
 ### Easier to carry
 
