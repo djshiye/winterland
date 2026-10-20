@@ -33,6 +33,7 @@ import { Rng } from './common';
 import { MACHINE_TONES, mixHex, palette } from '../../render/palette';
 import { addChimney } from '../sky/smoke';
 import { eraOwnsFloor } from './eraGround';
+import { buildFieldWorks, fieldWorkSolids } from './fieldWorks';
 
 /** Tallest a hut gets (loft + pennant) and the tallest shopfront (sign included), metres. */
 export const HUT_MAX_H = 4.6;
@@ -163,6 +164,8 @@ export function placeSolids(n: number): PlaceSolid[] {
   const st = STYLE[n]!;
   for (const b of P.beds) out.push({ what: `bed ${bedKind(st, b.k)}`, r: b, h: BED_H[bedKind(st, b.k)] });
   if (P.plan.field === 'pits') for (const r of fenceSides(P.field, regionLayout(n).node.z)) out.push({ what: 'hazard fence', r, h: FENCE_H });
+  // 0.9.13 (E1): the field's earthworks and working props
+  out.push(...fieldWorkSolids(n, P));
   return out;
 }
 
@@ -819,6 +822,9 @@ function buildShop(body: Batch, glow: Batch, st: PlotStyle, s: ShopPlace, i: num
   }
 }
 
+/** 0.9.13 (E1): one of three sizes (0.72, 1, 1.3), each with a little jitter, so no two blobs in a row match. */
+const size = (rng: Rng): number => rng.pick([0.72, 1, 1.3]) * rng.range(0.92, 1.08);
+
 /** A rounded heap / ridge / crystal / pool along a bed rect (rows along X). */
 function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rect, rng: Rng, lit: boolean): void {
   const cz = (r.minZ + r.maxZ) / 2;
@@ -826,7 +832,12 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
   const len = r.maxX - r.minX;
   // a raked strip under every bed (0.9.12, T4: under an ore node or a quartz cluster it is a soft round worn patch, not a pale square)
   if (kind === 'outcrop' || kind === 'crystals') body.add(geo.circleGround(1, 28), mix(color, SNOW, 0.6), (r.minX + r.maxX) / 2, 0.02, cz, { sx: len / 2 + 0.55, sz: dz / 2 + 0.7 });
-  else body.add(geo.box(len, 0.02, dz + 0.3), mix(color, SNOW, 0.72), (r.minX + r.maxX) / 2, 0.02, cz);
+  else {
+    // 0.9.13 (E1): a run of overlapping worked patches, each turned and sized its own way, so the beds stop reading as ruled stripes
+    for (let x = r.minX + 0.6, k = 0; x < r.maxX - 0.3; x += rng.range(1.6, 2.6), k++) {
+      body.add(geo.circleGround(1, 16), shade(mix(color, SNOW, 0.72), rng.range(0.96, 1.03)), x, 0.02 + (k % 5) * 0.0004, cz + rng.range(-0.2, 0.2), { sx: rng.range(1.2, 2.0), sz: dz / 2 + rng.range(0.15, 0.5), ry: rng.range(-0.35, 0.35) });
+    }
+  }
   const glowTo = lit ? glow : body;
   switch (kind) {
     case 'dunes': {
@@ -836,34 +847,52 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
       for (let k = 0; k < seg; k++) {
         const x = r.minX + ((k + 0.5) * len) / seg + rng.range(-0.3, 0.3);
         const sx = len / seg / 2 - 0.2;
-        const h = rng.range(0.85, 1.2);
-        body.add(geo.sphere(1, 14, 8), color, x, 0, cz, { sx, sy: 0.4 * h, sz: dz / 2 + 0.15 });
+        const h = size(rng) * 1.05;
+        body.add(geo.sphere(1, 14, 8), color, x, 0, cz, { sx, sy: 0.4 * h, sz: dz / 2 + 0.15, ry: rng.range(-0.15, 0.15) });
         body.add(geo.sphere(1, 14, 8), shade(color, 1.05), x - sx * 0.15, 0, cz - dz * 0.08, { sx: sx * 0.7, sy: 0.95 * h, sz: dz * 0.26 });
         body.add(geo.sphere(1, 12, 6), SNOW, x - sx * 0.15, 0.16, cz - dz * 0.08, { sx: sx * 0.42, sy: 0.86 * h, sz: dz * 0.15 });
       }
       break;
     }
     case 'ridges': {
-      const seg = Math.max(1, Math.round(len / 6));
-      for (let k = 0; k < seg; k++) {
-        const x = r.minX + ((k + 0.5) * len) / seg;
-        const sx = len / seg / 2 - 0.2;
-        body.add(geo.sphere(1, 14, 8), color, x, 0, cz, { sx, sy: 0.7, sz: dz / 2 });
-        body.add(geo.sphere(1, 12, 6), mix(color, SNOW, 0.75), x, 0.12, cz - dz * 0.05, { sx: sx * 0.6, sy: 0.6, sz: dz * 0.25 });
+      // 0.9.13 (E1): spoil ridges of different lengths and heights, a little off the line and turned, gaps between some
+      for (let x0 = r.minX + 0.2; x0 < r.maxX - 1.2; ) {
+        const seg = Math.min(rng.range(2.4, 6.5), r.maxX - 0.2 - x0);
+        const v = size(rng);
+        const sx = seg / 2 - 0.15;
+        const x = x0 + seg / 2;
+        const z = cz + rng.range(-0.25, 0.25);
+        const ry = rng.range(-0.2, 0.2);
+        body.add(geo.sphere(1, 14, 8), shade(color, rng.range(0.94, 1.05)), x, 0, z, { sx, sy: 0.62 * v, sz: (dz / 2) * Math.min(1.1, 0.8 + v * 0.25), ry });
+        body.add(geo.sphere(1, 12, 6), mix(color, SNOW, 0.75), x, 0.12, z - dz * 0.05, { sx: sx * 0.6, sy: 0.55 * v, sz: dz * 0.25, ry });
+        x0 += seg + (rng.next() < 0.3 ? rng.range(0.8, 1.8) : 0.1);
       }
       if (lit) for (let x = r.minX + 1; x < r.maxX - 1; x += rng.range(1.5, 2.6)) glow.add(geo.sphere(0.09, 6, 4), 0xffa45a, x, 0.55, cz + dz * 0.35);
       break;
     }
     case 'heaps': {
-      for (let x = r.minX + 0.9; x < r.maxX - 0.8; x += rng.range(1.6, 2.4)) {
-        const s = rng.range(0.6, 0.85);
-        body.add(geo.sphere(1, 12, 7), color, x, 0, cz + rng.range(-0.15, 0.15), { sx: s, sy: s * 0.85, sz: Math.min(s, dz / 2 + 0.1) });
-        body.add(geo.sphere(0.6, 10, 5), mix(color, SNOW, 0.8), x, s * 0.5, cz, { sx: s * 0.7, sy: 0.4, sz: s * 0.7 });
+      for (let x = r.minX + 0.9; x < r.maxX - 0.8; x += rng.range(1.4, 2.6)) {
+        if (rng.next() < 0.14) continue; // a clearing
+        const s = 0.7 * size(rng);
+        const z = cz + rng.range(-0.3, 0.3);
+        const ry = rng.range(0, Math.PI);
+        body.add(geo.sphere(1, 12, 7), shade(color, rng.range(0.92, 1.06)), x, 0, z, { sx: s * rng.range(0.95, 1.25), sy: s * rng.range(0.7, 0.9), sz: Math.min(s, dz / 2 + 0.1), ry });
+        body.add(geo.sphere(0.6, 10, 5), mix(color, SNOW, 0.8), x, s * 0.5, z, { sx: s * 0.7, sy: 0.4, sz: s * 0.7, ry });
+        // now and then a few loose lumps rolled off the heap
+        if (rng.next() < 0.35) for (let j = 0; j < 3; j++) body.add(geo.dodecahedron(rng.range(0.1, 0.18)), shade(color, rng.range(0.9, 1.1)), x + rng.range(-1, 1) * s * 1.3, 0.06, z + rng.range(0.5, 1) * s, { ry: rng.range(0, 6) });
       }
       break;
     }
     case 'slabs': {
-      for (let x = r.minX + 0.7; x < r.maxX - 0.6; x += rng.range(1.2, 1.7)) body.add(geo.boxBase(rng.range(0.8, 1.1), rng.range(0.14, 0.3), dz * 0.85), shade(color, rng.range(0.92, 1.06)), x, 0, cz, { ry: rng.range(-0.2, 0.2) });
+      for (let x = r.minX + 0.7; x < r.maxX - 0.6; x += rng.range(1.1, 1.9)) {
+        if (rng.next() < 0.12) continue;
+        const v = size(rng);
+        const h = rng.range(0.14, 0.3) * v;
+        const ry = rng.range(-0.45, 0.45);
+        body.add(geo.boxBase(rng.range(0.7, 1.05) * v, h, dz * 0.8 * Math.min(1.1, v)), shade(color, rng.range(0.9, 1.07)), x, 0, cz + rng.range(-0.2, 0.2), { ry });
+        // some slabs are stacked two high, the top one turned a little
+        if (rng.next() < 0.3) body.add(geo.boxBase(0.7 * v, h * 0.8, dz * 0.55), shade(color, rng.range(0.95, 1.1)), x + rng.range(-0.1, 0.1), h, cz, { ry: ry + rng.range(-0.4, 0.4) });
+      }
       break;
     }
     case 'pools': {
@@ -881,10 +910,12 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
         }
         break;
       }
-      for (let x = r.minX + 1.2; x < r.maxX - 1; x += rng.range(2.6, 3.4)) {
-        const s = rng.range(0.8, 1.05);
-        body.add(geo.cylinder(1, 1.05, 0.12, 18), mix(color, SNOW, 0.45), x, 0.06, cz, { sx: s * 1.15, sz: (dz / 2) * 0.95 });
-        glowTo.add(geo.cylinder(1, 1, 0.04, 18), color, x, 0.13, cz, { sx: s * 0.95, sz: (dz / 2) * 0.72 });
+      for (let x = r.minX + 1.2; x < r.maxX - 1; x += rng.range(2.4, 3.6)) {
+        const s = 0.9 * size(rng);
+        const ry = rng.range(-0.5, 0.5);
+        const sz = (dz / 2) * Math.min(1, 0.75 + s * 0.2);
+        body.add(geo.cylinder(1, 1.05, 0.12, 18), mix(color, SNOW, 0.45), x, 0.06, cz, { sx: s * 1.15, sz: sz * 0.95, ry });
+        glowTo.add(geo.cylinder(1, 1, 0.04, 18), color, x, 0.13, cz, { sx: s * 0.95, sz: sz * 0.72, ry });
       }
       break;
     }
@@ -990,7 +1021,8 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
       body.add(geo.boxBase(len, 0.35, 0.25), 0xb8bdbf, cx, 0, r.minZ + 0.12).add(geo.boxBase(len, 0.35, 0.25), 0xb8bdbf, cx, 0, r.maxZ - 0.12);
       body.add(geo.boxBase(0.25, 0.35, dz), 0xb8bdbf, r.minX + 0.12, 0, cz).add(geo.boxBase(0.25, 0.35, dz), 0xb8bdbf, r.maxX - 0.12, 0, cz);
       body.add(geo.box(len - 0.5, 0.02, dz - 0.5), shade(color, 0.45), cx, 0.03, cz);
-      for (let k = 0; k < 4; k++) glowTo.add(geo.dodecahedron(0.22), color, cx + rng.range(-0.6, 0.6), 0.2, cz + rng.range(-0.6, 0.6));
+      const ores = 3 + Math.floor(rng.next() * 4); // 0.9.13 (E1): 3-6 lumps of three sizes, not four alike
+      for (let k = 0; k < ores; k++) glowTo.add(geo.dodecahedron(0.18 * size(rng)), color, cx + rng.range(-0.65, 0.65), 0.18, cz + rng.range(-0.65, 0.65), { ry: rng.range(0, 6) });
       // a hazard flag on the rim
       body.add(geo.box(0.05, 0.7, 0.05), 0x6f6c6b, r.maxX - 0.15, 0.35 + 0.35, r.minZ + 0.15).add(geo.box(0.04, 0.2, 0.3), 0xe8c547, r.maxX - 0.15, 0.62, r.minZ + 0.32);
       break;
@@ -998,8 +1030,8 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
     case 'geode': {
       // a split geode: a rough shell with a ring of glowing crystals in its heart
       const cx = (r.minX + r.maxX) / 2;
-      const s = Math.min(len, dz) / 2;
-      body.add(geo.sphere(1, 12, 8), 0x9a93a8, cx, 0, cz, { sx: s * 0.95, sy: s * 0.55, sz: s * 0.95 });
+      const s = (Math.min(len, dz) / 2) * rng.range(0.8, 1.12); // 0.9.13 (E1): geodes of different sizes
+      body.add(geo.sphere(1, 12, 8), 0x9a93a8, cx, 0, cz, { sx: s * 0.95, sy: s * rng.range(0.48, 0.62), sz: s * 0.95 });
       body.add(geo.cylinder(s * 0.6, s * 0.7, 0.06, 14), shade(color, 0.6), cx, s * 0.5, cz);
       for (let k = 0; k < 6; k++) {
         const a = (k / 6) * Math.PI * 2;
@@ -1902,6 +1934,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   }
   for (const b of P.beds) buildBed(body, glow, bedKind(st, b.k), bedColor(st, b.k), b, rng, !!st.glow?.includes(b.k));
   buildFieldDressing(body, glow, st, P, rng, L.node.z);
+  // 0.9.13 (E1): benches, ramps, derricks, walls and rims on the field's far edges, and the props working it
+  const works = buildFieldWorks(body, glow, n, P, rng, st.beds[1], GLOW_MAT);
   buildGreen(body, glow, st, P, e.colors.accent, e.colors.glow);
   const decor = plotDecor(n);
   buildDecor(body, glow, bulbs, n, st, decor);
@@ -1919,6 +1953,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   group.add(statics);
   if (!glow.empty) group.add(glow.mesh({ cast: false, receive: false, material: GLOW_MAT }));
   if (!bulbs.empty) group.add(bulbs.mesh({ cast: false, receive: false, material: bulbMaterial() }));
+  for (const m of works.movers) group.add(m.object);
+  for (const r of works.colliders) ctx.colliders.addBox(r, `era:${n}:field`);
 
   // colliders for the statics (the player walks round the shops and the green's centre)
   for (const s of P.shops) {
@@ -1941,6 +1977,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   ctx.occlusion?.addOccluder(huts); // fades when it hides the player
   let first = true;
   let timer = 0;
+  let clock = 0;
   const chimneys: (() => void)[] = [];
 
   const rebuild = (): void => {
@@ -1999,6 +2036,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   return {
     group,
     update(dt: number): void {
+      clock += dt;
+      for (const m of works.movers) m.update(clock);
       timer -= dt;
       if (timer > 0) return;
       timer = POLL;

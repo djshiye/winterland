@@ -147,8 +147,9 @@ const LOOKS: readonly EraLook[] = [
   { day: day({ sun: 1.14, hemi: 0.7, hemiSky: 0xd0e0fa, hemiGround: 0x8090a8 }), night: night({ hemiGround: 0x5e4c44, hemiSky: 0x7098d4, sky: 0x141e40, moon: 0xc8dcf8 }), grade: { day: grade(0xeef4ff, 0x101a28, 0.96, 1.04, 0.26), night: grade(0xf0f4ff, 0x0c1220, 1.0, 1.03, 0.32) } },
   // 8 Computer: crisp seaside: high-key, clean, bright, a warm sand bounce
   { day: day({ sun: 1.2, hemi: 0.68, hemiSky: 0xd8e8fc, hemiGround: 0x9c8a86 }), night: night({ hemiGround: 0x56524e, hemiSky: 0x5c8cc8, sky: 0x142a48, moon: 0xb4d4f0 }), grade: { day: grade(0xfffffa, 0x0a1014, 1.14, 1.07, 0.12), night: grade(0xf6fafa, 0x0c0f16, 1.08, 1.02, 0.26) } },
-  // 9 Nuclear: minty glow valley: a soft green cast, glowing nights
-  { day: day({ sun: 1.16, hemi: 0.66, hemiSky: 0xc8ecdc, hemiGround: 0x7a9490 }), night: night({ hemiGround: 0x4e5a4c, hemiSky: 0x58a0bc, sky: 0x10303c, moon: 0xb0e8d8 }), grade: { day: grade(0xf5fff9, 0x0a1a16, 1.1, 1.04, 0.3), night: grade(0xeefff8, 0x081814, 1.1, 1.02, 0.34) } },
+  // 9 Nuclear: minty glow valley. 0.9.13 (review E3: one green by day and night): a clean white daylight over white
+  // concrete and hazard yellow, and a deep blue night sky so the aqua glow reads as glow against it
+  { day: day({ sun: 1.16, hemi: 0.66, hemiSky: 0xd6e4f0, hemiGround: 0x84909a }), night: night({ hemiGround: 0x5a5252, hemiSky: 0x5672c4, sky: 0x101c4a, moon: 0xbccff2 }), grade: { day: grade(0xfbfcff, 0x0e1420, 1.1, 1.05, 0.3), night: grade(0xe8eeff, 0x080c1c, 1.08, 1.04, 0.34) } },
   // 10 AI: dream aurora plateau: lavender twilight even by day, sun-gold fusion
   { day: day({ sun: 1.16, hemi: 0.68, hemiSky: 0xd8c8f4, hemiGround: 0x9a86a8 }), night: night({ hemiGround: 0x6e5844, hemiSky: 0x6c74c0, sky: 0x221e44 }), grade: { day: grade(0xf6ecff, 0x1a1030, 1.12, 1.03, 0.3), night: grade(0xfff8ee, 0x120d20, 1.1, 1.03, 0.28) } },
 ];
@@ -189,7 +190,7 @@ const FLOORS: readonly [yard: number, processing: number, light: number, board: 
   [0x5f8f86, 0x8fb0aa, 0x7ce8c8, 0xa9c7bf], // teal cobbles; mint bulbs on the wires; mint-teal snow board
   [0x626e7e, 0xe2ad3c, 0xffaa5a, 0xd9e3ec], // cold slate asphalt with honey lanes; flare peach; icy blue-white tundra board (0.9.11: polar tundra)
   [0xe6d4b0, 0xd2bf98, 0x66e0a3, 0xece4d6], // beige terrazzo, sand; screen mint; a warm sand-snow board
-  [0x9ccbb6, 0xc8e6d8, 0x70f5d9, 0xdcece5], // mint-glazed concrete; aqua pools; a mint-snow board
+  [0x9ccbb6, 0xc8e6d8, 0x70f5d9, 0xe4ebec], // mint-glazed concrete; aqua pools; 0.9.13 (E3): a white concrete-snow board, so the mint reads as an accent
   [0xf3ead8, 0xe8a848, 0xffe082, 0xe6e1f0], // cream hex panels with gold seams; sun-gold fusion glow; a lilac-snow board
 ];
 
@@ -494,7 +495,7 @@ const SKIES: readonly EraSky[] = [
   // 8 Computer: mint pixels drifting up like screen light
   { motes: 'pixels', mote: 0x66e0a3, auroraTint: 0x66e0a3, auroraTintAmount: 0.3, mood: mood({ sun: 0xfffcf4, clouds: -0.2, snow: 0.3, wind: 1.3 }) },
   // 9 Nuclear: aqua glow motes bobbing over the pools
-  { motes: 'glow', mote: 0x70f5d9, auroraTint: 0x70f5d9, auroraTintAmount: 0.35, mood: mood({ sun: 0xf0fff2, snow: 0.6, wind: 0.5, motes: 1.3, aurora: 1.2 }) },
+  { motes: 'glow', mote: 0x70f5d9, auroraTint: 0x70f5d9, auroraTintAmount: 0.35, mood: mood({ sun: 0xfbfdff, snow: 0.6, wind: 0.5, motes: 1.3, aurora: 1.2 }) },
   // 10 AI: sun-gold fusion shimmer
   { motes: 'fusion', mote: 0xffe082, auroraTint: 0xffe082, auroraTintAmount: 0.3, mood: mood({ sun: 0xf4e8ff, clouds: -0.1, snow: 0.4, wind: 0.3, motes: 1.25, aurora: 1.2 }) },
 ];

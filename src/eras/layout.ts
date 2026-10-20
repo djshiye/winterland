@@ -259,6 +259,30 @@ export function plotPlan(n: number): PlotPlan {
   return PLOT_PLAN[n] ?? { huts: 'L', street: 'rows', field: 'rows' };
 }
 
+/**
+ * 0.9.13 (review E1): the field's earthworks keep this much of its far (from the camera) edges for themselves: `back`
+ * metres along its gate-side edge (terraced quarry benches, a dune terrace, a retaining wall, a row of derricks) and
+ * `side` metres along its hand-node edge (the haul ramp down into an open-cast pit). The beds fill what is left.
+ * Era 10's crater keeps its rim inside the bowl it already has.
+ */
+export const FIELD_BANK: Readonly<Record<number, { back: number; side: number }>> = {
+  2: { back: 2.7, side: 2.2 },
+  3: { back: 2.7, side: 2.2 },
+  4: { back: 2.7, side: 2.2 },
+  5: { back: 2.7, side: 2.2 },
+  6: { back: 2.7, side: 2.2 },
+  7: { back: 2.6, side: 0 },
+  8: { back: 1.8, side: 0 },
+  9: { back: 1.8, side: 0 },
+  10: { back: 0, side: 0 },
+};
+
+/** The part of a harvest field `F` its beds may use (FIELD_BANK keeps the rest for the earthworks). */
+export function fieldBedArea(n: number, F: ERect): ERect {
+  const b = FIELD_BANK[n] ?? { back: 0, side: 0 };
+  return { minX: F.minX + b.side, maxX: F.maxX, minZ: F.minZ + b.back, maxZ: F.maxZ };
+}
+
 /** One resource bed of the harvest field; `k` picks the era's bed kind (0 = main resource, 1 = second, 2 = special). */
 export type BedPlace = ERect & { k: 0 | 1 | 2 };
 
@@ -561,7 +585,13 @@ function fieldBeds(shape: FieldShape, F: ERect): BedPlace[] {
       const p = 2.4;
       const g = 1.4;
       for (let j = 0, z = F.minZ + 1.2; z + p <= F.maxZ - 1.0; j++, z += p + g) {
-        for (let i = 0, x = F.minX + 1.2; x + p <= F.maxX - 1.0; i++, x += p + g) bed(x, z, x + p, z + p, (i + 2 * j) % 3 === 2 ? 1 : 0);
+        for (let i = 0, x = F.minX + 1.2; x + p <= F.maxX - 1.0; i++, x += p + g) {
+          // 0.9.13 (E1): every seventh cell left as trodden ground, and pits of three sizes in their cells
+          if ((i * 5 + j * 3) % 7 === 3) continue;
+          const q = p * (0.72 + 0.14 * ((i * 7 + j * 5) % 3));
+          const o = (p - q) / 2;
+          bed(x + o, z + o, x + o + q, z + o + q, (i + 2 * j) % 3 === 2 ? 1 : 0);
+        }
       }
       break;
     }
@@ -624,7 +654,7 @@ export function plotPlaces(n: number): PlotPlaces {
   const fNear = Math.min(depthOf(L, F.minZ), depthOf(L, F.maxZ)) + 2;
   const fFar = Math.max(depthOf(L, F.minZ), depthOf(L, F.maxZ)) - 1.6;
   const field = depthRect(L, fx0, Math.max(fx0 + 4, fx1), fNear, fFar);
-  const beds = fieldBeds(plan.field, field);
+  const beds = fieldBeds(plan.field, fieldBedArea(n, field));
 
   const out: PlotPlaces = { plan, huts, green, streets, shops, lamps, yardPave, field, beds };
   placesCache.set(key, out);
