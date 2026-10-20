@@ -5,7 +5,7 @@
  *   opens (the Great Lodge: the new land shows, eras/gate.ts) or era 2 was reached and opens the map when tapped. Follows state.eras.age, 'era:unlocked'
  *   and 'city:changed' { population, rank }.
  *   0.9.0 climb (docs/EXPANSION.md §C): while the next era's gate is open the chip is the ONE next goal instead: a
- *   progress ring for the checklist, "ERA I · SURVIVAL  12/23 · S5/5" and "Next: Sharp Axe → Lv 10 ($42K)"
+ *   progress ring for the checklist, "ERA I · SURVIVAL  12/23 · Settlement 5/5" and "Next: Sharp Axe → Lv 10 ($42K)"
  *   (eras/gate.ts nextGoal, re-read 4× a second), "Frontier is for sale!" once ready. 0.9.10 (READINESS C2): while the
  *   objective banner shows a goal the chip names that same goal (progression/guideGoal.ts), never a second one. Tapping it opens the GateCard
  *   ('gate:open'); it pulses on each 'gate:progress' that finished a row.
@@ -218,7 +218,7 @@ export class EraChip {
       this.root.classList.toggle('is-ready', ready);
     }
     // the visible count and goal name the button (a fixed aria-label would hide them from screen readers)
-    // spoken words, not the chip's shorthand ("S8/10" read out as "S eight slash ten")
+    // spoken words, not the chip's shorthand (no "8/10" read out as "eight slash ten")
     const count = finished ? '' : `, ${c.ok} of ${c.total} done, settlement ${Math.min(c.settlement, c.settlementNeed)} of ${c.settlementNeed}`;
     const label = `${this.done ? 'Your stats' : 'Era checklist'}: ${this.pct}% complete${count}${text ? `. ${text}` : ''}`;
     if (label !== this.lastLabel) {
