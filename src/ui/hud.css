@@ -1288,6 +1288,10 @@
     gap: 1px;
     font-size: 14px;
   }
+  /* 0.9.12 (P2): the heart says "town happiness" here (its label says it to screen readers), so the settlement name fits */
+  .wl-village-happy-l {
+    display: none;
+  }
   .wl-village-top {
     gap: 4px;
   }
@@ -1298,6 +1302,11 @@
   .wl-hud.has-village .wl-objective {
     top: calc(max(var(--wl-pad), env(safe-area-inset-top)) + 54px + 50px);
   }
+}
+
+/* 0.9.12: no room beside a side sheet (ui/bannerStack.ts MIN_ROOM): the banner waits until the sheet closes */
+.wl-hud .is-squeezed {
+  visibility: hidden !important;
 }
 
 /* ---- shop ------------------------------------------------------------------------------------------ */
@@ -1535,10 +1544,7 @@
   line-height: 1.15;
   font-weight: 500;
   color: var(--wl-ink-soft);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  /* 0.9.12 (V7): the whole blurb shows, never "carries extra log…" (it wraps to a third line on the narrowest phones) */
 }
 
 .wl-pips {

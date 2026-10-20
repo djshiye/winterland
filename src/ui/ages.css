@@ -859,6 +859,38 @@
   }
 }
 
+/* 0.9.12 (P3): phones held sideways: the map beside the list (it used to sit above it, scrolled out of sight) and drawn
+   at twice its frame, panned with a finger, so its names read at a real size */
+@media (max-height: 520px) and (min-width: 560px) {
+  .wl-map-body {
+    flex-direction: row;
+    align-items: stretch;
+    overflow: hidden;
+  }
+  .wl-map-view {
+    flex: 1 1 56%;
+    min-width: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-x pan-y;
+    scrollbar-width: none;
+  }
+  .wl-map-view::-webkit-scrollbar {
+    display: none;
+  }
+  .wl-hud .wl-map-view svg {
+    width: 200%;
+  }
+  .wl-map-list {
+    flex: 0 0 min(300px, 42%);
+    max-height: none;
+    overflow-y: auto;
+    padding: 0 2px 4px 0;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+}
+
 /* ---- 0.9.8 the era postcard (ui/AgeCard.ts) -------------------------------------------------------------
    A cream postcard with a scalloped picture of the new region (ui/eraPostcards.ts), a roman-numeral stamp, an
    "A NEW ERA" postmark and a stitched line that shrinks while it waits to slip away. Bottom-centre like the

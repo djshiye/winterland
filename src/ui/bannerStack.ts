@@ -32,6 +32,8 @@ export interface Box {
 export const PHONE_MAX = 640;
 /** Space between two stacked banners and between a banner and the HUD beside it (px). */
 export const GAP = 8;
+/** Narrowest room (px) a wide-screen banner is drawn in; narrower, it waits out of sight (a side sheet is open). */
+export const MIN_ROOM = 220;
 /** Seconds between two layout passes (the banners move with tweens; this only has to follow their sizes). */
 const INTERVAL = 0.1;
 
@@ -114,6 +116,7 @@ export class BannerStack {
     if (phone !== this.phone) {
       // a resize across the breakpoint: back to the stylesheet's spots before laying out the other way
       for (const el of [this.objective, this.rush, this.event]) {
+        el.classList.remove('is-squeezed');
         el.style.left = '';
         el.style.top = '';
         el.style.bottom = '';
@@ -153,6 +156,10 @@ export class BannerStack {
       let h = el.offsetHeight;
       const span = freeSpan(width, obstacles, y, y + h, margin);
       const room = span.max - span.min;
+      // 0.9.12: a side sheet (market, shop) leaves a sliver: step aside until it closes rather than a word per line
+      const squeezed = room < MIN_ROOM;
+      if (el.classList.contains('is-squeezed') !== squeezed) el.classList.toggle('is-squeezed', squeezed);
+      if (squeezed) continue;
       if (el.offsetWidth > room) {
         el.style.maxWidth = `${Math.round(room)}px`;
         h = el.offsetHeight;
