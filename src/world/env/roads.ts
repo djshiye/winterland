@@ -11,6 +11,9 @@ import { Batch, W, type EnvPart } from './common';
 const HZ = LAYOUT.highway.z;
 const HW = LAYOUT.highway.width;
 const TOP = 0.04;
+/** 0.9.12 (V10): the highway deck is a warm slate and its markings soft cream, not black asphalt with yellow lines. */
+const DECK = 0x625d5f;
+const MARKING = 0xf1e4c4;
 const ROAD_END_X = 34;
 
 /** Highway profile (world X, height above the ground). */
@@ -109,7 +112,7 @@ export function buildRoads(): EnvPart & { trikeTail: THREE.Object3D } {
     const my = (y0 + y1) / 2 + TOP;
     const raised = y0 > 0 || y1 > 0;
     const slabT = raised ? 0.5 : 0.3;
-    hw.add(slabGeo, PALETTE.asphalt, mx - nrm.x * (slabT / 2), my - nrm.y * (slabT / 2), HZ, { sx: len, sy: slabT / 0.5, rz: th });
+    hw.add(slabGeo, DECK, mx - nrm.x * (slabT / 2), my - nrm.y * (slabT / 2), HZ, { sx: len, sy: slabT / 0.5, rz: th });
     if (raised) {
       for (const dz of [-HW / 2 - 0.05, HW / 2 + 0.05]) {
         hw.add(curbGeo, 0xb4bfce, mx + nrm.x * 0.2, my + nrm.y * 0.2, HZ + dz, { sx: len, rz: th });
@@ -135,7 +138,7 @@ export function buildRoads(): EnvPart & { trikeTail: THREE.Object3D } {
   // Dashed centre line following the profile.
   const dash = new THREE.BoxGeometry(1.5, 0.03, 0.17);
   for (let x = -92; x < ROAD_END_X - 2; x += 3.2) {
-    hw.add(dash, PALETTE.roadLine, x, highwayY(x) + 0.015, HZ, { rz: slopeAt(x) });
+    hw.add(dash, MARKING, x, highwayY(x) + 0.015, HZ, { rz: slopeAt(x) });
   }
   // Pale edge lines on flat sections.
   const edgeLine = new THREE.BoxGeometry(1, 0.03, 0.1);
@@ -147,7 +150,7 @@ export function buildRoads(): EnvPart & { trikeTail: THREE.Object3D } {
   // used to run under the asphalt with nothing to say it was a junction)
   for (const s of [-1, 1]) {
     const z = HZ + s * (HW / 2 + 0.55);
-    hw.add(new THREE.BoxGeometry(roadW - 0.5, 0.03, 0.26), PALETTE.roadLine, (tr.minX + tr.maxX) / 2, 0.03, z);
+    hw.add(new THREE.BoxGeometry(roadW - 0.5, 0.03, 0.26), MARKING, (tr.minX + tr.maxX) / 2, 0.03, z);
     for (const dx of [-1.1, 0, 1.1]) {
       hw.add(new THREE.ConeGeometry(0.3, 0.03, 3).rotateY(s < 0 ? Math.PI : 0), 0xffffff, (tr.minX + tr.maxX) / 2 + dx, 0.03, z + s * 0.75, { sz: 1.4 });
     }
