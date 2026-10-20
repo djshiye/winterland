@@ -36,8 +36,20 @@ const OCCLUDER_RANGE = 60;
 const REMEASURE = 3;
 /** Holes one building can show at once. */
 export const MAX_HOLES = 4;
-/** Hole radius around the player (metres). */
+/** Hole radius around the player (metres) in a low building. */
 const PLAYER_HOLE = 1.6;
+/** 0.9.12 (V4): the widest hole around the player, cut through the city's tallest towers. */
+const PLAYER_HOLE_MAX = 3.6;
+
+/**
+ * [PURE] Hole radius around the player through a building `height` m tall: 1.6 m through a hut or a low shop, opening
+ * up to 3.6 m through a 22 m tower, so the street around the player and the MANAGE board beside them show too (a 1.6 m
+ * dithered patch high up a tower read as a smudge, review V4).
+ */
+export function playerHoleRadius(height: number): number {
+  if (!(height > 6)) return PLAYER_HOLE;
+  return Math.min(PLAYER_HOLE_MAX, PLAYER_HOLE + (height - 6) * 0.13);
+}
 
 interface Target {
   object: THREE.Object3D;
@@ -46,6 +58,8 @@ interface Target {
   /** Sample heights above the floor. */
   heights: readonly number[];
   active: () => boolean;
+  /** Height of the hole's centre above the floor (pads: 0.3 m). */
+  holeY: number;
 }
 
 /** What a hole is cut around: an object, the height of its centre and the radius. */
@@ -132,9 +146,13 @@ export class OcclusionFade {
     ctx.addUpdatable(this);
   }
 
-  /** A pad tile (or any floor thing that must stay readable), counted while `active()`. */
-  addTarget(object: THREE.Object3D, size: number, active: () => boolean): void {
-    this.targets.push({ object, half: size / 2, heights: PAD_HEIGHTS, active });
+  /**
+   * A pad tile (or any floor thing that must stay readable), counted while `active()`. 0.9.12: `heights` lifts the
+   * sample points for a standing thing (a MANAGE board), and the hole is centred at their middle.
+   */
+  addTarget(object: THREE.Object3D, size: number, active: () => boolean, heights: readonly number[] = PAD_HEIGHTS): void {
+    const holeY = heights === PAD_HEIGHTS ? 0.3 : (Math.min(...heights) + Math.max(...heights)) / 2;
+    this.targets.push({ object, half: size / 2, heights, active, holeY });
   }
 
   /** Forget a target (its pad was disposed). */
@@ -267,8 +285,8 @@ export class OcclusionFade {
         this.ray.set(s, this.toCamera);
         if (this.ray.intersectBox(b, this.hit)) {
           lastOwner = t;
-          if (t) found.push({ object: t.object, y: 0.3, r: t.half * 1.25 + 0.6 });
-          else if (player) found.push({ object: player, y: 0.9, r: PLAYER_HOLE });
+          if (t) found.push({ object: t.object, y: t.holeY, r: t.half * 1.25 + 0.6 });
+          else if (player) found.push({ object: player, y: 0.9, r: playerHoleRadius(b.max.y - b.min.y) });
         }
       }
       if (found.length > 0) {

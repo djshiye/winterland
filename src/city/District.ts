@@ -99,6 +99,8 @@ const SURFACE: readonly (Surface | null)[] = [
 ];
 
 const PER_FRAME = 2;
+/** 0.9.12 (V4): heights (m) a tower is checked at for hiding a lot's MANAGE board (its post and its board). */
+const SIGN_HEIGHTS = [1.0, 2.2] as const;
 
 /**
  * Free a dropped construction site's own merged base geometry (each scaffold merges a fresh one). The shell's unit box
@@ -269,6 +271,9 @@ export class District {
       L.sign.position.set(foot.x, 0, foot.z);
       L.sign.visible = false;
       this.root.add(L.sign);
+      // 0.9.12 (V4): a tower in front of a built lot's MANAGE board opens up while the board shows (the player is near)
+      const sign = L.sign;
+      this.ctx.occlusion?.addTarget(sign, 1.4, () => sign.visible && (sign.material as THREE.Material).visible, SIGN_HEIGHTS);
       this.refresh(L, false);
     }
   }

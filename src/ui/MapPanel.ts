@@ -73,6 +73,9 @@ export class MapPanel {
   private points = new Map<string, TravelPoint>();
   private clock = 0;
   private youPos = '';
+  private readonly sub: HTMLDivElement;
+  /** 0.9.12 (P3): scroll a pannable (phone) map onto the player once it is laid out. */
+  private centreWanted = false;
 
   constructor(
     private readonly ctx: GameContext,
@@ -85,7 +88,8 @@ export class MapPanel {
     const head = h('div', 'wl-map-head');
     const titles = h('div', 'wl-map-titles');
     const title = h('div', 'wl-map-title wl-title', 'Map');
-    titles.append(title, h('div', 'wl-map-sub', touchOnly() ? 'Tap a place to travel there' : 'Pick a place on the map or in the list to travel there'));
+    this.sub = h('div', 'wl-map-sub', touchOnly() ? 'Tap a place to travel there' : 'Pick a place on the map or in the list to travel there');
+    titles.append(title, this.sub);
     markDialog(this.root, title, 'wl-map-title');
     head.appendChild(titles);
     const close = h('button', 'wl-build-close', ICON_CLOSE);
@@ -137,6 +141,26 @@ export class MapPanel {
   open(): void {
     this.rebuild();
     this.slide.open = true;
+    this.centreWanted = true;
+  }
+
+  /**
+   * 0.9.12 (P3): on phones the map is drawn bigger than its frame (hud ages.css) so the place names read at a real size
+   * (they were ~6 px tall); it pans with a finger. Opening it scrolls the player's spot to the middle, and the line
+   * under the title says it can be dragged.
+   */
+  private centreOnPlayer(): void {
+    this.centreWanted = false;
+    const v = this.view;
+    const pans = v.scrollWidth > v.clientWidth + 1 || v.scrollHeight > v.clientHeight + 1;
+    const sub = pans ? 'Drag the map to look around, tap a place to travel there' : touchOnly() ? 'Tap a place to travel there' : 'Pick a place on the map or in the list to travel there';
+    if (this.sub.textContent !== sub) this.sub.textContent = sub;
+    const svg = v.querySelector('svg');
+    const obj = this.ctx.player?.object;
+    if (!pans || !svg || !obj) return;
+    const ppu = svg.clientWidth / VIEW.w;
+    v.scrollLeft = Math.max(0, (obj.position.x - VIEW.x) * ppu - v.clientWidth / 2);
+    v.scrollTop = Math.max(0, (obj.position.z - VIEW.y) * ppu - v.clientHeight / 2);
   }
 
   close(): void {
@@ -342,6 +366,7 @@ export class MapPanel {
         this.root.style.display = 'none';
       } else {
         if (this.root.style.display === 'none') this.root.style.display = 'flex';
+        if (this.centreWanted && s.open) this.centreOnPlayer();
         const e = s.open ? backOut(Math.min(1, s.k)) : cubicOut(s.k);
         this.root.style.opacity = Math.min(1, s.k * 3).toFixed(2);
         this.card.style.transform = `scale(${(0.9 + 0.1 * e).toFixed(3)})`;
