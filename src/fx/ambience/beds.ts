@@ -123,6 +123,7 @@ export const BEDS: Record<BedId, BedDef> = {
     trim: 1.03,
     layers: [wind(0.045, 520, 0.6), { noise: 'brown', filter: 'lowpass', freq: 170, gain: 0.045, gust: { depth: 0.3, every: [3, 6] }, night: 1.2 }],
     events: [
+      { sound: 'sleigh', every: [30, 60], gain: 0.012, night: 0.7 }, // 0.9.12: the era's fliers overhead (world/life/SkyTraffic.ts)
       { sound: 'crackle', every: [2, 5], gain: 0.022, day: 0.6, night: 1 },
       { sound: 'chink', every: [5, 12], gain: 0.02, night: 0.15 },
       { sound: 'gust', every: [15, 30], gain: 0.012 },
@@ -134,6 +135,7 @@ export const BEDS: Record<BedId, BedDef> = {
     trim: 0.89,
     layers: [wind(0.035, 460), { noise: 'brown', filter: 'lowpass', freq: 230, gain: 0.05, gust: { depth: 0.35, every: [2, 5] }, night: 1.15 }],
     events: [
+      { sound: 'sleigh', every: [30, 60], gain: 0.012, night: 0.7 }, // 0.9.12: the era's fliers overhead (world/life/SkyTraffic.ts)
       { sound: 'tink', every: [3, 7], gain: 0.02, night: 0.4 },
       { sound: 'bellows', every: [7, 13], gain: 0.03 },
       { sound: 'cart', every: [30, 65], gain: 0.035, night: 0.2 },
@@ -150,6 +152,7 @@ export const BEDS: Record<BedId, BedDef> = {
       { hum: [120, 240], wave: 'sawtooth', lowpass: 500, gain: 0.0025, day: 0, night: 1 },
     ],
     events: [
+      { sound: 'sleigh', every: [30, 60], gain: 0.012, night: 0.7 }, // 0.9.12: the era's fliers overhead (world/life/SkyTraffic.ts)
       { sound: 'chuffs', every: [22, 45], gain: 0.03, night: 0.4 },
       { sound: 'hiss', every: [8, 18], gain: 0.018 },
       { sound: 'clank', every: [5, 12], gain: 0.016, night: 0.3 },
@@ -167,6 +170,7 @@ export const BEDS: Record<BedId, BedDef> = {
       { hum: [100, 200, 300], wave: 'sawtooth', lowpass: 420, gain: 0.002, day: 0, night: 1 },
     ],
     events: [
+      { sound: 'putter', every: [35, 70], gain: 0.014, night: 0.5 }, // 0.9.12: the era's fliers overhead (world/life/SkyTraffic.ts)
       { sound: 'clank', every: [4, 9], gain: 0.016, night: 0.3 },
       { sound: 'thump', every: [3.5, 6], gain: 0.02, night: 0.2 },
       { sound: 'hiss', every: [12, 25], gain: 0.012 },
@@ -176,6 +180,7 @@ export const BEDS: Record<BedId, BedDef> = {
     trim: 1.59,
     layers: [{ hum: [50, 100.4, 150.2], gain: 0.007, beat: 4, night: 1.5 }, wind(0.035, 560)],
     events: [
+      { sound: 'putter', every: [35, 70], gain: 0.014, night: 0.5 }, // 0.9.12: the era's fliers overhead (world/life/SkyTraffic.ts)
       { sound: 'zap', every: [10, 24], gain: 0.012, day: 0.8, night: 1.2 },
       { sound: 'wireSing', every: [9, 20], gain: 0.01 },
       { sound: 'ting', every: [12, 26], gain: 0.012 },
@@ -186,6 +191,7 @@ export const BEDS: Record<BedId, BedDef> = {
     trim: 1.16,
     layers: [wind(0.05, 340, 0.65), { noise: 'brown', filter: 'lowpass', freq: 260, gain: 0.035, gust: { depth: 0.5, every: [1.5, 4] }, night: 1.5 }],
     events: [
+      { sound: 'putter', every: [35, 70], gain: 0.014, night: 0.5 }, // 0.9.12: the era's fliers overhead (world/life/SkyTraffic.ts)
       { sound: 'creak', every: [4, 6], gain: 0.016, night: 0.7 },
       { sound: 'clank', every: [15, 30], gain: 0.012 },
       { sound: 'gust', every: [12, 25], gain: 0.014 },
@@ -199,6 +205,7 @@ export const BEDS: Record<BedId, BedDef> = {
       { noise: 'white', filter: 'highpass', freq: 2600, gain: 0.006, gust: { depth: 0.7, every: [3, 7] } },
     ],
     events: [
+      { sound: 'whirr', every: [14, 30], gain: 0.01, night: 0.6 }, // 0.9.12: the era's fliers overhead (world/life/SkyTraffic.ts)
       { sound: 'beep', every: [5, 13], gain: 0.01, night: 0.6 },
       { sound: 'keys', every: [10, 24], gain: 0.012, night: 0.2 },
       { sound: 'tweet', every: [20, 40], gain: 0.01, day: 0.6, night: 0 },
@@ -212,6 +219,7 @@ export const BEDS: Record<BedId, BedDef> = {
       { hum: [110, 165], gain: 0.0035, night: 1.4 },
     ],
     events: [
+      { sound: 'whirr', every: [14, 30], gain: 0.01, night: 0.6 }, // 0.9.12: the era's fliers overhead (world/life/SkyTraffic.ts)
       { sound: 'bubble', every: [3, 8], gain: 0.016 },
       { sound: 'drip', every: [4, 10], gain: 0.014 },
       { sound: 'tweet', every: [20, 40], gain: 0.01, day: 0.6, night: 0 },
@@ -225,6 +233,7 @@ export const BEDS: Record<BedId, BedDef> = {
       wind(0.02, 600),
     ],
     events: [
+      { sound: 'whirr', every: [14, 30], gain: 0.01, night: 0.6 }, // 0.9.12: the era's fliers overhead (world/life/SkyTraffic.ts)
       { sound: 'glitter', every: [2.5, 6], gain: 0.012, night: 1.4, verb: 0.7 },
       { sound: 'swell', every: [18, 36], gain: 0.012, verb: 0.6 },
     ],

@@ -238,9 +238,9 @@ export function rowBuyable(r: GateRow): boolean {
   return r.state === 'low' && r.where !== 'pad';
 }
 
-/** The locked pad's note and the chip's count: "37/48 · S8/10". */
+/** The locked pad's note and the chip's count: "37/48 · Settlement 8/10" (0.9.12: "S8/10" was never explained). */
 export function gateNote(g: Pick<EraGate, 'ok' | 'total' | 'settlementNeed'> & { settlement: { level: number } }): string {
-  return `${g.ok}/${g.total} · S${Math.min(g.settlement.level, g.settlementNeed)}/${g.settlementNeed}`;
+  return `${g.ok}/${g.total} · Settlement ${Math.min(g.settlement.level, g.settlementNeed)}/${g.settlementNeed}`;
 }
 
 export interface NextGoal {
@@ -342,29 +342,28 @@ export function nextGoal(s: GameState, money: number): NextGoal | null {
   return era ? { text: `${era.region} is for sale!`, action: { kind: 'go', target: `region:${n}` } } : null;
 }
 
-/** Who owns era n − 1's things in the rule line: "Survival's" for era 2, then the region ("Granite Hollow's"). */
+/** Where era n − 1's things are in the rule line: "Survival" for era 2, then the region ("Granite Hollow"). */
 function ownerOf(n: number): string {
-  const prev = ERAS[n - 1];
-  return prev ? `${prev.region}'s` : "Survival's";
+  return ERAS[n - 1]?.region ?? 'Survival';
 }
 
 /**
- * The per-era Lv 10 rule in one sentence (0.9.6, READINESS C1), for the era card and the gate card: "Raise Granite
- * Hollow's machines, crew and upgrades to Lv 10 and grow the city to Settlement 10, then buy Iron Ridge." Empty past
+ * The per-era Lv 10 rule in one sentence (0.9.6, READINESS C1), for the era card and the gate card: "Raise the Granite
+ * Hollow machines, crew and upgrades to Lv 10 and grow the city to Settlement 10, then buy Iron Ridge." Empty past
  * the last era.
  */
 export function gateRuleText(n: number): string {
-  if (n === FINAL_GATE) return `Raise ${ownerOf(n)} machines, crew and upgrades to Lv ${gateNeed(n)} and grow to Settlement ${settlementNeed(n)} for ${FINAL_NAME}.`;
+  if (n === FINAL_GATE) return `Raise the ${ownerOf(n)} machines, crew and upgrades to Lv ${gateNeed(n)} and grow to Settlement ${settlementNeed(n)} for ${FINAL_NAME}.`;
   const e = ERAS[n];
   if (!e) return '';
-  return `Raise ${ownerOf(n)} machines, crew and upgrades to Lv ${gateNeed(n)} and grow to Settlement ${settlementNeed(n)}, then buy ${e.region}.`;
+  return `Raise the ${ownerOf(n)} machines, crew and upgrades to Lv ${gateNeed(n)} and grow to Settlement ${settlementNeed(n)}, then buy ${e.region}.`;
 }
 
-/** The short form for the era card after an expansion: "Next: Granite Hollow's things to Lv 10, then Iron Ridge." */
+/** The short form for the era card after an expansion: "Next: everything in Granite Hollow to Lv 10, then Iron Ridge." */
 export function gateRuleShort(n: number): string {
-  if (n === FINAL_GATE) return `Next: ${ownerOf(n)} things to Lv ${gateNeed(n)}, then ${FINAL_NAME}`;
+  if (n === FINAL_GATE) return `Next: everything in ${ownerOf(n)} to Lv ${gateNeed(n)}, then ${FINAL_NAME}`;
   const e = ERAS[n];
-  return e ? `Next: ${ownerOf(n)} things to Lv ${gateNeed(n)}, then ${e.region}` : '';
+  return e ? `Next: everything in ${ownerOf(n)} to Lv ${gateNeed(n)}, then ${e.region}` : '';
 }
 
 /** The gate card's row groups, in this order (0.9.6, finding 11: "Machines 5 · Crew 7 · Sales 7 · You 4 · Finance 2"). */

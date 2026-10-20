@@ -16,7 +16,7 @@
  * 100 % only when every row is full: anything short reads at most 99 %.
  */
 import { AMENITY_IDS, PADS, QUARTERS, UPGRADES, VILLAGE, type PadIdConst } from '../config';
-import { CITY_BUILDINGS, DISTRICTS, ERAS, MAX_ERA } from '../eras/data';
+import { CITY_BUILDINGS, DISTRICTS, ERAS, eraNoun, MAX_ERA } from '../eras/data';
 import { QUEST_DEFS, type QuestDef } from './quests';
 import { settlementLevel } from './demand';
 import { ERA_AT_LENGTH, type GameState, type RunRecord, type UpgradeId } from './types';
@@ -139,7 +139,7 @@ function settlementItems(s: GameState): CompletionItem[] {
 }
 
 function eraItems(s: GameState): CompletionItem[] {
-  return [{ id: 'eras', label: `Reach the ${ERAS[Math.min(MAX_ERA, s.eras.age + 1)]?.name ?? 'next'} era`, have: Math.max(1, Math.min(MAX_ERA, s.eras.age)), need: MAX_ERA }];
+  return [{ id: 'eras', label: `Reach the ${eraNoun(Math.min(MAX_ERA, s.eras.age + 1))}`, have: Math.max(1, Math.min(MAX_ERA, s.eras.age)), need: MAX_ERA }];
 }
 
 /** The one table: what 100 % is made of, in the order the stats page and the gate card list it. */

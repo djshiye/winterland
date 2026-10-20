@@ -51,6 +51,21 @@ export interface XZ {
  * One follow step (pure): move `dog` toward `player - heading * FOLLOW_DISTANCE` with a `lag`-second exponential
  * approach (never overshoots a still target), at most `maxSpeed` m/s. `heading` must be a unit vector. Returns `out`.
  */
+/**
+ * 0.9.12 (validator): where the pal settles while the player stands still: its usual spot behind him, or when
+ * `blocked` says that spot is inside a hut, a fence or a prop, the first free one turning round him (45° steps, the
+ * near sides first). Returns the heading that puts the follow spot there (the same heading when nothing is free). Pure.
+ */
+export function restHeading(player: XZ, heading: XZ, blocked: (x: number, z: number) => boolean): XZ {
+  const base = Math.atan2(heading.z, heading.x);
+  for (const turn of [0, 1, -1, 2, -2, 3, -3, 4]) {
+    const a = base + (turn * Math.PI) / 4;
+    const h = { x: Math.cos(a), z: Math.sin(a) };
+    if (!blocked(player.x - h.x * FOLLOW_DISTANCE, player.z - h.z * FOLLOW_DISTANCE)) return turn === 0 ? heading : h;
+  }
+  return heading;
+}
+
 export function followStep(
   dog: XZ,
   player: XZ,
@@ -185,6 +200,13 @@ export class Dog {
       this.heading.z = o.velocity.z / pv;
       this.idleFor = 0;
     } else {
+      // 0.9.12: about to sit, but the spot behind is inside something solid: settle beside him instead
+      if (this.idleFor < SIT_AFTER && this.idleFor + dt >= SIT_AFTER * 0.5) {
+        const c = this.ctx.colliders;
+        const h = restHeading(o.position, this.heading, (x, z) => c.overlaps(x, z, 0.35));
+        this.heading.x = h.x;
+        this.heading.z = h.z;
+      }
       this.idleFor += dt;
     }
 

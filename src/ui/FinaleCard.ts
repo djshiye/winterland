@@ -1,7 +1,7 @@
 /**
  * [B4] The finale cards and the stats page, one card in four variants:
  * - 'lodge' (HUD on 'finale:start'): the Great Lodge stands. 0.9.7 (decision 3): no longer the ending: "Survival
- *   complete, the Frontier awaits" with era 1's stats and "On to the Frontier".
+ *   complete, Granite Hollow awaits" with era 1's stats and "On to Granite Hollow".
  * - 'market' (HUD on 'finale2:start'): "The Grand Market opens!" with the town's stats.
  * - 'complete' (0.9.7, on 'complete:start', core/completionTracker.ts): the game's ending, "Winterland Complete!": the
  *   trophy, the stats page (time played, money earned, time per era, trophies, every finished season) and the only
@@ -34,7 +34,7 @@ const COMPLETE_DELAY = 6.5;
 /** Which card is on show. */
 export type FinaleVariant = 'lodge' | 'market' | 'complete' | 'stats';
 const TITLES: Record<FinaleVariant, string> = {
-  lodge: 'Survival complete, the Frontier awaits',
+  lodge: `Survival complete, ${ERAS[2]!.region} awaits`,
   market: 'The Grand Market opens!',
   complete: `${FINAL_NAME}!`,
   stats: 'Your Winterland',
@@ -45,7 +45,7 @@ const SUBS: Record<FinaleVariant, string> = {
   complete: 'Every era, every build, every quest. A gold trophy now stands by the Great Lodge.',
   stats: '',
 };
-const BUTTONS: Record<FinaleVariant, string> = { lodge: 'On to the Frontier', market: 'Keep playing', complete: 'Keep playing', stats: 'Close' };
+const BUTTONS: Record<FinaleVariant, string> = { lodge: `On to ${ERAS[2]!.region}`, market: 'Keep playing', complete: 'Keep playing', stats: 'Close' };
 
 /** A gold cup (the trophy on the Great Lodge plaza, assets/trophy.ts): 0.9.8 drawn in the icon kit's style (warm ink
  *  outline, palette gold, a red prize rosette on a wooden drum, a soft star). */
@@ -115,6 +115,7 @@ export class FinaleCard {
     this.again = h('button', 'wl-btn wl-btn-gold is-b-pine wl-finale-new', 'Start a new season');
     this.again.type = 'button';
     this.again.title = 'Prices go up for good, everything else starts over';
+    this.again.setAttribute('aria-description', this.again.title);
     onTap(this.again, () => {
       ctx.audio.unlock();
       ctx.audio.play('click');
@@ -213,7 +214,7 @@ export class FinaleCard {
         ['Villagers', formatCount(s.village.population)],
         ['Happiness', `${Math.round(townHappiness(s) * 100)}%`],
         ['Shelters built', formatCount(st.sheltersBuilt)],
-        ['Town buildings', formatCount(st.townBuilt)],
+        ['Market Town buildings', formatCount(st.townBuilt)],
         ['Upgrades', formatCount(st.upgradesBought)],
       ]);
       return;
@@ -241,7 +242,7 @@ export class FinaleCard {
     const pct = s.flags.complete ? 100 : c.pct;
     this.progress.innerHTML =
       `<div class="wl-finale-pct">★ ${pct}% complete</div>` +
-      c.parts.map((p) => `<div class="wl-finale-bar${p.done >= p.total ? ' is-done' : ''}"><span>${p.label}</span><i><b style="width:${(p.frac * 100).toFixed(1)}%"></b></i><em>${Math.floor(p.frac * 100)}%</em></div>`).join('');
+      c.parts.map((p) => `<div class="wl-finale-bar${p.done >= p.total ? ' is-done' : ''}"><span>${p.label}</span><i aria-hidden="true"><b style="width:${(p.frac * 100).toFixed(1)}%"></b></i><em>${Math.floor(p.frac * 100)}%</em></div>`).join('');
     const quests = QUEST_DEFS.filter((d) => s.quests[d.id]).length;
     this.grid.innerHTML = this.cells([
       ['Money earned', formatMoney(st.moneyEarned), true],

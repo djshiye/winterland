@@ -28,6 +28,19 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **The city districts are much bigger.** Each district is about half again as wide and deep, with up to twice the lots: 12 in Brickside instead of 6. Settlement levels still need the same number of homes, so the new lots are free room for more homes, shops and parks. Your buildings stay on their lot numbers.
 - **More to look at.** Street trees, benches, planters and little touches in every district, and the bare market squares and hut yards in eras 2 to 10 now have stalls, crates and clutter that fit their era. Every path stays clear.
 - **Lantern Lane.** Once the Great Lodge is built, the Market Town grows south down the avenue to the main road: a cobbled street with four new lots, lamps, benches and little lit firs. Shoppers and strollers walk down it too. Your first hour in the village plays exactly as before.
+- **Roomier era towns.** The towns in eras 2 to 10 run deeper now, so their markets and hut greens have more room to walk, with snowy fir groves, bushes and benches among the stalls and crates. The machines and how long each era takes are unchanged.
+- **Districts open on the town.** Fast travel to the bigger districts now lands you among their lots instead of on the street south of them.
+- **Clear roads and walks.** Zebra crossings at every era market gate, at the Market Town's exits and wherever a city district's sidewalk meets a street, and soft centre lines on the city streets. Era foremen now walk beside the roads, cross straight over at the corners and crossings (never cutting through a junction), and wait at the kerb while a truck goes by. Era buyers brake for anyone already crossing.
+- **Room to walk.** The alley from the town square down to Lantern Lane is 3 m wide now (the two shops beside it moved apart), and the path down the west side of the hut greens keeps 3 m clear in every era. Your pal no longer sits inside a hut.
+- **Townsfolk doing things.** People on the era hut greens sit on the benches, build snowmen on the snow piles, sweep their doorsteps, and kids have snowball fights. In the city districts people sweep, sit, and kids pelt each other (and the odd grown-up) with snowballs.
+- **Lantern garlands.** Strings of warm paper lanterns hang from lamp to lamp along every era market street and under the shop eaves, glowing at night, high over everyone's heads.
+- **Skating and sledding.** Once the new land shows, people skate loops on the frozen pond by the village (a pair hand in hand), and kids drag their sleds up a snowy hill beside the customers' path, whizz down and trudge back up while a grown-up watches from a bench. Fewer at night, nobody in a snowstorm.
+- **Animals about.** Little finches land near you to hop and peck, then flutter off when you, your dog or a cart comes close. A cat sits and watches you go by and trots off if you get too near, and deer graze in the snow between the areas, bounding away as you walk up. They stay in when it is dark or stormy.
+- **Footprints in the snow.** You, your dog and the townsfolk walking near you leave soft prints that slowly fill back in, so the busy ways between huts, shops and gates wear into trodden paths while you watch.
+- **Something of each era in the sky.** A reindeer sleigh circles over the towns of eras II to IV, a little airship in the era's colours drifts over eras V to VII with its gondola windows lit, and delivery drones ferry parcels between the market and the huts in eras VIII to X.
+- **Hanging shop signs and sky sounds.** The shops of eras II to V hang out a sign over the street, carved wood on an iron bracket and later an enamel plate in the era's colours. You hear sleigh bells, the airship's propeller or a passing drone now and then, in the eras they fly over.
+- **A centrepiece in every era market.** Each market square has its own, ringed with winter flowers and plenty of room to walk round: a lantern bearer and a smith on their plinths, a street clock, a girder arch, a lit fountain, a little derrick, a glowing data pillar, a fountain of glowing water and a floating orb.
+- **Icicles and snowdrifts.** Icicles hang from the eaves of the huts and shops in eras II to VIII, and soft drifts bank up against their side and back walls.
 - **A finished game may show less than 100 % now.** The new machine spots and lots count towards completion, so an older finished save shows a lower percentage until you build on them. Every trophy you've earned is kept.
 
 ### Connected machine yards
@@ -36,6 +49,30 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Conveyor belts in every era are painted in that era's own colours** instead of the starting area's red and cream.
 - **The lone ninth machine in eras 8 and 9 is linked up too,** and era 10's golden light conduits look solid instead of see-through.
 
+### Keyboard and controller
+
+- **Build with a keyboard or a controller.** Every build card in the town, the era areas and the city can now be picked with Tab, the arrow keys and Enter, or the D-pad and A. The chosen card lights up with a gold ring, and locked cards say why.
+- **Back / View opens the top buttons.** On a controller, Back (or View) steps up to the top buttons: the guidebook, quests, era checklist, map, Settings and sound. Move with the D-pad, press A, or B to step back to the game. Y still opens the map.
+- **Menus open on their first choice,** never on the close button, and the arrow keys scroll long cards like the stats page.
+- **Pick places on the map itself,** not only in the list beside it.
+- **A purchase keeps your place.** After a buy, the shop button stays selected even when you can't afford the next level yet.
+- **Clearer controls list.** Settings > Game lists every key and every controller button, and close buttons show their Esc key when you hover them.
+- **Screen readers:** the sound button says on or off, shop, market and guidebook tabs say which is selected, prices say when you can't afford them yet, the quest and era counts are read in words, the pick-up prompt is read out, and cards are announced once. Key hints like "(T)" no longer show on phones and tablets.
+
+### Clearer words
+
+- **Era names read right.** No more "Needs the AI Era era" or "Reach the Frontier first": it's "Needs the AI Era" and "Reach the Frontier era first" everywhere.
+- **Goods are named properly.** "1 gear" instead of "1 gears", and "AI cores" instead of "ai cores", in contracts, goals and the guidebook.
+- **The guidebook matches how you play.** It says to hold E (or A on a controller) to pick up and pay, that drop-offs need no key, that a tap on a price buys one level, and that upgrades reach Lv 10 once the Great Lodge is built. The shop says so too ("Lv 4/9 · 10 after the Lodge").
+- **Settlement spelled out.** The era checklist and the locked expansion pads say "Settlement 8/10" instead of "S8/10". On phones the checklist shows the same little house as the village badge.
+- **City lots say what they give** on their own line, so it no longer gets cut off: homes add residents to your settlement, the rest say they add none.
+- **The market in plain words.** "Your investments", "paid $3 each", "profit" and "Cash out" instead of positions, avg, P/L and withdraw.
+- **Snowstorms and festivals tell the truth.** In a snowstorm the porter rushes firewood to the shops, and on festival day townsfolk come to shop twice as often.
+- **Welcome back.** After a long break the card says how long you were away and that the first 2 hours count, and the guidebook explains what you earn while away.
+- **Friendlier problem messages.** Startup and update problems speak plainly now, with no developer words or terminal commands.
+- **Granite Hollow by name.** The Great Lodge card now sends you "On to Granite Hollow", the place you see on the map.
+- **Down leaves the guidebook search box,** so you can reach the pages with the arrow keys.
+
 ### A guide you can follow
 
 - **The arrow points the way you can walk.** It follows the path round fences, rivers and buildings instead of pointing through them, and a short trail of gold dots on the ground shows the way when it bends or the goal is off-screen. It finds the way again after fast travel, the map or a reload.
@@ -43,6 +80,7 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **It tells you where things come from.** "Pick up 40 crates for Iron Ridge" leads you to the right machine or dock first, and new machine sites say what to bring and where to get it.
 - **Expanding comes first.** Once you've met the next era's goal, the guide sends you there before anything else, and the crate crew holds crates back for it.
 - **Town builds say what they need.** The Cocoa Café and the other town builds ask you to bring their logs, and send you to chop more when your arms are empty.
+- **The arrow takes you all the way.** It stays up until you're standing on the pad that does the work, city goals point at a free lot rather than the whole district, and an empty maker sends you to feed it first.
 - **You wake up where you left off.** Reloading puts you back where you were standing (just beside a pad or pile if you were on one), not back at the cabin.
 - **The arrow keeps clear of the banner and the corner cards** (money, Winterland, quests, buttons), and the on-screen move pad stays hidden on desktop.
 

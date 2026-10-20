@@ -32,6 +32,7 @@ import { clearOfFence } from './clearance';
 import { buildEraOpen, buildEraWild, eraGround, eraKeepOut } from './eraGround';
 import { palette } from '../../render/palette';
 import { moundGeo, pineGeo, pineTallGeo, rockGeo } from './props';
+import { addRoadMarks } from './roadMarks';
 import { addApron, addGatePaving, mixColor, shadeColor, TRAIL_COLOR } from './roadPaving';
 import {
   arcSegments,
@@ -99,7 +100,7 @@ const TOWN_GAPS: Record<string, { gap: Rect; wall: Rect; walk?: Rect }> = {
   southAvenue: {
     gap: { minX: 26, maxX: 30, minZ: TOWN_SOUTH - 0.3, maxZ: TOWN_SOUTH + 0.3 },
     wall: { minX: 26, maxX: 30, minZ: TOWN_SOUTH - 0.4, maxZ: TOWN_SOUTH + 0.4 },
-    walk: { minX: 26.2, maxX: 29.8, minZ: LAYOUT.town.square.maxZ - 0.2, maxZ: TOWN_SOUTH + 0.2 },
+    walk: { minX: 25.85, maxX: 28.85, minZ: LAYOUT.town.square.maxZ - 0.2, maxZ: TOWN_SOUTH + 0.2 },
   },
   cityLink: { gap: { minX: 37.7, maxX: 38.3, minZ: 19, maxZ: 23 }, wall: { minX: 37.8, maxX: 38.2, minZ: 19, maxZ: 23 } },
   townEast: { gap: { minX: 37.7, maxX: 38.3, minZ: 27.8, maxZ: 32.6 }, wall: { minX: 37.8, maxX: 38.2, minZ: 27.8, maxZ: 32.6 } },
@@ -337,6 +338,7 @@ function buildRoad(road: (typeof ROADS)[number], rng: Rng, zones: readonly Rect[
     if (road.id === 'southAvenue') addApron(b, townApron(), rng);
     for (const gp of GATE_PAVINGS) if (gp.road === road.id) addGatePaving(b, glow, gp, y, rng);
   }
+  addRoadMarks(b, road.id);
   const open = b.mesh({ cast: false, receive: true });
   if (!glow.empty) {
     const g = glow.mesh({ cast: false, receive: false, material: GLOW });

@@ -30,6 +30,7 @@ import { Pile } from '../items/Pile';
 import { transferOne } from '../items/transfer';
 import { MATERIAL_KINDS, type MaterialKind } from '../eras/data';
 import { buyerRoute, headingAt, pointAt, roadOpenAt, type BuyerRoute } from '../eras/traffic';
+import { CROSSERS } from '../city/roadRoute';
 import type { XZ } from '../eras/layout';
 import { inView, trackVehicle, untrackVehicle } from './vehicleView';
 
@@ -100,6 +101,9 @@ const FOLLOW_STOP = 5.2;
 const FOLLOW_SLOW = 9;
 /** Every era's vehicles out on the roads (they share the drive lanes), for keeping distance. */
 const ROAD_TRUCKS = new Set<Truck>();
+/** A vehicle stops this far (centre to walker) behind someone crossing in its path, that wide either side of it. */
+const CROSS_STOP = 2.8;
+const CROSS_SIDE = 1.6;
 const ACCEL = 6;
 const DECEL = 8;
 
@@ -304,10 +308,18 @@ export class EraBuyers {
    */
   private follow(t: Truck): number {
     const r = this.currentRoute();
-    if (t.s >= r.sMerge && t.s <= r.sOut) return Infinity;
     const p = pointAt(r, t.s, tmpXZ);
     const h = headingAt(r, t.s, tmpH);
     let cap = Infinity;
+    // 0.9.12: brake for anyone crossing the road ahead (city/roadRoute.ts CROSSERS), even in the stop lane
+    for (const c of CROSSERS) {
+      const dx = c.x - p.x;
+      const dz = c.z - p.z;
+      const along = dx * h.x + dz * h.z;
+      if (along <= 0 || along > FOLLOW_SLOW || Math.abs(dx * h.z - dz * h.x) > CROSS_SIDE) continue;
+      cap = Math.min(cap, along <= CROSS_STOP ? 0 : ((along - CROSS_STOP) / (FOLLOW_SLOW - CROSS_STOP)) * TRADE_POST.driveSpeed);
+    }
+    if (t.s >= r.sMerge && t.s <= r.sOut) return cap;
     for (const o of ROAD_TRUCKS) {
       if (o === t) continue;
       o.model.root.getWorldPosition(tmp);

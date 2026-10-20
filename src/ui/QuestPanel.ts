@@ -69,7 +69,6 @@ export class QuestPanel {
     this.root = h('div', 'wl-quests');
     this.head = h('button', 'wl-quests-head');
     this.head.type = 'button';
-    this.head.setAttribute('aria-label', 'Quests');
     this.headLabel = h('span', 'wl-quests-label');
     this.head.append(h('i', 'wl-quests-star', ICON_STAR), this.headLabel, h('b', 'wl-quests-caret', ''));
     shield(this.head);
@@ -165,6 +164,8 @@ export class QuestPanel {
     if (head !== this.lastHead) {
       this.lastHead = head;
       this.headLabel.textContent = head;
+      // the visible count names the button (a fixed "Quests" hid the progress from screen readers)
+      this.head.setAttribute('aria-label', done ? 'All quests complete' : `Quests: ${q.doneCount} of ${q.total} done`);
     }
     if (this.collapsed || done) return;
     for (let i = 0; i < ROWS; i++) {

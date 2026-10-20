@@ -36,9 +36,10 @@
 import * as THREE from 'three';
 import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, PADS, QUARTERS, TOWN, UPGRADES, VILLAGE, rect, type BusinessId, type PadIdConst, type Rect, type UpgradeIdConst, type XZ } from '../config';
 import type { FlagId, GameContext, ItemKind, PadId, Phase } from '../core/types';
+import type { MachineRuntime } from '../eras/runtime';
 import type { Level } from '../level/Level';
 import type { Machine } from '../eras/Machine';
-import { DISTRICTS, ERAS, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
+import { CITY_BUILDINGS, countOf, DISTRICTS, type CityBuildingId, ERAS, lowerLabel, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
 import { climbOpen, eraMatOf, hasGate, nextGoal } from '../eras/gate';
 import { expansionOffered, regionLayout } from '../eras/layout';
 import { MAT_SIZE, machinePadTarget, worldRect } from '../eras/rules';
@@ -132,13 +133,24 @@ const PHASE_OF_PAD: Record<PadId, Phase> = {
 type IntroState = 'pending' | 'playing' | 'done';
 
 /** "crates", "stone", "bricks": an item's name in a guide line. */
-const matName = (kind: ItemKind): string => MATERIALS[kind as keyof typeof MATERIALS]?.label.toLowerCase() ?? `${kind}s`;
+/** "1 brick", "24 AI cores", "40 crates". */
+const matCount = (kind: ItemKind, count: number): string => countOf(MATERIALS[kind as keyof typeof MATERIALS]?.label ?? `${kind}s`, count);
 const titleCase = (s: string): string => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 const centerOf = (r: Rect, out: THREE.Vector3): THREE.Vector3 => out.set((r.minX + r.maxX) / 2, 0, (r.minZ + r.maxZ) / 2);
+
+/** The parts of a construction pad the build-site goals read (an era machine site, a city lot). */
+interface SitePad {
+  readonly cashLeft: number;
+  readonly extraLeft: number;
+  readonly extraKind: ItemKind | null;
+  readonly area: Rect;
+}
 
 /** What a log-and-cash build goal (village shelter, Great Lodge, crew bunkhouse) points at. */
 interface BuildNeed {
   spot: XZ;
+  /** 0.9.12: the pad's own zone (the arrow stays up until the player stands in it); else a square round `spot`. */
+  area?: Rect | null;
   logsLeft: number;
   cashLeft: number;
   /** The call to action once the logs are in hand ('Build the Great Lodge!', 'Bring logs to the village', ...). */
@@ -597,7 +609,10 @@ export class Progression {
     const arms = this.ctx.player.arms.count();
     const money = this.ctx.economy.money;
     // money only counts while the player stands in the goal's zone (crews spend too)
-    const spent = money < this.busyMoney - 0.5 && !!this.goalArea && this.ctx.zones.isPlayerIn(this.goalArea);
+    // a pad taking each few dollars as they come in (little left after each payment) is not busy: the guide may move
+    // on (bring the goods, or the next goal) instead of freezing on a stale "Pay for ..."
+    const paid = this.busyMoney - money;
+    const spent = paid > 0.5 && money >= paid * 2 && !!this.goalArea && this.ctx.zones.isPlayerIn(this.goalArea);
     if ((this.busyArms >= 0 && arms !== this.busyArms) || spent) this.lastBusy = this.ctx.time.elapsed;
     this.busyArms = arms;
     this.busyMoney = money;
@@ -624,7 +639,7 @@ export class Progression {
       const gl = VILLAGE.greatLodge;
       const cashLeft = gl.cash - v.greatLodge.cash;
       if (v.greatLodge.tier < 0 && (cashLeft <= 0 || money >= cashLeft * 0.25)) {
-        return { spot: great, logsLeft: gl.logs - v.greatLodge.logs, cashLeft, text: 'Build the Great Lodge!', pick: 'Pick up logs for the Great Lodge' };
+        return { spot: great, area: this.level.village.pad(-1)?.area, logsLeft: gl.logs - v.greatLodge.logs, cashLeft, text: 'Build the Great Lodge!', pick: 'Pick up logs for the Great Lodge' };
       }
     }
     for (let i = 0; i < v.plots.length; i++) {
@@ -638,6 +653,7 @@ export class Progression {
         const logsLeft = tier.logs - plot.logs;
         return {
           spot,
+          area: this.level.village.pad(i)?.area,
           logsLeft,
           cashLeft,
           text: logsLeft > 0 ? 'Bring logs to the village' : `Pay for the shelter (${fmtMoney(cashLeft)})`,
@@ -662,6 +678,7 @@ export class Progression {
     const logsLeft = tier.logs - q.logs;
     return {
       spot,
+      area: this.level.quarters.constructionPad().area,
       logsLeft,
       cashLeft,
       text: logsLeft > 0 ? `Bring logs to the ${name}` : `Pay for the ${name} (${fmtMoney(cashLeft)})`,
@@ -685,7 +702,7 @@ export class Progression {
     if (need.logsLeft <= 0 && need.cashLeft < 0.5) return false;
     const want = Math.min(need.logsLeft, arms.capacity);
     if (need.logsLeft <= 0 || armsLogs >= want) {
-      const spotArea = rect(need.spot.x, need.spot.z, 2.4, 2.4);
+      const spotArea = need.area ?? rect(need.spot.x, need.spot.z, 2.4, 2.4);
       this.setGoal(need.text, spotArea, this.tmpPoint.set(need.spot.x, 0, need.spot.z));
       return true;
     }
@@ -768,6 +785,7 @@ export class Progression {
       if (
         this.pursue({
           spot,
+          area: town.pad(i)?.area,
           logsLeft,
           cashLeft,
           text: logsLeft > 0 ? `Bring logs to the ${name}` : `Pay for the ${name} (${fmtMoney(cashLeft)})`,
@@ -806,6 +824,7 @@ export class Progression {
       if (
         this.pursue({
           spot: pad,
+          area: rect(pad.x, pad.z, LAYOUT.town.amenityPadSize, LAYOUT.town.amenityPadSize),
           logsLeft,
           cashLeft,
           text: logsLeft > 0 ? `Bring logs to the ${def.label}` : `Pay for the ${def.label} (${fmtMoney(cashLeft)})`,
@@ -917,6 +936,7 @@ export class Progression {
     const logsLeft = def.logs - st.logs;
     return this.pursue({
       spot: pad,
+      area: rect(pad.x, pad.z, LAYOUT.town.grandMarket.padSize, LAYOUT.town.grandMarket.padSize),
       logsLeft,
       cashLeft,
       text: logsLeft > 0 ? 'Bring logs to the Grand Market' : `Pay for the Grand Market (${fmtMoney(cashLeft)})`,
@@ -960,20 +980,29 @@ export class Progression {
     for (const n of order) {
       const site = this.level.eras.region(n)?.chosenSites?.().find((x) => kinds.some((k) => k === x.pad.extraKind) && x.pad.extraLeft > 0);
       if (site && this.siteGoal(n, site.slot)) return true;
+      // a home or shop chosen on a city lot that takes it (bricks for the brick cottages)
+      const district = this.level.city.district(n);
+      const lots = s.city.districts[n]?.lots ?? [];
+      for (let i = 0; district && i < lots.length; i++) {
+        const lot = lots[i]!;
+        const pad = lot.building !== '' && lot.tier < 0 ? district.pad(i) : null;
+        if (!pad?.visible || pad.extraLeft <= 0 || !kinds.some((k) => k === pad.extraKind)) continue;
+        if (this.padGoal(pad, lowerLabel(CITY_BUILDINGS[lot.building as CityBuildingId]?.label ?? 'building'))) return true;
+      }
     }
     for (const n of order) {
       const region = this.level.eras.region(n);
       if (!region) continue;
       for (const m of region.machines) {
         if (!m || !kinds.some((k) => m.wants(k) > 0)) continue;
-        this.setGoal(`Feed the ${m.def.label.toLowerCase()}`, rect(m.feedSpot.x, m.feedSpot.z, 1.6, 1.6), this.tmpPoint.set(m.feedSpot.x, 0, m.feedSpot.z));
+        this.setGoal(`Feed the ${lowerLabel(m.def.label)}`, rect(m.feedSpot.x, m.feedSpot.z, 1.6, 1.6), this.tmpPoint.set(m.feedSpot.x, 0, m.feedSpot.z));
         return true;
       }
     }
     const region = this.level.eras.region(home);
     if (!region) return false;
     const d = region.depotSpot;
-    this.setGoal(`Ship ${MATERIALS[kind].label.toLowerCase()} at the export depot`, rect(d.x, d.z, 1.6, 1.6), this.tmpPoint.set(d.x, 0, d.z));
+    this.setGoal(`Ship ${lowerLabel(MATERIALS[kind].label)} at the export depot`, rect(d.x, d.z, 1.6, 1.6), this.tmpPoint.set(d.x, 0, d.z));
     return true;
   }
 
@@ -1001,7 +1030,7 @@ export class Progression {
     }
     const kind = era.unlock.extra.kind;
     if (this.ctx.player.arms.count(kind) === 0 && this.fetchFor(kind, extraLeft, era.region)) return true;
-    this.setGoal(`Bring ${extraLeft} ${matName(kind)} to ${era.region}`, padArea, this.tmpPoint.set(pad.x, 0, pad.z));
+    this.setGoal(`Bring ${matCount(kind, extraLeft)} to ${era.region}`, padArea, this.tmpPoint.set(pad.x, 0, pad.z));
     return true;
   }
 
@@ -1010,8 +1039,8 @@ export class Progression {
    * built): crates at the processor's output; an era material at a machine that makes it (one with stock first, newest
    * region first), else an import dock holding some, else the region's hand node. False when nothing makes it.
    */
-  private fetchFor(kind: ItemKind, count: number, what: string): boolean {
-    const text = `Pick up ${count} ${matName(kind)} for ${what}`;
+  private fetchFor(kind: ItemKind, count: number, what: string, depth = 0): boolean {
+    const text = `Pick up ${matCount(kind, count)} for ${what}`;
     if (kind === 'crate') {
       const proc = this.level.processor;
       if (!proc) return false;
@@ -1022,6 +1051,7 @@ export class Progression {
     const here = this.regionHere();
     const order = [...(here ? [here] : []), ...Array.from({ length: Math.max(0, s.eras.age - 1) }, (_, i) => s.eras.age - i).filter((n) => n !== here)];
     let fallback: { x: number; z: number } | null = null;
+    let idle: MachineRuntime | null = null;
     for (const n of order) {
       const region = this.level.eras.region(n);
       if (!region) continue;
@@ -1035,13 +1065,30 @@ export class Progression {
         this.setGoal(text, rect(at.x, at.z, 1.6, 1.6), this.tmpPoint.set(at.x, 0, at.z));
         return true;
       }
-      if (!fallback && maker) fallback = maker.takeSpot;
+      if (!fallback && maker) {
+        fallback = maker.takeSpot;
+        idle = maker;
+      }
       if (!fallback && region.node?.yields === kind) {
         const node = handNodePlace(region.layout);
         if (node) fallback = node;
       }
     }
     if (!fallback) return false;
+    // 0.9.12: the maker has none yet and is short of what it makes them from (an unfed kiln): feed it first, rather
+    // than wait at an empty pile (a working one is making some: wait for them)
+    if (idle && !idle.working && depth < 2) {
+      const label = lowerLabel(idle.def.label);
+      for (const input of idle.def.inputs) {
+        if (idle.wants(input.kind) <= 0) continue;
+        if (this.ctx.player.arms.count(input.kind) > 0) {
+          const f = idle.feedSpot;
+          this.setGoal(`Feed the ${label}`, rect(f.x, f.z, 1.6, 1.6), this.tmpPoint.set(f.x, 0, f.z));
+          return true;
+        }
+        if (this.fetchFor(input.kind, input.per, `the ${label}`, depth + 1)) return true;
+      }
+    }
     this.setGoal(text, rect(fallback.x, fallback.z, 1.6, 1.6), this.tmpPoint.set(fallback.x, 0, fallback.z));
     return true;
   }
@@ -1056,17 +1103,22 @@ export class Progression {
     const sites = region?.chosenSites?.() ?? [];
     const site = slot >= 0 ? sites.find((x) => x.slot === slot) : sites[0];
     if (!site) return false;
-    const label = MACHINES[site.machine as keyof typeof MACHINES]?.label.toLowerCase() ?? 'machine';
-    const pad = site.pad;
+    return this.padGoal(site.pad, lowerLabel(MACHINES[site.machine as keyof typeof MACHINES]?.label ?? 'machine'));
+  }
+
+  /** A construction pad being paid (an era machine site, a city lot): bring its goods, pay, or fetch the goods first. */
+  private padGoal(pad: SitePad, label: string): boolean {
     const at = this.tmpPoint;
     const point = (): THREE.Vector3 => centerOf(pad.area, at);
     const kind = pad.extraKind;
     const need = kind ? pad.extraLeft : 0;
     if (kind && need > 0 && this.ctx.player.arms.count(kind) > 0) {
-      this.setGoal(`Bring ${need} ${matName(kind)} to the ${label}`, pad.area, point());
+      this.setGoal(`Bring ${matCount(kind, need)} to the ${label}`, pad.area, point());
       return true;
     }
-    if (pad.cashLeft > 0 && this.ctx.economy.money > 0) {
+    // cash first while a good part of it is in hand; short of that, the goods are the step the player can take now
+    const money = this.ctx.economy.money;
+    if (pad.cashLeft > 0 && money > 0 && (need <= 0 || money >= pad.cashLeft * 0.25)) {
       this.setGoal(`Pay for the ${label} (${fmtMoney(pad.cashLeft)})`, pad.area, point());
       return true;
     }
@@ -1136,7 +1188,7 @@ export class Progression {
       const need = this.villageNeed();
       const spot = need?.spot;
       if (spot) {
-        this.setGoal(text, rect(spot.x, spot.z, 2.4, 2.4), this.tmpPoint.set(spot.x, 0, spot.z));
+        this.setGoal(text, need.area ?? rect(spot.x, spot.z, 2.4, 2.4), this.tmpPoint.set(spot.x, 0, spot.z));
         return true;
       }
       const g = LAYOUT.village.gate;
@@ -1148,7 +1200,40 @@ export class Progression {
       this.setGoal(text, rect(q.x, q.z, 2, 2));
       return true;
     } else if (target.startsWith('district:')) {
-      const d = DISTRICTS[Number(target.slice(9))];
+      const n = Number(target.slice(9));
+      const d = DISTRICTS[n];
+      // 0.9.12: a lot to build on, not the whole district (the arrow went away at the district's edge): a chosen lot
+      // still being paid first, else the free lot nearest the player
+      const district = this.level.city.district(n);
+      const lots = s.city.districts[n]?.lots ?? [];
+      const p = this.ctx.player.object.position;
+      let best = -1;
+      let bestD = Infinity;
+      // the lot already pointed at stays the goal while it is free (no hopping as the player walks)
+      const held = this.objective === text ? this.goalArea : null;
+      for (let i = 0; district && held && i < lots.length; i++) {
+        const spot = lots[i]!.tier < 0 ? district.padSpot(i) : null;
+        if (spot && spot.x >= held.minX && spot.x <= held.maxX && spot.z >= held.minZ && spot.z <= held.maxZ) best = i;
+      }
+      for (let i = 0; district && best < 0 && i < lots.length; i++) {
+        const lot = lots[i]!;
+        const spot = lot.tier < 0 ? district.padSpot(i) : null;
+        if (!spot) continue;
+        const dist = Math.hypot(spot.x - p.x, spot.z - p.z) - (lot.building !== '' ? 1e4 : 0);
+        if (dist < bestD) {
+          bestD = dist;
+          best = i;
+        }
+      }
+      const chosen = best >= 0 ? lots[best]!.building : '';
+      const lotPad = chosen ? district!.pad(best) : null;
+      // a home chosen on it: its bricks (or the era's goods) and cash, like an era machine site
+      if (lotPad?.visible && this.padGoal(lotPad, lowerLabel(CITY_BUILDINGS[chosen as CityBuildingId]?.label ?? 'building'))) return true;
+      const spot = best >= 0 ? district!.padSpot(best) : null;
+      if (spot) {
+        this.setGoal(text, district!.pad(best)?.area ?? rect(spot.x, spot.z, 1.8, 1.8), this.tmpPoint.set(spot.x, 0, spot.z));
+        return true;
+      }
       if (d) {
         this.setGoal(text, d.rect);
         return true;

@@ -11,7 +11,7 @@
  * Starts a Vite dev server, opens the game in headless Chromium (software WebGL), pauses the real-time loop and, in a
  * fresh browser context per scenario, every 0.25 simulated seconds reads window.__WINTERLAND__.guide(), walks toward
  * its `steer` point (autopilot) and simulates 0.25 s. Findings: unreachable, stuck (walk length did not drop 1 m in 8 s),
- * flipflop (A -> B -> A within 3 s), churn (over 24 objective changes in 60 s), flash (a goal up for under 1.5 s that the player did not reach, not within 3 s of a map jump), blind (target but no steer for over 2 s),
+ * flipflop (A -> B -> A within 3 s), churn (over 24 objective changes in 60 s), flash (a goal up for under 1.5 s that the player did not reach or end by picking up or dropping goods, not within 3 s of a map jump), blind (target but no steer for over 2 s),
  * replan (route planned over ~20 times a minute for one objective), stall (the same objective for 60 s while the player
  * already stands at its target: the guide gives a step nothing completes). On a "Build a quarry in ..." BUILD tile the
  * bot picks that machine (Region.choose, what the choose card does). Recorded but not failures: offpath (how often the
@@ -113,6 +113,19 @@ const STEP = `(tick) => {
       if (best >= 0 && bd < 3) region.choose(best, id);
     }
   }
+  // "Build a home in Brickside (+40) ...": standing on a free city lot, the bot picks that era's first home (the lot card)
+  if (g.objective && /^Build a home in /.test(g.objective) && (!g.target || g.remaining < 1.5) && window.__gwHomes) {
+    for (let n = 2; n <= 10; n++) {
+      const d = W.level.city.district(n);
+      const lots = W.ctx.state.city.districts[n]?.lots ?? [];
+      for (let i = 0; d && i < lots.length; i++) {
+        const at = d.padSpot(i);
+        if (!at || lots[i].tier >= 0 || lots[i].building !== '' || Math.hypot(at.x - p.x, at.z - p.z) > 2) continue;
+        const home = window.__gwHomes.find((h) => h.era === n);
+        if (home) d.choose(i, home.id);
+      }
+    }
+  }
   // "Hire the X at the cabin": the bot can't use the shop sheet, so it buys straight away (W.buy)
   const hire = g.objective && /^Hire (?:an? |the )?(.+?) at /.exec(g.objective);
   if (hire && W.buy && window.__gwUpgrades) {
@@ -120,11 +133,24 @@ const STEP = `(tick) => {
     const id = Object.keys(U).find((k) => U[k].toLowerCase() === hire[1].toLowerCase());
     if (id) W.buy(id);
   }
+  // at a shop mat ("Visit the cabin to upgrade", "Sharp Axe → Lv 10 ($42K)"): a player would open the shop and buy;
+  // the bot buys the named upgrade, else the first one it can afford
+  if (g.objective && (!g.target || g.remaining < 1.5) && W.buy && window.__gwUpgrades) {
+    const U = window.__gwUpgrades;
+    const lv = /^(.+?) → Lv [0-9]+/.exec(g.objective);
+    if (lv) {
+      const id = Object.keys(U).find((k) => U[k].toLowerCase() === lv[1].toLowerCase());
+      if (id) W.buy(id);
+    } else if (/^Visit the cabin/.test(g.objective)) {
+      const id = Object.keys(U).find((k) => W.ctx.upgrades.canBuy(k));
+      if (id) W.buy(id);
+    }
+  }
   const before = { x: p.x, z: p.z };
   W.simulate(tick, 1 / 30);
   const ms = performance.now() - t0;
   const { walk, ...rest } = g;
-  return { g: rest, pos: before, ms };
+  return { g: { ...rest, held: pl.arms.count() }, pos: before, ms };
 }`;
 
 // ---- scenario runner -------------------------------------------------------------------------------------------------
@@ -143,7 +169,7 @@ async function openGame(context) {
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
   await page.waitForFunction(() => !!window.__WINTERLAND__, null, { timeout: 120000 });
   await page.evaluate(() => window.__WINTERLAND__.pause());
-  await page.evaluate(async () => { window.__gwMachines = (await import('/src/eras/data.ts')).MACHINES; const U = (await import('/src/config.ts')).UPGRADES; window.__gwUpgrades = Object.fromEntries(Object.entries(U).map(([k, v]) => [k, v.label])); });
+  await page.evaluate(async () => { const D = await import('/src/eras/data.ts'); window.__gwMachines = D.MACHINES; window.__gwHomes = Object.values(D.CITY_BUILDINGS).filter((b) => b.kind === 'home').map((b) => ({ id: b.id, era: b.era })); const U = (await import('/src/config.ts')).UPGRADES; window.__gwUpgrades = Object.fromEntries(Object.entries(U).map(([k, v]) => [k, v.label])); });
   await page.evaluate(`window.__gw = { ${Object.entries(SETUP).map(([k, v]) => `${k}: ${v}`).join(', ')} }; window.__gwStep = ${STEP};`);
   return page;
 }
@@ -175,6 +201,7 @@ async function follow(page, run, sim, label) {
   const changeTimes = [];
   let planStart = null;
   let lastRem = null; // metres left on the last step: a goal that ends at its target was done, not a flash
+  let heldAt = null; // goods in the arms when the goal went up: a goal the player's own pickup or drop ended is not a flash
   while (run.t < end - 1e-9) {
     const w0 = Date.now();
     const s = await page.evaluate((k) => window.__gwStep(k), TICK);
@@ -206,8 +233,9 @@ async function follow(page, run, sim, label) {
       if (changeTimes.length > 24) find(run, 'churn', `${changeTimes.length} objective changes in 60 s (latest "${g.objective}")`, {});
       // flash: a goal (text) that was up for under 1.5 s
       const prev = run.changes[run.changes.length - 2];
-      if (prev && prev.text && t - prev.t < 1.5 && !(run.jumpAt != null && t - run.jumpAt < 3) && !(remBefore != null && remBefore < 2)) find(run, 'flash', `"${prev.text}" showed for only ${r1(t - prev.t)} s`, { player: pos });
+      if (prev && prev.text && t - prev.t < 1.5 && !(run.jumpAt != null && t - run.jumpAt < 3) && !(remBefore != null && remBefore < 2) && !(heldAt != null && g.held !== heldAt)) find(run, 'flash', `"${prev.text}" showed for only ${r1(t - prev.t)} s`, { player: pos });
       curObj = g.objective;
+      heldAt = g.held;
       run.stallSince = null;
       stuckRef = null;
       blindSince = null;

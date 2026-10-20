@@ -20,6 +20,25 @@ export function markDialog(el: HTMLElement, title: HTMLElement, id: string): voi
   el.setAttribute('aria-labelledby', id);
 }
 
+/**
+ * 0.9.12: name a bottom sheet / side card (build, choose, manage, gate, market) for screen readers. Not modal: these
+ * open under the player's feet while they keep walking, so they never trap the focus.
+ */
+export function markPanel(el: HTMLElement, title: HTMLElement, id: string): void {
+  title.id = id;
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-labelledby', id);
+}
+
+/** 0.9.12: the card's body text describes it (a screen reader then reads more than the title). */
+export function describeBy(el: HTMLElement, parts: readonly HTMLElement[], prefix: string): void {
+  const ids = parts.map((p, i) => {
+    if (!p.id) p.id = `${prefix}-${i}`;
+    return p.id;
+  });
+  el.setAttribute('aria-describedby', ids.join(' '));
+}
+
 /** What had the focus before a dialog opened, as the pure rule sees it. */
 export interface FocusFrom {
   /** Still in the page and laid out. */

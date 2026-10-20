@@ -1888,8 +1888,34 @@ function drawTagLock(g: CanvasRenderingContext2D, x: number, y: number): void {
   g.restore();
 }
 
+/** 0.9.12: a little house in the lock's ink (the settlement row of a locked era pad's tag, like the village badge). */
+function drawTagHouse(g: CanvasRenderingContext2D, x: number, y: number): void {
+  g.save();
+  g.translate(x, y);
+  g.fillStyle = hex(PAD.ink);
+  g.beginPath();
+  g.moveTo(-18, -2);
+  g.lineTo(0, -18);
+  g.lineTo(18, -2);
+  g.lineTo(13, -2);
+  g.lineTo(13, 18);
+  g.lineTo(-13, 18);
+  g.lineTo(-13, -2);
+  g.closePath();
+  g.fill();
+  g.fillStyle = hex(PAD.tag);
+  roundedRectPath(g, -5, 6, 10, 12, 2);
+  g.fill();
+  g.restore();
+}
+
 function tagRows(p: PadTextureParams): TagRow[] {
-  if (p.locked !== undefined) return [{ icon: drawTagLock, text: p.locked || 'Soon' }];
+  if (p.locked !== undefined) {
+    // 0.9.12 (A9): "37/48 · Settlement 8/10" in one line was squeezed thin; two rows, each with its own word
+    const m = /^(\d+\/\d+) · Settlement (\d+\/\d+)$/.exec(p.locked);
+    if (m) return [{ icon: drawTagLock, text: m[1]!, label: 'at Lv 10' }, { icon: drawTagHouse, text: m[2]!, label: 'Settlement' }];
+    return [{ icon: drawTagLock, text: p.locked || 'Soon' }];
+  }
   if (p.kind === 'pad') return [{ icon: (g, x, y) => drawBill(g, x, y, 0.5), text: p.text }];
   if (p.kind !== 'construction') return [];
   const row = (req: { left: number; total: number }, icon: TagRow['icon'], cash = false): TagRow => ({

@@ -129,7 +129,7 @@
   text-shadow: none;
 }
 
-.wl-hud :is(.wl-btn, .wl-shop-buy, .wl-build-go, .wl-mk-btn, .wl-gate-go, .wl-map-go, .wl-agecard-btn, .wl-manage-btn, .wl-earlier-btn):active:not(:disabled) {
+.wl-hud :is(.wl-btn, .wl-shop-buy, .wl-build-go, .wl-mk-btn, .wl-gate-go, .wl-map-go, .wl-agecard-btn, .wl-manage-btn, .wl-earlier-btn):active:not(:disabled, [aria-disabled="true"]) {
   transform: translateY(2px);
   box-shadow:
     0 1px 0 color-mix(in oklab, var(--b, var(--wl-gold)), var(--wl-ink-c) 45%),

@@ -22,13 +22,13 @@
  */
 import { PRIORITIES, QUARTERS, UPGRADES, type TownPriority, type UpgradeGroup, type UpgradeIdConst, type WoodPriority } from '../config';
 import { crewSlots, type CrewRole } from '../core/crew';
-import { authoredMax, valueAt } from '../core/ladder';
+import { authoredMax, eraCapShown, valueAt } from '../core/ladder';
 import type { GameContext } from '../core/types';
 import { ERAS } from '../eras/data';
 import { regionLayout } from '../eras/layout';
 import { climbOpen, gateNeed, hasGate, inGate as inGateOf } from '../eras/gate';
 import { BAND_PIPS, bandView, eraCrewDelta, eraRoman, industryEraNote, SHOP_TABS, shopDelta, shopTabs, type ShopTab } from './agesLogic';
-import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
+import { backOut, cubicOut, h, keyLabel, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
 import { hexCss, ICON_CLOSE, ICON_LOCK, upgradeIcon } from './icons';
 import './ages.css';
@@ -145,11 +145,13 @@ export class ShopPanel {
     });
     head.classList.add('is-stacked');
     const tabs = h('div', 'wl-shop-tabs');
+    tabs.setAttribute('role', 'tablist');
     this.tabsEl = tabs;
     for (const t of TABS) {
       const label = t.short ? `<span class="wl-tab-long">${t.label}</span><span class="wl-tab-short">${t.short}</span>` : `<span>${t.label}</span>`;
-      const b = h('button', 'wl-shop-tab', `${label}<i class="wl-dot"></i>`);
+      const b = h('button', 'wl-shop-tab', `${label}<i class="wl-dot" aria-hidden="true"></i>`);
       b.type = 'button';
+      b.setAttribute('role', 'tab');
       if (t.group === 'lumberjack') {
         this.lumberTab = { long: b.querySelector('.wl-tab-long') as HTMLSpanElement, short: b.querySelector('.wl-tab-short') as HTMLSpanElement };
       }
@@ -164,6 +166,7 @@ export class ShopPanel {
     const close = h('button', 'wl-shop-close', ICON_CLOSE);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close shop');
+    close.title = keyLabel('Close', 'Esc');
     onTap(close, () => {
       ctx.audio.play('click');
       this.close();
@@ -179,7 +182,7 @@ export class ShopPanel {
     // crew priorities: the first thing on the Crew tab (the cards are appended after it)
     this.prio = h('div', 'wl-prio');
     this.woodRow = this.makePrioRow('Wood', PRIORITIES.wood, WOOD_LABEL, 'wood');
-    this.townRow = this.makePrioRow('Town', PRIORITIES.town, TOWN_LABEL, 'town');
+    this.townRow = this.makePrioRow('Shops', PRIORITIES.town, TOWN_LABEL, 'town');
     this.prio.appendChild(this.woodRow.root);
     this.prio.appendChild(this.townRow.root);
     this.prio.appendChild(h('div', 'wl-prio-hint', "Who gets the wood when it's short, and which shop the porter stocks first."));
@@ -273,7 +276,10 @@ export class ShopPanel {
 
   private setTab(group: Tab): void {
     this.tab = group;
-    for (const [g, el] of this.tabEls) el.classList.toggle('is-on', g === group);
+    for (const [g, el] of this.tabEls) {
+      el.classList.toggle('is-on', g === group);
+      el.setAttribute('aria-selected', String(g === group));
+    }
     if (group !== 'crew') this.prio.style.display = 'none';
     this.layoutKey = '';
     this.applyLayout();
@@ -320,7 +326,7 @@ export class ShopPanel {
     }
     const matEra = this.place < 2 && age >= 2 && ERAS[age] ? age : 0;
     this.eraMatNote.style.display = matEra ? '' : 'none';
-    if (matEra) this.eraMatText.textContent = `${ERAS[matEra]!.region}'s crew, Industry and sales upgrades are on its own shop mat.`;
+    if (matEra) this.eraMatText.textContent = `The ${ERAS[matEra]!.region} crew, Industry and sales upgrades are on its own shop mat.`;
     for (const hd of this.eraHeaders) {
       // 0.9.6 (P1-7): era headers only at their own era's mat, so the cabin never shows an empty "ERA II" header
       const here = this.place >= 2 && hd.era === this.place;
@@ -421,6 +427,8 @@ export class ShopPanel {
       const b = h('button', 'wl-prio-opt', labels[v].text);
       b.type = 'button';
       b.title = labels[v].hint;
+      // the hover hint, read out too (touch and screen-reader players never see a title)
+      b.setAttribute('aria-description', labels[v].hint);
       b.setAttribute('role', 'radio');
       onTap(b, () => {
         this.ctx.audio.unlock();
@@ -537,7 +545,9 @@ export class ShopPanel {
         for (let i = 0; i < c.pips.length; i++) c.pips[i]!.classList.toggle('on', i < lvl);
       }
       if (c.lv && !climb) {
-        const lv = `Lv ${lvl}/${up.maxLevel(id)}`;
+        // 0.9.12 (M3): before the Great Lodge the cap is below 10, while the guidebook says Lv 10: say when 10 comes
+        const max = up.maxLevel(id);
+        const lv = max < eraCapShown() ? `Lv ${lvl}/${max} · 10 after the Lodge` : `Lv ${lvl}/${max}`;
         if (c.lv.textContent !== lv) c.lv.textContent = lv;
       }
       if (climb) {
@@ -590,10 +600,20 @@ export class ShopPanel {
         c.shown.btn = btnHtml;
         c.btn.innerHTML = btnHtml;
       }
+      // spoken: what the button does and why it can't yet (the price alone, or a grey colour, said neither)
+      const say =
+        cls === 'is-max'
+          ? `${def.label}: max level`
+          : cls === 'is-lock'
+            ? `${def.label}: locked, ${req ?? ''}`
+            : `${lvl === 0 && (c.group === 'crew' || id.endsWith('Crew')) ? 'Hire' : 'Buy'} ${def.label}: ${formatMoney(cost ?? 0)}${cls === 'is-poor' ? ', not enough money yet' : ''}`;
+      if (c.btn.getAttribute('aria-label') !== say) c.btn.setAttribute('aria-label', say);
       if (cls !== c.shown.cls) {
         c.shown.cls = cls;
         c.btn.className = `wl-shop-buy ${cls}`;
-        c.btn.disabled = cls !== 'is-buy';
+        // aria-disabled, not disabled: a keyboard or gamepad player keeps their place after a buy empties the purse
+        // (a disabled button drops the focus), and buy() already refuses what can't be bought
+        c.btn.setAttribute('aria-disabled', String(cls !== 'is-buy'));
         c.root.classList.toggle('is-locked', cls === 'is-lock');
         c.root.classList.toggle('is-maxed', cls === 'is-max');
       }

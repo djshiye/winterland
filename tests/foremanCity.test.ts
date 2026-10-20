@@ -8,12 +8,12 @@ import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../src/core/EventBus';
 import { createGameState, type GameContext, type GameEvents, type GameState, type Item, type ItemHolder, type ItemKind, type Slot } from '../src/core/types';
-import { CITY_BUILDINGS, DISTRICT_MATERIAL, ROADS, districtDef, type CityBuildingId } from '../src/eras/data';
+import { CITY_BUILDINGS, DISTRICT_MATERIAL, districtDef, type CityBuildingId } from '../src/eras/data';
 import { regionLayout } from '../src/eras/layout';
 import { NO_CLAIMS, PAY_STEPS, eraPayAmount, eraSpendable, walletRef, lotDest, lotDestId, payDestId, pickJob, pickPay, siteDest, type JobMachine, type JobView } from '../src/npc/EraWorker';
 import { PRIORITIES } from '../src/config';
 import { cityLotAccess, lotNeeds, registerCityLots } from '../src/city/lotAccess';
-import { inRect, lotStandSpot } from '../src/city/roadRoute';
+import { cityWalkRects, crossingAt, gateRoadSpot, inRect, lotStandSpot } from '../src/city/roadRoute';
 import { districtLots } from '../src/city/rules';
 
 // canvas textures (glow halos, signs) draw into a 2D context nobody looks at here
@@ -280,7 +280,8 @@ describe('a foreman trip to a city lot', () => {
     const w = new EraWorker(ctx, region as never, 'frontierForeman' as never, 0, 'foreman');
     w.peers = [w];
     w.arrive(L.inside);
-    const allowed = [...ROADS.filter((r) => r.opensAt <= 2).map((r) => r.rect), L.rect, districtDef(2).rect];
+    // 0.9.12: beside the roads (their verges), across them only at a crossing, and inside the region and district
+    const allowed = [...cityWalkRects(2), ...crossingAt(2, gateRoadSpot(L)), L.rect, districtDef(2).rect];
     const footprints = districtLots(2).map((f) => f.rect);
     let outside = false;
     let reachedLot = false;

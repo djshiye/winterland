@@ -11,7 +11,7 @@
 import { AMENITIES, AMENITY_IDS, BUSINESSES, eraCashMachine, UPGRADES, VILLAGE, type BusinessId, type UpgradeDef, type UpgradeIdConst } from '../config';
 import { introEra } from '../core/ladder';
 import type { ItemKind } from '../core/types';
-import { cityBuildingsOfEra, CITY_BUILDINGS, ERAS, ERA_NAMES, isMaterial, MACHINES, MATERIALS, MAX_ERA, type MachineDef, type MachineId } from '../eras/data';
+import { cityBuildingsOfEra, CITY_BUILDINGS, ERAS, ERA_NAMES, isMaterial, lowerLabel, MACHINES, MATERIALS, MAX_ERA, type MachineDef, type MachineId } from '../eras/data';
 import { contentMachines, eraContent } from '../eras/template';
 import { ERA_KEYS } from '../core/kinds';
 
@@ -171,7 +171,7 @@ function eraEntries(n: number): BookEntry[] {
   out.push(...upgradeEntries(n, `${region} shop mat`));
   for (const id of cityBuildingsOfEra(n)) {
     const b = CITY_BUILDINGS[id];
-    out.push({ id: `town:${id}`, era: n, section: 'town', name: b.label, text: `${b.blurb}. Built with cash and ${label(b.extra.kind).toLowerCase()}.`, icon: { glyph: b.kind === 'home' ? 'house' : b.kind === 'park' ? 'star' : b.kind === 'landmark' ? 'pin' : 'worker' }, where: `${era.district} district` });
+    out.push({ id: `town:${id}`, era: n, section: 'town', name: b.label, text: `${b.blurb}. Built with cash and ${lowerLabel(label(b.extra.kind))}.`, icon: { glyph: b.kind === 'home' ? 'house' : b.kind === 'park' ? 'star' : b.kind === 'landmark' ? 'pin' : 'worker' }, where: `${era.district} district` });
   }
   return out;
 }
@@ -205,14 +205,14 @@ function survivalUpgrades(): BookEntry[] {
 // ---------------------------------------------------------------------------
 
 const TIPS: readonly { id: string; era: number; name: string; text: string; icon: BookIcon }[] = [
-  { id: 'chop', era: 1, name: 'Chop and carry', text: 'Stand by the giant log and you swing your axe by yourself. Walk over a pile to pick things up, and walk to a counter or hopper to drop them off.', icon: { glyph: 'log' } },
+  { id: 'chop', era: 1, name: 'Chop and carry', text: 'Stand by the giant log and you chop by yourself. To pick up a pile, stand on it (with a keyboard or controller, hold E or A). Walk to a counter or hopper to drop things off: no key needed.', icon: { glyph: 'log' } },
   { id: 'cash', era: 1, name: 'Collect your cash', text: 'Buyers leave cash piles by their counters. Walk over a pile to bank it.', icon: { glyph: 'coin' } },
-  { id: 'pads', era: 1, name: 'Pads', text: 'Stand on a pad to pay for it, a little at a time. Walking across pays nothing. A built machine comes back as a level pad.', icon: { glyph: 'hammer' } },
-  { id: 'shop', era: 1, name: 'The shop', text: "Stand on the cabin's doormat to open the shop. One Buy press buys one level, and every upgrade goes up to Lv 10.", icon: { glyph: 'gear' } },
+  { id: 'pads', era: 1, name: 'Pads', text: 'Stand on a pad to pay for it, a little at a time (with a keyboard or controller, hold E or A). Walking across pays nothing. A built machine comes back as a level pad.', icon: { glyph: 'hammer' } },
+  { id: 'shop', era: 1, name: 'The shop', text: "Stand on the cabin's doormat to open the shop. Tap an upgrade's price to buy one level. Upgrades go up to Lv 10 once the Great Lodge is built.", icon: { glyph: 'gear' } },
   { id: 'crew', era: 1, name: 'Crew', text: 'Hire helpers in the shop. Each one takes a job off your hands, and levels make them faster.', icon: { glyph: 'worker' } },
   { id: 'village', era: 1, name: 'The village', text: 'Shelters bring villagers. More villagers raise the village level: Camp, Hamlet, Village, Town and Winter City. Every level brings better prices and new things to build.', icon: { glyph: 'house' } },
   { id: 'quests', era: 1, name: 'Quests and contracts', text: 'The quest card lists small goals with a reward. Contracts ask for a batch of goods and pay a bonus.', icon: { glyph: 'star' } },
-  { id: 'away', era: 1, name: 'While you were away', text: 'The game saves by itself. When you come back, your mill has earned a little while you were gone.', icon: { glyph: 'coin' } },
+  { id: 'away', era: 1, name: 'While you were away', text: 'The game saves by itself. While it is closed, you earn a quarter of your usual income, for up to 2 hours. The desktop game keeps playing at full speed while it is minimised.', icon: { glyph: 'coin' } },
   { id: 'eras', era: 2, name: 'Eras and the gate', text: 'To open the next era, raise everything this era added to Lv 10, grow to its settlement level, then buy the expansion pad. The era chip at the top shows your next goal.', icon: { glyph: 'pin' } },
   { id: 'slots', era: 2, name: 'Building machines', text: 'Choose a machine for an empty slot, then pay on its construction pad with cash and the materials it asks for.', icon: { glyph: 'hammer' } },
   { id: 'eraShop', era: 2, name: "The era's own shop", text: "Each era has its own shop mat in its region, with that era's crew, gear and upgrades.", icon: { glyph: 'gear' } },

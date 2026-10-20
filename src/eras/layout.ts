@@ -123,7 +123,10 @@ export function regionLayout(n: number): RegionLayout {
   const westW = Math.min(W, Math.max(MIN_WEST, Math.round(W * 0.6)));
   const splitX = r.minX + westW;
   const gx = r.minX + westW / 2;
-  const inner = D - YARD_DEPTH; // depth below the yard
+  // 0.9.12: the yard, machine grid and hand node keep the depth they were laid out for (def.work); the plot past it
+  // is extra market, huts and field
+  const workD = Math.min(D, def.work ?? D);
+  const inner = workD - YARD_DEPTH; // depth below the yard
 
   const room = Math.max(def.slots, def.room);
   // machine grid, laid out for the plot's room (the live slots take its first places): the widest cell (12 → 10 m) that fits every slot and still leaves the harvest zone its depth
@@ -165,7 +168,7 @@ export function regionLayout(n: number): RegionLayout {
   const roadZ = edgeZ - inward * 2; // roads are 4 m wide and touch the gate edge
   const mx = (splitX + r.maxX) / 2;
   // the hand node: a third of the way across the harvest zone, halfway down it (clear of the paths along its edges)
-  const H = zones.harvest;
+  const H = band(r, north, r.minX, splitX, YARD_DEPTH + procDepth, workD);
   const node = { x: H.minX + (H.maxX - H.minX) * 0.35, z: (H.minZ + H.maxZ) / 2, yaw: north ? Math.PI : 0 };
   const road = ROADS.find((q) => q.rect.minX <= gx - 2 && q.rect.maxX >= gx + 2 && Math.abs((q.rect.minZ + q.rect.maxZ) / 2 - roadZ) < 0.01);
   return {
@@ -598,7 +601,7 @@ export function plotPlaces(n: number): PlotPlaces {
 
   const plan = plotPlan(n);
   const H = Z.huts;
-  const hx0 = H.minX + 2.4; // clear of the path along the column split
+  const hx0 = H.minX + 3.2; // clear of the path along the column split (0.9.12: 3 m clear past the annexes, was 2.4)
   const hx1 = H.maxX - 1.4; // clear of the fence
   const hz0 = H.minZ + 1.2;
   const hz1 = H.maxZ - 1.2;
@@ -647,7 +650,7 @@ export function plotPlaces(n: number): PlotPlaces {
  *    the ring's chords. The rest of the green is free ground.
  * Pads, counters, the cash pile, the vault, the queue, hut doors and annexes, shop fronts and streets are keep-outs.
  */
-export type DecorKind = 'crates' | 'sacks' | 'barrels' | 'heap' | 'bench' | 'lamp' | 'snow' | 'notice' | 'cart' | 'sig';
+export type DecorKind = 'crates' | 'sacks' | 'barrels' | 'heap' | 'bench' | 'lamp' | 'snow' | 'notice' | 'cart' | 'sig' | 'fir' | 'shrub' | 'centre';
 
 export interface DecorPlace {
   kind: DecorKind;
@@ -692,6 +695,10 @@ export const DECOR_SIZE: Readonly<Record<DecorKind, readonly [number, number, nu
   notice: [0.85, 0.2, 2.35],
   cart: [1.0, 0.55, 1.4],
   sig: [0.85, 0.85, 2.2],
+  fir: [0.75, 0.75, 2.7],
+  shrub: [0.55, 0.5, 0.8],
+  // 0.9.12 the market's centrepiece: a statue, a fountain or a flower bed round a pillar (world/env/plots.ts)
+  centre: [1.15, 1.15, 2.4],
 };
 
 const GREEN_CLEAR = 1.7; // RegionLife CLEAR: keep this far from the centrepiece
@@ -837,20 +844,28 @@ const VIGNETTES: Readonly<Record<string, readonly VItem[]>> = {
   cart: [{ kind: 'cart', dx: 0, dz: 0 }, { kind: 'crates', dx: 1.85, dz: 0.1, v: 2 }],
   snows: [{ kind: 'snow', dx: 0, dz: 0 }, { kind: 'snow', dx: 1.7, dz: 0.65, v: 1 }],
   lampSnow: [{ kind: 'lamp', dx: 0, dz: 0 }, { kind: 'snow', dx: 1.15, dz: 0.3 }],
+  // 0.9.12: greenery for the bigger greens and markets (a snowy grove, a pair of bushes, a lone fir with a bench)
+  grove: [{ kind: 'fir', dx: 0, dz: 0 }, { kind: 'fir', dx: 1.65, dz: 0.55, v: 1 }, { kind: 'shrub', dx: 0.55, dz: 1.45 }],
+  shrubs: [{ kind: 'shrub', dx: 0, dz: 0 }, { kind: 'shrub', dx: 1.2, dz: 0.25, v: 1 }],
+  firBench: [{ kind: 'fir', dx: 0, dz: 0, v: 1 }, { kind: 'bench', dx: 1.75, dz: 0.2 }],
 };
 
 /** What each zone gets, in order (repeats when the free ground allows more). Every era's clutter piece comes early. */
 const RECIPE: Readonly<Record<'market' | 'huts', readonly string[]>> = {
-  market: ['clutter0', 'goods', 'bench', 'cart', 'notice', 'clutter1', 'stash', 'lampSnow', 'goods', 'clutter2', 'snows', 'cart', 'bench', 'goods', 'notice', 'stash'],
-  huts: ['stash', 'bench', 'clutter1', 'goods', 'lampSnow', 'cart', 'clutter2', 'snows', 'goods', 'clutter0', 'bench', 'stash', 'cart', 'lampSnow', 'goods'],
+  market: ['clutter0', 'goods', 'bench', 'cart', 'notice', 'shrubs', 'clutter1', 'stash', 'lampSnow', 'goods', 'clutter2', 'grove', 'snows', 'cart', 'bench', 'goods', 'shrubs', 'notice', 'stash'],
+  huts: ['stash', 'grove', 'bench', 'clutter1', 'shrubs', 'goods', 'lampSnow', 'firBench', 'cart', 'clutter2', 'grove', 'snows', 'goods', 'shrubs', 'clutter0', 'bench', 'grove', 'stash', 'cart', 'lampSnow', 'firBench', 'goods', 'shrubs'],
 };
 
-/** Metres of free ground per vignette, and the most each zone takes. */
+/** Metres of free ground per vignette, and the most each zone takes (more in the bigger zones of the later eras). */
 const DECOR_AREA = 5;
 const DECOR_MAX = 22;
+const DECOR_MAX_AREA = 42;
 const DECOR_CELL = 0.25;
 const DECOR_STEP = 0.75;
 const DECOR_GAP = 0.35;
+/** Free ground (m) the market centrepiece keeps round it (Dino: 3 m to walk), or at the least CENTRE_ROOM_MIN in a tight market. */
+export const CENTRE_ROOM = 3.0;
+export const CENTRE_ROOM_MIN = 2.0;
 
 function distToSeg(px: number, pz: number, a: XZ, b: XZ): number {
   const dx = b.x - a.x;
@@ -942,7 +957,30 @@ export function plotDecor(n: number): DecorPlace[] {
     // free ground: anchors where a 1.8 m square of a middling item fits (counts the room this zone has to fill)
     let free = 0;
     for (let x = Zi.minX; x <= Zi.maxX; x += DECOR_STEP) for (let z = Zi.minZ; z <= Zi.maxZ; z += DECOR_STEP) if (fits({ kind: 'sig', x, z, hx: 0.9, hz: 0.9, h: 1, yaw: 0, v: 0 }, 0)) free++;
-    const want = Math.min(DECOR_MAX, Math.round((free * DECOR_STEP * DECOR_STEP) / DECOR_AREA));
+    const cap = Math.max(DECOR_MAX, Math.round(((Zi.maxX - Zi.minX) * (Zi.maxZ - Zi.minZ)) / DECOR_MAX_AREA));
+    const want = Math.min(cap, Math.round((free * DECOR_STEP * DECOR_STEP) / DECOR_AREA));
+    // 0.9.12 (Dino: "plaza centrepieces"): first the market's centrepiece, in the open middle of its widest paving with
+    // a wide ring of free ground round it (CENTRE_ROOM, more where it can), so it never narrows a way anyone walks
+    if (zone === 'market') {
+      let best: { pad: number; d: number; it: Item } | null = null;
+      const mx = (Zi.minX + Zi.maxX) / 2;
+      const mz = (Zi.minZ + Zi.maxZ) / 2;
+      const [hx, hz, h] = DECOR_SIZE.centre;
+      for (let x = Zi.minX; x <= Zi.maxX; x += 0.5) {
+        for (let z = Zi.minZ; z <= Zi.maxZ; z += 0.5) {
+          const it: Item = { kind: 'centre', x, z, hx, hz, h, yaw: 0, v: 0 };
+          if (!fits(it, 0)) continue;
+          const pad = [CENTRE_ROOM + 0.5, CENTRE_ROOM, CENTRE_ROOM_MIN].find((m) => fits(it, m));
+          if (pad === undefined) continue;
+          const d = Math.hypot(x - mx, z - mz);
+          if (!best || pad > best.pad || (pad === best.pad && d < best.d)) best = { pad, d, it };
+        }
+      }
+      if (best) {
+        out.push({ ...best.it, zone: 'market' });
+        fill(occ, grow(rectOf(best.it), Math.min(best.pad, CENTRE_ROOM)));
+      }
+    }
     const recipe = RECIPE[zone];
     for (let vi = 0; vi < want; vi++) {
       const tpl = VIGNETTES[recipe[vi % recipe.length]!]!;
@@ -978,6 +1016,92 @@ export function plotDecor(n: number): DecorPlace[] {
     }
   }
   decorCache.set(key, out);
+  return out;
+}
+
+/** 0.9.12 (Dino: "people doing things"): a place on era n's green where someone stops to do something. */
+export interface GreenActivity {
+  kind: 'sit' | 'snowman';
+  /** Where they stand or sit, and the way they face. */
+  x: number;
+  z: number;
+  yaw: number;
+  /** The ring spot (greenWalk ring index) they walk from: the leg from it to (ax, az), then to (x, z), is clear. */
+  ring: number;
+  ax: number;
+  az: number;
+  /** A snowman's own spot (where it grows), beside the builder. */
+  sx?: number;
+  sz?: number;
+}
+
+const activityCache = new Map<string, GreenActivity[]>();
+
+/**
+ * Era n's activity places (pure, cached): a seat on every huts-zone bench, and a snowman beside a snow pile, each
+ * with a ring spot whose straight leg to it keeps 0.35 m off every other decor piece, hut, annex and the centrepiece
+ * (people stay walkers of the ring, they just step off it). Places no leg reaches are left out.
+ */
+export function greenActivities(n: number): GreenActivity[] {
+  const def = regionDef(n);
+  const key = `${n}|${def.slots}|${def.room}`;
+  const cached = activityCache.get(key);
+  if (cached) return cached;
+  const P = plotPlaces(n);
+  const W = greenWalk(P);
+  const decor = plotDecor(n);
+  const rectOf = (d: DecorPlace): ERect => ({ minX: d.x - d.hx, maxX: d.x + d.hx, minZ: d.z - d.hz, maxZ: d.z + d.hz });
+  const huts = P.huts.map((h) => grow(hutBox(h, true), 0.35));
+  const clear = (a: XZ, b: XZ, skip: DecorPlace | null): boolean => {
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    const steps = Math.max(1, Math.ceil(len / 0.15));
+    for (let k = 0; k <= steps; k++) {
+      const t = k / steps;
+      const q = { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
+      if (Math.hypot(q.x - W.c.x, q.z - W.c.z) < GREEN_CLEAR) return false;
+      const inR = (r: ERect): boolean => q.x > r.minX && q.x < r.maxX && q.z > r.minZ && q.z < r.maxZ;
+      if (huts.some(inR)) return false;
+      for (const d of decor) if (d !== skip && d.kind !== 'snow' && inR(grow(rectOf(d), 0.35))) return false;
+    }
+    return true;
+  };
+  const nearestRing = (p: XZ, skip: DecorPlace | null): number => {
+    let best = -1;
+    let bd = Infinity;
+    W.ring.forEach((r, k) => {
+      const d = Math.hypot(r.x - p.x, r.z - p.z);
+      if (d < bd && clear(r, p, skip)) {
+        bd = d;
+        best = k;
+      }
+    });
+    return best;
+  };
+  const out: GreenActivity[] = [];
+  for (const d of decor) {
+    if (d.zone !== 'huts') continue;
+    if (d.kind === 'bench') {
+      // the seat (its front is +Z turned by its yaw, the backrest behind), approached from 0.9 m in front
+      const fx = Math.sin(d.yaw);
+      const fz = Math.cos(d.yaw);
+      const seat = { x: d.x + fx * 0.06, z: d.z + fz * 0.06 };
+      const a = { x: d.x + fx * 0.9, z: d.z + fz * 0.9 };
+      const ring = nearestRing(a, d);
+      if (ring >= 0) out.push({ kind: 'sit', x: seat.x, z: seat.z, yaw: d.yaw, ring, ax: a.x, az: a.z });
+    } else if (d.kind === 'snow' && d.v === 0) {
+      // a snowman grows out of the snow pile (its ground is already clear of every walk and pad); the builder packs
+      // it from 0.55 m off the pile's long side
+      const alongX = d.hx >= d.hz;
+      for (const side of [1, -1]) {
+        const st = alongX ? { x: d.x, z: d.z + side * (d.hz + 0.55) } : { x: d.x + side * (d.hx + 0.55), z: d.z };
+        const ring = nearestRing(st, d);
+        if (ring < 0) continue;
+        out.push({ kind: 'snowman', x: st.x, z: st.z, yaw: Math.atan2(d.x - st.x, d.z - st.z), ring, ax: st.x, az: st.z, sx: d.x, sz: d.z });
+        break;
+      }
+    }
+  }
+  activityCache.set(key, out);
   return out;
 }
 
@@ -1058,7 +1182,13 @@ export function districtArrival(n: number): XZ {
   const d = DISTRICTS[n]!;
   const inner = districtInner(n);
   const cols = districtGrid(d.lots).cols;
-  return { x: inner.minX + (inner.maxX - inner.minX) / cols, z: d.rect.maxZ - DISTRICT_MARGIN / 2 };
+  const { rows } = districtGrid(d.lots);
+  const x = inner.minX + (inner.maxX - inner.minX) / cols;
+  if (rows < 3) return { x, z: d.rect.maxZ - DISTRICT_MARGIN / 2 };
+  // 0.9.12 (validator): a three-row district lands one row in, on the middle row's front walk between its first two
+  // lots, so the camera frames the town instead of the street south of it
+  const ch = (inner.maxZ - inner.minZ) / rows;
+  return { x, z: inner.minZ + (rows - 1) * ch - 1.6 };
 }
 
 /**

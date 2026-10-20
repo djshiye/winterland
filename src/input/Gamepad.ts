@@ -8,6 +8,7 @@
  *   B (circle) ........ back: closes the open menu
  *   Start ............. Settings (or closes the open menu)
  *   Y (triangle) ...... map          X (square) ...... market
+ *   Back / View ....... the top buttons (guidebook, quests, stats, sound): D-pad along them, A presses, B back (0.9.12)
  *   LB / RB ........... zoom out / in
  *
  * Holding a direction in a menu repeats after REPEAT_DELAY, every REPEAT_EVERY. Rumble (`rumble`) goes through

@@ -6,11 +6,12 @@
  * Looks exactly like BuildPanel (its CSS classes).
  */
 import type { ChooseOption, ChooseRequest, GameContext } from '../core/types';
-import { h, onTap } from './dom';
+import { h, keyLabel, onTap } from './dom';
 import { ICON_CLOSE, ICON_COIN, ICON_HOUSE, ICON_LOCK } from './icons';
 import { Sheet } from './sheet';
 import './build.css';
 import './ages.css';
+import { markPanel } from './dialog';
 
 export class ChoosePanel {
   private readonly sheet: Sheet;
@@ -28,10 +29,12 @@ export class ChoosePanel {
     const titles = h('div', 'wl-build-titles');
     this.titleEl = h('div', 'wl-build-title wl-title');
     titles.append(this.titleEl, h('div', 'wl-build-sub', 'Choose what to build here'));
+    markPanel(root, this.titleEl, 'wl-choose-title');
     head.appendChild(titles);
     const close = h('button', 'wl-build-close', ICON_CLOSE);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close build menu');
+    close.title = keyLabel('Close', 'Esc');
     onTap(close, () => {
       ctx.audio.play('click');
       this.close();
@@ -76,7 +79,6 @@ export class ChoosePanel {
     const locked = o.locked !== undefined;
     const root = h('div', 'wl-build-card');
     root.classList.toggle('is-locked', locked);
-    root.setAttribute('role', 'button');
     root.appendChild(h('div', 'wl-build-icon', o.icon || ICON_HOUSE));
     const mid = h('div', 'wl-build-mid');
     const name = h('div', 'wl-build-name');
@@ -85,22 +87,30 @@ export class ChoosePanel {
     const blurb = h('div', 'wl-build-blurb');
     blurb.textContent = o.blurb;
     mid.appendChild(blurb);
+    // 0.9.12: the numbers get their own line (the two-line blurb clamp used to cut them off)
+    if (o.stat) mid.appendChild(h('div', 'wl-build-stat', '')).textContent = o.stat;
     const chips = h('div', 'wl-build-chips');
     const cost = h('span', 'wl-build-chip', `<i>${ICON_COIN}</i>`);
     cost.appendChild(document.createTextNode(o.costText));
     chips.appendChild(cost);
     mid.appendChild(chips);
     root.appendChild(mid);
-    const go = h('div', 'wl-build-go');
+    // a real button, so the keyboard and the gamepad reach every card (a locked one too: it reads out why)
+    const go = h('button', 'wl-build-go');
+    go.type = 'button';
     if (locked) {
       go.className = 'wl-build-go is-lock';
       go.innerHTML = `<span class="wl-lock">${ICON_LOCK}</span><span class="wl-req"></span>`;
       go.querySelector('.wl-req')!.textContent = o.locked ?? 'Locked';
+      go.setAttribute('aria-disabled', 'true');
+      go.setAttribute('aria-label', `${o.label}: locked, ${o.locked ?? 'not yet'}`);
     } else {
       go.textContent = 'Build';
+      go.setAttribute('aria-label', `Build ${o.label}`);
     }
     root.appendChild(go);
     if (!locked) onTap(root, () => this.pick(o.id));
+    else onTap(go, () => this.ctx.audio.play('full', { volume: 0.5 })); // pressed with Enter / A: a soft "not yet"
     return root;
   }
 

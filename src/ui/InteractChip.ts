@@ -30,7 +30,9 @@ export class InteractChip {
   ) {
     this.el = h('div', 'wl-chip');
     this.el.style.display = 'none';
-    this.el.setAttribute('aria-hidden', 'true');
+    // 0.9.12: read out politely (it was hidden, so screen-reader players never heard there was something to pick up)
+    this.el.setAttribute('role', 'status');
+    this.el.setAttribute('aria-live', 'polite');
     this.el.innerHTML = coarse ? ICON_PRESS : '<span class="wl-chip-key">E</span>';
     this.text = h('span', 'wl-chip-text');
     this.el.appendChild(this.text);

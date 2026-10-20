@@ -42,7 +42,7 @@ describe('era starter guide', () => {
     expect(RESOURCE_LINES[8]).toContain('silicon');
     expect(RESOURCE_LINES[8]).toContain('chips');
     expect(RESOURCE_LINES[10]).toContain('rare earths and helium-3');
-    expect(starterSteps(10)[4]!.text).toContain('100 %');
+    expect(starterSteps(10)[4]!.text).toContain('last pieces');
   });
 
   it('walks through the steps and marks the era done once', () => {

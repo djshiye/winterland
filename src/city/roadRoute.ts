@@ -4,23 +4,36 @@
  *
  * - `routeOver(rects, a, b)`: a waypoint polyline from `a` to `b` (a excluded, b last) whose every leg stays inside one
  *   rect (rects are convex, so a straight leg between two points of the same rect never leaves it). Rects that touch
- *   or overlap along at least PASS metres are joined at the centre of their overlap; the shortest chain wins
+ *   or overlap along at least PASS metres (or cross, CROSS both ways) are joined at the centre of their overlap; the shortest chain wins
  *   (Dijkstra). Each leg walks the strip's centre line (a long strip's lane centre), so people keep to the middle of a
  *   road. A point outside every rect is first snapped onto the nearest one.
  * - `districtWalkways(n)`: the clear walk network of district n: a narrow inner sidewalk strip (clear of the street
  *   lamps on the outer ring), a walk band in front of each lot row (just south of the pads) and four short connectors
  *   from the district edge into the ring, set between the lamp posts, that touch the streets around the block.
  * - `cityRoute(era, a, b)`: the era foreman's way between its region's gate (on the region road) and a lot of its
- *   district, over the roads open by that era and that district's walkways.
+ *   district, over the verges of the roads open by that era and that district's walkways. 0.9.12 (Dino: "clear roads
+ *   where you're meant to walk on, the people and the cars"): people keep to a strip beside each road (`roadVerges`)
+ *   and cross only straight over a road, on a band at a junction's edge or at the gate, so they never walk down the
+ *   middle between the trucks' lanes or cut a corner through the traffic.
  */
-import { DISTRICTS, ROADS, districtDef, type ERect } from '../eras/data';
+import { LAYOUT } from '../config';
+import { DISTRICTS, REGIONS, ROADS, districtDef, type ERect } from '../eras/data';
+/** Streets (kerbed, in the city) vs trails (world/env/roadJoins.ts isStreet). */
+const isStreet = (id: string): boolean => id.startsWith('city') || id === 'townEast';
 import { DISTRICT_MARGIN, LOT_PAD, districtLots, type LotFrame, type XZ } from './rules';
 
 /** Shortest shared edge (metres) for two rects to count as joined. */
 const PASS = 1;
+/** Two walk strips crossing (a verge corner) overlap this far both ways: they join there too. */
+const CROSS = 0.29;
 const EPS = 1e-6;
 
 export const inRect = (r: ERect, p: XZ, eps = 1e-4): boolean => p.x >= r.minX - eps && p.x <= r.maxX + eps && p.z >= r.minZ - eps && p.z <= r.maxZ + eps;
+
+/** A rect a route crosses straight from node to node (a junction), instead of along its centre line. */
+export type WalkRect = ERect & { direct?: boolean };
+
+const grow = (r: ERect, m: number): ERect => ({ minX: r.minX - m, maxX: r.maxX + m, minZ: r.minZ - m, maxZ: r.maxZ + m });
 
 const dist = (a: XZ, b: XZ): number => Math.hypot(a.x - b.x, a.z - b.z);
 
@@ -40,7 +53,7 @@ function onCentre(r: ERect, p: XZ): XZ {
  * Waypoints from `a` to `b` over `rects` (see the file header). `a` is not included, `b` is last. Null when the rects
  * do not join `a` to `b` (or there are none).
  */
-export function routeOver(rects: readonly ERect[], a: XZ, b: XZ): XZ[] | null {
+export function routeOver(rects: readonly WalkRect[], a: XZ, b: XZ): XZ[] | null {
   if (rects.length === 0) return null;
   const pre: XZ[] = [];
   const snap = (p: XZ): XZ => {
@@ -71,7 +84,7 @@ export function routeOver(rects: readonly ERect[], a: XZ, b: XZ): XZ[] | null {
       const minZ = Math.max(p.minZ, q.minZ);
       const maxZ = Math.min(p.maxZ, q.maxZ);
       if (maxX < minX - EPS || maxZ < minZ - EPS) continue;
-      if (Math.max(maxX - minX, maxZ - minZ) < PASS) continue;
+      if (Math.max(maxX - minX, maxZ - minZ) < PASS && Math.min(maxX - minX, maxZ - minZ) < CROSS) continue;
       nodes.push({ x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 });
     }
   }
@@ -116,7 +129,8 @@ export function routeOver(rects: readonly ERect[], a: XZ, b: XZ): XZ[] | null {
     const from = nodes[chain[i - 1]!]!;
     const to = nodes[chain[i]!]!;
     const r = rects[via[chain[i]!]!]!;
-    pts.push(onCentre(r, from), onCentre(r, to), to);
+    if (r.direct) pts.push(to);
+    else pts.push(onCentre(r, from), onCentre(r, to), to);
   }
   if (sb !== b) pts.push(b);
   const out: XZ[] = [];
@@ -209,13 +223,109 @@ export function lotStandSpot(n: number, lot: number): { spot: XZ; look: XZ } {
 // The foreman's road route
 // ---------------------------------------------------------------------------
 
-const routeRects = new Map<number, ERect[]>();
+const routeRects = new Map<number, WalkRect[]>();
 
-/** Every rect a worker of era `era` may walk outside its region: the roads open by then + that era's district walkways. */
-export function cityWalkRects(era: number): readonly ERect[] {
+/** People walk this far (strip centre) outside a road's edge: on a street's kerbside walk, or on a trail's snow. */
+const VERGE_STREET = 0.35;
+const VERGE_TRAIL = 0.7;
+/** Half the width of a verge strip. */
+const VERGE_HALF = 0.15;
+/** Ground no verge runs over: the era regions (behind their fences) and the Market Town (its fence). */
+const VERGE_BLOCKS: readonly ERect[] = [...REGIONS.flatMap((d) => (d ? [grow(d.rect, 0.3)] : [])), grow(LAYOUT.town.area, 0.9)];
+/** Roads whose sides are another walk already: the south avenue runs down Lantern Lane's own cobbled walk. */
+const NO_VERGE = new Set(['southAvenue']);
+
+/** Piece [lo, hi] of a line minus the blocked spans; pieces shorter than 1 m are dropped. */
+function cut(lo: number, hi: number, spans: readonly [number, number][]): [number, number][] {
+  let out: [number, number][] = [[lo, hi]];
+  for (const [a, b] of spans) {
+    const next: [number, number][] = [];
+    for (const [p, q] of out) {
+      if (b <= p || a >= q) next.push([p, q]);
+      else {
+        if (a > p) next.push([p, a]);
+        if (b < q) next.push([b, q]);
+      }
+    }
+    out = next;
+  }
+  return out.filter(([p, q]) => q - p >= 1);
+}
+
+/**
+ * The walk strips beside road `r` (pure): one along each long edge, `VERGE_*` outside it, run past both ends so the
+ * verges of joining roads meet, and cut where they would cross a region, the Market Town or another road's carriageway
+ * (`others`: a walker crosses a road only on a crossing, never down a verge that runs into the traffic).
+ */
+export function roadVerges(r: ERect, street: boolean, others: readonly ERect[] = []): ERect[] {
+  const o = street ? VERGE_STREET : VERGE_TRAIL;
+  const ext = o + VERGE_HALF;
+  const alongX = r.maxX - r.minX >= r.maxZ - r.minZ;
+  const out: ERect[] = [];
+  for (const side of [-1, 1]) {
+    const c = alongX ? (side < 0 ? r.minZ - o : r.maxZ + o) : side < 0 ? r.minX - o : r.maxX + o;
+    const lo = (alongX ? r.minX : r.minZ) - ext;
+    const hi = (alongX ? r.maxX : r.maxZ) + ext;
+    const spans: [number, number][] = [];
+    for (const b of [...VERGE_BLOCKS, ...others.map((q) => grow(q, ROAD_EDGE))]) {
+      const [c0, c1] = alongX ? [b.minZ, b.maxZ] : [b.minX, b.maxX];
+      if (c + VERGE_HALF <= c0 || c - VERGE_HALF >= c1) continue;
+      spans.push(alongX ? [b.minX, b.maxX] : [b.minZ, b.maxZ]);
+    }
+    for (const [p, q] of cut(lo, hi, spans)) {
+      out.push(alongX ? { minX: p, maxX: q, minZ: c - VERGE_HALF, maxZ: c + VERGE_HALF } : { minX: c - VERGE_HALF, maxX: c + VERGE_HALF, minZ: p, maxZ: q });
+    }
+  }
+  return out;
+}
+
+/** How far short of another road's carriageway a verge stops (it still overlaps that road's own verge). */
+const ROAD_EDGE = 0.05;
+/** Half the width of a crossing band. */
+const CROSS_HALF = 0.6;
+
+/**
+ * Where two roads meet: a crossing band over each road, on the line of every verge of the other road that runs into it,
+ * straight across at right angles like a zebra at the junction's edge (never diagonally through the junction).
+ */
+function junctionCrossings(roads: readonly { rect: ERect; street: boolean }[]): WalkRect[] {
+  const out: WalkRect[] = [];
+  for (const p of roads) {
+    const pAlongX = p.rect.maxX - p.rect.minX >= p.rect.maxZ - p.rect.minZ;
+    const o = p.street ? VERGE_STREET : VERGE_TRAIL;
+    const lines = pAlongX ? [p.rect.minZ - o, p.rect.maxZ + o] : [p.rect.minX - o, p.rect.maxX + o];
+    for (const q of roads) {
+      if (q === p) continue;
+      const r = q.rect;
+      if (Math.max(p.rect.minX, r.minX) > Math.min(p.rect.maxX, r.maxX) + EPS || Math.max(p.rect.minZ, r.minZ) > Math.min(p.rect.maxZ, r.maxZ) + EPS) continue;
+      const qAlongX = r.maxX - r.minX >= r.maxZ - r.minZ;
+      if (qAlongX === pAlongX) continue; // a road running on: its verges carry on, nothing to cross
+      const g = (q.street ? VERGE_STREET : VERGE_TRAIL) + VERGE_HALF + 0.05;
+      for (const c of lines) {
+        // p's verge on line c crosses q's carriageway: the band runs along c over q and both its verges
+        if (qAlongX) {
+          if (c < r.minX || c > r.maxX) continue;
+          out.push({ minX: c - CROSS_HALF, maxX: c + CROSS_HALF, minZ: r.minZ - g, maxZ: r.maxZ + g, direct: true });
+        } else {
+          if (c < r.minZ || c > r.maxZ) continue;
+          out.push({ minX: r.minX - g, maxX: r.maxX + g, minZ: c - CROSS_HALF, maxZ: c + CROSS_HALF, direct: true });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Every rect a worker of era `era` may walk outside its region: the verges and junctions of the roads open by then,
+ * and that era's district walkways (their connectors meet the street verges on the district's own sidewalk).
+ */
+export function cityWalkRects(era: number): readonly WalkRect[] {
   const hit = routeRects.get(era);
   if (hit) return hit;
-  const out = ROADS.filter((r) => r.opensAt <= era).map((r) => r.rect);
+  const open = ROADS.filter((r) => r.opensAt <= era);
+  const out: WalkRect[] = open.flatMap((r) => (NO_VERGE.has(r.id) ? [] : roadVerges(r.rect, isStreet(r.id), open.filter((o) => o !== r).map((o) => o.rect))));
+  out.push(...junctionCrossings(open.map((r) => ({ rect: r.rect, street: isStreet(r.id) }))));
   if (DISTRICTS[era]) out.push(...districtWalkways(era));
   routeRects.set(era, out);
   return out;
@@ -223,10 +333,92 @@ export function cityWalkRects(era: number): readonly ERect[] {
 
 /** Waypoints between two points of era `era`'s outside world (a region gate on its road, a lot's stand spot). */
 export function cityRoute(era: number, a: XZ, b: XZ): XZ[] | null {
-  return routeOver(cityWalkRects(era), a, b);
+  const rects = cityWalkRects(era);
+  const extra = [a, b].flatMap((p) => (rects.some((r) => inRect(r, p)) ? [] : crossingAt(era, p)));
+  return routeOver(extra.length ? [...rects, ...extra] : rects, a, b);
+}
+
+/**
+ * A point on a road (the gate's road spot): the crossing there, a 1.2 m band straight across the road and both its
+ * verges, so the walk to it goes straight over the road like a crosswalk. None off the roads.
+ */
+export function crossingAt(era: number, p: XZ): WalkRect[] {
+  const road = ROADS.find((r) => r.opensAt <= era && inRect(r.rect, p));
+  if (!road) return [];
+  const r = road.rect;
+  const g = VERGE_TRAIL + VERGE_HALF + 0.05;
+  return r.maxX - r.minX >= r.maxZ - r.minZ
+    ? [{ minX: p.x - 0.6, maxX: p.x + 0.6, minZ: r.minZ - g, maxZ: r.maxZ + g, direct: true }]
+    : [{ minX: r.minX - g, maxX: r.maxX + g, minZ: p.z - 0.6, maxZ: p.z + 0.6, direct: true }];
 }
 
 /** Where a region's workers step out onto its road: the lane centre in front of the gate. */
 export function gateRoadSpot(L: { gate: { x: number; z: number }; inward: number }): XZ {
   return { x: L.gate.x, z: L.gate.z - L.inward * 2 };
+}
+
+/**
+ * People out on a carriageway right now (era foremen crossing a road: npc/EraWorker.ts adds and removes them). The
+ * era buyers' vehicles (npc/EraBuyers.ts) brake for anyone here in their path, as drivers do at a crossing.
+ */
+export const CROSSERS = new Set<XZ>();
+
+/** A vehicle as the kerb check sees it: where it is and the way it heads (unit XZ). */
+export interface KerbVehicle {
+  x: number;
+  z: number;
+  fx: number;
+  fz: number;
+  /** How fast it is going (m/s; NaN = not measured yet, counted as moving). */
+  speed: number;
+  /** It brakes for people on the road (an era buyer): only one too close to stop makes a walker wait. */
+  yields?: boolean;
+}
+
+/** Slower than this a vehicle is standing (a cart in its queue, a truck at its depot): nobody waits for it (m/s). */
+const KERB_STILL = 0.4;
+
+/**
+ * A vehicle coming at the crossing makes a walker wait while it would get there within KERB_TIME seconds (about the
+ * time to cross, with a margin; one not measured yet: while within KERB_SEE m). One moving right by the leg always
+ * does: within KERB_NEAR m, or KERB_NEAR_SLOW m when it only creeps (a cart moving up its queue, under KERB_SLOW m/s).
+ */
+const KERB_TIME = 3;
+const KERB_SEE = 18;
+const KERB_NEAR = 4.5;
+const KERB_NEAR_SLOW = 2.2;
+const KERB_SLOW = 2;
+/** A yielding vehicle's braking (m/s², npc/EraBuyers.ts DECEL) and the room it keeps, front to walker (m). */
+const YIELD_DECEL = 8;
+const YIELD_ROOM = 3.5;
+
+/**
+ * Pure: should a walker at `p`, about to step from the kerb toward `goal` over one of `roads`, wait for traffic? True
+ * while `p` is off every carriageway, the way ahead runs onto one, and a moving vehicle is near that leg or coming at
+ * it (a standing one, a cart waiting in its queue, makes nobody wait: people walk round it). An era buyer brakes for
+ * people on the road (CROSSERS), so only one too close to stop in time makes a walker wait for it.
+ * (0.9.12: people look both ways, so they never walk out in front of a turning truck.)
+ */
+export function kerbWait(p: XZ, goal: XZ, roads: readonly ERect[], vehicles: Iterable<KerbVehicle>): boolean {
+  const dx = goal.x - p.x;
+  const dz = goal.z - p.z;
+  const len = Math.hypot(dx, dz);
+  if (len < 0.05 || roads.some((r) => inRect(r, p))) return false;
+  const k = Math.min(0.6, len) / len;
+  const ahead = { x: p.x + dx * k, z: p.z + dz * k };
+  if (!roads.some((r) => inRect(r, ahead))) return false;
+  for (const v of vehicles) {
+    if (v.speed < KERB_STILL) continue;
+    // nearest point of the leg to the vehicle
+    const t = Math.max(0, Math.min(1, ((v.x - p.x) * dx + (v.z - p.z) * dz) / (len * len)));
+    const qx = p.x + dx * t - v.x;
+    const qz = p.z + dz * t - v.z;
+    const d = Math.hypot(qx, qz);
+    if (d < (v.speed < KERB_SLOW ? KERB_NEAR_SLOW : KERB_NEAR)) return true;
+    if (qx * v.fx + qz * v.fz <= 0) continue; // heading away
+    if (Number.isNaN(v.speed)) {
+      if (d < KERB_SEE) return true;
+    } else if (v.yields ? d < (v.speed * v.speed) / (2 * YIELD_DECEL) + YIELD_ROOM : d < v.speed * KERB_TIME) return true;
+  }
+  return false;
 }

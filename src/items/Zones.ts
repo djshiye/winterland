@@ -472,6 +472,11 @@ export class ZoneSystem {
     }
   }
 
+  /** 0.9.12: true if (x, z) lies within `margin` of any pad (critters keep off them). */
+  nearAny(x: number, z: number, margin: number): boolean {
+    return this.zones.some((z0) => x > z0.area.minX - margin && x < z0.area.maxX + margin && z > z0.area.minZ - margin && z < z0.area.maxZ + margin);
+  }
+
   /** 0.9.12: true when a player at (x, z) would be in an enabled zone, reach included (a load never drops the player onto a pad or a pile). */
   anyAt(x: number, z: number): boolean {
     for (const zone of this.zones) if (zone.enabled && !zone.removed && rectDistance(zone.area, x, z) <= zone.enterDist) return true;

@@ -143,6 +143,14 @@
   line-height: 1.1;
 }
 
+.wl-build-stat {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 600;
+  color: var(--wl-info-text);
+}
+
 .wl-build-blurb {
   font-size: 12px;
   line-height: 1.15;
@@ -273,4 +281,25 @@
   .wl-build-title {
     font-size: 24px;
   }
+}
+
+/* keyboard / gamepad: the Build key is a real button (input/menuNav.ts reaches it); its card lights up as one piece,
+   a gold ring round the whole card instead of a small ring round the key */
+.wl-hud .wl-build-go {
+  font: inherit;
+  cursor: pointer;
+}
+
+.wl-hud .wl-build-go.is-lock {
+  cursor: default;
+}
+
+.wl-hud .wl-build-go:focus-visible {
+  outline: none;
+}
+
+.wl-build-card:has(.wl-build-go:focus-visible) {
+  outline: 3px solid var(--wl-focus);
+  outline-offset: -3px; /* inside the card: the scrolling list would clip a ring outside it */
+  background: color-mix(in oklab, var(--wl-row), var(--wl-gold) 14%);
 }

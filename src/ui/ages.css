@@ -144,6 +144,10 @@
   display: none;
 }
 
+.wl-erachip-house {
+  display: none;
+}
+
 .wl-erachip-count:empty {
   display: none;
 }
@@ -228,6 +232,22 @@
   .wl-erachip.is-gate .wl-erachip-count {
     font-size: 13px;
     color: var(--wl-ink);
+  }
+  /* 0.9.12: "Settlement 8/10" reads "[house] 8/10" here, like the village badge beside it */
+  .wl-erachip-sw {
+    display: none;
+  }
+  .wl-erachip-house {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    margin-right: 2px;
+    vertical-align: -2px;
+  }
+  .wl-erachip-house svg {
+    display: block;
+    width: 100%;
+    height: 100%;
   }
   .wl-erachip-mastery {
     display: none;
@@ -556,6 +576,18 @@
 
 .wl-map-view [data-tp]:hover {
   filter: brightness(1.08);
+}
+
+/* keyboard / gamepad on the map: the focused place gets a thick gold edge (an SVG outline would be a square box) */
+.wl-hud .wl-map-view [data-tp]:focus-visible {
+  outline: none;
+  filter: brightness(1.1);
+}
+
+.wl-map-view [data-tp]:focus-visible :is(rect, circle) {
+  stroke: var(--wl-focus);
+  stroke-width: calc(2.6px * var(--k, 1));
+  stroke-dasharray: none;
 }
 
 .wl-map-num {

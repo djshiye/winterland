@@ -153,7 +153,7 @@ export class District {
     crowd?: () => Crowd,
   ) {
     this.n = n;
-    this.life = crowd ? new DistrictLife(ctx, n, crowd) : null;
+    this.life = crowd ? new DistrictLife(ctx, n, crowd, this.root) : null;
     const def = districtDef(n);
     this.root.name = `district:${n}`;
     this.root.add(buildScenery(n));
@@ -397,7 +397,8 @@ export class District {
     return chooseOptions(this.ctx.state.city, this.n, L.index).map(({ id, def, locked }) => ({
       id,
       label: def.label,
-      blurb: `${def.blurb}. ${statLine(def)}`,
+      blurb: `${def.blurb}.`,
+      stat: statLine(def),
       costText: costText(def),
       ...(locked ? { locked } : {}),
     }));
@@ -529,10 +530,10 @@ const fmt = (v: number): string => (v >= 100 ? Math.round(v).toLocaleString('en-
 /** "40 residents, $4/s rent" etc. for the choose card. */
 function statLine(def: CityBuildingDef): string {
   // 0.9.6: say plainly which lots grow the settlement (only homes do), so a full district never soft-locks it by surprise
-  if (def.kind === 'home') return `${def.people} residents (+${def.people} settlement), $${fmt(def.income)}/s rent`;
-  if (def.kind === 'park') return `+${Math.round(def.happiness * 100)}% happiness, ${def.jobs} jobs · no settlement`;
+  if (def.kind === 'home') return `+${def.people} residents for your settlement, $${fmt(def.income)}/s rent`;
+  if (def.kind === 'park') return `+${Math.round(def.happiness * 100)}% happiness, ${def.jobs} jobs · no residents`;
   const h = def.happiness > 0 ? `, +${Math.round(def.happiness * 100)}% happiness` : '';
-  return `${def.jobs} jobs, $${fmt(def.income)}/s${h} · no settlement`;
+  return `${def.jobs} jobs, $${fmt(def.income)}/s${h} · no residents`;
 }
 
 /** The refined material a district's buildings are made of (for hints). */

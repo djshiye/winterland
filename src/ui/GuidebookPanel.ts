@@ -14,7 +14,7 @@
  */
 import { ERAS, MAX_ERA } from '../eras/data';
 import type { GameContext } from '../core/types';
-import { backOut, cubicOut, h, onTap, shield, Slide } from './dom';
+import { backOut, cubicOut, h, keyLabel, onTap, shield, Slide } from './dom';
 import { FocusReturn, markDialog, trapTab } from './dialog';
 import {
   BOOK_SECTIONS,
@@ -105,17 +105,19 @@ export class GuidebookPanel {
     const close = h('button', 'wl-shop-close', ICON_CLOSE);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close guidebook');
+    close.title = keyLabel('Close', 'Esc');
     onTap(close, () => {
       ctx.audio.play('click');
       this.close();
     });
     head.appendChild(close);
     const tabs = h('div', 'wl-shop-tabs wl-book-tabs');
-    tabs.setAttribute('role', 'group');
+    tabs.setAttribute('role', 'tablist');
     tabs.setAttribute('aria-label', 'Sections');
     for (const s of BOOK_SECTIONS) {
       const b = h('button', 'wl-shop-tab', `<span>${s.label}</span>`);
       b.type = 'button';
+      b.setAttribute('role', 'tab');
       onTap(b, () => {
         ctx.audio.unlock();
         ctx.audio.play('click');
@@ -223,7 +225,7 @@ export class GuidebookPanel {
     this.section = s;
     for (const [id, el] of this.tabEls) {
       el.classList.toggle('is-on', id === s);
-      el.setAttribute('aria-pressed', String(id === s));
+      el.setAttribute('aria-selected', String(id === s));
     }
     this.list.scrollTop = 0;
     this.mark();
@@ -300,7 +302,7 @@ export class GuidebookPanel {
       const lock = h('div', 'wl-book-chip is-locked', `${ICON_LOCK}<span>???</span>`);
       lock.setAttribute('role', 'note');
       lock.setAttribute('aria-label', 'Locked chapter: reach the next era to read it');
-      lock.title = 'Reach the next era to read this chapter';
+      lock.title = 'Locked chapter: reach the next era to read it';
       this.chapters.appendChild(lock);
     }
     // keep the keyboard where it was after a rebuild

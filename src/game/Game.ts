@@ -361,16 +361,22 @@ export class Game {
     this.level.start();
 
     if (save) {
-      const away = offlineEarnings(save, Date.now());
+      const now = Date.now();
+      const away = offlineEarnings(save, now);
       if (away.amount > 0) {
         // Credit NOW and write it down at once: an autosave / pagehide before the player taps the card would
         // otherwise rewrite savedAt and the earnings would vanish. The card is only informational; the new
         // savedAt also makes a second credit from the same absence impossible.
         ctx.economy.add(away.amount);
         this.save();
-        ctx.hud.showOfflineEarnings(away.amount, away.seconds, () => {
-          ctx.events.emit('offline:collected', { amount: away.amount }); // coin burst only
-        });
+        ctx.hud.showOfflineEarnings(
+          away.amount,
+          away.seconds,
+          () => {
+            ctx.events.emit('offline:collected', { amount: away.amount }); // coin burst only
+          },
+          (now - save.savedAt) / 1000,
+        );
       }
     }
     // 0.9.6 migrations changed the save (the refund is already in the wallet): write it down now, like offline earnings
@@ -425,7 +431,7 @@ export class Game {
           title: 'A save from a newer version',
           lines: [
             `This save was made by Winterland ${read.newer}, and this copy is ${GAME_VERSION}. Anything added after ${GAME_VERSION} may be lost if you keep playing here.`,
-            'A copy of it as it was is kept in Settings, Game, Earlier saves.',
+            'A copy of it as it was is kept in Settings › Game › Earlier saves.',
           ],
         });
       }
@@ -436,7 +442,7 @@ export class Game {
         out.push({
           icon: 'shield',
           title: 'Your save is safe',
-          lines: ["Your save stopped Winterland from starting, so it started a fresh game instead.", 'The old save is kept: you can bring it back from Settings, Game, Earlier saves.'],
+          lines: ["Winterland couldn't open your last save, so it started a fresh game.", 'The old save is kept: you can bring it back from Settings › Game › Earlier saves.'],
         });
       }
     } catch {
@@ -870,9 +876,9 @@ function resourcesNotice(m: MigrationReport): Notice | null {
   if (m.resourcesAge < 5) return null;
   const lines = ['Forge Flats now runs on iron pellets and coke: your pig iron is iron pellets now, and the Steel Mill takes 2 pellets + 1 coke.'];
   if (m.resourcesAge >= 10) {
-    lines.push('Neural Plateau now runs on rare earth and helium-3: your data shards are rare earth, your Fusion Plants are Helium Skimmers (same level), and the new Fusion Reactor turns helium-3 into fusion cells.');
+    lines.push('Neural Plateau now runs on rare earth and helium-3: your old data shards are rare earth, your old Fusion Plants are Helium Skimmers (same level), and the new Fusion Reactor turns helium-3 into fusion cells.');
     if (m.reactor === 'build') lines.push('Build a Fusion Reactor in Neural Plateau to keep AI cores coming. If the plot is full, open a machine\'s MANAGE card and demolish one to free a slot.');
-    else if (m.reactor === 'kept') lines.push('One Fusion Plant stayed as your Fusion Reactor, so your line keeps running.');
+    else if (m.reactor === 'kept') lines.push('One of your old Fusion Plants is now your Fusion Reactor, so your line keeps running.');
   }
   lines.push('Everything you owned and every level you bought came along. The new goods\' Fine upgrades start fresh.');
   return { icon: 'star', title: 'New resources in the late eras', lines, buttons: [{ label: 'Lovely!' }] };
@@ -889,9 +895,9 @@ function refundNotice(m: MigrationReport): Notice | null {
   const n: Notice = { icon: 'coin', title: 'Welcome to the new level rule', lines, amount: m.refund + m.masteryPayout, buttons: [{ label: 'Lovely!' }] };
   const pct = Math.round((m.masteryHad - 1) * 100);
   if (m.masteryPayout > 0) {
-    n.after = [`That includes ${formatMoney(m.masteryPayout)} for your Mastery bonus (+${pct}% on sales), now retired: about what it would have earned you over one era of play.`];
+    n.after = [`That includes ${formatMoney(m.masteryPayout)} for your old Mastery bonus (+${pct}% on sales), which is gone now: about what it would have earned you over one era.`];
   } else if (m.masteryMult > 1.0001) {
-    n.after = [`Your Mastery bonus stays with you for good: +${Math.round((m.masteryMult - 1) * 100)}% on every sale.`];
+    n.after = [`Your old Mastery bonus stays with you for good: +${Math.round((m.masteryMult - 1) * 100)}% on every sale.`];
   }
   return n;
 }

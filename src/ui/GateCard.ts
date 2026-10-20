@@ -32,12 +32,13 @@ import { climbOpen, eraGate, eraMatOf, FINAL_GATE, FINAL_NAME, gateGroups, gateR
 import { machinePadTarget } from '../eras/rules';
 import { regionLayout, travelPoints } from '../eras/layout';
 import { eraRoman, expansionCostText, gateRowLine } from './agesLogic';
-import { h, onTap } from './dom';
+import { h, keyLabel, onTap } from './dom';
 import { hexCss, ICON_CLOSE, ICON_HOUSE, ICON_LOCK, upgradeIcon } from './icons';
 import { Sheet } from './sheet';
 import './build.css';
 import './ages.css';
 import './ending.css';
+import { markPanel } from './dialog';
 
 /** Open rows on show at once. */
 export const GATE_TOP = 5;
@@ -137,10 +138,12 @@ export class GateCard {
     this.titleEl = h('div', 'wl-build-title wl-title');
     this.subEl = h('div', 'wl-build-sub');
     titles.append(this.titleEl, this.subEl);
+    markPanel(root, this.titleEl, 'wl-gate-title');
     head.appendChild(titles);
     const close = h('button', 'wl-build-close', ICON_CLOSE);
     close.type = 'button';
-    close.setAttribute('aria-label', 'Close');
+    close.setAttribute('aria-label', 'Close era checklist');
+    close.title = keyLabel('Close', 'Esc');
     onTap(close, () => {
       ctx.audio.play('click');
       this.close();
@@ -333,7 +336,7 @@ export class GateCard {
     if (this.barFill.style.width !== w) this.barFill.style.width = w;
     const c = completion(s);
     this.missing = final && g.ready ? nextMissing(s) : null;
-    if (final) this.text(this.nextEl, g.ready ? 'Every upgrade is at Lv 10!' : `Then ${FINAL_NAME}: the last pieces for 100 %`);
+    if (final) this.text(this.nextEl, g.ready ? 'Every upgrade is at Lv 10!' : `Then ${FINAL_NAME}: the last pieces for 100%`);
     else this.text(this.nextEl, g.ready ? 'Every upgrade is ready!' : `Then the ${expansionCostText(n).replace(/^Expansion/, 'expansion')}`);
 
     // a pad with something already paid in stays on sale (grandfathered), whatever the checklist says
@@ -355,7 +358,7 @@ export class GateCard {
     this.text(
       this.groupsEl,
       gateGroups(g)
-        .map((c) => `<span class="wl-gate-grp${c.ok >= c.total ? ' is-done' : ''}"><b>${c.label}</b> ${c.ok}/${c.total}<i style="width:${((c.ok / c.total) * 100).toFixed(0)}%"></i></span>`)
+        .map((c) => `<span class="wl-gate-grp${c.ok >= c.total ? ' is-done' : ''}"><b>${c.label}</b> ${c.ok}/${c.total}<i aria-hidden="true" style="width:${((c.ok / c.total) * 100).toFixed(0)}%"></i></span>`)
         .join(''),
     );
 
@@ -376,7 +379,7 @@ export class GateCard {
   private renderCompletion(c: ReturnType<typeof completion>): void {
     const pct = this.ctx.state.flags.complete ? 100 : c.pct;
     const bars = c.parts
-      .map((p) => `<span class="wl-gate-grp${p.done >= p.total ? ' is-done' : ''}"><b>${p.label}</b> ${Math.floor(p.frac * 100)}%<i style="width:${(p.frac * 100).toFixed(0)}%"></i></span>`)
+      .map((p) => `<span class="wl-gate-grp${p.done >= p.total ? ' is-done' : ''}"><b>${p.label}</b> ${Math.floor(p.frac * 100)}%<i aria-hidden="true" style="width:${(p.frac * 100).toFixed(0)}%"></i></span>`)
       .join('');
     this.text(this.completionEl, `<div class="wl-gate-completion-head">${completionTag(pct)} of Winterland</div><div class="wl-gate-groups">${bars}</div>`);
   }

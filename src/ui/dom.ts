@@ -25,6 +25,20 @@ export function shield(e: HTMLElement): void {
   e.addEventListener('touchend', stop, { passive: true });
 }
 
+/** True on a touch-only device (no mouse or trackpad anywhere): key hints like "(T)" mean nothing there. */
+export function touchOnly(): boolean {
+  try {
+    return window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(any-pointer: fine)').matches;
+  } catch {
+    return false;
+  }
+}
+
+/** A button label with its key ("Map (T)"), or just the name on a touch-only device. */
+export function keyLabel(name: string, key: string, rest = ''): string {
+  return `${name}${touchOnly() ? '' : ` (${key})`}${rest}`;
+}
+
 /** Click that also stops propagation. */
 export function onTap(e: HTMLElement, fn: () => void): void {
   e.addEventListener('click', (ev) => {

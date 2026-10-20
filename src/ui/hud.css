@@ -762,6 +762,10 @@
   text-shadow: none;
 }
 
+.wl-controls-title.is-sub {
+  margin-top: 8px;
+}
+
 .wl-controls-item {
   font-size: 13px;
   line-height: 1.3;
@@ -1019,6 +1023,7 @@
 }
 
 .wl-offline-sub {
+  white-space: pre-line; /* 0.9.12: "You were away 3 h." and "The first 2 h count." on their own lines */
   font-size: 17px;
   opacity: 0.92;
   text-shadow: none;
@@ -1456,6 +1461,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* the segment clips its children (overflow: hidden), so the focus ring sits inside the option */
+.wl-hud .wl-prio-opt:focus-visible {
+  outline-offset: -3px;
+}
+
 .wl-prio-opt.is-on {
   background: var(--wl-pine);
   color: var(--wl-pine-ink);
@@ -1611,7 +1621,7 @@
   opacity: 0.9;
 }
 
-.wl-shop-buy:active:not(:disabled) {
+.wl-shop-buy:active:not(:disabled, [aria-disabled="true"]) {
   transform: translateY(2px);
   box-shadow: 0 1px 0 color-mix(in oklab, var(--b), var(--wl-ink-c) 45%);
 }
