@@ -89,6 +89,7 @@ export class ChoosePanel {
     mid.appendChild(blurb);
     // 0.9.12: the numbers get their own line (the two-line blurb clamp used to cut them off)
     if (o.stat) mid.appendChild(h('div', 'wl-build-stat', '')).textContent = o.stat;
+    if (o.warn) mid.appendChild(h('div', 'wl-build-stat is-warn', '')).textContent = o.warn;
     const chips = h('div', 'wl-build-chips');
     const cost = h('span', 'wl-build-chip', `<i>${ICON_COIN}</i>`);
     cost.appendChild(document.createTextNode(o.costText));
@@ -106,7 +107,7 @@ export class ChoosePanel {
       go.setAttribute('aria-label', `${o.label}: locked, ${o.locked ?? 'not yet'}`);
     } else {
       go.textContent = 'Build';
-      go.setAttribute('aria-label', `Build ${o.label}`);
+      go.setAttribute('aria-label', o.warn ? `Build ${o.label}. ${o.warn}` : `Build ${o.label}`);
     }
     root.appendChild(go);
     if (!locked) onTap(root, () => this.pick(o.id));

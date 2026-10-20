@@ -98,7 +98,8 @@ export class VillageBadge {
     this.happyEl.style.display = '';
     // 0.9.6: "Town" names it, so it never reads as the district card's "City happiness"
     this.happyEl.innerHTML = `<span class="wl-village-happy-l">Town</span><i class="wl-village-heart">\u2665</i><span class="wl-village-happy-n">${pct}%</span>`;
-    const why = `Town happiness ${pct}%: every sale pays up to +${Math.round(HAPPINESS.priceBonus * 100)}% (now +${Math.round(HAPPINESS.priceBonus * pct)}%)`;
+    // 0.9.12 (R1): it lifts only mill and Market Town sales (core/demand.ts salePrice), never the era exports
+    const why = `Town happiness ${pct}%: mill and Market Town sales pay up to +${Math.round(HAPPINESS.priceBonus * 100)}% (now +${Math.round(HAPPINESS.priceBonus * pct)}%)`;
     this.happyEl.title = why;
     this.happyEl.setAttribute('aria-label', why);
   }

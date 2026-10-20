@@ -285,7 +285,7 @@ export class Game {
       cameraRig,
       dayNight: new DayNight(state, events),
       rush: new RushHours(state, events),
-      quests: new Quests(state, economy, events),
+      quests: new Quests(state, economy, events, save?.salesRate ?? 0),
       worldEvents: new WorldEvents(state, events, () => ctx.dayNight.darkness),
       contracts: new Contracts(state, economy, events),
       time: { elapsed: 0, frame: 0 },

@@ -940,8 +940,8 @@ export const ERA_ROLES: readonly { key: EraRoleKey; role: EraRole; settlement: n
   { key: 'Feeder', role: 'feeder', settlement: 0, blurb: 'Carries raw material from one machine to the next', scarf: 0x7cc28a },
   { key: 'Shipper', role: 'shipper', settlement: 0, blurb: 'Takes finished goods to the export depot', scarf: 0xf2c14e },
   { key: 'Porter', role: 'porter', settlement: 2, blurb: 'Brings import-dock goods to the machines', scarf: 0x6fa8dc },
-  { key: 'Gatherer', role: 'gatherer', settlement: 2, blurb: 'Clears full extractors into a reserve on the dock', scarf: 0x58b8a8 },
-  { key: 'Foreman', role: 'foreman', settlement: 4, blurb: 'Builds what you chose: brings materials, then pays', scarf: 0xe07a5f },
+  { key: 'Gatherer', role: 'gatherer', settlement: 2, blurb: 'Brings the hand-node pile and full extractors to the machines, and keeps a reserve on the dock', scarf: 0x58b8a8 },
+  { key: 'Foreman', role: 'foreman', settlement: 4, blurb: 'Builds what you chose: brings materials, then pays, always leaving you 40% of your cash', scarf: 0xe07a5f },
   { key: 'Clerk', role: 'clerk', settlement: 4, blurb: 'Banks the market cash, then keeps the fullest piles moving', scarf: 0xb48ad6 },
 ];
 
@@ -1102,7 +1102,7 @@ export const UPGRADES: Record<UpgradeIdConst, UpgradeDef> = {
     id: 'foreman',
     group: 'crew',
     label: 'Foreman',
-    blurb: 'Builds for you: hauls logs to the next house or lot and pays for it from your cash',
+    blurb: 'Builds for you: hauls logs to the next house or lot and pays from your cash, always leaving you a fifth of it',
     values: [0, 1, 1.3, 1.65, 2.0, 2.4, 2.8],
     costs: [20000, 40000, 70000, 110000, 160000, 220000],
     display: 'crew',
@@ -1758,7 +1758,7 @@ export const EVENTS = {
   kinds: {
     snowstorm: { seconds: 60, walkSpeedMult: 0.6, firewoodMult: 2, snowfall: 3, label: 'Snowstorm!', hint: 'Slow going, and the porter rushes firewood to the shops' },
     festival: { seconds: 90, townBuyMult: 2, label: 'Festival day!', hint: 'Townsfolk come to shop twice as often' },
-    aurora: { seconds: 120, priceMult: 1.25, requiresNight: true, label: 'Northern lights!', hint: 'Every sale pays 25% more' },
+    aurora: { seconds: 120, priceMult: 1.25, requiresNight: true, label: 'Northern lights!', hint: 'Mill and Market Town sales pay 25% more' },
   },
 } as const;
 
@@ -1902,7 +1902,7 @@ export const AMENITIES: Record<AmenityId, AmenityDef> = {
   pond: { id: 'pond', label: 'Skating Pond', blurb: 'Frozen and lit; skaters loop on it all night', era: 4, logs: 36, cash: 9000, happiness: 0.3 },
 };
 export const AMENITY_IDS: readonly AmenityId[] = ['cafe', 'snowmanPark', 'bandstand', 'pond'];
-/** Town happiness (0..1, the sum of built amenities) raises every sale price by up to this share. */
+/** Town happiness (0..1, the sum of built amenities) raises every mill and Market Town sale price by up to this share (not era exports). */
 export const HAPPINESS = { priceBonus: 0.3 } as const;
 
 export const TOWN = {

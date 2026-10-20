@@ -497,6 +497,7 @@ export function sanitizeState(state: GameState): void {
   }
   for (const k of Object.keys(state.stats) as (keyof typeof state.stats)[]) state.stats[k] = nonNeg(state.stats[k]);
   for (const k of Object.keys(state.padPaid)) state.padPaid[k] = nonNeg(state.padPaid[k]);
+  for (const k of Object.keys(state.questRewards)) if (!(isNum(state.questRewards[k]) && state.questRewards[k]! > 0)) delete state.questRewards[k];
 }
 
 /**

@@ -88,6 +88,20 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Shop lines wrap** instead of being cut off ("2 extra i…").
 - **Short windows** (like 800 x 600) start with the quest list folded, and when you open it, it is wider and tighter.
 
+### Clearer rules
+
+- **The era checklist leads with the real cost.** It now says "Upgrades left: 28 (about $319M), then the expansion: $4.5M + 35 bricks", so the small pad price no longer hides the big part.
+- **Quest rewards stay put.** A reward is fixed when the quest first shows and kept in your save, so a reload no longer turns $120,000 into $5,000.
+- **Happiness and the northern lights say what they boost:** mill and Market Town sales. The guidebook adds that the market pays the same as the export depot, and that bigger docks and stalls only bring buyers more often.
+- **Parks no longer promise jobs.** Park cards say "no residents, no jobs", and workplace cards show how full their jobs are across the whole city.
+- **A heads-up before a lot blocks your quests.** If a park or workplace would leave too few lots for the district's homes and landmark goals, its card says so before you build, and once a district is too full, the workplace and park cards say which kind can come down to make room.
+- **Village level-ups list every new hire,** including the Sled Dog, Town Porter and Foreman you need for the Frontier.
+- **Builders explain their reserve.** Foremen always leave you part of your cash (40% in the eras, a fifth at the mill), and their shop text and the guidebook now say so.
+- **Era gear says where it works.** Each era's Carry, Boots, Tool and Pal upgrades say they work only inside their own region.
+- **Settlement gifts say to walk over them,** and the guidebook explains that machine staff count toward settlement and that residents fill jobs city-wide.
+- **The market is easier to read.** Each price line is coloured by the same % it shows, the Prices and Invest tabs open with one plain line of help, the bond text says a better Stock Broker pays more, and every investment says how much you can put in.
+- **While you were away, in full.** The guidebook says offline earnings never exceed a fifth of everything you've earned, that quests, contracts and Jack don't count, and that a hidden browser tab pauses the game.
+
 ## 0.9.11 (2026-10-19)
 
 Every era its own place, clearer pads and icons, a guidebook, a cooler-running game and a few cozy touches.

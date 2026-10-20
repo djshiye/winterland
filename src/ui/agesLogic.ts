@@ -60,6 +60,17 @@ export function expansionCostText(n: number): string {
   return `Expansion: ${costText(unlockCash(n), e.unlock.extra)}`;
 }
 
+/**
+ * 0.9.12 (E1): the gate card's money line leads with the real cost. The upgrades left cost far more than the pad
+ * ($17.55M of Survival upgrades against a $1.5M expansion), so: "Upgrades left: 12 (about $4.2M), then the expansion:
+ * $1.5M + 40 crates". `left` open rows costing `cost` in all at today's prices.
+ */
+export function gateMoneyLine(n: number, left: number, cost: number): string {
+  const exp = expansionCostText(n).replace(/^Expansion/, 'expansion');
+  if (left <= 0) return `Then the ${exp}`;
+  return `<b>Upgrades left: ${left}</b> (about ${formatMoney(cost)}), then the ${exp}`;
+}
+
 /** What a locked era region needs first: "Reach the Iron Age first" (era 2: the Great Lodge opens the climb). */
 export function reachNote(n: number): string {
   return n <= 2 ? 'Build the Great Lodge first' : `Reach the ${eraNoun(n - 1)} first`;
