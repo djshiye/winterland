@@ -221,6 +221,7 @@ export class WinterFun {
     if (!this.crowd) {
       this.crowd = new Crowd(SKATERS + SLEDDERS + 2);
       this.crowd.group.name = 'winter-fun-people';
+      this.crowd.prints = false;
       for (const m of this.crowd.meshes) m.frustumCulled = false;
       this.group.add(this.crowd.group);
       this.sleds = new THREE.InstancedMesh(sledGeometry(), vcMat(), SLEDDERS);

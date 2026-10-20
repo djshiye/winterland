@@ -337,6 +337,10 @@ const TO_CAM = new THREE.Vector3(
 const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 export class Crowd {
+  /** 0.9.12: every live crowd, so the footprints (world/life/Footprints.ts) can follow the people walking about. */
+  static readonly all = new Set<Crowd>();
+  /** False for people whose feet leave no prints (skaters and sledders). */
+  prints = true;
   /** All meshes hang under this group (add it to the scene). */
   readonly group = new THREE.Group();
   readonly capacity: number;
@@ -368,6 +372,7 @@ export class Crowd {
   private readonly goods: THREE.InstancedBufferAttribute;
 
   constructor(capacity: number = TOWN.crowdMax) {
+    Crowd.all.add(this);
     this.capacity = capacity;
     const n = capacity;
     const mat = crowdMaterial();
@@ -695,6 +700,7 @@ export class Crowd {
   }
 
   dispose(): void {
+    Crowd.all.delete(this);
     this.group.removeFromParent();
     for (const m of this.allMeshes) m.geometry.dispose();
     this.haloMat.dispose();
