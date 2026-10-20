@@ -452,6 +452,17 @@ export class Region implements RegionRuntime {
     return out;
   }
 
+  /** 0.9.12 (guide): every chosen, unbuilt slot with its construction pad on show (slot order). */
+  chosenSites(): { slot: number; machine: MachineId; pad: ConstructionPad }[] {
+    const out: { slot: number; machine: MachineId; pad: ConstructionPad }[] = [];
+    for (const S of this.slots) {
+      const st = this.state(S.index);
+      if (st.machine === '' || st.tier >= 0 || !S.pad || !S.pad.visible) continue;
+      out.push({ slot: S.index, machine: st.machine as MachineId, pad: S.pad });
+    }
+    return out;
+  }
+
   /** Where a worker stands to unload into / pay slot `i`'s pad (beside the tile on the yard side, clear of it). */
   private siteSpot(i: number): XZ {
     const L = this.layout;

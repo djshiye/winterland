@@ -12,6 +12,7 @@
  */
 import type * as THREE from 'three';
 import type { Rect } from '../config';
+import type { NavSolid, NavSource } from './navGrid';
 
 export interface ColliderHandle {
   readonly id: number;
@@ -195,6 +196,28 @@ export class ColliderWorld {
     if (x >= b.minX + radius && x <= b.maxX - radius && z >= b.minZ + radius && z <= b.maxZ - radius) return true;
     for (const r of this.extra) if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
     return false;
+  }
+
+  /**
+   * 0.9.12: what the guide's walking map (world/navGrid.ts) is built from: the bounds, the extra walkable rects and
+   * every enabled obstacle (copies).
+   */
+  navSource(): NavSource {
+    const solids: NavSolid[] = [];
+    for (const c of this.colliders) {
+      if (c.enabled) solids.push({ kind: c.kind, minX: c.minX, maxX: c.maxX, minZ: c.minZ, maxZ: c.maxZ, x: c.x, z: c.z, r: c.r });
+    }
+    return { bounds: { ...this.bounds }, extra: this.extra.map((r) => ({ ...r })), solids };
+  }
+
+  /** 0.9.12: changes whenever the walkable shape may have (an obstacle added, removed, switched; a rect added). */
+  navRevision(): number {
+    let h = this.extra.length * 1_000_003 + this.colliders.length;
+    for (let i = 0; i < this.colliders.length; i++) {
+      const c = this.colliders[i]!;
+      if (c.enabled) h = (h * 31 + c.id) | 0;
+    }
+    return h;
   }
 
   /** True if the circle overlaps any enabled obstacle (ignores bounds). */

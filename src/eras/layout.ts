@@ -1169,6 +1169,18 @@ export function expansionOffered(state: GameState, n: number): boolean {
 }
 
 /**
+ * 0.9.12 (full review G8): the next expansion's cash is in and it still wants `kind` (era 2: crates). The crate
+ * runner then leaves the processor's crates for the player instead of carrying them all to the tricycles.
+ */
+export function expansionWants(state: GameState, kind: string): boolean {
+  const n = state.eras.age + 1;
+  const era = ERAS[n];
+  if (!era || era.unlock.extra.kind !== kind || !expansionOffered(state, n)) return false;
+  const paid = state.eras.regions[n];
+  return !!paid && paid.cash >= era.unlock.cash && paid.extra < era.unlock.extra.count;
+}
+
+/**
  * True while era n's land, roads and FOR SALE pad show but the pad does not take payment yet (docs/EXPANSION.md §C):
  * the climb is open, era n is next, and its pad is not offered. The pad tile is greyed and refuses payment.
  */

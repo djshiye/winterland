@@ -202,6 +202,8 @@ export interface DebugApi {
   playerPos(): { x: number; z: number };
   /** 0.9.12: top up every open region's loading dock and era 1's counters, so buyers keep coming (traffic checks). */
   stockDocks(): void;
+  /** 0.9.12: the guide banner, arrow target and the walk the arrows follow (HUD.guideInfo). */
+  guide(): ReturnType<GameContext['hud']['guideInfo']>;
   /** Write the save now; returns what was written (null when saving is off: `?fresh`, reset, no storage). */
   save(): SaveData | null;
   /** The save that would be written now (not written). */
@@ -779,6 +781,7 @@ export class Game {
       },
       buildMachine: (n: number, slot: number, id: string) => this.level.eras.build(n, slot, id, true),
       buildCity: (n: number, lot: number, id: string) => this.level.city.build(n, lot, id, true),
+      guide: () => ctx.hud.guideInfo(),
       travel: (id: string) => {
         const p = travelPoints(ctx.state).find((t) => t.id === id);
         if (!p) return false;

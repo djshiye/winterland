@@ -20,6 +20,7 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Buyers no longer vanish in the middle of the road.** Carts, wagons and trucks drive in from the city and the link roads, turn the corners, park in their own lane and drive on until they are out of sight. Passing traffic keeps to the other lane, and parked buyers no longer stand over the fences. Sleds, trikes and shoppers on foot also come and go out of sight.
 - **Fast travel to a city district lands in that district,** on its own street, not beside the district before it.
 - **Roads join up.** Ruts follow the road round corners and stop at junctions, city streets are cozy cobbles that meet the trail cleanly, the south avenue reaches the town, each era's gate has its own paving, and signposts no longer cross.
+- **A cozier highway.** The North Highway you fly past at the start is a warm slate road with soft cream dashes now, not black asphalt with yellow lines.
 - **Nothing pokes through the fences.** Trees, cranes, cacti and boulders keep clear of the fences, gate signs stand clear of the gate posts, the old cart track and pipes end properly, the market walk leads all the way to the stall, and floor joins and grid lines are softer.
 
 ### Bigger, livelier towns
@@ -101,6 +102,17 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Settlement gifts say to walk over them,** and the guidebook explains that machine staff count toward settlement and that residents fill jobs city-wide.
 - **The market is easier to read.** Each price line is coloured by the same % it shows, the Prices and Invest tabs open with one plain line of help, the bond text says a better Stock Broker pays more, and every investment says how much you can put in.
 - **While you were away, in full.** The guidebook says offline earnings never exceed a fifth of everything you've earned, that quests, contracts and Jack don't count, and that a hidden browser tab pauses the game.
+
+### A guide you can follow
+
+- **The arrow points the way you can walk.** It follows the path round fences, rivers and buildings instead of pointing through them, and a short trail of gold dots on the ground shows the way when it bends or the goal is off-screen. It finds the way again after fast travel, the map or a reload.
+- **Steadier goals.** A new goal stays up long enough to read, the guide no longer flips back and forth between two goals, and it never pulls you off a pad while you're paying into it.
+- **It tells you where things come from.** "Pick up 40 crates for Iron Ridge" leads you to the right machine or dock first, and new machine sites say what to bring and where to get it.
+- **Expanding comes first.** Once you've met the next era's goal, the guide sends you there before anything else, and the crate crew holds crates back for it.
+- **Town builds say what they need.** The Cocoa Café and the other town builds ask you to bring their logs, and send you to chop more when your arms are empty.
+- **The arrow takes you all the way.** It stays up until you're standing on the pad that does the work, city goals point at a free lot rather than the whole district, and an empty maker sends you to feed it first.
+- **You wake up where you left off.** Reloading puts you back where you were standing (just beside a pad or pile if you were on one), not back at the cabin.
+- **The arrow keeps clear of the banner and the corner cards** (money, Winterland, quests, buttons), and the on-screen move pad stays hidden on desktop.
 
 ### Every era looks its own
 

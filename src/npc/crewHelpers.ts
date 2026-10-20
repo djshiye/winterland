@@ -32,6 +32,7 @@ import type { Level } from '../level/Level';
 import type { CashPile } from '../stations/CashPile';
 import type { Business } from '../town/Business';
 import { hopperPerKind } from '../town/rules';
+import { expansionWants } from '../eras/layout';
 import { destKey, favouredShop, pickJob, pickShop, type Claims, type PorterJob, type ShopView, type SourceView } from './townJobs';
 import {
   BENCH_LEG,
@@ -464,7 +465,9 @@ export class CrateRunner extends Helper {
         this.look = BENCH_LOOK;
         if (this.moving) return; // still walking to the bench
         const out = this.level.processor?.output;
-        if (out && out.count('crate') > 0 && this.move(out, this.stack, 'crate')) return;
+        // 0.9.12 (G8): the next expansion wants crates: they stay on the bench for the player to carry there
+        const spare = !expansionWants(this.ctx.state, 'crate');
+        if (spare && out && out.count('crate') > 0 && this.move(out, this.stack, 'crate')) return;
         this.idle += dt;
         const has = this.stack.count('crate') > 0;
         if (has && counter && counter.input.canAccept('crate') && this.settled && (this.stack.size >= this.capacity || this.idle > PATIENCE)) {

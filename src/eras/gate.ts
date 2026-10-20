@@ -251,7 +251,7 @@ export interface NextGoal {
    * buy: an upgrade id (shop / era shop) to press; go: a place to travel to ('pad:<id>' level pad, 'region:<n>' the
    * expansion pad); build: what unlocks a prereq ('pad:<id>', 'village', 'quarters') or raises the settlement.
    */
-  action: { kind: 'buy' | 'go' | 'build'; target: string };
+  action: { kind: 'buy' | 'go' | 'build'; target: string; /** 0.9.12: the gate row behind a prereq goal (the guide finds its slot). */ id?: UpgradeId };
 }
 
 /** What a prereq row asks for first, as a build target (nextGoal, the GateCard's Go). */
@@ -327,7 +327,7 @@ export function nextGoal(s: GameState, money: number): NextGoal | null {
     // "Build the Harvester first", not "Harvester: Build the Harvester first" (the upgrade named after its machine)
     const label = UPGRADES[prereq.id].label;
     const text = prereq.prereq!.includes(label) ? prereq.prereq! : `${label}: ${prereq.prereq}`;
-    return { text, action: { kind: 'build', target: prereqTarget(prereq.id, s) } };
+    return { text, action: { kind: 'build', target: prereqTarget(prereq.id, s), id: prereq.id } };
   }
   const next = (r: GateRow): number => stepCost(UPGRADES[r.id], s.upgrades[r.id]);
   const low = open.filter((r) => r.state === 'low').sort((a, b) => next(a) - next(b) || a.costToNeed - b.costToNeed);
