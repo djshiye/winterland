@@ -173,7 +173,7 @@ export class JackCart {
     readonly id: string,
   ) {
     this.gated = id === 'jack:yard';
-    this.model = createJackCartModel();
+    this.model = createJackCartModel(Number(/^jack:(\d+)$/.exec(id)?.[1] ?? 1)); // 'jack:yard' (and anything else) = era 1
     this.rig = new CharacterRig(createJackModel());
     this.rig.root.position.set(JACK_AT.x, 0, JACK_AT.z);
     this.rig.root.rotation.y = JACK_FACE;

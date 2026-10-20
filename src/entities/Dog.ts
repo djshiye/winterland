@@ -41,6 +41,8 @@ export const PET_AFTER = 2.5;
 export const PET_EVERY: readonly [number, number] = [9, 14];
 /** The player must stand this close to the pal for a pat, metres. */
 export const PET_DISTANCE = 1.9;
+/** 0.9.12 (validator on #85): the pal never settles closer than this to a warm-up spot's fire, metres. */
+export const FIRE_CLEAR = 0.9;
 
 export interface XZ {
   x: number;
@@ -64,6 +66,11 @@ export function restHeading(player: XZ, heading: XZ, blocked: (x: number, z: num
     if (!blocked(player.x - h.x * FOLLOW_DISTANCE, player.z - h.z * FOLLOW_DISTANCE)) return turn === 0 ? heading : h;
   }
   return heading;
+}
+
+/** 0.9.12: true when (x, z) is too close to a warm-up spot's fire for the pal to sit there. Pure. */
+export function nearFire(fire: XZ | null, x: number, z: number): boolean {
+  return !!fire && Math.hypot(x - fire.x, z - fire.z) < FIRE_CLEAR + 0.1;
 }
 
 export function followStep(
@@ -117,6 +124,8 @@ export class Dog {
   private speed = 0;
   private clock = 0;
   private idleFor = 0;
+  /** The warm-up spot the player is warming at (fx/WarmUp.ts), until he moves on. */
+  private fire: XZ | null = null;
   private sitting = false;
   private wagLeft = 0;
   private nextWag = rand(2.5, 6);
@@ -182,9 +191,24 @@ export class Dog {
     return this.sitting;
   }
 
-  /** Settle down at once: the idle clock jumps past SIT_AFTER (a warm-up spot, fx/WarmUp.ts). */
-  rest(): void {
+  /**
+   * Settle down at once: the idle clock jumps past SIT_AFTER (a warm-up spot, fx/WarmUp.ts). With the fire's centre,
+   * the pal also keeps FIRE_CLEAR from it: arriving from the far side, its usual spot behind the player would be at the
+   * fire's edge, so it turns round him to the first spot clear of the fire (and of anything solid).
+   */
+  rest(fire?: XZ): void {
     this.idleFor = Math.max(this.idleFor, SIT_AFTER + 0.01);
+    if (!fire || (this.fire && this.fire.x === fire.x && this.fire.z === fire.z)) return;
+    this.fire = { x: fire.x, z: fire.z };
+    const h = restHeading(this.owner.position, this.heading, (x, z) => this.blockedAt(x, z));
+    this.heading.x = h.x;
+    this.heading.z = h.z;
+  }
+
+  /** Inside something solid, or (while warming) too close to the fire. */
+  private blockedAt(x: number, z: number): boolean {
+    if (nearFire(this.fire, x, z)) return true;
+    return this.ctx.colliders.overlaps(x, z, 0.35);
   }
 
   update(dt: number): void {
@@ -199,11 +223,11 @@ export class Dog {
       this.heading.x = o.velocity.x / pv;
       this.heading.z = o.velocity.z / pv;
       this.idleFor = 0;
+      this.fire = null;
     } else {
       // 0.9.12: about to sit, but the spot behind is inside something solid: settle beside him instead
       if (this.idleFor < SIT_AFTER && this.idleFor + dt >= SIT_AFTER * 0.5) {
-        const c = this.ctx.colliders;
-        const h = restHeading(o.position, this.heading, (x, z) => c.overlaps(x, z, 0.35));
+        const h = restHeading(o.position, this.heading, (x, z) => this.blockedAt(x, z));
         this.heading.x = h.x;
         this.heading.z = h.z;
       }

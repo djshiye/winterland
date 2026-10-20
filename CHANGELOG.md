@@ -102,6 +102,15 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **The market is easier to read.** Each price line is coloured by the same % it shows, the Prices and Invest tabs open with one plain line of help, the bond text says a better Stock Broker pays more, and every investment says how much you can put in.
 - **While you were away, in full.** The guidebook says offline earnings never exceed a fifth of everything you've earned, that quests, contracts and Jack don't count, and that a hidden browser tab pauses the game.
 
+### Every era looks its own
+
+- **Jack's cart dresses for the era.** His swap cart wears each era's colours, from terracotta in the Frontier to lavender and gold in the AI era, with a smarter straight trim from the Oil Age on.
+- **Market shops of their time.** Iron Age shops are half-timbered forges with wooden canopies, Steam Age shops are brick with iron-and-glass canopies, Industrial shops are corrugated works stores with roller shutters. Computer Age pavilions now come in three shapes and four colours, and the AI era's dome shops in four colours with little side domes and antenna rings.
+- **Crew icons tell you who's who.** Each era's crew icon shows that era's headgear (flat cap, miner's lamp, goggles, hard hat, clean-room hood, bubble hood, a friendly robot) and each job its own tool badge: scoop, flag, rucksack, basket, mallet or ledger.
+- **City edges finished.** Where a district meets open snow, a soft snowbank with little firs, bushes and hedges now edges the pavement.
+- **Calmer floors.** The Industrial era's brick yard and the Nuclear era's glazed slabs no longer read as zig-zags and polka dots.
+- **Your pal keeps clear of the fire.** Warming up at a fire, your pal always sits a safe step away from it.
+
 ## 0.9.11 (2026-10-19)
 
 Every era its own place, clearer pads and icons, a guidebook, a cooler-running game and a few cozy touches.

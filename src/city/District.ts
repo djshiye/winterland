@@ -43,6 +43,7 @@ import type { Crowd } from '../npc/Crowd';
 import { DistrictLife } from './DistrictLife';
 import { districtDecor, districtLamps } from './decor';
 import { drawDecor } from './decorModels';
+import { districtVerge, drawVerge } from './verge';
 import { buildHalos, bulbMaterial, type HaloSpot } from '../world/env/glow';
 import {
   canChoose,
@@ -611,6 +612,14 @@ function buildScenery(n: number): THREE.Group {
   const gm = ground.mesh({ cast: false, receive: true });
   gm.name = 'pavement';
   group.add(gm);
+  // EM3: a soft snowbank with firs / bushes just outside every edge that faces open snow (city/verge.ts): ONE mesh
+  if (districtVerge(n).length > 0) {
+    const verge = new Batch();
+    drawVerge(n, verge);
+    const vm = verge.mesh({ cast: true, receive: true });
+    vm.name = 'verge';
+    group.add(vm);
+  }
 
   // lamps along the perimeter: ~every 7 m, none on the corners
   const spots: HaloSpot[] = [];

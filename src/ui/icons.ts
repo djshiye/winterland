@@ -1,5 +1,5 @@
 /** [B4] Inline SVG icons (no image files). All use a 48x48 viewBox unless noted. */
-import { ERA_ROLES, type BusinessId, type UpgradeIdConst } from '../config';
+import { ERA_ROLES, type EraRoleKey, type BusinessId, type UpgradeIdConst } from '../config';
 import { ERAS, MACHINES, MACHINE_IDS, MATERIALS, MATERIAL_KINDS } from '../eras/data';
 import { ICON_INK, kitIcon } from './iconKit';
 import { CREAM } from '../render/palette';
@@ -300,7 +300,7 @@ function rigsIcon(accent: number): string {
     </g>`);
 }
 
-/** Crew: a hard hat in the era's accent colour. */
+/** Era 1 (Survival) crew: a hard hat in the era's accent colour. */
 function crewIcon(accent: number): string {
   return svg(`
     <g stroke="${OUT}" stroke-width="2.5">
@@ -310,6 +310,118 @@ function crewIcon(accent: number): string {
       <path d="M14 24a10 10 0 0 1 4-7" fill="none" stroke="#fff" stroke-width="2.4" opacity="0.6"/>
       <rect x="12" y="38" width="24" height="5" rx="2.5" fill="#f3d9a4"/>
     </g>`);
+}
+
+/** V6: the hauler's plain cream-brown headgear (the hauler wears no role colour). */
+const HAULER_HAT = 0xd9bf93;
+const SKIN = '#f6d3b0';
+
+/** A small round friendly face; eyes and a smile. */
+const FACE = `
+  <circle cx="24" cy="28" r="14" fill="${SKIN}"/>
+  <circle cx="19" cy="30" r="1.9" fill="${OUT}" stroke="none"/><circle cx="29" cy="30" r="1.9" fill="${OUT}" stroke="none"/>
+  <path d="M20 35q4 3 8 0" fill="none"/>`;
+
+/** Headgear per era (2-9), drawn over the face. `c` is the role / hauler colour, `a` the era accent. */
+const HEADGEAR: Record<number, (c: number, a: number) => string> = {
+  // flat cap: a soft dome with a short peak
+  2: (c) => `
+    <path d="M9 26c0-10 8-15 16-14 8 1 14 6 14 14z" fill="${hexCss(c)}"/>
+    <path d="M26 23c6-2 13-1 15 3-6 2-12 1-15-3z" fill="${shadeCss(c, 0.15)}"/>
+    <circle cx="24" cy="12" r="2.2" fill="${shadeCss(c, -0.25)}"/>`,
+  // miner's helmet with a lamp
+  3: (c) => `
+    <path d="M9 26a15 14 0 0 1 30 0z" fill="${hexCss(c)}"/>
+    <rect x="6" y="24" width="36" height="5" rx="2.5" fill="${shadeCss(c, -0.25)}"/>
+    <rect x="18" y="8" width="12" height="9" rx="4" fill="#ffe27a"/>
+    <circle cx="24" cy="12.5" r="2.4" fill="#fffbe0" stroke="none"/>`,
+  // cap with brass goggles
+  4: (c) => `
+    <path d="M10 26c0-9 7-14 14-14s14 5 14 14z" fill="${hexCss(c)}"/>
+    <rect x="8" y="24" width="32" height="4.5" rx="2.2" fill="${shadeCss(c, -0.25)}"/>
+    <path d="M13 17h22" stroke="#b9822f" stroke-width="3.4" fill="none"/>
+    <circle cx="17.5" cy="17" r="5" fill="#e0a845"/><circle cx="30.5" cy="17" r="5" fill="#e0a845"/>
+    <circle cx="17.5" cy="17" r="2.4" fill="#bfe6ff" stroke="none"/><circle cx="30.5" cy="17" r="2.4" fill="#bfe6ff" stroke="none"/>`,
+  // plain hard hat
+  5: (c) => `
+    <path d="M9 27a15 15 0 0 1 30 0z" fill="${hexCss(c)}"/>
+    <rect x="20.5" y="10" width="7" height="17" rx="2" fill="${shadeCss(c, 0.3)}"/>
+    <rect x="5" y="25" width="38" height="5.5" rx="2.7" fill="${shadeCss(c, -0.25)}"/>`,
+  // lineman helmet with a copper badge
+  6: (c) => `
+    <path d="M9 27a15 15 0 0 1 30 0z" fill="${hexCss(c)}"/>
+    <rect x="5" y="25" width="38" height="5.5" rx="2.7" fill="${shadeCss(c, -0.25)}"/>
+    <circle cx="24" cy="17" r="5.4" fill="#d9803f"/>
+    <path d="M25.4 13.8l-3 3.8h3l-2 3" stroke="#fff4dc" stroke-width="1.8" fill="none"/>`,
+  // hard hat with a reflective band
+  7: (c) => `
+    <path d="M9 27a15 15 0 0 1 30 0z" fill="${hexCss(c)}"/>
+    <path d="M10.5 21h27" stroke="${OUT}" stroke-width="7"/>
+    <path d="M10.5 21h27" stroke="#f3f7a8" stroke-width="4"/>
+    <rect x="5" y="25" width="38" height="5.5" rx="2.7" fill="${shadeCss(c, -0.25)}"/>`,
+  // clean-room hood and round glasses (replaces the face, hood in the colour)
+  8: (c) => `
+    <path d="M7 40V28C7 17 14 9 24 9s17 8 17 19v12z" fill="${hexCss(c)}"/>
+    <circle cx="24" cy="28" r="12.5" fill="${SKIN}"/>
+    <circle cx="19" cy="29" r="4.6" fill="#e6f6ff"/><circle cx="29" cy="29" r="4.6" fill="#e6f6ff"/>
+    <path d="M23.6 29h.8" stroke-width="2"/>
+    <circle cx="19" cy="29" r="1.5" fill="${OUT}" stroke="none"/><circle cx="29" cy="29" r="1.5" fill="${OUT}" stroke="none"/>
+    <path d="M20 36q4 3 8 0" fill="none"/>`,
+  // bubble hood: a clear dome over the head, a collar in the colour
+  9: (c) => `
+    <circle cx="24" cy="25" r="19" fill="#d6f1ff" fill-opacity="0.28"/>
+    <rect x="9" y="38" width="30" height="6" rx="3" fill="${hexCss(c)}"/>
+    <path d="M12 18a14 14 0 0 1 8-6" stroke="#fff" stroke-width="2.6" fill="none" opacity="0.9"/>`,
+};
+
+/** Era 10: a friendly robot head (screen face, antenna); the role colour is the antenna light and ear pads. */
+function robotHead(c: number): string {
+  return `
+    <path d="M24 15V8" stroke-width="2.6" fill="none"/>
+    <circle cx="24" cy="7" r="4" fill="${hexCss(c)}"/>
+    <rect x="3" y="24" width="7" height="12" rx="3" fill="${hexCss(c)}"/><rect x="38" y="24" width="7" height="12" rx="3" fill="${hexCss(c)}"/>
+    <rect x="8" y="14" width="32" height="28" rx="9" fill="#f3ead8"/>
+    <rect x="12" y="19" width="24" height="18" rx="6" fill="#4a6078"/>
+    <circle cx="19" cy="27" r="2.6" fill="#8ff0ff" stroke="none"/><circle cx="29" cy="27" r="2.6" fill="#8ff0ff" stroke="none"/>
+    <path d="M20 32q4 2.6 8 0" stroke="#8ff0ff" stroke-width="2" fill="none"/>`;
+}
+
+/** Role tool badge glyphs, drawn around the origin (about 12px across). */
+const TOOL_GLYPHS: Record<EraRoleKey, string> = {
+  // scoop shovel
+  Feeder: `<path d="M-4 5L2 -3" stroke="#8a5a32" stroke-width="2.6" fill="none"/>
+    <path d="M-1 -4c4-3 8 0 7 4-3 1-6-1-7-4z" fill="#aab4c4" stroke-width="1.8"/>`,
+  // signal flag
+  Shipper: `<path d="M-4 6V-6" stroke-width="2.4" fill="none"/>
+    <path d="M-4 -6h10l-3 3.5 3 3.5h-10z" fill="#e8553e" stroke-width="1.8"/>`,
+  // big rucksack
+  Porter: `<path d="M-3.5 -4c0-4 7-4 7 0" stroke-width="1.8" fill="none"/>
+    <rect x="-6" y="-4" width="12" height="11" rx="3.5" fill="#b9774a" stroke-width="2"/>
+    <rect x="-3.4" y="1" width="6.8" height="4" rx="1.4" fill="#e0b070" stroke-width="1.6"/>`,
+  // basket
+  Gatherer: `<path d="M-4 -1c0-7 8-7 8 0" stroke-width="2" fill="none"/>
+    <path d="M-6.5 -1h13l-2 8h-9z" fill="#d9aa66" stroke-width="2"/>`,
+  // mallet
+  Foreman: `<path d="M0 -1V7" stroke="#8a5a32" stroke-width="2.8" fill="none"/>
+    <rect x="-6.2" y="-6" width="12.4" height="6.4" rx="1.8" fill="#9a8a78" stroke-width="2"/>`,
+  // ledger book
+  Clerk: `<rect x="-5" y="-6.5" width="10" height="13" rx="1.8" fill="#a8693a" stroke-width="2"/>
+    <path d="M-1.8 -3.4h4.8M-1.8 0h4.8M-1.8 3.4h3" stroke="#fff4dc" stroke-width="1.6" fill="none"/>`,
+};
+
+/**
+ * V6: crew icons tell era (headgear on a friendly face; a robot head for era 10) and role (the headgear's colour plus a
+ * tool badge bottom-right) apart. The hauler (no role) wears plain cream-brown and has no badge.
+ */
+function eraCrewIcon(eraN: number, accent: number, role?: EraRoleKey): string {
+  const r = role ? ERA_ROLES.find((e) => e.key === role)!.scarf : HAULER_HAT;
+  const body = eraN >= 10 ? robotHead(r) : (eraN === 8 || eraN === 9 ? '' : FACE) + HEADGEAR[eraN]!(r, accent);
+  const face9 = eraN === 9 ? FACE : '';
+  const badge = role
+    ? `<circle cx="37" cy="37" r="9" fill="#fff4dc"/><g transform="translate(37 37)">${TOOL_GLYPHS[role]}</g>`
+    : '';
+  // era 9: the face sits inside the clear dome (drawn first), the dome and collar over it
+  return svg(`<g stroke="${OUT}" stroke-width="2.5">${face9}${body}${badge}</g>`);
 }
 
 /** 0.9.5 Belts: a short roller belt with a crate riding it, the frame in the era's accent colour. */
@@ -414,14 +526,14 @@ for (const era of ERAS) {
     [`${era.key}Tool`]: pickIcon(era.colors.accent),
     [`${era.key}Pal`]: UPGRADE_ICONS.dog!,
     [`${era.key}Rigs`]: rigsIcon(era.colors.accent),
-    [`${era.key}Crew`]: crewIcon(era.colors.accent),
+    [`${era.key}Crew`]: era.n >= 2 ? eraCrewIcon(era.n, era.colors.accent) : crewIcon(era.colors.accent),
     [`${era.key}Belts`]: beltsIcon(era.colors.accent),
     [`${era.key}Dock`]: dockIcon(era.colors.accent),
     [`${era.key}Stall`]: stallIcon(era.colors.accent),
     [`${era.key}Cash`]: vaultIcon(era.colors.accent),
   };
   // each crew role wears its scarf colour on the hat (config ERA_ROLES)
-  for (const r of ERA_ROLES) icons[`${era.key}${r.key}`] = crewIcon(r.scarf);
+  for (const r of ERA_ROLES) icons[`${era.key}${r.key}`] = era.n >= 2 ? eraCrewIcon(era.n, era.colors.accent, r.key) : crewIcon(r.scarf);
   for (const m of MACHINE_IDS) if (MACHINES[m].era === era.n) icons[m] = machineIcon(era.colors.accent);
   Object.assign(UPGRADE_ICONS, icons);
 }
