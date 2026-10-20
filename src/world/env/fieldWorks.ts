@@ -383,7 +383,7 @@ function drone(n: number, glowMat: THREE.Material, A: Rect, y: number, phase: nu
   for (const r of [Math.PI / 4, -Math.PI / 4]) b.add(geo.box(1.1, 0.05, 0.07), pal.trim, 0, 0.04, 0, { ry: r });
   for (const [x, z] of [[-0.39, -0.39], [0.39, -0.39], [-0.39, 0.39], [0.39, 0.39]] as const) b.add(geo.cylinder(0.2, 0.2, 0.02, 12), 0xd8dde2, x, 0.1, z);
   const g = new THREE.Group();
-  g.add(b.mesh({ cast: true, receive: false }));
+  g.add(b.mesh({ cast: false, receive: false })); // high in the air: its shadow would land far off
   const lights = new Batch().add(geo.sphere(0.08, 8, 6), pal.glow, 0, -0.14, 0.18).add(geo.cylinder(0.02, 0.32, 0.9, 10), pal.glow, 0, -0.62, 0);
   g.add(lights.mesh({ cast: false, receive: false, material: glowMat }));
   const cx = ring !== null ? (A.minX + A.maxX) / 2 : 0;

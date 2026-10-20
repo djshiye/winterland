@@ -195,7 +195,7 @@ export class Region implements RegionRuntime {
     this.kits = [false, true].map((mirror) => {
       const m = new THREE.InstancedMesh(createSurveyKit(era, mirror), vcMat(), Math.max(1, L.slots.length));
       m.name = `region${era}:surveyKits`;
-      m.castShadow = true;
+      m.castShadow = false; // small and low: not worth a shadow-pass draw per region
       m.receiveShadow = true;
       m.count = L.slots.length;
       this.root.add(m);
