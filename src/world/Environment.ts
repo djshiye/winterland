@@ -21,6 +21,7 @@ import { buildFrontier, pruneInstances, pruneNewLand, type FrontierPart } from '
 import { WinterFun } from './life/WinterFun';
 import { Critters } from './life/Critters';
 import { Footprints } from './life/Footprints';
+import { SkyTraffic } from './life/SkyTraffic';
 import { LANE } from '../town/lane';
 import { buildLanternLane } from './env/lantern';
 import { buildGate, type GatePart } from './env/gate';
@@ -76,6 +77,7 @@ export class Environment {
   private readonly winterFun: WinterFun;
   private readonly critters: Critters;
   private readonly footprints: Footprints;
+  private readonly skyTraffic: SkyTraffic;
   private winterPruned = false;
   /** 0.9.3: hides the peaks that stood on the new land once it shows (env/mountains.ts). */
   private readonly mountains: EnvPart;
@@ -118,6 +120,8 @@ export class Environment {
     this.root.add(this.critters.group);
     this.footprints = new Footprints(ctx);
     this.root.add(this.footprints.mesh);
+    this.skyTraffic = new SkyTraffic(ctx);
+    this.root.add(this.skyTraffic.group);
     this.chimney = buildings.chimney;
 
     for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, this.town, this.frontier, roads, mountains, decor, buildings, this.snowfall]) {
@@ -207,6 +211,7 @@ export class Environment {
     this.winterFun.update(dt);
     this.critters.update(dt);
     this.footprints.update(dt);
+    this.skyTraffic.update(dt);
     this.mountains.update?.(dt);
     this.eras.update(dt);
     // 0.9.8: the sky runs the weather (snowfall amount, the snowstorm event), the northern lights (stronger in the
