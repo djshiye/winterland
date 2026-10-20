@@ -13,7 +13,7 @@
  * fixed offers stop once era 2 is open, so "15 sausages · +$2,500" no longer pops up at $218B.
  */
 import { CONTRACTS, type BusinessId, type PadIdConst } from '../config';
-import { MACHINES, MATERIALS, type MaterialKind } from '../eras/data';
+import { countOf, MACHINES, MATERIALS, type MaterialKind } from '../eras/data';
 import { IncomeWindow, sig2Money } from './incomeWindow';
 import type { Economy } from './Economy';
 import type { EventBus } from './EventBus';
@@ -33,7 +33,7 @@ export function contractItem(kind: ItemKind | '', count: number): string {
   const n = kind === '' ? undefined : NAMES[kind];
   if (n) return `${count} ${n[count === 1 ? 0 : 1]}`;
   const m = kind === '' ? undefined : MATERIALS[kind as MaterialKind];
-  return `${count} ${m ? m.label.toLowerCase() : kind}`;
+  return m ? countOf(m.label, count) : `${count} ${kind}`;
 }
 
 /** One era contract on offer: a material of era `age` and its base export price per unit. */

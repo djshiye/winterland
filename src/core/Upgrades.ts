@@ -14,7 +14,7 @@
  */
 import type * as THREE from 'three';
 import { CLIMB, GATE, QUARTERS, UPGRADES, VILLAGE, type UpgradeDef, type UpgradeGroup } from '../config';
-import { ERA_NAMES, ERAS } from '../eras/data';
+import { eraNoun, ERAS } from '../eras/data';
 import { climbOpen } from '../eras/gate';
 import { capStored, introEra, maxStored, shown, stepCost, valueAt } from './ladder';
 import { settlementLevel } from './demand';
@@ -185,7 +185,7 @@ export function upgradeRequirement(state: Pick<GameState, 'unlocked' | 'village'
     return `Build the ${QUARTERS.tiers[r.quarters!]!.label} first`;
   }
   if (r.era !== undefined && state.eras.age < r.era) {
-    return `Needs the ${ERA_NAMES[r.era] ?? 'next'} era`;
+    return `Needs the ${eraNoun(r.era)}`;
   }
   if (r.settlement !== undefined && settlementLevel(state) < r.settlement) {
     return `Reach Settlement ${r.settlement}`;

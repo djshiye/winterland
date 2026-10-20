@@ -32,6 +32,28 @@ export const MAX_ERA = 10;
 /** Names of all ten eras, index = era number (index 0 unused). */
 export const ERA_NAMES: readonly string[] = ['', 'Survival', 'Frontier', 'Iron Age', 'Steam Age', 'Industrial', 'Electric Age', 'Oil Age', 'Computer Age', 'Nuclear Power', 'AI Era'];
 
+/**
+ * 0.9.12: an era's name as a noun for a sentence: "the Iron Age", "the AI Era", "the Industrial era" (names that end in
+ * Age or Era already say it, so "Needs the AI Era era" never happens). Use as `Needs the ${eraNoun(n)}`.
+ */
+export function eraNoun(n: number): string {
+  const name = ERA_NAMES[n];
+  if (!name) return 'next era';
+  return /\b(Age|Era)$/.test(name) ? name : `${name} era`;
+}
+
+/** 0.9.12: a label in running text: lower case, but "AI" stays "AI" ("AI Cores" → "AI cores", not "ai cores"). */
+export function lowerLabel(label: string): string {
+  return label.toLowerCase().replace(/\bai\b/g, 'AI');
+}
+
+/** 0.9.12: "1 gear", "24 gears", "1 battery", "5 stone": a count and a material label in running text. */
+export function countOf(label: string, count: number): string {
+  const word = lowerLabel(label);
+  if (count !== 1 || !/s$/.test(word) || word === 'gas') return `${count.toLocaleString('en-US')} ${word}`;
+  return `1 ${word.endsWith('ies') ? `${word.slice(0, -3)}y` : word.slice(0, -1)}`;
+}
+
 export interface EraDef {
   n: number;
   key: EraKey;
@@ -641,7 +663,7 @@ export const INVEST: Record<InvestProductId, InvestProductDef> = {
   // ventures ×3 an hour) on 10 / 10 / 5 minutes of sales added about +50% to sales income (+58% with the Broker), and the
   // era pacing curve (tests/livePacing.test.ts) leaves investing out, so an investor cleared eras a third faster. Now the
   // best play adds about +10% (at most ~+15% with a maxed Broker, checking every price tick): tests/market.test.ts.
-  bond: { id: 'bond', label: 'Winter Bonds', blurb: 'Safe: +4% after 10 minutes. Early withdrawal returns your deposit only', min: 1_000, lock: 600, rate: 0.04, volatility: 0, cap: 0.5, capMinutes: 6, era: 2 },
+  bond: { id: 'bond', label: 'Winter Bonds', blurb: 'Safe: +4% after 10 minutes. Cash out early and you get back just what you put in', min: 1_000, lock: 600, rate: 0.04, volatility: 0, cap: 0.5, capMinutes: 6, era: 2 },
   // a little better than bonds per 10 minutes (about +5% vs +4%), with no lock but some risk, and a ceiling
   index: { id: 'index', label: 'Snow Index Fund', blurb: 'Tracks the whole market: a bit faster than bonds, no lock, wobbles on the way, doubles at most', min: 1_000, rate: 0.35, volatility: 0.004, dip: 0.08, rise: 0.08, top: 2, cap: 0.3, capMinutes: 6, era: 2 },
   venture: { id: 'venture', label: 'Era Ventures', blurb: 'Back an era: faster growth up to ×3, but it can dip hard', min: 10_000, rate: 0.55, volatility: 0.01, dip: 0.35, rise: 0.15, top: 3, cap: 0.2, capMinutes: 3, era: 3 },

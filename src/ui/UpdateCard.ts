@@ -43,9 +43,9 @@ export const FAIL_TEXT: Record<UpdateFailCode, string> = {
   nodownload: "The new version has no download for this computer yet. It's on its way.",
   current: 'You already have the newest version.',
   running: "The game didn't close in time for the update. Try again from Settings › Game.",
-  checksum: "The download didn't match its checksum, so it was thrown away.",
-  files: "Couldn't replace the game files. Is the Winterland folder somewhere you can write to?",
-  unzip: "Your computer needs 'unzip' to update (for example: sudo apt install unzip).",
+  checksum: "The download didn't pass its safety check, so it was thrown away. Try again later.",
+  files: "Couldn't swap in the new game files. If Winterland sits in a protected folder, move it to your own folder and try again.",
+  unzip: "Updating needs the small 'unzip' tool, which this computer doesn't have yet. Add it, or download the new version from the Winterland page on GitHub.",
   cancelled: 'The download was cancelled.',
   other: 'Something unexpected got in the way.',
 };
@@ -379,7 +379,7 @@ export class UpdateCard {
     track.setAttribute('aria-valuemax', '100');
     this.bar = track.appendChild(h('span', 'wl-update-fill'));
     this.card.appendChild(track);
-    this.barText = this.line('Starting the download...', 'wl-update-small');
+    this.barText = this.line('Starting the download…', 'wl-update-small');
     this.line('It is checked against the release checksum before anything changes.', 'wl-update-small');
     const cancel = (): void => {
       b.cancel();
@@ -432,7 +432,7 @@ export class UpdateCard {
   private showError(code: UpdateFailCode, afterRestart: boolean): void {
     this.frame(ICON_SNOW, afterRestart ? "The update didn't finish" : "Couldn't update right now");
     this.line(FAIL_TEXT[code] ?? FAIL_TEXT.other);
-    this.line('Your game and your save are exactly as they were. You can also run Update Winterland from your game folder.', 'wl-update-small');
+    this.line('Your game and your save are exactly as they were. You can also update by opening "Update Winterland" in your game folder.', 'wl-update-small');
     const close = (): void => this.close();
     this.escapeAction = close;
     this.buttons([{ label: 'Keep playing', style: 'green', tap: close }], 0);

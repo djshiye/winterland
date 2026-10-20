@@ -3,7 +3,7 @@
  * which shop tabs / era groups are on show, the income ticker's aggregation, the map's travel groups and notes.
  * Unit-tested in tests/agesUi.test.ts; the panels (ShopPanel, MapPanel, EraChip, AgeCard, HUD) only render what these say.
  */
-import { CITY_RANKS, ERA_NAMES, ERAS, MATERIALS, MAX_ERA, isMaterial, unlockCash } from '../eras/data';
+import { CITY_RANKS, ERA_NAMES, ERAS, eraNoun, MATERIALS, MAX_ERA, isMaterial, unlockCash } from '../eras/data';
 import type { TravelPoint } from '../eras/layout';
 import type { GameState, IncomeSource, ItemKind, UpgradeId } from '../core/types';
 import { UPGRADES, eraRoleCount } from '../config';
@@ -62,7 +62,7 @@ export function expansionCostText(n: number): string {
 
 /** What a locked era region needs first: "Reach the Iron Age first" (era 2: the Great Lodge opens the climb). */
 export function reachNote(n: number): string {
-  return n <= 2 ? 'Build the Great Lodge first' : `Reach the ${ERA_NAMES[n - 1] ?? 'previous'} first`;
+  return n <= 2 ? 'Build the Great Lodge first' : `Reach the ${eraNoun(n - 1)} first`;
 }
 
 // ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ export function industryEraShown(n: number, age: number): boolean {
 
 /** "Needs the Iron Age era" for a listed-but-locked era (null when reached). */
 export function industryEraNote(n: number, age: number): string | null {
-  return age >= n ? null : `Needs the ${ERA_NAMES[n] ?? 'next'} era`;
+  return age >= n ? null : `Needs the ${eraNoun(n)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +258,7 @@ export interface TravelNote {
 /** The sub-lines of a travel point's row: price of a locked region's expansion and what it needs. */
 export function travelNote(p: TravelPoint, age: number): TravelNote {
   if (p.kind === 'home') return { cost: null, need: p.open ? null : 'Not found yet' };
-  if (p.kind === 'district') return { cost: null, need: age >= p.era ? null : `Needs the ${ERA_NAMES[p.era] ?? 'next'} era` };
+  if (p.kind === 'district') return { cost: null, need: age >= p.era ? null : `Needs the ${eraNoun(p.era)}` };
   if (age >= p.era) return { cost: null, need: null };
   return { cost: expansionCostText(p.era), need: p.open ? 'Pad is open: buy it to enter' : reachNote(p.era) };
 }

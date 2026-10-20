@@ -11,7 +11,7 @@
  * 0.9.10 (READINESS C7): a small "first trade" quest (trade1) next to the first investment.
  */
 import { AMENITY_IDS, GATE } from '../config';
-import { CITY_BUILDINGS, DISTRICTS, ERAS, ERA_NAMES, ERA_SCALE, REGIONS, unlockCash, type CityBuildingKind } from '../eras/data';
+import { CITY_BUILDINGS, DISTRICTS, ERAS, ERA_NAMES, eraNoun, ERA_SCALE, REGIONS, unlockCash, type CityBuildingKind } from '../eras/data';
 import { IncomeWindow, sig2Money } from './incomeWindow';
 import { settlementLevel, townHappiness } from './demand';
 import { climbOpen, FINAL_GATE, FINAL_NAME, gateCount, gateNeed, gateSize } from '../eras/gate';
@@ -42,7 +42,7 @@ export const QUEST_DEFS: readonly QuestDef[] = [
   { id: 'planks10', title: 'Sell 10 plank bundles', target: 10, reward: 20, progress: (s) => s.stats.planksSold },
   { id: 'harvester', title: 'Build the harvester', target: 1, reward: 30, progress: (s) => flag(s.unlocked.harvester) },
   { id: 'chop150', title: 'Chop 150 logs', target: 150, reward: 40, progress: (s) => s.stats.logsChopped },
-  { id: 'hamlet', title: 'Grow the camp into a Hamlet', target: 1, reward: 60, progress: (s) => s.village.level },
+  { id: 'hamlet', title: 'Grow your camp into a Hamlet', target: 1, reward: 60, progress: (s) => s.village.level },
   { id: 'processor', title: 'Build the processor', target: 1, reward: 100, progress: (s) => flag(s.unlocked.processor) },
   { id: 'crates40', title: 'Sell 40 crates', target: 40, reward: 150, progress: (s) => s.stats.cratesSold },
   { id: 'hire', title: 'Hire your first helper', target: 1, reward: 250, progress: hiredAny },
@@ -50,7 +50,7 @@ export const QUEST_DEFS: readonly QuestDef[] = [
   { id: 'upgrades12', title: 'Buy 12 upgrades', target: 12, reward: 400, progress: (s) => s.stats.upgradesBought },
   { id: 'megaSaw', title: 'Build the mega sawmill', target: 1, reward: 600, progress: (s) => flag(s.unlocked.megaSaw) },
   { id: 'trucks20', title: 'Fill 20 trucks', target: 20, reward: 1000, progress: (s) => s.stats.trucksServed },
-  { id: 'town', title: 'Grow the village into a Town', target: 3, reward: 1500, progress: (s) => s.village.level },
+  { id: 'town', title: 'Grow your village into a Town', target: 3, reward: 1500, progress: (s) => s.village.level },
   { id: 'ridge', title: 'Open Timber Ridge', target: 1, reward: 2000, progress: (s) => flag(s.unlocked.ridge) },
   // Wave 9: the Market Town.
   { id: 'marketTown', title: 'Open the Market Town', target: 1, reward: 1500, progress: (s) => flag(s.town.revealed) },
@@ -61,8 +61,8 @@ export const QUEST_DEFS: readonly QuestDef[] = [
   { id: 'goods50', title: 'Sell 50 loaves to the townsfolk', target: 50, reward: 3000, progress: (s) => s.stats.goodsSold },
   { id: 'furniture60', title: 'Sell 60 chairs to the dog sleds', target: 60, reward: 4000, progress: (s) => s.stats.furnitureSold },
   { id: 'shelters20', title: 'Complete 20 shelter builds', target: 20, reward: 4000, progress: (s) => s.stats.sheltersBuilt },
-  { id: 'town4', title: 'Fill 4 town lots', target: 4, reward: 5000, progress: (s) => townBuilt(s) },
-  { id: 'winterCity', title: 'Grow the town into a Winter City', target: 4, reward: 6000, progress: (s) => s.village.level },
+  { id: 'town4', title: 'Fill 4 lots in Market Town', target: 4, reward: 5000, progress: (s) => townBuilt(s) },
+  { id: 'winterCity', title: 'Grow your Town into a Winter City', target: 4, reward: 6000, progress: (s) => s.village.level },
   { id: 'earn150k', title: 'Earn $150,000 in total', target: 150000, reward: 6000, progress: (s) => s.stats.moneyEarned },
   { id: 'greatLodge', title: 'Build the Great Lodge', target: 1, reward: 10000, progress: (s) => flag(s.village.greatLodge.tier >= 0) },
   // Wave 12: amenities and town happiness.
@@ -81,7 +81,7 @@ function eraQuests(): QuestDef[] {
   const age = (s: GameState) => s.eras.age;
   const reach = (n: number): QuestDef => ({
     id: `era${n}`,
-    title: n === 2 ? `Expand to ${ERAS[2]!.region}` : `Reach the ${ERAS[n]!.name} era`,
+    title: n === 2 ? `Expand to ${ERAS[2]!.region}` : `Reach the ${eraNoun(n)}`,
     target: n,
     reward: Math.round(unlockCash(n) * 0.1),
     progress: age,

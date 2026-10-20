@@ -184,7 +184,7 @@ export class MarketPanel {
     this.sections.set('prices', prices);
     // --- Trade
     const trade = h('div', 'wl-mk-section');
-    trade.appendChild(h('div', 'wl-mk-note', `Buy and sell holdings at the spread. Deliveries (up to ${ORDER_MAX_UNITS} units) arrive on a region's import dock.`));
+    trade.appendChild(h('div', 'wl-mk-note', `You buy a little above the price and sell a little below it. Deliveries (up to ${ORDER_MAX_UNITS} at a time) arrive on a region's import dock.`));
     for (const kind of kinds) this.tradeCards.push(this.makeTradeCard(kind, trade));
     this.sections.set('trade', trade);
     // --- Invest
@@ -194,7 +194,7 @@ export class MarketPanel {
     invest.appendChild(this.positionTitle);
     this.positionList = h('div', 'wl-mk-positions');
     invest.appendChild(this.positionList);
-    this.positionEmpty = h('div', 'wl-mk-note', 'No positions yet. Deposit something above.');
+    this.positionEmpty = h('div', 'wl-mk-note', 'No investments yet. Pick one above to start.');
     invest.appendChild(this.positionEmpty);
     this.sections.set('invest', invest);
     for (const s of this.sections.values()) this.list.appendChild(s);
@@ -554,9 +554,9 @@ export class MarketPanel {
       put(c.quote, `Buy <b>${formatMoney(market.quote(c.kind, 'buy'))}</b> · Sell <b>${formatMoney(market.quote(c.kind, 'sell'))}</b>`);
       if (held > 0) {
         const pl = market.unrealised(c.kind);
-        put(c.held, `Held <b>${held.toLocaleString('en-US')}</b> · avg ${formatMoney(market.basis(c.kind))} · P/L <b class="${cls(pl)}">${signed(pl)}</b>`);
+        put(c.held, `You have <b>${held.toLocaleString('en-US')}</b> · paid ${formatMoney(market.basis(c.kind))} each · profit <b class="${cls(pl)}">${signed(pl)}</b>`);
       } else {
-        put(c.held, 'Nothing held');
+        put(c.held, 'You have none yet');
       }
       for (const b of c.buys) {
         const cost = market.buyCost(c.kind, b.units);
@@ -604,7 +604,7 @@ export class MarketPanel {
       }
       const amount = this.amountFor(c);
       let why = '';
-      if (full) why = `All ${max} positions are open`;
+      if (full) why = `All ${max} investment slots are in use`;
       else if (amount < def.min && market.cappedBySales(c.id) && market.capOf(c.id) < def.min) why = 'Room to invest grows with your sales';
       else if (amount < def.min) why = economy.money >= def.min ? `Capped at ${formatMoney(Math.floor(market.capOf(c.id)))} (${market.cappedBySales(c.id) ? `${def.capMinutes} minutes of your sales` : `${Math.round(def.cap * 100)}% of your net worth`})` : `Needs at least ${formatMoney(def.min)}`;
       put(c.btn, `Invest<small>${formatMoney(amount)}</small>`);
@@ -625,7 +625,7 @@ export class MarketPanel {
   private refreshPositions(): void {
     const { market } = this.ctx;
     const list = market.positions();
-    put(this.positionTitle, `Your positions <small>${list.length}/${investMaxPositions(this.ctx.state)}</small>`);
+    put(this.positionTitle, `Your investments <small>${list.length}/${investMaxPositions(this.ctx.state)}</small>`);
     const seen = new Set<number>();
     for (const p of list) {
       seen.add(p.id);
@@ -643,7 +643,7 @@ export class MarketPanel {
       if (p.product === 'bond') status = market.matured(p) ? 'Matured' : `Matures in ${formatDuration(market.maturesIn(p))}`;
       else status = `Held ${formatDuration(p.age)}`;
       put(row.status, status);
-      put(row.btn, p.product === 'bond' && !market.matured(p) ? 'Cash out<small>deposit only</small>' : 'Withdraw');
+      put(row.btn, p.product === 'bond' && !market.matured(p) ? 'Cash out<small>no interest yet</small>' : 'Cash out');
     }
     for (const [id, row] of this.positionRows) {
       if (seen.has(id)) continue;

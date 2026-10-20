@@ -47,3 +47,16 @@ body {
   background: #eef4fb;
   z-index: 100;
 }
+
+.fatal p {
+  max-width: 34em;
+  margin: 0 0 12px;
+}
+
+.fatal small {
+  display: block;
+  max-width: 40em;
+  font: 400 12px/1.4 ui-monospace, monospace;
+  color: #6b7a90;
+  overflow-wrap: anywhere;
+}

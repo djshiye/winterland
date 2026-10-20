@@ -24,7 +24,7 @@ import { cityPopulation, settlementLevel, settlementName } from '../core/demand'
 import { completion, completionTag, nextMissing } from '../core/completion';
 import { cityStanding, eraChipVisible, eraRoman, formatPopulation, IncomeTicker, rankName } from './agesLogic';
 import { cubicOut, h, onTap, shield } from './dom';
-import { hexCss } from './icons';
+import { hexCss, ICON_HOUSE } from './icons';
 import { chipGoalText, guideGoal, isExpandGoal } from '../progression/guideGoal';
 
 /** Seconds between next-goal reads (nextGoal prices the whole checklist). */
@@ -133,7 +133,7 @@ export class EraChip {
       this.root.setAttribute('aria-label', gating ? 'Open the era checklist' : 'Open the map');
       this.dot.style.display = gating ? 'none' : '';
       this.ring.style.display = gating ? '' : 'none';
-      if (!gating) this.setText(this.countEl, 'lastCount', '');
+      if (!gating) this.setCount('');
       this.lastCity = '';
       this.lastLabel = '';
       this.goalAcc = GOAL_EVERY;
@@ -192,7 +192,7 @@ export class EraChip {
     const { state, economy } = this.ctx;
     const c = gateCount(state, n);
     const finished = !ERAS[n] && c.ready; // the final gate is met: completion takes over
-    this.setText(this.countEl, 'lastCount', finished ? '' : gateNote({ ok: c.ok, total: c.total, settlement: { level: c.settlement }, settlementNeed: c.settlementNeed }));
+    this.setCount(finished ? '' : gateNote({ ok: c.ok, total: c.total, settlement: { level: c.settlement }, settlementNeed: c.settlementNeed }));
     const k = finished ? this.pct / 100 : c.total > 0 ? (c.ok + (c.settlement >= c.settlementNeed ? 1 : 0)) / (c.total + 1) : 0;
     const ring = Math.round(k * 200);
     if (ring !== this.lastRing) {
@@ -227,11 +227,23 @@ export class EraChip {
     }
   }
 
-  private setText(el: HTMLElement, key: 'lastCount', text: string): void {
-    if (this[key] === text) return;
-    this[key] = text;
-    el.textContent = text;
+  /**
+   * 0.9.12 (A9): "37/48 · Settlement 8/10". Phones have no room for the word, so there it is the village badge's house
+   * (the badge shows the settlement level with the same house); the aria-label spells it out either way.
+   */
+  private setCount(text: string): void {
+    if (this.lastCount === text) return;
+    this.lastCount = text;
+    const at = text.indexOf('Settlement ');
+    if (at < 0) {
+      this.countEl.textContent = text;
+      return;
+    }
+    const word = h('span', 'wl-erachip-sw', 'Settlement ');
+    const house = h('i', 'wl-erachip-house', ICON_HOUSE);
+    this.countEl.replaceChildren(text.slice(0, at), word, house, text.slice(at + 'Settlement '.length));
   }
+
 }
 
 /** Seconds a batch stays on screen. */

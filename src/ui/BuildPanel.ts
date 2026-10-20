@@ -9,7 +9,7 @@
  */
 import { BUSINESSES, TOWN, type BusinessDef, type BusinessId } from '../config';
 import type { GameContext, ItemKind } from '../core/types';
-import { MATERIALS, MATERIAL_KINDS, type MaterialKind } from '../eras/data';
+import { lowerLabel, MATERIALS, MATERIAL_KINDS, type MaterialKind } from '../eras/data';
 import type { Town } from '../town/Town';
 import { backOut, cubicOut, h, keyLabel, onTap, shield, Slide } from './dom';
 import { formatMoney } from './format';
@@ -28,7 +28,7 @@ const ITEM_NAME: Record<ItemKind, string> = {
   meat: 'meat',
   sausage: 'sausages',
   toy: 'toys',
-  ...(Object.fromEntries(MATERIAL_KINDS.map((k) => [k, MATERIALS[k].label.toLowerCase()])) as Record<MaterialKind, string>),
+  ...(Object.fromEntries(MATERIAL_KINDS.map((k) => [k, lowerLabel(MATERIALS[k].label)])) as Record<MaterialKind, string>),
 };
 
 /** "Needs wheat + logs" / "Makes bread" / "Grows wheat" / "Houses 10" — what the building does, in a few words. */

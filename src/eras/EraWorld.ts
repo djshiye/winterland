@@ -125,7 +125,7 @@ export class EraWorld {
       if ((offered || expansionPreview(state, n)) && !this.regions[n]) {
         const pad = this.padFor(n);
         const wasPayable = pad.visible && !pad.locked;
-        // preview: the gate's progress "37/48 · S8/10" under the padlock (redrawn only when the text changes)
+        // preview: the gate's progress "37/48 · Settlement 8/10" under the padlock (redrawn only when the text changes)
         pad.setLocked(offered ? null : gateNote(eraGate(state, n)));
         if (!pad.visible) pad.show(!live);
         if (!offered || wasPayable) continue;

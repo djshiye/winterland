@@ -1397,7 +1397,7 @@ function financeUpgrades(): Record<'jack' | 'taxOffice' | 'broker', UpgradeDef> 
     },
     broker: {
       id: 'broker', group: 'finance', label: 'Stock Broker',
-      blurb: 'Tighter trading spreads and better bond rates',
+      blurb: 'A smaller buy/sell gap at the market and better bond interest',
       values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0, 3.5, 4.2],
       costs: [],
       display: 'factor',
@@ -1452,7 +1452,7 @@ function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Belts' | 'Dock' | 
       const d = MACHINES[m];
       if (d.era !== n) continue;
       out[m] = {
-        id: m, group: 'machine', era: n, label: d.label, blurb: `Every ${d.label} works faster`,
+        id: m, group: 'machine', era: n, label: d.label, blurb: `Each level makes your ${d.label} faster`,
         values: [1, 1.06, 1.12, 1.18, 1.24, 1.3, 1.36, 1.42, 1.48, 1.54, 1.6], costs: [],
         display: 'boost', requires: { era: n },
       };
@@ -1752,8 +1752,8 @@ export const EVENTS = {
   minVillageLevel: 2,
   every: [240, 420] as readonly [number, number],
   kinds: {
-    snowstorm: { seconds: 60, walkSpeedMult: 0.6, firewoodMult: 2, snowfall: 3, label: 'Snowstorm!', hint: 'Slow going, and the shops burn firewood fast' },
-    festival: { seconds: 90, townBuyMult: 2, label: 'Festival day!', hint: 'Townsfolk buy twice as much' },
+    snowstorm: { seconds: 60, walkSpeedMult: 0.6, firewoodMult: 2, snowfall: 3, label: 'Snowstorm!', hint: 'Slow going, and the porter rushes firewood to the shops' },
+    festival: { seconds: 90, townBuyMult: 2, label: 'Festival day!', hint: 'Townsfolk come to shop twice as often' },
     aurora: { seconds: 120, priceMult: 1.25, requiresNight: true, label: 'Northern lights!', hint: 'Every sale pays 25% more' },
   },
 } as const;
