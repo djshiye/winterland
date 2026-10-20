@@ -263,7 +263,7 @@ function cityCtx(state: GameState): GameContext {
     player: { position: new THREE.Vector3(), arms: { count: () => 0 }, back: {} },
     economy: { money: 1e9, spend: () => true, add: () => undefined },
     upgrades: { value: () => 1 },
-    colliders: { addBounds: () => undefined, addBox: () => ({}), remove: () => undefined },
+    colliders: { addBounds: () => undefined, addBox: () => ({}), addCircle: () => ({}), remove: () => undefined },
     zones: {
       add: () => ({ enabled: false, setEnabled: () => undefined }),
       addTransfer: () => ({ enabled: false, setEnabled: () => undefined }),

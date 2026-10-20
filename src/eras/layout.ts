@@ -24,6 +24,7 @@ import { DISTRICTS, ERAS, REGIONS, ROADS, regionDef, type ERect, type GateSide }
 import type { GameState } from '../core/types';
 import { climbOpen, gateMet, padPaid } from './gate';
 import { DISTRICT_MARGIN, districtGrid, districtInner } from '../city/rules';
+import { DECOR_RADIUS, districtDecor, districtLamps } from '../city/decor';
 import { CAMERA, TRADE_POST } from '../config';
 import { marketPlaces } from './market';
 
@@ -1226,22 +1227,28 @@ export function travelPoints(state: GameState): TravelPoint[] {
 }
 
 /**
- * 0.9.12: where fast travel to district n lands: on its own front sidewalk (the south edge, on its street), between its
- * first two lot columns so it is on no lot pad, and the camera centres on its own lots. It used to land on the street
- * WEST of the district, 2 m outside it, which is right beside the previous district's houses (Dino: "the teleport to
- * the 3rd era teleports you to the houses of the first"). Pure.
+ * Where fast travel to district n lands: on its front sidewalk (the south edge, on its street), on a column line near the
+ * middle so it is on no lot pad, with every lot ahead of the player. The camera looks from +X/+Z, so nothing built stands
+ * between it and the player and the whole town rises up the screen. (0.9.12 landed three-row districts one row in, on
+ * the middle row's front walk: the front-row building then covered the player, who seemed to stand on its roof; review
+ * U1.) The spot keeps clear of the street furniture and the lamps (city/decor.ts). Pure.
  */
 export function districtArrival(n: number): XZ {
   const d = DISTRICTS[n]!;
   const inner = districtInner(n);
-  const cols = districtGrid(d.lots).cols;
-  const { rows } = districtGrid(d.lots);
-  const x = inner.minX + (inner.maxX - inner.minX) / cols;
-  if (rows < 3) return { x, z: d.rect.maxZ - DISTRICT_MARGIN / 2 };
-  // 0.9.12 (validator): a three-row district lands one row in, on the middle row's front walk between its first two
-  // lots, so the camera frames the town instead of the street south of it
-  const ch = (inner.maxZ - inner.minZ) / rows;
-  return { x, z: inner.minZ + (rows - 1) * ch - 1.6 };
+  const { cols } = districtGrid(d.lots);
+  const cw = (inner.maxX - inner.minX) / cols;
+  const z = d.rect.maxZ - DISTRICT_MARGIN / 2;
+  const mid = (inner.minX + inner.maxX) / 2;
+  const lines: number[] = [];
+  for (let c = 1; c < cols; c++) lines.push(inner.minX + c * cw);
+  lines.sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
+  const items = districtDecor(n);
+  const lamps = districtLamps(n);
+  const clear = (x: number): boolean =>
+    items.every((it) => Math.hypot(it.x - x, it.z - z) > DECOR_RADIUS[it.kind] * it.scale + 0.8) && lamps.every((l) => Math.hypot(l.x - x, l.z - z) > 1);
+  for (const line of lines) for (const dx of [0, 0.6, -0.6, 1.2, -1.2]) if (clear(line + dx)) return { x: line + dx, z };
+  return { x: lines[0] ?? mid, z };
 }
 
 /**

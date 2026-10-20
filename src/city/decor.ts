@@ -43,6 +43,24 @@ export const DECOR_RADIUS: Readonly<Record<DecorKind, number>> = {
   bikeRack: 0.45,
 };
 
+/**
+ * The collider circles of one item (x, z, r): a long item (bench, hedge, bike rack, 0.9 m along its local x) gets two
+ * small circles along its length, a round one a single circle a little inside its footprint, so the player walks round
+ * the furniture but never snags on its snow. Review E9: they used to have none, while region props block. Pure.
+ */
+export function decorColliders(it: DecorItem): { x: number; z: number; r: number }[] {
+  const k = it.scale;
+  if (it.kind === 'bench' || it.kind === 'hedge' || it.kind === 'bikeRack') {
+    const cs = Math.cos(it.yaw) * 0.25 * k;
+    const sn = Math.sin(it.yaw) * 0.25 * k;
+    return [
+      { x: it.x + cs, z: it.z - sn, r: 0.2 * k },
+      { x: it.x - cs, z: it.z + sn, r: 0.2 * k },
+    ];
+  }
+  return [{ x: it.x, z: it.z, r: DECOR_RADIUS[it.kind] * k * 0.8 }];
+}
+
 /** Items keep at least this far from walkways, lots, lanes and each other (a hand's width of snow). */
 const GAP = 0.1;
 /** Nothing stands closer than this (centre to lamp post) to a street lamp; trees, whose crowns hang over, keep more. */
