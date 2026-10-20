@@ -34,10 +34,10 @@ export function eraPlayerUpgrades(): Record<EraPlayerUpgradeId, UpgradeDef> {
     const place = ERAS[n]?.region ?? ERA_NAMES[n]!;
     const p = eraContent(n).player;
     const base = { group: 'lumberjack' as const, era: n, costs: [] as number[], requires: { era: n } };
-    out[`${key}Carry`] = { ...base, id: `${key}Carry`, label: p.carry, blurb: `Carry more while you work in ${place}`, values: ERA_CARRY_VALUES, display: 'count', unit: 'extra items' };
-    out[`${key}Boots`] = { ...base, id: `${key}Boots`, label: p.boots, blurb: `Walk faster through ${place}`, values: ERA_BOOTS_VALUES, display: 'boost' };
-    out[`${key}Tool`] = { ...base, id: `${key}Tool`, label: p.tool, blurb: `Work the ${eraContent(n).node.label} faster`, values: ERA_TOOL_VALUES, display: 'rate', unit: 'strikes/s' };
-    out[`${key}Pal`] = { ...base, id: `${key}Pal`, label: p.pal, blurb: `A companion who carries for you in ${place}`, values: ERA_PAL_VALUES, display: 'count', unit: 'extra items' };
+    out[`${key}Carry`] = { ...base, id: `${key}Carry`, label: p.carry, blurb: `Carry more, only inside ${place}`, values: ERA_CARRY_VALUES, display: 'count', unit: 'extra items' };
+    out[`${key}Boots`] = { ...base, id: `${key}Boots`, label: p.boots, blurb: `Walk faster, only inside ${place}`, values: ERA_BOOTS_VALUES, display: 'boost' };
+    out[`${key}Tool`] = { ...base, id: `${key}Tool`, label: p.tool, blurb: `Work the ${eraContent(n).node.label} in ${place} faster`, values: ERA_TOOL_VALUES, display: 'rate', unit: 'strikes/s' };
+    out[`${key}Pal`] = { ...base, id: `${key}Pal`, label: p.pal, blurb: `A companion who carries for you, only inside ${place}`, values: ERA_PAL_VALUES, display: 'count', unit: 'extra items' };
   });
   return out;
 }

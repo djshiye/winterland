@@ -13,6 +13,9 @@ export class IncomeWindow {
   private clock = 0;
   private played = 0;
 
+  /** `carried`: a rate ($/s) from before this session that fills the part of the window not played yet (0.9.12, E4). */
+  constructor(private readonly carried = 0) {}
+
   add(amount: number): void {
     if (Number.isFinite(amount) && amount > 0) this.buckets[this.buckets.length - 1]! += amount;
   }
@@ -31,7 +34,10 @@ export class IncomeWindow {
   /** Dollars per second over what has been played of the window (at least one bucket long, so a burst never spikes it). */
   get rate(): number {
     const sum = this.buckets.reduce((a, b) => a + b, 0);
-    return sum / Math.max(INCOME_BUCKET, Math.min(this.played, INCOME_BUCKET * INCOME_BUCKETS));
+    const window = INCOME_BUCKET * INCOME_BUCKETS;
+    const carried = Number.isFinite(this.carried) && this.carried > 0 ? this.carried : 0;
+    if (carried > 0 && this.played < window) return (sum + carried * (window - this.played)) / window;
+    return sum / Math.max(INCOME_BUCKET, Math.min(this.played, window));
   }
 }
 

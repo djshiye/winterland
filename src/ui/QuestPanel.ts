@@ -21,11 +21,15 @@ const ROWS = 3;
 
 /**
  * Pure (tests): how the panel starts. `preferred` is the stored choice ('1' collapsed, '0' open) or the screen default
- * (collapsed at 640 px or narrower); `early` holds it collapsed on a fresh game until the harvester is built (C5).
+ * (collapsed at 640 px or narrower, 0.9.12 (V13) also on windows 650 px tall or less, where the open list took a third
+ * of an 800 x 600 screen); `early` holds it collapsed on a fresh game until the harvester is built (C5).
  */
-export function questStartCollapse(stored: string | null, width: number, harvester: boolean): { early: boolean; preferred: boolean } {
-  return { early: !harvester, preferred: stored === null ? width <= 640 : stored === '1' };
+export function questStartCollapse(stored: string | null, width: number, harvester: boolean, height = Infinity): { early: boolean; preferred: boolean } {
+  return { early: !harvester, preferred: stored === null ? width <= 640 || height <= SHORT_SCREEN : stored === '1' };
 }
+
+/** Window height (px) at or under which the quest list starts folded and opens in its compact, wider form (hud.css). */
+export const SHORT_SCREEN = 650;
 
 interface Row {
   el: HTMLDivElement;
@@ -63,7 +67,7 @@ export class QuestPanel {
     } catch {
       /* storage unavailable */
     }
-    ({ early: this.early, preferred: this.preferred } = questStartCollapse(stored, window.innerWidth, ctx.state.unlocked.harvester));
+    ({ early: this.early, preferred: this.preferred } = questStartCollapse(stored, window.innerWidth, ctx.state.unlocked.harvester, window.innerHeight));
     this.collapsed = this.early || this.preferred;
 
     this.root = h('div', 'wl-quests');

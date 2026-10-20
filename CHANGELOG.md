@@ -41,6 +41,9 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Hanging shop signs and sky sounds.** The shops of eras II to V hang out a sign over the street, carved wood on an iron bracket and later an enamel plate in the era's colours. You hear sleigh bells, the airship's propeller or a passing drone now and then, in the eras they fly over.
 - **A centrepiece in every era market.** Each market square has its own, ringed with winter flowers and plenty of room to walk round: a lantern bearer and a smith on their plinths, a street clock, a girder arch, a lit fountain, a little derrick, a glowing data pillar, a fountain of glowing water and a floating orb.
 - **Icicles and snowdrifts.** Icicles hang from the eaves of the huts and shops in eras II to VIII, and soft drifts bank up against their side and back walls.
+- **Easier to spot the fun.** Snowballs and snowmen are bigger, a hit bursts into a little puff of snow, more kids come out to play, and every green already has a snowman or two standing when you arrive.
+- **Plazas on the big greens.** The larger hut greens in eras V to X get a ring walk and four paths out to their corners, so their middles no longer look empty.
+- **The sledding hill sits nearer the road.** You can watch the sledders from R1 without zooming out.
 - **A finished game may show less than 100 % now.** The new machine spots and lots count towards completion, so an older finished save shows a lower percentage until you build on them. Every trophy you've earned is kept.
 
 ### Connected machine yards
@@ -73,6 +76,32 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Granite Hollow by name.** The Great Lodge card now sends you "On to Granite Hollow", the place you see on the map.
 - **Down leaves the guidebook search box,** so you can reach the pages with the arrow keys.
 
+### Phones and small screens
+
+- **See more on a phone.** Held upright, a phone now shows about a third more of the world, the same scale as held sideways, so the counter, cash piles and pads are on screen from the start.
+- **A tidier top bar on phones.** The era checklist chip moved next to the quests button, so the village badge has its whole row: its name, population and town happiness no longer get cut off or hide under the chip.
+- **The goal banner stays put.** Opening the quest list on a phone no longer throws the goal banner to the bottom of the screen; the list opens just under it instead.
+- **A readable map on phones.** The map is drawn bigger and you drag it to look around, so region and district names are a real size. It opens centred on you.
+- **Price tags no longer pile up.** When signs and price tags would cover each other, the one nearest you shows and the others step aside until you walk closer.
+- **Tall towers open up wider** around you in the later city districts, so you can see the street and the MANAGE board you are standing by.
+- **Big numbers read easily.** The village badge shows "468K" people instead of "468085".
+- **Shop lines wrap** instead of being cut off ("2 extra i…").
+- **Short windows** (like 800 x 600) start with the quest list folded, and when you open it, it is wider and tighter.
+
+### Clearer rules
+
+- **The era checklist leads with the real cost.** It now says "Upgrades left: 28 (about $319M), then the expansion: $4.5M + 35 bricks", so the small pad price no longer hides the big part.
+- **Quest rewards stay put.** A reward is fixed when the quest first shows and kept in your save, so a reload no longer turns $120,000 into $5,000.
+- **Happiness and the northern lights say what they boost:** mill and Market Town sales. The guidebook adds that the market pays the same as the export depot, and that bigger docks and stalls only bring buyers more often.
+- **Parks no longer promise jobs.** Park cards say "no residents, no jobs", and workplace cards show how full their jobs are across the whole city.
+- **A heads-up before a lot blocks your quests.** If a park or workplace would leave too few lots for the district's homes and landmark goals, its card says so before you build, and once a district is too full, the workplace and park cards say which kind can come down to make room.
+- **Village level-ups list every new hire,** including the Sled Dog, Town Porter and Foreman you need for the Frontier.
+- **Builders explain their reserve.** Foremen always leave you part of your cash (40% in the eras, a fifth at the mill), and their shop text and the guidebook now say so.
+- **Era gear says where it works.** Each era's Carry, Boots, Tool and Pal upgrades say they work only inside their own region.
+- **Settlement gifts say to walk over them,** and the guidebook explains that machine staff count toward settlement and that residents fill jobs city-wide.
+- **The market is easier to read.** Each price line is coloured by the same % it shows, the Prices and Invest tabs open with one plain line of help, the bond text says a better Stock Broker pays more, and every investment says how much you can put in.
+- **While you were away, in full.** The guidebook says offline earnings never exceed a fifth of everything you've earned, that quests, contracts and Jack don't count, and that a hidden browser tab pauses the game.
+
 ### A guide you can follow
 
 - **The arrow points the way you can walk.** It follows the path round fences, rivers and buildings instead of pointing through them, and a short trail of gold dots on the ground shows the way when it bends or the goal is off-screen. It finds the way again after fast travel, the map or a reload.
@@ -83,6 +112,7 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **The arrow takes you all the way.** It stays up until you're standing on the pad that does the work, city goals point at a free lot rather than the whole district, and an empty maker sends you to feed it first.
 - **You wake up where you left off.** Reloading puts you back where you were standing (just beside a pad or pile if you were on one), not back at the cabin.
 - **The arrow keeps clear of the banner and the corner cards** (money, Winterland, quests, buttons), and the on-screen move pad stays hidden on desktop.
+
 
 ## 0.9.11 (2026-10-19)
 

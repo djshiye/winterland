@@ -151,6 +151,11 @@
   color: var(--wl-info-text);
 }
 
+/* 0.9.12 (R4): a heads-up the card can still be picked through ("your quests need 3 more homes here") */
+.wl-build-stat.is-warn {
+  color: var(--wl-bad-text);
+}
+
 .wl-build-blurb {
   font-size: 12px;
   line-height: 1.15;

@@ -750,6 +750,51 @@ export function greenWalk(P: PlotPlaces): { c: XZ; doors: XZ[]; ring: XZ[]; spok
   return { c, doors, ring, spoke, r };
 }
 
+/** 0.9.12 polish: the plaza walks a big green gets (world/env/plots.ts buildGreen draws them), their half width (m) and
+ * the clearance (m) every decor piece and activity spot keeps from their edge so nothing stands on a walk. */
+export const PLAZA_HALF = 0.2;
+export const PLAZA_CLEAR = 0.8;
+/** Greens at least this big (m²) get the plaza walks. */
+const PLAZA_AREA = 400;
+
+/**
+ * A big crew green's plaza walks (pure): a ring walk of radius `R` (its outer edge; the band is 2·PLAZA_HALF wide) round
+ * the centrepiece and four walks from it out toward the green's corners, as centre-line segments (`segs`,
+ * the ring as a 48-sided polyline). Null for a green under PLAZA_AREA.
+ */
+export function greenPlaza(P: PlotPlaces): { c: XZ; R: number; corner: [XZ, XZ][]; segs: [XZ, XZ][] } | null {
+  const G = P.green;
+  const hw = (G.maxX - G.minX) / 2;
+  const hd = (G.maxZ - G.minZ) / 2;
+  if (hw * hd * 4 < PLAZA_AREA) return null;
+  const c = { x: (G.minX + G.maxX) / 2, z: (G.minZ + G.maxZ) / 2 };
+  // clear of the green's own benches (1.6 m long, 3.2 m either side of the centre)
+  const R = Math.max(Math.min(hw, hd) * 0.58, 5.2);
+  const corner: [XZ, XZ][] = [];
+  for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
+    // from the ring walk outward (inside the ring the lawn stays open for the benches and the snowball fights)
+    const r0 = (R - PLAZA_HALF) / Math.hypot(hw, hd);
+    const r1 = 0.82;
+    corner.push([{ x: c.x + sx * hw * r0, z: c.z + sz * hd * r0 }, { x: c.x + sx * hw * r1, z: c.z + sz * hd * r1 }]);
+  }
+  const segs: [XZ, XZ][] = [...corner];
+  const rc = R - PLAZA_HALF;
+  for (let k = 0; k < 48; k++) {
+    const a0 = (k / 48) * Math.PI * 2;
+    const a1 = ((k + 1) / 48) * Math.PI * 2;
+    segs.push([{ x: c.x + Math.cos(a0) * rc, z: c.z + Math.sin(a0) * rc }, { x: c.x + Math.cos(a1) * rc, z: c.z + Math.sin(a1) * rc }]);
+  }
+  return { c, R, corner, segs };
+}
+
+/** How far (m) the point is from the nearest plaza walk's centre line (Infinity without one). Pure. */
+export function plazaDist(P: PlotPlaces, x: number, z: number): number {
+  const pl = greenPlaza(P);
+  let d = Infinity;
+  if (pl) for (const [a, b] of pl.segs) d = Math.min(d, distToSeg(x, z, a, b));
+  return d;
+}
+
 const routesCache = new Map<string, PlotRoute[]>();
 const keepCache = new Map<string, PlotKeepOut[]>();
 const decorCache = new Map<string, DecorPlace[]>();
@@ -916,6 +961,13 @@ export function plotDecor(n: number): DecorPlace[] {
       const [x0, x1, z0, z1] = cellsOf({ minX: Math.min(a.x, b.x) - ROUTE_HALF - C, maxX: Math.max(a.x, b.x) + ROUTE_HALF + C, minZ: Math.min(a.z, b.z) - ROUTE_HALF - C, maxZ: Math.max(a.z, b.z) + ROUTE_HALF + C });
       for (let iz = z0; iz <= z1; iz++) for (let ix = x0; ix <= x1; ix++) if (!route[iz * NX + ix] && distToSeg(gx0 + (ix + 0.5) * C, gz0 + (iz + 0.5) * C, a, b) < ROUTE_HALF + C * 0.71) route[iz * NX + ix] = 1;
     }
+  }
+  // 0.9.12 polish: nothing stands on the big green's plaza walks
+  const plaza = greenPlaza(plotPlaces(n));
+  const PLAZA_KEEP = PLAZA_HALF + PLAZA_CLEAR;
+  for (const [a, b] of plaza?.segs ?? []) {
+    const [x0, x1, z0, z1] = cellsOf({ minX: Math.min(a.x, b.x) - PLAZA_KEEP - C, maxX: Math.max(a.x, b.x) + PLAZA_KEEP + C, minZ: Math.min(a.z, b.z) - PLAZA_KEEP - C, maxZ: Math.max(a.z, b.z) + PLAZA_KEEP + C });
+    for (let iz = z0; iz <= z1; iz++) for (let ix = x0; ix <= x1; ix++) if (!route[iz * NX + ix] && distToSeg(gx0 + (ix + 0.5) * C, gz0 + (iz + 0.5) * C, a, b) < PLAZA_KEEP + C * 0.71) route[iz * NX + ix] = 1;
   }
   const statics = SIGHT_H.map((hh) => {
     const g = route.slice();
@@ -1094,6 +1146,7 @@ export function greenActivities(n: number): GreenActivity[] {
       const alongX = d.hx >= d.hz;
       for (const side of [1, -1]) {
         const st = alongX ? { x: d.x, z: d.z + side * (d.hz + 0.55) } : { x: d.x + side * (d.hx + 0.55), z: d.z };
+        if (plazaDist(P, st.x, st.z) < PLAZA_HALF + PLAZA_CLEAR) continue;
         const ring = nearestRing(st, d);
         if (ring < 0) continue;
         out.push({ kind: 'snowman', x: st.x, z: st.z, yaw: Math.atan2(d.x - st.x, d.z - st.z), ring, ax: st.x, az: st.z, sx: d.x, sz: d.z });

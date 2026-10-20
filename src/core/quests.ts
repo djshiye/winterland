@@ -196,15 +196,16 @@ export interface ActiveQuest {
 export class Quests {
   private check = 0;
   private gap = 0;
-  private readonly income = new IncomeWindow();
-  /** Rewards fixed when a quest first shows (era 2+), so the number on the panel never drifts. */
-  private readonly rewards = new Map<string, number>();
+  private readonly income: IncomeWindow;
 
+  /** `carried`: the saved sales rate ($/s), so a quest first shown just after a load is not priced from an empty window. */
   constructor(
     private readonly state: GameState,
     private readonly economy: Economy,
     private readonly events: EventBus<GameEvents>,
+    carried = 0,
   ) {
+    this.income = new IncomeWindow(carried);
     events.on('sale', (e) => {
       if (e.buyer !== 'jack') this.income.add(e.amount);
     });
@@ -230,13 +231,16 @@ export class Quests {
     return ordered.slice(0, ACTIVE_QUESTS).map((def) => ({ def, progress: Math.min(def.target, Math.max(0, def.progress(this.state))), reward: this.rewardOf(def) }));
   }
 
-  /** def.reward in era 1; from era 2 on at least QUEST_INCOME_SECONDS of recent sales, fixed when first asked. */
+  /**
+   * def.reward in era 1; from era 2 on at least QUEST_INCOME_SECONDS of recent sales, fixed when first asked.
+   * 0.9.12 (E4): the fixed reward is saved (state.questRewards), so a reload no longer turns $120,000 into $5,000.
+   */
   private rewardOf(def: QuestDef): number {
     if (this.state.eras.age < 2) return def.reward;
-    let r = this.rewards.get(def.id);
+    let r = this.state.questRewards[def.id];
     if (r === undefined) {
       r = Math.max(def.reward, sig2Money(this.income.rate * QUEST_INCOME_SECONDS));
-      this.rewards.set(def.id, r);
+      this.state.questRewards[def.id] = r;
     }
     return r;
   }
@@ -269,8 +273,51 @@ export class Quests {
   private complete(def: QuestDef, reward: number): void {
     this.state.quests[def.id] = true;
     this.gap = COMPLETE_GAP;
-    this.rewards.delete(def.id);
+    delete this.state.questRewards[def.id];
     this.economy.add(reward);
     this.events.emit('quest:done', { id: def.id, title: def.title, reward });
   }
+}
+
+/** What era n's quest trio still wants in its district, ignoring lot `skip`: homes and the landmark, and the empty lots left. */
+function trioNeeds(s: GameState, n: number, skip: number): { homes: number; landmark: number; free: number } | null {
+  const lots = s.city.districts[n]?.lots;
+  if (!lots) return null;
+  const others = lots.filter((_, i) => i !== skip);
+  const chosen = (k: CityBuildingKind): number => others.filter((l) => l.building !== '' && CITY_BUILDINGS[l.building].kind === k).length;
+  const target = Math.max(1, (DISTRICTS[n]?.lots ?? 2) - 2);
+  return {
+    homes: s.quests[`trio${n}homes`] ? 0 : Math.max(0, target - chosen('home')),
+    landmark: s.quests[`trio${n}landmark`] || chosen('landmark') > 0 ? 0 : 1,
+    free: others.filter((l) => l.building === '').length,
+  };
+}
+
+const wantText = (homes: number, landmark: number): string =>
+  [homes > 0 ? `${homes} more home${homes === 1 ? '' : 's'}` : '', landmark ? 'the landmark' : ''].filter(Boolean).join(' and ');
+
+/**
+ * 0.9.12 (R4): a heads-up on the city choose card. Era n's quest trio wants (lots − 2) homes and the landmark in its
+ * district, so a park or a workplace on lot `lot` can leave too few lots and force a demolish later. Returns the
+ * warning when picking a building of `kind` there would do that (undefined when it is fine or both goals are done).
+ * When even this lot can't make room any more (a district already full of workplaces), it says what has to come down.
+ */
+export function trioRoomWarning(s: GameState, n: number, lot: number, kind: CityBuildingKind): string | undefined {
+  if (kind === 'home' || kind === 'landmark') return undefined;
+  const t = trioNeeds(s, n, lot);
+  if (!t || t.homes + t.landmark <= t.free) return undefined;
+  const want = wantText(t.homes, t.landmark);
+  if (t.homes + t.landmark > t.free + 1) return `Your quests need ${want} here, more than the empty lots. Take down a workplace or park to make room`;
+  return `Leaves too few lots for your quests: ${want} here`;
+}
+
+/**
+ * 0.9.12 (R4, Validator note): the manage card of a built workplace or park, when the district has no room left for
+ * its quest trio (more homes and landmark wanted than empty lots), says this building can make room.
+ */
+export function trioMakeRoomNote(s: GameState, n: number, lot: number, kind: CityBuildingKind): string | undefined {
+  if (kind === 'home' || kind === 'landmark') return undefined;
+  const t = trioNeeds(s, n, lot);
+  if (!t || t.homes + t.landmark <= t.free) return undefined;
+  return `Your quests need ${wantText(t.homes, t.landmark)} here. Taking this down makes room`;
 }

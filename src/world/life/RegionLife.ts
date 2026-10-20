@@ -38,7 +38,7 @@ const ACT_CHANCE = 0.4;
 /** Chance a person stepping out of a door sweeps the doorstep first (daytime). */
 const SWEEP_CHANCE = 0.3;
 /** Kids on the green (they start snowball fights with each other). */
-const KID_CHANCE = 0.35;
+const KID_CHANCE = 0.5;
 /** A snowball fight: two kids on ring spots this far apart (m), for this long (s). */
 const FIGHT_RANGE: readonly [number, number] = [1.4, 5.5];
 const FIGHT_TIME: readonly [number, number] = [9, 15];
@@ -46,6 +46,10 @@ const BALL_FLIGHT = 0.7;
 /** A snowman takes this long to build (s) and stands this long once nobody is building it. */
 const BUILD_TIME = 16;
 const SNOWMAN_STAYS = 150;
+/** Share of a green's snowman spots that already have one standing when you arrive (built before you came). */
+const SNOWMEN_WAITING = 0.6;
+/** A snowball bursts into a puff of snow on a hit, over this long (s). */
+const PUFF_TIME = 0.45;
 
 interface Spot {
   x: number;
@@ -158,6 +162,8 @@ export class RegionLife {
   /** Snowmen standing or growing, per snowman activity index: growth 0 … 1 and how long it still stands. */
   private readonly snowmen = new Map<number, { g: number; stays: number }>();
   private readonly balls: Ball[] = [];
+  /** Snow puffs where a snowball hit (t 0 … 1). */
+  private readonly puffs: { x: number; z: number; t: number; seed: number }[] = [];
   private props: GreenProps | null = null;
 
   constructor(
@@ -181,7 +187,13 @@ export class RegionLife {
       this.acts = n >= 2 ? greenActivities(n) : [];
       this.actTaken = this.acts.map(() => false);
       this.snowmen.clear();
+      // some snowmen are already standing when you arrive (at least one on a green that has a spot for one)
+      const spots = this.acts.map((a, i) => (a.kind === 'snowman' ? i : -1)).filter((i) => i >= 0);
+      spots.forEach((i, k) => {
+        if (k === 0 || Math.random() < SNOWMEN_WAITING) this.snowmen.set(i, { g: 1, stays: SNOWMAN_STAYS * (0.5 + Math.random()) });
+      });
       this.balls.length = 0;
+      this.puffs.length = 0;
       this.builtKey = '';
       this.check = 0;
     }
@@ -219,10 +231,12 @@ export class RegionLife {
       if (b.t >= 1) {
         // a hit: the other kid hops and laughs
         if (this.walkers.includes(b.to)) b.to.p.cheer = 1;
+        this.puffs.push({ x: b.bx, z: b.bz, t: 0, seed: Math.random() * 6.28 });
         this.balls.splice(i, 1);
       }
     }
-    if (!this.snowmen.size && !this.balls.length && !this.walkers.some((w) => w.act?.kind === 'sweep' && w.act.stage === 'do')) {
+    for (let i = this.puffs.length - 1; i >= 0; i--) if ((this.puffs[i]!.t += dt / PUFF_TIME) >= 1) this.puffs.splice(i, 1);
+    if (!this.snowmen.size && !this.balls.length && !this.puffs.length && !this.walkers.some((w) => w.act?.kind === 'sweep' && w.act.stage === 'do')) {
       if (this.props) this.props.group.visible = false;
       return;
     }
@@ -240,6 +254,13 @@ export class RegionLife {
     const t = this.ctx.time.elapsed;
     for (const w of this.walkers) if (w.act?.kind === 'sweep' && w.act.stage === 'do') P.broom(w.x, w.z, w.yaw, Math.sin(t * 5 + w.p.seed * 7));
     for (const b of this.balls) P.ball(b.ax + (b.bx - b.ax) * b.t, 0.9 + Math.sin(b.t * Math.PI) * 1.1, b.az + (b.bz - b.az) * b.t);
+    for (const f of this.puffs) {
+      for (let k = 0; k < 6; k++) {
+        const a = f.seed + (k / 6) * Math.PI * 2;
+        const r = 0.12 + f.t * 0.45;
+        P.ball(f.x + Math.cos(a) * r, 1.0 + f.t * 0.25 - f.t * f.t * 0.7, f.z + Math.sin(a) * r, 0.55 * (1 - f.t));
+      }
+    }
     P.end();
   }
 

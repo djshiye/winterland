@@ -31,7 +31,7 @@ import { completion, completionTag, nextMissing, type CompletionItem } from '../
 import { climbOpen, eraGate, eraMatOf, FINAL_GATE, FINAL_NAME, gateGroups, gateRuleText, hasGate, openRows, padPaid, padTarget, prereqTarget, settlementGoal, waitsForSettlement, type EraGate, type GateRow, type NextGoal } from '../eras/gate';
 import { machinePadTarget } from '../eras/rules';
 import { regionLayout, travelPoints } from '../eras/layout';
-import { eraRoman, expansionCostText, gateRowLine } from './agesLogic';
+import { eraRoman, expansionCostText, gateMoneyLine, gateRowLine } from './agesLogic';
 import { h, keyLabel, onTap } from './dom';
 import { hexCss, ICON_CLOSE, ICON_HOUSE, ICON_LOCK, upgradeIcon } from './icons';
 import { Sheet } from './sheet';
@@ -337,7 +337,10 @@ export class GateCard {
     const c = completion(s);
     this.missing = final && g.ready ? nextMissing(s) : null;
     if (final) this.text(this.nextEl, g.ready ? 'Every upgrade is at Lv 10!' : `Then ${FINAL_NAME}: the last pieces for 100%`);
-    else this.text(this.nextEl, g.ready ? 'Every upgrade is ready!' : `Then the ${expansionCostText(n).replace(/^Expansion/, 'expansion')}`);
+    else {
+      const left = g.rows.filter((r) => r.state !== 'ok');
+      this.text(this.nextEl, g.ready ? 'Every upgrade is ready!' : gateMoneyLine(n, left.length, left.reduce((t, r) => t + r.costToNeed, 0)));
+    }
 
     // a pad with something already paid in stays on sale (grandfathered), whatever the checklist says
     const offered = g.ready || (!final && padPaid(s, n) > 0);

@@ -663,7 +663,7 @@ export const INVEST: Record<InvestProductId, InvestProductDef> = {
   // ventures ×3 an hour) on 10 / 10 / 5 minutes of sales added about +50% to sales income (+58% with the Broker), and the
   // era pacing curve (tests/livePacing.test.ts) leaves investing out, so an investor cleared eras a third faster. Now the
   // best play adds about +10% (at most ~+15% with a maxed Broker, checking every price tick): tests/market.test.ts.
-  bond: { id: 'bond', label: 'Winter Bonds', blurb: 'Safe: +4% after 10 minutes. Cash out early and you get back just what you put in', min: 1_000, lock: 600, rate: 0.04, volatility: 0, cap: 0.5, capMinutes: 6, era: 2 },
+  bond: { id: 'bond', label: 'Winter Bonds', blurb: 'Safe and steady; a better Stock Broker pays more. Cash out early for just what you put in', min: 1_000, lock: 600, rate: 0.04, volatility: 0, cap: 0.5, capMinutes: 6, era: 2 },
   // a little better than bonds per 10 minutes (about +5% vs +4%), with no lock but some risk, and a ceiling
   index: { id: 'index', label: 'Snow Index Fund', blurb: 'Tracks the whole market: a bit faster than bonds, no lock, wobbles on the way, doubles at most', min: 1_000, rate: 0.35, volatility: 0.004, dip: 0.08, rise: 0.08, top: 2, cap: 0.3, capMinutes: 6, era: 2 },
   venture: { id: 'venture', label: 'Era Ventures', blurb: 'Back an era: faster growth up to ×3, but it can dip hard', min: 10_000, rate: 0.55, volatility: 0.01, dip: 0.35, rise: 0.15, top: 3, cap: 0.2, capMinutes: 3, era: 3 },

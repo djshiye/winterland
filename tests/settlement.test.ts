@@ -295,8 +295,8 @@ describe('Renown and the band perks', () => {
   });
 
   it('the card lists the perks the crossed band positions brought', () => {
-    expect(settlementPerks(6, 5, 3000)).toEqual(['Renown ×1.02', '$3,000 gift on the avenue', 'New quests']);
-    expect(settlementPerks(9, 7, 3000)).toEqual(['Renown ×1.08', '$3,000 gift on the avenue', 'City happiness +5%', '+1 investment slot']);
+    expect(settlementPerks(6, 5, 3000)).toEqual(['Renown ×1.02', '$3,000 gift: walk over it on the avenue', 'New quests']);
+    expect(settlementPerks(9, 7, 3000)).toEqual(['Renown ×1.08', '$3,000 gift: walk over it on the avenue', 'City happiness +5%', '+1 investment slot']);
   });
 
   it('requires.settlement gates an upgrade until the level is reached', () => {
@@ -425,5 +425,15 @@ describe('City announces new levels', () => {
     events.emit('village:changed', { population: 200, level: 5 });
     expect(up).not.toHaveBeenCalled();
     expect(settlementLevel(s)).toBe(5);
+  });
+});
+
+describe('village level perks name every hire (0.9.12, R5)', () => {
+  it('adds the hires a level opens to its perk chips', async () => {
+    const { villagePerks } = await import('../src/ui/EraCard');
+    expect(villagePerks(2)).toContain('Sled Dog for hire');
+    expect(villagePerks(3)).toContain('Town Porter for hire');
+    expect(villagePerks(4)).toContain('Foreman for hire');
+    expect(villagePerks(1).filter((p) => p.includes('Crate Runner'))).toHaveLength(1);
   });
 });
