@@ -9,7 +9,8 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 ### Smoother in motion
 
 - **Shoppers head home.** Era market shoppers no longer gather at the crossroads by the Granite Hollow market, where they stood for good while more piled up. They now walk off down the long side of the road until they're out of sight.
-- **Look both ways.** Shoppers wait at the kerb while a vehicle comes, and buyer carts and trucks slow down for anyone crossing in front of the market.
+- **Look both ways.** Shoppers wait at the kerb while a vehicle comes, and buyer carts and trucks stop a safe step short of anyone crossing in front of the market.
+- **The market gate stays clear.** The second buyer in line no longer parks right across the market gate, so shoppers never walk through a cart.
 - **No more parking inside each other.** Tricycles, trucks and walk-in customers that wait at the end of their road now stand a proper gap apart, and a tricycle is never pulled back up the road when the new land appears.
 - **Steady traffic when a new era opens.** Opening Silicon Shore no longer makes every buyer truck on the southern road jump 80 m along it.
 - **A new hut doesn't empty the green.** People chatting round the fire on a region's green stay put when you build a new hut; its family simply comes out to join them.
