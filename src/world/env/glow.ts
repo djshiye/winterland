@@ -27,6 +27,8 @@ let last = -1;
 let twinkle = 0;
 /** Comfort Glow 0..1. */
 let strength = 1;
+/** 0.9.13: the night amount × Comfort Glow as a shader uniform (render/duskWindows.ts: windows coming on at dusk). */
+export const dusk = { value: 0 };
 
 /**
  * Register a (shared) emissive material: at night its emissiveIntensity becomes `base * boost`.
@@ -49,6 +51,7 @@ export function updateGlow(d: number): void {
   if (d === last) return;
   last = d;
   for (const e of entries) applyEntry(e, d);
+  dusk.value = Math.max(0, d) * strength;
   if (haloMat) haloMat.opacity = Math.min(1, d * 1.15) * strength;
   const on = d > 0.02 && strength > 0;
   for (const h of halos) h.visible = on;

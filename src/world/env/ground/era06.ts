@@ -27,6 +27,7 @@ import { pineGeo, pineTallGeo } from '../props';
 import { nodePatch, regionPaths } from '../frontier';
 import type { EraGroundModule, GroundKit } from '../eraGround';
 import { placeWarmSpot, warmSpotRect } from './warmSpots';
+import { yardSignatureRects } from './yardSignature';
 import { around, beltSpots, cablePoints, cellMarks, harvestSpots, Kit, pathPoles, yardBand, type GroundSolid, clip, sightKeep, snowAvoid, snowDrifts, snowVerges } from './kit4to7';
 
 const T = MACHINE_TONES[6];
@@ -71,7 +72,7 @@ export function landKeepOut(l: RegionLayout): Rect[] {
 
 /** The landmark's keep-outs plus the warm-up spot's. */
 function keepOut(l: RegionLayout): Rect[] {
-  return [...landKeepOut(l), ...warmSpotRect(l, 6, landKeepOut(l))];
+  return [...landKeepOut(l), ...warmSpotRect(l, 6, landKeepOut(l)), ...yardSignatureRects(l)];
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

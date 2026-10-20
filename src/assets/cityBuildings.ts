@@ -21,7 +21,8 @@ import * as THREE from 'three';
 import { Batch, vcMat } from '../render/batch';
 import { SNOW, palette } from '../render/palette';
 import { geo, toon, toonUnique } from '../render/materials';
-import { registerGlow } from '../world/env/glow';
+import { dusk, registerGlow } from '../world/env/glow';
+import { DUSK_GLSL } from '../render/duskWindows';
 import { CITY_BUILDINGS, CITY_BUILDING_IDS, type CityBuildingDef, type CityBuildingId } from '../eras/data';
 import { maxFootprint, visualHeight } from '../city/rules';
 
@@ -99,8 +100,9 @@ function glassMat(): THREE.MeshToonMaterial {
     m.vertexColors = true;
     m.onBeforeCompile = (shader) => {
       shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vWinUv;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWinUv = uv;');
+      shader.uniforms.uDusk = dusk;
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vWinUv;')
+        .replace('#include <common>', `#include <common>\nvarying vec2 vWinUv;\n${DUSK_GLSL}`)
         .replace(
           '#include <emissivemap_fragment>',
           `vec2 wf = fract(vWinUv);
@@ -115,7 +117,10 @@ function glassMat(): THREE.MeshToonMaterial {
           float sheen = smoothstep(0.08, 0.0, abs(wf.x - wf.y * 0.7 - 0.12)) * 0.35;
           diffuseColor.rgb = mix(vec3(0.38, 0.5, 0.62), vec3(0.62, 0.74, 0.84), sky * 0.7 + wh * 0.3) + sheen;
           diffuseColor.rgb = mix(diffuseColor.rgb, vColor.rgb * vec3(0.95, 0.82, 0.66), step(0.86, wh) * 0.7);
-          totalEmissiveRadiance = emissive * vColor.rgb * lit * (0.4 + 0.5 * wh);`,
+          totalEmissiveRadiance = emissive * vColor.rgb * lit * (0.4 + 0.5 * wh);
+          // 0.9.13: at dusk each lit pane keeps its day glow until its turn comes (render/duskWindows.ts); the registry
+          // has already raised emissive by (1 + 6·d), so a pane not yet on is scaled back to its day share
+          totalEmissiveRadiance *= mix(1.0 / (1.0 + 6.0 * uDusk), 1.0, duskOn(fract(wh * 7.31)));`,
         );
     };
     m.customProgramCacheKey = () => 'cityGlass';

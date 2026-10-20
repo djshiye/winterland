@@ -530,6 +530,11 @@ function marketStreets(shape: StreetShape, L: RegionLayout, n: number): { street
     default:
       rows({ streetW: STREET_W, gap: 1.6, shopW: (p) => Math.min(4.6, p - 0.7), minPitch: 5.4, lampIn: false });
   }
+  // 0.9.13 (review E6): in the arcade and the strip every third shop grows a second storey, so a street isn't one low shop repeated
+  if (n === 6 || n === 7) {
+    let k = 0;
+    for (const s of shops) if (!s.stall && k++ % 3 === 2) s.h = TALL_SHOP_H;
+  }
   return { streets, shops, lamps };
 }
 
@@ -681,7 +686,7 @@ export function plotPlaces(n: number): PlotPlaces {
  *    the ring's chords. The rest of the green is free ground.
  * Pads, counters, the cash pile, the vault, the queue, hut doors and annexes, shop fronts and streets are keep-outs.
  */
-export type DecorKind = 'crates' | 'sacks' | 'barrels' | 'heap' | 'bench' | 'lamp' | 'snow' | 'notice' | 'cart' | 'sig' | 'fir' | 'shrub' | 'centre';
+export type DecorKind = 'crates' | 'sacks' | 'barrels' | 'heap' | 'bench' | 'lamp' | 'snow' | 'notice' | 'cart' | 'sig' | 'fir' | 'shrub' | 'centre' | 'stall' | 'snowman' | 'van';
 
 export interface DecorPlace {
   kind: DecorKind;
@@ -730,7 +735,17 @@ export const DECOR_SIZE: Readonly<Record<DecorKind, readonly [number, number, nu
   shrub: [0.55, 0.5, 0.8],
   // 0.9.12 the market's centrepiece: a statue, a fountain or a flower bed round a pillar (world/env/plots.ts)
   centre: [1.15, 1.15, 2.4],
+  // 0.9.13 (review E5, E6) eras 6-10: an open-air market stall and a snowman for the huts green, and the market's parked era vehicle (eras 6-8)
+  stall: [0.9, 0.6, 2.4],
+  snowman: [0.4, 0.4, 1.6],
+  van: [1.8, 0.9, 1.9],
 };
+
+/** Eras 6-7 (arcade, strip): every third shop is a two-storey one this tall (its built top, sign and roof furniture included, stays under TALL_SHOP_TOP). */
+export const TALL_SHOP_H = 4.3;
+export const TALL_SHOP_TOP = 4.6;
+/** The crew green's centrepiece (eras 6-10): everything within this radius of the green's centre (walkers circle at 1.7 m). */
+export const GREEN_PIECE_R = 1.2;
 
 const GREEN_CLEAR = 1.7; // RegionLife CLEAR: keep this far from the centrepiece
 
@@ -924,6 +939,10 @@ const VIGNETTES: Readonly<Record<string, readonly VItem[]>> = {
   grove: [{ kind: 'fir', dx: 0, dz: 0 }, { kind: 'fir', dx: 1.65, dz: 0.55, v: 1 }, { kind: 'shrub', dx: 0.55, dz: 1.45 }],
   shrubs: [{ kind: 'shrub', dx: 0, dz: 0 }, { kind: 'shrub', dx: 1.2, dz: 0.25, v: 1 }],
   firBench: [{ kind: 'fir', dx: 0, dz: 0, v: 1 }, { kind: 'bench', dx: 1.75, dz: 0.2 }],
+  // 0.9.13 (review E5, E6) eras 6-10: market stalls and a snowman on the huts green, the parked era vehicle in the market (6-8)
+  stalls: [{ kind: 'stall', dx: 0, dz: 0 }, { kind: 'crates', dx: 1.6, dz: 0.1, v: 1 }],
+  snowman: [{ kind: 'snowman', dx: 0, dz: 0 }, { kind: 'snow', dx: 1.3, dz: 0.3, v: 1 }],
+  van: [{ kind: 'van', dx: 0, dz: 0 }],
 };
 
 /** What each zone gets, in order (repeats when the free ground allows more). Every era's clutter piece comes early. */
@@ -1064,9 +1083,11 @@ export function plotDecor(n: number): DecorPlace[] {
         fill(occ, grow(rectOf(best.it), Math.min(best.pad, CENTRE_ROOM)));
       }
     }
+    // eras 6-10: the huts green starts with stalls, a snowman, stalls; eras 6-8 park their vehicle first in the market
+    const lead = n >= 6 ? (zone === 'huts' ? ['stalls', 'snowman', 'stalls'] : n <= 8 ? ['van'] : []) : [];
     const recipe = RECIPE[zone];
-    for (let vi = 0; vi < want; vi++) {
-      const tpl = VIGNETTES[recipe[vi % recipe.length]!]!;
+    for (let vi = 0; vi < want + lead.length; vi++) {
+      const tpl = VIGNETTES[vi < lead.length ? lead[vi]! : recipe[(vi - lead.length) % recipe.length]!]!;
       let best: { score: number; items: Item[] } | null = null;
       for (let x = Zi.minX; x <= Zi.maxX; x += DECOR_STEP) {
         for (let z = Zi.minZ; z <= Zi.maxZ; z += DECOR_STEP) {
