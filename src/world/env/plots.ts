@@ -1385,6 +1385,104 @@ function drum(f: Frame, g: Frame, n: number, S: DecorStyle, x: number, z: number
 }
 
 /** Draw every decor piece (statics: body, lit parts, lamp bulbs). No extra draw calls: it all joins the region's batches. */
+/**
+ * 0.9.12 (Dino: "plaza centrepieces"): the market's centrepiece, in its era's own style, on a round snowy kerb with
+ * winter flowers. II-III a statue on a plinth (a lantern bearer, a smith with his hammer), IV a street clock, V a
+ * girder sculpture, VI a lit deco fountain, VII a little oil derrick monument, VIII a glowing data pillar, IX a fountain
+ * of glowing aqua water, X an orb floating over a ring. About 2.3 m across (DECOR_SIZE.centre), its collider the same.
+ */
+function buildCentre(f: Frame, g: Frame, b: Frame, n: number, S: DecorStyle, accent: number, glowC: number): void {
+  const stone = n <= 4 ? 0xb4aca0 : n <= 7 ? 0xa9adb0 : 0xdcdfe4;
+  const leaf = shade(FIR_GREEN[n] ?? 0x2f6b4a, 1.1);
+  // the round kerb and its bed of winter flowers
+  f.put(geo.cylinder(1.12, 1.15, 0.3, 24), stone, 0, 0.15, 0);
+  f.put(geo.cylinder(1.0, 1.0, 0.04, 24), SNOW, 0, 0.31, 0);
+  for (let k = 0; k < 10; k++) {
+    const a = (k / 10) * Math.PI * 2;
+    f.put(geo.sphere(0.17, 8, 6), leaf, Math.cos(a) * 0.8, 0.4, Math.sin(a) * 0.8, { sy: 0.7 });
+    g.put(geo.sphere(0.07, 6, 4), k % 2 ? (BERRY[n] ?? 0xff6b6b) : 0xfff3f0, Math.cos(a + 0.2) * 0.84, 0.52, Math.sin(a + 0.2) * 0.84);
+  }
+  const plinth = (h: number): void => {
+    f.put(geo.boxBase(0.75, h, 0.75), shade(stone, 0.92), 0, 0.3, 0).put(geo.box(0.85, 0.08, 0.85), shade(stone, 1.05), 0, 0.3 + h, 0);
+    f.put(geo.box(0.8, 0.05, 0.8), SNOW, 0, 0.36 + h, 0);
+  };
+  // a stylised figure standing at height y, the arm raised with what it holds
+  const figure = (y: number, bronze: number, hold: (x: number, y: number) => void): void => {
+    const k = 1.35;
+    const o = { sx: k, sy: k, sz: k };
+    f.put(geo.capsule(0.2, 0.42, 4, 8), bronze, 0, y + 0.42 * k, 0, o).put(geo.sphere(0.17, 10, 8), bronze, 0, y + 0.95 * k, 0, o);
+    f.put(geo.sphere(0.12, 8, 5), SNOW, 0, y + 1.07 * k, 0, { sx: k, sy: 0.45 * k, sz: k });
+    f.put(geo.capsule(0.06, 0.38, 3, 6), bronze, 0.24 * k, y + 0.85 * k, 0, { rz: -0.5, ...o }).put(geo.capsule(0.06, 0.3, 3, 6), bronze, -0.22 * k, y + 0.45 * k, 0, { rz: 0.2, ...o });
+    hold(0.38 * k, y + 1.12 * k);
+  };
+  const bronze = mix(0x6f6252, accent, 0.25);
+  switch (n) {
+    case 2:
+      plinth(0.8);
+      figure(1.12, bronze, (x, y) => {
+        f.put(geo.box(0.16, 0.2, 0.16), 0x3a3634, x, y + 0.02, 0);
+        b.put(geo.sphere(0.07, 8, 6), 0xffc067, x, y + 0.02, 0);
+      });
+      break;
+    case 3:
+      plinth(0.8);
+      figure(1.12, mix(0x4a4848, accent, 0.2), (x, y) => {
+        f.put(geo.box(0.04, 0.36, 0.04), 0x6e5646, x, y - 0.05, 0, { rz: -0.3 }).put(geo.box(0.2, 0.12, 0.12), 0x3f3d3f, x + 0.06, y + 0.14, 0, { rz: -0.3 });
+      });
+      f.put(geo.boxBase(0.4, 0.2, 0.22), 0x3f3d3f, -0.15, 1.12, 0.12);
+      break;
+    case 4: {
+      // a street clock: a fluted iron post with a glowing four-faced clock
+      f.put(geo.cylinder(0.12, 0.16, 1.9, 10), 0x2f3033, 0, 1.25, 0);
+      f.put(geo.box(0.5, 0.5, 0.5), 0x2f3033, 0, 2.4, 0).put(geo.cone(0.34, 0.3, 4), 0x2f3033, 0, 2.8, 0, { ry: Math.PI / 4 });
+      for (let k = 0; k < 4; k++) {
+        const a = (k * Math.PI) / 2;
+        b.put(geo.cylinder(0.19, 0.19, 0.02, 16), 0xfff1c8, Math.sin(a) * 0.26, 2.4, Math.cos(a) * 0.26, { rx: Math.PI / 2, rz: 0, ry: a });
+        f.put(geo.box(0.02, 0.14, 0.01), 0x2a2a2a, Math.sin(a) * 0.28, 2.43, Math.cos(a) * 0.28, { ry: a });
+      }
+      f.put(geo.sphere(0.24, 8, 5), SNOW, 0, 2.95, 0, { sy: 0.3 });
+      break;
+    }
+    case 5:
+      // a riveted girder arch, steel and the era's rust red
+      for (const x of [-0.45, 0.45]) f.put(geo.boxBase(0.18, 1.8, 0.18), x < 0 ? S.drum[0]! : 0x76818a, x, 0.3, 0);
+      f.put(geo.box(1.1, 0.2, 0.2), S.drum[0]!, 0, 2.2, 0).put(geo.box(0.12, 1.3, 0.06), 0x76818a, 0, 1.4, 0, { rz: 0.8 });
+      f.put(geo.box(1.15, 0.05, 0.24), SNOW, 0, 2.33, 0);
+      break;
+    case 6:
+    case 9: {
+      // a two-tier fountain; in IX its water glows aqua
+      const water = n === 9 ? 0x86e8c4 : 0xbfe6f2;
+      const w = n === 9 ? b : f;
+      w.put(geo.cylinder(0.92, 0.92, 0.04, 24), water, 0, 0.3, 0);
+      f.put(geo.cylinder(0.12, 0.16, 1.1, 10), stone, 0, 0.85, 0).put(geo.cylinder(0.5, 0.36, 0.14, 18), stone, 0, 1.42, 0);
+      w.put(geo.cylinder(0.44, 0.44, 0.03, 18), water, 0, 1.49, 0);
+      f.put(geo.cylinder(0.06, 0.08, 0.5, 8), stone, 0, 1.75, 0);
+      if (n === 6) b.put(geo.sphere(0.16, 12, 8), mix(glowC, 0xffffff, 0.4), 0, 2.08, 0);
+      else for (let k = 0; k < 6; k++) b.put(geo.sphere(0.05, 6, 4), water, Math.cos(k) * 0.3, 1.62 + (k % 3) * 0.08, Math.sin(k) * 0.3);
+      break;
+    }
+    case 7:
+      // a little derrick monument with a lamp at its crown
+      for (const [x, z] of [[-0.35, -0.35], [0.35, -0.35], [-0.35, 0.35], [0.35, 0.35]] as const) f.put(geo.box(0.06, 2.2, 0.06), 0x444a54, x * 0.6, 1.4, z * 0.6, { rx: -z * 0.28, rz: x * 0.28 });
+      for (const y of [0.9, 1.5]) f.put(geo.box(0.6 - (y - 0.9) * 0.3, 0.05, 0.05), 0xc44536, 0, y, 0.2 - (y - 0.9) * 0.08);
+      b.put(geo.sphere(0.1, 8, 6), 0xffd36b, 0, 2.5, 0);
+      break;
+    case 8:
+      // a glowing data pillar: a white column with lit bands
+      f.put(geo.cylinder(0.3, 0.34, 2.0, 16), 0xf0eadb, 0, 1.3, 0);
+      for (const y of [0.9, 1.4, 1.9]) b.put(geo.cylinder(0.31, 0.31, 0.06, 16), mix(glowC, 0xffffff, 0.3), 0, y, 0);
+      f.put(geo.cylinder(0.32, 0.32, 0.05, 16), SNOW, 0, 2.33, 0);
+      break;
+    default:
+      // X: an orb floating over a glowing ring
+      f.put(geo.cylinder(0.35, 0.45, 0.4, 16), 0xe3d9f6, 0, 0.5, 0);
+      b.put(geo.torus(0.5, 0.04, 6, 24), mix(glowC, 0xffffff, 0.3), 0, 1.25, 0, { rx: Math.PI / 2 });
+      b.put(geo.sphere(0.34, 16, 12), mix(accent, 0xffffff, 0.35), 0, 1.75, 0);
+      break;
+  }
+}
+
 function buildDecor(body: Batch, glow: Batch, bulbs: Batch, n: number, st: PlotStyle, items: readonly DecorPlace[]): void {
   const S = DECOR[n]!;
   const tilt = (k: number): number => ((k * 7 + n * 3) % 5 - 2) * 0.05;
@@ -1392,6 +1490,9 @@ function buildDecor(body: Batch, glow: Batch, bulbs: Batch, n: number, st: PlotS
     const f = new Frame(body, d.x, d.z, d.yaw);
     const g = new Frame(glow, d.x, d.z, d.yaw);
     switch (d.kind) {
+      case 'centre':
+        buildCentre(f, g, new Frame(bulbs, d.x, d.z, d.yaw), n, S, ERAS[n]!.colors.accent, ERAS[n]!.colors.glow);
+        break;
       case 'crates': {
         if (d.v === 1) {
           // one open crate heaped with goods

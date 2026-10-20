@@ -650,7 +650,7 @@ export function plotPlaces(n: number): PlotPlaces {
  *    the ring's chords. The rest of the green is free ground.
  * Pads, counters, the cash pile, the vault, the queue, hut doors and annexes, shop fronts and streets are keep-outs.
  */
-export type DecorKind = 'crates' | 'sacks' | 'barrels' | 'heap' | 'bench' | 'lamp' | 'snow' | 'notice' | 'cart' | 'sig' | 'fir' | 'shrub';
+export type DecorKind = 'crates' | 'sacks' | 'barrels' | 'heap' | 'bench' | 'lamp' | 'snow' | 'notice' | 'cart' | 'sig' | 'fir' | 'shrub' | 'centre';
 
 export interface DecorPlace {
   kind: DecorKind;
@@ -697,6 +697,8 @@ export const DECOR_SIZE: Readonly<Record<DecorKind, readonly [number, number, nu
   sig: [0.85, 0.85, 2.2],
   fir: [0.75, 0.75, 2.7],
   shrub: [0.55, 0.5, 0.8],
+  // 0.9.12 the market's centrepiece: a statue, a fountain or a flower bed round a pillar (world/env/plots.ts)
+  centre: [1.15, 1.15, 2.4],
 };
 
 const GREEN_CLEAR = 1.7; // RegionLife CLEAR: keep this far from the centrepiece
@@ -861,6 +863,9 @@ const DECOR_MAX_AREA = 42;
 const DECOR_CELL = 0.25;
 const DECOR_STEP = 0.75;
 const DECOR_GAP = 0.35;
+/** Free ground (m) the market centrepiece keeps round it (Dino: 3 m to walk), or at the least CENTRE_ROOM_MIN in a tight market. */
+export const CENTRE_ROOM = 3.0;
+export const CENTRE_ROOM_MIN = 2.0;
 
 function distToSeg(px: number, pz: number, a: XZ, b: XZ): number {
   const dx = b.x - a.x;
@@ -954,6 +959,28 @@ export function plotDecor(n: number): DecorPlace[] {
     for (let x = Zi.minX; x <= Zi.maxX; x += DECOR_STEP) for (let z = Zi.minZ; z <= Zi.maxZ; z += DECOR_STEP) if (fits({ kind: 'sig', x, z, hx: 0.9, hz: 0.9, h: 1, yaw: 0, v: 0 }, 0)) free++;
     const cap = Math.max(DECOR_MAX, Math.round(((Zi.maxX - Zi.minX) * (Zi.maxZ - Zi.minZ)) / DECOR_MAX_AREA));
     const want = Math.min(cap, Math.round((free * DECOR_STEP * DECOR_STEP) / DECOR_AREA));
+    // 0.9.12 (Dino: "plaza centrepieces"): first the market's centrepiece, in the open middle of its widest paving with
+    // a wide ring of free ground round it (CENTRE_ROOM, more where it can), so it never narrows a way anyone walks
+    if (zone === 'market') {
+      let best: { pad: number; d: number; it: Item } | null = null;
+      const mx = (Zi.minX + Zi.maxX) / 2;
+      const mz = (Zi.minZ + Zi.maxZ) / 2;
+      const [hx, hz, h] = DECOR_SIZE.centre;
+      for (let x = Zi.minX; x <= Zi.maxX; x += 0.5) {
+        for (let z = Zi.minZ; z <= Zi.maxZ; z += 0.5) {
+          const it: Item = { kind: 'centre', x, z, hx, hz, h, yaw: 0, v: 0 };
+          if (!fits(it, 0)) continue;
+          const pad = [CENTRE_ROOM + 0.5, CENTRE_ROOM, CENTRE_ROOM_MIN].find((m) => fits(it, m));
+          if (pad === undefined) continue;
+          const d = Math.hypot(x - mx, z - mz);
+          if (!best || pad > best.pad || (pad === best.pad && d < best.d)) best = { pad, d, it };
+        }
+      }
+      if (best) {
+        out.push({ ...best.it, zone: 'market' });
+        fill(occ, grow(rectOf(best.it), Math.min(best.pad, CENTRE_ROOM)));
+      }
+    }
     const recipe = RECIPE[zone];
     for (let vi = 0; vi < want; vi++) {
       const tpl = VIGNETTES[recipe[vi % recipe.length]!]!;
