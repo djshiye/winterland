@@ -114,6 +114,8 @@ const ROAD_TRUCKS = new Set<Truck>();
  */
 const CROSS_STOP = 3.6;
 const CROSS_SIDE = 1.6;
+/** 0.9.13: the line rolls up behind a front vehicle this many units short of its order (rollUp). */
+const ROLL_UP = 2;
 const ACCEL = 6;
 const DECEL = 8;
 
@@ -155,6 +157,31 @@ export class EraBuyers {
   /** Trucks in line (the one loading included). */
   get waiting(): number {
     return this.queue.length;
+  }
+
+  /**
+   * 0.9.13: the line is moving up to the counter (rolling up behind a front one that is about done, or one in the stop
+   * lane driving to its slot). Shoppers wait at the kerb for it (npc/EraShoppers.ts), so the line keeps the pace it had
+   * before its second place moved back behind the market gate.
+   */
+  get settling(): boolean {
+    if (this.rollUp()) return true;
+    for (const t of this.queue) if (!t.atSlot && t.s >= t.route.sMerge) return true;
+    return false;
+  }
+
+  /**
+   * True while the front vehicle is about done: paid, or ROLL_UP units short of its order with that much on the counter.
+   * Then the ones behind it roll up a plain queue spacing apart (the second one across the market gate, while shoppers
+   * hold back), so the next one is at the counter as quickly as when its place was there all along.
+   */
+  private rollUp(): boolean {
+    const f = this.queue[0];
+    if (!f || !f.atSlot) return false;
+    if (f.mode === 'paid') return true;
+    if (f.mode !== 'queue' || f.kind === null) return false;
+    const short = f.want - f.cargo.total;
+    return short <= ROLL_UP && this.post.pile.count(f.kind) + this.ctx.flights.inFlightTo(f.cargo, f.kind) >= short;
   }
 
   /** Goods on unpaid trucks (landed or still flying into the bed) by kind: the save puts them back on the counter. */
@@ -345,7 +372,10 @@ export class EraBuyers {
   }
 
   private stepQueued(t: Truck, index: number, dt: number): void {
-    t.atSlot = this.driveTo(t, this.slotS(t, index), dt);
+    // behind a front one that is about done: roll up a plain spacing behind it (never back once past the slot)
+    const slot = this.slotS(t, index);
+    const target = index > 0 && this.rollUp() ? Math.max(slot, t.route.sFront - index * TRADE_POST.spacing) : Math.max(slot, Math.min(t.s, t.route.sFront - index * TRADE_POST.spacing));
+    t.atSlot = this.driveTo(t, target, dt) && target === slot;
     this.animate(t, dt);
     if (index !== 0 || !t.atSlot) return;
     if (t.mode === 'queue') this.serve(t, dt);

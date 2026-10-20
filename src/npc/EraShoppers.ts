@@ -77,6 +77,8 @@ export interface ShopperStall {
   /** The Stall value (≥ 1). */
   boost(): number;
   pay(kind: MaterialKind, count: number, at: THREE.Vector3): void;
+  /** 0.9.13: the market's buyer line is moving up to the counter (npc/EraBuyers.ts settling): wait at the kerb for it. */
+  lineMoving?(): boolean;
 }
 
 type Mode = 'in' | 'queue' | 'paid' | 'out';
@@ -121,6 +123,8 @@ class Shopper {
   kerb = 0;
   stood = 0;
   fade = 0;
+  /** Standing in line behind someone waiting at the kerb. */
+  held = false;
   /** Where the buyers see this shopper while it crosses (CROSSERS): a step ahead, so they brake as it steps out. */
   readonly cross: XZ = { x: 0, z: 0 };
 
@@ -303,6 +307,7 @@ export class EraShoppers {
     c.kerb = 0;
     c.stood = 0;
     c.fade = 0;
+    c.held = false;
     c.bubbleOn = false;
     c.bubble.sprite.visible = false;
     c.stack.clear();
@@ -446,7 +451,15 @@ export class EraShoppers {
     if (lane) {
       // B7: wait at the kerb while a vehicle comes, and once out on the road the buyers brake for us
       const at = c.group.position;
-      const wait = kerbWait(at, p, [lane], carefully(trafficNow(this.ctx.time.elapsed)));
+      // one waiting at the kerb right ahead: wait behind them, not on their spot (never out on the road)
+      c.held = !inRect(lane, at) && this.kerbQueue(c, p);
+      if (c.held) {
+        c.speed = 0;
+        c.velocity.set(0, 0, 0);
+        return false;
+      }
+      // the buyers' line moving up past the gate goes first (it would stop for us, and the counter waits)
+      const wait = kerbWait(at, p, [lane], carefully(trafficNow(this.ctx.time.elapsed))) || (!inRect(lane, at) && this.lineBlocks(at, p));
       if (wait && c.kerb < KERB_PATIENCE) {
         c.kerb += dt;
         c.speed = 0;
@@ -456,12 +469,6 @@ export class EraShoppers {
         return false;
       }
       if (!wait) c.kerb = 0;
-      // one waiting at the kerb right ahead: wait behind them, not on their spot (never out on the road)
-      if (!inRect(lane, at) && this.kerbQueue(c, p)) {
-        c.speed = 0;
-        c.velocity.set(0, 0, 0);
-        return false;
-      }
       if (inRect(lane, at)) {
         const d = Math.hypot(p.x - at.x, p.z - at.z) || 1;
         const k = Math.min(CROSS_AHEAD, d) / d;
@@ -478,7 +485,16 @@ export class EraShoppers {
     return false;
   }
 
-  /** True while another shopper waits at the kerb just ahead of `c` on its way to `to`. */
+  /** True while the buyer line moves up and `at` → `to` steps onto the road. */
+  private lineBlocks(at: XZ, to: XZ): boolean {
+    if (!this.stall.lineMoving?.()) return false;
+    const d = Math.hypot(to.x - at.x, to.z - at.z);
+    if (d < 0.05) return false;
+    const k = Math.min(0.6, d) / d;
+    return inRect(this.lane!, { x: at.x + (to.x - at.x) * k, z: at.z + (to.z - at.z) * k });
+  }
+
+  /** True while another shopper waits at the kerb (or in line behind one there) just ahead of `c`, going its way to `to`. */
   private kerbQueue(c: Shopper, to: XZ): boolean {
     const at = c.group.position;
     const dx = to.x - at.x;
@@ -487,7 +503,10 @@ export class EraShoppers {
     if (len < 0.05) return false;
     for (const list of [this.queue, this.leaving]) {
       for (const o of list) {
-        if (o === c || o.kerb <= 0) continue;
+        if (o === c || (o.kerb <= 0 && !o.held)) continue;
+        // only someone going the same way (not one coming the other way through the gate)
+        const q = o.path[0];
+        if (!q || (q.x - o.group.position.x) * dx + (q.z - o.group.position.z) * dz <= 0) continue;
         const ox = o.group.position.x - at.x;
         const oz = o.group.position.z - at.z;
         const along = (ox * dx + oz * dz) / len;

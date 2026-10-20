@@ -169,6 +169,7 @@ export class RegionMarket {
       fallback: eraFallback(era, 'refined'),
       boost: () => this.stallValue(),
       pay,
+      lineMoving: () => this.buyers.settling,
     });
   }
 
