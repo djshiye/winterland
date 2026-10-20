@@ -62,6 +62,20 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Clearer controls list.** Settings > Game lists every key and every controller button, and close buttons show their Esc key when you hover them.
 - **Screen readers:** the sound button says on or off, shop, market and guidebook tabs say which is selected, prices say when you can't afford them yet, the quest and era counts are read in words, the pick-up prompt is read out, and cards are announced once. Key hints like "(T)" no longer show on phones and tablets.
 
+### Clearer words
+
+- **Era names read right.** No more "Needs the AI Era era" or "Reach the Frontier first": it's "Needs the AI Era" and "Reach the Frontier era first" everywhere.
+- **Goods are named properly.** "1 gear" instead of "1 gears", and "AI cores" instead of "ai cores", in contracts, goals and the guidebook.
+- **The guidebook matches how you play.** It says to hold E (or A on a controller) to pick up and pay, that drop-offs need no key, that a tap on a price buys one level, and that upgrades reach Lv 10 once the Great Lodge is built. The shop says so too ("Lv 4/9 · 10 after the Lodge").
+- **Settlement spelled out.** The era checklist and the locked expansion pads say "Settlement 8/10" instead of "S8/10". On phones the checklist shows the same little house as the village badge.
+- **City lots say what they give** on their own line, so it no longer gets cut off: homes add residents to your settlement, the rest say they add none.
+- **The market in plain words.** "Your investments", "paid $3 each", "profit" and "Cash out" instead of positions, avg, P/L and withdraw.
+- **Snowstorms and festivals tell the truth.** In a snowstorm the porter rushes firewood to the shops, and on festival day townsfolk come to shop twice as often.
+- **Welcome back.** After a long break the card says how long you were away and that the first 2 hours count, and the guidebook explains what you earn while away.
+- **Friendlier problem messages.** Startup and update problems speak plainly now, with no developer words or terminal commands.
+- **Granite Hollow by name.** The Great Lodge card now sends you "On to Granite Hollow", the place you see on the map.
+- **Down leaves the guidebook search box,** so you can reach the pages with the arrow keys.
+
 ## 0.9.11 (2026-10-19)
 
 Every era its own place, clearer pads and icons, a guidebook, a cooler-running game and a few cozy touches.

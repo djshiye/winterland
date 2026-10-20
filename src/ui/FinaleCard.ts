@@ -1,7 +1,7 @@
 /**
  * [B4] The finale cards and the stats page, one card in four variants:
  * - 'lodge' (HUD on 'finale:start'): the Great Lodge stands. 0.9.7 (decision 3): no longer the ending: "Survival
- *   complete, the Frontier awaits" with era 1's stats and "On to the Frontier".
+ *   complete, Granite Hollow awaits" with era 1's stats and "On to Granite Hollow".
  * - 'market' (HUD on 'finale2:start'): "The Grand Market opens!" with the town's stats.
  * - 'complete' (0.9.7, on 'complete:start', core/completionTracker.ts): the game's ending, "Winterland Complete!": the
  *   trophy, the stats page (time played, money earned, time per era, trophies, every finished season) and the only
@@ -34,7 +34,7 @@ const COMPLETE_DELAY = 6.5;
 /** Which card is on show. */
 export type FinaleVariant = 'lodge' | 'market' | 'complete' | 'stats';
 const TITLES: Record<FinaleVariant, string> = {
-  lodge: 'Survival complete, the Frontier awaits',
+  lodge: `Survival complete, ${ERAS[2]!.region} awaits`,
   market: 'The Grand Market opens!',
   complete: `${FINAL_NAME}!`,
   stats: 'Your Winterland',
@@ -45,7 +45,7 @@ const SUBS: Record<FinaleVariant, string> = {
   complete: 'Every era, every build, every quest. A gold trophy now stands by the Great Lodge.',
   stats: '',
 };
-const BUTTONS: Record<FinaleVariant, string> = { lodge: 'On to the Frontier', market: 'Keep playing', complete: 'Keep playing', stats: 'Close' };
+const BUTTONS: Record<FinaleVariant, string> = { lodge: `On to ${ERAS[2]!.region}`, market: 'Keep playing', complete: 'Keep playing', stats: 'Close' };
 
 /** A gold cup (the trophy on the Great Lodge plaza, assets/trophy.ts): 0.9.8 drawn in the icon kit's style (warm ink
  *  outline, palette gold, a red prize rosette on a wooden drum, a soft star). */
@@ -214,7 +214,7 @@ export class FinaleCard {
         ['Villagers', formatCount(s.village.population)],
         ['Happiness', `${Math.round(townHappiness(s) * 100)}%`],
         ['Shelters built', formatCount(st.sheltersBuilt)],
-        ['Town buildings', formatCount(st.townBuilt)],
+        ['Market Town buildings', formatCount(st.townBuilt)],
         ['Upgrades', formatCount(st.upgradesBought)],
       ]);
       return;

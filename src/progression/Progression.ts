@@ -38,7 +38,7 @@ import { AMENITIES, AMENITY_IDS, BUSINESSES, LAYOUT, PADS, QUARTERS, TOWN, UPGRA
 import type { FlagId, GameContext, ItemKind, PadId, Phase } from '../core/types';
 import type { Level } from '../level/Level';
 import type { Machine } from '../eras/Machine';
-import { DISTRICTS, ERAS, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
+import { countOf, DISTRICTS, ERAS, lowerLabel, MACHINES, MATERIALS, REGIONS, machinesOfEra } from '../eras/data';
 import { climbOpen, eraMatOf, hasGate, nextGoal } from '../eras/gate';
 import { expansionOffered, regionLayout } from '../eras/layout';
 import { MAT_SIZE, machinePadTarget, worldRect } from '../eras/rules';
@@ -868,7 +868,7 @@ export class Progression {
     const region = this.level.eras.region(home);
     if (!region) return false;
     const d = region.depotSpot;
-    this.setGoal(`Ship ${MATERIALS[kind].label.toLowerCase()} at the export depot`, rect(d.x, d.z, 1.6, 1.6), this.tmpPoint.set(d.x, 0, d.z));
+    this.setGoal(`Ship ${lowerLabel(MATERIALS[kind].label)} at the export depot`, rect(d.x, d.z, 1.6, 1.6), this.tmpPoint.set(d.x, 0, d.z));
     return true;
   }
 
@@ -887,8 +887,8 @@ export class Progression {
       const extraLeft = era.unlock.extra.count - paid.extra;
       if (cashLeft <= 0 || this.ctx.economy.money >= cashLeft * 0.5) {
         const pad = regionLayout(next).expansionPad;
-        const what = MATERIALS[era.unlock.extra.kind as keyof typeof MATERIALS]?.label.toLowerCase() ?? `${era.unlock.extra.kind}s`;
-        const text = cashLeft > 0 ? `Expand to ${era.region} (${formatMoney(cashLeft)})` : `Bring ${extraLeft} ${what} to ${era.region}`;
+        const label = MATERIALS[era.unlock.extra.kind as keyof typeof MATERIALS]?.label ?? `${era.unlock.extra.kind}s`;
+        const text = cashLeft > 0 ? `Expand to ${era.region} (${formatMoney(cashLeft)})` : `Bring ${countOf(label, extraLeft)} to ${era.region}`;
         if (cashLeft > 0 || extraLeft > 0) {
           this.setGoal(text, rect(pad.x, pad.z, 2, 2), this.tmpPoint.set(pad.x, 0, pad.z));
           return true;

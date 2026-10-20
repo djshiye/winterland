@@ -143,6 +143,14 @@
   line-height: 1.1;
 }
 
+.wl-build-stat {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 600;
+  color: var(--wl-info-text);
+}
+
 .wl-build-blurb {
   font-size: 12px;
   line-height: 1.15;

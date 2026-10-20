@@ -148,13 +148,13 @@ describe('ready and the settlement', () => {
     }
   });
 
-  it('gateNote reads "ok/total · Slevel/need"', () => {
+  it('gateNote reads "ok/total · Settlement level/need"', () => {
     const s = allBuilt(lodge());
     s.upgrades.carry = 10;
     s.upgrades.speed = 10;
-    expect(gateNote(eraGate(s, 2))).toBe('2/28 · S5/5');
+    expect(gateNote(eraGate(s, 2))).toBe('2/28 · Settlement 5/5');
     s.village.level = 3;
-    expect(gateNote(eraGate(s, 2))).toBe('2/28 · S3/5');
+    expect(gateNote(eraGate(s, 2))).toBe('2/28 · Settlement 3/5');
   });
 });
 

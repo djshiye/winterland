@@ -88,7 +88,7 @@ describe('shop tabs and era groups', () => {
     expect(industryEraShown(4, 3)).toBe(true);
     expect(industryEraShown(5, 3)).toBe(false);
     expect(industryEraShown(1, 3)).toBe(false);
-    expect(industryEraNote(4, 3)).toBe('Needs the Steam Age era');
+    expect(industryEraNote(4, 3)).toBe('Needs the Steam Age');
     expect(industryEraNote(3, 3)).toBeNull();
   });
 });
@@ -158,7 +158,7 @@ describe('map travel list', () => {
   it('shows the expansion price and the era needed for locked regions', () => {
     const locked = travelNote(pt('region:3', 'region', 3, false), 1);
     expect(locked.cost).toBe(expansionCostText(3));
-    expect(locked.need).toBe('Reach the Frontier first');
+    expect(locked.need).toBe('Reach the Frontier era first');
     const offered = travelNote(pt('region:2', 'region', 2, true), 1);
     expect(offered.cost).toBe(expansionCostText(2));
     expect(offered.need).toMatch(/open/i);
@@ -166,7 +166,7 @@ describe('map travel list', () => {
   });
 
   it('notes locked districts and unfound places', () => {
-    expect(travelNote(pt('district:4', 'district', 4, false), 2).need).toBe('Needs the Steam Age era');
+    expect(travelNote(pt('district:4', 'district', 4, false), 2).need).toBe('Needs the Steam Age');
     expect(travelNote(pt('district:2', 'district', 2, true), 2).need).toBeNull();
     expect(travelNote(pt('town', 'home', 1, false), 1).need).toBe('Not found yet');
     expect(travelNote(pt('yard', 'home', 1, true), 1)).toEqual({ cost: null, need: null });

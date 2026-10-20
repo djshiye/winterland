@@ -87,6 +87,8 @@ export class ChoosePanel {
     const blurb = h('div', 'wl-build-blurb');
     blurb.textContent = o.blurb;
     mid.appendChild(blurb);
+    // 0.9.12: the numbers get their own line (the two-line blurb clamp used to cut them off)
+    if (o.stat) mid.appendChild(h('div', 'wl-build-stat', '')).textContent = o.stat;
     const chips = h('div', 'wl-build-chips');
     const cost = h('span', 'wl-build-chip', `<i>${ICON_COIN}</i>`);
     cost.appendChild(document.createTextNode(o.costText));

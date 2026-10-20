@@ -314,6 +314,8 @@ export interface ChooseOption {
   id: string;
   label: string;
   blurb: string;
+  /** 0.9.12: what it gives, on its own line under the blurb ("+88 residents for your settlement, $1,350/s rent"). */
+  stat?: string;
   icon?: string;
   /** Price line, e.g. "$27,000 + 12 Stone". */
   costText: string;

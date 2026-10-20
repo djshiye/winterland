@@ -1023,6 +1023,7 @@
 }
 
 .wl-offline-sub {
+  white-space: pre-line; /* 0.9.12: "You were away 3 h." and "The first 2 h count." on their own lines */
   font-size: 17px;
   opacity: 0.92;
   text-shadow: none;

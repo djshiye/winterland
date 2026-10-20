@@ -1,5 +1,5 @@
 /**
- * [B4] Welcome-back card: "While you were away (1 h 20 min) your mill earned $X" with a big button. The money is
+ * [B4] Welcome-back card: "While you were away (1 h 20 min) you earned $X" with a big button. The money is
  * ALREADY credited (and saved) by Game when the card is shown, so the card is informational: the button just closes
  * it and calls onCollect() exactly once (Game emits 'offline:collected' there; the cash burst is the JuiceDirector's
  * reaction to that event).
@@ -8,6 +8,12 @@ import type { GameContext } from '../core/types';
 import { backOut, h, onTap, shield, Slide } from './dom';
 import { formatDuration, formatMoney } from './format';
 import { ICON_COIN } from './icons';
+
+/** "3 h 10 min", or whole days past a day ("2 days"), so a long break never reads "52 h 13 min". */
+function awayText(seconds: number): string {
+  const days = Math.floor(seconds / 86_400);
+  return days >= 1 ? `${days} day${days === 1 ? '' : 's'}` : formatDuration(seconds);
+}
 
 export class OfflineCard {
   private readonly backdrop: HTMLDivElement;
@@ -33,7 +39,7 @@ export class OfflineCard {
     this.card.appendChild(h('div', 'wl-card-title wl-title', 'Welcome back!'));
     this.sub = h('div', 'wl-offline-sub');
     this.card.appendChild(this.sub);
-    this.card.appendChild(h('div', 'wl-offline-label', 'your mill earned'));
+    this.card.appendChild(h('div', 'wl-offline-label', 'you earned'));
     this.amountEl = h('div', 'wl-offline-amount');
     this.card.appendChild(this.amountEl);
     const btn = h('button', 'wl-btn wl-btn-big wl-btn-green', 'Great!');
@@ -44,14 +50,17 @@ export class OfflineCard {
     layer.appendChild(this.backdrop);
   }
 
-  show(amount: number, seconds: number, onCollect: () => void): void {
+  /** `seconds` is the time that counted (capped at OFFLINE.maxSeconds), `away` the real absence (0.9.12, S2). */
+  show(amount: number, seconds: number, onCollect: () => void, away = seconds): void {
     // a second card while one is waiting: close the old one first (its callback fires exactly once)
     if (this.onCollect) this.collect();
     this.onCollect = onCollect;
     this.wantAmount = Math.max(0, Math.round(amount));
     this.shownAmount = 0;
     this.age = 0;
-    this.sub.textContent = `While you were away (${formatDuration(seconds)})`;
+    // 0.9.12 (S2): away 3 h used to read "(2 h)"; say the real time and that only the first part counts
+    this.sub.textContent =
+      away - seconds >= 60 ? `You were away ${awayText(away)}.\nThe first ${formatDuration(seconds)} count.` : `While you were away (${formatDuration(seconds)})`;
     this.amountEl.textContent = formatMoney(0);
     this.backdrop.style.display = 'flex';
     this.slide.k = 0;

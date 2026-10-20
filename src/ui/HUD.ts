@@ -37,7 +37,7 @@ import { toggleFullscreen } from '../platform/desktop';
 import { basic, geo, GAME_FONT, toon } from '../render/materials';
 import type { GameContext } from '../core/types';
 import { climbOpen } from '../eras/gate';
-import { ERA_NAMES } from '../eras/data';
+import { eraNoun } from '../eras/data';
 import { AgeCard } from './AgeCard';
 import { AutoQuality } from './AutoQuality';
 import { BuildPanel } from './BuildPanel';
@@ -468,7 +468,7 @@ export class HUD {
   private toggleMarket(): void {
     if (this.ctx.state.eras.age < 2 && !this.market.visible) {
       // shown early (once the climb opens) so players know where trading and investing will live
-      this.toast(`The Market opens in the ${ERA_NAMES[2]}`, { sub: 'Trade goods and invest your savings there once you reach era 2' });
+      this.toast(`The Market opens in the ${eraNoun(2)}`, { sub: 'Trade goods and invest your savings there once you reach era 2' });
       return;
     }
     if (this.market.visible) this.market.close();
@@ -691,8 +691,8 @@ export class HUD {
    * Welcome-back card: "While you were away (1 h 20 min) your mill earned $amount" (the money was already
    * credited at load); calls onCollect() exactly once when its button closes it (the caller emits 'offline:collected').
    */
-  showOfflineEarnings(amount: number, seconds: number, onCollect: () => void): void {
-    this.offline.show(amount, seconds, onCollect);
+  showOfflineEarnings(amount: number, seconds: number, onCollect: () => void, away = seconds): void {
+    this.offline.show(amount, seconds, onCollect, away);
   }
 
   /** 0.9.6: a save notice (unreadable save kept, Lv 10 refund, newer save); notices queue one at a time. */
@@ -891,7 +891,7 @@ export class HUD {
     if (marketLocked !== this.marketLocked) {
       this.marketLocked = marketLocked;
       this.marketBtn.classList.toggle('is-locked', marketLocked);
-      const label = keyLabel('Market', 'B', marketLocked ? `: opens in the ${ERA_NAMES[2]}` : '');
+      const label = keyLabel('Market', 'B', marketLocked ? `: opens in the ${eraNoun(2)}` : '');
       this.marketBtn.title = label;
       this.marketBtn.setAttribute('aria-label', label);
     }

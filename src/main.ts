@@ -9,11 +9,21 @@ import { freshRequested } from './core/Save';
 import { pushBackup } from './core/saveVault';
 import { afterPaint, hideSplash } from './ui/splash';
 
-function showFatal(message: string): void {
+/** A calm full-screen message; `detail` (a raw error, for a bug report) goes in small print below it. */
+function showFatal(message: string, detail = ''): void {
   hideSplash();
   const el = document.createElement('div');
   el.className = 'fatal';
-  el.textContent = message;
+  const box = document.createElement('div');
+  const line = document.createElement('p');
+  line.textContent = message;
+  box.appendChild(line);
+  if (detail) {
+    const small = document.createElement('small');
+    small.textContent = detail;
+    box.appendChild(small);
+  }
+  el.appendChild(box);
   document.body.appendChild(el);
 }
 
@@ -63,9 +73,9 @@ const app = document.getElementById('app');
 const hud = document.getElementById('hud');
 
 if (!app || !hud) {
-  showFatal('Winterland failed to start: missing #app/#hud.');
+  showFatal("Winterland couldn't start. Please close it and open it again.", 'Missing #app or #hud in the page');
 } else if (!hasWebGL()) {
-  showFatal('Winterland needs WebGL. Try a recent Chrome, Firefox or Safari.');
+  showFatal("Winterland can't draw its 3D world on this device. Try updating your graphics drivers, or play in a recent Chrome, Firefox or Safari.");
 } else if (new URLSearchParams(location.search).has('gallery')) {
   // Asset review page: every AssetFactory model on one screen (loaded on demand, not part of the game).
   hideSplash();
@@ -89,7 +99,7 @@ if (!app || !hud) {
     } catch (err) {
       console.error(err);
       if (!recoverFromBadSave()) {
-        showFatal(`Winterland crashed while starting: ${err instanceof Error ? err.message : String(err)}`);
+        showFatal("Winterland hit a snag while starting. Please close it and open it again. Your save is safe.", err instanceof Error ? err.message : String(err));
       }
     }
   });

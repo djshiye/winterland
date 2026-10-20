@@ -31,7 +31,7 @@ export const SEASON_KEEPS: readonly string[] = [
   "every finished season's stats",
   'the season count and its price bonus',
   'your settings and the hints you have seen',
-  'a copy of this season under Settings, Earlier saves',
+  'a copy of this season under Settings › Game › Earlier saves',
 ];
 
 /** "+25%" style price bonus after `season` seasons (0 = the first run). */
