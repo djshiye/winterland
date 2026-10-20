@@ -7,7 +7,8 @@
  * maximum matching, shorter links preferred), then (0.9.6, F3) the inputs still without one, from a producer that
  * already feeds a belt (a splitter: two belts pull from one pile). Machines at most MAX_ROW_GAP rows apart. A belt never
  * shares its stretch of lane or corridor with another belt on the same level: when the ground level is taken there,
- * it runs on a raised level (an overhead conveyor, `level` 1 or 2), so nearly every input gets its belt in any build
+ * it runs on a raised level (an overhead conveyor, `level` 1 or 2), and (0.9.12) never crosses one on the same
+ * level either, so nearly every input gets its belt in any build
  * order. 0.9.12 (Dino: "the conveyor doesn't go from the pellet mine to the steel mill"): the plan first gives every
  * processor that can have one at least one belt in, and only then the most belts, so a machine is never left standing
  * with no belt while its neighbours get two.
@@ -126,11 +127,21 @@ function segments(path: readonly XZ[]): Seg[] {
   return out;
 }
 
-/** Two belts would run on top of each other (parallel and overlapping, closer than CLEAR). Crossings are allowed. */
+/**
+ * Two belts would run into each other: parallel and overlapping (closer than CLEAR), or (0.9.12) crossing, where the
+ * rollers would cut through each other (a two-row belt's corridor over the middle row's lane). Perpendicular runs
+ * that stay more than CLEAR / 2 apart are fine.
+ */
 function overlaps(a: readonly Seg[], b: readonly Seg[]): boolean {
+  const half = CLEAR / 2;
   for (const s of a) {
     for (const t of b) {
-      if (s.dir !== t.dir || Math.abs(s.at - t.at) >= CLEAR) continue;
+      if (s.dir !== t.dir) {
+        // s runs along one axis at s.at, t along the other at t.at: they meet at (t.at on s, s.at on t)
+        if (t.at > s.lo - half && t.at < s.hi + half && s.at > t.lo - half && s.at < t.hi + half) return true;
+        continue;
+      }
+      if (Math.abs(s.at - t.at) >= CLEAR) continue;
       if (Math.min(s.hi, t.hi) - Math.max(s.lo, t.lo) > -CLEAR) return true;
     }
   }

@@ -252,6 +252,24 @@ describe('conveyor belts (planBelts)', () => {
           if (!machines.some((p, j) => p && j !== i && m.inputs.some((x) => x.kind === p.output))) return;
           expect(belts.some((b) => b.to === i), `era ${n} slot ${i} in ${built.map((id) => id ?? '-').join(',')}`).toBe(true);
         });
+        // and no two belts on the same level cut through each other where they cross
+        for (let x = 0; x < belts.length; x++) {
+          for (let y = x + 1; y < belts.length; y++) {
+            const p = belts[x]!;
+            const q = belts[y]!;
+            if (p.level !== q.level) continue;
+            for (let k = 1; k < p.path.length; k++) {
+              for (let j = 1; j < q.path.length; j++) {
+                const [a1, a2, b1, b2] = [p.path[k - 1]!, p.path[k]!, q.path[j - 1]!, q.path[j]!];
+                const ah = Math.abs(a1.z - a2.z) < 1e-6;
+                if (ah === Math.abs(b1.z - b2.z) < 1e-6) continue;
+                const [h1, h2, v1, v2] = ah ? [a1, a2, b1, b2] : [b1, b2, a1, a2];
+                const cross = v1.x > Math.min(h1.x, h2.x) - 0.35 && v1.x < Math.max(h1.x, h2.x) + 0.35 && h1.z > Math.min(v1.z, v2.z) - 0.35 && h1.z < Math.max(v1.z, v2.z) + 0.35;
+                expect(cross, `era ${n} belts ${p.from}->${p.to} and ${q.from}->${q.to} cross on level ${p.level}`).toBe(false);
+              }
+            }
+          }
+        }
       }
     }
   });
