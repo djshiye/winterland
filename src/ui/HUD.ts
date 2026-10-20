@@ -124,7 +124,11 @@ interface QueuedToast {
   at: number;
   small: boolean;
   coins: number;
+  now: boolean;
 }
+
+/** Big toasts kept while a card is open (shown one by one once it closes). */
+const TOAST_HOLD_MAX = 6;
 
 /** Queued toasts older than this (seconds since toast() was called) are dropped. */
 const TOAST_STALE = 3;
@@ -834,10 +838,10 @@ export class HUD {
   /** Centred celebration text that pops in and fades out. Toasts arriving right after another one queue up. */
   toast(title: string, opts?: ToastOpts): void {
     if (!opts?.now && this.toastHush(opts?.small ?? false)) {
-      if (this.toastHeld.length < 3) this.toastHeld.push({ title, opts });
+      if (this.toastHeld.length < TOAST_HOLD_MAX) this.toastHeld.push({ title, opts });
       return;
     }
-    const t = { title, sub: opts?.sub ?? '', dur: opts?.duration ?? 2.2, at: this.ctx.time.elapsed, small: opts?.small ?? false, coins: opts?.coins ?? 0 };
+    const t = { title, sub: opts?.sub ?? '', dur: opts?.duration ?? 2.2, at: this.ctx.time.elapsed, small: opts?.small ?? false, coins: opts?.coins ?? 0, now: opts?.now ?? false };
     // a toast that arrives while another is still fresh waits its turn instead of wiping it (briefly: queued
     // toasts expire TOAST_STALE s after they were asked for, so a burst never drips out for many seconds)
     if (this.toastActive && this.toastAge < 1.0 && this.toastQueue.length < 2) {
@@ -1075,14 +1079,14 @@ export class HUD {
     if (!this.toastActive) return;
     // 0.9.13 (B9): a card opened under a big toast: put the toast away and show it again once the card closes
     const cur = this.toastCur;
-    if (cur && !cur.small && this.toastHush(false)) {
+    if (cur && !cur.small && !cur.now && this.toastHush(false)) {
       this.toastActive = false;
       this.toastEl.style.display = 'none';
-      if (this.toastAge < cur.dur * 0.6 && this.toastHeld.length < 3) {
+      if (this.toastAge < cur.dur * 0.6 && this.toastHeld.length < TOAST_HOLD_MAX) {
         this.toastHeld.unshift({ title: cur.title, opts: { sub: cur.sub, duration: cur.dur } }); // its coins already flew
       }
       for (const q of this.toastQueue.splice(0)) {
-        if (this.toastHeld.length < 3) this.toastHeld.push({ title: q.title, opts: { sub: q.sub, duration: q.dur, small: q.small, coins: q.coins } });
+        if (this.toastHeld.length < TOAST_HOLD_MAX) this.toastHeld.push({ title: q.title, opts: { sub: q.sub, duration: q.dur, small: q.small, coins: q.coins } });
       }
       return;
     }

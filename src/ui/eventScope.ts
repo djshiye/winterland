@@ -5,6 +5,7 @@
  */
 import type { EventKind } from '../config';
 import type { GameContext } from '../core/types';
+import { DISTRICTS } from '../eras/data';
 import { regionAt } from '../eras/playerUpgrades';
 
 /** Pure: does this event's banner belong in region `region` (0 = Winterland and the Market Town, 2..10 = eras)? */
@@ -12,8 +13,11 @@ export function eventShowsIn(kind: EventKind | 'rush', region: number): boolean 
   return region === 0 || (kind !== 'rush' && kind !== 'festival');
 }
 
-/** The region the player stands in now. */
+/** The region the player stands in now; an era's city district counts as that era. */
 export function playerRegion(ctx: GameContext): number {
   const p = ctx.player.object.position;
-  return regionAt(p.x, p.z);
+  const n = regionAt(p.x, p.z);
+  if (n !== 0) return n;
+  const d = DISTRICTS.findIndex((r) => !!r && p.x >= r.rect.minX && p.x <= r.rect.maxX && p.z >= r.rect.minZ && p.z <= r.rect.maxZ);
+  return d > 0 ? d : 0;
 }

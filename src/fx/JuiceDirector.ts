@@ -563,8 +563,9 @@ export class JuiceDirector {
 
     // Wave 13: world events
     ev.on('event:start', (e) => {
-      if (e.kind === 'festival') ctx.audio.play('bell');
-      else if (e.kind === 'snowstorm') {
+      if (e.kind === 'festival') {
+        if (eventShowsIn('festival', playerRegion(ctx))) ctx.audio.play('bell');
+      } else if (e.kind === 'snowstorm') {
         ctx.audio.play('whoosh');
         this.later(0.35, () => ctx.audio.play('whoosh', { volume: 0.8, pitch: 0.85 }));
       } else ctx.audio.play('sparkle');
