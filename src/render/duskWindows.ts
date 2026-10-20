@@ -39,7 +39,7 @@ export class DuskBatch extends Batch {
 
 /**
  * Patch an unlit vertex-coloured material (the era plots' windows): day look at night amount 0; as dusk falls a window
- * not yet on dims to 0.62, then comes on at 1.25 (a touch brighter than by day, so it reads as lit).
+ * not yet on fades toward dark blue glass, then comes on at 1.3 × its day colour (a touch brighter, so it reads as lit).
  */
 export function duskBasic(mat: THREE.MeshBasicMaterial): THREE.MeshBasicMaterial {
   mat.onBeforeCompile = (shader): void => {
@@ -48,7 +48,8 @@ export function duskBasic(mat: THREE.MeshBasicMaterial): THREE.MeshBasicMaterial
       '#include <color_fragment>',
       `#include <color_fragment>
       float wHash = fract(sin(dot(vColor.rgb, vec3(12.9898, 78.233, 45.164)) * 1000.0) * 43758.5453);
-      diffuseColor.rgb *= mix(mix(1.0, 0.62, uDusk), 1.25, duskOn(wHash));`,
+      vec3 wOff = mix(diffuseColor.rgb, vec3(0.3, 0.36, 0.46), uDusk * 0.85);
+      diffuseColor.rgb = mix(wOff, diffuseColor.rgb * 1.3, duskOn(wHash));`,
     );
   };
   mat.customProgramCacheKey = (): string => 'wlDuskBasic';

@@ -2341,8 +2341,10 @@ function buildDecor(body: Batch, glow: Batch, bulbs: Batch, n: number, st: PlotS
 // the runtime part
 // ---------------------------------------------------------------------------------------------------------------------
 
-// 0.9.13: the windows come on one by one at dusk (render/duskWindows.ts)
-const GLOW_MAT = duskBasic(new THREE.MeshBasicMaterial({ vertexColors: true }));
+const GLOW_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
+// 0.9.13: the huts' and shops' windows come on one by one at dusk (render/duskWindows.ts); the rest of the lit parts
+// (pools, lamps, centrepieces) keep GLOW_MAT
+const WINDOW_MAT = duskBasic(new THREE.MeshBasicMaterial({ vertexColors: true }));
 const POLL = 0.5;
 
 export interface PlotsPart {
@@ -2367,7 +2369,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
 
   // ---- statics: yard floor, street, shops, lamps, field, green
   const body = new Batch();
-  const glow = new DuskBatch();
+  const glow = new Batch();
+  const windows = new DuskBatch();
   const Y = P.yardPave;
   // 0.9.8: an era with its own base board (world/env/eraGround.ts) lays its own processing floor and cell marks
   if (!eraOwnsFloor(n)) {
@@ -2384,7 +2387,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   buildYardPattern(body, glow, st, Y, rng);
   }
   for (const S of P.streets) buildStreet(body, st, P, S, rng);
-  P.shops.forEach((s, i) => buildShop(body, glow, st, s, i, e.colors.accent, goods));
+  P.shops.forEach((s, i) => buildShop(body, windows, st, s, i, e.colors.accent, goods));
   const bulbs = new Batch();
   for (const l of P.lamps) {
     body.add(geo.cylinder(0.07, 0.1, 3.0, 8), shade(st.shopRoof, 0.85), l.x, 1.5, l.z);
@@ -2411,6 +2414,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   statics.name = 'places';
   group.add(statics);
   if (!glow.empty) group.add(glow.mesh({ cast: false, receive: false, material: GLOW_MAT }));
+  if (!windows.empty) group.add(windows.mesh({ cast: false, receive: false, material: WINDOW_MAT }));
   if (!bulbs.empty) group.add(bulbs.mesh({ cast: false, receive: false, material: bulbMaterial() }));
   for (const m of works.movers) group.add(m.object);
   for (const r of works.colliders) ctx.colliders.addBox(r, `era:${n}:field`);
@@ -2456,7 +2460,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
     const m = hb.mesh({ cast: true, receive: true });
     m.name = 'hutBodies';
     huts.add(m);
-    if (!hg.empty) huts.add(hg.mesh({ cast: false, receive: false, material: GLOW_MAT }));
+    if (!hg.empty) huts.add(hg.mesh({ cast: false, receive: false, material: WINDOW_MAT }));
   };
 
   const setCollider = (i: number, which: 0 | 1, on: boolean): void => {
