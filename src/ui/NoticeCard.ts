@@ -68,6 +68,11 @@ export class NoticeCard {
     return this.current !== null;
   }
 
+  /** 0.9.13 (B4): Esc / gamepad B (via HUD.escape) press the last button, as Esc inside the card does. */
+  escape(): void {
+    this.press(this.buttonsOf(this.current).length - 1);
+  }
+
   show(n: Notice): void {
     if (this.current) {
       this.queue.push(n);

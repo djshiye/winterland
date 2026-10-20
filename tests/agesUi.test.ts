@@ -35,7 +35,7 @@ describe('era labels', () => {
   });
 
   it('calls village levels settlements, not eras', () => {
-    expect(settlementTitle(4)).toBe('SETTLEMENT IV');
+    expect(settlementTitle(4)).toBe('SETTLEMENT 4');
     expect(settlementTitle(0)).toBe('SETTLEMENT');
     expect(settlementTitle(5)).not.toMatch(/ERA/);
   });
@@ -105,6 +105,10 @@ describe('era chip', () => {
     expect(formatPopulation(12_345)).toBe('12.3K');
     expect(formatPopulation(120_000)).toBe('120K');
     expect(formatPopulation(1_500_000)).toBe('1.5M');
+    expect(formatPopulation(999_499)).toBe('999K');
+    expect(formatPopulation(999_500)).toBe('1M');
+    expect(formatPopulation(999_999)).toBe('1M');
+    expect(formatPopulation(999_960_000)).toBe('1B');
     expect(formatPopulation(-5)).toBe('0');
     expect(rankName(0)).toBe('Town');
     expect(rankName(2)).toBe('Big City');

@@ -171,7 +171,7 @@ export class UpgradePad implements ItemHolder {
 
   /** Sign text of the current target ("HARVESTER", "HARVESTER LV 2"). */
   get label(): string {
-    return this.mode === 'level' ? `${this.def.label} LV ${this.offeredLevel}` : this.def.label;
+    return this.mode === 'level' ? `${this.def.label} Lv ${this.offeredLevel}` : this.def.label;
   }
 
   /** Reveal the UNLOCK pad (pop-in + ring; instant = silent, restored state). */
@@ -317,7 +317,7 @@ export class UpgradePad implements ItemHolder {
 
   private redraw(): void {
     const ratio = this.total > 0 ? 1 - this.remaining / this.total : 1;
-    const badge = this.mode === 'level' ? `LV ${this.offeredLevel}` : undefined;
+    const badge = this.mode === 'level' ? `Lv ${this.offeredLevel}` : undefined;
     createPadTexture(this.def.icon, formatCost(this.remaining), ratio, this.texture, badge);
     this.ring.setProgress(ratio);
   }

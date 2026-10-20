@@ -1443,12 +1443,12 @@ function paintBadge(g: CanvasRenderingContext2D, badge: string): void {
   g.arc(cx, cy, 33, 0, Math.PI * 2);
   g.fillStyle = hex(PAD.tag);
   g.fill();
-  const num = badge.replace(/^LV\s*/i, '');
+  const num = badge.replace(/^L[Vv]\s*/i, '');
   g.fillStyle = hex(PAD.ink);
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.font = `700 15px ${GAME_FONT}`;
-  g.fillText('LV', cx, cy - 16);
+  g.fillText('Lv', cx, cy - 16);
   g.font = `700 ${num.length > 1 ? 30 : 34}px ${GAME_FONT}`;
   g.fillText(num, cx, cy + 7, 56);
 }
@@ -2764,7 +2764,7 @@ export const padCatalog: Record<string, () => THREE.Object3D> = {
   padFeller: () => createPadModel(2.0, createPadTexture('feller', '$9000', 0.6)),
   padLoader: () => createPadModel(2.0, createPadTexture('loader', '$10k', 0)),
   padTubes: () => createPadModel(2.0, createPadTexture('tubes', '$14k', 0.2)),
-  padHarvesterLevel: () => createPadModel(2.2, createPadTexture('saw', '$400', 0.4, undefined, 'LV 1')),
+  padHarvesterLevel: () => createPadModel(2.2, createPadTexture('saw', '$400', 0.4, undefined, 'Lv 1')),
   padHut: () => createPadModel(1.4, createConstructionTexture('hut', { left: 8, total: 12 }, { left: 350, total: 350 })),
   padFarm: () => createPadModel(1.8, createConstructionTexture('farm', { left: 24, total: 24 }, { left: 2500, total: 2500 })),
   padBakery: () => createPadModel(1.8, createConstructionTexture('bakery', { left: 20, total: 30 }, { left: 4000, total: 4000 })),
@@ -2795,6 +2795,6 @@ export const padCatalog: Record<string, () => THREE.Object3D> = {
 // 0.9.8: the three looks side by side (`?gallery=pads`): an unlock pad, a level pad and a construction pad each
 for (const s of PAD_STYLES) {
   padCatalog[`look_${s}_unlock`] = () => previewPad(s, 'saw', '$150', 0.45, 'HARVESTER');
-  padCatalog[`look_${s}_level`] = () => previewPad(s, 'megasaw', '$3200', 0.7, 'MEGA SAWMILL LV 4', 'LV 4');
+  padCatalog[`look_${s}_level`] = () => previewPad(s, 'megasaw', '$3200', 0.7, 'MEGA SAWMILL Lv 4', 'Lv 4');
   padCatalog[`look_${s}_build`] = () => previewBuild(s);
 }

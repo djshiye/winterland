@@ -103,14 +103,21 @@ describe('Esc / gamepad B close the topmost menu (0.9.7 + the ending cards)', ()
   it('closes the finale / stats card before anything else, so B never opens Settings behind it', () => {
     // (0.9.8: only the update card / changelog sits above it)
     expect(ESCAPE_ORDER[0]).toBe('update');
-    expect(ESCAPE_ORDER[1]).toBe('seasonConfirm');
-    expect(ESCAPE_ORDER[2]).toBe('finale');
+    expect(ESCAPE_ORDER.indexOf('seasonConfirm')).toBe(ESCAPE_ORDER.indexOf('finale') - 1);
+    expect(ESCAPE_ORDER.indexOf('finale')).toBeLessThan(ESCAPE_ORDER.indexOf('settings'));
     expect(escapeTarget({ finale: true, settings: true, map: true })).toBe('finale');
     expect(escapeTarget({ finale: true })).toBe('finale');
   });
 
   it('with the New Season confirm showing, Esc / B go back to the stats (its Cancel), never start or close', () => {
     expect(escapeTarget({ seasonConfirm: true, finale: true })).toBe('seasonConfirm');
+  });
+
+  it('closes the save notices and the Welcome back card before Settings could open over them (0.9.13, B4)', () => {
+    expect(ESCAPE_ORDER.slice(0, 3)).toEqual(['update', 'notice', 'offline']);
+    expect(escapeTarget({ offline: true })).toBe('offline');
+    expect(escapeTarget({ notice: true, offline: true })).toBe('notice');
+    expect(escapeTarget({ update: true, notice: true })).toBe('update');
   });
 
   it('keeps the old order for the other menus, and returns null with nothing open', () => {

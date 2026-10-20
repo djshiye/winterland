@@ -7,7 +7,7 @@
 import { HAPPINESS, VILLAGE } from '../config';
 import { cityPopulation, settlementLevel, settlementName, settlementPop, townHappiness } from '../core/demand';
 import type { GameContext } from '../core/types';
-import { eraLabel, romanNumeral } from '../world/env/eras';
+import { eraLabel } from '../world/env/eras';
 import { formatPopulation } from './agesLogic';
 import { backOut, h } from './dom';
 import { ICON_HOUSE, ICON_PERSON } from './icons';
@@ -96,8 +96,9 @@ export class VillageBadge {
       return;
     }
     this.happyEl.style.display = '';
-    // 0.9.6: "Town" names it, so it never reads as the district card's "City happiness"
-    this.happyEl.innerHTML = `<span class="wl-village-happy-l">Town</span><i class="wl-village-heart">\u2665</i><span class="wl-village-happy-n">${pct}%</span>`;
+    // 0.9.13 (D2): no visible "Town" label any more ("40 TOWN", "Frontier Town 80 TOWN"); the tooltip and the screen
+    // reader label still say "Town happiness", so it never reads as the district card's "City happiness"
+    this.happyEl.innerHTML = `<i class="wl-village-heart">\u2665</i><span class="wl-village-happy-n">${pct}%</span>`;
     // 0.9.12 (R1): it lifts only mill and Market Town sales (core/demand.ts salePrice), never the era exports
     const why = `Town happiness ${pct}%: mill and Market Town sales pay up to +${Math.round(HAPPINESS.priceBonus * 100)}% (now +${Math.round(HAPPINESS.priceBonus * pct)}%)`;
     this.happyEl.title = why;
@@ -122,7 +123,7 @@ export class VillageBadge {
       // wave 9: the level numeral ("III · Town"; 0.9.0: no "Era" word, the Ages own it); the starting Camp has none
       this.nameEl.innerHTML = '';
       const lv = Math.min(v.level, VILLAGE.levels.length - 1);
-      if (lv > 0) this.nameEl.append(h('span', 'wl-village-era', `${romanNumeral(lv)} \u00b7`), lvDef.name);
+      if (lv > 0) this.nameEl.append(h('span', 'wl-village-era', `${lv} \u00b7`), lvDef.name);
       else this.nameEl.textContent = lvDef.name;
       this.nameEl.title = eraLabel(lv);
     }

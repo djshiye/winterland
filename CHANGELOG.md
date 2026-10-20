@@ -4,6 +4,16 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
+## Unreleased
+
+### Clearer screen
+
+- **Your population shows by day.** The little person next to the village badge's head count no longer disappears on the light badge, and the badge drops its extra "Town" label ("80 Town" next to "Frontier Town"). Town happiness still says what it is when you hover the heart.
+- **Welcome back closes like every card.** Esc and the controller's B close the "Welcome back" card and the save notices, and Start no longer opens Settings on top of them.
+- **Quest rewards wait their turn.** "Quest complete!" and other big messages wait while a card, sheet or the guidebook is open and show once you close it, and the reward coins fly behind the text instead of over it.
+- **Banners only where they matter.** Rush hour and Festival day only show while you're at the mill or in the Market Town, the only places they change. Snowstorms and the northern lights still show everywhere.
+- **Tidier wording.** "1 log", not "1 logs". "Sell 10 planks". Era goals and crew name the place ("All Granite Hollow upgrades", "Loading Dock"). Settlement levels use plain numbers, signs say "Lv 3" like the shop, one spelling of "cozy", the mill is "the Mill" on the final card, skaters loop "until late", the settlement card no longer repeats "Everyone loves your mill", and big populations roll over to "1M" instead of "1000K".
+
 ## 0.9.12 (2026-10-20)
 
 Easier pickups, a guide arrow that follows the path, bigger and livelier towns, a belt for every machine, and the whole game playable with a keyboard, a controller or a phone.

@@ -26,7 +26,7 @@ import './era.css';
 
 const TAGLINES: readonly string[] = [
   '',
-  'A few cosy homes around the mill',
+  'A few cozy homes around the mill',
   'Lanterns light the street',
   'The Market Town is open!',
   'Lights up all over the city!',
@@ -76,8 +76,9 @@ export class EraCard {
     const def = VILLAGE.levels[lv]!;
     this.eraEl.textContent = settlementTitle(lv);
     this.nameEl.textContent = def.name;
-    this.tagEl.textContent = TAGLINES[lv] ?? '';
     const perks = villagePerks(lv);
+    const tag = TAGLINES[lv] ?? '';
+    this.tagEl.textContent = perks.includes(tag) ? '' : tag;
     this.perksEl.replaceChildren(...perks.map((p) => h('span', 'wl-era-perk', p)));
     this.perksEl.style.display = perks.length ? '' : 'none';
     this.root.setAttribute('aria-label', `Settlement: ${def.name}`);

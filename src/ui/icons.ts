@@ -631,9 +631,10 @@ export const ICON_HOUSE = svg(
    <rect x="31" y="14" width="6" height="9" fill="#a8693a" stroke="${OUT}" stroke-width="2.4"/>`,
 );
 
+// 0.9.13 (B3): currentColor, so it takes the badge's text colour (pure white vanished on the cream badge by day)
 export const ICON_PERSON = svg(
-  `<circle cx="24" cy="14" r="8" fill="#fff"/>
-   <path d="M8 42c0-10 7-16 16-16s16 6 16 16z" fill="#fff"/>`,
+  `<circle cx="24" cy="14" r="8" fill="currentColor"/>
+   <path d="M8 42c0-10 7-16 16-16s16 6 16 16z" fill="currentColor"/>`,
 );
 
 export const ICON_COIN = svg(

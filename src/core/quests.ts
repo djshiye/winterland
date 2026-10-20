@@ -39,7 +39,7 @@ const amenitiesBuilt = (s: GameState) => AMENITY_IDS.filter((id) => s.town.ameni
 const hiredAny = (s: GameState) => flag(s.upgrades.crateRunner > 0 || s.upgrades.cashier > 0 || s.upgrades.logHauler > 0);
 
 export const QUEST_DEFS: readonly QuestDef[] = [
-  { id: 'planks10', title: 'Sell 10 plank bundles', target: 10, reward: 20, progress: (s) => s.stats.planksSold },
+  { id: 'planks10', title: 'Sell 10 planks', target: 10, reward: 20, progress: (s) => s.stats.planksSold },
   { id: 'harvester', title: 'Build the harvester', target: 1, reward: 30, progress: (s) => flag(s.unlocked.harvester) },
   { id: 'chop150', title: 'Chop 150 logs', target: 150, reward: 40, progress: (s) => s.stats.logsChopped },
   { id: 'hamlet', title: 'Grow your camp into a Hamlet', target: 1, reward: 60, progress: (s) => s.village.level },
@@ -66,7 +66,7 @@ export const QUEST_DEFS: readonly QuestDef[] = [
   { id: 'earn150k', title: 'Earn $150,000 in total', target: 150000, reward: 6000, progress: (s) => s.stats.moneyEarned },
   { id: 'greatLodge', title: 'Build the Great Lodge', target: 1, reward: 10000, progress: (s) => flag(s.village.greatLodge.tier >= 0) },
   // Wave 12: amenities and town happiness.
-  { id: 'amenity1', title: 'Build something cosy on the square', target: 1, reward: 1500, progress: amenitiesBuilt },
+  { id: 'amenity1', title: 'Build something cozy on the square', target: 1, reward: 1500, progress: amenitiesBuilt },
   { id: 'happy50', title: 'Reach 50% town happiness', target: 50, reward: 3000, progress: (s) => Math.round(townHappiness(s) * 100) },
   { id: 'amenity4', title: 'Build every amenity', target: 4, reward: 12000, progress: amenitiesBuilt },
   // 0.9.0: the ages (after every Survival quest above, so era 1 reads exactly as before).
@@ -92,7 +92,7 @@ function eraQuests(): QuestDef[] {
     id: `gate${n}`,
     // literal mode: the previous era's own upgrades, named by era (0.9.6: "All Granite Hollow upgrades" read as only
     // that region's, though the era's finance is bought at the cabin; "All upgrades" meant Survival's only)
-    title: GATE.mode === 'literal' ? `All ${ERA_NAMES[n - 1]} upgrades Lv ${gateNeed(n)}` : `All upgrades Lv ${gateNeed(n)}`,
+    title: GATE.mode === 'literal' ? `All ${ERAS[n - 1]?.region ?? ERA_NAMES[n - 1]} upgrades Lv ${gateNeed(n)}` : `All upgrades Lv ${gateNeed(n)}`,
     target: gateSize(n),
     reward: Math.round((unlockCash(n) * 0.05) / 1000) * 1000,
     unlocked: climbOpen,
@@ -123,7 +123,7 @@ function eraQuests(): QuestDef[] {
   // 0.9.7: the last goal, the final gate (era 10's own things at Lv 10; the 100 % award, core/completion.ts, counts it)
   out.push({
     id: `gate${FINAL_GATE}`,
-    title: `${FINAL_NAME}: all ${ERA_NAMES[FINAL_GATE - 1]} upgrades Lv ${gateNeed(FINAL_GATE)}`,
+    title: `${FINAL_NAME}: all ${ERAS[FINAL_GATE - 1]?.region ?? ERA_NAMES[FINAL_GATE - 1]} upgrades Lv ${gateNeed(FINAL_GATE)}`,
     target: gateSize(FINAL_GATE),
     reward: Math.round((unlockCash(10) * 0.1) / 1000) * 1000,
     unlocked: (s) => s.eras.age >= FINAL_GATE - 1,
