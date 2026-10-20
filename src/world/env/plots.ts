@@ -98,6 +98,8 @@ const STYLE: readonly (PlotStyle | null)[] = [
 
 const SNOW = PALETTE.snow;
 const CREAM = 0xfff3dc;
+/** Icicles: pale blue ice. */
+const ICE = 0xd6eefa;
 const WINDOW = 0xffd88a;
 const DOOR_D = 0.08;
 
@@ -242,6 +244,28 @@ class Frame {
     // gable ends
     this.put(geo.box(0.12, rise * 0.9, d * 0.7), color, w / 2 - 0.02, y + rise * 0.35, 0);
     this.put(geo.box(0.12, rise * 0.9, d * 0.7), color, -w / 2 + 0.02, y + rise * 0.35, 0);
+    if (snow) this.winter(w, d, y, half);
+    return this;
+  }
+  /**
+   * 0.9.12 (Dino: "icicles and snowdrifts"): icicles of steady, varied lengths along both eaves, and soft drifts
+   * banked against the side and back walls (never the front, where the door is). The drifts are low and hug the
+   * walls: they stand in nobody's way.
+   */
+  winter(w: number, d: number, eaveY: number, half: number): this {
+    const n = Math.max(4, Math.round((w + 0.3) / 0.27));
+    for (const s of [1, -1]) {
+      for (let k = 0; k < n; k++) {
+        const len = 0.1 + (((k * 7 + (s > 0 ? 3 : 0)) % 5) / 4) * 0.26;
+        if ((k * 5 + (s > 0 ? 1 : 2)) % 7 === 0) continue;
+        this.put(geo.cone(0.045, len, 5), ICE, -(w + 0.3) / 2 + ((k + 0.5) * (w + 0.3)) / n, eaveY - 0.02 - len / 2, s * (half - 0.02), { rx: Math.PI });
+      }
+    }
+    for (const s of [1, -1]) {
+      this.put(geo.sphere(0.5, 10, 6), SNOW, s * (w / 2 + 0.12), 0, -d * 0.12, { sx: 0.5, sy: 0.42, sz: d * 0.7 });
+      this.put(geo.sphere(0.4, 9, 5), 0xffffff, s * (w / 2 + 0.1), 0.02, -d * 0.3, { sx: 0.45, sy: 0.5, sz: 0.9 });
+    }
+    this.put(geo.sphere(0.5, 10, 6), SNOW, 0, 0, -(d / 2 + 0.12), { sx: w * 0.75, sy: 0.4, sz: 0.5 });
     return this;
   }
 }
@@ -1011,6 +1035,30 @@ const GARLAND_SPAN = 10;
 /** Where a garland ties on to a lamp post: just under its arm. */
 const GARLAND_POST_Y = 2.88;
 
+/** A shop's front eave edge in its own frame: [half width, height, depth out from the centre], or null (round shops). */
+function shopEave(st: PlotStyle, s: ShopPlace): [number, number, number] | null {
+  if (st.hut === 'deco') return [s.w / 2 + 0.04, 2.44, s.d / 2 + 1.31];
+  if (st.hut === 'trailer') return [s.w / 2 + 0.28, s.h - 0.02, s.d / 2 + 0.76];
+  if (st.hut === 'modular') return [s.w / 2 + 0.13, s.h - 0.12, s.d / 2 + 0.12];
+  if (st.hut === 'quonset' || st.hut === 'pod') return null;
+  return [s.w / 2 + 0.12, s.h - 0.04, s.d / 2 + 0.25];
+}
+
+/** 0.9.12: icicles along the front eave of the flat-roofed shops of eras VI-VIII (the gabled ones get theirs in Frame.gable). */
+function shopIcicles(body: Batch, st: PlotStyle, s: ShopPlace, i: number): void {
+  if (st.hut !== 'deco' && st.hut !== 'trailer' && st.hut !== 'modular') return;
+  const e = shopEave(st, s)!;
+  const f = new Frame(body, s.x, s.z, s.yaw);
+  const n = Math.max(4, Math.round((e[0] * 2) / 0.27));
+  // the deco arcade's slab is 0.18 thick, the others' roof edges about as much
+  const y = e[1] - 0.09;
+  for (let k = 0; k < n; k++) {
+    if ((k * 5 + i) % 7 === 0) continue;
+    const len = 0.1 + (((k * 7 + i) % 5) / 4) * 0.24;
+    f.put(geo.cone(0.045, len, 5), ICE, -e[0] + ((k + 0.5) * 2 * e[0]) / n, y - len / 2, e[2] - 0.03, { rx: Math.PI });
+  }
+}
+
 /**
  * Pure: era n's garlands. Paper lanterns strung from lamp to lamp along the market street (their lowest point well
  * over everyone's heads), and scalloped under the front eave of every shop (stalls and the round quonset / dome
@@ -1030,9 +1078,7 @@ export function plotGarlands(n: number): Garland[] {
   }
   P.shops.forEach((s, i) => {
     if (s.stall) return;
-    // the eave's front edge in the shop's own frame: [half width, height, depth out from the centre]
-    const e: [number, number, number] | null =
-      st.hut === 'deco' ? [s.w / 2 + 0.04, 2.44, s.d / 2 + 1.31] : st.hut === 'trailer' ? [s.w / 2 + 0.28, s.h - 0.02, s.d / 2 + 0.76] : st.hut === 'modular' ? [s.w / 2 + 0.13, s.h - 0.12, s.d / 2 + 0.12] : st.hut === 'quonset' || st.hut === 'pod' ? null : [s.w / 2 + 0.12, s.h - 0.04, s.d / 2 + 0.25];
+    const e = shopEave(st, s);
     if (!e) return;
     const c = Math.cos(s.yaw);
     const sn = Math.sin(s.yaw);
@@ -1640,7 +1686,9 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   const paper = [mix(e.colors.glow, 0xffd27a, 0.55), 0xffc067, mix(e.colors.accent, 0xfff0d0, 0.45), 0xfff0c2];
   for (const g of plotGarlands(n)) addLanternGarland(bulbs, g.a, g.b, g.sag, g.seed, paper);
   P.shops.forEach((s, i) => {
-    if (!s.stall) buildShopSign(body, n, st, s, i, e.colors, goods);
+    if (s.stall) return;
+    buildShopSign(body, n, st, s, i, e.colors, goods);
+    shopIcicles(body, st, s, i);
   });
 
   const statics = body.mesh({ cast: true, receive: true });
