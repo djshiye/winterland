@@ -1,5 +1,5 @@
 /**
- * [0.9.10 — H2] Settings → Game → Credits: who made the game and the open-source parts it is built with.
+ * [0.9.10 — H2] Settings → Game → About: who made the game, its version and the open-source parts it is built with.
  * The list comes from package.json, so it can't go stale: every runtime dependency (shipped inside the game), plus the
  * devDependencies in BUILT_WITH (Electron runs the desktop app, Vite builds the game). Each line shows the package's
  * licence; LICENSES mirrors the `license` field of node_modules/<name>/package.json, and tests/menus0910.test.ts
@@ -7,6 +7,8 @@
  */
 import { dependencies, devDependencies } from '../../package.json';
 import type { GameContext } from '../core/types';
+import { GAME_VERSION } from '../core/version';
+import { desktop } from '../platform/desktop';
 import { h, onTap } from './dom';
 
 /** The game's own licence line (LICENSE at the repo root). */
@@ -68,9 +70,11 @@ export class CreditsCard {
   constructor(ctx: GameContext, onBack: () => void) {
     this.el = h('div', 'wl-settings-confirm wl-credits');
     const title = h('div', 'wl-confirm-text wl-credits-title');
-    title.textContent = 'Credits';
+    title.textContent = 'About Winterland';
     const by = h('p', 'wl-credits-by');
-    by.textContent = 'Winterland is made by Dino.';
+    by.textContent = 'A cozy winter idle game by Dino.';
+    const version = h('p', 'wl-credits-version');
+    version.textContent = `Version ${desktop()?.version || GAME_VERSION}`;
     const lead = h('div', 'wl-credits-lead');
     lead.textContent = 'Built with';
     const list = h('ul', 'wl-credits-list');
@@ -92,8 +96,6 @@ export class CreditsCard {
     }
     const copy = h('p', 'wl-credits-copy');
     copy.textContent = COPYRIGHT;
-    const thanks = h('p', 'wl-credits-thanks');
-    thanks.textContent = 'Thank you to everyone who shares free and open tools.';
     this.back = h('button', 'wl-btn wl-btn-grey', 'Back');
     this.back.type = 'button';
     onTap(this.back, () => {
@@ -102,6 +104,6 @@ export class CreditsCard {
     });
     const row = h('div', 'wl-btn-row');
     row.appendChild(this.back);
-    this.el.append(title, by, lead, list, thanks, copy, row);
+    this.el.append(title, by, version, lead, list, copy, row);
   }
 }

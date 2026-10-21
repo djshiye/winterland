@@ -2,7 +2,7 @@
   "name": "winterland",
   "private": true,
   "version": "0.9.13",
-  "description": "Winterland — a 3D isometric arcade-idle lumber mill game (Three.js + TypeScript + Vite)",
+  "description": "A cozy 3D idle game: run a snowy lumber mill and grow a winter village through ten eras.",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -14,7 +14,7 @@
     "package:desktop": "node scripts/package-desktop.mjs",
     "package:linux": "node scripts/package-desktop.mjs linux-x64 linux-arm64",
     "package:win": "node scripts/package-desktop.mjs win32-x64",
-    "package:mac": "node scripts/package-desktop.mjs darwin-arm64 darwin-x64",
+    "package:mac": "node scripts/package-desktop.mjs darwin-arm64",
     "test": "vitest run",
     "test:updater": "node scripts/test-updater.mjs",
     "soak": "node scripts/soak.mjs",
