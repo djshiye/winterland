@@ -974,6 +974,22 @@ function distToSeg(px: number, pz: number, a: XZ, b: XZ): number {
 const sightClass = (h: number): number => (h <= 1.0 ? 0 : h <= 1.3 ? 1 : 2);
 const SIGHT_H = [1.0, 1.3, 3.0] as const;
 
+/** 0.9.13 (review idea 2, E6): people a stall's queue holds, the step between them (m) and the head's distance from the stall's centre. */
+export const QUEUE_PLACES = 3;
+export const QUEUE_STEP = 0.8;
+const QUEUE_HEAD = DECOR_SIZE.stall[1] + 0.5;
+
+/** 0.9.13 (review idea 2, E6): the ground a stall's line stands on (its places and the step behind them), 1.2 m wide, as a pseudo item. */
+function queueStrip(d: { x: number; z: number; yaw: number }): { kind: DecorKind; x: number; z: number; hx: number; hz: number; h: number; yaw: number; v: number } {
+  const fx = Math.round(Math.sin(d.yaw));
+  const fz = Math.round(Math.cos(d.yaw));
+  const a = QUEUE_HEAD - 0.4;
+  const b = QUEUE_HEAD + QUEUE_PLACES * QUEUE_STEP + 0.3;
+  const half = (b - a) / 2;
+  const mid = (a + b) / 2;
+  return { kind: 'snow', x: d.x + fx * mid, z: d.z + fz * mid, hx: fx ? half : 0.6, hz: fx ? 0.6 : half, h: 0.1, yaw: d.yaw, v: 0 };
+}
+
 /**
  * Era n's market and huts decor (2..10), at full growth. Greedy and deterministic: each vignette of a zone's recipe
  * goes where it fits (every item inside the zone, 1.25 m off every route, off every keep-out, the camera shadow of its
@@ -1083,8 +1099,9 @@ export function plotDecor(n: number): DecorPlace[] {
         fill(occ, grow(rectOf(best.it), Math.min(best.pad, CENTRE_ROOM)));
       }
     }
-    // eras 6-10: the huts green starts with stalls, a snowman, stalls; eras 6-8 park their vehicle first in the market
-    const lead = n >= 6 ? (zone === 'huts' ? ['stalls', 'snowman', 'stalls'] : n <= 8 ? ['van'] : []) : [];
+    // eras 6-10: the huts green starts with stalls, a snowman, stalls; eras 6-8 park their vehicle first in the market.
+    // 0.9.13 (review idea 2): eras 2-5 get one stall too, so every era's residents have somewhere to run an errand to
+    const lead = n >= 6 ? (zone === 'huts' ? ['stalls', 'snowman', 'stalls'] : n <= 8 ? ['van'] : []) : zone === 'huts' ? ['stalls'] : [];
     const recipe = RECIPE[zone];
     for (let vi = 0; vi < want + lead.length; vi++) {
       const tpl = VIGNETTES[vi < lead.length ? lead[vi]! : recipe[(vi - lead.length) % recipe.length]!]!;
@@ -1102,6 +1119,9 @@ export function plotDecor(n: number): DecorPlace[] {
                 items.push(it);
               }
               if (items.length < tpl.length) continue;
+              // 0.9.13 (review idea 2, E6): a stall on the huts green keeps the ground in front of its counter free for its line
+              const line = first.kind === 'stall' && zone === 'huts' ? queueStrip(first) : null;
+              if (line && (!fits(line, 0) || items.some((o) => o !== first && hit(rectOf(line), rectOf(o))))) continue;
               // farthest from what is placed, and tucked against a wall or a building when it can be
               const tucked = items.some((it) => edgeNear(it) || !fits(it, 0.9));
               let near = 7;
@@ -1116,6 +1136,7 @@ export function plotDecor(n: number): DecorPlace[] {
       for (const it of best.items) {
         out.push({ ...it, zone: within(rectOf(it), zoneIn.market) ? 'market' : 'huts' });
         fill(occ, grow(rectOf(it), DECOR_GAP));
+        if (it.kind === 'stall' && zone === 'huts') fill(occ, grow(rectOf(queueStrip(it)), DECOR_GAP));
       }
     }
   }
@@ -1207,6 +1228,196 @@ export function greenActivities(n: number): GreenActivity[] {
     }
   }
   activityCache.set(key, out);
+  return out;
+}
+
+/** A market stall on the huts green with the line that forms in front of it, and the walks to and from that line. */
+export interface StallQueue {
+  /** The stall's centre and its facing (its counter faces +Z turned by yaw). */
+  x: number;
+  z: number;
+  yaw: number;
+  /** Where the people in line stand, head first (QUEUE_PLACES, QUEUE_STEP apart, straight out from the counter). */
+  places: XZ[];
+  /** The way they face (at the stall). */
+  face: number;
+  /** One step behind the last place: walkers come here, then walk up the line to their place. */
+  entry: XZ;
+  /** Per hut (P.huts order): the walk from its door spot (greenWalk doors) to `entry` (entry last), or null. */
+  to: (XZ[] | null)[];
+  /** Per hut: the walk home once served, from the head a step aside and on to its door spot (the spot last), or null. */
+  from: (XZ[] | null)[];
+}
+
+const stallCache = new Map<string, StallQueue[]>();
+
+/** Grid cell (m) of the stall walks' planner, and how far (m) their legs keep off everything that stands. */
+const STALL_CELL = 0.25;
+export const STALL_WALK_CLEAR = 0.35;
+
+/**
+ * Era n's stall queues (pure, cached): every market stall on the huts zone (eras/layout.ts plotDecor keeps a strip in
+ * front of its counter free, `queueStrip`) gets a line straight out from the counter, and walks from every hut's door
+ * spot to the back of the line and from its head home: the shortest way over a 0.25 m grid of the huts zone, pulled
+ * straight wherever a leg is clear. Every leg keeps STALL_WALK_CLEAR off every hut and annex, decor piece (snow piles
+ * too: snowmen grow there), the green's benches, the spots people stand at (the ring, benches, snowmen) and the
+ * centrepiece; the walk home also keeps off the line's places. A stall whose line can't be walked to gets no queue.
+ */
+export function greenStalls(n: number): StallQueue[] {
+  const def = regionDef(n);
+  const key = `${n}|${def.slots}|${def.room}`;
+  const cached = stallCache.get(key);
+  if (cached) return cached;
+  const P = plotPlaces(n);
+  const W = greenWalk(P);
+  const decor = plotDecor(n);
+  const M = STALL_WALK_CLEAR;
+  const rectOf = (d: DecorPlace): ERect => ({ minX: d.x - d.hx, maxX: d.x + d.hx, minZ: d.z - d.hz, maxZ: d.z + d.hz });
+  const blocks = [...P.huts.map((h) => grow(hutBox(h, true), M)), ...[-1, 1].map((s) => grow({ minX: W.c.x + s * 3.2 - 0.8, maxX: W.c.x + s * 3.2 + 0.8, minZ: W.c.z - 0.23, maxZ: W.c.z + 0.23 }, M))];
+  // where people stand still: the ring spots, bench seats and snowman builders (and the snowmen)
+  const stands: { c: XZ; r: number }[] = [{ c: W.c, r: GREEN_CLEAR }, ...W.ring.map((c) => ({ c, r: 0.3 + M }))];
+  for (const a of greenActivities(n)) {
+    stands.push({ c: { x: a.x, z: a.z }, r: 0.3 + M });
+    if (a.sx !== undefined) stands.push({ c: { x: a.sx, z: a.sz! }, r: 0.45 + M });
+  }
+  const zone = grow(regionLayout(n).zones.huts, -0.6);
+  const C = STALL_CELL;
+  const NX = Math.ceil((zone.maxX - zone.minX) / C);
+  const NZ = Math.ceil((zone.maxZ - zone.minZ) / C);
+  const cell = (q: XZ): number => {
+    const ix = Math.floor((q.x - zone.minX) / C);
+    const iz = Math.floor((q.z - zone.minZ) / C);
+    return ix < 0 || iz < 0 || ix >= NX || iz >= NZ ? -1 : iz * NX + ix;
+  };
+  const cx = (i: number): number => zone.minX + ((i % NX) + 0.5) * C;
+  const cz = (i: number): number => zone.minZ + (Math.floor(i / NX) + 0.5) * C;
+
+  /** The open cells: a cell is shut when its centre is inside something (grown by M). */
+  const grid = (skip: readonly DecorPlace[], away: readonly XZ[]): Uint8Array => {
+    const open = new Uint8Array(NX * NZ).fill(1);
+    const shut = (r: ERect): void => {
+      const x0 = Math.max(0, Math.ceil((r.minX - zone.minX) / C - 0.5));
+      const x1 = Math.min(NX - 1, Math.floor((r.maxX - zone.minX) / C - 0.5));
+      const z0 = Math.max(0, Math.ceil((r.minZ - zone.minZ) / C - 0.5));
+      const z1 = Math.min(NZ - 1, Math.floor((r.maxZ - zone.minZ) / C - 0.5));
+      for (let iz = z0; iz <= z1; iz++) for (let ix = x0; ix <= x1; ix++) open[iz * NX + ix] = 0;
+    };
+    const disc = (c: XZ, rad: number): void => {
+      const x0 = Math.max(0, Math.floor((c.x - rad - zone.minX) / C));
+      const x1 = Math.min(NX - 1, Math.ceil((c.x + rad - zone.minX) / C));
+      const z0 = Math.max(0, Math.floor((c.z - rad - zone.minZ) / C));
+      const z1 = Math.min(NZ - 1, Math.ceil((c.z + rad - zone.minZ) / C));
+      for (let iz = z0; iz <= z1; iz++) for (let ix = x0; ix <= x1; ix++) if (Math.hypot(cx(iz * NX + ix) - c.x, cz(iz * NX + ix) - c.z) < rad) open[iz * NX + ix] = 0;
+    };
+    blocks.forEach(shut);
+    for (const d of decor) if (!skip.includes(d)) shut(grow(rectOf(d), M));
+    for (const s of stands) disc(s.c, s.r);
+    for (const a of away) disc(a, 0.3 + M);
+    return open;
+  };
+  /** Straight leg a → b over open cells only (sampled every 5 cm; a and b's own cells may be shut: they are the ends). */
+  const sight = (open: Uint8Array, a: XZ, b: XZ): boolean => {
+    const ia = cell(a);
+    const ib = cell(b);
+    const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.05));
+    for (let k = 0; k <= steps; k++) {
+      const i = cell({ x: a.x + ((b.x - a.x) * k) / steps, z: a.z + ((b.z - a.z) * k) / steps });
+      if (i < 0 || (!open[i] && i !== ia && i !== ib)) return false;
+    }
+    return true;
+  };
+  /** Breadth first from p over the open cells (each cell once): every reached cell's step toward p. */
+  const flood = (open: Uint8Array, p: XZ): Int32Array => {
+    const prev = new Int32Array(NX * NZ).fill(-2);
+    const start = cell(p);
+    if (start < 0) return prev;
+    const queue = new Int32Array(NX * NZ);
+    let head = 0;
+    let tail = 0;
+    prev[start] = -1;
+    queue[tail++] = start;
+    while (head < tail) {
+      const i = queue[head++]!;
+      const ix = i % NX;
+      const iz = (i - ix) / NX;
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const jx = ix + dx;
+          const jz = iz + dz;
+          if ((!dx && !dz) || jx < 0 || jz < 0 || jx >= NX || jz >= NZ) continue;
+          const j = jz * NX + jx;
+          if (!open[j] || prev[j] !== -2 || (dx && dz && (!open[iz * NX + jx] || !open[jz * NX + ix]))) continue;
+          prev[j] = i;
+          queue[tail++] = j;
+        }
+      }
+    }
+    return prev;
+  };
+  /** The walk from q to the flood's start p, pulled straight (q first, p last), or null when q is not reached. */
+  const walk = (open: Uint8Array, prev: Int32Array, q: XZ, p: XZ): XZ[] | null => {
+    // q (a door spot) may sit in a shut cell by the hut: step to the nearest reached cell in sight of it
+    let from = cell(q);
+    if (from < 0 || prev[from] === -2) {
+      from = -1;
+      let bd = 1.2;
+      for (let i = 0; i < prev.length; i++) {
+        if (prev[i] === -2) continue;
+        const d = Math.hypot(cx(i) - q.x, cz(i) - q.z);
+        if (d < bd && sight(open, q, { x: cx(i), z: cz(i) })) {
+          bd = d;
+          from = i;
+        }
+      }
+      if (from < 0) return null;
+    }
+    const path: XZ[] = [q];
+    for (let i = from; i >= 0 && prev[i] !== -1; i = prev[i]!) path.push({ x: cx(i), z: cz(i) });
+    path.push(p);
+    const out: XZ[] = [q];
+    let at = 0;
+    while (at < path.length - 1) {
+      let far = at + 1;
+      while (far + 1 < path.length && sight(open, path[at]!, path[far + 1]!)) far++;
+      out.push(path[far]!);
+      at = far;
+    }
+    return out;
+  };
+  const out: StallQueue[] = [];
+  for (const d of decor) {
+    if (d.zone !== 'huts' || d.kind !== 'stall') continue;
+    const fx = Math.sin(d.yaw);
+    const fz = Math.cos(d.yaw);
+    // the stall and the crates beside it (its vignette) may stand next to the line
+    const mine = decor.filter((o) => o === d || (o.kind === 'crates' && Math.hypot(o.x - d.x, o.z - d.z) < 2));
+    const at = (k: number): XZ => ({ x: d.x + fx * (QUEUE_HEAD + k * QUEUE_STEP), z: d.z + fz * (QUEUE_HEAD + k * QUEUE_STEP) });
+    const places = Array.from({ length: QUEUE_PLACES }, (_, k) => at(k));
+    const entry = at(QUEUE_PLACES);
+    const openTo = grid(mine, []);
+    if (!sight(openTo, places[0]!, entry)) continue;
+    const prevTo = flood(openTo, entry);
+    const to = W.doors.map((q) => walk(openTo, prevTo, q, entry)?.slice(1) ?? null);
+    if (to.every((t) => !t)) continue;
+    // served: a step aside off the head (the side most doors can walk home from), then home
+    let home: (XZ[] | null)[] = [];
+    let best = -1;
+    for (const s of [1, -1]) {
+      const side = { x: places[0]!.x + fz * s * 0.95, z: places[0]!.z - fx * s * 0.95 };
+      const openFrom = grid(mine, places.slice(1));
+      if (!sight(openFrom, places[0]!, side)) continue;
+      const prevFrom = flood(openFrom, side);
+      const ways = W.doors.map((q) => walk(openFrom, prevFrom, q, side)?.reverse() ?? null);
+      const k = ways.filter((w, i) => w && to[i]).length;
+      if (k > best) {
+        best = k;
+        home = ways;
+      }
+    }
+    if (best <= 0) continue;
+    out.push({ x: d.x, z: d.z, yaw: d.yaw, places, face: d.yaw + Math.PI, entry, to: to.map((t, i) => (t && home[i] ? t : null)), from: home.map((h, i) => (h && to[i] ? h : null)) });
+  }
+  stallCache.set(key, out);
   return out;
 }
 

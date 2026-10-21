@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 0.9.12 traffic check: every vehicle (train, trucks, trikes, sleds, the era buyers) must
+ * 0.9.12 traffic check: every vehicle (train, trucks, trikes, sleds, the era buyers, and from 0.9.13 the city's street vehicles on the block loops) must
  *
  *   1. face the way it moves      (its nose vs its motion between two samples: "the train drives backwards")
  *   2. never pop in or out in view (a vehicle appearing or vanishing while on screen, away from a depot:
@@ -12,7 +12,8 @@
  *
  *   node scripts/traffic-check.mjs [--seconds 40] [--mobile] [--only <name,...>] [--json out.json]
  *
- * Builds the game (like scripts/shot.mjs), opens a fresh world with every era open and every era-1 station built,
+ * Builds the game (like scripts/shot.mjs), opens a fresh world with every era open and every era-1 station built and a lot built in every
+ * city district (so the street vehicles are out),
  * keeps every counter stocked (debug stockDocks) and stands the player at each viewpoint below for `--seconds`,
  * sampling every vehicle (debug vehicles(): position, facing, on screen) every SAMPLE seconds. Exit 1 on any finding.
  * Needs WL_CHROMIUM=/opt/pw-browsers/chromium in the cloud.
@@ -61,6 +62,9 @@ const VIEWS = [
   ['market town', 17, 26.7],
   ['city west street', 42, 40],
   ['city west north end', 42, 15],
+  ['city block 5 north (H1 kerb)', 66, 47.2],
+  ['city V1 / H2 corner (kerb)', 87.2, 85.2],
+  ['city block 6 east (V2 kerb)', 135.2, 70],
   ['era 2 market', 25.5, 64],
   ['between eras 2 and 3', -10, 64],
   ['era 3 market', -46.5, 64],
@@ -142,6 +146,9 @@ try {
   await page.evaluate(() => {
     const W = window.__WINTERLAND__;
     for (const id of Object.keys(W.config.PADS)) W.unlock(id);
+    // 0.9.13: one lot in every district, so each district's street vehicle (city/StreetTraffic.ts) is out
+    const KEYS = { 2: 'frontier', 3: 'iron', 4: 'steam', 5: 'industrial', 6: 'electric', 7: 'oil', 8: 'computer', 9: 'nuclear', 10: 'ai' };
+    for (const n in KEYS) W.buildCity(Number(n), 0, KEYS[n] + 'Home');
     W.advance(2);
   });
   log(`world ready, ${VIEWS.length} viewpoints × ${SECONDS}s${MOBILE ? ' (phone)' : ''}`);

@@ -81,6 +81,6 @@ export function* trafficNow(now: number): Generator<KerbVehicle> {
       s.z = _v.z;
       s.t = now;
     }
-    yield { x: _v.x, z: _v.z, fx: _f.x, fz: _f.z, speed: s.speed, yields: v.kind.startsWith('eraBuyer') };
+    yield { x: _v.x, z: _v.z, fx: _f.x, fz: _f.z, speed: s.speed, yields: v.kind.startsWith('eraBuyer') || v.kind.startsWith('street:') };
   }
 }
