@@ -16,7 +16,7 @@
  *   automatic drop to Low never overrides the player.
  * 0.9.10: the card is a real dialog (ui/dialog.ts: role="dialog", aria-modal, labelled by its title, Tab stays inside,
  * focus goes back where it was on close); Comfort › "Pause when a menu is open" (fx/comfort menuPause, game/Game.ts);
- * Game › Credits (ui/CreditsCard.ts) replaces the tabs like the confirmations do.
+ * Game › About (ui/CreditsCard.ts) replaces the tabs like the confirmations do.
  * Sliders run on 'input' (live) and are not shielded: the row stops pointerdown / touchstart instead.
  * On short screens (<= 520 px tall) the switches sit in two columns so the card fits 800x450.
  */
@@ -604,7 +604,7 @@ export class SettingsPanel {
     upd.appendChild(updRow);
     pg.insertBefore(upd, statsBtn);
     // 0.9.10 (H2): who made the game and what it is built with
-    this.creditsBtn = h('button', 'wl-btn wl-btn-grey', 'Credits');
+    this.creditsBtn = h('button', 'wl-btn wl-btn-grey', 'About');
     this.creditsBtn.type = 'button';
     onTap(this.creditsBtn, () => {
       ctx.audio.play('click');

@@ -920,14 +920,14 @@
   text-shadow: none;
 }
 
-/* ---- 0.9.10 Settings → Game → Credits (ui/CreditsCard.ts) ------------------------------------------- */
+/* ---- 0.9.10 Settings → Game → About (ui/CreditsCard.ts) ------------------------------------------- */
 
 .wl-credits-title {
   margin-bottom: 6px;
 }
 
 .wl-credits-by {
-  margin: 0 8px 14px;
+  margin: 0 8px 4px;
   font-size: 18px;
   font-weight: 600;
   color: var(--wl-ink);
@@ -1000,8 +1000,8 @@
   text-shadow: none;
 }
 
-.wl-credits-thanks {
-  margin: 0 8px 6px;
+.wl-credits-version {
+  margin: 0 8px 14px;
   font-size: 14px;
   color: var(--wl-ink-soft);
   text-shadow: none;

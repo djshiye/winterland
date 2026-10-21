@@ -29,7 +29,7 @@ It fixes every problem the judges raised. I checked the numbers against the code
 | R4 | **"Every upgrade ≥ 10·(N−1)" read literally.** An era-9 upgrade would go 0 → 90 inside era 9 (about 2,000 purchases). | **Base offset, shown to the player.** An upgrade from intro era `e` shows `Lv = stored + base`, with `base = 10·(e−1)`. The rule then holds *as written on screen* for every owned upgrade. Each era asks for +10 levels on everything. Owner switch `GATE.mode: 'offset' \| 'literal'`; literal sets base = 0 for all ids. |
 | R5 | **The offset is confusing on arrival** (judges: "an unhired crew shows Lv 80 and Not hired"). | 1) Crews show **"Not hired"** at stored 0. Hiring shows `Lv base+1`. 2) Other new upgrades show **"Lv 20 · era standard"** with a one-line tooltip: "Iron Age gear arrives at Lv 20, the level everything needs to open the Iron Age." 3) Pips are drawn per band (10 pips plus a band star), so the bar always reads "0..10 of this era". |
 | R6 | **Two level conventions.** The shop shows the stored level (`ShopPanel.ts:370`, `Lv ${lvl}/${max}`). Survival machine pads count the built machine as LV 1 and offer `LV stored+2` (`UpgradePad.ts:14`). | **One internal number decides:** `shown = stored + base`. Each checklist row uses the unit of the place where it is bought: shop rows read "Lv 7/10"; pad rows read "pad LV 8 → LV 11". 0.9.1: pad badges show the shown level they buy (first pad LV 1), so pad rows read "pad LV 8 → LV 10" and the last era-1 pad is LV 10. |
-| R7 | **"Owns."** If unbuilt pads or unhired crews were skipped, a player could make the gate easier by not buying things. | Every upgrade of every era reached counts. An unmet `requires` becomes the row's first step ("Build the Workshop", "Hire the Paymaster: reach Settlement 12"). `check-reveals` proves every era-1 requirement can be met before the finale. |
+| R7 | **"Owns."** If unbuilt pads or unhired crews were skipped, a player could make the gate easier by not buying things. | Every upgrade of every era reached counts. An unmet `requires` becomes the row's first step ("Build the Workshop", "Hire the Paymaster: reach Settlement 12"). `tests/reveals.test.ts` proves every era-1 requirement can be met before the finale. |
 | R8 | **`village.level` is clamped to 0..5** (`Save.ts:226`) and indexes `DEMAND`, `VILLAGE.levels` and era dressing (64 readers). | It stays 0..5. Settlement 6..50 is a separate best-ever value `state.eras.settlement`. Era-1 demand stays frozen at the Winterland row. |
 | R9 | **Settlement 6..10 is flat** if it uses total population. Era-1 population is anywhere from 110 to 176 (8 plots × 12 + 8 lots × ≤10), and an era-2 home holds 40. | Levels ≥ 6 use **city population**: district residents + region machine staff, without the village. Era 2 interpolates linearly from 0, later eras geometrically (§B). One level is about one home in every band. |
 | R10 | **Regions 2..5 have 4/4/5/5 slots** (`data.ts` `REGIONS`), but every era needs 6 machine types. | Slots become 8,8,8,8,8,8,9,9,10. I checked the fit with `regionLayout`'s cell search: cells of 7 / 7.5 / 8 / 8.5 / 9 / 9 / 9 / 9 / 9 m. Old slot indices keep their machines; only the grid spacing changes. |
@@ -361,7 +361,7 @@ Existing cross-era imports through the dock (iron → steamWorks, wire → chipF
   - pal 3
   - front yard about 30
   - ground and fence about 40
-- **Frame ≤ 950**, measured with `scripts/perf-breakdown.js` on a late save in every release.
+- **Frame ≤ 950**, measured with `scripts/perf-scenario.mjs` on a late save in every release.
 
 ---
 
@@ -447,7 +447,7 @@ This corrects design 0's "6–15 min", which 5 levels per 100+ min era cannot me
   - snapshots `values` / `costs` / `maxLevel` / `describe` / `productMult` of the 22 Survival ids + `jack` with `climbOpen = false`;
   - snapshots `DEMAND`, `VILLAGE` and `QUARTERS`;
   - asserts Renown = Mastery = 1 and settlement ≤ 5 at age 1.
-- **`node scripts/check-reveals.mjs`** must pass: nothing new before the Great Lodge, now that the Winter City reveals have moved (R2).
+- **`tests/reveals.test.ts`** must pass: nothing new before the Great Lodge, now that the Winter City reveals have moved (R2).
 - **Draw calls**, village at night on a late post-climb save: carry 50 and dog 12 add 0 calls (render caps). Must stay within +5 of the 0.8.0 baseline (about 810 at High) and ≤ 950.
 
 **File plan:**
@@ -479,13 +479,13 @@ Each step is small and lands on its own with tests. There are no bot runs.
 **0.9 (A, B, C, F):**
 1. **`ladder.ts` + `era1Frozen.test.ts` + `ladder.test.ts`.** Pure code, not wired yet. Tests: frozen prefix, monotonic costs, caps, multiples of 5.
 2. **Wire the ladder** into `Upgrades`, `demand.productMult`, the Save clamp, and the `crewStats` readers; add carry and dog render caps; add `climbOpen`. Tests: fixtures load; `setLevel` past the maximum; era-1 snapshot unchanged.
-3. **Move the reveals to `climbOpen`.** Delete `FIRST_EXPANSION_VILLAGE_LEVEL`; add `expansionPreview`. Check: `check-reveals.mjs`, plus a reveal test at Winter City showing no new land.
+3. **Move the reveals to `climbOpen`.** Delete `FIRST_EXPANSION_VILLAGE_LEVEL`; add `expansionPreview`. Check: `tests/reveals.test.ts`, plus a reveal test at Winter City showing no new land.
 4. **`gate.ts` + `expansionOffered` rewrite** with partial-pad grandfathering. `gate.test.ts`: row counts 23 / 48 / …, prereq rows, ready, the literal-mode switch.
 5. **Settlement:** state field, `cityPopulation`, thresholds and names table, update hooks, `EraCard` for L ≥ 6, Renown, perks j1–j5. `settlement.test.ts`: capacity assert, monotonic, ≤ 5 at age 1.
 6. **Era economy:** `eraScale = 10`; era-2+ ids on `F`; `CITY_RANKS.minEra`; `pacing.ts` + `pacing.test.ts`. Calibrate U, the 2.6 growth and the 1.05 step until every era is 60–200 min.
 7. **UI:** EraChip next goal, GateCard (top 5, Go; read-only), ShopPanel bands, Progression `nextGoal`, gate quests, toasts and confetti.
 8. **Mastery + the Founder's Scarf** (the S20 perk); jack, broker and bond caps. Tests: Mastery = 1 before the climb; no money loop (order → Jack, order → depot).
-9. **Release prep:** fixture `save-v8-climb.json`; draw-call comparison on the late save (`perf-breakdown.js`); New Season handling (R12); docs (DESIGN Wave 14, README); then the remaining ROADMAP §4 items. Bump to 0.9.0.
+9. **Release prep:** fixture `save-v8-climb.json`; draw-call comparison on the late save (`perf-scenario.mjs`); New Season handling (R12); docs (DESIGN Wave 14, README); then the remaining ROADMAP §4 items. Bump to 0.9.0.
 
 **0.10 (D for eras 2–4):**
 10. **`template.ts` + generators** (23 ids per era) + catch-up grant + `ProductId` / `tradeMult` extension. Tests: 23 ids per era, gate counts `23n−21`, a 0.9 fixture loads with granted levels.

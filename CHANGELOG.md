@@ -25,6 +25,11 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Windows with life at night.** City windows no longer all glow the same: some stay dark, the lit ones range from candle yellow to orange, and here and there one glows blue from a TV.
 - **Parked cars at the Tundra Fields filling station.** The empty car park in front of the shops now has cars parked in its bays, clear of every path.
 
+### Tidier info
+
+- **A clear About screen.** Settings, Game, *Credits* is now *About*: who makes the game, its version, the open-source parts it uses and the copyright line.
+- **A short README.** The download page now says only how to download, install, update and find your saves.
+
 ## 0.9.13 (2026-10-21)
 
 Snow that builds up in storms, a river promenade, a festival band, worked harvest fields, every late era its own yard and market, people running errands, city traffic, and a smoother late game.
