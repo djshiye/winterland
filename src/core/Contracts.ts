@@ -74,13 +74,16 @@ export function contractClock(seconds: number): string {
 export class Contracts {
   private timer: number;
   private lastKind: ItemKind | '' = '';
-  private readonly income = new IncomeWindow();
+  private readonly income: IncomeWindow;
 
   constructor(
     private readonly state: GameState,
     private readonly economy: Economy,
     private readonly events: EventBus<GameEvents>,
+    /** The saved sales rate ($/s): a contract first offered just after a load is sized from it, not from an empty window. */
+    carried = 0,
   ) {
+    this.income = new IncomeWindow(carried);
     this.timer = this.nextGap();
     // A restored active contract resumes as-is (update() just keeps counting down); remember it for the no-repeat rule.
     this.lastKind = state.contract.kind;

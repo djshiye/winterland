@@ -168,3 +168,19 @@ describe('labels', () => {
     expect(contractClock(-3)).toBe('0:00');
   });
 });
+
+describe('carried sales rate (F4)', () => {
+  it('a restored Contracts starts from the saved rate and sizes the next era contract the same', () => {
+    const a = setup(3);
+    a.contracts.update(1);
+    a.sell('plank', 100);
+    for (let i = 0; i < 30; i++) a.contracts.update(1);
+    const saved = a.contracts.salesRate;
+    expect(saved).toBeGreaterThan(0);
+    const state = createGameState();
+    const events = new EventBus<GameEvents>();
+    const restored = new Contracts(state, new Economy(events, state, 0), events, saved);
+    expect(restored.salesRate).toBeCloseTo(saved, 6);
+    expect(new Contracts(createGameState(), new Economy(events, state, 0), events).salesRate).toBe(0);
+  });
+});

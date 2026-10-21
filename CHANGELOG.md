@@ -6,6 +6,20 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 
 ## Unreleased
 
+### Snow, the river walk and the festival
+
+- **Snow that builds up.** During a snowstorm the roofs and the harvest fields slowly gather a soft, patchy layer of snow over about a minute, then shed it over the next few minutes once the storm passes. The fields only drift over in patches, so you can still read them.
+- **A river promenade.** A wide snow walk now runs along the river between the mill and the road to the Market Town, with a stone kerb, a timber rail, lamps, benches looking out over the river and the pond, and a little bandstand at the overlook. It sits on open snow, clear of every road, lane and path. It opens with the new land.
+- **The festival comes to the plaza.** On festival day strings of warm paper lanterns fade in over the Market Town plaza and the village street, and a little brass band of two horns and a drummer walks in to play at the plaza. They step aside for you and walk off when the festival ends.
+
+### Steadier saves and small fixes
+
+- **A crash no longer hides your save.** If the game ever fails to start for a reason that has nothing to do with your save, it now shows the message and keeps your save as it is, instead of starting a fresh game. Only a save that really can't be loaded is set aside (and can still be restored from Settings, Game, Earlier saves).
+- **Contracts right after loading.** The first contract after you load a game is now sized from your real sales, not from an empty start.
+- **Foreman wording.** The guidebook and the shop now say what the foremen really do: they leave you 40% of your cash in the eras and at least $500 at the mill.
+- **More room at the market stalls.** Residents on errands walk a little wider round the stalls and their crates instead of brushing past them.
+- **No more bunching at the kerb.** Shoppers waiting at the kerb by a market gate now spread out a step apart along the kerb instead of standing inside each other.
+
 ### Livelier harvest fields
 
 - **Worked fields.** Every era's harvest field now looks dug and worked: terraced quarry benches and a haul ramp in eras 2 to 6, a row of oil derricks in era 7, a sand terrace in era 8, a hazard-striped concrete wall in era 9 and a rocky crater rim in era 10. The heaps, slabs, ridges and pools come in three sizes and sit at their own angles instead of a neat grid.

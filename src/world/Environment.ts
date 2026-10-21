@@ -32,6 +32,7 @@ import { buildRiver } from './env/river';
 import { buildRoads, highwayY } from './env/roads';
 import { buildTown, type TownPart } from './env/town';
 import { buildSnowfall, type SnowfallPart } from './env/snowfall';
+import { Seasonal } from './env/seasonal';
 import { Sky } from './sky/Sky';
 import { resetSmoke, smokeFrom } from './sky/smoke';
 import { glowScale, onComfortChange, reducedMotion } from '../fx/comfort';
@@ -78,6 +79,8 @@ export class Environment {
   private readonly critters: Critters;
   private readonly footprints: Footprints;
   private readonly skyTraffic: SkyTraffic;
+  /** 1.0: snow on the roofs in a storm, the river promenade, festival lanterns and band (env/seasonal.ts). */
+  private readonly seasonal: Seasonal;
   private winterPruned = false;
   /** 0.9.3: hides the peaks that stood on the new land once it shows (env/mountains.ts). */
   private readonly mountains: EnvPart;
@@ -122,6 +125,7 @@ export class Environment {
     this.root.add(this.footprints.mesh);
     this.skyTraffic = new SkyTraffic(ctx);
     this.root.add(this.skyTraffic.group);
+    this.seasonal = new Seasonal(ctx, this.root, this.frontier.group, decor.group);
     this.chimney = buildings.chimney;
 
     for (const p of [this.ground, this.river, this.fences, this.gate, this.ridgeGate, this.town, this.frontier, roads, mountains, decor, buildings, this.snowfall]) {
@@ -212,6 +216,7 @@ export class Environment {
     this.critters.update(dt);
     this.footprints.update(dt);
     this.skyTraffic.update(dt);
+    this.seasonal.update(dt);
     this.mountains.update?.(dt);
     this.eras.update(dt);
     // 0.9.8: the sky runs the weather (snowfall amount, the snowstorm event), the northern lights (stronger in the
