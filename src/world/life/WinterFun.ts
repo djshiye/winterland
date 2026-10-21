@@ -67,6 +67,8 @@ interface Skater {
   a: number;
   dir: number;
   speed: number;
+  /** 0.9.13 (review E11): the partner it skates hand in hand with; it takes that skater's angle so they never drift apart. */
+  mate?: Skater;
 }
 
 type SledStage = 'climb' | 'ready' | 'ride' | 'rest';
@@ -251,7 +253,7 @@ export class WinterFun {
       const pair = this.skaters.length === 1; // the second one skates beside the first, hand in hand
       const lead = this.skaters[0];
       const k = pair && lead ? lead.k + 0.09 : 0.35 + Math.random() * 0.42;
-      const s: Skater = { p, k, a: pair && lead ? lead.a : Math.random() * Math.PI * 2, dir: pair && lead ? lead.dir : Math.random() < 0.6 ? 1 : -1, speed: pair && lead ? lead.speed : 1.4 + Math.random() * 1.1 };
+      const s: Skater = { p, k, a: pair && lead ? lead.a : Math.random() * Math.PI * 2, dir: pair && lead ? lead.dir : Math.random() < 0.6 ? 1 : -1, speed: pair && lead ? lead.speed : 1.4 + Math.random() * 1.1, mate: pair ? lead : undefined };
       this.skaters.push(s);
     }
     while (this.skaters.length > skaters) this.crowd?.release(this.skaters.pop()!.p);
@@ -281,7 +283,9 @@ export class WinterFun {
     const rz = POND.rz * s.k;
     // constant speed round the ellipse: angle step = distance / local radius
     const r = Math.hypot(rx * Math.sin(s.a), rz * Math.cos(s.a));
-    s.a += (s.dir * s.speed * dt) / Math.max(0.5, r);
+    // the second of a hand-in-hand pair keeps the partner's angle (the leader moves first: it is earlier in the list)
+    if (s.mate) s.a = s.mate.a;
+    else s.a += (s.dir * s.speed * dt) / Math.max(0.5, r);
     const p = s.p;
     p.x = POND.x + Math.cos(s.a) * rx;
     p.z = POND.z + Math.sin(s.a) * rz;

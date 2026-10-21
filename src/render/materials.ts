@@ -92,7 +92,12 @@ const toonCache = new Map<string, THREE.MeshToonMaterial>();
 const basicCache = new Map<string, THREE.MeshBasicMaterial>();
 
 function key(color: THREE.ColorRepresentation, opts?: object): string {
-  return `${new THREE.Color(color).getHexString()}|${opts ? JSON.stringify(opts, (_k, v) => (v instanceof THREE.Texture ? v.uuid : v)) : ''}`;
+  if (!opts) return `${new THREE.Color(color).getHexString()}|`;
+  // 0.9.13 (review P1): textures go in by uuid BEFORE stringifying. JSON.stringify calls Texture.toJSON ahead of any
+  // replacer, which encoded the whole canvas as a PNG (toDataURL) on every lookup: about half of opening an era.
+  const flat: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(opts)) flat[k] = v instanceof THREE.Texture ? v.uuid : v;
+  return `${new THREE.Color(color).getHexString()}|${JSON.stringify(flat)}`;
 }
 
 /** Cached cel-shaded material. Use for everything lit. */

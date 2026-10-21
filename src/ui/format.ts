@@ -53,3 +53,8 @@ export function article(word: string): 'a' | 'an' {
   if (/^(uni|ura|use|usu|uti|eu|one)/.test(w)) return 'a';
   return /^[aeiou]/.test(w) ? 'an' : 'a';
 }
+
+/** 0.9.13 (review U9): a "Pay for X ($1,234)" goal without its amount, so a countdown reads as the same goal (others unchanged). */
+export function payStem(text: string): string {
+  return text.startsWith('Pay for ') ? text.replace(/ \(\$[\d,]+\)/, '') : text;
+}

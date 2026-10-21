@@ -29,6 +29,19 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - Among the tall towers of the later eras the see-through window around you is wider, so you never lose sight of yourself.
 - City benches, hedges, planters, bike racks and lamp posts are solid now, like the ones in the regions; the walks stay clear.
 
+### Smoother late game
+
+- **Opening a new era no longer freezes the game.** The moment you paid for an era, building its yard briefly locked up the game; that pause is now about twenty times shorter.
+- **A lighter world.** Era yards you can't see run at half rate behind the scenes (they make and sell exactly as much), and the guide arrow and the first-minute hint do less work each frame, so a fully built world runs about a quarter lighter.
+
+### Small touches
+
+- **Paying counts down.** "Pay for the shelter ($120)" now counts down as you pay, instead of showing the full price until the end.
+- **The guide steps aside when you're there.** The arrow hides as soon as goods start flowing from a pile, not only once you stand in its middle, and after fast travel the goal updates right away.
+- **The hold chip stays up** while you stand where two spots overlap and step out of one.
+- **Phone edge arrow.** The arrow at the screen edge keeps clear of the notch, rounded corners, the home bar and the wide goal banner.
+- **Critters and skaters.** The cat, the deer and the finches fade in instead of popping up, and the cat fades away at dusk instead of blinking out; footprints beside a crowd last their full time; the hand-in-hand skating pair stays together all the way round.
+
 ## 0.9.12 (2026-10-20)
 
 Easier pickups, a guide arrow that follows the path, bigger and livelier towns, a belt for every machine, and the whole game playable with a keyboard, a controller or a phone.

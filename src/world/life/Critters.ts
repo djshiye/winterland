@@ -56,6 +56,9 @@ interface Cat {
   /** Trotting off: where to. */
   to: { x: number; z: number } | null;
   bob: number;
+  /** 0.9.13 (review E11): 0..1 grow-in / shrink-out scale, so it does not pop in or blink out at dusk. */
+  fade: number;
+  leaving: boolean;
   color: number;
 }
 
@@ -124,6 +127,9 @@ function deerHeadGeometry(): THREE.BufferGeometry {
   return b.geometry();
 }
 
+/** 0.9.13 (review E11): seconds a critter takes to grow in / shrink out. */
+const CAT_FADE = 0.5;
+
 const _m = new THREE.Matrix4();
 const _m2 = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -160,6 +166,9 @@ export class Critters {
   private catWait = 12;
   private deerWait = 10;
   private time = 0;
+  /** 0.9.13 (review E11): 0..1 grow-in scale of the finch flock / deer (reset when they spawn). */
+  private finchK = 1;
+  private deerK = 1;
 
   constructor(private readonly ctx: GameContext) {
     this.group.name = 'critters';
@@ -202,15 +211,16 @@ export class Critters {
         this.finches.push({ x, y: 0, z, yaw: Math.random() * 6.28, t: Math.random(), hop: 0, peck: 0, vx: 0, vy: 0, vz: 0, phase: Math.random() * 6.28 });
       }
       this.finchState = 'peck';
+      this.finchK = 0;
       return;
     }
-    const near = (f: Finch, who: THREE.Vector3 | null, r: number): boolean => !!who && Math.hypot(who.x - f.x, who.z - f.z) < r;
+    this.finchK = approach(this.finchK, 1, dt / CAT_FADE);
     let from: THREE.Vector3 | null = null;
     if (this.finchState === 'peck') {
-      if (!allowed || this.finches.some((f) => near(f, pl, FINCH_SHY))) from = pl;
-      else if (dog && this.finches.some((f) => near(f, dog, FINCH_SHY * 0.8))) from = dog;
+      if (!allowed || this.anyNear(pl, FINCH_SHY)) from = pl;
+      else if (dog && this.anyNear(dog, FINCH_SHY * 0.8)) from = dog;
       // a cart, truck or sled rolling up scares them off the road too
-      else for (const v of liveVehicles()) if (this.finches.some((f) => near(f, v.root.position, VEHICLE_SHY))) from = v.root.position;
+      else for (const v of liveVehicles()) if (this.anyNear(v.root.position, VEHICLE_SHY)) from = v.root.position;
     }
     if (from) {
       // off they go: up and away from whatever came near, each its own way a little
@@ -265,7 +275,18 @@ export class Critters {
         } else f.peck = 1;
       }
     }
-    if (gone === this.finches.length || this.finches.some((f) => Math.hypot(f.x - pl.x, f.z - pl.z) > AWAY + 10)) this.finches.length = 0;
+    let strayed = false;
+    for (let i = 0; i < this.finches.length && !strayed; i++) strayed = Math.hypot(this.finches[i]!.x - pl.x, this.finches[i]!.z - pl.z) > AWAY + 10;
+    if (gone === this.finches.length || strayed) this.finches.length = 0;
+  }
+
+  /** 0.9.13 (review P4): is any finch within `r` of `who` (a plain loop, no per-frame closure). */
+  private anyNear(who: THREE.Vector3, r: number): boolean {
+    for (let i = 0; i < this.finches.length; i++) {
+      const f = this.finches[i]!;
+      if (Math.hypot(who.x - f.x, who.z - f.z) < r) return true;
+    }
+    return false;
   }
 
   // ---- the cat -------------------------------------------------------------------------------------------------------
@@ -275,15 +296,21 @@ export class Critters {
       this.catWait = 40 + Math.random() * 40;
       const at = this.spot(pl, 4, 8, (x, z) => this.ctx.colliders.isFree(x, z, 0.5) && !this.ctx.zones?.nearAny(x, z, 0.8));
       if (!at) return;
-      this.cat = { x: at.x, z: at.z, yaw: Math.random() * 6.28, head: 0, groom: 0, to: null, bob: 0, color: CAT_COATS[Math.floor(Math.random() * CAT_COATS.length)]! };
+      this.cat = { x: at.x, z: at.z, yaw: Math.random() * 6.28, head: 0, groom: 0, to: null, bob: 0, fade: 0, leaving: false, color: CAT_COATS[Math.floor(Math.random() * CAT_COATS.length)]! };
       return;
     }
     const c = this.cat;
     const dx = pl.x - c.x;
     const dz = pl.z - c.z;
     const d = Math.hypot(dx, dz);
-    if (d > AWAY || !allowed) {
+    if (d > AWAY) {
       this.cat = null;
+      return;
+    }
+    if (!allowed) c.leaving = true;
+    c.fade = approach(c.fade, c.leaving ? 0 : 1, dt / CAT_FADE);
+    if (c.leaving) {
+      if (c.fade <= 0) this.cat = null;
       return;
     }
     let fx = dx;
@@ -338,9 +365,11 @@ export class Critters {
       const at = this.spot(pl, 9, 13, (x, z) => !C.inBounds(x, z, 2.2) && !C.overlaps(x, z, 1.2) && !C.inBounds(x + 1.2, z + 1.2, 1) && !C.inBounds(x - 1.2, z - 1.2, 1));
       if (!at) return;
       const n = Math.random() < 0.5 ? 2 : 1;
+      this.deerK = 0;
       for (let i = 0; i < n; i++) this.deer.push({ x: at.x + i * 1.3, z: at.z + i * 0.7, yaw: Math.random() * 6.28, alert: 0, t: 2 + Math.random() * 3, flee: false, jump: 0 });
       return;
     }
+    this.deerK = approach(this.deerK, 1, dt / CAT_FADE);
     for (const d of this.deer) {
       const dx = d.x - pl.x;
       const dz = d.z - pl.z;
@@ -365,7 +394,9 @@ export class Critters {
         d.yaw += (Math.random() - 0.5) * 1.2;
       }
     }
-    if (this.deer.every((d) => Math.hypot(d.x - pl.x, d.z - pl.z) > AWAY)) this.deer.length = 0;
+    let near = false;
+    for (let i = 0; i < this.deer.length && !near; i++) near = Math.hypot(this.deer[i]!.x - pl.x, this.deer[i]!.z - pl.z) <= AWAY;
+    if (!near) this.deer.length = 0;
   }
 
   /** A random point `lo`…`hi` m from the player that `ok` accepts (a few tries), or null. */
@@ -387,7 +418,7 @@ export class Critters {
     let n = 0;
     for (const f of this.finches) {
       const flying = this.finchState === 'fly';
-      const k = flying ? 0.9 : 0.8;
+      const k = (flying ? 0.9 : 0.8) * Math.max(0.01, this.finchK);
       const pitch = flying ? -0.2 : f.peck > 0 ? Math.sin(f.peck * Math.PI) * 0.7 : 0;
       _e.set(pitch, f.yaw, 0, 'YXZ');
       _m.compose(_p.set(f.x, f.y + 0.1 * k, f.z), _q.setFromEuler(_e), _s.set(k, k, k));
@@ -407,7 +438,7 @@ export class Critters {
     if (c) {
       const bob = c.to ? Math.abs(Math.sin(c.bob)) * 0.03 : 0;
       _e.set(0, c.yaw, 0, 'YXZ');
-      _m.compose(_p.set(c.x, bob, c.z), _q.setFromEuler(_e), _s.set(1, 1, 1));
+      _m.compose(_p.set(c.x, bob, c.z), _q.setFromEuler(_e), _s.setScalar(Math.max(0.01, c.fade)));
       this.catBody.setMatrixAt(0, _m);
       this.catBody.setColorAt(0, _c.setHex(c.color));
       // tail swish (faster while it walks)
@@ -426,7 +457,7 @@ export class Critters {
     for (const d of this.deer) {
       const leap = d.flee ? Math.abs(Math.sin(d.jump * Math.PI)) : 0;
       _e.set(d.flee ? -Math.cos(d.jump * Math.PI) * 0.18 : 0, d.yaw, 0, 'YXZ');
-      _m.compose(_p.set(d.x, leap * 0.55, d.z), _q.setFromEuler(_e), _s.set(1, 1, 1));
+      _m.compose(_p.set(d.x, leap * 0.55, d.z), _q.setFromEuler(_e), _s.setScalar(Math.max(0.01, this.deerK)));
       this.deerBody.setMatrixAt(k, _m);
       // head: down grazing (bobbing as it nibbles), up when alert
       const graze = (1 - d.alert) * (1.25 + Math.sin(this.time * 3 + k) * 0.08);

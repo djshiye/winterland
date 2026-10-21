@@ -142,3 +142,22 @@ describe('heldFrom', () => {
     expect(isInteractKey({ key: 'w', code: 'KeyW' })).toBe(false);
   });
 });
+
+describe('InteractChip zone counting (U5)', () => {
+  it('stays wanted while any zone prompts', async () => {
+    const { InteractChip } = await import('../src/ui/InteractChip');
+    const handlers: Record<string, (e: { on: boolean; kind: 'take' | 'pay' }) => void> = {};
+    const ctx = { events: { on: (n: string, f: never) => (handlers[n] = f) } } as never;
+    const el = { style: {}, setAttribute() {}, appendChild() {}, querySelector: () => null, set innerHTML(_v: string) {} };
+    (globalThis as { document?: unknown }).document = { createElement: () => ({ ...el, className: '', style: {}, classList: { add() {} } }) };
+    const chip = new InteractChip(ctx, { appendChild() {} } as never, () => false, false);
+    chip.set(true, 'take');
+    chip.set(true, 'take');
+    chip.set(false, 'take');
+    chip.update(1);
+    expect(chip.visible).toBe(true);
+    chip.set(false, 'take');
+    chip.update(1);
+    expect(chip.visible).toBe(false);
+  });
+});

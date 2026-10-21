@@ -18,7 +18,8 @@ const ICON_PRESS = `<svg class="wl-chip-press" viewBox="0 0 24 24" aria-hidden="
 export class InteractChip {
   readonly el: HTMLDivElement;
   private readonly text: HTMLSpanElement;
-  private on = false;
+  /** 0.9.13 (review U5): zones currently prompting; the chip stays up while any is (was one on/off flag). */
+  private zones = 0;
   private kind: 'take' | 'pay' = 'take';
   private k = 0;
 
@@ -55,7 +56,7 @@ export class InteractChip {
   }
 
   set(on: boolean, kind: 'take' | 'pay'): void {
-    this.on = on;
+    this.zones = Math.max(0, this.zones + (on ? 1 : -1));
     if (on) {
       this.kind = kind;
       this.paintText();
@@ -70,7 +71,7 @@ export class InteractChip {
   }
 
   update(dt: number): void {
-    const want = this.on && !this.modalOpen();
+    const want = this.zones > 0 && !this.modalOpen();
     const k = Math.max(0, Math.min(1, this.k + (want ? dt : -dt) / FADE));
     if (k === this.k) return;
     this.k = k;

@@ -32,12 +32,20 @@ import type { RegionRuntime } from './runtime';
 import { settlePaidSlots } from './rules';
 
 const POLL = 1;
+/** 0.9.13 (P5): a region counts as in view while its rect grown by this much (m: tall stacks, long shadows) is in the camera. */
+const VIEW_MARGIN = 12;
+const VIEW_TOP = 30;
+const frustum = new THREE.Frustum();
+const viewProj = new THREE.Matrix4();
+const box = new THREE.Box3();
 
 export class EraWorld {
   /** Index = era number; null while closed (0 and 1 are unused). */
   private readonly regions: (Region | null)[] = Array.from({ length: MAX_ERA + 1 }, () => null);
   private readonly pads: (ConstructionPad | null)[] = Array.from({ length: MAX_ERA + 1 }, () => null);
   private pollTimer = 0;
+  /** 0.9.13 (P5): off-screen regions update their yard at 30 Hz (false: every frame, for A/B checks). */
+  throttle = true;
 
   constructor(protected readonly ctx: GameContext) {
     const st = ctx.state.eras;
@@ -91,7 +99,20 @@ export class EraWorld {
   }
 
   update(dt: number): void {
-    for (const r of this.regions) r?.update(dt);
+    const cam = this.ctx.camera;
+    if (cam) {
+      cam.updateMatrixWorld();
+      viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+      frustum.setFromProjectionMatrix(viewProj);
+    }
+    for (const r of this.regions) {
+      if (!r) continue;
+      // 0.9.13 (review P5): a region well outside the view runs its yard at 30 Hz (Region.update)
+      const R = r.layout.rect;
+      box.min.set(R.minX - VIEW_MARGIN, -1, R.minZ - VIEW_MARGIN);
+      box.max.set(R.maxX + VIEW_MARGIN, VIEW_TOP, R.maxZ + VIEW_MARGIN);
+      r.update(dt, !this.throttle || !cam || frustum.intersectsBox(box));
+    }
     this.pollTimer -= dt;
     if (this.pollTimer <= 0) {
       this.pollTimer = POLL;

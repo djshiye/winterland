@@ -69,7 +69,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { ShopPanel } from './ShopPanel';
 import { VillageBadge } from './VillageBadge';
 import { finaleQuiet } from '../core/quiet';
-import { formatMoney } from './format';
+import { formatMoney, payStem } from './format';
 // 0.9.7: dom's backOut settles without overshoot under Reduce motion (it used to be a local copy that ignored it)
 import { backOut, cubicOut, keyLabel } from './dom';
 import { reducedMotion, steadyHighlights } from '../fx/comfort';
@@ -229,6 +229,8 @@ export class HUD {
   private readonly boxes: Box[] = [];
   /** 0.9.12: the edge arrow's screen angle while it shows (null hidden), for the guide check. */
   private edgeAngle: number | null = null;
+  private insetProbe: HTMLDivElement | null = null;
+  private insets = { left: 0, right: 0, top: 0, bottom: 0 };
 
   private readonly tmp2 = new THREE.Vector2();
   private readonly tmp3 = new THREE.Vector3();
@@ -969,6 +971,11 @@ export class HUD {
 
   private updateObjective(dt: number): void {
     const el = this.objectiveEl;
+    if (this.objShown !== null && this.objWant !== null && this.objShown !== this.objWant && payStem(this.objShown) === payStem(this.objWant)) {
+      // 0.9.13 (review U9): only the amount left changed (paying): the text updates in place, no fade
+      this.objShown = this.objWant;
+      el.textContent = this.objShown;
+    }
     if (this.objShown !== this.objWant) {
       if (this.objShown === null) {
         this.objShown = this.objWant;
@@ -1121,15 +1128,18 @@ export class HUD {
         dx = this.tmp2.x - cx;
         dy = this.tmp2.y - cy;
       }
+      // 0.9.13 (review U8): the margins include the phone's safe area (notch, rounded corners, home bar)
+      const boxes = this.hudBoxes();
+      const ins = this.insets;
       const mx = 40;
-      const myBottom = 44;
+      const myBottom = 44 + ins.bottom;
       // limit along the ray from the centre to the (asymmetric) inner rectangle
-      const tx = dx === 0 ? Infinity : (dx > 0 ? w - mx - cx : cx - mx) / Math.abs(dx);
+      const tx = dx === 0 ? Infinity : (dx > 0 ? w - mx - ins.right - cx : cx - mx - ins.left) / Math.abs(dx);
       const along = (top: number): number => Math.min(tx, dy === 0 ? Infinity : (dy > 0 ? h - myBottom - cy : cy - top) / Math.abs(dy));
-      let t = along(96);
+      let t = along(96 + ins.top);
       // 0.9.12 (full review V9): never on top of the objective banner or a corner card (money, Winterland, quests, the
       // buttons, the carry count): it slides along the screen edge to just past the card
-      const [px, py] = clearOfBoxes(cx + dx * t, cy + dy * t, this.hudBoxes(), w, h, mx);
+      const [px, py] = clearOfBoxes(cx + dx * t, cy + dy * t, boxes, w, h, mx + Math.max(ins.left, ins.right, ins.top, ins.bottom));
       const ang = Math.atan2(dy, dx);
       this.edgeAngle = ang;
       const pulse = steadyHighlights() ? 1 : 1 + 0.12 * Math.sin(this.guideTime * 7);
@@ -1145,6 +1155,22 @@ export class HUD {
     }
   }
 
+  /** 0.9.13 (U8): the safe-area insets (px), read off a hidden probe padded by env(safe-area-inset-*). */
+  private measureInsets(): void {
+    let p = this.insetProbe;
+    if (!p) {
+      p = document.createElement('div');
+      p.setAttribute('aria-hidden', 'true');
+      p.style.cssText =
+        'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+      document.body.appendChild(p);
+      this.insetProbe = p;
+    }
+    const cs = getComputedStyle(p);
+    const px = (v: string): number => Math.max(0, parseFloat(v) || 0);
+    this.insets = { left: px(cs.paddingLeft), right: px(cs.paddingRight), top: px(cs.paddingTop), bottom: px(cs.paddingBottom) };
+  }
+
   /**
    * The boxes the edge arrow keeps off, in layer pixels (re-measured at most every half second): every small card
    * showing on the HUD layer (the objective banner, money, Winterland, quests, the buttons, the carry count), not the
@@ -1156,6 +1182,7 @@ export class HUD {
       this.boxesAt = now;
       this.boxes.length = 0;
       const base = this.layer.getBoundingClientRect();
+      this.measureInsets();
       for (const el of Array.from(this.layer.children)) {
         if (el === this.edgeEl || el === this.toastEl || el.getClientRects().length === 0) continue;
         if (el === this.objectiveEl && !this.objWant) continue;
@@ -1164,7 +1191,9 @@ export class HUD {
         for (const part of parts) {
           if (part.getClientRects().length === 0) continue;
           const r = part.getBoundingClientRect();
-          if (r.width <= 0 || r.height <= 0 || r.width > base.width * 0.5 || r.height > base.height * 0.5) continue;
+          // 0.9.13 (review U8): only a card covering a quarter of the screen is left out (a sheet, which hides the arrow
+          // anyway); a wide, short one such as the objective banner on a phone still counts
+          if (r.width <= 0 || r.height <= 0 || r.width * r.height > base.width * base.height * 0.25) continue;
           this.boxes.push({ left: r.left - base.left, right: r.right - base.left, top: r.top - base.top, bottom: r.bottom - base.top });
         }
       }

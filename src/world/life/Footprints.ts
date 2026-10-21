@@ -7,8 +7,8 @@ import * as THREE from 'three';
 import type { GameContext } from '../../core/types';
 import { Crowd, type CrowdPerson } from '../../npc/Crowd';
 
-/** Prints in the pool (the oldest is reused first). */
-const POOL = 420;
+/** Prints in the pool (the oldest is reused first). 0.9.13 (review E11): 420 wrapped in ~11 s beside a crowd and popped out; 1500 is one instanced mesh, still a single draw call. */
+const POOL = 1500;
 /** Seconds a print lasts; it shrinks away over the last FADE of them. */
 const LIFE = 40;
 const FADE = 10;

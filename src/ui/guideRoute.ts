@@ -71,7 +71,9 @@ export class GuideRoute {
       this.local = null; // the old walk leads somewhere else
       this.steerPt = null;
       this.startField(now);
-    } else if (now - this.revAt >= REVISION_EVERY) {
+    } else if (now - this.revAt >= REVISION_EVERY && this.field?.done) {
+      // 0.9.13 (review P5): a field still growing finishes first (in a busy late game a pile or pad changes every few
+      // seconds, and restarting each time kept the search running forever, about a millisecond every frame)
       this.revAt = now;
       if (this.revision() !== this.rev) this.startField(now); // keeps the last walk on show meanwhile
     }
