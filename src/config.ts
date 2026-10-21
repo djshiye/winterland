@@ -1440,7 +1440,7 @@ function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Belts' | 'Dock' | 
       display: 'belt', requires: { era: n },
     };
     out[`${key}Crew`] = {
-      id: `${key}Crew`, group: 'crew', era: n, label: ERAS[n]?.worker.label ?? `${name} Crew`, blurb: `Haulers move ${name} materials wherever they are needed`,
+      id: `${key}Crew`, group: 'crew', era: n, label: ERAS[n]?.worker.label ?? `${name} Crew`, blurb: `Haulers move ${ERAS[n]?.region ?? name} materials wherever they are needed`,
       values: ERA_CREW_VALUES, costs: [],
       display: 'crew', requires: { era: n },
     };
@@ -1463,7 +1463,7 @@ function eraUpgrades(): Record<`${EraKey}${'Rigs' | 'Crew' | 'Belts' | 'Dock' | 
     }
     // 0.9.5: the region market (eras/RegionMarket.ts), era 1's Truck Dock and Shop Counter for the era's buyers
     out[`${key}Dock`] = {
-      id: `${key}Dock`, group: 'sales', era: n, label: `${name} Loading Dock`, blurb: 'A bigger loading dock: buyers drive up more often and load faster',
+      id: `${key}Dock`, group: 'sales', era: n, label: 'Loading Dock', blurb: 'A bigger loading dock: buyers drive up more often and load faster',
       values: [1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5, 2.75, 3.0, 3.5], costs: [],
       display: 'boost', requires: { era: n },
     };
@@ -1863,7 +1863,7 @@ export const BUSINESSES: Record<BusinessId, BusinessDef> = {
     inputs: [{ kind: 'wheat', per: 1 }, { kind: 'log', per: 1 }], output: 'bread', batch: 3, cycle: 3.0, price: 30, want: [2, 5], capacity: 18,
   },
   townhouse: {
-    id: 'townhouse', kind: 'home', label: 'Townhouse', blurb: 'A cosy home for 10 townsfolk',
+    id: 'townhouse', kind: 'home', label: 'Townhouse', blurb: 'A cozy home for 10 townsfolk',
     era: 3, logs: 40, cash: 6000, people: 10, inputs: [], output: null, cycle: 0, price: 0, want: [0, 0], capacity: 0,
   },
   ranch: {
@@ -1899,7 +1899,7 @@ export const AMENITIES: Record<AmenityId, AmenityDef> = {
   cafe: { id: 'cafe', label: 'Cocoa Café', blurb: 'Hot cocoa by the square. Townsfolk linger with a mug', era: 3, logs: 20, cash: 3000, happiness: 0.25 },
   snowmanPark: { id: 'snowmanPark', label: 'Snowman Park', blurb: 'A family of snowmen the kids never leave alone', era: 3, logs: 14, cash: 1500, happiness: 0.2 },
   bandstand: { id: 'bandstand', label: 'Bandstand', blurb: 'A little stage; a band plays at dusk', era: 3, logs: 28, cash: 5000, happiness: 0.25 },
-  pond: { id: 'pond', label: 'Skating Pond', blurb: 'Frozen and lit; skaters loop on it all night', era: 4, logs: 36, cash: 9000, happiness: 0.3 },
+  pond: { id: 'pond', label: 'Skating Pond', blurb: 'Frozen and lit; skaters loop on it until late', era: 4, logs: 36, cash: 9000, happiness: 0.3 },
 };
 export const AMENITY_IDS: readonly AmenityId[] = ['cafe', 'snowmanPark', 'bandstand', 'pond'];
 /** Town happiness (0..1, the sum of built amenities) raises every mill and Market Town sale price by up to this share (not era exports). */

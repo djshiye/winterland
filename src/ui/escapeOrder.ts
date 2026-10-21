@@ -3,11 +3,12 @@
  * `escapeTarget` and closes that one menu; with nothing open it folds the quest card, then opens Settings.
  * The finale / stats card sits above everything (it dims the whole screen), so it goes first; while its New Season
  * confirm shows, Esc is that confirm's Cancel (back to the stats), never the card's Close. 0.9.8: the update card and
- * changelog (ui/UpdateCard.ts) open above everything, so they go first (Keep playing / Cancel / close). Tested in
- * tests/controls097.test.ts.
+ * changelog (ui/UpdateCard.ts) open above everything, so they go first (Keep playing / Cancel / close). 0.9.13 (B4): the
+ * save notices and the Welcome back card come next (Esc / B press their own button), so Start never opens Settings over
+ * them. Tested in tests/controls097.test.ts.
  */
 
-export const ESCAPE_ORDER = ['update', 'seasonConfirm', 'finale', 'settings', 'map', 'market', 'book', 'gate', 'choose', 'manage', 'shop', 'build', 'ageCard'] as const;
+export const ESCAPE_ORDER = ['update', 'notice', 'offline', 'seasonConfirm', 'finale', 'settings', 'map', 'market', 'book', 'gate', 'choose', 'manage', 'shop', 'build', 'ageCard'] as const;
 
 export type EscapeTarget = (typeof ESCAPE_ORDER)[number];
 

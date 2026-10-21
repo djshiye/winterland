@@ -9,6 +9,7 @@
  */
 import * as THREE from 'three';
 import type { GameContext } from '../core/types';
+import type { KerbVehicle } from '../city/roadRoute';
 
 export interface TrackedVehicle {
   /** Unique while alive ("eraBuyer:3:12"). */
@@ -53,4 +54,33 @@ export function inView(ctx: Pick<GameContext, 'camera'>, x: number, z: number, r
   sphere.center.set(x, y, z);
   sphere.radius = r;
   return frustum.intersectsSphere(sphere);
+}
+
+const _f = new THREE.Vector3();
+const _v = new THREE.Vector3();
+
+/** Each vehicle's last sampled place and the speed measured since (m/s; NaN until a second sample). */
+const seen = new Map<string, { x: number; z: number; t: number; speed: number }>();
+/** Shortest gap between two speed samples of one vehicle (s). */
+const SAMPLE_GAP = 0.15;
+
+/**
+ * Every live vehicle's place, heading and speed, for the kerb check (read lazily: only once a walker stands at a kerb; npc/EraWorker.ts, npc/EraShoppers.ts).
+ * The speed is measured from its own movement, so a cart stopped in a queue or at a depot reads 0.
+ */
+export function* trafficNow(now: number): Generator<KerbVehicle> {
+  if (seen.size > 256) seen.clear(); // ids are per spawn: forget the long gone now and then
+  for (const v of liveVehicles()) {
+    v.facing(_f);
+    v.root.getWorldPosition(_v);
+    let s = seen.get(v.id);
+    if (!s) seen.set(v.id, (s = { x: _v.x, z: _v.z, t: now, speed: NaN }));
+    else if (now - s.t >= SAMPLE_GAP) {
+      s.speed = Math.hypot(_v.x - s.x, _v.z - s.z) / (now - s.t);
+      s.x = _v.x;
+      s.z = _v.z;
+      s.t = now;
+    }
+    yield { x: _v.x, z: _v.z, fx: _f.x, fz: _f.z, speed: s.speed, yields: v.kind.startsWith('eraBuyer') || v.kind.startsWith('street:') };
+  }
 }

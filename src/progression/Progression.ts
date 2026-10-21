@@ -841,7 +841,7 @@ export class Progression {
           logsLeft,
           cashLeft,
           text: logsLeft > 0 ? `Bring logs to the ${def.label}` : `Pay for the ${def.label} (${fmtMoney(cashLeft)})`,
-          pick: `Pick up ${logsLeft} logs for the ${def.label}`,
+          pick: `Pick up ${logsLeft} ${logsLeft === 1 ? 'log' : 'logs'} for the ${def.label}`,
         })
       )
         return true;

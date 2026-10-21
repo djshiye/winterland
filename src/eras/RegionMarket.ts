@@ -149,6 +149,7 @@ export class RegionMarket {
       pile: this.dockPile,
       x: P.dock.x,
       road: layout.road,
+      gateX: P.door.x,
       colors: [def.colors.accent, def.colors.body],
       fallback: eraFallback(era, 'raw'),
       boost: () => this.dockValue(),
@@ -168,6 +169,7 @@ export class RegionMarket {
       fallback: eraFallback(era, 'refined'),
       boost: () => this.stallValue(),
       pay,
+      lineMoving: () => this.buyers.settling,
     });
   }
 

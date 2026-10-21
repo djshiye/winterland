@@ -19,6 +19,7 @@
     "test:updater": "node scripts/test-updater.mjs",
     "soak": "node scripts/soak.mjs",
     "guide-walk": "node scripts/guide-walk.mjs",
+    "motion-check": "node scripts/motion-check.mjs",
     "econ-curve": "node scripts/econ-curve.mjs"
   },
   "dependencies": {

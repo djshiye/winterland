@@ -9,6 +9,7 @@ import type { GameContext } from '../core/types';
 import { steadyHighlights } from '../fx/comfort';
 import { backOut, h } from './dom';
 import { ICON_INK } from './iconKit';
+import { eventShowsIn, playerRegion } from './eventScope';
 
 export class EventBanner {
   private readonly root: HTMLDivElement;
@@ -69,9 +70,11 @@ export class EventBanner {
   }
 
   update(dt: number): void {
-    const target = this.want ? 1 : 0;
-    if (this.k === target && !this.want) return;
-    this.k = this.want ? Math.min(1, this.k + dt / 0.35) : Math.max(0, this.k - dt / 0.3);
+    // 0.9.13 (U2): festival day only shows where the townsfolk shop (Winterland and the Market Town)
+    const want = this.want && (this.kind === null || eventShowsIn(this.kind, playerRegion(this.ctx)));
+    const target = want ? 1 : 0;
+    if (this.k === target && !want) return;
+    this.k = want ? Math.min(1, this.k + dt / 0.35) : Math.max(0, this.k - dt / 0.3);
     if (this.k <= 0) {
       this.root.style.display = 'none';
       return;
@@ -84,8 +87,8 @@ export class EventBanner {
       this.clock.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
     }
     this.pulse += dt;
-    const e = this.want ? backOut(this.k) : this.k;
-    const beat = this.want && !steadyHighlights() ? 1 + 0.02 * Math.sin(this.pulse * (secs <= 5 ? 9 : 3)) : 1;
+    const e = want ? backOut(this.k) : this.k;
+    const beat = want && !steadyHighlights() ? 1 + 0.02 * Math.sin(this.pulse * (secs <= 5 ? 9 : 3)) : 1;
     this.root.style.opacity = Math.min(1, this.k * 2).toFixed(2);
     this.root.style.setProperty('--event-s', ((0.75 + 0.25 * e) * beat).toFixed(3));
   }

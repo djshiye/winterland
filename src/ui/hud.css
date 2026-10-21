@@ -1276,21 +1276,10 @@
   filter: none;
 }
 
-.wl-village-happy-l {
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  opacity: 0.85;
-}
-
 @media (max-width: 420px) {
   .wl-village-happy {
     gap: 1px;
     font-size: 14px;
-  }
-  /* 0.9.12 (P2): the heart says "town happiness" here (its label says it to screen readers), so the settlement name fits */
-  .wl-village-happy-l {
-    display: none;
   }
   .wl-village-top {
     gap: 4px;

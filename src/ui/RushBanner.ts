@@ -8,6 +8,7 @@ import type { GameContext } from '../core/types';
 import { steadyHighlights } from '../fx/comfort';
 import { backOut, h } from './dom';
 import { ICON_INK } from './iconKit';
+import { eventShowsIn, playerRegion } from './eventScope';
 
 export class RushBanner {
   private readonly root: HTMLDivElement;
@@ -49,9 +50,11 @@ export class RushBanner {
   }
 
   update(dt: number): void {
-    const target = this.want ? 1 : 0;
-    if (this.k === target && !this.want) return;
-    this.k = this.want ? Math.min(1, this.k + dt / 0.35) : Math.max(0, this.k - dt / 0.3);
+    // 0.9.13 (U2): only at the mill and the Market Town, where the customers come
+    const want = this.want && eventShowsIn('rush', playerRegion(this.ctx));
+    const target = want ? 1 : 0;
+    if (this.k === target && !want) return;
+    this.k = want ? Math.min(1, this.k + dt / 0.35) : Math.max(0, this.k - dt / 0.3);
     if (this.k <= 0) {
       this.root.style.display = 'none';
       return;
@@ -63,12 +66,12 @@ export class RushBanner {
       this.clock.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
     }
     this.pulse += dt;
-    const e = this.want ? backOut(this.k) : this.k;
+    const e = want ? backOut(this.k) : this.k;
     // a gentle heartbeat while it lasts, faster for the last 5 s
-    const beat = this.want && !steadyHighlights() ? 1 + 0.025 * Math.sin(this.pulse * (secs <= 5 ? 9 : 4.5)) : 1;
+    const beat = want && !steadyHighlights() ? 1 + 0.025 * Math.sin(this.pulse * (secs <= 5 ? 9 : 4.5)) : 1;
     this.root.style.opacity = Math.min(1, this.k * 2).toFixed(2);
     this.root.style.setProperty('--rush-s', ((0.75 + 0.25 * e) * beat).toFixed(3));
-    this.root.classList.toggle('is-low', this.want && secs <= 5);
+    this.root.classList.toggle('is-low', want && secs <= 5);
   }
 }
 

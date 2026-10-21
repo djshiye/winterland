@@ -105,6 +105,31 @@ interface FloatSlot {
 }
 
 const FLOAT_POOL = 28;
+/**
+ * toast() options. `small`: a short line (feedback), never held back by an open card. `coins`: a coin burst into the
+ * money pill when the toast shows (0.9.13). `now`: show even while a card is up (errors the player must see).
+ */
+export interface ToastOpts {
+  sub?: string;
+  duration?: number;
+  small?: boolean;
+  coins?: number;
+  now?: boolean;
+}
+
+interface QueuedToast {
+  title: string;
+  sub: string;
+  dur: number;
+  at: number;
+  small: boolean;
+  coins: number;
+  now: boolean;
+}
+
+/** Big toasts kept while a card is open (shown one by one once it closes). */
+const TOAST_HOLD_MAX = 6;
+
 /** Queued toasts older than this (seconds since toast() was called) are dropped. */
 const TOAST_STALE = 3;
 /** World-size multiplier of the 3D guide arrow (iso camera looks down on it, so it needs to be chunky). */
@@ -207,9 +232,10 @@ export class HUD {
   private toastActive = false;
   private hasVillage = false;
   private hasSeason = false;
-  private readonly toastQueue: Array<{ title: string; sub: string; dur: number; at: number; small: boolean }> = [];
+  private readonly toastQueue: QueuedToast[] = [];
+  private toastCur: QueuedToast | null = null;
   /** 0.9.7: toasts asked for during the ending's hush (core/quiet.ts), shown once the Winterland Complete card closes. */
-  private readonly toastHeld: Array<{ title: string; opts?: { sub?: string; duration?: number; small?: boolean } }> = [];
+  private readonly toastHeld: Array<{ title: string; opts?: ToastOpts }> = [];
 
   // --- guide ---
   private readonly arrow: THREE.Group;
@@ -355,6 +381,8 @@ export class HUD {
       this.bump = 1;
       ctx.audio.play('cash', { combo: true, volume: 0.5 });
     };
+    // 0.9.13 (B9): the toast sits above its own coin burst (the coins flew over the "Quest complete!" text)
+    layer.appendChild(this.toastEl);
 
     // modal cards go on top of everything else
     this.offline = new OfflineCard(ctx, layer);
@@ -431,7 +459,7 @@ export class HUD {
    * card, the finale, the update card) is on screen: the world waits then when "Pause when a menu is open" is on.
    */
   get menuOpen(): boolean {
-    return this.anyModalOpen || this.ageCard.visible || this.era.visible || this.finale.isOpen || this.updates.isOpen || this.notices.isOpen || this.ctx.input.nav.modalOpen;
+    return this.anyModalOpen || this.ageCard.visible || this.era.visible || this.finale.isOpen || this.updates.isOpen || this.notices.isOpen || this.offline.isOpen || this.ctx.input.nav.modalOpen;
   }
 
   /**
@@ -442,7 +470,7 @@ export class HUD {
   closeSheets(): boolean {
     // only when nothing the player opened on purpose is up (Settings, the map, the market, a card)
     if (this.settings.isOpen || this.map.visible || this.market.visible || this.book.visible || this.gate.visible || this.ageCard.visible || this.era.visible) return false;
-    if (this.finale.isOpen || this.updates.isOpen || this.notices.isOpen || this.ctx.input.nav.modalOpen) return false;
+    if (this.finale.isOpen || this.updates.isOpen || this.notices.isOpen || this.offline.isOpen || this.ctx.input.nav.modalOpen) return false;
     const open = [this.shop, this.build, this.choose, this.manage].filter((p) => p.visible);
     for (const p of open) p.close();
     return open.length > 0;
@@ -568,6 +596,8 @@ export class HUD {
   private escape(): void {
     const target = escapeTarget({
       update: this.updates.isOpen,
+      notice: this.notices.isOpen,
+      offline: this.offline.isOpen,
       seasonConfirm: this.finale.isOpen && this.finale.seasonShown,
       finale: this.finale.isOpen,
       settings: this.settings.isOpen,
@@ -584,6 +614,12 @@ export class HUD {
     switch (target) {
       case 'update':
         this.updates.escape();
+        break;
+      case 'notice':
+        this.notices.escape();
+        break;
+      case 'offline':
+        this.offline.escape();
         break;
       case 'seasonConfirm':
         this.finale.showSeason(false);
@@ -791,18 +827,23 @@ export class HUD {
     return this.finale;
   }
 
-  /** 0.9.8: centre toasts wait while the finale hush or the era postcard is on screen (they never land on a card). */
-  private get toastHush(): boolean {
-    return finaleQuiet() || this.ageCard.visible;
+  /**
+   * 0.9.8: centre toasts wait while the finale hush or the era postcard is on screen (they never land on a card).
+   * 0.9.13 (B9): big toasts also wait while any card or sheet is up (gate, choose, guidebook, settlement card, Settings,
+   * the map ...) and show once it closes. Small ones (feedback for what the player is doing in that card) do not.
+   */
+  private toastHush(small: boolean): boolean {
+    if (finaleQuiet() || this.ageCard.visible) return true;
+    return !small && this.menuOpen;
   }
 
   /** Centred celebration text that pops in and fades out. Toasts arriving right after another one queue up. */
-  toast(title: string, opts?: { sub?: string; duration?: number; small?: boolean }): void {
-    if (this.toastHush) {
-      if (this.toastHeld.length < 3) this.toastHeld.push({ title, opts });
+  toast(title: string, opts?: ToastOpts): void {
+    if (!opts?.now && this.toastHush(opts?.small ?? false)) {
+      if (this.toastHeld.length < TOAST_HOLD_MAX) this.toastHeld.push({ title, opts });
       return;
     }
-    const t = { title, sub: opts?.sub ?? '', dur: opts?.duration ?? 2.2, at: this.ctx.time.elapsed, small: opts?.small ?? false };
+    const t = { title, sub: opts?.sub ?? '', dur: opts?.duration ?? 2.2, at: this.ctx.time.elapsed, small: opts?.small ?? false, coins: opts?.coins ?? 0, now: opts?.now ?? false };
     // a toast that arrives while another is still fresh waits its turn instead of wiping it (briefly: queued
     // toasts expire TOAST_STALE s after they were asked for, so a burst never drips out for many seconds)
     if (this.toastActive && this.toastAge < 1.0 && this.toastQueue.length < 2) {
@@ -812,7 +853,8 @@ export class HUD {
     this.showToast(t);
   }
 
-  private showToast(t: { title: string; sub: string; dur: number; at: number; small: boolean }): void {
+  private showToast(t: QueuedToast): void {
+    this.toastCur = t;
     this.toastTitle.textContent = t.title;
     this.toastSub.textContent = t.sub;
     this.toastSub.style.display = t.sub ? 'block' : 'none';
@@ -822,6 +864,8 @@ export class HUD {
     this.toastActive = true;
     this.toastEl.style.display = 'block';
     this.toastEl.style.opacity = '0';
+    // the coins fly with the toast they belong to (so a held "Quest complete!" keeps its burst for later)
+    if (t.coins > 0) this.coinBurst(t.coins);
   }
 
   update(dt: number): void {
@@ -1033,11 +1077,26 @@ export class HUD {
   }
 
   private updateToast(dt: number): void {
-    if (this.toastHeld.length > 0 && !this.toastHush) {
-      const held = this.toastHeld.shift()!;
+    // one held toast at a time, once the screen is clear (a flush of three used to wipe the first one)
+    const held = this.toastHeld[0];
+    if (held && !this.toastActive && !this.toastHush(held.opts?.small ?? false)) {
+      this.toastHeld.shift();
       this.toast(held.title, held.opts);
     }
     if (!this.toastActive) return;
+    // 0.9.13 (B9): a card opened under a big toast: put the toast away and show it again once the card closes
+    const cur = this.toastCur;
+    if (cur && !cur.small && !cur.now && this.toastHush(false)) {
+      this.toastActive = false;
+      this.toastEl.style.display = 'none';
+      if (this.toastAge < cur.dur * 0.6 && this.toastHeld.length < TOAST_HOLD_MAX) {
+        this.toastHeld.unshift({ title: cur.title, opts: { sub: cur.sub, duration: cur.dur } }); // its coins already flew
+      }
+      for (const q of this.toastQueue.splice(0)) {
+        if (this.toastHeld.length < TOAST_HOLD_MAX) this.toastHeld.push({ title: q.title, opts: { sub: q.sub, duration: q.dur, small: q.small, coins: q.coins } });
+      }
+      return;
+    }
     this.toastAge += dt;
     const a = this.toastAge;
     const d = this.toastDur;

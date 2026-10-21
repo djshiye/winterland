@@ -16,6 +16,8 @@
  * - Entities (rig + carry stack + bubble canvas) are pooled: nothing is created per customer after warm-up.
  * - 0.9.12 (npc/vehicleView.ts): customers only appear and vanish out of sight: one comes from the first point of the
  *   snow path past `spawn` the camera can't see, and one leaving walks on down the path until it is off screen.
+ * - 0.9.13 (review B2): ones still in view at the path's end stand a step apart, one behind the other (they stood inside
+ *   each other on its last point).
  */
 import * as THREE from 'three';
 import { ECONOMY, LAYOUT, PLAYER, TIMING, VIP } from '../config';
@@ -38,6 +40,9 @@ export interface CustomerQueueOptions {
 
 type Mode = 'queue' | 'paid' | 'exit';
 
+/** Customers waiting in view at the snow path's end stand this far apart along it, every other one a little aside (m). */
+const END_STEP = 0.9;
+const END_SIDE = -0.45;
 /** Seconds a happy customer lingers (cheering) at the counter before leaving. */
 const CHEER_TIME = 0.7;
 /** Seconds the check bubble stays up after the customer starts walking away. */
@@ -135,8 +140,13 @@ export class CustomerQueue {
     if (dt <= 0) return;
     this.spawnStep(dt);
     for (let i = 0; i < this.queue.length; i++) this.stepQueued(this.queue[i]!, i, dt);
+    // the k-th one already past the exit path (leave order) waits k steps short of the path's end
+    let beyond = 0;
+    for (const c of this.leaving) if (c.waypoint >= LAYOUT.customers.exitPath.length) beyond++;
     for (let i = this.leaving.length - 1; i >= 0; i--) {
-      if (this.stepLeaving(this.leaving[i]!, dt)) this.despawn(this.leaving, i);
+      const c = this.leaving[i]!;
+      if (c.waypoint >= LAYOUT.customers.exitPath.length) beyond--;
+      if (this.stepLeaving(c, dt, beyond)) this.despawn(this.leaving, i);
     }
   }
 
@@ -300,13 +310,13 @@ export class CustomerQueue {
 
   // --- leaving --------------------------------------------------------------
   /** Returns true when the customer reached the end of the exit path. */
-  private stepLeaving(c: Customer, dt: number): boolean {
+  private stepLeaving(c: Customer, dt: number, ahead: number): boolean {
     const L = LAYOUT.customers;
     const path = L.exitPath;
     // past the path's last point it walks on down the snow path (to its end at most) until it is out of sight
     const last = path[path.length - 1]!;
     const beyond = c.waypoint >= path.length;
-    const wp = beyond ? { x: last.x, z: L.path.maxZ - 0.5 } : path[c.waypoint]!;
+    const wp = beyond ? { x: last.x + (ahead % 2 ? END_SIDE : 0), z: L.path.maxZ - 0.5 - ahead * END_STEP } : path[c.waypoint]!;
     const arrived = this.moveToward(c, wp.x, wp.z, dt, !beyond);
     this.faceStep(c, null, dt);
     this.animate(c, dt);

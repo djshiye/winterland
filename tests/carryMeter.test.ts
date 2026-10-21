@@ -10,6 +10,11 @@ describe('carry meter (0.9.3)', () => {
     expect(v.label).toBe('Carrying 3 of 8');
   });
 
+  it('uses the singular for one item', () => {
+    expect(carryView(1, 8, [['log', 1]]).label).toBe('Carrying 1 Log (1 of 8)');
+    expect(carryView(3, 8, [['log', 2], ['plank', 1]]).label).toBe('Carrying 2 Logs, 1 Plank (3 of 8)');
+  });
+
   it('is full at capacity', () => {
     const v = carryView(8, 8);
     expect(v.full).toBe(true);
