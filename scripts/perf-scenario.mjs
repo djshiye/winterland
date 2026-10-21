@@ -17,6 +17,8 @@
  * --ab: each view is also rendered with instancing off and on (renderer.instancing): draw calls, a pixel diff and the
  * median render() time of both. --breakdown: the 30 biggest draw-call owners per view.
  * --tris: the 30 biggest triangle owners per view (scene + shadow pass). --views a,b: only those views.
+ * --profile: (0.9.13) the 30 costliest update() calls inside one simulation step per view (inclusive ms per step,
+ * found by walking the game context and the level a few levels deep), to see where the tick goes.
  * --look dir: after measuring, a day and a night screenshot of every era (the yard for era 1, beside each region's
  * market for eras 2..10, HUD hidden) plus the village, town and the era-10 district, as dir/<view>-day.png and dir/<view>-night.png
  * (the before / after proof of a visual change). 0.9.12: also dir/eraNN-yard-day/night.png, each region's machine yard.
@@ -47,6 +49,7 @@ const night = !argv.includes('--day');
 const breakdown = argv.includes('--breakdown');
 const trisTop = argv.includes('--tris');
 const ab = argv.includes('--ab');
+const profile = argv.includes('--profile');
 
 const W = '__WINTERLAND__';
 const shotSteps = shots
@@ -165,6 +168,31 @@ const measure = `(() => {
     for (const [o, b, s] of hooked) { o.onAfterRender = b; o.onAfterShadow = s; }
     return [...counts].sort((x, y) => y[1][0] + y[1][1] - x[1][0] - x[1][1]).slice(0, 30).map(([k, [m, s]]) => String(m + s).padStart(4) + ' (' + m + '+' + s + ' shadow) ' + k);
   };
+  // --profile: time every update() reachable from the context and the level (inclusive, so parents include children)
+  const prof = new Map();
+  const unwrap = [];
+  if (${profile}) {
+    const seen = new Set();
+    const visit = (o, label, depth) => {
+      if (!o || typeof o !== 'object' || seen.has(o) || o.isObject3D || o.isMaterial || o.isBufferGeometry || o.isTexture) return;
+      seen.add(o);
+      if (typeof o.update === 'function' && label) {
+        const f = o.update;
+        o.update = function (...a) { const t0 = performance.now(); try { return f.apply(this, a); } finally { prof.set(label, (prof.get(label) ?? 0) + performance.now() - t0); } };
+        unwrap.push([o, f]);
+      }
+      if (depth >= 5) return;
+      const kids = [];
+      try {
+        if (o instanceof Map) for (const [k, v] of o) kids.push([k, v]);
+        else if (Array.isArray(o)) { if (o.length <= 64) for (let i = 0; i < o.length; i++) kids.push([i, o[i]]); }
+        else for (const k of Object.keys(o)) kids.push([k, o[k]]);
+      } catch { /* exotic object */ }
+      for (const kv of kids) visit(kv[1], label ? label + '.' + kv[0] : String(kv[0]), depth + 1);
+    };
+    visit(W.game.level, 'level', 0);
+    for (const k of Object.keys(ctx)) if (k !== 'level') visit(ctx[k], k, 1);
+  }
   const out = [];
   const tiers = ${JSON.stringify(tiers)}.split(',').filter(Boolean);
   for (const tier of tiers.length ? tiers : [ctx.renderer.quality]) {
@@ -172,6 +200,7 @@ const measure = `(() => {
   for (const p of pts) {
     if (p.id === 'yard') W.teleport(p.x, p.z); else if (!W.travel(p.id)) continue;
     W.simulate(0.5, 1 / 60);
+    prof.clear();
     const times = [];
     let calls = 0, tris = 0;
     let simMs = 0;
@@ -188,6 +217,7 @@ const measure = `(() => {
     times.sort((a, b) => a - b);
     const mean = times.reduce((s, v) => s + v, 0) / times.length;
     const row = { tier, view: p.id, calls, tris, ms: +mean.toFixed(2), p95: +times[Math.floor(times.length * 0.95)].toFixed(2), sim: +(simMs / ${frames}).toFixed(2) };
+    if (${profile}) row.profile = [...prof].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([k, v]) => (v / ${frames}).toFixed(2).padStart(6) + ' ms  ' + k);
     if (${breakdown}) row.top = drawsByOwner();
     if (${trisTop}) row.topTris = drawsByOwner(true);
     if (${ab}) {
@@ -232,6 +262,7 @@ const measure = `(() => {
     out.push(row);
   }
   }
+  for (const [o, f] of unwrap) o.update = f;
   let meshes = 0;
   ctx.scene.traverse((o) => { if (o.isMesh || o.isSprite || o.isPoints || o.isLine) meshes++; });
   return JSON.stringify({ meshesInScene: meshes, views: out });
@@ -327,6 +358,7 @@ if (line) {
   console.log(`${'tier'.padEnd(8)}${'view'.padEnd(12)}${pad('calls', 7)}${pad('tris', 9)}${pad('ms', 8)}${pad('sim ms', 8)}${ab ? `${pad('off', 7)}${pad('on', 7)}${pad('ms off', 8)}${pad('ms on', 8)}${pad('px diff', 9)}` : ''}`);
   for (const v of result.views) {
     console.log(`${String(v.tier).padEnd(8)}${v.view.padEnd(12)}${pad(v.calls, 7)}${pad(v.tris, 9)}${pad(v.ms, 8)}${pad(v.sim, 8)}${ab ? `${pad(v.callsOff, 7)}${pad(v.callsOn, 7)}${pad(v.msOff, 8)}${pad(v.msOn, 8)}${pad(v.pixelsDiff, 9)}` : ''}`);
+    for (const t of v.profile ?? []) console.log(`    ${t}`);
     for (const t of v.top ?? []) console.log(`    ${t}`);
     for (const t of v.topTris ?? []) console.log(`    ${t}`);
   }

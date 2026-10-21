@@ -22,6 +22,8 @@ const DX = 74;
 const DY = -62;
 /** The cards the hint steps aside for (any shown dialog, plus the settlement card, which is not one). */
 const CARDS = '[role="dialog"], .wl-era';
+/** Seconds between card look-ups. */
+const CARD_CHECK = 0.25;
 
 const HAND = `<svg viewBox="0 0 56 64" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
   <g stroke="${ICON_INK}" stroke-width="3" fill="#fff">
@@ -43,6 +45,8 @@ export class MoveHand {
   private readonly last = { x: 0, z: 0 };
   private readonly desktop: boolean;
   private covered = false;
+  private cardSeen = false;
+  private cardCheck = 0;
 
   constructor(
     private readonly ctx: GameContext,
@@ -107,7 +111,13 @@ export class MoveHand {
     this.walked += Math.hypot(p.x - this.last.x, p.z - this.last.z);
     this.last.x = p.x;
     this.last.z = p.z;
-    const covered = this.cardUp();
+    // 0.9.13 (review P5): the card look-up queries the DOM, so it runs four times a second, not every frame
+    this.cardCheck -= dt;
+    if (this.cardCheck <= 0) {
+      this.cardCheck = CARD_CHECK;
+      this.cardSeen = this.cardUp();
+    }
+    const covered = this.cardSeen;
     if (covered !== this.covered) {
       this.covered = covered;
       this.root.style.visibility = covered ? 'hidden' : '';

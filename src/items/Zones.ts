@@ -390,6 +390,11 @@ class TransferZone extends Zone {
     ctx.hud?.floatText(this.tmpTop.set((a.minX + a.maxX) / 2, 2.2, (a.minZ + a.maxZ) / 2), `Takes ${names}`, { color: '#ffe3a3', size: 24, duration: 1.8, rise: 0.8 });
   }
 
+  /** 0.9.13 (U5): turn this zone's prompt off (it is being removed). */
+  endPrompt(ctx: GameContext): void {
+    this.setPrompt(ctx, false);
+  }
+
   /** Emit 'interact:prompt' only on a change of state. */
   private setPrompt(ctx: GameContext, on: boolean): void {
     if (this.prompting === on) return;
@@ -456,6 +461,8 @@ export class ZoneSystem {
   }
 
   remove(zone: Zone): void {
+    // 0.9.13 (U5): the hold chip counts prompting zones, so a zone removed mid-prompt says it is done
+    if (zone instanceof TransferZone) zone.endPrompt(this.ctx);
     zone.removed = true;
     this.needsCompact = true;
     if (zone.marker) {
@@ -499,6 +506,23 @@ export class ZoneSystem {
   isPlayerIn(area: Rect): boolean {
     const p = this.ctx.player.position;
     return inRect(area, p.x, p.z);
+  }
+
+  /**
+   * 0.9.13 (review U6): the player is in `area`, or is being served by the zone that IS that area (a pile picked from
+   * with the body's reach, its hold-on margin included): the guide hides its arrow exactly when that pick-up or drop-off
+   * runs. Only a zone lying within the area counts, never a neighbour that overlaps it (standing at the counter beside
+   * the cash pile is not banking the cash).
+   */
+  isPlayerAt(area: Rect): boolean {
+    if (this.isPlayerIn(area)) return true;
+    const e = 0.05;
+    for (const z of this.zones) {
+      if (!z.playerInside || !z.enabled || z.removed) continue;
+      const a = z.area;
+      if (a.minX >= area.minX - e && a.maxX <= area.maxX + e && a.minZ >= area.minZ - e && a.maxZ <= area.maxZ + e) return true;
+    }
+    return false;
   }
 
   /**

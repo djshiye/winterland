@@ -44,7 +44,7 @@ import { climbOpen, eraMatOf, hasGate, nextGoal } from '../eras/gate';
 import { expansionOffered, regionLayout } from '../eras/layout';
 import { MAT_SIZE, machinePadTarget, worldRect } from '../eras/rules';
 import { MATERIAL_KINDS } from '../core/kinds';
-import { article, formatMoney } from '../ui/format';
+import { article, formatMoney, payStem } from '../ui/format';
 import { REVEALS, type RevealAction, type RevealQuery, type RevealRule } from './reveals';
 import { grandMarketOffered } from '../town/rules';
 import { lotOffered } from '../town/lane';
@@ -240,6 +240,13 @@ export class Progression {
     });
     // wave 13: the Grand Market opens (Town emits it once, on completion): the second finale
     ctx.events.on('finale2:start', ({ position }) => this.onFinale2(position));
+    // 0.9.13 (review U7): fast travel is the player's own move, so the goal and its arrow are re-read on the next step
+    // (the GUIDE_DWELL hold kept the old ones up to 3 s after arriving)
+    ctx.events.on('travel:done', () => {
+      this.guideAcc = GUIDE_INTERVAL;
+      this.objectiveSince = -10;
+      this.targetSince = -10;
+    });
 
     // A restored game: clocks restart, fired reveals are re-applied silently, the intro is skipped silently.
     for (const id of PAD_ORDER) if (ctx.state.unlocked[id]) this.unlockedAt.set(id, now);
@@ -560,7 +567,13 @@ export class Progression {
     // going straight back to the goal just before is never the player's own doing (A → B → A is a flip-flop)
     const back = text === this.prevObjective;
     const wait = (!own || back) && now - this.objectiveSince < GUIDE_DWELL;
-    if (text !== this.objective) {
+    if (text !== null && this.objective !== null && text !== this.objective && payStem(text) === payStem(this.objective)) {
+      // 0.9.13 (review U9): the same "Pay for ..." goal with less left: the amount counts down as the player pays (the
+      // hold above kept the full price on show until done). Not a new goal, so its timers stay.
+      this.objective = text;
+      ctx.hud.setObjective(text);
+      setGuideGoal(ctx.state, goal, chip);
+    } else if (text !== this.objective) {
       if (wait) return; // keep the current hint a moment
       this.prevObjective = this.objective;
       this.objective = text;
@@ -588,7 +601,7 @@ export class Progression {
     this.guidePoint.copy(this.tmpPoint);
     this.goalArea = area ? { ...area } : rect(this.guidePoint.x, this.guidePoint.z, 1.6, 1.6);
     // No arrow while the player already stands in the target zone.
-    if (area && ctx.zones.isPlayerIn(area)) {
+    if (area && ctx.zones.isPlayerAt(area)) {
       ctx.hud.setGuideTarget(null);
       return;
     }

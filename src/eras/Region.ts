@@ -52,6 +52,11 @@ const FULL_SIGN_HEIGHT = 2.9;
 /** … once both counters have been full this long (s), and hides once they have had room this long. */
 const FULL_SHOW_AFTER = 1.0;
 const FULL_HIDE_AFTER = 1.5;
+/**
+ * 0.9.13 (P5): the off-screen yard's step (s), what a 30 fps frame already gives every system. Four minutes of the full
+ * late game sold the same number of goods with it as at 60 Hz (13,317 against 13,383 and 13,415: run-to-run noise).
+ */
+export const OFFSCREEN_STEP = 1 / 30;
 /** Market orders drop in from this height above the dock. */
 const DROP_HEIGHT = 7;
 
@@ -102,6 +107,8 @@ export class Region implements RegionRuntime {
   /** 0.9.6 (F6): "COUNTERS FULL" over the export depot while it sells straight away at the plain depot price. */
   readonly fullSign: THREE.Mesh;
   private fullFor = 0;
+  /** Simulated time the yard is still owed while off screen (update). */
+  private owed = 0;
   private roomFor = 0;
   /** Facility objects that pop in on a live unlock. */
   private readonly pops: THREE.Object3D[] = [];
@@ -233,7 +240,29 @@ export class Region implements RegionRuntime {
     ctx.audio.play('whoosh', { volume: 0.5 });
   }
 
-  update(dt: number): void {
+  /**
+   * 0.9.13 (review P5): `inView` false (the region is nowhere near the camera, eras/EraWorld.ts) runs the region's own
+   * yard (machines, pads, belts, crew, Jack, the depot) in steps of OFFSCREEN_STEP, the same step a 30 fps frame gives
+   * it, so nothing behaves differently, it just costs half. The market (its buyer vehicles and walk-in
+   * shoppers use the shared roads and verges, seen from other areas) always runs every frame. Coming back into view, the
+   * time still owed is run first.
+   */
+  update(dt: number, inView = true): void {
+    if (inView) {
+      if (this.owed > 0) this.updateYard(this.owed);
+      this.owed = 0;
+      this.updateYard(dt);
+    } else {
+      this.owed += dt;
+      while (this.owed >= OFFSCREEN_STEP) {
+        this.owed -= OFFSCREEN_STEP;
+        this.updateYard(OFFSCREEN_STEP);
+      }
+    }
+    this.market.update(dt);
+  }
+
+  private updateYard(dt: number): void {
     const ctx = this.ctx;
     for (const S of this.slots) {
       S.lotPad.update(dt);
@@ -249,7 +278,6 @@ export class Region implements RegionRuntime {
     this.node?.update(dt);
     this.crew.update(dt);
     this.jack.update(dt);
-    this.market.update(dt);
     this.freight.update(dt);
     this.updateFullSign(dt);
   }
