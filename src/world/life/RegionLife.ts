@@ -27,7 +27,7 @@ import { ERA_CREW_COUNT, ERA_ROLES, eraRoleCount } from '../../config';
 import { approach, clamp, dampAngle } from '../../core/math';
 import type { GameContext, UpgradeId } from '../../core/types';
 import { ERAS } from '../../eras/data';
-import { greenActivities, greenStalls, greenWalk, plotDecor, plotPlaces, QUEUE_PLACES, type DecorPlace, type GreenActivity, type PlotPlaces, type StallQueue, type XZ } from '../../eras/layout';
+import { greenActivities, greenPlaza, greenStalls, greenWalk, PLAZA_HALF, plotDecor, plotPlaces, QUEUE_PLACES, type DecorPlace, type GreenActivity, type PlotPlaces, type StallQueue, type XZ } from '../../eras/layout';
 import { regionAt } from '../../eras/playerUpgrades';
 import { COAT_COLORS, Crowd, GOODS_COLORS, TRIM_COLORS, type CrowdPerson } from '../../npc/Crowd';
 import { GreenProps } from './greenProps';
@@ -59,6 +59,32 @@ const PUFF_TIME = 0.45;
 // 0.9.13 (review idea 2): errands to the green's market stall
 /** Chance a grown-up stepping out goes to the stall (when its line has room). */
 const ERRAND_CHANCE = 0.45;
+
+/**
+ * 1.0 polish: strollers on a big green's plaza ring walk (eras/layout.ts greenPlaza), so the square round the
+ * centrepiece is used and not only its middle. They keep to the ring (decor stays 1 m off it), walk both ways round in
+ * two lanes, stop for anyone a step ahead of them (the player, a resident crossing), and pause now and then to look at
+ * the centrepiece. A pair walks side by side. Fewer at night, with lanterns; nobody in a snowstorm.
+ */
+const STROLLERS = 5;
+const STROLL_NIGHT = 2;
+/** Lane offset (m) from the ring walk's centre line: clockwise walkers on the outside, the others inside. */
+const STROLL_LANE = 0.14;
+/** Someone this near (m) ahead along the ring makes a stroller wait. */
+const STROLL_YIELD = 0.85;
+
+interface Stroller {
+  p: CrowdPerson;
+  /** Angle round the plaza centre, direction (+1 / -1) and walking speed (m/s). */
+  a: number;
+  dir: number;
+  speed: number;
+  /** Seconds left of a pause (looking at the centrepiece), and until the next pause. */
+  pause: number;
+  next: number;
+  mate?: Stroller;
+  leaving: boolean;
+}
 /** Seconds at the counter, buying. */
 const BUY_TIME: readonly [number, number] = [2.5, 4.5];
 /** What they carry home. */
@@ -234,6 +260,8 @@ export class RegionLife {
   /** The market's parked era vehicle (eras 6-8) and the loader working at it. */
   private van: DecorPlace | null = null;
   private loader: Loader | null = null;
+  private readonly strollers: Stroller[] = [];
+  private plaza: { c: XZ; r: number } | null = null;
   private loaderCheck = 0;
 
   constructor(
@@ -260,6 +288,8 @@ export class RegionLife {
       this.lines = this.stalls.map(() => []);
       this.coming = this.stalls.map(() => 0);
       this.van = n >= 2 ? (plotDecor(n).find((d) => d.kind === 'van') ?? null) : null;
+      const pl = this.places ? greenPlaza(this.places) : null;
+      this.plaza = pl ? { c: pl.c, r: pl.R - PLAZA_HALF } : null;
       this.snowmen.clear();
       // some snowmen are already standing when you arrive (at least one on a green that has a spot for one)
       const spots = this.acts.map((a, i) => (a.kind === 'snowman' ? i : -1)).filter((i) => i >= 0);
@@ -289,6 +319,7 @@ export class RegionLife {
     for (let i = this.walkers.length - 1; i >= 0; i--) this.step(this.walkers[i]!, dt, dark, target);
     this.stepLoader(dt, dark, storm);
     this.stepProps(dt);
+    this.stepStrollers(dt, dark, storm);
     if (this.crowd) this.crowd.update(this.ctx.time.elapsed, dark, this.ctx.renderer?.quality === 'high');
   }
 
@@ -362,6 +393,8 @@ export class RegionLife {
     this.coming = this.stalls.map(() => 0);
     if (this.loader) this.crowd?.release(this.loader.p);
     this.loader = null;
+    for (const s of this.strollers) this.crowd?.release(s.p);
+    this.strollers.length = 0;
     for (const s of this.spots) s.taken = false;
     this.actTaken = this.acts.map(() => false);
     this.balls.length = 0;
@@ -423,12 +456,93 @@ export class RegionLife {
 
   private crowdOf(): Crowd {
     if (!this.crowd) {
-      this.crowd = new Crowd(MAX_OUT + 3);
+      this.crowd = new Crowd(MAX_OUT + 3 + STROLLERS);
       this.crowd.group.name = 'region-life';
       for (const m of this.crowd.meshes) m.frustumCulled = false;
       this.parent.add(this.crowd.group);
     }
     return this.crowd;
+  }
+
+  /** The plaza ring's strollers: bring them to the time of day's count (fading in / out where they are), then walk them. */
+  private stepStrollers(dt: number, dark: number, storm: boolean): void {
+    const pl = this.plaza;
+    const want = !pl || storm ? 0 : dark > 0.5 ? STROLL_NIGHT : STROLLERS;
+    let live = 0;
+    for (const s of this.strollers) if (!s.leaving) live++;
+    if (pl && live < want && this.strollers.length < STROLLERS) {
+      const p = this.crowdOf().acquire(COAT_COLORS[Math.floor(Math.random() * COAT_COLORS.length)]!, TRIM_COLORS[Math.floor(Math.random() * TRIM_COLORS.length)]!);
+      if (p) {
+        p.kid = Math.random() < 0.25;
+        p.appear = 0;
+        // the second one walks beside the first, a pace behind on the inner lane
+        const lead = this.strollers.length === 1 && !this.strollers[0]!.leaving ? this.strollers[0] : undefined;
+        const s: Stroller = lead
+          ? { p, a: lead.a - (lead.dir * 0.5) / pl.r, dir: lead.dir, speed: lead.speed, pause: 0, next: lead.next, mate: lead, leaving: false }
+          : { p, a: Math.random() * Math.PI * 2, dir: Math.random() < 0.5 ? 1 : -1, speed: 0.75 + Math.random() * 0.35, pause: 0, next: 6 + Math.random() * 14, leaving: false };
+        this.strollers.push(s);
+      }
+    } else if (live > want) {
+      // the last ones out go first (never the lead of a pair before its partner)
+      for (let i = this.strollers.length - 1; i >= 0; i--) {
+        if (!this.strollers[i]!.leaving) {
+          this.strollers[i]!.leaving = true;
+          break;
+        }
+      }
+    }
+    const pp = this.ctx.player?.position;
+    for (let i = this.strollers.length - 1; i >= 0; i--) {
+      const s = this.strollers[i]!;
+      const p = s.p;
+      if (!pl) {
+        this.crowd?.release(p);
+        this.strollers.splice(i, 1);
+        continue;
+      }
+      p.appear = approach(p.appear, s.leaving ? 0 : 1, dt * 1.5);
+      if (s.leaving && p.appear <= 0.01) {
+        this.crowd?.release(p);
+        this.strollers.splice(i, 1);
+        for (const o of this.strollers) if (o.mate === s) o.mate = undefined;
+        continue;
+      }
+      const r = pl.r + (s.dir > 0 ? STROLL_LANE : -STROLL_LANE) - (s.mate ? 0.36 * s.dir : 0);
+      // the point a step ahead: wait there for the player or anyone on the green
+      const ta = s.a + (s.dir * STROLL_YIELD) / pl.r;
+      const ax = pl.c.x + Math.cos(ta) * r;
+      const az = pl.c.z + Math.sin(ta) * r;
+      let blocked = !!pp && Math.hypot(pp.x - ax, pp.z - az) < STROLL_YIELD;
+      for (let k = 0; k < this.walkers.length && !blocked; k++) blocked = Math.hypot(this.walkers[k]!.p.x - ax, this.walkers[k]!.p.z - az) < 0.6;
+      for (let k = 0; k < this.strollers.length && !blocked; k++) {
+        const o = this.strollers[k]!;
+        if (o !== s && o.dir === s.dir && o !== s.mate && o.mate !== s) blocked = Math.hypot(o.p.x - ax, o.p.z - az) < 0.6;
+      }
+      if (s.mate) {
+        // keep step with the partner: walk and stop together
+        s.pause = s.mate.pause;
+        if (s.mate.speed === 0 || s.mate.pause > 0) blocked = true;
+      } else if (s.pause <= 0) {
+        s.next -= dt;
+        if (s.next <= 0) {
+          s.pause = 3 + Math.random() * 4;
+          s.next = 10 + Math.random() * 18;
+        }
+      }
+      const moving = !blocked && s.pause <= 0;
+      if (s.pause > 0) s.pause -= dt;
+      const v = moving ? s.speed : 0;
+      s.a += (s.dir * v * dt) / Math.max(1, r);
+      p.x = pl.c.x + Math.cos(s.a) * r;
+      p.z = pl.c.z + Math.sin(s.a) * r;
+      p.y = 0;
+      const face = s.pause > 0 ? Math.atan2(pl.c.x - p.x, pl.c.z - p.z) : Math.atan2(-Math.sin(s.a) * s.dir, Math.cos(s.a) * s.dir);
+      p.yaw = dampAngle(p.yaw, face, 6, dt);
+      p.walk = approach(p.walk, moving ? 1 : 0, dt * 4);
+      if (moving) p.phase += dt * v * 3.4;
+      p.talk = s.mate || this.strollers.some((o) => o.mate === s) ? 0.5 : 0;
+      p.lantern = approach(p.lantern, dark > NIGHT_LANTERN && !p.kid ? 1 : 0, dt * 3);
+    }
   }
 
   private freeSpot(door: boolean, not = -1): number {

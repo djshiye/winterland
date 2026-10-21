@@ -950,6 +950,8 @@ const RECIPE: Readonly<Record<'market' | 'huts', readonly string[]>> = {
   market: ['clutter0', 'goods', 'bench', 'cart', 'notice', 'shrubs', 'clutter1', 'stash', 'lampSnow', 'goods', 'clutter2', 'grove', 'snows', 'cart', 'bench', 'goods', 'shrubs', 'notice', 'stash'],
   huts: ['stash', 'grove', 'bench', 'clutter1', 'shrubs', 'goods', 'lampSnow', 'firBench', 'cart', 'clutter2', 'grove', 'snows', 'goods', 'shrubs', 'clutter0', 'bench', 'grove', 'stash', 'cart', 'lampSnow', 'firBench', 'goods', 'shrubs'],
 };
+/** 1.0 polish: the big greens of eras 6-10 read as a park round a plaza, so trees, benches and lamps instead of storage. */
+const RECIPE_LATE_HUTS: readonly string[] = ['grove', 'firBench', 'clutter1', 'shrubs', 'lampSnow', 'grove', 'bench', 'snows', 'firBench', 'goods', 'grove', 'shrubs', 'lampSnow', 'bench', 'grove', 'clutter2', 'firBench', 'shrubs', 'lampSnow', 'grove', 'snows', 'bench', 'shrubs'];
 
 /** Metres of free ground per vignette, and the most each zone takes (more in the bigger zones of the later eras). */
 const DECOR_AREA = 5;
@@ -1102,7 +1104,7 @@ export function plotDecor(n: number): DecorPlace[] {
     // eras 6-10: the huts green starts with stalls, a snowman, stalls; eras 6-8 park their vehicle first in the market.
     // 0.9.13 (review idea 2): eras 2-5 get one stall too, so every era's residents have somewhere to run an errand to
     const lead = n >= 6 ? (zone === 'huts' ? ['stalls', 'snowman', 'stalls'] : n <= 8 ? ['van'] : []) : zone === 'huts' ? ['stalls'] : [];
-    const recipe = RECIPE[zone];
+    const recipe = zone === 'huts' && n >= 6 ? RECIPE_LATE_HUTS : RECIPE[zone];
     for (let vi = 0; vi < want + lead.length; vi++) {
       const tpl = VIGNETTES[vi < lead.length ? lead[vi]! : recipe[(vi - lead.length) % recipe.length]!]!;
       let best: { score: number; items: Item[] } | null = null;
