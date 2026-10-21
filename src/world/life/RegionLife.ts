@@ -13,6 +13,12 @@
  * opens onto ITS spoke (a straight line to the ring spot nearest it, `greenWalk`), people stroll the ring's chords, and
  * go home the same way. `greenLegs` is that rule, pure.
  *
+ * 0.9.13 (review idea 2, E6): residents run errands. A grown-up stepping out now and then goes to the market stall on
+ * the green instead (eras/layout.ts greenStalls: its line and the walks to it from every door), joins the back of the
+ * line, steps up as the line moves, buys, and carries a basket of goods home round the line. In eras 6-8 a loader
+ * works at the market's parked era vehicle by day, carrying crates from the stack behind it to its side door; they
+ * step out of its cab in the morning and back in at dusk.
+ *
  * Cheap: one small instanced crowd (npc/Crowd.ts, 5 draw calls + 5 in the shadow pass while anyone is out, none
  * otherwise), only for the region the player stands in; walking away releases everyone. Nothing is saved.
  */
@@ -21,9 +27,9 @@ import { ERA_CREW_COUNT, ERA_ROLES, eraRoleCount } from '../../config';
 import { approach, clamp, dampAngle } from '../../core/math';
 import type { GameContext, UpgradeId } from '../../core/types';
 import { ERAS } from '../../eras/data';
-import { greenActivities, greenWalk, plotPlaces, type GreenActivity, type PlotPlaces, type XZ } from '../../eras/layout';
+import { greenActivities, greenStalls, greenWalk, plotDecor, plotPlaces, QUEUE_PLACES, type DecorPlace, type GreenActivity, type PlotPlaces, type StallQueue, type XZ } from '../../eras/layout';
 import { regionAt } from '../../eras/playerUpgrades';
-import { COAT_COLORS, Crowd, TRIM_COLORS, type CrowdPerson } from '../../npc/Crowd';
+import { COAT_COLORS, Crowd, GOODS_COLORS, TRIM_COLORS, type CrowdPerson } from '../../npc/Crowd';
 import { GreenProps } from './greenProps';
 
 /** People out at once on one green (a full crew), fewer at night. */
@@ -50,6 +56,23 @@ const SNOWMAN_STAYS = 150;
 const SNOWMEN_WAITING = 0.6;
 /** A snowball bursts into a puff of snow on a hit, over this long (s). */
 const PUFF_TIME = 0.45;
+// 0.9.13 (review idea 2): errands to the green's market stall
+/** Chance a grown-up stepping out goes to the stall (when its line has room). */
+const ERRAND_CHANCE = 0.45;
+/** Seconds at the counter, buying. */
+const BUY_TIME: readonly [number, number] = [2.5, 4.5];
+/** What they carry home. */
+const BASKET_GOODS = [GOODS_COLORS.bread!, GOODS_COLORS.wheat!, GOODS_COLORS.toy!, GOODS_COLORS.sausage!, GOODS_COLORS.default!];
+/** 0.9.13 (review E6): the loader at the market's parked era vehicle: where (vehicle-local, nose +X) they lift a crate
+ * off the stack behind it and where they put it in at its side, how long each takes (s), and darker than this they go home. */
+export const LOAD_PICK = { x: -2.2, z: 0.5 };
+export const LOAD_DROP = { x: -0.9, z: 1.3 };
+const LOAD_LIFT = 2.2;
+const LOAD_PUT = 1.1;
+const LOADER_DARK = 0.55;
+/** Passing: someone this close ahead (m) on the way makes a walker step this far to their right. */
+const PASS_AHEAD = 1.4;
+const PASS_SIDE = 0.3;
 
 interface Spot {
   x: number;
@@ -61,6 +84,8 @@ interface Spot {
   taken: boolean;
   /** A door spot: the index (in the spot list) of the ring spot its spoke ends on. */
   via: number;
+  /** A door spot: its hut (P.huts index); −1 on the ring. */
+  hut: number;
 }
 
 interface Walker {
@@ -86,6 +111,31 @@ interface Walker {
   plan: number;
   /** 'sit' while on a bench seat (the soak watchdog lets a seated person be inside the bench), else 'stroll'. */
   mode: 'sit' | 'stroll';
+  /** 0.9.13: an errand to a stall (null: none). */
+  errand: Errand | null;
+  /** 0.9.13: how far (m) they step to their right to pass someone. */
+  side: number;
+}
+
+interface Errand {
+  /** The stall (index into the region's stall queues) and the hut they came from (and go home to). */
+  q: number;
+  hut: number;
+  /** 'go': walking to the back of the line; 'line': in it; 'buy': at the counter; 'home': walking home with the basket. */
+  stage: 'go' | 'line' | 'buy' | 'home';
+  timer: number;
+}
+
+interface Loader {
+  p: CrowdPerson;
+  /** 'lift' at the stack, 'carry' to the side door, 'put' it in, 'back' to the stack. */
+  stage: 'lift' | 'carry' | 'put' | 'back';
+  timer: number;
+  x: number;
+  z: number;
+  yaw: number;
+  speed: number;
+  leaving: boolean;
 }
 
 interface Act {
@@ -109,6 +159,18 @@ interface Ball {
   to: Walker;
 }
 
+const _goal: XZ = { x: 0, z: 0 };
+
+/** Is b a step in front of a, in a's path (0.9.13 RegionLife.closeAhead)? */
+function ahead(a: { yaw: number; p: CrowdPerson }, b: { p: CrowdPerson }): boolean {
+  const fx = Math.sin(a.yaw);
+  const fz = Math.cos(a.yaw);
+  const dx = b.p.x - a.p.x;
+  const dz = b.p.z - a.p.z;
+  const along = dx * fx + dz * fz;
+  return along > 0 && along < 0.75 && Math.abs(dx * fz - dz * fx) < 0.4;
+}
+
 /** Built huts per crew role: the same rule the huts use (world/env/plots.ts hutStage ≥ 1). */
 function hutBuilt(role: number, level: number): boolean {
   if (role === 0) return (ERA_CREW_COUNT[Math.min(level, ERA_CREW_COUNT.length - 1)] ?? 0) >= 1;
@@ -125,11 +187,11 @@ export function greenSpots(P: PlotPlaces, built: readonly boolean[]): Spot[] {
   const hutOf: number[] = [];
   P.huts.forEach((_, i) => {
     if (!built[i]) return;
-    out.push({ x: W.doors[i]!.x, z: W.doors[i]!.z, face: NaN, door: true, taken: false, via: -1 });
+    out.push({ x: W.doors[i]!.x, z: W.doors[i]!.z, face: NaN, door: true, taken: false, via: -1, hut: i });
     hutOf.push(i);
   });
   const doors = out.length;
-  for (const p of W.ring) out.push({ x: p.x, z: p.z, face: Math.atan2(W.c.x - p.x, W.c.z - p.z), door: false, taken: false, via: -1 });
+  for (const p of W.ring) out.push({ x: p.x, z: p.z, face: Math.atan2(W.c.x - p.x, W.c.z - p.z), door: false, taken: false, via: -1, hut: -1 });
   hutOf.forEach((hut, k) => (out[k]!.via = doors + W.spoke[hut]!));
   return out;
 }
@@ -165,6 +227,14 @@ export class RegionLife {
   /** Snow puffs where a snowball hit (t 0 … 1). */
   private readonly puffs: { x: number; z: number; t: number; seed: number }[] = [];
   private props: GreenProps | null = null;
+  /** 0.9.13: the region's stall queues, who stands in each line (head first) and how many are on their way to it. */
+  private stalls: StallQueue[] = [];
+  private lines: Walker[][] = [];
+  private coming: number[] = [];
+  /** The market's parked era vehicle (eras 6-8) and the loader working at it. */
+  private van: DecorPlace | null = null;
+  private loader: Loader | null = null;
+  private loaderCheck = 0;
 
   constructor(
     private readonly ctx: GameContext,
@@ -186,6 +256,10 @@ export class RegionLife {
       this.places = n >= 2 ? plotPlaces(n) : null;
       this.acts = n >= 2 ? greenActivities(n) : [];
       this.actTaken = this.acts.map(() => false);
+      this.stalls = n >= 2 ? greenStalls(n) : [];
+      this.lines = this.stalls.map(() => []);
+      this.coming = this.stalls.map(() => 0);
+      this.van = n >= 2 ? (plotDecor(n).find((d) => d.kind === 'van') ?? null) : null;
       this.snowmen.clear();
       // some snowmen are already standing when you arrive (at least one on a green that has a spot for one)
       const spots = this.acts.map((a, i) => (a.kind === 'snowman' ? i : -1)).filter((i) => i >= 0);
@@ -213,8 +287,24 @@ export class RegionLife {
       this.spawn();
     }
     for (let i = this.walkers.length - 1; i >= 0; i--) this.step(this.walkers[i]!, dt, dark, target);
+    this.stepLoader(dt, dark, storm);
     this.stepProps(dt);
     if (this.crowd) this.crowd.update(this.ctx.time.elapsed, dark, this.ctx.renderer?.quality === 'high');
+  }
+
+  /**
+   * 0.9.13: someone right in front on the way (a step ahead, in their path): slow down behind them instead of walking
+   * into them. Two walking at each other (or crossing) don't both stop: the one with the lower id gives way while both
+   * step to their right.
+   */
+  private closeAhead(w: Walker): boolean {
+    for (const o of this.walkers) {
+      if (o === w || o.fading) continue;
+      if (!ahead(w, o)) continue;
+      if (o.speed > 0.1 && ahead(o, w) && w.p.id > o.p.id) continue;
+      return true;
+    }
+    return false;
   }
 
   /** Snowmen, brooms and snowballs this frame (one instanced mesh each). */
@@ -268,6 +358,10 @@ export class RegionLife {
   clear(): void {
     for (const w of this.walkers) this.crowd?.release(w.p);
     this.walkers.length = 0;
+    this.lines = this.stalls.map(() => []);
+    this.coming = this.stalls.map(() => 0);
+    if (this.loader) this.crowd?.release(this.loader.p);
+    this.loader = null;
     for (const s of this.spots) s.taken = false;
     this.actTaken = this.acts.map(() => false);
     this.balls.length = 0;
@@ -299,7 +393,7 @@ export class RegionLife {
     this.spots = next;
     for (const w of this.walkers) {
       w.spot = map[w.spot] ?? -1;
-      if (w.spot >= 0 || w.fading) continue;
+      if (w.spot >= 0 || w.fading || w.errand) continue; // an errand ends at its own hut's door spot (hut index, not spot)
       const door = this.nearestDoor(w);
       if (door < 0) w.fading = true;
       else {
@@ -329,7 +423,7 @@ export class RegionLife {
 
   private crowdOf(): Crowd {
     if (!this.crowd) {
-      this.crowd = new Crowd(MAX_OUT + 2);
+      this.crowd = new Crowd(MAX_OUT + 3);
       this.crowd.group.name = 'region-life';
       for (const m of this.crowd.meshes) m.frustumCulled = false;
       this.parent.add(this.crowd.group);
@@ -348,12 +442,19 @@ export class RegionLife {
   private spawn(): void {
     const d = this.freeSpot(true);
     if (d < 0) return;
+    // 0.9.13: nobody steps out into someone on the doorstep (a sweeper, someone just home)
+    if (this.walkers.some((o) => Math.hypot(o.p.x - this.spots[d]!.x, o.p.z - this.spots[d]!.z) < 0.9)) return;
     const s = this.spots[d]!;
     const p = this.crowdOf().acquire(COAT_COLORS[Math.floor(Math.random() * COAT_COLORS.length)]!, TRIM_COLORS[Math.floor(Math.random() * TRIM_COLORS.length)]!);
     if (!p) return;
     p.kid = Math.random() < KID_CHANCE;
     p.appear = 0;
-    const w: Walker = { p, spot: d, px: [], pz: [], n: 0, i: 0, x: s.x, z: s.z, yaw: 0, speed: 0, timer: 0.3, visits: 2 + Math.floor(Math.random() * 3), home: false, fading: false, chatty: Math.random() < 0.5, act: null, plan: -1, mode: 'stroll' };
+    const w: Walker = { p, spot: d, px: [], pz: [], n: 0, i: 0, x: s.x, z: s.z, yaw: 0, speed: 0, timer: 0.3, visits: 2 + Math.floor(Math.random() * 3), home: false, fading: false, chatty: Math.random() < 0.5, act: null, plan: -1, mode: 'stroll', errand: null, side: 0 };
+    // 0.9.13 (review idea 2): a grown-up goes to the stall now and then
+    if (!p.kid && Math.random() < ERRAND_CHANCE && this.startErrand(w, s.hut)) {
+      this.walkers.push(w);
+      return;
+    }
     // a grown-up sweeps the doorstep first now and then (facing out over the green, by day)
     if (!p.kid && this.ctx.dayNight.darkness < 0.4 && Math.random() < SWEEP_CHANCE) {
       w.yaw = Math.atan2(this.places!.green.minX + (this.places!.green.maxX - this.places!.green.minX) / 2 - s.x, this.places!.green.minZ + (this.places!.green.maxZ - this.places!.green.minZ) / 2 - s.z);
@@ -412,7 +513,14 @@ export class RegionLife {
         const dz = tz - w.z;
         const d = Math.hypot(dx, dz);
         const last = w.i === w.n - 1;
-        w.speed = approach(w.speed, last ? Math.min(1.25, 0.5 + d * 3) : 1.25, 6 * dt);
+        const blocked = this.closeAhead(w);
+        // on the last step home with someone on the doorstep: in through the door already
+        if (blocked && last && d < 1.2 && (w.home || w.errand?.stage === 'home')) {
+          this.dropErrand(w);
+          w.home = true;
+          w.fading = true;
+        }
+        w.speed = approach(w.speed, Math.min(last ? Math.min(1.25, 0.5 + d * 3) : 1.25, blocked ? 0.15 : Infinity), 6 * dt); // a shuffle, stepping aside
         if (d < 0.08) w.i++;
         else {
           const k = Math.min(d, w.speed * dt) / d;
@@ -422,7 +530,8 @@ export class RegionLife {
         }
       } else {
         w.speed = approach(w.speed, 0, 10 * dt);
-        if (w.act) this.doAct(w, dt);
+        if (w.errand) this.doErrand(w, dt);
+        else if (w.act) this.doAct(w, dt);
         else {
           const s = this.spots[w.spot];
           if (s && !Number.isNaN(s.face)) w.yaw = dampAngle(w.yaw, s.face, 6, dt);
@@ -430,26 +539,46 @@ export class RegionLife {
         }
       }
     } else w.speed = approach(w.speed, 0, 10 * dt);
-    p.x = w.x;
-    p.z = w.z;
+    // 0.9.13: someone walking toward another person close ahead keeps to their right and passes (a sidestep of up to
+    // PASS_SIDE, inside every walk's clearance), so two people on one walk never go through each other
+    let side = 0;
+    if (w.speed > 0.1 && w.errand?.stage !== 'line') {
+      const fx = Math.sin(w.yaw);
+      const fz = Math.cos(w.yaw);
+      for (const o of this.walkers) {
+        if (o === w || o.fading) continue;
+        const dx = o.p.x - w.x;
+        const dz = o.p.z - w.z;
+        const along = dx * fx + dz * fz;
+        if (along > 0 && along < PASS_AHEAD && Math.abs(dx * fz - dz * fx) < PASS_SIDE + 0.3) side = PASS_SIDE;
+      }
+    }
+    if (w.speed > 0.1) w.side = approach(w.side, side, dt * 0.9); // only shifts while walking, never slides on the spot
+    // right of the heading (yaw 0 = +Z): (−cos, sin)… as seen walking, the right hand is −X when facing +Z
+    p.x = w.x - Math.cos(w.yaw) * w.side;
+    p.z = w.z + Math.sin(w.yaw) * w.side;
     p.yaw = w.yaw;
     p.walk = approach(p.walk, clamp(w.speed / 1.3, 0, 1), dt * 6);
     p.phase += dt * w.speed * 3.4;
     const atRing = w.i >= w.n && !this.spots[w.spot]?.door && !w.act;
-    p.talk = approach(p.talk, atRing && w.chatty ? 0.6 : 0, dt * 2);
+    const buying = w.errand?.stage === 'buy';
+    p.talk = approach(p.talk, (atRing && w.chatty) || buying ? 0.6 : 0, dt * 2);
+    p.carry = approach(p.carry, p.basket ? 1 : 0, dt * 4);
     p.wave = approach(p.wave, 0, dt * 2);
     const doing = w.act?.stage === 'do' && w.i >= w.n ? w.act.kind : null;
     w.mode = doing === 'sit' ? 'sit' : 'stroll';
     p.sit = approach(p.sit, doing === 'sit' ? 1 : 0, dt * 3);
     p.work = approach(p.work, doing === 'snowman' || doing === 'sweep' ? 1 : 0, dt * 3);
     p.cheer = approach(p.cheer, 0, dt * 1.6);
-    p.lantern = approach(p.lantern, dark > NIGHT_LANTERN && w.chatty && !p.kid ? 1 : 0, dt * 3);
+    // by night someone running an errand always takes a lantern
+    p.lantern = approach(p.lantern, dark > NIGHT_LANTERN && (w.chatty || !!w.errand) && !p.kid ? 1 : 0, dt * 3);
     p.appear = w.fading ? Math.max(0, p.appear - dt * 2.5) : Math.min(1, p.appear + dt * 2.5);
     if (w.fading && p.appear <= 0.001) {
       const s = this.spots[w.spot];
       if (s && !s.door) s.taken = false;
       if (w.act && w.act.idx >= 0) this.actTaken[w.act.idx] = false;
       if (w.plan >= 0) this.actTaken[w.plan] = false;
+      this.dropErrand(w);
       this.crowd?.release(p);
       this.walkers.splice(this.walkers.indexOf(w), 1);
     }
@@ -512,7 +641,7 @@ export class RegionLife {
       const cx = (G.minX + G.maxX) / 2;
       const cz = (G.minZ + G.maxZ) / 2;
       for (const o of this.walkers) {
-        if (o === w || !o.p.kid || o.act || o.plan >= 0 || o.home || o.fading || o.i < o.n || this.spots[o.spot]?.door) continue;
+        if (o === w || !o.p.kid || o.act || o.errand || o.plan >= 0 || o.home || o.fading || o.i < o.n || this.spots[o.spot]?.door) continue;
         const d = Math.hypot(o.x - w.x, o.z - w.z);
         if (d < FIGHT_RANGE[0] || d > FIGHT_RANGE[1]) continue;
         // the snowballs fly clear of the centrepiece
@@ -562,6 +691,150 @@ export class RegionLife {
     }
     w.i = 0;
     w.n = w.px.length;
+  }
+
+  /**
+   * Send a walker who just stepped out of hut `hut`'s door to a stall whose line has room (counting those already on
+   * their way). False when no stall has room or none can be walked to from this door.
+   */
+  private startErrand(w: Walker, hut: number): boolean {
+    const free: number[] = [];
+    this.stalls.forEach((q, i) => {
+      if (q.to[hut] && this.lines[i]!.length + this.coming[i]! < QUEUE_PLACES) free.push(i);
+    });
+    if (!free.length) return false;
+    const q = free[Math.floor(Math.random() * free.length)]!;
+    this.coming[q]!++;
+    w.errand = { q, hut, stage: 'go', timer: 0 };
+    w.p.basket = false;
+    this.crowd?.setColors(w.p.id, COAT_COLORS[Math.floor(Math.random() * COAT_COLORS.length)]!, TRIM_COLORS[Math.floor(Math.random() * TRIM_COLORS.length)]!, BASKET_GOODS[Math.floor(Math.random() * BASKET_GOODS.length)]!);
+    this.legs(w, this.stalls[q]!.to[hut]!);
+    return true;
+  }
+
+  /** Out of the line (and off the way to it) for good: fading, or everyone cleared. */
+  private dropErrand(w: Walker): void {
+    const e = w.errand;
+    if (!e) return;
+    if (e.stage === 'go') this.coming[e.q] = Math.max(0, this.coming[e.q]! - 1);
+    const line = this.lines[e.q];
+    const k = line ? line.indexOf(w) : -1;
+    if (k >= 0) line!.splice(k, 1);
+    w.errand = null;
+  }
+
+  /** Arrived somewhere on an errand: join the line, step up, buy, or go in at home. */
+  private doErrand(w: Walker, dt: number): void {
+    const e = w.errand!;
+    const Q = this.stalls[e.q]!;
+    const line = this.lines[e.q]!;
+    if (e.stage === 'go') {
+      // at the back of the line: take the last place (the line only moves toward the counter)
+      this.coming[e.q] = Math.max(0, this.coming[e.q]! - 1);
+      line.push(w);
+      e.stage = 'line';
+      this.legs(w, [Q.places[line.length - 1]!]);
+      return;
+    }
+    if (e.stage === 'home') {
+      w.errand = null;
+      w.home = true;
+      w.fading = true; // in through the door
+      return;
+    }
+    w.yaw = dampAngle(w.yaw, Q.face, 6, dt);
+    if (e.stage === 'line') {
+      const k = line.indexOf(w);
+      const at = Q.places[k]!;
+      if (Math.hypot(at.x - w.x, at.z - w.z) > 0.1) this.legs(w, [at]); // the one ahead moved: step up
+      else if (k === 0) {
+        e.stage = 'buy';
+        e.timer = BUY_TIME[0] + Math.random() * (BUY_TIME[1] - BUY_TIME[0]);
+      }
+      return;
+    }
+    e.timer -= dt;
+    if (e.timer > 0) return;
+    // served: a basket of goods, a little wave, and home round the line
+    line.splice(line.indexOf(w), 1);
+    w.p.basket = true;
+    w.p.wave = 1;
+    e.stage = 'home';
+    this.legs(w, Q.from[e.hut]!);
+  }
+
+  /**
+   * The loader at the market's parked era vehicle (eras 6-8), by day and out of a snowstorm: lifts a crate off the stack
+   * behind it, carries it to the side and puts it in, and walks back for the next. Steps out of the cab (fading in, like
+   * the families at their doors) and back in at dusk.
+   */
+  private stepLoader(dt: number, dark: number, storm: boolean): void {
+    const v = this.van;
+    if (!v) return;
+    const want = dark < LOADER_DARK && !storm;
+    const local = (q: XZ, out: XZ): XZ => {
+      out.x = v.x + q.x * Math.cos(v.yaw) + q.z * Math.sin(v.yaw);
+      out.z = v.z - q.x * Math.sin(v.yaw) + q.z * Math.cos(v.yaw);
+      return out;
+    };
+    let L = this.loader;
+    if (!L) {
+      this.loaderCheck -= dt;
+      if (!want || this.loaderCheck > 0) return;
+      this.loaderCheck = 1;
+      // steps out of the vehicle's cab at its side, like the families out of their doors
+      const p = this.crowdOf().acquire(COAT_COLORS[3 % COAT_COLORS.length]!, TRIM_COLORS[1]!, 0xc79a62);
+      if (!p) return;
+      p.appear = 0;
+      const at = local(LOAD_DROP, { x: 0, z: 0 });
+      L = this.loader = { p, stage: 'back', timer: 0, x: at.x, z: at.z, yaw: v.yaw + Math.PI, speed: 0, leaving: false };
+    }
+    if (!want) L.leaving = true;
+    // going home (dusk, a storm): back into the cab once the crate in hand is loaded
+    const gone = L.leaving && L.stage === 'put' && L.timer <= 0;
+    L.p.appear = gone ? Math.max(0, L.p.appear - dt * 2.5) : Math.min(1, L.p.appear + dt * 2.5);
+    if (gone && L.p.appear <= 0.001) {
+      this.crowd?.release(L.p);
+      this.loader = null;
+      return;
+    }
+    const goal = local(L.stage === 'carry' || L.stage === 'put' ? LOAD_DROP : LOAD_PICK, _goal);
+    const dx = goal.x - L.x;
+    const dz = goal.z - L.z;
+    const d = Math.hypot(dx, dz);
+    if (L.stage === 'carry' || L.stage === 'back') {
+      L.speed = approach(L.speed, Math.min(1.1, 0.4 + d * 2.5), 6 * dt);
+      if (d < 0.05) {
+        L.stage = L.stage === 'carry' ? 'put' : 'lift';
+        L.timer = L.stage === 'put' ? LOAD_PUT : LOAD_LIFT;
+      } else {
+        const k = Math.min(d, L.speed * dt) / d;
+        L.x += dx * k;
+        L.z += dz * k;
+        L.yaw = dampAngle(L.yaw, Math.atan2(dx, dz), 10, dt);
+      }
+    } else {
+      L.speed = approach(L.speed, 0, 10 * dt);
+      // at the stack: face the crates (vehicle-local +X); at the side: face the vehicle (local −Z)
+      L.yaw = dampAngle(L.yaw, L.stage === 'lift' ? v.yaw + Math.PI / 2 : v.yaw + Math.PI, 8, dt);
+      L.timer -= dt;
+      if (L.timer <= 0 && L.leaving && L.stage === 'lift') {
+        L.stage = 'carry'; // empty-handed to the cab
+        L.p.basket = false;
+      } else if (L.timer <= 0 && !(L.leaving && L.stage === 'put')) {
+        L.p.basket = L.stage === 'lift';
+        L.stage = L.stage === 'lift' ? 'carry' : 'back';
+      }
+    }
+    const p = L.p;
+    p.x = L.x;
+    p.z = L.z;
+    p.yaw = L.yaw;
+    p.walk = approach(p.walk, clamp(L.speed / 1.3, 0, 1), dt * 6);
+    p.phase += dt * L.speed * 3.4;
+    p.work = approach(p.work, L.stage === 'lift' || L.stage === 'put' ? 1 : 0, dt * 3);
+    p.carry = approach(p.carry, p.basket ? 1 : 0, dt * 4);
+    p.lantern = 0;
   }
 
   /** At (or done with) an activity. */

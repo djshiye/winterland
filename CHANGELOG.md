@@ -23,6 +23,13 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **The export depot works.** A little cart, forklift or loader bot carries the crates to a freight lift beside the depot. When the lift is full it sinks out of sight and comes back up empty.
 - **Windows light up one by one.** At dusk the windows of the era huts, the shops and the city towers come on one after another, not all at once.
 
+### People with somewhere to go
+
+- **Errands to the market stall.** Every era's green now has a market stall, and the crew's families pop out to it: they queue up a step apart, buy something, wave, and carry a basket of goods home. At night they take a lantern.
+- **A loader at the parked van.** In the Electric, Oil and Computer eras someone works at the market's parked vehicle by day, lifting crates off the stack and loading them in at its side.
+- **City traffic.** From the Industrial era on, each built city district sends its own era vehicle, from the pony cart to the hover pod, round the city blocks. They keep their lane and their distance, and stop for you and for anyone crossing.
+- **Room to pass.** People on the greens step to their right and give way instead of walking through each other.
+
 ### Arriving in a city district
 
 - Fast travel to a city district now lands you on its front street with every lot ahead of you, instead of behind the front row where a building hid you and you seemed to stand on its roof.

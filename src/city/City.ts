@@ -29,6 +29,7 @@ import { CashPile } from '../stations/CashPile';
 import { Skyline } from '../world/env/skyline';
 import { Crowd } from '../npc/Crowd';
 import { District } from './District';
+import { StreetTraffic } from './StreetTraffic';
 import { registerCityLots } from './lotAccess';
 import { cityTotals, incomeSplit, rankFor, settlePaidCity } from './rules';
 
@@ -51,11 +52,15 @@ export class City {
   private gift: CashPile | null = null;
   /** 1.0: the shared crowd of every district's walking people (made the first time someone steps out). */
   private crowd: Crowd | null = null;
+  /** 0.9.13 (review idea 4): the era vehicles driving the block loops (city/StreetTraffic.ts). */
+  private readonly traffic: StreetTraffic;
 
   constructor(protected readonly ctx: GameContext) {
     this.root.name = 'city';
     ctx.scene.add(this.root);
     this.root.add(this.skyline.group);
+    this.traffic = new StreetTraffic(ctx);
+    this.root.add(this.traffic.group);
     // a save written with the last bundle still flying holds a fully paid, never-completed lot: finish it silently
     ctx.state.stats.cityBuilt += settlePaidCity(ctx.state);
     // 1.0: the era foremen deliver the district material to chosen lots (the pad is made on demand, silently)
@@ -146,6 +151,7 @@ export class City {
 
   update(dt: number): void {
     for (const d of this.districts.values()) d.update(dt);
+    this.traffic.update(dt);
     if (this.crowd) {
       const ctx = this.ctx;
       this.crowd.update(ctx.time.elapsed, ctx.dayNight ? ctx.dayNight.darkness : 0, ctx.renderer?.quality === 'high');
