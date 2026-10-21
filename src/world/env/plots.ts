@@ -22,7 +22,7 @@
 import * as THREE from 'three';
 import { ERA_CREW_COUNT, ERA_ROLES, eraRoleCount, PALETTE, type Rect } from '../../config';
 import { ERAS } from '../../eras/data';
-import { GREEN_PIECE_R, greenPlaza, HUT_ANNEX, hutBox, PLAZA_HALF, plotDecor, plotPlaces, regionLayout, TALL_SHOP_TOP, type DecorPlace, type HutPlace, type PlotPlaces, type ShopPlace } from '../../eras/layout';
+import { GREEN_PIECE_R, greenPlaza, HUT_ANNEX, hutBox, PLAZA_HALF, plotDecor, plotPlaces, plotRoutes, regionLayout, ROUTE_HALF, TALL_SHOP_TOP, type DecorPlace, type HutPlace, type PlotPlaces, type ShopPlace } from '../../eras/layout';
 import type { GameContext, UpgradeId } from '../../core/types';
 import type { ColliderHandle } from '../Colliders';
 import { Batch } from '../../render/batch';
@@ -181,7 +181,75 @@ export function placeSolids(n: number): PlaceSolid[] {
   if (P.plan.field === 'pits') for (const r of fenceSides(P.field, regionLayout(n).node.z)) out.push({ what: 'hazard fence', r, h: FENCE_H });
   // 0.9.13 (E1): the field's earthworks and working props
   out.push(...fieldWorkSolids(n, P));
+  for (const c of forecourtCars(n)) out.push({ what: 'parked car', r: box(c.x, c.z, CAR_HX, CAR_HZ), h: CAR_H });
   return out;
+}
+
+/** 1.0 polish: a parked car's half width / half length and roof height (m). */
+const CAR_HX = 0.62;
+const CAR_HZ = 1.12;
+const CAR_H = 1.25;
+const CAR_PAINTS = [0xd9a83a, 0x8a9a4b, 0xc8642e, 0x3e8a8c, 0xeadfc4, 0x8c3b3b, 0x5a7fb0] as const;
+
+/**
+ * 1.0 polish: the cars parked in the bays of a roadside forecourt (era 7's 'strip' street), so the wide asphalt reads as
+ * a busy filling-station car park. Deterministic; a bay is skipped (and some are left free) where a car would come within
+ * a route's half width + 0.3 m of any walker route, or touch a shop, a lamp or a decor piece. Pure.
+ */
+export function forecourtCars(n: number): { x: number; z: number; yaw: number; paint: number }[] {
+  const P = plotPlaces(n);
+  if (P.plan.street !== 'strip') return [];
+  const routes = plotRoutes(n);
+  const blocks: Rect[] = [...P.shops.map((sh) => shopFootprint(sh)), ...P.lamps.map((l) => box(l.x, l.z, 0.3, 0.3)), ...plotDecor(n).map((d) => box(d.x, d.z, d.hx, d.hz))];
+  const segDist = (x: number, z: number, a: { x: number; z: number }, b: { x: number; z: number }): number => {
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const l2 = dx * dx + dz * dz;
+    const t = l2 < 1e-9 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / l2));
+    return Math.hypot(x - a.x - t * dx, z - a.z - t * dz);
+  };
+  const out: { x: number; z: number; yaw: number; paint: number }[] = [];
+  for (const S of P.streets) {
+    const d = S.maxZ - S.minZ;
+    const z = S.maxZ - d * 0.25;
+    const shopsNorth = P.shops.length > 0 && P.shops[0]!.z < z;
+    let k = 0;
+    for (let x = S.minX + 3; x + 3 < S.maxX - 1; x += 3, k++) {
+      // about two bays in three are taken, never the same pattern twice in a row
+      if ((k * 7 + n) % 3 === 2) continue;
+      const cx = x + 1.5;
+      const r = box(cx, z, CAR_HX, CAR_HZ);
+      if (blocks.some((b) => b.minX < r.maxX + 0.3 && b.maxX > r.minX - 0.3 && b.minZ < r.maxZ + 0.3 && b.maxZ > r.minZ - 0.3)) continue;
+      const clear = routes.every((rt) => rt.pts.every((p, i) => i === 0 || [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]].every(([sx, sz]) => segDist(cx + sx! * CAR_HX, z + sz! * CAR_HZ, rt.pts[i - 1]!, p) > ROUTE_HALF + 0.3)));
+      if (!clear) continue;
+      out.push({ x: cx, z, yaw: shopsNorth ? Math.PI : 0, paint: CAR_PAINTS[(k * 5 + n) % CAR_PAINTS.length]! });
+    }
+  }
+  return out;
+}
+
+/** A chunky 1970s saloon with snow on its roof, nose along local +Z (yaw turns it), into the statics batch. */
+function buildParkedCar(body: Batch, c: { x: number; z: number; yaw: number; paint: number }): void {
+  const cs = Math.cos(c.yaw);
+  const sn = Math.sin(c.yaw);
+  const put = (g: THREE.BufferGeometry, col: number, lx: number, y: number, lz: number, o: { rx?: number; rz?: number } = {}): void => {
+    body.add(g, col, c.x + lx * cs + lz * sn, y, c.z - lx * sn + lz * cs, { ry: c.yaw, ...o });
+  };
+  const dark = 0x2f3236;
+  const chrome = 0xd8dde2;
+  // wheels first (under the body), then the long low body, the cabin with its glass band, bumpers, lights, snow
+  for (const lx of [-0.56, 0.56]) for (const lz of [-0.72, 0.72]) put(geo.cylinder(0.24, 0.24, 0.18, 10), dark, lx, 0.24, lz, { rz: Math.PI / 2 });
+  put(geo.box(1.18, 0.42, 2.2), c.paint, 0, 0.5, 0);
+  put(geo.box(1.2, 0.08, 2.24), shade(c.paint, 0.78), 0, 0.33, 0);
+  put(geo.box(1.0, 0.38, 1.1), shade(c.paint, 1.06), 0, 0.9, -0.12);
+  put(geo.box(1.03, 0.22, 1.0), 0x9fc6dc, 0, 0.9, -0.12);
+  put(geo.box(1.06, 0.06, 1.14), SNOW, 0, 1.12, -0.12);
+  put(geo.box(0.9, 0.05, 0.6), SNOW, 0, 0.73, 0.72);
+  for (const lz of [-1.13, 1.13]) put(geo.box(1.22, 0.1, 0.08), chrome, 0, 0.38, lz);
+  for (const lx of [-0.4, 0.4]) {
+    put(geo.box(0.2, 0.12, 0.04), 0xfff1c4, lx, 0.56, 1.11);
+    put(geo.box(0.18, 0.1, 0.04), 0xd8443a, lx, 0.56, -1.11);
+  }
 }
 
 /** Tallest part of each bed kind (pumpjack heads, tank tops, the clean room's roof vents), metres. */
@@ -1487,14 +1555,45 @@ function buildGreen(body: Batch, glow: Batch, n: number, st: PlotStyle, P: PlotP
   const c = greenCentre(P);
   // a soft lawn of trodden snow with a ring path round the centre
   body.add(geo.box(G.maxX - G.minX, 0.015, G.maxZ - G.minZ), mix(st.pave, 0xf4f8ff, 0.55), c.x, 0.025, c.z);
-  body.add(geo.ringGround(1.5, 2.2, 28), st.pave, c.x, 0.035, c.z);
+  body.add(geo.ringGround(1.5, 2.2, 28), st.pave, c.x, 0.047, c.z);
   // 0.9.12 polish: a big green gets a little plaza pattern so its middle doesn't read empty: an outer ring walk and four
   // walks out toward its corners (flat, walked over like the rest of the green; eras/layout.ts keeps decor off them)
   const plaza = greenPlaza(P);
   if (plaza) {
-    const walk = mix(st.pave, 0xf4f8ff, 0.22);
-    body.add(geo.ringGround(plaza.R - 2 * PLAZA_HALF, plaza.R, 56), walk, c.x, 0.034, c.z);
-    for (const [a, b] of plaza.corner) body.add(geo.box(2 * PLAZA_HALF, 0.012, Math.hypot(b.x - a.x, b.z - a.z)), walk, (a.x + b.x) / 2, 0.032, (a.z + b.z) / 2, { ry: Math.atan2(b.x - a.x, b.z - a.z) });
+    // 1.0 polish: a real paved square in the era's stone, flat so everyone still walks anywhere on it: a disc of setts
+    // out to the ring walk with a darker kerb, a compass rose of lighter inlays round the centrepiece, an accent band,
+    // and the four corner walks as paved paths with edge lines (eras/layout.ts keeps decor 1 m off their centre lines)
+    const walk = shade(st.pave, 0.86);
+    const setts = shade(st.pave, 0.95);
+    const inlay = mix(st.pave, 0xffffff, 0.75);
+    const kerb = shade(st.pave, 0.66);
+    const R = plaza.R;
+    body.add(geo.ringGround(0, R + 0.1, 56), setts, c.x, 0.036, c.z);
+    body.add(geo.ringGround(R - 2 * PLAZA_HALF, R, 56), walk, c.x, 0.04, c.z);
+    body.add(geo.ringGround(R, R + 0.3, 56), kerb, c.x, 0.042, c.z);
+    // little lights set flush in the kerb, so the square shows its shape after dark
+    for (let k = 0; k < 28; k++) {
+      const a = ((k + 0.5) / 28) * Math.PI * 2;
+      glow.add(geo.cylinder(0.08, 0.08, 0.02, 8), mix(glowColor, 0xfff0c2, 0.5), c.x + Math.cos(a) * (R + 0.15), 0.05, c.z + Math.sin(a) * (R + 0.15));
+    }
+    body.add(geo.ringGround(2.35, 2.75, 40), mix(accent, st.pave, 0.45), c.x, 0.043, c.z);
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const long = k % 2 === 0;
+      const r0 = 2.85;
+      const r1 = long ? R - 2 * PLAZA_HALF - 0.25 : r0 + (R - r0) * 0.45;
+      const m = (r0 + r1) / 2;
+      body.add(geo.box(long ? 0.26 : 0.16, 0.008, r1 - r0), long ? inlay : walk, c.x + Math.cos(a) * m, 0.045, c.z + Math.sin(a) * m, { ry: Math.PI / 2 - a });
+    }
+    for (const [a, b] of plaza.corner) {
+      const len = Math.hypot(b.x - a.x, b.z - a.z);
+      const ry = Math.atan2(b.x - a.x, b.z - a.z);
+      const mx = (a.x + b.x) / 2;
+      const mz = (a.z + b.z) / 2;
+      body.add(geo.box(1.0, 0.012, len), setts, mx, 0.038, mz, { ry });
+      body.add(geo.box(2 * PLAZA_HALF, 0.014, len), walk, mx, 0.04, mz, { ry });
+      for (const sd of [-0.5, 0.5]) body.add(geo.box(0.07, 0.016, len), kerb, mx + Math.cos(ry) * sd, 0.041, mz - Math.sin(ry) * sd, { ry });
+    }
   }
   // benches either side
   for (const s of [-1, 1]) {
@@ -2387,6 +2486,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   buildYardPattern(body, glow, st, Y, rng);
   }
   for (const S of P.streets) buildStreet(body, st, P, S, rng);
+  const cars = forecourtCars(n);
+  for (const c of cars) buildParkedCar(body, c);
   P.shops.forEach((s, i) => buildShop(body, windows, st, s, i, e.colors.accent, goods));
   const bulbs = new Batch();
   for (const l of P.lamps) {
@@ -2428,6 +2529,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   ctx.colliders.addBox(box(gc.x, gc.z, n >= 6 ? GREEN_PIECE_R - 0.1 : 0.8, n >= 6 ? GREEN_PIECE_R - 0.1 : 0.8), `era:${n}:places`);
   // the decor stands in the way like the shops do (snow piles and lamp posts are too low / slim to matter)
   for (const d of decor) if (d.kind !== 'snow' && d.kind !== 'lamp') ctx.colliders.addBox(box(d.x, d.z, d.hx * 0.92, d.hz * 0.92), `era:${n}:decor`);
+  for (const c of cars) ctx.colliders.addBox(box(c.x, c.z, CAR_HX, CAR_HZ), `era:${n}:decor`);
 
   // ---- huts: one baked mesh (+ glow), re-baked when a hut's stage changes
   const key = e.key;
