@@ -10,16 +10,19 @@ import { plotPlaces } from '../../../eras/layout';
 import { regionPaths } from '../frontier';
 import { geo } from '../../../render/materials';
 import { placeWarmSpot, warmSpotRect } from './warmSpots';
+import { yardSignatureRects } from './yardSignature';
 import { landmarkDiscs, landmarkRect89, placeLandmark89 } from './landmarks8to9';
 import { beltSpots, greenBorder, boule, cellMarks, cypress, dune, harvestFree, inset, pathLamp, pathLampSpots, slab, solarRow, terrazzo, FLOOR_Y, beltSnow, harvestDrifts, snowVerge } from './lateKit';
 
 const N = 8;
 
 export const era08: EraGroundModule = {
-  keepOut: (l) => [...landmarkRect89(l, 8), ...warmSpotRect(l, 8)],
+  keepOut: (l) => [...landmarkRect89(l, 8), ...warmSpotRect(l, 8), ...yardSignatureRects(l)],
   wild(k, l, rng) {
     const P = plotPlaces(N);
-    const belt = beltSpots(l, 4.6, rng);
+    // 0.9.13: no belt cypress stands on (or crowds) the showroom deck (ground/yardSignature.ts)
+    const deck = yardSignatureRects(l);
+    const belt = beltSpots(l, 4.6, rng).filter((t) => !deck.some((q) => t.x > q.minX - 1.3 && t.x < q.maxX + 1.3 && t.z > q.minZ - 1.3 && t.z < q.maxZ + 1.3));
     for (const t of belt) cypress(k.solid, t.x, t.z, t.s, rng);
     beltSnow(k.solid, belt, rng);
     const H = l.zones.harvest;

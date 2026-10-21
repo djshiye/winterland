@@ -30,6 +30,7 @@ import { blockedNewLand, instanced, occludesNewLand, Rng, type EnvPart, type Pla
 import { romanNumeral } from './eras';
 import { clearOfFence } from './clearance';
 import { buildEraOpen, buildEraWild, eraGround, eraKeepOut } from './eraGround';
+import { buildGateDressing, yardSignatureRects } from './ground/yardSignature';
 import { palette } from '../../render/palette';
 import { moundGeo, pineGeo, pineTallGeo, rockGeo } from './props';
 import { addRoadMarks } from './roadMarks';
@@ -704,13 +705,16 @@ function buildRegion(ctx: GameContext, n: number, root: THREE.Group): Region {
   fenceRun(fb, gb, kind, pal, 'z', r.minX, r.minZ, r.maxZ);
   fenceRun(fb, gb, kind, pal, 'z', r.maxX, r.minZ, r.maxZ);
   // gate posts + crossbeam + banner
-  for (const x of [gapA, gapB]) {
-    fb.add(geo.box(0.34, 2.7, 0.34), pal.dark, x, 1.35, l.gate.z);
-    fb.add(geo.box(0.44, 0.06, 0.44), PALETTE.snow, x, 2.73, l.gate.z);
+  // 0.9.13 (E2): eras 6-8 get an era-styled arch instead (world/env/ground/yardSignature.ts buildGateDressing)
+  if (!buildGateDressing(fb, gb, n, l)) {
+    for (const x of [gapA, gapB]) {
+      fb.add(geo.box(0.34, 2.7, 0.34), pal.dark, x, 1.35, l.gate.z);
+      fb.add(geo.box(0.44, 0.06, 0.44), PALETTE.snow, x, 2.73, l.gate.z);
+    }
+    fb.add(geo.box(l.gate.width + 0.8, 0.22, 0.3), pal.dark, gx, 2.55, l.gate.z);
+    fb.add(geo.box(1.4, 0.4, 0.06), pal.accent, gx, 2.1, l.gate.z - l.inward * 0.16);
+    fb.add(geo.box(l.gate.width + 0.7, 0.05, 0.38), PALETTE.snow, gx, 2.68, l.gate.z);
   }
-  fb.add(geo.box(l.gate.width + 0.8, 0.22, 0.3), pal.dark, gx, 2.55, l.gate.z);
-  fb.add(geo.box(1.4, 0.4, 0.06), pal.accent, gx, 2.1, l.gate.z - l.inward * 0.16);
-  fb.add(geo.box(l.gate.width + 0.7, 0.05, 0.38), PALETTE.snow, gx, 2.68, l.gate.z);
   const fence = fb.mesh({ cast: true, receive: true });
   group.add(fence);
   if (!gb.empty) {
@@ -977,6 +981,8 @@ export function buildFrontier(ctx: GameContext, town: THREE.Object3D, trikeTail?
     reg.lock.visible = false;
     reg.survey.visible = false;
     reg.zones.visible = true;
+    // 0.9.13 (E2): the eras 6-8 yard signature (world/env/ground/yardSignature.ts) is solid, once
+    if (!reg.places) for (const r of yardSignatureRects(reg.layout)) ctx.colliders.addBox(r, `era:${reg.n}:signature`);
     reg.places ??= buildPlots(ctx, reg.n, reg.group);
     reg.paintSign(false);
     // 0.9.10 (G1): draw the new region and its city district once ahead of time, so walking in doesn't stutter

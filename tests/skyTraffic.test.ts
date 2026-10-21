@@ -30,6 +30,21 @@ describe('sky traffic', () => {
       }
     }
   });
+  it('fliers cruise clear of the roofs yet close enough that a flier and its shadow share the screen, and the shadows are one instanced draw', async () => {
+    for (let n = 2; n <= 10; n++) for (const l of loopsFor(n)) {
+      expect(l.y, `era ${n}`).toBeGreaterThanOrEqual(10);
+      expect(l.y * 0.67, `era ${n}: flier and shadow on one 16 m screen`).toBeLessThanOrEqual(11);
+    }
+    const { SkyTraffic } = await import('../src/world/life/SkyTraffic');
+    const THREE = await import('three');
+    const ctx = { state: { eras: { age: 8 } }, player: { position: new THREE.Vector3() } } as never;
+    const t = new SkyTraffic(ctx);
+    t.update(0.1);
+    const sh = t.group.children.find((c) => c.name === 'sky-shadows') as import('three').InstancedMesh;
+    expect(sh.isInstancedMesh).toBe(true);
+    expect(sh.count).toBe(9);
+    expect(sh.frustumCulled).toBe(false);
+  });
 });
 
 describe('sky traffic in the world', () => {

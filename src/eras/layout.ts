@@ -24,6 +24,7 @@ import { DISTRICTS, ERAS, REGIONS, ROADS, regionDef, type ERect, type GateSide }
 import type { GameState } from '../core/types';
 import { climbOpen, gateMet, padPaid } from './gate';
 import { DISTRICT_MARGIN, districtGrid, districtInner } from '../city/rules';
+import { DECOR_RADIUS, districtDecor, districtLamps } from '../city/decor';
 import { CAMERA, TRADE_POST } from '../config';
 import { marketPlaces } from './market';
 
@@ -256,6 +257,30 @@ const PLOT_PLAN: Readonly<Record<number, PlotPlan>> = {
 
 export function plotPlan(n: number): PlotPlan {
   return PLOT_PLAN[n] ?? { huts: 'L', street: 'rows', field: 'rows' };
+}
+
+/**
+ * 0.9.13 (review E1): the field's earthworks keep this much of its far (from the camera) edges for themselves: `back`
+ * metres along its gate-side edge (terraced quarry benches, a dune terrace, a retaining wall, a row of derricks) and
+ * `side` metres along its hand-node edge (the haul ramp down into an open-cast pit). The beds fill what is left.
+ * Era 10's crater keeps its rim inside the bowl it already has.
+ */
+export const FIELD_BANK: Readonly<Record<number, { back: number; side: number }>> = {
+  2: { back: 2.7, side: 2.2 },
+  3: { back: 2.7, side: 2.2 },
+  4: { back: 2.7, side: 2.2 },
+  5: { back: 2.7, side: 2.2 },
+  6: { back: 2.7, side: 2.2 },
+  7: { back: 2.6, side: 0 },
+  8: { back: 1.8, side: 0 },
+  9: { back: 1.8, side: 0 },
+  10: { back: 0, side: 0 },
+};
+
+/** The part of a harvest field `F` its beds may use (FIELD_BANK keeps the rest for the earthworks). */
+export function fieldBedArea(n: number, F: ERect): ERect {
+  const b = FIELD_BANK[n] ?? { back: 0, side: 0 };
+  return { minX: F.minX + b.side, maxX: F.maxX, minZ: F.minZ + b.back, maxZ: F.maxZ };
 }
 
 /** One resource bed of the harvest field; `k` picks the era's bed kind (0 = main resource, 1 = second, 2 = special). */
@@ -505,6 +530,11 @@ function marketStreets(shape: StreetShape, L: RegionLayout, n: number): { street
     default:
       rows({ streetW: STREET_W, gap: 1.6, shopW: (p) => Math.min(4.6, p - 0.7), minPitch: 5.4, lampIn: false });
   }
+  // 0.9.13 (review E6): in the arcade and the strip every third shop grows a second storey, so a street isn't one low shop repeated
+  if (n === 6 || n === 7) {
+    let k = 0;
+    for (const s of shops) if (!s.stall && k++ % 3 === 2) s.h = TALL_SHOP_H;
+  }
   return { streets, shops, lamps };
 }
 
@@ -560,7 +590,13 @@ function fieldBeds(shape: FieldShape, F: ERect): BedPlace[] {
       const p = 2.4;
       const g = 1.4;
       for (let j = 0, z = F.minZ + 1.2; z + p <= F.maxZ - 1.0; j++, z += p + g) {
-        for (let i = 0, x = F.minX + 1.2; x + p <= F.maxX - 1.0; i++, x += p + g) bed(x, z, x + p, z + p, (i + 2 * j) % 3 === 2 ? 1 : 0);
+        for (let i = 0, x = F.minX + 1.2; x + p <= F.maxX - 1.0; i++, x += p + g) {
+          // 0.9.13 (E1): every seventh cell left as trodden ground, and pits of three sizes in their cells
+          if ((i * 5 + j * 3) % 7 === 3) continue;
+          const q = p * (0.72 + 0.14 * ((i * 7 + j * 5) % 3));
+          const o = (p - q) / 2;
+          bed(x + o, z + o, x + o + q, z + o + q, (i + 2 * j) % 3 === 2 ? 1 : 0);
+        }
       }
       break;
     }
@@ -623,7 +659,7 @@ export function plotPlaces(n: number): PlotPlaces {
   const fNear = Math.min(depthOf(L, F.minZ), depthOf(L, F.maxZ)) + 2;
   const fFar = Math.max(depthOf(L, F.minZ), depthOf(L, F.maxZ)) - 1.6;
   const field = depthRect(L, fx0, Math.max(fx0 + 4, fx1), fNear, fFar);
-  const beds = fieldBeds(plan.field, field);
+  const beds = fieldBeds(plan.field, fieldBedArea(n, field));
 
   const out: PlotPlaces = { plan, huts, green, streets, shops, lamps, yardPave, field, beds };
   placesCache.set(key, out);
@@ -650,7 +686,7 @@ export function plotPlaces(n: number): PlotPlaces {
  *    the ring's chords. The rest of the green is free ground.
  * Pads, counters, the cash pile, the vault, the queue, hut doors and annexes, shop fronts and streets are keep-outs.
  */
-export type DecorKind = 'crates' | 'sacks' | 'barrels' | 'heap' | 'bench' | 'lamp' | 'snow' | 'notice' | 'cart' | 'sig' | 'fir' | 'shrub' | 'centre';
+export type DecorKind = 'crates' | 'sacks' | 'barrels' | 'heap' | 'bench' | 'lamp' | 'snow' | 'notice' | 'cart' | 'sig' | 'fir' | 'shrub' | 'centre' | 'stall' | 'snowman' | 'van';
 
 export interface DecorPlace {
   kind: DecorKind;
@@ -699,7 +735,17 @@ export const DECOR_SIZE: Readonly<Record<DecorKind, readonly [number, number, nu
   shrub: [0.55, 0.5, 0.8],
   // 0.9.12 the market's centrepiece: a statue, a fountain or a flower bed round a pillar (world/env/plots.ts)
   centre: [1.15, 1.15, 2.4],
+  // 0.9.13 (review E5, E6) eras 6-10: an open-air market stall and a snowman for the huts green, and the market's parked era vehicle (eras 6-8)
+  stall: [0.9, 0.6, 2.4],
+  snowman: [0.4, 0.4, 1.6],
+  van: [1.8, 0.9, 1.9],
 };
+
+/** Eras 6-7 (arcade, strip): every third shop is a two-storey one this tall (its built top, sign and roof furniture included, stays under TALL_SHOP_TOP). */
+export const TALL_SHOP_H = 4.3;
+export const TALL_SHOP_TOP = 4.6;
+/** The crew green's centrepiece (eras 6-10): everything within this radius of the green's centre (walkers circle at 1.7 m). */
+export const GREEN_PIECE_R = 1.2;
 
 const GREEN_CLEAR = 1.7; // RegionLife CLEAR: keep this far from the centrepiece
 
@@ -893,6 +939,10 @@ const VIGNETTES: Readonly<Record<string, readonly VItem[]>> = {
   grove: [{ kind: 'fir', dx: 0, dz: 0 }, { kind: 'fir', dx: 1.65, dz: 0.55, v: 1 }, { kind: 'shrub', dx: 0.55, dz: 1.45 }],
   shrubs: [{ kind: 'shrub', dx: 0, dz: 0 }, { kind: 'shrub', dx: 1.2, dz: 0.25, v: 1 }],
   firBench: [{ kind: 'fir', dx: 0, dz: 0, v: 1 }, { kind: 'bench', dx: 1.75, dz: 0.2 }],
+  // 0.9.13 (review E5, E6) eras 6-10: market stalls and a snowman on the huts green, the parked era vehicle in the market (6-8)
+  stalls: [{ kind: 'stall', dx: 0, dz: 0 }, { kind: 'crates', dx: 1.6, dz: 0.1, v: 1 }],
+  snowman: [{ kind: 'snowman', dx: 0, dz: 0 }, { kind: 'snow', dx: 1.3, dz: 0.3, v: 1 }],
+  van: [{ kind: 'van', dx: 0, dz: 0 }],
 };
 
 /** What each zone gets, in order (repeats when the free ground allows more). Every era's clutter piece comes early. */
@@ -1033,9 +1083,11 @@ export function plotDecor(n: number): DecorPlace[] {
         fill(occ, grow(rectOf(best.it), Math.min(best.pad, CENTRE_ROOM)));
       }
     }
+    // eras 6-10: the huts green starts with stalls, a snowman, stalls; eras 6-8 park their vehicle first in the market
+    const lead = n >= 6 ? (zone === 'huts' ? ['stalls', 'snowman', 'stalls'] : n <= 8 ? ['van'] : []) : [];
     const recipe = RECIPE[zone];
-    for (let vi = 0; vi < want; vi++) {
-      const tpl = VIGNETTES[recipe[vi % recipe.length]!]!;
+    for (let vi = 0; vi < want + lead.length; vi++) {
+      const tpl = VIGNETTES[vi < lead.length ? lead[vi]! : recipe[(vi - lead.length) % recipe.length]!]!;
       let best: { score: number; items: Item[] } | null = null;
       for (let x = Zi.minX; x <= Zi.maxX; x += DECOR_STEP) {
         for (let z = Zi.minZ; z <= Zi.maxZ; z += DECOR_STEP) {
@@ -1226,22 +1278,28 @@ export function travelPoints(state: GameState): TravelPoint[] {
 }
 
 /**
- * 0.9.12: where fast travel to district n lands: on its own front sidewalk (the south edge, on its street), between its
- * first two lot columns so it is on no lot pad, and the camera centres on its own lots. It used to land on the street
- * WEST of the district, 2 m outside it, which is right beside the previous district's houses (Dino: "the teleport to
- * the 3rd era teleports you to the houses of the first"). Pure.
+ * Where fast travel to district n lands: on its front sidewalk (the south edge, on its street), on a column line near the
+ * middle so it is on no lot pad, with every lot ahead of the player. The camera looks from +X/+Z, so nothing built stands
+ * between it and the player and the whole town rises up the screen. (0.9.12 landed three-row districts one row in, on
+ * the middle row's front walk: the front-row building then covered the player, who seemed to stand on its roof; review
+ * U1.) The spot keeps clear of the street furniture and the lamps (city/decor.ts). Pure.
  */
 export function districtArrival(n: number): XZ {
   const d = DISTRICTS[n]!;
   const inner = districtInner(n);
-  const cols = districtGrid(d.lots).cols;
-  const { rows } = districtGrid(d.lots);
-  const x = inner.minX + (inner.maxX - inner.minX) / cols;
-  if (rows < 3) return { x, z: d.rect.maxZ - DISTRICT_MARGIN / 2 };
-  // 0.9.12 (validator): a three-row district lands one row in, on the middle row's front walk between its first two
-  // lots, so the camera frames the town instead of the street south of it
-  const ch = (inner.maxZ - inner.minZ) / rows;
-  return { x, z: inner.minZ + (rows - 1) * ch - 1.6 };
+  const { cols } = districtGrid(d.lots);
+  const cw = (inner.maxX - inner.minX) / cols;
+  const z = d.rect.maxZ - DISTRICT_MARGIN / 2;
+  const mid = (inner.minX + inner.maxX) / 2;
+  const lines: number[] = [];
+  for (let c = 1; c < cols; c++) lines.push(inner.minX + c * cw);
+  lines.sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
+  const items = districtDecor(n);
+  const lamps = districtLamps(n);
+  const clear = (x: number): boolean =>
+    items.every((it) => Math.hypot(it.x - x, it.z - z) > DECOR_RADIUS[it.kind] * it.scale + 0.8) && lamps.every((l) => Math.hypot(l.x - x, l.z - z) > 1);
+  for (const line of lines) for (const dx of [0, 0.6, -0.6, 1.2, -1.2]) if (clear(line + dx)) return { x: line + dx, z };
+  return { x: lines[0] ?? mid, z };
 }
 
 /**

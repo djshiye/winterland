@@ -18,6 +18,8 @@ export class ExportDepot implements ItemHolder {
   private readonly pos = new THREE.Vector3();
   /** 0.9.5: the region's market takes the item first while a counter has room (RegionMarket.forward). */
   forward: ((item: Item) => boolean) | null = null;
+  /** Cosmetic hook (eras/DepotFreight.ts): called once for every delivered material, sold or forwarded. */
+  onReceive: (() => void) | null = null;
 
   constructor(
     private readonly ctx: GameContext,
@@ -48,6 +50,7 @@ export class ExportDepot implements ItemHolder {
 
   /** Handed on to the Trading Post, or sold: the market credits the money, the item goes back to the pool. */
   receive(item: Item, _slot: Slot): void {
+    this.onReceive?.();
     if (this.forward?.(item)) return;
     this.pos.copy(this.door);
     this.ctx.market.sellExport(item.kind, 1, this.pos);

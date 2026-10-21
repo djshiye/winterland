@@ -22,10 +22,11 @@
 import * as THREE from 'three';
 import { ERA_CREW_COUNT, ERA_ROLES, eraRoleCount, PALETTE, type Rect } from '../../config';
 import { ERAS } from '../../eras/data';
-import { greenPlaza, HUT_ANNEX, hutBox, PLAZA_HALF, plotDecor, plotPlaces, regionLayout, type DecorPlace, type HutPlace, type PlotPlaces, type ShopPlace } from '../../eras/layout';
+import { GREEN_PIECE_R, greenPlaza, HUT_ANNEX, hutBox, PLAZA_HALF, plotDecor, plotPlaces, regionLayout, TALL_SHOP_TOP, type DecorPlace, type HutPlace, type PlotPlaces, type ShopPlace } from '../../eras/layout';
 import type { GameContext, UpgradeId } from '../../core/types';
 import type { ColliderHandle } from '../Colliders';
 import { Batch } from '../../render/batch';
+import { DuskBatch, duskBasic } from '../../render/duskWindows';
 import { geo } from '../../render/materials';
 import { bulbMaterial } from './glow';
 import { addLanternGarland, type V3 } from './festive';
@@ -33,6 +34,7 @@ import { Rng } from './common';
 import { MACHINE_TONES, mixHex, palette } from '../../render/palette';
 import { addChimney } from '../sky/smoke';
 import { eraOwnsFloor } from './eraGround';
+import { buildFieldWorks, fieldWorkSolids } from './fieldWorks';
 
 /** Tallest a hut gets (loft + pennant) and the tallest shopfront (sign included), metres. */
 export const HUT_MAX_H = 4.6;
@@ -74,6 +76,7 @@ interface PlotStyle {
  */
 /** Era 8's gold pools (the beds' colour picks their look). */
 const GOLD_POOL = 0xe5c05a;
+const COPPER_ROOF = 0x5f9a8c;
 
 const STYLE: readonly (PlotStyle | null)[] = [
   null,
@@ -149,20 +152,35 @@ function greenCentre(P: PlotPlaces): { x: number; z: number } {
   return { x: (P.green.minX + P.green.maxX) / 2, z: (P.green.minZ + P.green.maxZ) / 2 };
 }
 
+/** Tallest a deco roof (era 6) may reach with its furniture (the R22 camera-shadow limit of the market street). */
+const DECO_ROOF_TOP = 4.6;
+const DECO_ROOF: readonly [number, number][] = [[0, 2.3], [1, 1.35], [2, 1.45], [3, 0.6]];
+/** Era 6 shop i's roof piece (0 water tank, 1 deco crown, 2 lit sign frame, 3 skylight, -1 none) and its height over the roof: the shop's own pick, or the tallest that keeps under DECO_ROOF_TOP. */
+function decoRoof(i: number, h: number): [number, number] {
+  const own = DECO_ROOF[i % 4]!;
+  if (h + own[1] <= DECO_ROOF_TOP) return own;
+  return DECO_ROOF.filter((p) => h + p[1] <= DECO_ROOF_TOP).sort((a, b) => b[1] - a[1])[0] ?? [-1, 0];
+}
+
 /** Every solid a region's places add at full growth (pure; tests/plotPlaces.test.ts). */
 export function placeSolids(n: number): PlaceSolid[] {
   const P = plotPlaces(n);
   const out: PlaceSolid[] = [];
   for (const h of P.huts) out.push({ what: `hut ${h.role}`, r: hutFootprint(h, true), h: HUT_MAX_H });
-  for (const s of P.shops) out.push({ what: s.stall ? 'street stall' : 'shop', r: shopFootprint(s), h: s.h + 0.9 });
+  // a two-storey shop (eras 6-7) is built up to TALL_SHOP_TOP at most; the low ones carry a sign and roof furniture to h + 0.9
+  // 0.9.13: era 6's deco roofs carry a piece of roof furniture (decoRoof), never above DECO_ROOF_TOP
+  const deco = P.plan.street === 'arcade';
+  P.shops.forEach((s, i) => out.push({ what: s.stall ? 'street stall' : 'shop', r: shopFootprint(s), h: s.stall ? s.h + 0.9 : Math.max(s.h > 4 ? TALL_SHOP_TOP : s.h + 0.9, deco ? s.h + decoRoof(i, s.h)[1] : 0) }));
   for (const l of P.lamps) out.push({ what: 'lamp', r: box(l.x, l.z, 0.2, 0.2), h: 3.2 });
   // EM1: the lived-in market and huts (eras/layout.ts plotDecor)
   for (const d of plotDecor(n)) out.push({ what: `decor ${d.kind}`, r: box(d.x, d.z, d.hx, d.hz), h: d.h });
   const g = greenCentre(P);
-  out.push({ what: 'green centre', r: box(g.x, g.z, 0.9, 0.9), h: 2.2 });
+  out.push({ what: 'green centre', r: box(g.x, g.z, n >= 6 ? GREEN_PIECE_R : 0.9, n >= 6 ? GREEN_PIECE_R : 0.9), h: n >= 6 ? GREEN_PIECE_H[n]! : 2.2 });
   const st = STYLE[n]!;
   for (const b of P.beds) out.push({ what: `bed ${bedKind(st, b.k)}`, r: b, h: BED_H[bedKind(st, b.k)] });
   if (P.plan.field === 'pits') for (const r of fenceSides(P.field, regionLayout(n).node.z)) out.push({ what: 'hazard fence', r, h: FENCE_H });
+  // 0.9.13 (E1): the field's earthworks and working props
+  out.push(...fieldWorkSolids(n, P));
   return out;
 }
 
@@ -522,30 +540,142 @@ function buildShop(body: Batch, glow: Batch, st: PlotStyle, s: ShopPlace, i: num
   };
   switch (st.hut) {
     case 'deco': {
-      // an arcaded deco terrace: a stepped parapet, tall lit windows, a colonnade in front under a shared arcade roof
+      // an arcaded deco terrace: a stepped parapet, tall lit windows, a colonnade in front under a shared arcade roof.
+      // 0.9.13 (review E6): every third shop is a two-storey one (lit upper windows, a belt course), the signs vary in
+      // shape, every other shop carries a vertical blade sign, the odd ones a striped canvas awning past the arcade
+      const tall = h > 4;
       f.put(geo.boxBase(w, h, d), wall, 0, 0, 0);
       f.put(geo.box(w + 0.1, 0.22, d + 0.1), st.shopRoof, 0, h + 0.11, 0);
-      f.put(geo.boxBase(w * 0.4, 0.45, 0.3), st.shopRoof, 0, h + 0.22, d / 2 - 0.15);
-      f.put(geo.box(w + 0.12, 0.05, d + 0.12), SNOW, 0, h + 0.25, 0);
+      f.put(geo.boxBase(w * 0.4, tall ? 0.08 : 0.45, 0.3), st.shopRoof, 0, h + 0.22, d / 2 - 0.15);
+      // 0.9.13 (review E6): the snow lies inside a patina parapet (so the roofs don't read as one white slab), and each
+      // roof carries its own piece: a copper water tank, a stepped deco crown, a lit rooftop sign frame or a skylight
+      for (const sx of [-1, 1]) f.put(geo.boxBase(0.16, 0.3, d + 0.1), st.shopRoof, sx * (w / 2 - 0.03), h + 0.22, 0);
+      f.put(geo.boxBase(w + 0.1, 0.3, 0.16), st.shopRoof, 0, h + 0.22, -d / 2 + 0.03);
+      f.put(geo.box(w - 0.3, 0.05, d - 0.3), SNOW, 0, h + 0.25, 0);
+      const rx = (i % 2 ? 1 : -1) * w * 0.18;
+      switch (decoRoof(i, h)[0]) {
+        case 0:
+          for (const [lx, lz] of [[-0.45, -0.45], [0.45, -0.45], [-0.45, 0.45], [0.45, 0.45]] as const) f.put(geo.boxBase(0.08, 0.7, 0.08), 0x6b5a4a, rx + lx, h + 0.27, -0.3 + lz);
+          f.put(geo.cylinder(0.62, 0.62, 0.95, 14), COPPER_ROOF, rx, h + 1.45, -0.3);
+          f.put(geo.cone(0.68, 0.4, 14), shade(COPPER_ROOF, 0.85), rx, h + 2.12, -0.3);
+          f.put(geo.sphere(0.4, 10, 6), SNOW, rx, h + 2.15, -0.3, { sy: 0.45 });
+          break;
+        case 1:
+          f.put(geo.boxBase(w * 0.42, 0.55, 1.2), shade(wall, 0.95), rx, h + 0.27, -0.2);
+          f.put(geo.boxBase(w * 0.26, 0.45, 0.8), st.shopRoof, rx, h + 0.82, -0.2);
+          f.put(geo.box(w * 0.26 + 0.06, 0.05, 0.86), SNOW, rx, h + 1.3, -0.2);
+          g.put(geo.box(w * 0.3, 0.1, 0.04), mix(WINDOW, accent, 0.3), rx, h + 0.6, 0.42);
+          break;
+        case 2:
+          for (const lx of [-w * 0.3, w * 0.3]) f.put(geo.boxBase(0.07, 1.1, 0.07), 0x3a3d44, lx, h + 0.27, -0.6);
+          f.put(geo.box(w * 0.66, 0.5, 0.08), shade(st.shopRoof, 0.8), 0, h + 1.15, -0.6);
+          g.put(geo.box(w * 0.58, 0.14, 0.05), mix(WINDOW, accent, 0.4), 0, h + 1.15, -0.55);
+          f.put(geo.box(w * 0.66 + 0.06, 0.05, 0.14), SNOW, 0, h + 1.42, -0.6);
+          break;
+        case 3:
+          f.put(geo.box(w * 0.3, 0.3, 0.9), 0x8fb8c4, rx, h + 0.4, -0.2, { rx: -0.35 });
+          f.put(geo.box(w * 0.3 + 0.1, 0.06, 0.2), SNOW, rx, h + 0.58, -0.45);
+      }
       g.put(geo.box(w - 1.6, 1.5, 0.06), WINDOW, -0.4, 1.3, d / 2 + 0.03);
       f.put(geo.box(0.8, 1.7, 0.1), shade(st.shopRoof, 0.95), w / 2 - 0.7, 0.85, d / 2 + 0.01);
-      sign(h - 0.5, d / 2 + 0.03);
+      const sy = tall ? h - 0.25 : h - 0.5;
+      const sv = i % 3;
+      if (sv === 0) {
+        sign(sy, d / 2 + 0.03);
+      } else if (sv === 1) {
+        // a round medallion
+        f.put(geo.cylinder(0.36, 0.36, 0.08, 18), CREAM, 0, sy, d / 2 + 0.05, { rx: Math.PI / 2 });
+        f.put(geo.cylinder(0.24, 0.24, 0.06, 16), accent, 0, sy, d / 2 + 0.1, { rx: Math.PI / 2 });
+        f.put(geo.box(w * 0.5, 0.08, 0.06), CREAM, 0, sy - 0.42, d / 2 + 0.04);
+      } else {
+        // a diamond
+        f.put(geo.box(0.62, 0.62, 0.08), CREAM, 0, sy, d / 2 + 0.05, { rz: Math.PI / 4 });
+        f.put(geo.box(0.4, 0.4, 0.06), accent, 0, sy, d / 2 + 0.09, { rz: Math.PI / 4 });
+      }
+      if (tall) {
+        // the belt course between the storeys and two lit upper windows
+        f.put(geo.box(w + 0.1, 0.16, 0.12), accent, 0, 2.95, d / 2 + 0.03);
+        for (const x of [-w / 4, w / 4]) {
+          f.put(geo.box(w * 0.3 + 0.12, 0.78, 0.05), shade(wall, 0.7), x, 3.4, d / 2 + 0.02);
+          g.put(geo.box(w * 0.3, 0.66, 0.05), WINDOW, x, 3.4, d / 2 + 0.05);
+          f.put(geo.box(w * 0.3 + 0.2, 0.05, 0.14), CREAM, x, 3.0, d / 2 + 0.07);
+        }
+      }
       // the arcade: two columns per shop and a roof slab joining the terrace
       f.put(geo.box(w + 0.12, 0.18, 1.3), st.shopRoof, 0, 2.55, d / 2 + 0.65);
       f.put(geo.box(w + 0.12, 0.05, 1.3), SNOW, 0, 2.67, d / 2 + 0.65);
       for (const x of [-w / 2 + 0.2, w / 4]) f.put(geo.cylinder(0.13, 0.15, 2.45, 10), CREAM, x, 1.22, d / 2 + 1.15);
+      if (i % 2 === 0) {
+        // the blade sign: a tall vertical board at one front corner with a lit strip of letters
+        const bx = (i % 4 === 0 ? -1 : 1) * (w / 2 - 0.2);
+        const yt = tall ? h + 0.15 : h + 0.7;
+        const yb = 2.85;
+        f.put(geo.box(0.34, yt - yb, 0.12), shade(st.shopRoof, 0.9), bx, (yt + yb) / 2, d / 2 + 0.07);
+        g.put(geo.box(0.12, yt - yb - 0.3, 0.04), mix(WINDOW, accent, 0.3), bx, (yt + yb) / 2, d / 2 + 0.15);
+        f.put(geo.box(0.4, 0.05, 0.18), SNOW, bx, yt + 0.025, d / 2 + 0.07);
+        for (const y of [yb + 0.1, yt - 0.1]) f.put(geo.box(0.05, 0.05, 0.2), 0x3a3d44, bx, y, d / 2 + 0.1);
+      } else {
+        // a striped canvas awning on a slope from the arcade's edge, a valance on its lip
+        const nA = Math.max(5, Math.round(w / 0.5));
+        const z0 = d / 2 + 1.2;
+        for (let k = 0; k < nA; k++) {
+          const col = k % 2 ? CREAM : accent;
+          const x = -w / 2 + ((k + 0.5) * w) / nA;
+          f.put(geo.box(w / nA, 0.04, 0.82), col, x, 2.44, z0 + 0.4, { rx: 0.43 });
+          f.put(geo.box(w / nA, 0.18, 0.04), col, x, 2.2, z0 + 0.8);
+        }
+        f.put(geo.box(w, 0.04, 0.78), SNOW, 0, 2.5, z0 + 0.4, { rx: 0.43 });
+      }
       break;
     }
     case 'trailer': {
-      // a low roadside store: a long flat roof with a big lit sign, a wide window and a bench by the door
-      f.put(geo.boxBase(w, h, d), wall, 0, 0, 0);
-      f.put(geo.box(w + 0.6, 0.22, d + 0.9), st.shopRoof, 0, h + 0.11, 0.3);
-      f.put(geo.box(w + 0.6, 0.05, d + 0.9), SNOW, 0, h + 0.24, 0.3);
-      f.put(geo.box(w * 0.8, 0.7, 0.12), CREAM, 0, h + 0.6, d / 2 - 0.2);
-      g.put(geo.box(w * 0.65, 0.35, 0.05), mix(WINDOW, accent, 0.35), 0, h + 0.6, d / 2 - 0.12);
+      // a low roadside store: a long flat roof with a big lit sign, a wide window and a bench by the door.
+      // 0.9.13 (review E6): every third shop is a two-storey one (a set-back upper container with lit windows, the big sign
+      // on its ground-floor fascia), the even ones carry a striped canvas awning over the window, one a roadside pole sign
+      const tall = h > 4;
+      const pole = i === 1 && !tall;
+      const hl = tall ? 2.9 : h;
+      f.put(geo.boxBase(w, hl, d), wall, 0, 0, 0);
+      const rw = pole ? w + 0.2 : w + 0.6;
+      f.put(geo.box(rw, 0.22, d + 0.9), st.shopRoof, 0, hl + 0.11, 0.3);
+      f.put(geo.box(rw, 0.05, d + 0.9), SNOW, 0, hl + 0.24, 0.3);
+      if (tall) {
+        f.put(geo.boxBase(w - 0.8, h - hl - 0.22, d - 0.9), shade(wall, 0.96), 0, hl + 0.22, -0.35);
+        f.put(geo.box(w - 0.7, 0.12, d - 0.8), shade(st.shopRoof, 0.9), 0, h + 0.06, -0.35);
+        f.put(geo.box(w - 0.72, 0.05, d - 0.82), SNOW, 0, h + 0.14, -0.35);
+        const fz = -0.35 + (d - 0.9) / 2;
+        f.put(geo.box(w - 2.0, 0.66, 0.05), shade(wall, 0.65), 0, hl + 0.7, fz + 0.01);
+        g.put(geo.box(w - 2.2, 0.52, 0.05), WINDOW, 0, hl + 0.7, fz + 0.04);
+        f.put(geo.box(w * 0.8, 0.6, 0.12), CREAM, 0, hl - 0.5, d / 2 - 0.2);
+        g.put(geo.box(w * 0.65, 0.34, 0.05), mix(WINDOW, accent, 0.35), 0, hl - 0.5, d / 2 - 0.12);
+      } else {
+        f.put(geo.box(w * 0.8, 0.7, 0.12), CREAM, 0, h + 0.6, d / 2 - 0.2);
+        g.put(geo.box(w * 0.65, 0.35, 0.05), mix(WINDOW, accent, 0.35), 0, h + 0.6, d / 2 - 0.12);
+      }
       g.put(geo.box(w - 2.2, 1.1, 0.06), WINDOW, -0.6, 1.2, d / 2 + 0.03);
       f.put(geo.box(0.9, 1.7, 0.1), 0xdedad2, w / 2 - 0.8, 0.85, d / 2 + 0.01);
       f.put(geo.boxBase(1.4, 0.45, 0.45), shade(st.shopRoof, 0.85), -w / 2 + 1.0, 0, d / 2 + 0.5);
+      if (i % 2 === 0) {
+        // a striped canvas awning over the window, its lip past the roof edge, never under head height
+        const aw = w - 2.0;
+        const nA = Math.max(5, Math.round(aw / 0.5));
+        for (let k = 0; k < nA; k++) {
+          const col = k % 2 ? CREAM : accent;
+          const x = -0.6 + (-aw / 2 + ((k + 0.5) * aw) / nA);
+          f.put(geo.box(aw / nA, 0.04, 1.3), col, x, 2.2, d / 2 + 0.55, { rx: 0.3 });
+          f.put(geo.box(aw / nA, 0.16, 0.04), col, x, 1.99, d / 2 + 1.14);
+        }
+      }
+      if (pole) {
+        // the roadside pole sign: a steel pole at the front corner and a lit panel above the roof
+        const px = w / 2 + 0.2;
+        const pz = d / 2 + 0.2;
+        f.put(geo.cylinder(0.05, 0.06, h + 0.75, 8), 0xdedad2, px, (h + 0.75) / 2, pz);
+        f.put(geo.box(0.9, 0.75, 0.14), shade(st.shopRoof, 0.9), px - 0.2, h + 0.5, pz);
+        g.put(geo.box(0.74, 0.58, 0.05), WINDOW, px - 0.2, h + 0.5, pz + 0.08);
+        f.put(geo.box(0.5, 0.1, 0.06), accent, px - 0.2, h + 0.65, pz + 0.12);
+        f.put(geo.box(0.92, 0.05, 0.16), SNOW, px - 0.2, h + 0.89, pz);
+      }
       break;
     }
     case 'modular': {
@@ -819,6 +949,9 @@ function buildShop(body: Batch, glow: Batch, st: PlotStyle, s: ShopPlace, i: num
   }
 }
 
+/** 0.9.13 (E1): one of three sizes (0.72, 1, 1.3), each with a little jitter, so no two blobs in a row match. */
+const size = (rng: Rng): number => rng.pick([0.72, 1, 1.3]) * rng.range(0.92, 1.08);
+
 /** A rounded heap / ridge / crystal / pool along a bed rect (rows along X). */
 function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rect, rng: Rng, lit: boolean): void {
   const cz = (r.minZ + r.maxZ) / 2;
@@ -826,7 +959,12 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
   const len = r.maxX - r.minX;
   // a raked strip under every bed (0.9.12, T4: under an ore node or a quartz cluster it is a soft round worn patch, not a pale square)
   if (kind === 'outcrop' || kind === 'crystals') body.add(geo.circleGround(1, 28), mix(color, SNOW, 0.6), (r.minX + r.maxX) / 2, 0.02, cz, { sx: len / 2 + 0.55, sz: dz / 2 + 0.7 });
-  else body.add(geo.box(len, 0.02, dz + 0.3), mix(color, SNOW, 0.72), (r.minX + r.maxX) / 2, 0.02, cz);
+  else {
+    // 0.9.13 (E1): a run of overlapping worked patches, each turned and sized its own way, so the beds stop reading as ruled stripes
+    for (let x = r.minX + 0.6, k = 0; x < r.maxX - 0.3; x += rng.range(1.6, 2.6), k++) {
+      body.add(geo.circleGround(1, 16), shade(mix(color, SNOW, 0.72), rng.range(0.96, 1.03)), x, 0.02 + (k % 5) * 0.0004, cz + rng.range(-0.2, 0.2), { sx: rng.range(1.2, 2.0), sz: dz / 2 + rng.range(0.15, 0.5), ry: rng.range(-0.35, 0.35) });
+    }
+  }
   const glowTo = lit ? glow : body;
   switch (kind) {
     case 'dunes': {
@@ -836,34 +974,52 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
       for (let k = 0; k < seg; k++) {
         const x = r.minX + ((k + 0.5) * len) / seg + rng.range(-0.3, 0.3);
         const sx = len / seg / 2 - 0.2;
-        const h = rng.range(0.85, 1.2);
-        body.add(geo.sphere(1, 14, 8), color, x, 0, cz, { sx, sy: 0.4 * h, sz: dz / 2 + 0.15 });
+        const h = size(rng) * 1.05;
+        body.add(geo.sphere(1, 14, 8), color, x, 0, cz, { sx, sy: 0.4 * h, sz: dz / 2 + 0.15, ry: rng.range(-0.15, 0.15) });
         body.add(geo.sphere(1, 14, 8), shade(color, 1.05), x - sx * 0.15, 0, cz - dz * 0.08, { sx: sx * 0.7, sy: 0.95 * h, sz: dz * 0.26 });
         body.add(geo.sphere(1, 12, 6), SNOW, x - sx * 0.15, 0.16, cz - dz * 0.08, { sx: sx * 0.42, sy: 0.86 * h, sz: dz * 0.15 });
       }
       break;
     }
     case 'ridges': {
-      const seg = Math.max(1, Math.round(len / 6));
-      for (let k = 0; k < seg; k++) {
-        const x = r.minX + ((k + 0.5) * len) / seg;
-        const sx = len / seg / 2 - 0.2;
-        body.add(geo.sphere(1, 14, 8), color, x, 0, cz, { sx, sy: 0.7, sz: dz / 2 });
-        body.add(geo.sphere(1, 12, 6), mix(color, SNOW, 0.75), x, 0.12, cz - dz * 0.05, { sx: sx * 0.6, sy: 0.6, sz: dz * 0.25 });
+      // 0.9.13 (E1): spoil ridges of different lengths and heights, a little off the line and turned, gaps between some
+      for (let x0 = r.minX + 0.2; x0 < r.maxX - 1.2; ) {
+        const seg = Math.min(rng.range(2.4, 6.5), r.maxX - 0.2 - x0);
+        const v = size(rng);
+        const sx = seg / 2 - 0.15;
+        const x = x0 + seg / 2;
+        const z = cz + rng.range(-0.25, 0.25);
+        const ry = rng.range(-0.2, 0.2);
+        body.add(geo.sphere(1, 14, 8), shade(color, rng.range(0.94, 1.05)), x, 0, z, { sx, sy: 0.62 * v, sz: (dz / 2) * Math.min(1.1, 0.8 + v * 0.25), ry });
+        body.add(geo.sphere(1, 12, 6), mix(color, SNOW, 0.75), x, 0.12, z - dz * 0.05, { sx: sx * 0.6, sy: 0.55 * v, sz: dz * 0.25, ry });
+        x0 += seg + (rng.next() < 0.3 ? rng.range(0.8, 1.8) : 0.1);
       }
       if (lit) for (let x = r.minX + 1; x < r.maxX - 1; x += rng.range(1.5, 2.6)) glow.add(geo.sphere(0.09, 6, 4), 0xffa45a, x, 0.55, cz + dz * 0.35);
       break;
     }
     case 'heaps': {
-      for (let x = r.minX + 0.9; x < r.maxX - 0.8; x += rng.range(1.6, 2.4)) {
-        const s = rng.range(0.6, 0.85);
-        body.add(geo.sphere(1, 12, 7), color, x, 0, cz + rng.range(-0.15, 0.15), { sx: s, sy: s * 0.85, sz: Math.min(s, dz / 2 + 0.1) });
-        body.add(geo.sphere(0.6, 10, 5), mix(color, SNOW, 0.8), x, s * 0.5, cz, { sx: s * 0.7, sy: 0.4, sz: s * 0.7 });
+      for (let x = r.minX + 0.9; x < r.maxX - 0.8; x += rng.range(1.4, 2.6)) {
+        if (rng.next() < 0.14) continue; // a clearing
+        const s = 0.7 * size(rng);
+        const z = cz + rng.range(-0.3, 0.3);
+        const ry = rng.range(0, Math.PI);
+        body.add(geo.sphere(1, 12, 7), shade(color, rng.range(0.92, 1.06)), x, 0, z, { sx: s * rng.range(0.95, 1.25), sy: s * rng.range(0.7, 0.9), sz: Math.min(s, dz / 2 + 0.1), ry });
+        body.add(geo.sphere(0.6, 10, 5), mix(color, SNOW, 0.8), x, s * 0.5, z, { sx: s * 0.7, sy: 0.4, sz: s * 0.7, ry });
+        // now and then a few loose lumps rolled off the heap
+        if (rng.next() < 0.35) for (let j = 0; j < 3; j++) body.add(geo.dodecahedron(rng.range(0.1, 0.18)), shade(color, rng.range(0.9, 1.1)), x + rng.range(-1, 1) * s * 1.3, 0.06, z + rng.range(0.5, 1) * s, { ry: rng.range(0, 6) });
       }
       break;
     }
     case 'slabs': {
-      for (let x = r.minX + 0.7; x < r.maxX - 0.6; x += rng.range(1.2, 1.7)) body.add(geo.boxBase(rng.range(0.8, 1.1), rng.range(0.14, 0.3), dz * 0.85), shade(color, rng.range(0.92, 1.06)), x, 0, cz, { ry: rng.range(-0.2, 0.2) });
+      for (let x = r.minX + 0.7; x < r.maxX - 0.6; x += rng.range(1.1, 1.9)) {
+        if (rng.next() < 0.12) continue;
+        const v = size(rng);
+        const h = rng.range(0.14, 0.3) * v;
+        const ry = rng.range(-0.45, 0.45);
+        body.add(geo.boxBase(rng.range(0.7, 1.05) * v, h, dz * 0.8 * Math.min(1.1, v)), shade(color, rng.range(0.9, 1.07)), x, 0, cz + rng.range(-0.2, 0.2), { ry });
+        // some slabs are stacked two high, the top one turned a little
+        if (rng.next() < 0.3) body.add(geo.boxBase(0.7 * v, h * 0.8, dz * 0.55), shade(color, rng.range(0.95, 1.1)), x + rng.range(-0.1, 0.1), h, cz, { ry: ry + rng.range(-0.4, 0.4) });
+      }
       break;
     }
     case 'pools': {
@@ -881,10 +1037,12 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
         }
         break;
       }
-      for (let x = r.minX + 1.2; x < r.maxX - 1; x += rng.range(2.6, 3.4)) {
-        const s = rng.range(0.8, 1.05);
-        body.add(geo.cylinder(1, 1.05, 0.12, 18), mix(color, SNOW, 0.45), x, 0.06, cz, { sx: s * 1.15, sz: (dz / 2) * 0.95 });
-        glowTo.add(geo.cylinder(1, 1, 0.04, 18), color, x, 0.13, cz, { sx: s * 0.95, sz: (dz / 2) * 0.72 });
+      for (let x = r.minX + 1.2; x < r.maxX - 1; x += rng.range(2.4, 3.6)) {
+        const s = 0.9 * size(rng);
+        const ry = rng.range(-0.5, 0.5);
+        const sz = (dz / 2) * Math.min(1, 0.75 + s * 0.2);
+        body.add(geo.cylinder(1, 1.05, 0.12, 18), mix(color, SNOW, 0.45), x, 0.06, cz, { sx: s * 1.15, sz: sz * 0.95, ry });
+        glowTo.add(geo.cylinder(1, 1, 0.04, 18), color, x, 0.13, cz, { sx: s * 0.95, sz: sz * 0.72, ry });
       }
       break;
     }
@@ -990,7 +1148,8 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
       body.add(geo.boxBase(len, 0.35, 0.25), 0xb8bdbf, cx, 0, r.minZ + 0.12).add(geo.boxBase(len, 0.35, 0.25), 0xb8bdbf, cx, 0, r.maxZ - 0.12);
       body.add(geo.boxBase(0.25, 0.35, dz), 0xb8bdbf, r.minX + 0.12, 0, cz).add(geo.boxBase(0.25, 0.35, dz), 0xb8bdbf, r.maxX - 0.12, 0, cz);
       body.add(geo.box(len - 0.5, 0.02, dz - 0.5), shade(color, 0.45), cx, 0.03, cz);
-      for (let k = 0; k < 4; k++) glowTo.add(geo.dodecahedron(0.22), color, cx + rng.range(-0.6, 0.6), 0.2, cz + rng.range(-0.6, 0.6));
+      const ores = 3 + Math.floor(rng.next() * 4); // 0.9.13 (E1): 3-6 lumps of three sizes, not four alike
+      for (let k = 0; k < ores; k++) glowTo.add(geo.dodecahedron(0.18 * size(rng)), color, cx + rng.range(-0.65, 0.65), 0.18, cz + rng.range(-0.65, 0.65), { ry: rng.range(0, 6) });
       // a hazard flag on the rim
       body.add(geo.box(0.05, 0.7, 0.05), 0x6f6c6b, r.maxX - 0.15, 0.35 + 0.35, r.minZ + 0.15).add(geo.box(0.04, 0.2, 0.3), 0xe8c547, r.maxX - 0.15, 0.62, r.minZ + 0.32);
       break;
@@ -998,8 +1157,8 @@ function buildBed(body: Batch, glow: Batch, kind: BedKind, color: number, r: Rec
     case 'geode': {
       // a split geode: a rough shell with a ring of glowing crystals in its heart
       const cx = (r.minX + r.maxX) / 2;
-      const s = Math.min(len, dz) / 2;
-      body.add(geo.sphere(1, 12, 8), 0x9a93a8, cx, 0, cz, { sx: s * 0.95, sy: s * 0.55, sz: s * 0.95 });
+      const s = (Math.min(len, dz) / 2) * rng.range(0.8, 1.12); // 0.9.13 (E1): geodes of different sizes
+      body.add(geo.sphere(1, 12, 8), 0x9a93a8, cx, 0, cz, { sx: s * 0.95, sy: s * rng.range(0.48, 0.62), sz: s * 0.95 });
       body.add(geo.cylinder(s * 0.6, s * 0.7, 0.06, 14), shade(color, 0.6), cx, s * 0.5, cz);
       for (let k = 0; k < 6; k++) {
         const a = (k / 6) * Math.PI * 2;
@@ -1181,7 +1340,149 @@ function buildFieldDressing(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlac
   }
 }
 
-function buildGreen(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlaces, accent: number, glowColor: number): void {
+/**
+ * 0.9.13 (review E5): eras 6-10 give the crew green a richer centrepiece of its own (the market has buildCentre). All of it
+ * stands within GREEN_PIECE_R of the green's centre (the walkers circle it at 1.7 m) and under GREEN_PIECE_H[n] metres;
+ * placeSolids and the collider use the same numbers. Lit parts go in the glow batch, snow sits on the horizontal tops.
+ */
+export const GREEN_PIECE_H: Readonly<Record<number, number>> = { 6: 3.0, 7: 2.0, 8: 3.6, 9: 3.0, 10: 3.3 };
+
+function buildGreenPiece(body: Batch, glow: Batch, n: number, c: { x: number; z: number }, accent: number, glowC: number): void {
+  const f = new Frame(body, c.x, c.z, 0);
+  const g = new Frame(glow, c.x, c.z, 0);
+  /** A flat ring of snow on a step: between radii r0 and r1 at height y. */
+  const snowRing = (r0: number, r1: number, y: number): void => void f.put(geo.ringGround(r0, r1, 24), SNOW, 0, y + 0.006, 0);
+  /** Cones standing in a ring, tilted outward by `t` radians. */
+  const fan = (put: Frame, cnt: number, rad: number, y: number, r: number, h: number, t: number, cols: number[], a0 = 0): void => {
+    for (let k = 0; k < cnt; k++) {
+      const a = a0 + (k / cnt) * Math.PI * 2;
+      put.put(geo.cone(r, h, 6), cols[k % cols.length]!, Math.cos(a) * rad, y + h / 2, Math.sin(a) * rad, { rz: -t * Math.cos(a), rx: t * Math.sin(a) });
+    }
+  };
+  switch (n) {
+    case 6: {
+      // a stepped deco plinth, a copper coil column, a glowing quartz cluster and three lamp globes
+      const copper = 0xc0784a;
+      const teal = 0x3f706a;
+      const stone = 0xd8cbb2;
+      [[1.1, 0.1], [0.88, 0.3], [0.64, 0.5]].forEach(([r, y], k) => {
+        f.put(geo.cylinder(r!, r!, 0.2, 20), k % 2 ? shade(stone, 0.94) : stone, 0, y!, 0);
+        f.put(geo.cylinder(r! + 0.02, r! + 0.02, 0.035, 20), copper, 0, y! - 0.09, 0);
+      });
+      snowRing(0.9, 1.07, 0.2);
+      snowRing(0.66, 0.86, 0.4);
+      snowRing(0.32, 0.62, 0.6);
+      f.put(geo.cylinder(0.14, 0.17, 1.35, 10), teal, 0, 1.275, 0);
+      for (let k = 0; k < 8; k++) f.put(geo.torus(0.25, 0.05, 6, 14), copper, 0, 0.8 + k * 0.15, 0, { rx: Math.PI / 2 });
+      f.put(geo.cylinder(0.32, 0.22, 0.12, 14), copper, 0, 2.0, 0);
+      f.put(geo.cylinder(0.3, 0.3, 0.035, 14), SNOW, 0, 2.075, 0);
+      const quartz = mix(glowC, 0xe4eef2, 0.55);
+      g.put(geo.cone(0.21, 0.85, 6), quartz, 0, 2.5, 0);
+      fan(g, 4, 0.2, 2.08, 0.12, 0.55, 0.5, [mix(glowC, 0xffffff, 0.7), quartz], 0.4);
+      for (let k = 0; k < 3; k++) {
+        const a = Math.PI / 2 + (k * Math.PI * 2) / 3;
+        const x = Math.cos(a) * 0.95;
+        const z = Math.sin(a) * 0.95;
+        f.put(geo.cylinder(0.035, 0.045, 1.0, 6), copper, x, 0.7, z);
+        f.put(geo.cylinder(0.08, 0.06, 0.06, 8), copper, x, 1.22, z);
+        g.put(geo.sphere(0.13, 10, 8), mix(glowC, 0xfff0d0, 0.35), x, 1.35, z);
+      }
+      break;
+    }
+    case 7: {
+      // a bronze miniature pumpjack on a plinth beside an eternal-flame brazier
+      const bronze = 0x9a6a3a;
+      const slate = 0x8b95a1;
+      f.put(geo.cylinder(1.1, 1.15, 0.22, 20), slate, 0, 0.11, 0);
+      snowRing(0.2, 1.08, 0.22);
+      const x0 = -0.45;
+      f.put(geo.boxBase(0.9, 0.3, 0.55), shade(slate, 0.9), x0, 0.22, 0);
+      f.put(geo.box(0.92, 0.04, 0.57), SNOW, x0, 0.54, 0);
+      f.put(geo.box(0.95, 0.06, 0.3), bronze, x0, 0.57, 0);
+      for (const z of [-0.1, 0.1]) for (const s of [-1, 1]) f.put(geo.box(0.05, 0.8, 0.05), bronze, x0 + s * 0.07, 0.97, z, { rz: -s * 0.18 });
+      f.put(geo.box(1.0, 0.07, 0.1), shade(bronze, 1.1), x0, 1.4, 0, { rz: -0.12 });
+      f.put(geo.box(0.14, 0.28, 0.09), bronze, x0 + 0.5, 1.28, 0, { rz: 0.15 });
+      f.put(geo.cylinder(0.14, 0.14, 0.08, 12), shade(bronze, 0.8), x0 - 0.5, 1.5, 0, { rx: Math.PI / 2 });
+      f.put(geo.box(0.03, 0.6, 0.03), bronze, x0 - 0.38, 1.05, 0.04);
+      f.put(geo.cylinder(0.12, 0.12, 0.05, 12), shade(bronze, 0.8), x0 - 0.38, 0.72, 0.18, { rx: Math.PI / 2 });
+      f.put(geo.cylinder(0.018, 0.018, 0.7, 6), 0xc9ccd0, x0 + 0.5, 0.9, 0);
+      // the brazier: a pedestal and a wide bowl with the eternal flame
+      f.put(geo.cylinder(0.12, 0.17, 0.65, 8), bronze, 0.5, 0.545, 0);
+      f.put(geo.cylinder(0.4, 0.2, 0.2, 14), shade(bronze, 0.9), 0.5, 0.97, 0);
+      f.put(geo.torus(0.4, 0.035, 5, 16), shade(bronze, 1.15), 0.5, 1.07, 0, { rx: Math.PI / 2 });
+      g.put(geo.cylinder(0.34, 0.34, 0.03, 14), mix(glowC, 0xc44536, 0.4), 0.5, 1.07, 0);
+      g.put(geo.cone(0.3, 0.95, 8), glowC, 0.5, 1.55, 0);
+      g.put(geo.cone(0.14, 0.6, 7), glowC, 0.66, 1.42, 0.08, { rz: -0.35 });
+      g.put(geo.cone(0.17, 0.7, 8), mix(glowC, 0xfff0a0, 0.6), 0.5, 1.45, 0);
+      break;
+    }
+    case 8: {
+      // a holo-tree: a white stem, glowing teal and gold discs narrowing upward, a gold star on top
+      const teal = 0x6fe0d4;
+      const gold = 0xf2c85a;
+      f.put(geo.cylinder(1.0, 1.1, 0.3, 24), 0xf0eadb, 0, 0.15, 0);
+      snowRing(0.2, 0.92, 0.3);
+      g.put(geo.torus(1.02, 0.03, 5, 36), teal, 0, 0.3, 0, { rx: Math.PI / 2 });
+      f.put(geo.cylinder(0.07, 0.1, 2.9, 10), 0xf0eadb, 0, 1.75, 0);
+      const rs = [1.0, 0.84, 0.68, 0.53, 0.4, 0.28];
+      const ys = [0.78, 1.12, 1.45, 1.76, 2.05, 2.32];
+      rs.forEach((r, k) => {
+        // a holo ring: a flat annulus inside a thin bright rim, so the stem and the tiers below show through
+        const col = k % 2 ? gold : teal;
+        g.put(geo.ringGround(r * 0.78, r, 28), mix(col, 0xffffff, 0.15), 0, ys[k]!, 0);
+        g.put(geo.torus(r, 0.04, 5, 32), col, 0, ys[k]!, 0, { rx: Math.PI / 2 });
+        f.put(geo.cylinder(0.13, 0.13, 0.1, 10), 0xdfeeee, 0, ys[k]! - 0.06, 0);
+        if (k < 4) for (let j = 0; j < 3; j++) g.put(geo.sphere(0.055, 6, 5), k % 2 ? teal : gold, Math.cos(j * 2.1 + k) * (r - 0.02), ys[k]! + 0.05, Math.sin(j * 2.1 + k) * (r - 0.02));
+      });
+      const star = new Frame(glow, c.x, c.z, Math.PI / 4);
+      for (let k = 0; k < 4; k++) star.put(geo.box(k % 2 ? 0.34 : 0.56, 0.1, 0.06), gold, 0, 3.3, 0, { rz: (k * Math.PI) / 4 });
+      g.put(geo.sphere(0.09, 8, 6), 0xfff0b0, 0, 3.3, 0);
+      break;
+    }
+    case 9: {
+      // an atom fountain: a basin of glowing aqua water, a column, a glowing nucleus ringed by three thin tori
+      const aqua = 0x86e8c4;
+      f.put(geo.cylinder(1.1, 1.15, 0.4, 24), 0xc6d0d3, 0, 0.2, 0);
+      snowRing(0.95, 1.08, 0.4);
+      g.put(geo.cylinder(0.95, 0.95, 0.04, 24), aqua, 0, 0.4, 0);
+      f.put(geo.cylinder(0.3, 0.38, 0.25, 14), 0xdfe6e8, 0, 0.525, 0);
+      f.put(geo.cylinder(0.09, 0.12, 1.2, 10), 0xdfe6e8, 0, 1.25, 0);
+      const cy = 2.1;
+      g.put(geo.sphere(0.2, 12, 9), 0xe8fff6, 0, cy, 0);
+      for (const [x, y, z, col] of [[0.14, 0.06, 0.05, aqua], [-0.1, 0.14, -0.06, 0x5bd6b0], [0, 0.0, -0.15, aqua], [-0.06, -0.12, 0.12, 0x5bd6b0]] as const) g.put(geo.sphere(0.15, 10, 8), col, x, cy + y, z);
+      const e = new THREE.Euler();
+      const v = new THREE.Vector3();
+      [0, (2 * Math.PI) / 3, (4 * Math.PI) / 3].forEach((ry, k) => {
+        g.put(geo.torus(0.82, 0.025, 5, 40), k === 1 ? 0xb5f5dc : aqua, 0, cy, 0, { rx: 1.0, ry });
+        e.set(1.0, ry, 0);
+        v.set(Math.cos(k * 2.1 + 0.6) * 0.82, Math.sin(k * 2.1 + 0.6) * 0.82, 0).applyEuler(e);
+        g.put(geo.sphere(0.07, 8, 6), 0xffffff, v.x, cy + v.y, v.z);
+      });
+      for (let k = 0; k < 8; k++) g.put(geo.sphere(0.035, 5, 4), aqua, Math.cos(k * 0.785) * (0.34 + (k % 3) * 0.1), 0.75 + (k % 4) * 0.2, Math.sin(k * 0.785) * (0.34 + (k % 3) * 0.1));
+      break;
+    }
+    default: {
+      // X: a crystal tree: tiers of lavender crystal cones round a tall trunk crystal, a floating orb and ring above
+      const cols = [0xb9a3e8, 0xd2bff4, 0xe8a8c0, 0x9fc8e8];
+      f.put(geo.cylinder(1.05, 1.15, 0.3, 18), 0xe3d9f6, 0, 0.15, 0);
+      snowRing(0.35, 1.0, 0.3);
+      f.put(geo.cone(0.32, 2.0, 6), 0xb9a3e8, 0, 1.3, 0);
+      fan(f, 6, 0.62, 0.3, 0.19, 1.15, 0.42, cols);
+      fan(f, 5, 0.42, 0.85, 0.15, 1.0, 0.3, [cols[1]!, cols[3]!, cols[2]!], 0.5);
+      fan(f, 4, 0.26, 1.35, 0.12, 0.85, 0.22, [cols[0]!, cols[2]!, cols[1]!], 0.2);
+      fan(f, 3, 0.9, 0.3, 0.1, 0.5, 0.65, [cols[2]!, cols[0]!], 0.9);
+      fan(g, 4, 0.34, 1.9, 0.06, 0.34, 0.3, [0xe6dcff, 0xffd6ec], 0.5);
+      g.put(geo.cone(0.1, 0.45, 6), 0xf0e8ff, 0, 2.45, 0);
+      g.put(geo.sphere(0.2, 14, 10), 0xdccbff, 0, 2.95, 0);
+      g.put(geo.sphere(0.12, 10, 8), 0xffffff, 0, 2.95, 0);
+      g.put(geo.torus(0.42, 0.03, 5, 28), 0xc9b6ff, 0, 2.95, 0, { rx: Math.PI / 2 - 0.35 });
+      for (let k = 0; k < 3; k++) g.put(geo.sphere(0.05, 6, 5), 0xffffff, Math.cos(k * 2.1) * 0.5, 2.7 + k * 0.2, Math.sin(k * 2.1) * 0.5);
+      break;
+    }
+  }
+}
+
+function buildGreen(body: Batch, glow: Batch, n: number, st: PlotStyle, P: PlotPlaces, accent: number, glowColor: number): void {
   const G = P.green;
   const c = greenCentre(P);
   // a soft lawn of trodden snow with a ring path round the centre
@@ -1199,6 +1500,10 @@ function buildGreen(body: Batch, glow: Batch, st: PlotStyle, P: PlotPlaces, acce
   for (const s of [-1, 1]) {
     body.add(geo.boxBase(1.6, 0.1, 0.45), shade(st.wall, 0.85), c.x + s * 3.2, 0.42, c.z);
     for (const x of [-0.6, 0.6]) body.add(geo.boxBase(0.1, 0.42, 0.4), shade(st.wall, 0.7), c.x + s * 3.2 + x, 0, c.z);
+  }
+  if (n >= 6) {
+    buildGreenPiece(body, glow, n, c, accent, glowColor);
+    return;
   }
   switch (st.green) {
     case 'fire':
@@ -1261,7 +1566,7 @@ const GARLAND_POST_Y = 2.88;
 /** A shop's front eave edge in its own frame: [half width, height, depth out from the centre], or null (round shops). */
 function shopEave(st: PlotStyle, s: ShopPlace): [number, number, number] | null {
   if (st.hut === 'deco') return [s.w / 2 + 0.04, 2.44, s.d / 2 + 1.31];
-  if (st.hut === 'trailer') return [s.w / 2 + 0.28, s.h - 0.02, s.d / 2 + 0.76];
+  if (st.hut === 'trailer') return [s.w / 2 + 0.28, s.h > 4 ? 2.88 : s.h - 0.02, s.d / 2 + 0.76];
   if (st.hut === 'modular') return [s.w / 2 + 0.13, s.h - 0.12, s.d / 2 + 0.12];
   if (st.hut === 'quonset' || st.hut === 'pod') return null;
   return [s.w / 2 + 0.12, s.h - 0.04, s.d / 2 + 0.25];
@@ -1752,6 +2057,182 @@ function buildCentre(f: Frame, g: Frame, b: Frame, n: number, S: DecorStyle, acc
   }
 }
 
+/** 0.9.13 (review E5): an open-air market stall (eras 6-10): four posts, an awning striped in the era's accent, a counter of the era's goods. */
+function stallPiece(f: Frame, g: Frame, S: DecorStyle, accent: number, v: number, seed: number): void {
+  const wood = shade(S.wood, 0.8);
+  for (const x of [-0.82, 0.82]) for (const z of [-0.5, 0.5]) f.put(geo.boxBase(0.08, 2.3, 0.08), wood, x, 0, z);
+  // the back board and a shelf of goods
+  f.put(geo.box(1.64, 0.75, 0.05), shade(wood, 0.9), 0, 1.3, -0.5);
+  f.put(geo.box(1.5, 0.05, 0.28), wood, 0, 1.05, -0.36);
+  for (let k = 0; k < 4; k++) f.put(geo.boxBase(0.28, 0.2 + (k % 2) * 0.08, 0.2), S.goods[k % 2]!, -0.55 + k * 0.37, 1.08, -0.36);
+  // the striped awning, high at the back and sloping to the front, and a scalloped valance
+  const nS = 8;
+  for (let k = 0; k < nS; k++) {
+    const col = k % 2 ? CREAM : accent;
+    const x = -0.95 + ((k + 0.5) * 1.9) / nS;
+    f.put(geo.box(1.9 / nS, 0.05, 1.32), col, x, 2.26, 0.0, { rx: 0.23 });
+    f.put(geo.box(1.9 / nS, 0.18, 0.04), col, x, 2.07, 0.66);
+  }
+  f.put(geo.box(1.92, 0.05, 1.3), SNOW, 0, 2.31, -0.02, { rx: 0.23 });
+  // the counter with its goods; a price board on the front
+  f.put(geo.boxBase(1.6, 0.85, 0.5), S.crate, 0, 0, 0.25);
+  f.put(geo.box(1.7, 0.07, 0.6), shade(wood, 1.15), 0, 0.88, 0.25);
+  f.put(geo.box(0.6, 0.22, 0.03), CREAM, 0, 0.55, 0.51).put(geo.box(0.45, 0.08, 0.03), accent, 0, 0.55, 0.53);
+  if (v === 1) {
+    for (let k = 0; k < 3; k++) f.put(geo.boxBase(0.4, 0.28, 0.34), k % 2 ? S.crate : shade(S.crate, 1.1), -0.55 + k * 0.55, 0.92, 0.25).put(geo.box(0.3, 0.07, 0.24), S.goods[k % 2]!, -0.55 + k * 0.55, 1.22, 0.25);
+  } else if (v === 2) {
+    for (let k = 0; k < 3; k++) f.put(geo.sphere(0.2, 8, 6), S.sack[k % 2]!, -0.5 + k * 0.5, 1.07, 0.25, { sy: 0.8 });
+  } else {
+    goodsHeap(f, S, -0.4, 0.92, 0.25, 0.75, seed);
+    goodsHeap(f, S, 0.42, 0.92, 0.25, 0.75, seed + 1);
+  }
+  // a little lantern under the awning
+  f.put(geo.cylinder(0.008, 0.008, 0.2, 4), 0x3a3634, 0.55, 2.05, 0.3);
+  g.put(geo.sphere(0.08, 8, 6), WINDOW, 0.55, 1.9, 0.3);
+}
+
+/** 0.9.13 (review E5): a snowman in the era's scarf, topped with an era-flavoured hat. */
+function snowmanPiece(f: Frame, g: Frame, n: number, accent: number): void {
+  const coal = 0x2b2b2e;
+  f.put(geo.sphere(0.36, 12, 9), SNOW, 0, 0.34, 0).put(geo.sphere(0.27, 12, 9), 0xffffff, 0, 0.84, 0).put(geo.sphere(0.2, 12, 9), SNOW, 0, 1.17, 0);
+  for (const x of [-0.07, 0.07]) f.put(geo.sphere(0.03, 6, 4), coal, x, 1.22, 0.18);
+  for (let k = 0; k < 5; k++) f.put(geo.sphere(0.018, 5, 4), coal, (k - 2) * 0.045, 1.09 + Math.abs(k - 2) * 0.015, 0.19);
+  f.put(geo.cone(0.035, 0.2, 6), 0xf08a2a, 0, 1.16, 0.3, { rx: Math.PI / 2 });
+  for (const y of [0.97, 0.84, 0.71]) f.put(geo.sphere(0.035, 6, 4), coal, 0, y, 0.26);
+  f.put(geo.sphere(0.035, 6, 4), coal, 0, 0.42, 0.35);
+  for (const s of [-1, 1]) f.put(geo.box(0.5, 0.03, 0.03), 0x6b4a36, s * 0.43, 0.98 + 0.05, 0, { rz: s * 0.5 });
+  // the scarf in the era's accent colour, its tail hanging down the front
+  f.put(geo.torus(0.2, 0.055, 5, 14), accent, 0, 1.0, 0, { rx: Math.PI / 2 });
+  f.put(geo.box(0.1, 0.34, 0.03), accent, 0.12, 0.84, 0.24).put(geo.box(0.1, 0.05, 0.035), CREAM, 0.12, 0.7, 0.24);
+  switch (n) {
+    case 6:
+      // a copper top hat with a teal band
+      f.put(geo.cylinder(0.24, 0.24, 0.03, 14), 0xc0784a, 0, 1.34, 0).put(geo.cylinder(0.14, 0.14, 0.26, 12), 0xc0784a, 0, 1.47, 0).put(geo.cylinder(0.145, 0.145, 0.05, 12), 0x3f706a, 0, 1.4, 0);
+      f.put(geo.cylinder(0.12, 0.12, 0.03, 12), SNOW, 0, 1.61, 0);
+      break;
+    case 7:
+      // a yellow hard hat
+      f.put(geo.sphere(0.2, 12, 7), 0xe6b84a, 0, 1.34, 0, { sy: 0.75 }).put(geo.cylinder(0.25, 0.25, 0.025, 14), 0xd9a53a, 0, 1.33, 0, { sz: 1.15 });
+      f.put(geo.box(0.05, 0.04, 0.34), 0xd9a53a, 0, 1.5, 0);
+      g.put(geo.sphere(0.035, 6, 4), 0xffe08a, 0, 1.4, 0.2);
+      break;
+    case 8:
+      // a headset: a band over the head, teal ear cups and a mic boom with a gold tip
+      for (let k = 0; k < 7; k++) {
+        const a = (k * Math.PI) / 6;
+        f.put(geo.box(0.05, 0.05, 0.05), 0xf0eadb, Math.cos(a) * 0.215, 1.17 + Math.sin(a) * 0.215, 0, { rz: a + Math.PI / 2 });
+      }
+      for (const s of [-1, 1]) g.put(geo.cylinder(0.075, 0.075, 0.06, 10), 0x6fe0d4, s * 0.215, 1.17, 0, { rz: Math.PI / 2 });
+      f.put(geo.box(0.02, 0.02, 0.22), 0xdfeeee, -0.2, 1.1, 0.1);
+      g.put(geo.sphere(0.03, 6, 4), 0xf2c85a, -0.2, 1.1, 0.22);
+      break;
+    case 9:
+      // an aqua beanie with a glowing pom-pom
+      f.put(geo.sphere(0.2, 12, 7), 0x5bb391, 0, 1.33, 0, { sy: 0.75 }).put(geo.cylinder(0.205, 0.205, 0.07, 12), shade(0x5bb391, 0.8), 0, 1.31, 0);
+      g.put(geo.sphere(0.06, 8, 6), 0x86e8c4, 0, 1.5, 0);
+      break;
+    default:
+      // a little crown of lavender crystals
+      f.put(geo.cylinder(0.17, 0.18, 0.06, 12), 0xd2bff4, 0, 1.36, 0);
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2;
+        g.put(geo.cone(0.04, 0.2, 5), k % 2 ? 0xe8a8c0 : 0xd9c8ff, Math.cos(a) * 0.13, 1.49, Math.sin(a) * 0.13);
+      }
+      break;
+  }
+}
+
+/**
+ * 0.9.13 (review E6): the market's parked era vehicle, nose toward local +X, its rear doors (or tailgate) open with two
+ * crates stacked behind it, all inside DECOR_SIZE.van (3.6 × 1.8 m). VI a rounded 1930s delivery van in teal and cream,
+ * VII a red pickup with oil drums in its bed, VIII a boxy 80s white van with a teal stripe and a gold logo.
+ */
+function vanPiece(f: Frame, g: Frame, n: number, S: DecorStyle): void {
+  const rubber = 0x2c2f33;
+  const wheel = (x: number, z: number, hub: number): void => void f.put(geo.cylinder(0.28, 0.28, 0.18, 14), rubber, x, 0.28, z, { rx: Math.PI / 2 }).put(geo.cylinder(0.13, 0.13, 0.2, 10), hub, x, 0.28, z, { rx: Math.PI / 2 });
+  const crates = (x: number): void => {
+    f.put(geo.boxBase(0.5, 0.42, 0.6), S.crate, x, 0, 0).put(geo.box(0.06, 0.42, 0.02), S.strap, x, 0.21, 0.31).put(geo.box(0.06, 0.42, 0.02), S.strap, x - 0.15, 0.21, 0.31);
+    f.put(geo.boxBase(0.44, 0.38, 0.5), shade(S.crate, 1.08), x + 0.02, 0.42, 0.02, { ry: 0.12 });
+    f.put(geo.box(0.46, 0.04, 0.52), SNOW, x + 0.02, 0.82, 0.02, { ry: 0.12 });
+  };
+  if (n === 6) {
+    const teal = 0x3f9a8f;
+    const cream = 0xf3e7cc;
+    f.put(geo.box(2.7, 0.16, 1.2), 0x2f3b3a, 0.2, 0.34, 0);
+    f.put(geo.capsule(0.66, 1.5, 6, 14), teal, 0.2, 0.98, 0, { rz: Math.PI / 2, sx: 0.88 });
+    for (const s of [-1, 1]) {
+      f.put(geo.box(2.0, 0.1, 0.04), cream, 0.2, 0.84, s * 0.645);
+      f.put(geo.box(0.62, 0.3, 0.03), 0xcfe9ee, 0.95, 1.2, s * 0.62);
+      f.put(geo.cylinder(0.2, 0.2, 0.03, 14), cream, -0.2, 1.05, s * 0.655, { rx: Math.PI / 2 });
+      f.put(geo.cylinder(0.12, 0.12, 0.035, 12), 0xc0784a, -0.2, 1.05, s * 0.665, { rx: Math.PI / 2 });
+      f.put(geo.sphere(0.36, 10, 7), shade(teal, 0.75), 1.0, 0.5, s * 0.6, { sy: 0.6, sz: 0.55 });
+      f.put(geo.sphere(0.36, 10, 7), shade(teal, 0.75), -0.7, 0.5, s * 0.6, { sy: 0.6, sz: 0.55 });
+      wheel(1.0, s * 0.62, cream);
+      wheel(-0.7, s * 0.62, cream);
+      f.put(geo.sphere(0.12, 8, 6), 0xd0d4d6, 1.55, 0.74, s * 0.38);
+      g.put(geo.sphere(0.085, 8, 6), WINDOW, 1.62, 0.74, s * 0.38);
+      // a rear door swung open against the side
+      f.put(geo.box(0.5, 0.9, 0.04), shade(teal, 1.05), -1.5, 0.95, s * 0.72);
+    }
+    f.put(geo.box(0.04, 0.34, 0.9), 0xcfe9ee, 1.45, 1.22, 0, { rz: -0.35 });
+    f.put(geo.box(0.12, 0.12, 1.2), cream, 1.68, 0.45, 0);
+    f.put(geo.sphere(1, 12, 6), SNOW, 0.2, 1.55, 0, { sx: 1.15, sy: 0.07, sz: 0.5 });
+    crates(-1.45);
+  } else if (n === 7) {
+    const red = 0xc44536;
+    f.put(geo.box(2.7, 0.2, 1.2), 0x3a3d44, 0.15, 0.38, 0);
+    f.put(geo.boxBase(0.95, 0.7, 1.3), red, 0.85, 0.45, 0);
+    f.put(geo.boxBase(0.35, 0.4, 1.28), red, 1.5, 0.5, 0);
+    f.put(geo.box(0.04, 0.24, 1.0), 0xc9ccd0, 1.69, 0.7, 0);
+    f.put(geo.box(0.9, 0.36, 1.18), 0xcfe3ee, 0.8, 1.33, 0);
+    for (const x of [0.38, 1.22]) for (const z of [-0.6, 0.6]) f.put(geo.box(0.06, 0.38, 0.06), red, x, 1.33, z);
+    f.put(geo.box(1.0, 0.07, 1.34), red, 0.8, 1.54, 0);
+    f.put(geo.box(0.96, 0.05, 1.3), SNOW, 0.8, 1.6, 0);
+    // the bed: floor, sides, a front wall, the tailgate down, three oil drums standing in it
+    f.put(geo.box(1.4, 0.08, 1.3), 0x3a3d44, -0.3, 0.54, 0);
+    for (const s of [-1, 1]) f.put(geo.box(1.4, 0.4, 0.06), red, -0.3, 0.78, s * 0.62);
+    f.put(geo.box(0.06, 0.4, 1.3), red, 0.38, 0.78, 0);
+    f.put(geo.box(0.36, 0.05, 1.2), red, -1.18, 0.54, 0);
+    for (const [x, z, c] of [[-0.7, -0.3, 0], [-0.7, 0.3, 1], [-0.25, 0, 2]] as const) {
+      const col = S.drum[c % S.drum.length]!;
+      f.put(geo.cylinder(0.2, 0.2, 0.55, 10), col, x, 0.86, z).put(geo.cylinder(0.205, 0.205, 0.05, 10), S.band, x, 0.78, z).put(geo.cylinder(0.18, 0.18, 0.03, 10), SNOW, x, 1.15, z);
+    }
+    for (const s of [-1, 1]) {
+      wheel(1.05, s * 0.62, 0xc9ccd0);
+      wheel(-0.7, s * 0.62, 0xc9ccd0);
+      f.put(geo.cylinder(0.16, 0.16, 0.03, 12), 0xe6b84a, 0.85, 0.8, s * 0.66, { rx: Math.PI / 2 });
+      g.put(geo.sphere(0.09, 8, 6), WINDOW, 1.69, 0.72, s * 0.45);
+    }
+    f.put(geo.box(0.1, 0.12, 1.3), 0xc9ccd0, 1.72, 0.4, 0);
+    crates(-1.55);
+  } else {
+    const white = 0xf0eadb;
+    const teal = 0x45858c;
+    const gold = 0xe5c05a;
+    f.put(geo.box(2.7, 0.16, 1.2), 0x3a3d44, 0.0, 0.36, 0);
+    f.put(geo.boxBase(2.35, 1.15, 1.4), white, -0.1, 0.42, 0);
+    f.put(geo.boxBase(0.55, 0.65, 1.4), white, 1.35, 0.42, 0);
+    f.put(geo.box(0.04, 0.52, 1.25), 0x9fd8dc, 1.1, 1.33, 0, { rz: -0.25 });
+    f.put(geo.box(2.4, 0.05, 1.4), SNOW, -0.1, 1.6, 0);
+    f.put(geo.box(0.1, 0.14, 1.4), 0x4a4e55, 1.67, 0.45, 0);
+    f.put(geo.box(0.03, 0.9, 1.2), 0x2a2f33, -1.28, 0.95, 0);
+    for (const s of [-1, 1]) {
+      f.put(geo.box(2.9, 0.16, 0.03), teal, 0.15, 0.9, s * 0.71);
+      f.put(geo.box(2.9, 0.04, 0.03), gold, 0.15, 1.04, s * 0.71);
+      f.put(geo.box(0.7, 0.4, 0.03), 0x9fd8dc, 0.7, 1.3, s * 0.71);
+      g.put(geo.cylinder(0.17, 0.17, 0.03, 14), gold, -0.45, 1.3, s * 0.72, { rx: Math.PI / 2 });
+      f.put(geo.box(0.16, 0.16, 0.03), teal, -0.45, 1.3, s * 0.745, { rz: Math.PI / 4 });
+      g.put(geo.box(0.03, 0.12, 0.28), WINDOW, 1.64, 0.7, s * 0.45);
+      wheel(1.0, s * 0.62, teal);
+      wheel(-0.7, s * 0.62, teal);
+      f.put(geo.box(0.5, 1.0, 0.04), white, -1.525, 0.95, s * 0.72);
+    }
+    f.put(geo.box(0.55, 0.03, 1.0), teal, 1.35, 1.08, 0);
+    f.put(geo.box(1.2, 0.04, 0.03), gold, -0.1, 0.62, 0.71);
+    crates(-1.52);
+  }
+}
+
 function buildDecor(body: Batch, glow: Batch, bulbs: Batch, n: number, st: PlotStyle, items: readonly DecorPlace[]): void {
   const S = DECOR[n]!;
   const tilt = (k: number): number => ((k * 7 + n * 3) % 5 - 2) * 0.05;
@@ -1843,6 +2324,15 @@ function buildDecor(body: Batch, glow: Batch, bulbs: Batch, n: number, st: PlotS
       case 'sig':
         sigPiece(f, g, n, S, d.v);
         break;
+      case 'stall':
+        stallPiece(f, g, S, ERAS[n]!.colors.accent, d.v, i);
+        break;
+      case 'snowman':
+        snowmanPiece(f, g, n, ERAS[n]!.colors.accent);
+        break;
+      case 'van':
+        vanPiece(f, g, n, S);
+        break;
     }
   });
 }
@@ -1852,6 +2342,9 @@ function buildDecor(body: Batch, glow: Batch, bulbs: Batch, n: number, st: PlotS
 // ---------------------------------------------------------------------------------------------------------------------
 
 const GLOW_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
+// 0.9.13: the huts' and shops' windows come on one by one at dusk (render/duskWindows.ts); the rest of the lit parts
+// (pools, lamps, centrepieces) keep GLOW_MAT
+const WINDOW_MAT = duskBasic(new THREE.MeshBasicMaterial({ vertexColors: true }));
 const POLL = 0.5;
 
 export interface PlotsPart {
@@ -1877,6 +2370,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   // ---- statics: yard floor, street, shops, lamps, field, green
   const body = new Batch();
   const glow = new Batch();
+  const windows = new DuskBatch();
   const Y = P.yardPave;
   // 0.9.8: an era with its own base board (world/env/eraGround.ts) lays its own processing floor and cell marks
   if (!eraOwnsFloor(n)) {
@@ -1893,7 +2387,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   buildYardPattern(body, glow, st, Y, rng);
   }
   for (const S of P.streets) buildStreet(body, st, P, S, rng);
-  P.shops.forEach((s, i) => buildShop(body, glow, st, s, i, e.colors.accent, goods));
+  P.shops.forEach((s, i) => buildShop(body, windows, st, s, i, e.colors.accent, goods));
   const bulbs = new Batch();
   for (const l of P.lamps) {
     body.add(geo.cylinder(0.07, 0.1, 3.0, 8), shade(st.shopRoof, 0.85), l.x, 1.5, l.z);
@@ -1902,7 +2396,9 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   }
   for (const b of P.beds) buildBed(body, glow, bedKind(st, b.k), bedColor(st, b.k), b, rng, !!st.glow?.includes(b.k));
   buildFieldDressing(body, glow, st, P, rng, L.node.z);
-  buildGreen(body, glow, st, P, e.colors.accent, e.colors.glow);
+  // 0.9.13 (E1): benches, ramps, derricks, walls and rims on the field's far edges, and the props working it
+  const works = buildFieldWorks(body, glow, n, P, rng, st.beds[1], GLOW_MAT);
+  buildGreen(body, glow, n, st, P, e.colors.accent, e.colors.glow);
   const decor = plotDecor(n);
   buildDecor(body, glow, bulbs, n, st, decor);
   // 0.9.12 lantern garlands: in the lamps' bulb batch (no extra draw call), warm paper tinted with the era's glow
@@ -1918,7 +2414,10 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   statics.name = 'places';
   group.add(statics);
   if (!glow.empty) group.add(glow.mesh({ cast: false, receive: false, material: GLOW_MAT }));
+  if (!windows.empty) group.add(windows.mesh({ cast: false, receive: false, material: WINDOW_MAT }));
   if (!bulbs.empty) group.add(bulbs.mesh({ cast: false, receive: false, material: bulbMaterial() }));
+  for (const m of works.movers) group.add(m.object);
+  for (const r of works.colliders) ctx.colliders.addBox(r, `era:${n}:field`);
 
   // colliders for the statics (the player walks round the shops and the green's centre)
   for (const s of P.shops) {
@@ -1926,7 +2425,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
     else ctx.colliders.addBox(shopFootprint(s), `era:${n}:places`);
   }
   const gc = greenCentre(P);
-  ctx.colliders.addBox(box(gc.x, gc.z, 0.8, 0.8), `era:${n}:places`);
+  ctx.colliders.addBox(box(gc.x, gc.z, n >= 6 ? GREEN_PIECE_R - 0.1 : 0.8, n >= 6 ? GREEN_PIECE_R - 0.1 : 0.8), `era:${n}:places`);
   // the decor stands in the way like the shops do (snow piles and lamp posts are too low / slim to matter)
   for (const d of decor) if (d.kind !== 'snow' && d.kind !== 'lamp') ctx.colliders.addBox(box(d.x, d.z, d.hx * 0.92, d.hz * 0.92), `era:${n}:decor`);
 
@@ -1941,6 +2440,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   ctx.occlusion?.addOccluder(huts); // fades when it hides the player
   let first = true;
   let timer = 0;
+  let clock = 0;
   const chimneys: (() => void)[] = [];
 
   const rebuild = (): void => {
@@ -1949,7 +2449,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
       if (c instanceof THREE.Mesh) c.geometry.dispose();
     }
     const hb = new Batch();
-    const hg = new Batch();
+    const hg = new DuskBatch();
     P.huts.forEach((h, i) => buildHut(hb, hg, st, h, stages[i]!, e.colors.accent));
     // 0.9.8: built huts with a chimney smoke (world/sky/smoke.ts)
     for (const off of chimneys.splice(0)) off();
@@ -1960,7 +2460,7 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
     const m = hb.mesh({ cast: true, receive: true });
     m.name = 'hutBodies';
     huts.add(m);
-    if (!hg.empty) huts.add(hg.mesh({ cast: false, receive: false, material: GLOW_MAT }));
+    if (!hg.empty) huts.add(hg.mesh({ cast: false, receive: false, material: WINDOW_MAT }));
   };
 
   const setCollider = (i: number, which: 0 | 1, on: boolean): void => {
@@ -1999,6 +2499,8 @@ export function buildPlots(ctx: GameContext, n: number, parent: THREE.Object3D):
   return {
     group,
     update(dt: number): void {
+      clock += dt;
+      for (const m of works.movers) m.update(clock);
       timer -= dt;
       if (timer > 0) return;
       timer = POLL;

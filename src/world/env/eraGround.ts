@@ -37,6 +37,7 @@ import { era08 } from './ground/era08';
 import { era09 } from './ground/era09';
 import { era10 } from './ground/era10';
 import { pathEnds } from './ground/softEdge';
+import { buildYardSignature } from './ground/yardSignature';
 
 /** Everything an era module builds into. Read-only for modules except through its batches and lists. */
 export class GroundKit {
@@ -142,6 +143,7 @@ export function buildEraOpen(n: number, l: RegionLayout, P: PlotPlaces): THREE.G
   if (!m?.open) return null;
   const k = new GroundKit();
   m.open(k, l, P, new Rng(7700 + n * 61));
+  buildYardSignature(k, l, new Rng(7900 + n * 67)); // 0.9.13 (E2): eras 6-8 each get a signature structure in the yard
   pathEnds(k, l, eraKeepOut(n, l)); // 0.9.12 (C5): no zone path stops dead in plain ground
   return k.build(`region${n}:ground`);
 }
