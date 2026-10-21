@@ -16,8 +16,8 @@
  * 0.9.13 (review idea 2, E6): residents run errands. A grown-up stepping out now and then goes to the market stall on
  * the green instead (eras/layout.ts greenStalls: its line and the walks to it from every door), joins the back of the
  * line, steps up as the line moves, buys, and carries a basket of goods home round the line. In eras 6-8 a loader
- * works at the market's parked era vehicle by day, carrying crates from the stack behind it to its side door; it only
- * comes and goes while the camera can't see it.
+ * works at the market's parked era vehicle by day, carrying crates from the stack behind it to its side door; they
+ * step out of its cab in the morning and back in at dusk.
  *
  * Cheap: one small instanced crowd (npc/Crowd.ts, 5 draw calls + 5 in the shadow pass while anyone is out, none
  * otherwise), only for the region the player stands in; walking away releases everyone. Nothing is saved.
@@ -30,7 +30,6 @@ import { ERAS } from '../../eras/data';
 import { greenActivities, greenStalls, greenWalk, plotDecor, plotPlaces, QUEUE_PLACES, type DecorPlace, type GreenActivity, type PlotPlaces, type StallQueue, type XZ } from '../../eras/layout';
 import { regionAt } from '../../eras/playerUpgrades';
 import { COAT_COLORS, Crowd, GOODS_COLORS, TRIM_COLORS, type CrowdPerson } from '../../npc/Crowd';
-import { inView } from '../../npc/vehicleView';
 import { GreenProps } from './greenProps';
 
 /** People out at once on one green (a full crew), fewer at night. */
@@ -766,7 +765,8 @@ export class RegionLife {
 
   /**
    * The loader at the market's parked era vehicle (eras 6-8), by day and out of a snowstorm: lifts a crate off the stack
-   * behind it, carries it to the side and puts it in, and walks back for the next. Comes and goes only off screen.
+   * behind it, carries it to the side and puts it in, and walks back for the next. Steps out of the cab (fading in, like
+   * the families at their doors) and back in at dusk.
    */
   private stepLoader(dt: number, dark: number, storm: boolean): void {
     const v = this.van;
@@ -782,15 +782,18 @@ export class RegionLife {
       this.loaderCheck -= dt;
       if (!want || this.loaderCheck > 0) return;
       this.loaderCheck = 1;
-      if (inView(this.ctx, v.x, v.z, 3)) return;
+      // steps out of the vehicle's cab at its side, like the families out of their doors
       const p = this.crowdOf().acquire(COAT_COLORS[3 % COAT_COLORS.length]!, TRIM_COLORS[1]!, 0xc79a62);
       if (!p) return;
-      p.appear = 1;
-      const at = local(LOAD_PICK, { x: 0, z: 0 });
-      L = this.loader = { p, stage: 'lift', timer: LOAD_LIFT, x: at.x, z: at.z, yaw: v.yaw + Math.PI / 2, speed: 0, leaving: false };
+      p.appear = 0;
+      const at = local(LOAD_DROP, { x: 0, z: 0 });
+      L = this.loader = { p, stage: 'back', timer: 0, x: at.x, z: at.z, yaw: v.yaw + Math.PI, speed: 0, leaving: false };
     }
     if (!want) L.leaving = true;
-    if (L.leaving && !inView(this.ctx, v.x, v.z, 3)) {
+    // going home (dusk, a storm): back into the cab once the crate in hand is loaded
+    const gone = L.leaving && L.stage === 'put' && L.timer <= 0;
+    L.p.appear = gone ? Math.max(0, L.p.appear - dt * 2.5) : Math.min(1, L.p.appear + dt * 2.5);
+    if (gone && L.p.appear <= 0.001) {
       this.crowd?.release(L.p);
       this.loader = null;
       return;
@@ -815,7 +818,10 @@ export class RegionLife {
       // at the stack: face the crates (vehicle-local +X); at the side: face the vehicle (local −Z)
       L.yaw = dampAngle(L.yaw, L.stage === 'lift' ? v.yaw + Math.PI / 2 : v.yaw + Math.PI, 8, dt);
       L.timer -= dt;
-      if (L.timer <= 0 && !(L.leaving && L.stage === 'put')) {
+      if (L.timer <= 0 && L.leaving && L.stage === 'lift') {
+        L.stage = 'carry'; // empty-handed to the cab
+        L.p.basket = false;
+      } else if (L.timer <= 0 && !(L.leaving && L.stage === 'put')) {
         L.p.basket = L.stage === 'lift';
         L.stage = L.stage === 'lift' ? 'carry' : 'back';
       }
