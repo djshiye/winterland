@@ -34,8 +34,8 @@ export const BACK_REACH = 0.85;
 /** Height of the span's centre line at the risers (metres). */
 export const SPAN_Y = 4.4;
 /**
- * Nothing a link hangs or carries comes lower than this over the gap: the highest raised belt (EraBelts BELT_LIFT[2]
- * 2.6 + beltY 0.5) with a riding item (≤ 0.45) tops out at 3.55.
+ * Nothing a link hangs or carries comes lower than this over the gap: the highest raised belt in a gap (EraBelts BELT_LIFT[2]
+ * 2.6 + beltY 0.5) with a riding item (≤ 0.45) tops out at 3.55 (0.9.14: the top level never runs down a gap).
  */
 export const SPAN_CLEAR = 3.75;
 

@@ -216,6 +216,13 @@ export class CarryStack implements ItemHolder {
     return out;
   }
 
+  /** 0.9.14: landed + reserved (still flying in) items of `kind`: what the hands will hold once everything lands. */
+  held(kind: ItemKind): number {
+    let n = 0;
+    for (let i = 0; i < this.entries.length; i++) if (this.entries[i]!.kind === kind) n++;
+    return n;
+  }
+
   /** Landed + reserved items. */
   get size(): number {
     return this.entries.length;

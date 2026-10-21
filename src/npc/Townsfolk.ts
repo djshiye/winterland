@@ -1203,13 +1203,22 @@ export class Townsfolk {
   /** A free place in the square to stroll to (or meet at): clear of the solids, queues, porters and other people. */
   private randomSquarePoint(out: XZ, self: Agent | null = null, other: Agent | null = null): void {
     const s = NAV.square;
+    // 0.9.14: when every try is taken by people, settle for a free-of-obstacles one (the last try used to stand, even
+    // inside the snowman park's fence or a stall), and when there is none, the village street
+    let okX = Number.NaN;
+    let okZ = Number.NaN;
     for (let i = 0; i < 24; i++) {
       out.x = randRange(s.minX + 1.4, s.maxX - 1.4);
       out.z = randRange(s.minZ + 1.2, s.maxZ - 1.2);
-      if (insideObstacle(out.x, out.z, 0, 0.35) || this.nearQueue(out.x, out.z) || nearPorterPosts(out.x, out.z)) continue;
-      if (this.standTaken(out.x, out.z, self, other)) continue;
+      if (insideObstacle(out.x, out.z, 0, 0.35) || nearPorterPosts(out.x, out.z)) continue;
+      okX = out.x;
+      okZ = out.z;
+      if (this.nearQueue(out.x, out.z) || this.standTaken(out.x, out.z, self, other)) continue;
       return;
     }
+    if (Number.isNaN(okX)) return this.randomStreetPoint(out, self, other);
+    out.x = okX;
+    out.z = okZ;
   }
 
   /** 0.9.12: a free place on Lantern Lane's walk (town/lane.ts LANE_WALK), clear of its signpost and other people. */

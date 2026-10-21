@@ -20,6 +20,7 @@ import { createMachineModel } from '../src/assets/eraMachines';
 import { createYardLinksModel } from '../src/assets/yardLinks';
 import { createRollerConveyor } from '../src/assets/machines';
 import { BELT_LIFT } from '../src/eras/EraBelts';
+import { BELT_LEVELS, TOP_LANE_ONLY, planBelts } from '../src/eras/belts';
 import { MACHINES, machinesOfEra, type MachineId } from '../src/eras/data';
 import { regionLayout, type RegionLayout } from '../src/eras/layout';
 import { SPAN_CLEAR, planYardLinks, type LinkMachine } from '../src/eras/linkPlan';
@@ -151,8 +152,11 @@ describe('machine yard links (eras 2-10)', () => {
   });
 
   it('stands only inside machine bodies, keeps everything else overhead and never hides a pad or a MANAGE board', () => {
-    // the highest raised belt with an item riding it (EraBelts beltY 0.5, ≤ 0.45 tall items)
-    expect(SPAN_CLEAR).toBeGreaterThan(0.5 + BELT_LIFT[BELT_LIFT.length - 1]! + 0.45);
+    // the highest raised belt that may run down a gap, with an item riding it (EraBelts beltY 0.5, ≤ 0.45 tall items)
+    expect(BELT_LIFT.length).toBe(BELT_LEVELS);
+    expect(SPAN_CLEAR).toBeGreaterThan(0.5 + BELT_LIFT[TOP_LANE_ONLY - 1]! + 0.45);
+    // 0.9.14: the top level runs only along a lane in front of the machines: nothing of a link comes down to it there
+    const topY = 0.5 + BELT_LIFT[TOP_LANE_ONLY]! + 0.45;
     for (let n = 2; n <= 10; n++) {
       for (const offset of [0, 1, 2]) {
         const { L, machines } = fill(n, offset);
@@ -164,9 +168,14 @@ describe('machine yard links (eras 2-10)', () => {
           expect(inRect(body, r.x - 0.3, r.z - 0.3) && inRect(body, r.x + 0.3, r.z + 0.3), `era ${n} riser on slot ${r.slot}`).toBe(true);
         }
         const model = createYardLinksModel(n, plan);
+        const tops = planBelts(L, machines.map((m, i) => ({ ...m, kind: MACHINES[fill(n, offset).ids[i]!].kind })))
+          .filter((b) => b.level === TOP_LANE_ONLY)
+          .map((b) => ({ minX: Math.min(b.path[0]!.x, b.path[1]!.x) - 0.45, maxX: Math.max(b.path[0]!.x, b.path[1]!.x) + 0.45, minZ: b.path[0]!.z - 0.45, maxZ: b.path[0]!.z + 0.45 }));
         let low = Infinity;
         let hides = '';
+        let overTop = '';
         for (const p of vertices(model)) {
+          if (!overTop && p.y < topY + 0.1 && tops.some((r) => inRect(r, p.x, p.z))) overTop = `(${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`;
           const inBody = R.bodies.some((b) => inRect(b, p.x, p.z, -0.02));
           if (!inBody) low = Math.min(low, p.y);
           if (p.y < 1 || hides) continue;
@@ -177,6 +186,7 @@ describe('machine yard links (eras 2-10)', () => {
           else if (man >= 0) hides = `the MANAGE zone of slot ${man} (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`;
         }
         expect(hides, `era ${n} offset ${offset}: a link hides`).toBe('');
+        expect(overTop, `era ${n} offset ${offset}: a link comes down to a top-level belt`).toBe('');
         expect(low, `era ${n}: lowest point outside the machine bodies`).toBeGreaterThanOrEqual(SPAN_CLEAR - 1e-6);
         model.dispose();
       }

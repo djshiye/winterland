@@ -9,7 +9,9 @@
  * shares its stretch of lane or corridor with another belt on the same level: when the ground level is taken there,
  * it runs on a raised level (an overhead conveyor, `level` 1 or 2), and (0.9.12) never crosses one on the same
  * level either, so nearly every input gets its belt in any build
- * order. 0.9.12 (Dino: "the conveyor doesn't go from the pellet mine to the steel mill"): the plan first gives every
+ * order. 0.9.14: two belts out of one pile may leave it back to back along the lane (a splitter), and two into one
+ * hopper may arrive back to back (a merge); with the top lane level that belts every input of every era's full build.
+ * 0.9.12 (Dino: "the conveyor doesn't go from the pellet mine to the steel mill"): the plan first gives every
  * processor that can have one at least one belt in, and only then the most belts, so a machine is never left standing
  * with no belt while its neighbours get two.
  * Whatever has no belt is still carried by the crew.
@@ -43,8 +45,14 @@ const CLEAR = 0.9;
 /** 0.9.12: a belt reaches a machine at most this many rows away (was 1; the corridor runs past the row between). */
 export const MAX_ROW_GAP = 2;
 
-/** 0.9.6: belt levels: 0 = on the ground (rollers at waist height), 1 and 2 = raised overhead (EraBelts BELT_LIFT). */
-export const BELT_LEVELS = 3;
+/**
+ * 0.9.6: belt levels: 0 = on the ground (rollers at waist height), 1 and 2 = raised overhead (EraBelts BELT_LIFT).
+ * 0.9.14: level 3, the highest, only for a straight run along one row's lane (TOP_LANE_ONLY): never down a corridor,
+ * where the yard links' spans cross the gaps (eras/linkPlan.ts SPAN_CLEAR).
+ */
+export const BELT_LEVELS = 4;
+/** 0.9.14: the top level (BELT_LEVELS - 1) carries only straight lane runs. */
+export const TOP_LANE_ONLY = BELT_LEVELS - 1;
 
 export interface BeltLink {
   /** Producer slot (its output pile feeds the belt). */
@@ -116,7 +124,14 @@ interface Seg {
   hi: number;
 }
 
-function segments(path: readonly XZ[]): Seg[] {
+/** A belt's straight runs, and its two ends (the producer's pile, the consumer's hopper). */
+interface SegPath {
+  segs: Seg[];
+  start: XZ;
+  end: XZ;
+}
+
+function segments(path: readonly XZ[]): SegPath {
   const out: Seg[] = [];
   for (let i = 1; i < path.length; i++) {
     const a = path[i - 1]!;
@@ -124,24 +139,35 @@ function segments(path: readonly XZ[]): Seg[] {
     if (Math.abs(a.z - b.z) < 1e-6) out.push({ dir: 'h', at: a.z, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) });
     else out.push({ dir: 'v', at: a.x, lo: Math.min(a.z, b.z), hi: Math.max(a.z, b.z) });
   }
-  return out;
+  return { segs: out, start: path[0]!, end: path[path.length - 1]! };
 }
+
+const same = (p: XZ, q: XZ): boolean => Math.abs(p.x - q.x) < 1e-6 && Math.abs(p.z - q.z) < 1e-6;
 
 /**
  * Two belts would run into each other: parallel and overlapping (closer than CLEAR), or (0.9.12) crossing, where the
  * rollers would cut through each other (a two-row belt's corridor over the middle row's lane). Perpendicular runs
  * that stay more than CLEAR / 2 apart are fine.
  */
-function overlaps(a: readonly Seg[], b: readonly Seg[]): boolean {
+function overlaps(pa: SegPath, pb: SegPath): boolean {
   const half = CLEAR / 2;
-  for (const s of a) {
-    for (const t of b) {
+  // 0.9.14: two belts out of one pile (or into one hopper) may leave (or arrive) back to back along the same lane: a
+  // splitter (or a merge) at the shared end, as long as their runs only meet in that point
+  const shared = same(pa.start, pb.start) ? pa.start : same(pa.end, pb.end) ? pa.end : null;
+  for (const s of pa.segs) {
+    for (const t of pb.segs) {
       if (s.dir !== t.dir) {
         // s runs along one axis at s.at, t along the other at t.at: they meet at (t.at on s, s.at on t)
         if (t.at > s.lo - half && t.at < s.hi + half && s.at > t.lo - half && s.at < t.hi + half) return true;
         continue;
       }
       if (Math.abs(s.at - t.at) >= CLEAR) continue;
+      if (shared && Math.abs(s.at - t.at) < 1e-6) {
+        const p = s.dir === 'h' ? shared.x : shared.z;
+        const q = s.dir === 'h' ? shared.z : shared.x;
+        // back to back: one run ends at the shared point and the other starts there
+        if (Math.abs(q - s.at) < 1e-6 && ((Math.abs(s.hi - p) < 1e-6 && Math.abs(t.lo - p) < 1e-6) || (Math.abs(s.lo - p) < 1e-6 && Math.abs(t.hi - p) < 1e-6))) continue;
+      }
       if (Math.min(s.hi, t.hi) - Math.max(s.lo, t.lo) > -CLEAR) return true;
     }
   }
@@ -168,10 +194,10 @@ export function planBelts(L: RegionLayout, machines: SlotMachines): BeltLink[] {
     }
   });
   // a small exhaustive search (a region has at most a dozen inputs): the most processors with a belt in (0.9.12), then
-  // the most belts, then the fewest splitters (two belts out of one pile), then the fewest raised belts, then the
-  // shortest; ties keep the first found (deterministic)
+  // the most belts, then the fewest splitters (two belts out of one pile), then the fewest on the top level (0.9.14),
+  // then the fewest raised belts, then the shortest; ties keep the first found (deterministic)
   type Pick = { i: number; from: number; path: XZ[]; level: number; len: number };
-  const segs: Seg[][][] = Array.from({ length: BELT_LEVELS }, () => []);
+  const segs: SegPath[][] = Array.from({ length: BELT_LEVELS }, () => []);
   const outs = new Map<number, number>();
   // belts into each processor so far, and the processors still ahead from input i on (for the bound below)
   const ins = new Map<number, number>();
@@ -184,7 +210,7 @@ export function planBelts(L: RegionLayout, machines: SlotMachines): BeltLink[] {
   const key = (p: readonly Pick[]): number[] => {
     let splits = 0;
     for (const n of outs.values()) splits += Math.max(0, n - 1);
-    return [fed(), p.length, -splits, -p.filter((x) => x.level > 0).length, -p.reduce((s, x) => s + x.len, 0)];
+    return [fed(), p.length, -splits, -p.filter((x) => x.level === TOP_LANE_ONLY).length, -p.filter((x) => x.level > 0).length, -p.reduce((s, x) => s + x.len, 0)];
   };
   const better = (a: number[], b: number[]): boolean => {
     for (let k = 0; k < a.length; k++) if (a[k] !== b[k]) return a[k]! > b[k]!;
@@ -207,6 +233,7 @@ export function planBelts(L: RegionLayout, machines: SlotMachines): BeltLink[] {
     const inp = inputs[i]!;
     for (let level = 0; level < BELT_LEVELS; level++) {
       for (const o of inp.opts) {
+        if (level === TOP_LANE_ONLY && o.path.length > 2) continue;
         const s = segments(o.path);
         if (segs[level]!.some((t) => overlaps(s, t))) continue;
         segs[level]!.push(s);

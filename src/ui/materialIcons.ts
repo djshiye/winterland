@@ -31,11 +31,13 @@ function gearPath(cx: number, cy: number, rIn: number, rOut: number, n: number):
 }
 
 const MATERIAL_ICONS: Record<string, string> = {
+  // 0.9.14: a dressed stone block (as in the world), so it never reads as a lump of coal
   stone: svg(
-    g(`<path d="M6 36l3-16 10-8 14 2 9 10 1 12z" fill="#a7a39b"/>
-       <path d="M9 20l10-8 14 2-6 8z" fill="#c4c0b8"/>
-       <path d="M27 22l15 2 1 12H6l21-4z" fill="#8a857c"/>
-       <path d="M14 30l8-3" stroke-width="2" fill="none"/>`),
+    g(`<path d="M6 20l18-8 18 8v16l-18 8-18-8z" fill="#a7a39b"/>
+       <path d="M6 20l18-8 18 8-18 8z" fill="#c4c0b8"/>
+       <path d="M24 28l18-8v16l-18 8z" fill="#8a857c"/>
+       <path d="M24 28v16" fill="none"/>
+       <path d="M11 29l8 3M29 34l6-3" stroke-width="2" fill="none"/>`),
   ),
   brick: svg(
     g(`<rect x="5" y="26" width="38" height="14" rx="2" fill="#d9cfc0"/>
@@ -70,10 +72,13 @@ const MATERIAL_ICONS: Record<string, string> = {
        <path d="M9 13h30" stroke="#dfe6ee" stroke-width="2" fill="none"/>
        <circle cx="10" cy="34.5" r="1.4" fill="#dfe6ee" stroke-width="0"/><circle cx="24" cy="34.5" r="1.4" fill="#dfe6ee" stroke-width="0"/><circle cx="38" cy="34.5" r="1.4" fill="#dfe6ee" stroke-width="0"/>`),
   ),
+  // 0.9.14: native copper, smooth round nuggets with green patina (iron ore is a craggy rock with specks)
   copper: svg(
-    g(`<path d="M6 36l2-12 8-10 12-2 11 8 3 16z" fill="#c9773a"/>
-       <path d="M16 14l12-2 4 6-8 4-8-2z" fill="#e3935a"/>
-       <path d="M24 26l6-4 5 4-4 6z" fill="#5fc9a4"/><path d="M12 28l4-3 3 3-3 4z" fill="#5fc9a4"/>`),
+    g(`<circle cx="15" cy="30" r="9" fill="#c9773a"/>
+       <circle cx="33" cy="31" r="9.5" fill="#b8682f"/>
+       <circle cx="24" cy="19" r="10" fill="#e3935a"/>
+       <circle cx="12" cy="31" r="2.6" fill="#5fc9a4" stroke-width="1.6"/><circle cx="36" cy="34" r="2.4" fill="#5fc9a4" stroke-width="1.6"/>
+       <path d="M20 14c2-2 5-2 7 0" stroke="#fbe0c4" stroke-width="2.4" fill="none"/>`),
   ),
   wire: svg(
     g(`<ellipse cx="24" cy="38" rx="16" ry="5" fill="#5a3a20"/>

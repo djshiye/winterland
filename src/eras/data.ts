@@ -121,7 +121,7 @@ export const eraOfKey = (key: EraKey): number => ERA_KEYS.indexOf(key) + 2;
 // ---------------------------------------------------------------------------
 
 export type MaterialShape =
-  | 'block' | 'brick' | 'nugget' | 'ingot' | 'lump' | 'gear' | 'beam' | 'coil' | 'barrel' | 'pellet' | 'crystal' | 'chip' | 'rod' | 'cell' | 'core' | 'robot'
+  | 'block' | 'brick' | 'nugget' | 'native' | 'ingot' | 'lump' | 'gear' | 'beam' | 'coil' | 'barrel' | 'pellet' | 'crystal' | 'chip' | 'rod' | 'cell' | 'core' | 'robot'
   // 0.9.5 era 2-4 (assets/eraItems2to4.ts)
   | 'tile' | 'hearth' | 'tools' | 'rail' | 'boiler' | 'engine'
   // 0.9.5 era 5-7 (assets/eraItems5to7.ts)
@@ -169,7 +169,7 @@ export const MATERIALS: Record<MaterialKind, MaterialDef> = {
   coal: mat('coal', 'Coal', 4, 'raw', RAW(4), 'lump', 0x2c2b2e, 0x4a484d, 0.38, 0.26, 0.34),
   gear: mat('gear', 'Gears', 4, 'refined', REF(4), 'gear', 0xb08a3e, 0x6f5a2c, 0.4, 0.12, 0.4),
   steel: mat('steel', 'Steel', 5, 'refined', REF(5), 'beam', 0x7f8b99, 0x4b5562, 0.46, 0.18, 0.2),
-  copper: mat('copper', 'Copper', 6, 'raw', RAW(6), 'nugget', 0xc9773a, 0x8f4f25, 0.38, 0.26, 0.34),
+  copper: mat('copper', 'Copper', 6, 'raw', RAW(6), 'native', 0xc9773a, 0x8f4f25, 0.38, 0.26, 0.34),
   wire: mat('wire', 'Wire', 6, 'refined', REF(6), 'coil', 0xd88a45, 0x5a3a20, 0.4, 0.22, 0.4),
   crude: mat('crude', 'Crude Oil', 7, 'raw', RAW(7), 'barrel', 0x2a2d33, 0xe0b03a, 0.34, 0.42, 0.34),
   plastic: mat('plastic', 'Plastic', 7, 'refined', REF(7), 'pellet', 0x48c0e8, 0xf2f2f2, 0.4, 0.24, 0.32),
