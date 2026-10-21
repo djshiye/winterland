@@ -55,6 +55,10 @@ const KERB_GROW = 0.4;
 const CROSS_AHEAD = 1.5;
 /** A shopper behind one waiting at the kerb stops this far back (m). */
 const KERB_GAP = 0.75;
+/** Waiting shoppers keep this far apart along the kerb (m): each takes its own wait spot a step from the next. */
+export const KERB_SPACING = 0.7;
+/** Speed (m/s) a waiting shopper shuffles along the kerb to its own spot. */
+const KERB_SHUFFLE = 1.2;
 /** Seconds a shopper rests in the pool before it walks in again. */
 const REST = 2;
 
@@ -99,6 +103,29 @@ function* carefully(vehicles: Iterable<KerbVehicle>): Generator<KerbVehicle> {
   for (const v of vehicles) yield { ...v, x: v.x + v.fx * NOSE_AHEAD, z: v.z + v.fz * NOSE_AHEAD, yields: false };
 }
 const NOSE_AHEAD = 1.6;
+
+/**
+ * How far (m, signed, along the unit kerb direction `axis`) a shopper standing at `at` should shuffle to clear the
+ * waiters at `others` by `spacing`: away from the nearest one inside the spacing, moving along the kerb only (never
+ * toward the road). `tie` breaks an exact overlap (+1 / −1: by queue slot), so two on one spot part ways.
+ */
+export function kerbShift(at: XZ, others: readonly XZ[], axis: XZ, spacing: number, tie: number): number {
+  let best = 0;
+  let nearest = spacing;
+  for (const o of others) {
+    const dx = at.x - o.x;
+    const dz = at.z - o.z;
+    const d = Math.hypot(dx, dz);
+    if (d >= nearest) continue;
+    nearest = d;
+    const side = dx * axis.x + dz * axis.z;
+    const dir = Math.abs(side) > 0.01 ? Math.sign(side) : tie;
+    // slide far enough along the kerb that the straight distance reaches the spacing
+    const across = d * d - side * side;
+    best = dir * (Math.sqrt(Math.max(0, spacing * spacing - Math.max(0, across))) - dir * side);
+  }
+  return best;
+}
 
 class Shopper {
   readonly group = new THREE.Group();
@@ -454,6 +481,7 @@ export class EraShoppers {
       // one waiting at the kerb right ahead: wait behind them, not on their spot (never out on the road)
       c.held = !inRect(lane, at) && this.kerbQueue(c, p);
       if (c.held) {
+        this.shuffle(c, dt);
         c.speed = 0;
         c.velocity.set(0, 0, 0);
         return false;
@@ -462,6 +490,7 @@ export class EraShoppers {
       const wait = kerbWait(at, p, [lane], carefully(trafficNow(this.ctx.time.elapsed))) || (!inRect(lane, at) && this.lineBlocks(at, p));
       if (wait && c.kerb < KERB_PATIENCE) {
         c.kerb += dt;
+        if (!inRect(lane, at)) this.shuffle(c, dt);
         c.speed = 0;
         c.velocity.set(0, 0, 0);
         c.yaw = dampAngle(c.yaw, yawFromDir(p.x - at.x, p.z - at.z), TURN, dt);
@@ -483,6 +512,21 @@ export class EraShoppers {
     }
     if (leaving) c.rig.root.rotation.y = c.yaw;
     return false;
+  }
+
+  /** A waiting shopper shuffles along the kerb (never toward the road) until it stands KERB_SPACING from the other waiters. */
+  private shuffle(c: Shopper, dt: number): void {
+    const lane = this.lane!;
+    const alongX = lane.maxX - lane.minX >= lane.maxZ - lane.minZ;
+    const axis = alongX ? { x: 1, z: 0 } : { x: 0, z: 1 };
+    const others: XZ[] = [];
+    for (const list of [this.queue, this.leaving]) for (const o of list) if (o !== c && (o.kerb > 0 || o.held) && !inRect(lane, o.group.position)) others.push({ x: o.group.position.x, z: o.group.position.z });
+    const at = c.group.position;
+    const shift = kerbShift({ x: at.x, z: at.z }, others, axis, KERB_SPACING, this.queue.indexOf(c) % 2 ? 1 : -1);
+    if (!shift) return;
+    const step = Math.sign(shift) * Math.min(Math.abs(shift), KERB_SHUFFLE * dt);
+    at.x += axis.x * step;
+    at.z += axis.z * step;
   }
 
   /** True while the buyer line moves up and `at` → `to` steps onto the road. */

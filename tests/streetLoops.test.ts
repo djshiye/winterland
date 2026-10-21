@@ -45,6 +45,22 @@ describe('street loops', () => {
     }
   });
 
+  it('never lets a vehicle box (half-width included) into roads R1, R2 or R3', () => {
+    // R1 ends where the city's west street begins (eras/data.ts, roadJoins): inside the street it is the street itself
+    const roads = ['r1', 'r2', 'r3'].map((id) => (id === 'r1' ? { ...rect(id), maxX: rect('cityWest').minX } : rect(id)));
+    for (const l of loops) {
+      for (let s = 0; s < l.length; s += 0.1) {
+        loopPoint(l, s, pt);
+        loopHeading(l, s, hd);
+        for (const k of [-1, 0, 1]) {
+          const x = pt.x - hd.z * HALF * k;
+          const z = pt.z + hd.x * HALF * k;
+          roads.forEach((r, i) => expect(inRect(r, x, z), `${l.id} s=${s} (${x}, ${z}) inside R${i + 1}`).toBe(false));
+        }
+      }
+    }
+  });
+
   it('never brings the two loops closer than 1.6 m', () => {
     const [a, b] = loops;
     let min = Infinity;

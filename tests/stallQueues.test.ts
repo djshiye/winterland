@@ -23,6 +23,9 @@ function distToSeg(p: XZ, a: XZ, b: XZ): number {
   return Math.hypot(p.x - (a.x + t * dx), p.z - (a.z + t * dz));
 }
 
+/** How far (m) an errand walk keeps from a stall or crate (measured from the footprint's edge). */
+const MIN_CLEAR = 0.35;
+
 describe('stall queues and errand walks', () => {
   for (let n = 2; n <= 10; n++) {
     it(`era ${n}: a stall line every hut can walk to and home from, every leg clear`, () => {
@@ -67,6 +70,26 @@ describe('stall queues and errand walks', () => {
         });
       }
     });
+  }
+  for (let n = 2; n <= 10; n++) {
+    it(`era ${n}: errand walks keep ${MIN_CLEAR} m off every stall and crate footprint`, () => {
+      const W = greenWalk(plotPlaces(n));
+      const props = plotDecor(n).filter((d) => d.kind === 'stall' || d.kind === 'crates');
+      for (const q of greenStalls(n)) {
+        const legs: [XZ, XZ, string][] = [];
+        q.to.forEach((t, i) => t && [W.doors[i]!, ...t].forEach((p, k, a) => k && legs.push([a[k - 1]!, p, `hut ${i} to the line`])));
+        q.from.forEach((f, i) => f && [q.places[0]!, ...f].forEach((p, k, a) => k && legs.push([a[k - 1]!, p, `hut ${i} home`])));
+        for (const [a, b, what] of legs) {
+          for (const s of samples(a, b)) {
+            for (const d of props) {
+              const gx = Math.max(Math.abs(s.x - d.x) - d.hx, 0);
+              const gz = Math.max(Math.abs(s.z - d.z) - d.hz, 0);
+              expect(Math.hypot(gx, gz), `${what}: ${d.kind} at (${d.x}, ${d.z})`).toBeGreaterThanOrEqual(MIN_CLEAR);
+            }
+          }
+        }
+      }
+    }, 30000);
   }
   for (let n = 6; n <= 8; n++) {
     it(`era ${n}: the loader's two spots at the parked vehicle are off every walkway and keep-out`, () => {

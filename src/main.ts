@@ -6,6 +6,7 @@ import './style.css';
 import { SAVE } from './config';
 import { Game, RECOVERED_FLAG } from './game/Game';
 import { freshRequested } from './core/Save';
+import { SaveLoadError } from './core/saveLoadError';
 import { pushBackup } from './core/saveVault';
 import { afterPaint, hideSplash } from './ui/splash';
 
@@ -30,7 +31,7 @@ function showFatal(message: string, detail = ''): void {
 const RECOVERY_FLAG = 'winterland.recovery';
 
 /**
- * Starting the game threw. If a save exists it is the likely culprit (a corrupt / incompatible save would otherwise
+ * Restoring the save at startup threw (SaveLoadError). The save is the likely culprit (a corrupt / incompatible save would otherwise
  * brick the game on every reload): move it to `<key>.bak`, clear it and reload ONCE into a fresh game. A
  * sessionStorage flag stops the retry loop when the crash has another cause. Returns true when a reload was started.
  * 0.9.6: the save is only cleared once its copy is safely stored (read back), and the fresh game tells the player
@@ -98,7 +99,8 @@ if (!app || !hud) {
       }
     } catch (err) {
       console.error(err);
-      if (!recoverFromBadSave()) {
+      // only a failure while restoring the save sets it aside; any other crash shows the message and keeps the save
+      if (!(err instanceof SaveLoadError && recoverFromBadSave())) {
         showFatal("Winterland hit a snag while starting. Please close it and open it again. Your save is safe.", err instanceof Error ? err.message : String(err));
       }
     }

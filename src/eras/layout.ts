@@ -1253,7 +1253,7 @@ const stallCache = new Map<string, StallQueue[]>();
 
 /** Grid cell (m) of the stall walks' planner, and how far (m) their legs keep off everything that stands. */
 const STALL_CELL = 0.25;
-export const STALL_WALK_CLEAR = 0.35;
+export const STALL_WALK_CLEAR = 0.45;
 
 /**
  * Era n's stall queues (pure, cached): every market stall on the huts zone (eras/layout.ts plotDecor keeps a strip in
@@ -1385,6 +1385,7 @@ export function greenStalls(n: number): StallQueue[] {
     return out;
   };
   const out: StallQueue[] = [];
+  const bare = grid([], []);
   for (const d of decor) {
     if (d.zone !== 'huts' || d.kind !== 'stall') continue;
     const fx = Math.sin(d.yaw);
@@ -1394,18 +1395,20 @@ export function greenStalls(n: number): StallQueue[] {
     const at = (k: number): XZ => ({ x: d.x + fx * (QUEUE_HEAD + k * QUEUE_STEP), z: d.z + fz * (QUEUE_HEAD + k * QUEUE_STEP) });
     const places = Array.from({ length: QUEUE_PLACES }, (_, k) => at(k));
     const entry = at(QUEUE_PLACES);
-    const openTo = grid(mine, []);
-    if (!sight(openTo, places[0]!, entry)) continue;
+    // the line itself may run beside the stall's crates; the walks to and from it keep their distance from those too
+    if (!sight(grid(mine, []), places[0]!, entry)) continue;
+    const openTo = bare;
     const prevTo = flood(openTo, entry);
     const to = W.doors.map((q) => walk(openTo, prevTo, q, entry)?.slice(1) ?? null);
     if (to.every((t) => !t)) continue;
     // served: a step aside off the head (the side most doors can walk home from), then home
     let home: (XZ[] | null)[] = [];
     let best = -1;
+    const lineFrom = grid(mine, places.slice(1));
+    const openFrom = grid([], places.slice(1));
     for (const s of [1, -1]) {
       const side = { x: places[0]!.x + fz * s * 0.95, z: places[0]!.z - fx * s * 0.95 };
-      const openFrom = grid(mine, places.slice(1));
-      if (!sight(openFrom, places[0]!, side)) continue;
+      if (!sight(lineFrom, places[0]!, side)) continue;
       const prevFrom = flood(openFrom, side);
       const ways = W.doors.map((q) => walk(openFrom, prevFrom, q, side)?.reverse() ?? null);
       const k = ways.filter((w, i) => w && to[i]).length;

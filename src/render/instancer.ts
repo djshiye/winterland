@@ -211,6 +211,11 @@ export function instanceAcrossScene(root: THREE.Object3D): void {
   });
 }
 
+/** True for a mesh in the scene-wide pool or a group whose children are instanced (render/snowCover.ts leaves them be). */
+export function instancerManaged(o: THREE.Object3D): boolean {
+  return pooledSet.has(o as THREE.Mesh) || entries.has(o);
+}
+
 /** Number of pooled meshes (tests / debugging). */
 export function pooledMeshCount(): number {
   return pooled.size;
