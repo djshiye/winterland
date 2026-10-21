@@ -68,8 +68,11 @@ const ERRAND_CHANCE = 0.45;
  */
 const STROLLERS = 5;
 const STROLL_NIGHT = 2;
-/** Lane offset (m) from the ring walk's centre line: clockwise walkers on the outside, the others inside. */
-const STROLL_LANE = 0.14;
+/** Lane offset (m) from the ring walk's centre line: one way round on the outside, the other inside; a partner walks a lane further out. */
+const STROLL_LANE = 0.25;
+const STROLL_PAIR = 0.4;
+/** Seconds a stroller waits for the player before turning round. */
+const STROLL_TURN = 1.5;
 /** Someone this near (m) ahead along the ring makes a stroller wait. */
 const STROLL_YIELD = 0.85;
 
@@ -84,6 +87,9 @@ interface Stroller {
   next: number;
   mate?: Stroller;
   leaving: boolean;
+  /** Current offset from the ring's centre line (eases to its lane), and how long the player has stood in the way. */
+  lane: number;
+  wait: number;
 }
 /** Seconds at the counter, buying. */
 const BUY_TIME: readonly [number, number] = [2.5, 4.5];
@@ -335,6 +341,8 @@ export class RegionLife {
       if (o.speed > 0.1 && ahead(o, w) && w.p.id > o.p.id) continue;
       return true;
     }
+    // a stroller walking round the plaza in front: let them pass (one waiting for us is passed, so nobody waits forever)
+    for (const o of this.strollers) if (o.p.walk > 0.5 && o.p.appear > 0.5 && ahead(w, o)) return true;
     return false;
   }
 
@@ -477,9 +485,13 @@ export class RegionLife {
         p.appear = 0;
         // the second one walks beside the first, a pace behind on the inner lane
         const lead = this.strollers.length === 1 && !this.strollers[0]!.leaving ? this.strollers[0] : undefined;
+        // step out where nobody is (at least 1.5 m of ring from everyone already out)
+        let a = Math.random() * Math.PI * 2;
+        for (let k = 0; k < 12 && this.strollers.some((o) => Math.abs(Math.atan2(Math.sin(o.a - a), Math.cos(o.a - a))) * pl.r < 1.5); k++) a = Math.random() * Math.PI * 2;
+        const dir = Math.random() < 0.5 ? 1 : -1;
         const s: Stroller = lead
-          ? { p, a: lead.a - (lead.dir * 0.5) / pl.r, dir: lead.dir, speed: lead.speed, pause: 0, next: lead.next, mate: lead, leaving: false }
-          : { p, a: Math.random() * Math.PI * 2, dir: Math.random() < 0.5 ? 1 : -1, speed: 0.75 + Math.random() * 0.35, pause: 0, next: 6 + Math.random() * 14, leaving: false };
+          ? { p, a: lead.a, dir: lead.dir, speed: lead.speed, pause: 0, next: lead.next, mate: lead, leaving: false, lane: lead.dir * (STROLL_LANE + STROLL_PAIR), wait: 0 }
+          : { p, a, dir, speed: 0.75 + Math.random() * 0.35, pause: 0, next: 6 + Math.random() * 14, leaving: false, lane: dir * STROLL_LANE, wait: 0 };
         this.strollers.push(s);
       }
     } else if (live > want) {
@@ -507,16 +519,31 @@ export class RegionLife {
         for (const o of this.strollers) if (o.mate === s) o.mate = undefined;
         continue;
       }
-      const r = pl.r + (s.dir > 0 ? STROLL_LANE : -STROLL_LANE) - (s.mate ? 0.36 * s.dir : 0);
+      if (s.mate) s.dir = s.mate.dir;
+      s.lane = approach(s.lane, s.dir * (STROLL_LANE + (s.mate ? STROLL_PAIR : 0)), dt * 0.6);
+      const r = pl.r + s.lane;
       // the point a step ahead: wait there for the player or anyone on the green
       const ta = s.a + (s.dir * STROLL_YIELD) / pl.r;
       const ax = pl.c.x + Math.cos(ta) * r;
       const az = pl.c.z + Math.sin(ta) * r;
-      let blocked = !!pp && Math.hypot(pp.x - ax, pp.z - az) < STROLL_YIELD;
+      const byPlayer = !!pp && Math.hypot(pp.x - ax, pp.z - az) < STROLL_YIELD;
+      let blocked = byPlayer;
+      // the player stays in the way: someone walking alone turns round onto the other lane once it is free there (a pair
+      // waits, side by side, for the player to move on)
+      s.wait = byPlayer ? s.wait + dt : 0;
+      if (s.wait > STROLL_TURN && !s.mate && !this.strollers.some((o) => o.mate === s)) {
+        const tr = pl.r - s.dir * STROLL_LANE;
+        const tx = pl.c.x + Math.cos(s.a) * tr;
+        const tz = pl.c.z + Math.sin(s.a) * tr;
+        if (this.strollers.every((o) => o === s || Math.hypot(o.p.x - tx, o.p.z - tz) > 1.2 && Math.hypot(o.p.x - p.x, o.p.z - p.z) > 0.9)) {
+          s.dir = -s.dir;
+          s.wait = 0;
+        }
+      }
       for (let k = 0; k < this.walkers.length && !blocked; k++) blocked = Math.hypot(this.walkers[k]!.p.x - ax, this.walkers[k]!.p.z - az) < 0.6;
       for (let k = 0; k < this.strollers.length && !blocked; k++) {
         const o = this.strollers[k]!;
-        if (o !== s && o.dir === s.dir && o !== s.mate && o.mate !== s) blocked = Math.hypot(o.p.x - ax, o.p.z - az) < 0.6;
+        if (o !== s && o !== s.mate && o.mate !== s) blocked = Math.hypot(o.p.x - ax, o.p.z - az) < (o.dir === s.dir ? 0.6 : 0.42);
       }
       if (s.mate) {
         // keep step with the partner: walk and stop together
