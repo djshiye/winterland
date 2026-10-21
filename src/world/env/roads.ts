@@ -11,9 +11,16 @@ import { Batch, W, type EnvPart } from './common';
 const HZ = LAYOUT.highway.z;
 const HW = LAYOUT.highway.width;
 const TOP = 0.04;
-/** 0.9.12 (V10): the highway deck is a warm slate and its markings soft cream, not black asphalt with yellow lines. */
-const DECK = 0x625d5f;
-const MARKING = 0xf1e4c4;
+/**
+ * 0.9.14: the North Road is a packed-snow country road with wheel ruts (like the tricycle road), crossing the river on
+ * a timber bridge with snow-capped wooden rails: no asphalt, painted lines or concrete kerbs (0.9.12 had made the deck
+ * a warm slate with cream lines, which still read as a modern highway in the opening flyover).
+ */
+const DECK = 0xb3bccb;
+const RUT = 0x8d9db4;
+const BRIDGE_DECK = 0x9c6a45;
+const BRIDGE_SEAM = 0x7d4a29;
+const BRIDGE_BEAM = 0x8a5532;
 const ROAD_END_X = 34;
 
 /** Highway profile (world X, height above the ground). */
@@ -35,15 +42,6 @@ export function highwayY(x: number): number {
     if (x <= x1) return TOP + y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
   }
   return TOP;
-}
-
-function slopeAt(x: number): number {
-  for (let i = 1; i < PROFILE.length; i++) {
-    const [x1, y1] = PROFILE[i]!;
-    const [x0, y0] = PROFILE[i - 1]!;
-    if (x <= x1) return Math.atan2(y1 - y0, x1 - x0);
-  }
-  return 0;
 }
 
 function archShape(radius: number, pillar: number): THREE.Shape {
@@ -99,8 +97,12 @@ export function buildRoads(): EnvPart & { trikeTail: THREE.Object3D } {
   // ---- highway ------------------------------------------------------------------
   const hw = new Batch();
   const slabGeo = new THREE.BoxGeometry(1, 0.5, HW);
-  const curbGeo = new THREE.BoxGeometry(1, 0.55, 0.3);
-  const curbSnow = new THREE.BoxGeometry(1, 0.08, 0.34);
+  const beamGeo = new THREE.BoxGeometry(1, 0.42, 0.26);
+  const railGeo = new THREE.BoxGeometry(1, 0.1, 0.12);
+  const railSnow = new THREE.BoxGeometry(1, 0.06, 0.16);
+  const postGeo = new THREE.BoxGeometry(0.18, 1, 0.18);
+  const capGeo = new THREE.BoxGeometry(0.24, 0.08, 0.24);
+  const seamGeo = new THREE.BoxGeometry(0.05, 0.02, HW - 0.1);
   const nrm = new THREE.Vector2();
   for (let i = 1; i < PROFILE.length; i++) {
     const [x0, y0] = PROFILE[i - 1]!;
@@ -112,11 +114,25 @@ export function buildRoads(): EnvPart & { trikeTail: THREE.Object3D } {
     const my = (y0 + y1) / 2 + TOP;
     const raised = y0 > 0 || y1 > 0;
     const slabT = raised ? 0.5 : 0.3;
-    hw.add(slabGeo, DECK, mx - nrm.x * (slabT / 2), my - nrm.y * (slabT / 2), HZ, { sx: len, sy: slabT / 0.5, rz: th });
-    if (raised) {
-      for (const dz of [-HW / 2 - 0.05, HW / 2 + 0.05]) {
-        hw.add(curbGeo, 0xb4bfce, mx + nrm.x * 0.2, my + nrm.y * 0.2, HZ + dz, { sx: len, rz: th });
-        hw.add(curbSnow, PALETTE.snow, mx + nrm.x * 0.5, my + nrm.y * 0.5, HZ + dz, { sx: len, rz: th });
+    hw.add(slabGeo, raised ? BRIDGE_DECK : DECK, mx - nrm.x * (slabT / 2), my - nrm.y * (slabT / 2), HZ, { sx: len, sy: slabT / 0.5, rz: th });
+    if (!raised) continue;
+    // timber bridge: plank seams across the deck, a side beam, posts with snow caps and a rail on each side
+    const run = Math.hypot(x1 - x0, y1 - y0);
+    for (let d = 0.35; d < run; d += 0.7) {
+      const x = x0 + ((x1 - x0) * d) / run;
+      hw.add(seamGeo, BRIDGE_SEAM, x, highwayY(x) + 0.005, HZ, { rz: th });
+    }
+    for (const dz of [-HW / 2 - 0.08, HW / 2 + 0.08]) {
+      hw.add(beamGeo, BRIDGE_BEAM, mx - nrm.x * 0.12, my - nrm.y * 0.12, HZ + dz, { sx: len, rz: th });
+      hw.add(railGeo, PALETTE.fence, mx + nrm.x * 0.85, my + nrm.y * 0.85, HZ + dz, { sx: len, rz: th });
+      hw.add(railSnow, PALETTE.snow, mx + nrm.x * 0.92, my + nrm.y * 0.92, HZ + dz, { sx: len, rz: th });
+      hw.add(railGeo, PALETTE.fence, mx + nrm.x * 0.45, my + nrm.y * 0.45, HZ + dz, { sx: len, rz: th });
+      const posts = Math.max(1, Math.round(run / 1.6));
+      for (let k = 0; k <= posts; k++) {
+        const x = x0 + ((x1 - x0) * k) / posts;
+        const y = highwayY(x);
+        hw.add(postGeo, PALETTE.fence, x, y + 0.45, HZ + dz, { sy: 0.9 });
+        hw.add(capGeo, PALETTE.snow, x, y + 0.94, HZ + dz);
       }
     }
   }
@@ -133,27 +149,21 @@ export function buildRoads(): EnvPart & { trikeTail: THREE.Object3D } {
   const abut = new THREE.BoxGeometry(1.2, bY + 0.2, HW - 0.3);
   hw.add(abut, PALETTE.rock, W.rampWest.to + 0.3 + 0.3, (bY - 0.1) / 2 - 0.1 + 0.0, HZ);
   hw.add(abut, PALETTE.rock, W.rampEast.from - 0.3 - 0.3, (bY - 0.1) / 2 - 0.1, HZ);
-  hw.add(new THREE.BoxGeometry(0.9, 0.2, HW - 0.1), PALETTE.snow, W.rampWest.to + 0.7, bY - 0.05, HZ);
-  hw.add(new THREE.BoxGeometry(0.9, 0.2, HW - 0.1), PALETTE.snow, W.rampEast.from - 0.7, bY - 0.05, HZ);
-  // Dashed centre line following the profile.
-  const dash = new THREE.BoxGeometry(1.5, 0.03, 0.17);
-  for (let x = -92; x < ROAD_END_X - 2; x += 3.2) {
-    hw.add(dash, MARKING, x, highwayY(x) + 0.015, HZ, { rz: slopeAt(x) });
-  }
-  // Pale edge lines on flat sections.
-  const edgeLine = new THREE.BoxGeometry(1, 0.03, 0.1);
+  hw.add(new THREE.BoxGeometry(0.9, 0.2, HW - 0.1), PALETTE.snow, W.rampWest.to + 0.7, bY - 0.25, HZ);
+  hw.add(new THREE.BoxGeometry(0.9, 0.2, HW - 0.1), PALETTE.snow, W.rampEast.from - 0.7, bY - 0.25, HZ);
+  // Wheel ruts in the packed snow (one pair per lane) on the flat stretches, and snowy verges along both edges.
+  const rutGeo = new THREE.BoxGeometry(1, 0.012, 0.22);
+  const vergeGeo = new THREE.BoxGeometry(1, 0.05, 0.4);
   const flatSpans: Array<[number, number]> = [[-95, W.rampWest.from], [W.rampEast.to, ROAD_END_X]];
   for (const [a, b] of flatSpans) {
-    for (const dz of [-HW / 2 + 0.25, HW / 2 - 0.25]) hw.add(edgeLine, 0xd7e0ea, (a + b) / 2, TOP + 0.015, HZ + dz, { sx: b - a });
+    for (const dz of [-1.5, -0.7, 0.7, 1.5]) hw.add(rutGeo, RUT, (a + b) / 2, TOP + 0.008, HZ + dz, { sx: b - a });
+    for (const dz of [-HW / 2 + 0.1, HW / 2 - 0.1]) hw.add(vergeGeo, PALETTE.snow, (a + b) / 2, TOP + 0.01, HZ + dz, { sx: b - a });
   }
-  // 0.9.9: where the tricycle road crosses the highway, stop bars and give-way triangles on the tricycle road (it
-  // used to run under the asphalt with nothing to say it was a junction)
+  // 0.9.9: where the tricycle road crosses the highway, a timber threshold on the tricycle road each side says it is
+  // a junction (0.9.14: was a painted stop bar with give-way triangles)
   for (const s of [-1, 1]) {
     const z = HZ + s * (HW / 2 + 0.55);
-    hw.add(new THREE.BoxGeometry(roadW - 0.5, 0.03, 0.26), MARKING, (tr.minX + tr.maxX) / 2, 0.03, z);
-    for (const dx of [-1.1, 0, 1.1]) {
-      hw.add(new THREE.ConeGeometry(0.3, 0.03, 3).rotateY(s < 0 ? Math.PI : 0), 0xffffff, (tr.minX + tr.maxX) / 2 + dx, 0.03, z + s * 0.75, { sz: 1.4 });
-    }
+    hw.add(new THREE.BoxGeometry(roadW - 0.5, 0.05, 0.3), BRIDGE_DECK, (tr.minX + tr.maxX) / 2, 0.03, z);
   }
   group.add(hw.mesh({ cast: true }));
 
@@ -193,13 +203,12 @@ export function buildRoads(): EnvPart & { trikeTail: THREE.Object3D } {
     { depth: 1.5, bevelEnabled: false },
   )
     .rotateY(-Math.PI / 2);
-  sp.add(frame, 0xb3bfce, S.minX + 0.5, 0, HZ);
+  // 0.9.14: a stone portal with a timber lintel (was a concrete frame with hazard stripes)
+  sp.add(frame, PALETTE.rock, S.minX + 0.5, 0, HZ);
+  sp.add(new THREE.BoxGeometry(0.5, 0.45, 7.6), BRIDGE_BEAM, S.minX - 0.3, 6.55, HZ);
+  sp.add(new THREE.BoxGeometry(0.6, 0.12, 7.8), PALETTE.snow, S.minX - 0.3, 6.83, HZ);
   const mouth = new THREE.ShapeGeometry(archShape(2.75, 2.8)).rotateY(-Math.PI / 2);
   sp.add(mouth, 0x12161d, S.minX + 0.02, 0, HZ);
-  // Hazard stripes on the visible (+Z) side of the portal frame.
-  for (let i = 0; i < 4; i++) {
-    sp.add(new THREE.BoxGeometry(0.5, 0.5, 0.1), i % 2 ? PALETTE.rubber : PALETTE.roadLine, S.minX - 0.4, 0.3 + i * 0.5, HZ + 3.52);
-  }
   const spur = sp.mesh({ cast: false, flat: true });
   group.add(spur);
 

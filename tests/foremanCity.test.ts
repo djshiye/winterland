@@ -6,6 +6,7 @@
  */
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
+import { Economy } from '../src/core/Economy';
 import { EventBus } from '../src/core/EventBus';
 import { createGameState, type GameContext, type GameEvents, type GameState, type Item, type ItemHolder, type ItemKind, type Slot } from '../src/core/types';
 import { CITY_BUILDINGS, DISTRICT_MATERIAL, districtDef, type CityBuildingId } from '../src/eras/data';
@@ -362,6 +363,21 @@ describe('the foreman pays (0.9.9)', () => {
     expect(walletRef(key, 700)).toBe(1000);
     expect(walletRef(key, 200)).toBe(200); // the player bought something
     expect(walletRef(key, 500)).toBe(500);
+  });
+
+  it('0.9.14: a player spend is seen even when income refilled the wallet before the builders looked again', () => {
+    const key = {};
+    expect(walletRef(key, 1000, false, 0)).toBe(1000);
+    // the player spent 600 (one other spend) and income brought the wallet back to 1100 before the next look
+    expect(walletRef(key, 1100, false, 1)).toBe(1100);
+    expect(walletRef(key, 900, true, 1)).toBe(1100); // a builder paid: no reset
+    expect(walletRef(key, 950, false, 2)).toBe(950); // the player bought something again
+    // the economy counts only the others' spends
+    const econ = new Economy(new EventBus<GameEvents>(), { stats: { moneyEarned: 0 } } as unknown as GameState, 1000);
+    econ.spend(100, true);
+    expect(econ.otherSpends).toBe(0);
+    econ.spend(100);
+    expect(econ.otherSpends).toBe(1);
   });
 
   it('picks the nearest site the wallet can pay, skipping one a peer already pays', () => {

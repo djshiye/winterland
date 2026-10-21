@@ -1042,7 +1042,7 @@ export class Progression {
       return true;
     }
     const kind = era.unlock.extra.kind;
-    if (this.ctx.player.arms.count(kind) === 0 && this.fetchFor(kind, extraLeft, era.region)) return true;
+    if (this.ctx.player.arms.held(kind) === 0 && this.fetchFor(kind, extraLeft, era.region)) return true;
     this.setGoal(`Bring ${matCount(kind, extraLeft)} to ${era.region}`, padArea, this.tmpPoint.set(pad.x, 0, pad.z));
     return true;
   }
@@ -1094,7 +1094,7 @@ export class Progression {
       const label = lowerLabel(idle.def.label);
       for (const input of idle.def.inputs) {
         if (idle.wants(input.kind) <= 0) continue;
-        if (this.ctx.player.arms.count(input.kind) > 0) {
+        if (this.ctx.player.arms.held(input.kind) > 0) {
           const f = idle.feedSpot;
           this.setGoal(`Feed the ${label}`, rect(f.x, f.z, 1.6, 1.6), this.tmpPoint.set(f.x, 0, f.z));
           return true;
@@ -1125,7 +1125,9 @@ export class Progression {
     const point = (): THREE.Vector3 => centerOf(pad.area, at);
     const kind = pad.extraKind;
     const need = kind ? pad.extraLeft : 0;
-    if (kind && need > 0 && this.ctx.player.arms.count(kind) > 0) {
+    // 0.9.14: goods still flying into the hands count (the guide flashed "Pick up 2 stone" for the half second the
+    // bricks were in the air)
+    if (kind && need > 0 && this.ctx.player.arms.held(kind) > 0) {
       this.setGoal(`Bring ${matCount(kind, need)} to the ${label}`, pad.area, point());
       return true;
     }

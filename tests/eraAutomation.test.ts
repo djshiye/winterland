@@ -235,6 +235,24 @@ describe('conveyor belts (planBelts)', () => {
     }
   });
 
+  it('0.9.14: a full era build belts every processor input, none left to the crew, and the top level only runs along a lane', () => {
+    for (let n = 2; n <= MAX_ERA; n++) {
+      const L = regionLayout(n);
+      for (const ids of [fullBuild(n, L.slots.length) as (MachineId | null)[], contentMachines(n).filter((id): id is MachineId => id in MACHINES)]) {
+        const machines: SlotMachines = ids.map((id) => (id ? MACHINES[id] : null));
+        const belts = planBelts(L, machines);
+        machines.forEach((m, i) => {
+          if (m?.kind !== 'processor') return;
+          for (const inp of m.inputs) {
+            if (!machines.some((p, j) => p && j !== i && p.output === inp.kind)) continue;
+            expect(belts.some((b) => b.to === i && b.kind === inp.kind), `era ${n} slot ${i} ${inp.kind}`).toBe(true);
+          }
+        });
+        for (const b of belts) if (b.level === BELT_LEVELS - 1) expect(b.path.length, `era ${n} ${b.kind}`).toBe(2);
+      }
+    }
+  });
+
   it('0.9.12 (Dino: no belt from the pellet mine to the steel mill): every processor with a producer gets a belt in, in any balanced build', () => {
     let seed = 7;
     const rnd = (): number => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;

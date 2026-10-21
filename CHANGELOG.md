@@ -6,6 +6,15 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 
 ## Unreleased
 
+### Small fixes before 1.0
+
+- **Every machine gets its belts.** On a busy belt lane a machine's second input was sometimes left for the crew to carry. Two belts can now leave one pile, or reach one hopper, back to back, and a fourth, higher belt can run straight along a row, so every input of every era's yard gets its own belt.
+- **A cozy North Road.** The road the log trucks use, seen in the opening flyover, no longer looks like a modern highway. It is now a packed-snow road with wheel ruts that crosses the river on a timber bridge with snow-capped wooden rails, and the trucks come out of a stone tunnel mouth.
+- **Workers no longer stand inside each other.** Era workers waiting at a busy dock or machine used to bunch up on the same spot. Now a worker who finds someone already waiting there walks back to their own post.
+- **Builders always notice your purchases.** The era builders keep 40% of your cash for you. In a rare case they missed a purchase you made and measured that 40% against your old, higher balance. They now see every purchase.
+- **Copper and stone look like themselves.** Copper is now a cluster of smooth nuggets with green patina, so it no longer looks like iron ore, and stone's icon is a cut block, so it no longer looks like a lump of coal.
+- **Nobody pops up inside the snowman park.** When the Market Town square was crowded, a resident could choose a spot to stand inside the snowman park's fence or a stall. They now pick a free spot on the square, or walk to the village street.
+
 ### Livelier towns and city
 
 - **Real plazas in the late eras.** The big greens of eras 6 to 10 now have a paved square round their centrepiece, with a stone kerb, a compass-rose pattern, paved paths out to the corners and little lights set in the kerb after dark. Trees, benches and lamps line the edges instead of stacks of crates.

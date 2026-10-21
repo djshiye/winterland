@@ -446,7 +446,7 @@ export const PAY_STEPS = 40;
 /** Claim key of the foreman paying site `to` (one foreman per pad). */
 export const payDestId = (to: PaySite['to']): string => `pay:${to}`;
 
-const walletRefs = new WeakMap<object, { ref: number; last: number }>();
+const walletRefs = new WeakMap<object, { ref: number; last: number; spends: number }>();
 
 /**
  * 0.9.10: the wallet the era builders' reserve is measured against, shared by every era foreman of one game (`key`, its
@@ -454,15 +454,18 @@ const walletRefs = new WeakMap<object, { ref: number; last: number }>();
  * is left). In 0.9.9 the reserve was a share of the wallet at each chunk, so chunk after chunk took the wallet down to
  * its $500 floor; measured against this, the builders stop at 40 % of what the player had and pick up again as income
  * refills the wallet, so they never fight the player for the last of their money. `paid` tells it a builder just spent.
+ * 0.9.14: `spends` (Economy.otherSpends) counts everyone else's spends, so a purchase is seen even when income has
+ * refilled the wallet past where the builders last looked (the wallet alone missed it, and the reserve stayed high).
  */
-export function walletRef(key: object, money: number, paid = false): number {
+export function walletRef(key: object, money: number, paid = false, spends = 0): number {
   const r = walletRefs.get(key);
   if (!r) {
-    walletRefs.set(key, { ref: money, last: money });
+    walletRefs.set(key, { ref: money, last: money, spends });
     return money;
   }
   // someone else spent since the builders last looked: start again from what is left
-  if (!paid && money < r.last) r.ref = money;
+  if ((!paid && money < r.last) || spends !== r.spends) r.ref = money;
+  r.spends = spends;
   r.ref = Math.max(r.ref, money);
   r.last = money;
   return r.ref;
@@ -698,6 +701,22 @@ export class EraWorker {
   /** Nothing in flight in the hands: size counts reservations, count() only landed items. */
   private get settled(): boolean {
     return this.stack.size === this.stack.count();
+  }
+
+  /** 0.9.14: another worker of the crew stands still within half a metre of this one. */
+  private crowded(): boolean {
+    const p = this.group.position;
+    for (const w of this.peers) {
+      if (w === this || w.moving) continue;
+      const q = w.group.position;
+      if (Math.abs(q.x - p.x) < 0.5 && Math.abs(q.z - p.z) < 0.5) return true;
+    }
+    return false;
+  }
+
+  private goHome(): void {
+    this.goTo(this.home, this.homeLook());
+    this.phase = 'toHome';
   }
 
   /** Put the worker at `p` (instant), facing `look`. */
@@ -965,7 +984,7 @@ export class EraWorker {
 
   /** The game's reference wallet for the builders' reserve (`walletRef`); `paid`: this builder just spent. */
   private walletRef(paid = false): number {
-    return walletRef(this.ctx.economy, this.ctx.economy.money, paid);
+    return walletRef(this.ctx.economy, this.ctx.economy.money, paid, this.ctx.economy.otherSpends);
   }
 
   private park(delay: number): void {
@@ -1038,6 +1057,8 @@ export class EraWorker {
           if (!held || !this.settled) return;
           this.job = { type: 'feed', item: held, take: this.stack.size, from: 'dock', to: 'depot' };
           this.redirect(held, null);
+          // 0.9.14: nowhere to put it yet: wait at the post, not on a busy station spot inside a peer
+          if (this.phase === 'idle' && this.at !== this.home && this.crowded()) this.goHome();
           return;
         }
         const job = pickJob(this.view(), this.capacity, this.claims(), this.at, this.idleFor > LENIENT_AFTER, this.owed, this.role);
@@ -1061,10 +1082,9 @@ export class EraWorker {
           return;
         }
         this.idleFor += PICK_EVERY;
-        if (this.idleFor > 1.5 && this.at !== this.home) {
-          this.goTo(this.home, this.homeLook());
-          this.phase = 'toHome';
-        }
+        // 0.9.14: a peer already waits on this spot (a shared dock or hopper spot): walk to the post at once, so two
+        // workers never stand inside each other
+        if ((this.idleFor > 1.5 || this.crowded()) && this.at !== this.home) this.goHome();
         return;
       }
       case 'toHome':
@@ -1083,7 +1103,7 @@ export class EraWorker {
         this.payTimer -= dt;
         if (this.payTimer > 0) return;
         const amount = eraPayAmount(pad.cashLeft, this.paying!.total, this.ctx.economy.money, this.walletRef());
-        if (amount <= 0 || !this.ctx.economy.spend(amount)) return this.park(1);
+        if (amount <= 0 || !this.ctx.economy.spend(amount, true)) return this.park(1);
         this.walletRef(true);
         const credit = pad.payDirect(amount);
         if (credit < amount) this.ctx.economy.add(amount - credit); // the pad took less (cannot normally happen)
