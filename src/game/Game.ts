@@ -561,7 +561,7 @@ export class Game {
     const d = desktop();
     if (!d?.quit) return;
     if (this.saving && !this.save()) {
-      this.ctx.hud.toast("Couldn't save just now", { sub: 'Your game is still open. Try again in a moment.', duration: 4 });
+      this.ctx.hud.toast("Couldn't save just now", { sub: 'Your game is still open. Try again in a moment.', duration: 4, now: true });
       return;
     }
     this.saving = false; // nothing may write after the final save
@@ -574,7 +574,7 @@ export class Game {
     if (!writeSave(newSeasonSave(this.ctx.state, Date.now()))) {
       // Storage is full / blocked: reloading would restart the old season without the bonus. Stay put.
       this.saving = true;
-      this.ctx.hud.toast("Couldn't save the new season", { sub: 'Check your browser storage and try again', duration: 4 });
+      this.ctx.hud.toast("Couldn't save the new season", { sub: 'Check your browser storage and try again', duration: 4, now: true });
       return;
     }
     location.reload();

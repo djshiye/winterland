@@ -9,7 +9,6 @@ import type { GameState, IncomeSource, ItemKind, UpgradeId } from '../core/types
 import { UPGRADES, eraRoleCount } from '../config';
 import { cityTotals, rankFor } from '../city/rules';
 import { formatMoney } from './format';
-import { romanNumeral } from '../world/env/eras';
 
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
@@ -25,7 +24,7 @@ export function eraTitle(n: number): string {
 
 /** The unlock banner's name for a village level: "SETTLEMENT · WINTER CITY" (the old village levels are not eras). */
 export function settlementTitle(level: number): string {
-  return level > 0 ? `SETTLEMENT ${romanNumeral(level)}` : 'SETTLEMENT';
+  return level > 0 ? `SETTLEMENT ${level}` : 'SETTLEMENT';
 }
 
 const SURVIVAL_LABELS: Record<string, string> = {
@@ -168,8 +167,9 @@ export function cityStanding(state: Pick<GameState, 'village' | 'city' | 'eras'>
 export function formatPopulation(n: number): string {
   const v = Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
   if (v < 10_000) return v.toLocaleString('en-US');
-  if (v < 1_000_000) return `${(v / 1000).toFixed(v < 100_000 ? 1 : 0).replace(/\.0$/, '')}K`;
-  return `${(v / 1_000_000).toFixed(v < 10_000_000 ? 2 : 1).replace(/\.?0+$/, '')}M`;
+  if (v < 999_500) return `${(v / 1000).toFixed(v < 100_000 ? 1 : 0).replace(/\.0$/, '')}K`;
+  if (v < 999_950_000) return `${(v / 1_000_000).toFixed(v < 10_000_000 ? 2 : 1).replace(/\.?0+$/, '')}M`;
+  return `${(v / 1_000_000_000).toFixed(v < 9_995_000_000 ? 2 : 1).replace(/\.?0+$/, '')}B`;
 }
 
 /** City rank name for a CITY_RANKS index (clamped). */

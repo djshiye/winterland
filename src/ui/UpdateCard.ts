@@ -45,7 +45,7 @@ export const FAIL_TEXT: Record<UpdateFailCode, string> = {
   running: "The game didn't close in time for the update. Try again from Settings › Game.",
   checksum: "The download didn't pass its safety check, so it was thrown away. Try again later.",
   files: "Couldn't swap in the new game files. If Winterland sits in a protected folder, move it to your own folder and try again.",
-  unzip: "Updating needs the small 'unzip' tool, which this computer doesn't have yet. Add it, or download the new version from the Winterland page on GitHub.",
+  unzip: "Updating needs a small tool for opening zip files, which this computer doesn't have yet. Add one, or download the new version from the Winterland page on GitHub and open it yourself.",
   cancelled: 'The download was cancelled.',
   other: 'Something unexpected got in the way.',
 };

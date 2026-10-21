@@ -236,7 +236,7 @@ export class EraLevelPad implements ItemHolder {
     this.total = up.nextCost(this.upgradeId) ?? 0;
     const paid = Math.min(this.total, this.ctx.state.padPaid[this.id] ?? 0);
     this.remaining = Math.max(0, this.total - paid);
-    setPadSignLabel(this.sign, `${this.label} LV ${this.offeredLevel}`);
+    setPadSignLabel(this.sign, `${this.label} Lv ${this.offeredLevel}`);
     this.redraw();
     this.ring.snap(this.total > 0 ? paid / this.total : 0);
   }
@@ -247,7 +247,7 @@ export class EraLevelPad implements ItemHolder {
 
   private redraw(): void {
     const ratio = this.total > 0 ? 1 - this.remaining / this.total : 1;
-    createPadTexture('factory', formatCost(this.remaining), ratio, this.texture, `LV ${this.offeredLevel}`);
+    createPadTexture('factory', formatCost(this.remaining), ratio, this.texture, `Lv ${this.offeredLevel}`);
     this.ring.setProgress(ratio);
   }
 

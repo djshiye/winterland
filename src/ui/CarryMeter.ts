@@ -32,13 +32,19 @@ export interface CarryView {
   kinds: { kind: ItemKind; count: number }[];
 }
 
+/** "Logs" → "Log", "Batteries" → "Battery" for a count of one (labels that do not end in a plural s stay). */
+function singular(label: string): string {
+  if (/ies$/.test(label)) return `${label.slice(0, -3)}y`;
+  return /[^s]s$/.test(label) && !/^gas$/i.test(label) ? label.slice(0, -1) : label;
+}
+
 /** What the meter shows for `size` items out of `capacity`, `kinds` held per kind (pure, for tests). */
 export function carryView(size: number, capacity: number, kinds: readonly (readonly [ItemKind, number])[] = []): CarryView {
   const cap = Math.max(0, Math.floor(capacity));
   const n = Math.max(0, Math.floor(size));
   const full = cap > 0 && n >= cap;
   const held = kinds.filter(([, c]) => c > 0).map(([kind, count]) => ({ kind, count }));
-  const what = held.map((k) => `${k.count} ${materialLabel(k.kind)}`).join(', ');
+  const what = held.map((k) => `${k.count} ${k.count === 1 ? singular(materialLabel(k.kind)) : materialLabel(k.kind)}`).join(', ');
   const base = what ? `Carrying ${what} (${n} of ${cap})` : `Carrying ${n} of ${cap}`;
   return {
     text: `${n} / ${cap}`,

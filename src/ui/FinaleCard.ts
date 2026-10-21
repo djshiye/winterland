@@ -261,7 +261,7 @@ export class FinaleCard {
       const t = times[n]!;
       const value = !reached ? '' : t >= 0 ? formatDuration(t) : '—';
       const name = ERA_NAMES[n] ?? '';
-      const place = n >= 2 ? ERAS[n]?.region ?? '' : 'Lumber Yard';
+      const place = n >= 2 ? ERAS[n]?.region ?? '' : 'Mill';
       rows.push(
         `<div class="wl-era-row${reached ? '' : ' is-locked'}${now ? ' is-now' : ''}"><b>${eraRoman(n)}</b><span>${name}<small>${place}</small></span>` +
           `<em>${now ? `${value} · now` : value}</em></div>`,

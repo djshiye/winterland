@@ -186,7 +186,7 @@ function rowOf(s: GameState, id: UpgradeId, n: number): GateRow {
     where,
   };
   if (stored >= target) return row;
-  if (where === 'pad') row.padLabel = `pad LV ${shown(def, stored) + 1} → LV ${gateNeed(n)}`;
+  if (where === 'pad') row.padLabel = `pad Lv ${shown(def, stored) + 1} → Lv ${gateNeed(n)}`;
   for (let k = stored; k < target; k++) row.costToNeed += stepCost(def, k);
   const req = upgradeRequirement(s, id);
   if (req) {

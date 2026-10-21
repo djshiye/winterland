@@ -61,6 +61,7 @@ import { regionLayout } from '../eras/layout';
 import { FINAL_GATE, FINAL_NAME } from '../eras/gate';
 import { Haptics } from './Haptics';
 import { TickLadder, burstCount, isCapstone, levelNotePitch, motionScale, pitchJitter } from './padJuice';
+import { eventShowsIn, playerRegion } from '../ui/eventScope';
 
 /** 0.9.5: strike pitch per era hand node (heavier tools lower: slag hammer, oil auger; crystals higher). */
 const NODE_PITCH: Record<number, number> = { 2: 0.9, 3: 1.0, 4: 0.85, 5: 0.75, 6: 1.1, 7: 0.8, 8: 1.25, 9: 1.3, 10: 1.4 };
@@ -247,7 +248,7 @@ export class JuiceDirector {
       }
       if (crewHire) return; // 'helper:hired' says HIRED! when the new worker walks out
       // one numbering everywhere (the pads, the shop, the era checklist): the shown level
-      ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 2.6), `LV ${ctx.upgrades.shownLevel(e.id)}!`, { color: '#ffd84a', size: 32, duration: 1.2, rise: 1.6 });
+      ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 2.6), `Lv ${ctx.upgrades.shownLevel(e.id)}!`, { color: '#ffd84a', size: 32, duration: 1.2, rise: 1.6 });
       // 0.9.5: Lv 10 is the top of every upgrade
       if (ctx.upgrades.isMax(e.id)) {
         ctx.hud.floatText(this.tmp.copy(at).setY(at.y + 3.5), 'Max level!', { color: '#bfe6ff', size: 22, duration: 2.2, rise: 1.2 });
@@ -534,12 +535,14 @@ export class JuiceDirector {
 
     ev.on('quest:done', (e) => {
       ctx.audio.play('quest');
-      ctx.hud.toast('Quest complete!', { sub: `${e.title} +${formatMoney(e.reward)}`, duration: 2.6 });
-      ctx.hud.coinBurst(Math.min(14, 6 + Math.floor(Math.log10(Math.max(10, e.reward)) * 2)));
+      // 0.9.13 (B9): the coins come with the toast (it waits while a card is up)
+      const coins = Math.min(14, 6 + Math.floor(Math.log10(Math.max(10, e.reward)) * 2));
+      ctx.hud.toast('Quest complete!', { sub: `${e.title} +${formatMoney(e.reward)}`, duration: 2.6, coins });
     });
 
     ev.on('rush:start', () => {
-      ctx.audio.play('bell');
+      // 0.9.13 (U2): the rush is the mill's, so its bell rings only there (and in the Market Town), like its banner
+      if (eventShowsIn('rush', playerRegion(ctx))) ctx.audio.play('bell');
     });
 
     // Wave 13: the gate's delivery contracts
@@ -560,8 +563,9 @@ export class JuiceDirector {
 
     // Wave 13: world events
     ev.on('event:start', (e) => {
-      if (e.kind === 'festival') ctx.audio.play('bell');
-      else if (e.kind === 'snowstorm') {
+      if (e.kind === 'festival') {
+        if (eventShowsIn('festival', playerRegion(ctx))) ctx.audio.play('bell');
+      } else if (e.kind === 'snowstorm') {
         ctx.audio.play('whoosh');
         this.later(0.35, () => ctx.audio.play('whoosh', { volume: 0.8, pitch: 0.85 }));
       } else ctx.audio.play('sparkle');

@@ -215,7 +215,7 @@ export function machineStatRows(def: MachineDef, rigs: number, have: { input: Pa
   const x = (v: number): string => v.toFixed(2).replace(/\.?0+$/, '');
   const rows = [{ label: 'Makes', value: `${def.batch} ${kindLabel(def.output)} per cycle` }, { label: 'Cycle', value: `${(def.cycle / Math.max(0.1, rigs * boost)).toFixed(1)} s (Rigs ×${x(rigs)})` }];
   // 0.9.5: the machine type's level (its level pad beside the first one built)
-  if (level) rows.push({ label: 'Level', value: `${level.shown > 0 ? `LV ${level.shown}` : 'Base'} · ×${x(boost)} speed` });
+  if (level) rows.push({ label: 'Level', value: `${level.shown > 0 ? `Lv ${level.shown}` : 'Base'} · ×${x(boost)} speed` });
   if (def.inputs.length > 0) {
     rows.push({ label: 'Needs', value: def.inputs.map((i) => `${i.per} ${kindLabel(i.kind)}`).join(' + ') });
     rows.push({ label: 'Hopper', value: def.inputs.map((i) => `${have.input[i.kind] ?? 0}/${inputCap(def, i.kind, level?.shown ?? 0)} ${kindLabel(i.kind)}`).join(', ') });

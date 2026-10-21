@@ -68,6 +68,16 @@ export class OfflineCard {
     this.ctx.audio.play('chime');
   }
 
+  /** True while the card waits for its button. */
+  get isOpen(): boolean {
+    return this.onCollect !== null;
+  }
+
+  /** 0.9.13 (B4): Esc / gamepad B press the card's only button, like every other card. */
+  escape(): void {
+    this.collect();
+  }
+
   private collect(): void {
     const fn = this.onCollect;
     if (!fn) return;
