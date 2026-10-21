@@ -33,6 +33,7 @@ import { JackCart } from '../npc/Jack';
 import { ConstructionPad } from '../stations/ConstructionPad';
 import { LotPad } from '../town/LotPad';
 import { ERAS, MACHINES, MATERIAL_KINDS, machinesOfEra, type MachineId } from './data';
+import { DepotFreight } from './DepotFreight';
 import { ExportDepot } from './ExportDepot';
 import { HandNode, handNodePlace } from './HandNode';
 import { regionLayout, type RegionLayout, type XZ } from './layout';
@@ -73,6 +74,8 @@ export class Region implements RegionRuntime {
   readonly layout: RegionLayout;
   readonly machines: (Machine | null)[];
   readonly depot: ExportDepot;
+  /** Cosmetic crate loader + freight lift beside the depot. */
+  private readonly freight: DepotFreight;
   readonly depotSpot: XZ;
   readonly dock: Pile;
   readonly dockSpot: XZ;
@@ -119,6 +122,8 @@ export class Region implements RegionRuntime {
     this.depot = new ExportDepot(ctx, era, L.depot, yaw);
     this.addModel(createDepotModel(era), L.depot, yaw);
     ctx.colliders.addBox(worldRect(L.depot, yaw, DEPOT_FRAME.body), `era:${era}:depot`);
+    this.freight = new DepotFreight(era, L, this.root);
+    this.depot.onReceive = () => this.freight.push();
     this.depotSpot = toWorld(L.depot, yaw, DEPOT_FRAME.spot.u, DEPOT_FRAME.spot.v);
     ctx.zones.addTransfer({
       id: `depot:era${era}:give`,
@@ -245,6 +250,7 @@ export class Region implements RegionRuntime {
     this.crew.update(dt);
     this.jack.update(dt);
     this.market.update(dt);
+    this.freight.update(dt);
     this.updateFullSign(dt);
   }
 
