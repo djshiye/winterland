@@ -4,6 +4,17 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
+## Unreleased
+
+### Small fixes before 1.0
+
+- **Every machine gets its belts.** On a busy belt lane a machine's second input was sometimes left for the crew to carry. Two belts can now leave one pile, or reach one hopper, back to back, and a fourth, higher belt can run straight along a row, so every input of every era's yard gets its own belt.
+- **A cozy North Road.** The road the log trucks use, seen in the opening flyover, no longer looks like a modern highway. It is now a packed-snow road with wheel ruts that crosses the river on a timber bridge with snow-capped wooden rails, and the trucks come out of a stone tunnel mouth.
+- **Workers no longer stand inside each other.** Era workers waiting at a busy dock or machine used to bunch up on the same spot. Now a worker who finds someone already waiting there walks back to their own post.
+- **Builders always notice your purchases.** The era builders keep 40% of your cash for you. In a rare case they missed a purchase you made and measured that 40% against your old, higher balance. They now see every purchase.
+- **Copper and stone look like themselves.** Copper is now a cluster of smooth nuggets with green patina, so it no longer looks like iron ore, and stone's icon is a cut block, so it no longer looks like a lump of coal.
+- **Nobody pops up inside the snowman park.** When the Market Town square was crowded, a resident could choose a spot to stand inside the snowman park's fence or a stall. They now pick a free spot on the square, or walk to the village street.
+
 ## 0.9.13 (2026-10-21)
 
 Snow that builds up in storms, a river promenade, a festival band, worked harvest fields, every late era its own yard and market, people running errands, city traffic, and a smoother late game.

@@ -90,6 +90,28 @@ const buildNugget: Builder = (b, m) => {
   b.add(rock(0.5), shade(m.accent, 1.35), w * 0.34, y0 + h * 0.5, -d * 0.02, { sx: w * 0.14, sy: h * 0.2, sz: d * 0.14 });
 };
 
+/**
+ * 0.9.14: native copper: a cluster of smooth rounded nuggets with green patina spots and a bright polished knob, so
+ * it never reads as era 3's iron ore (a craggy rock with specks, `nugget`).
+ */
+const PATINA = 0x5fc9a4;
+const buildNative: Builder = (b, m) => {
+  const { w, h, d } = m.size;
+  const y0 = -h / 2;
+  const blobs: [number, number, number, number, number][] = [
+    [0, 0.42, 0, 0.5, 1],
+    [-0.3, 0.3, 0.16, 0.34, 0.9],
+    [0.3, 0.32, 0.1, 0.36, 1.08],
+    [0.05, 0.3, -0.28, 0.32, 0.95],
+    [-0.12, 0.74, 0.08, 0.26, 1.15],
+  ];
+  for (const [x, y, z, r, k] of blobs) b.add(ball(0.5, 10, 8), shade(m.color, k), x * w, y0 + y * h, z * d, { sx: r * w * 1.3, sy: r * h * 1.5, sz: r * d * 1.3 });
+  b.add(ball(0.5, 8, 6), PATINA, -w * 0.3, y0 + h * 0.44, d * 0.3, { sx: w * 0.14, sy: h * 0.14, sz: d * 0.1 });
+  b.add(ball(0.5, 8, 6), shade(PATINA, 0.85), w * 0.26, y0 + h * 0.62, -d * 0.04, { sx: w * 0.12, sy: h * 0.12, sz: d * 0.12 });
+  b.add(ball(0.5, 8, 6), PATINA, w * 0.3, y0 + h * 0.3, d * 0.3, { sx: w * 0.1, sy: h * 0.1, sz: d * 0.08 });
+  b.add(ball(0.5, 8, 6), shade(m.color, 1.5), -w * 0.06, y0 + h * 0.86, d * 0.16, { sx: w * 0.1, sy: h * 0.08, sz: d * 0.1 });
+};
+
 /** Ingot: a trapezoid bar with a lighter polished top, a stamped dip and a sheen stripe. */
 const buildIngot: Builder = (b, m) => {
   const { w, h, d } = m.size;
@@ -385,6 +407,7 @@ const BUILDERS: Record<MaterialShape, Builder> = {
   block: buildBlock,
   brick: buildBrick,
   nugget: buildNugget,
+  native: buildNative,
   ingot: buildIngot,
   lump: buildLump,
   gear: buildGear,
@@ -404,7 +427,7 @@ const BUILDERS: Record<MaterialShape, Builder> = {
 };
 
 /** Shapes drawn from rough rocks / crystals / pellets: flat (per-face) normals keep their facets crisp. */
-const FLAT: ReadonlySet<MaterialShape> = new Set<MaterialShape>(['block', 'nugget', 'lump', 'crystal', 'pellet', 'coke', 'geode']);
+const FLAT: ReadonlySet<MaterialShape> = new Set<MaterialShape>(['block', 'nugget', 'native', 'lump', 'crystal', 'pellet', 'coke', 'geode']);
 
 /** Centre `g` on the origin and scale it per axis to exactly the item's size box (so stacks sit stackHeight apart). */
 function fit(g: THREE.BufferGeometry, size: MaterialDef['size']): THREE.BufferGeometry {
