@@ -14,6 +14,8 @@
  * (`spawnDepot`: the trucks' tunnel) or at the nearest off-screen point between `spawnU` and `spawnFarU`; a leaving
  * vehicle vanishes at the first off-screen moment past `exitU`, and one still in view at the road's end (`endU`) waits
  * there until the camera looks away. Each live vehicle is registered with its facing for the traffic checks.
+ * 0.9.13 (review B2): leaving vehicles keep a queue's spacing behind the one ahead (they parked inside each other at the
+ * road's end), and a road end that moves in behind one (the new land shows) never pulls it back: it brakes where it is.
  */
 import * as THREE from 'three';
 import { TIMING, type DemandLevel, type ProductId } from '../config';
@@ -108,6 +110,11 @@ export class Vehicle {
   timer = 0;
   bouncePhase = 0;
   pitch = 0;
+  /** 0.9.13: where this vehicle stops when leaving (the road's end; it never moves back) and the endU it was set for. */
+  end = Infinity;
+  endFor = NaN;
+  /** Leaving, but held up behind the vehicle ahead. */
+  held = false;
   /** This trip's id for the traffic checks (pooled vehicles get a new one every spawn). */
   trip = '';
 
@@ -184,8 +191,10 @@ export abstract class VehicleQueue {
     for (let i = 0; i < this.queue.length; i++) this.stepQueued(this.queue[i]!, i, dt);
     for (let i = this.leaving.length - 1; i >= 0; i--) {
       const v = this.leaving[i]!;
-      this.stepLeaving(v, dt);
-      if (v.u >= this.cfg.exitU && !this.seen(v)) this.despawn(i);
+      // the one ahead left earlier (leaving is in leave order)
+      this.stepLeaving(v, dt, this.leaving[i - 1]);
+      // gone once off screen past the exit, or anywhere off screen while held up behind one waiting at the road's end
+      if ((v.u >= this.cfg.exitU || v.held) && !this.seen(v)) this.despawn(i);
     }
   }
 
@@ -353,18 +362,31 @@ export abstract class VehicleQueue {
     this.leaving.push(v);
     v.mode = 'leave';
     v.bubbleTimer = 1.0;
+    v.end = Infinity;
+    v.endFor = NaN;
+    v.held = false;
     v.parts.cargoParent.getWorldPosition(tmpV);
     this.ctx.particles.puff(tmpV, { color: 0xffffff, count: 3, size: 0.45, life: 0.8 });
   }
 
-  private stepLeaving(v: Vehicle, dt: number): void {
+  private stepLeaving(v: Vehicle, dt: number, ahead: Vehicle | undefined): void {
+    const cfg = this.cfg;
     const prev = v.speed;
-    // on to the road's end at most, braking for it; a vehicle still in view there waits for the camera to look away
-    const end = this.cfg.endU();
-    const vmax = Math.min(this.cfg.driveSpeed * 1.15, Math.sqrt(2 * this.cfg.decel * Math.max(0, end - v.u)));
-    v.speed = approach(v.speed, vmax, (v.speed > vmax ? this.cfg.decel : this.cfg.accel) * dt);
+    // on to the road's end at most, braking for it; a vehicle still in view there waits for the camera to look away.
+    // B2: when the end moves in behind it, it brakes to a stop where it can (never pulled back up the road) …
+    const endU = cfg.endU();
+    if (endU !== v.endFor) {
+      v.endFor = endU;
+      v.end = Math.max(endU, v.u + (v.speed * v.speed) / (2 * cfg.decel));
+    }
+    // … and it keeps a queue's spacing behind the one ahead, so two never stand inside each other at the end
+    const gap = Math.abs(cfg.slotU(0) - cfg.slotU(1));
+    const stop = Math.max(v.u, Math.min(v.end, ahead ? ahead.u - gap : Infinity));
+    v.held = stop < v.end - 0.01;
+    const vmax = Math.min(cfg.driveSpeed * 1.15, Math.sqrt(2 * cfg.decel * (stop - v.u)));
+    v.speed = approach(v.speed, vmax, (v.speed > vmax ? cfg.decel : cfg.accel) * dt);
     v.accelNow = (v.speed - prev) / dt;
-    v.u = Math.min(end, v.u + v.speed * dt);
+    v.u = Math.min(stop, v.u + v.speed * dt);
     if (v.bubbleOn) {
       v.bubbleTimer -= dt;
       if (v.bubbleTimer <= 0) {

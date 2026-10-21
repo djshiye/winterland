@@ -281,9 +281,50 @@ export class RegionLife {
     const built = P.huts.map((_, i) => hutBuilt(i, this.ctx.upgrades.level(ids[i]!)));
     const k = built.map((b) => (b ? 1 : 0)).join('');
     if (k === this.builtKey) return;
-    this.clear();
+    const first = this.builtKey === '';
     this.builtKey = k;
-    this.spots = greenSpots(P, built);
+    const next = greenSpots(P, built);
+    if (first) {
+      this.spots = next;
+      return;
+    }
+    // 0.9.13 (review B6): a hut built while people are out (the player just paid for it, right there) no longer clears
+    // the green. The spots are the same points with the new hut's door added, so everyone keeps theirs (by place); one
+    // whose door went (a reset) heads in through the nearest door left, or fades if there is none.
+    const map = this.spots.map((o) => next.findIndex((n) => n.door === o.door && n.x === o.x && n.z === o.z));
+    this.spots.forEach((o, i) => {
+      const j = map[i]!;
+      if (j >= 0) next[j]!.taken = o.taken;
+    });
+    this.spots = next;
+    for (const w of this.walkers) {
+      w.spot = map[w.spot] ?? -1;
+      if (w.spot >= 0 || w.fading) continue;
+      const door = this.nearestDoor(w);
+      if (door < 0) w.fading = true;
+      else {
+        w.home = true;
+        if (w.act && w.act.idx >= 0) this.actTaken[w.act.idx] = false;
+        if (w.plan >= 0) this.actTaken[w.plan] = false;
+        w.act = null;
+        w.plan = -1;
+        this.walkTo(w, door);
+      }
+    }
+  }
+
+  /** The door spot nearest walker `w` (−1: no hut stands). */
+  private nearestDoor(w: Walker): number {
+    let best = -1;
+    let bd = Infinity;
+    this.spots.forEach((s, i) => {
+      const d = (s.x - w.x) ** 2 + (s.z - w.z) ** 2;
+      if (s.door && d < bd) {
+        bd = d;
+        best = i;
+      }
+    });
+    return best;
   }
 
   private crowdOf(): Crowd {
@@ -425,15 +466,7 @@ export class RegionLife {
     w.visits--;
     if (w.visits <= 0 || out > target) {
       // home: the nearest door
-      let best = -1;
-      let bd = Infinity;
-      this.spots.forEach((s, i) => {
-        const d = (s.x - w.x) ** 2 + (s.z - w.z) ** 2;
-        if (s.door && d < bd) {
-          bd = d;
-          best = i;
-        }
-      });
+      const best = this.nearestDoor(w);
       if (best < 0) {
         w.fading = true;
         return;

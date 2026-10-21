@@ -14,7 +14,9 @@
  *   pull out  an S-bend back into the drive lane past the counter
  *   depart    on along the road (and down the west link, R1, when it is open) to the route's END, a road end
  *
- * Through traffic of other eras keeps to the drive lane, so it never drives through a parked queue. The route is a
+ * Through traffic of other eras keeps to the drive lane, so it never drives through a parked queue.
+ * 0.9.13: the queue leaves the market gate clear (queueSlots): the second vehicle in line used to park right across it,
+ * so every shopper walked through it. The route is a
  * dense polyline (0.5 m steps) with filleted corners, so a vehicle posed at distance `s` faces along `headingAt(s)`.
  */
 import { ROADS, type ERect } from './data';
@@ -35,8 +37,10 @@ export interface BuyerRoute {
   readonly s: readonly number[];
   /** Total length (the route's END: a road end, where a vehicle still in view waits). */
   readonly length: number;
-  /** Distance of the front queue slot (the bed at the counter). Slot i sits at sFront − i·spacing. */
+  /** Distance of the front queue slot (the bed at the counter). */
   readonly sFront: number;
+  /** Distance of every queue slot, front first (queueSlots). */
+  readonly slots: readonly number[];
   /** Where the merge into the stop lane begins: a vehicle may only appear before this. */
   readonly sMerge: number;
   /** Where the pull-out is back in the drive lane: a leaving vehicle may only vanish past this. */
@@ -48,11 +52,33 @@ export interface BuyerRoute {
 const road = (id: string): ERect => ROADS.find((r) => r.id === id)!.rect;
 const midX = (r: ERect): number => (r.minX + r.maxX) / 2;
 
+/** A buyer vehicle's body reaches this far ahead of its origin (its nose, the draught animal) and behind it (m). */
+export const VEHICLE_NOSE = 2.65;
+export const VEHICLE_TAIL = 2.05;
+/** Half the width of the walk across the road at a market gate that a parked vehicle must leave clear (m). */
+export const GATE_CLEAR = 0.8;
+
 /**
- * The route of era `n`'s buyers on road `roadId` with the front slot's vehicle origin at `frontX` and `slots` queue
- * places `spacing` apart. `open(id)` says which roads are open (frontier.ts roadOpen).
+ * Pure: the vehicle origins (world x) of a market's `slots` queue places, front first at `frontX`, `spacing` apart
+ * back toward +X, except that none parks across the gate at `gateX` (the shoppers' walk): a slot whose vehicle would,
+ * and every one behind it, moves back until the vehicle's nose is clear of the gate.
  */
-export function buyerRoute(roadId: string, frontX: number, slots: number, spacing: number, open: (id: string) => boolean): BuyerRoute {
+export function queueSlots(frontX: number, slots: number, spacing: number, gateX?: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < slots; i++) {
+    let x = i === 0 ? frontX : out[i - 1]! + spacing;
+    if (gateX !== undefined && x - VEHICLE_NOSE < gateX + GATE_CLEAR && x + VEHICLE_TAIL > gateX - GATE_CLEAR) x = Math.max(x, gateX + GATE_CLEAR + VEHICLE_NOSE);
+    out.push(x);
+  }
+  return out;
+}
+
+/**
+ * The route of era `n`'s buyers on road `roadId` with its queue's vehicle origins at `slotXs` (queueSlots, front
+ * first). `open(id)` says which roads are open (frontier.ts roadOpen).
+ */
+export function buyerRoute(roadId: string, slotXs: readonly number[], open: (id: string) => boolean): BuyerRoute {
+  const frontX = slotXs[0]!;
   const R = road(roadId);
   const driveZ = R.maxZ - LANE_INSET;
   const stopZ = R.minZ + LANE_INSET;
@@ -72,13 +98,14 @@ export function buyerRoute(roadId: string, frontX: number, slots: number, spacin
     eastX = el.maxX - LANE_INSET;
     ctrl.push({ x: eastX, z: road('r2').maxZ + 2 });
   }
-  const tailX = frontX + (slots - 1) * spacing;
+  const tailX = slotXs[slotXs.length - 1]!;
   // the merge starts LANE_CHANGE before the last slot; a queue that reaches back to the feeder's corner (era II, by
   // the city's west street) has no room for it, so the turn off the feeder goes straight into the stop lane
   const feeder = ctrl.length > 0;
   const direct = feeder && eastX - FILLET - 0.6 - (tailX + 3) < LANE_CHANGE;
   ctrl.push({ x: eastX, z: direct ? stopZ : driveZ });
-  const mergeFrom = direct ? tailX + 3 : Math.min(tailX + 3 + LANE_CHANGE, feeder ? eastX - FILLET - 0.6 : eastX);
+  // (direct: as far short of the corner as leaves it a full fillet, but always past the last slot)
+  const mergeFrom = direct ? Math.max(tailX + 0.5, Math.min(tailX + 3, eastX - FILLET / 0.45)) : Math.min(tailX + 3 + LANE_CHANGE, feeder ? eastX - FILLET - 0.6 : eastX);
   const mergeTo = direct ? mergeFrom : Math.min(tailX + 3, mergeFrom - 3);
   // ---- depart: the pull-out, then on to the west end (R1: down the west link once it is open)
   const outFrom = frontX - 2.5;
@@ -168,6 +195,7 @@ export function buyerRoute(roadId: string, frontX: number, slots: number, spacin
     s,
     length: s[s.length - 1]!,
     sFront: at(frontX, stopZ),
+    slots: slotXs.map((x) => at(x, stopZ)),
     sMerge: direct ? at(eastX, stopZ) - FILLET - 1 : at(mergeFrom, driveZ),
     sOut: at(outTo, driveZ),
     driveZ,
