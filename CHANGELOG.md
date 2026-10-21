@@ -15,6 +15,16 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 - **Copper and stone look like themselves.** Copper is now a cluster of smooth nuggets with green patina, so it no longer looks like iron ore, and stone's icon is a cut block, so it no longer looks like a lump of coal.
 - **Nobody pops up inside the snowman park.** When the Market Town square was crowded, a resident could choose a spot to stand inside the snowman park's fence or a stall. They now pick a free spot on the square, or walk to the village street.
 
+### Livelier towns and city
+
+- **Real plazas in the late eras.** The big greens of eras 6 to 10 now have a paved square round their centrepiece, with a stone kerb, a compass-rose pattern, paved paths out to the corners and little lights set in the kerb after dark. Trees, benches and lamps line the edges instead of stacks of crates.
+- **People out for a stroll.** A few residents walk round each big plaza, both ways round, sometimes in pairs, and stop to admire the centrepiece. They wait for you if you are in their way, and carry lanterns at night.
+- **Shopfronts in the city.** City shops now have lit display windows, awnings in their era's style and a proper sign above the door. Homes have a front door with a wreath, two warm lamps and a little canopy.
+- **String lights over the city streets.** Warm lights hang between the street lamps of every district, with bunting in the early eras and era-coloured banners and wreaths on the posts.
+- **Rooftop life.** Some flat roofs have snowy planters, a bench and a string of lights. Brick chimneys and roof vents smoke, and tall towers blink a red light at night.
+- **Windows with life at night.** City windows no longer all glow the same: some stay dark, the lit ones range from candle yellow to orange, and here and there one glows blue from a TV.
+- **Parked cars at the Tundra Fields filling station.** The empty car park in front of the shops now has cars parked in its bays, clear of every path.
+
 ### Tidier info
 
 - **A clear About screen.** Settings, Game, *Credits* is now *About*: who makes the game, its version, the open-source parts it uses and the copyright line.

@@ -22,7 +22,9 @@
  *   A pad is re-armed only for a new choice: re-arming on every progress report dropped the pad's in-flight count, so
  *   each bundle / brick paid while the district was active used to count twice.
  *
- * Draw calls: pavement 1, lamps 1 (+ bulbs 1, + night halos 1), street furniture 1 (city/decor.ts, its lights in the bulbs), every building 2 (+1 pivot), every pad ~3.
+ * Draw calls: pavement 1, lamps 1 (+ bulbs 1, + night halos 1), street furniture 1 (city/decor.ts, its lights in the bulbs), festive street dressing 0 (city/streetDressing.ts: ropes, banners and
+ * wreaths ride in the lamps' batch, its bulbs in the bulbs), blinking tower beacons at most 1 per district (lazy, instanced),
+ * every building 2 (+1 pivot), every pad ~3. Chimneys / roof vents of built models feed the sky smoke (world/sky/smoke.ts).
  */
 import { faceCameraUpright, fadeManageSign, manageSignFoot } from '../fx/manageSign';
 import * as THREE from 'three';
@@ -44,7 +46,9 @@ import { DistrictLife } from './DistrictLife';
 import { decorColliders, districtDecor, districtLamps } from './decor';
 import { drawDecor } from './decorModels';
 import { districtVerge, drawVerge } from './verge';
-import { buildHalos, bulbMaterial, type HaloSpot } from '../world/env/glow';
+import { buildHalos, bulbMaterial, dusk, type HaloSpot } from '../world/env/glow';
+import { addChimney } from '../world/sky/smoke';
+import { drawStreetDressing } from './streetDressing';
 import {
   canChoose,
   chooseOptions,
@@ -114,6 +118,8 @@ export function disposeScaffold(group: THREE.Object3D): void {
   });
 }
 
+type Pt = { x: number; y: number; z: number };
+
 /** Lot runtime. */
 interface Lot {
   readonly index: number;
@@ -127,6 +133,9 @@ interface Lot {
   model: CityBuildingModel | null;
   scaffold: { group: THREE.Group; setProgress(p: number): void } | null;
   collider: ColliderHandle | null;
+  /** Removers of the model's smoking chimneys and the world positions of its aviation beacons. */
+  smoke: (() => void)[];
+  beacons: { x: number; y: number; z: number }[];
   /** Floating "MANAGE" label over a built lot's tile (the info / demolish card opens there). */
   sign: THREE.Mesh | null;
   /** Which card the player's standing on this lot has open. */
@@ -143,6 +152,11 @@ export class District {
   private readonly inflated: { minX: number; maxX: number; minZ: number; maxZ: number };
   /** 1.0: residents and shoppers walking the district (only with the city's shared crowd). */
   readonly life: DistrictLife | null;
+  /** Blinking red aviation lights of the built towers (one instanced mesh, made when there are any). */
+  private beaconMesh: THREE.InstancedMesh | null = null;
+  private beaconsDirty = false;
+  private readonly beaconMat = new THREE.MeshBasicMaterial({ color: 0x5a1414, toneMapped: false });
+  private readonly beaconPhase: number;
 
   /**
    * @param ctx       game services
@@ -157,6 +171,7 @@ export class District {
     crowd?: () => Crowd,
   ) {
     this.n = n;
+    this.beaconPhase = (n * 0.37) % 1.6;
     this.life = crowd ? new DistrictLife(ctx, n, crowd, this.root) : null;
     const def = districtDef(n);
     this.root.name = `district:${n}`;
@@ -172,7 +187,7 @@ export class District {
       group.name = `lot:${n}:${frame.index}`;
       group.position.set(frame.x, 0, frame.z);
       this.root.add(group);
-      this.lots.push({ index: frame.index, frame, group, zone: null, lotPad: null, pad: null, padFor: '', model: null, scaffold: null, collider: null, sign: null, card: null });
+      this.lots.push({ index: frame.index, frame, group, zone: null, lotPad: null, pad: null, padFor: '', model: null, scaffold: null, collider: null, smoke: [], beacons: [], sign: null, card: null });
     }
     // restored buildings: colliders now, models a few per frame
     for (const L of this.lots) {
@@ -237,6 +252,8 @@ export class District {
     this.life?.update(dt);
     for (let i = 0; i < PER_FRAME && this.queue.length > 0; i++) this.ensureModel(this.queue.shift()!, true);
     const t = this.ctx.time.elapsed;
+    if (this.beaconsDirty) this.rebuildBeacons();
+    this.pulseBeacons(t);
     const player = this.ctx.player?.position;
     for (const L of this.lots) {
       L.lotPad?.update(dt);
@@ -365,11 +382,72 @@ export class District {
     const model = createCityBuilding(st.building, seed, { w: f.w, d: f.d, maxH: lotHeightCap(this.n, L.index) });
     L.model = model;
     L.group.add(model.root);
+    this.registerFixtures(L, model);
     this.ctx.occlusion?.addOccluder(model.root); // 0.9.3: fades when it hides the player or a pad
     if (!instant && this.root.visible) {
       this.ctx.tweens.popIn(model.root, { duration: 0.6 });
       this.ctx.particles.puff(this.tmp.set(f.x, 0.4, f.z), { color: 0xffffff, count: 12, size: 1.6, life: 1.0 });
     }
+  }
+
+  /** Start the model's chimney smoke and collect its beacons, both in world space (the model root's transform, before any pop-in scale). */
+  private registerFixtures(L: Lot, model: CityBuildingModel): void {
+    model.root.updateMatrix();
+    const to = (p: { x: number; y: number; z: number }): { x: number; y: number; z: number } => {
+      this.tmp.set(p.x, p.y, p.z).applyMatrix4(model.root.matrix);
+      return { x: this.tmp.x + L.group.position.x, y: this.tmp.y, z: this.tmp.z + L.group.position.z };
+    };
+    const fx = model as { chimneys?: readonly Pt[]; beacons?: readonly Pt[] };
+    for (const c of fx.chimneys ?? []) L.smoke.push(addChimney(to(c), 0.4));
+    for (const b of fx.beacons ?? []) L.beacons.push(to(b));
+    if (L.beacons.length > 0) this.beaconsDirty = true;
+  }
+
+  /** Stop a lot's chimney smoke and drop its beacons. */
+  private clearFixtures(L: Lot): void {
+    for (const stop of L.smoke) stop();
+    L.smoke.length = 0;
+    if (L.beacons.length > 0) this.beaconsDirty = true;
+    L.beacons.length = 0;
+  }
+
+  /** One instanced mesh of tiny red spheres for every beacon of the district (nothing while there are none). */
+  private rebuildBeacons(): void {
+    this.beaconsDirty = false;
+    if (this.beaconMesh) {
+      this.root.remove(this.beaconMesh);
+      this.beaconMesh.dispose();
+      this.beaconMesh = null;
+    }
+    let count = 0;
+    for (const L of this.lots) count += L.beacons.length;
+    if (count === 0) return;
+    const mesh = new THREE.InstancedMesh(geo.sphere(1, 8, 6), this.beaconMat, count);
+    mesh.name = 'beacons';
+    mesh.frustumCulled = false;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    const m = new THREE.Matrix4();
+    let i = 0;
+    for (const L of this.lots) for (const b of L.beacons) mesh.setMatrixAt(i++, m.makeScale(0.09, 0.09, 0.09).setPosition(b.x, b.y, b.z));
+    this.beaconMesh = mesh;
+    this.root.add(mesh);
+  }
+
+  /** Dim dark red by day; at night a bright 0.25 s blink every 1.6 s (phase differs per district). */
+  private pulseBeacons(t: number): void {
+    if (!this.beaconMesh) return;
+    const night = Math.min(1, dusk.value);
+    const on = (t + this.beaconPhase) % 1.6 < 0.25;
+    const k = night * (on ? 1 : 0.12);
+    this.beaconMat.color.setRGB(0.35 + 0.65 * k, 0.08 + 0.1 * k, 0.08 + 0.1 * k);
+  }
+
+  /** Stop the district's smoke sources and free its beacon mesh (the district is going away). */
+  dispose(): void {
+    for (const L of this.lots) this.clearFixtures(L);
+    this.rebuildBeacons();
+    this.beaconMat.dispose();
   }
 
   private addCollider(L: Lot): void {
@@ -511,6 +589,7 @@ export class District {
       this.ctx.occlusion?.removeOccluder(L.model.root);
       L.group.remove(L.model.root);
       L.model = null;
+      this.clearFixtures(L);
     }
     if (L.collider) {
       this.ctx.colliders.remove(L.collider);
@@ -536,6 +615,7 @@ export class District {
       L.group.remove(L.model.root);
     }
     L.model = null;
+    this.clearFixtures(L);
     if (L.collider) this.ctx.colliders.remove(L.collider);
     L.collider = null;
     L.padFor = '';
@@ -640,6 +720,7 @@ function buildScenery(n: number): THREE.Group {
     spots.push({ x: x + ax, y: h - 0.2, z: z + az, size: 2.0, pool: 4.6 });
   };
   for (const l of districtLamps(n)) lampAt(l.x, l.z, l.side);
+  drawStreetDressing(n, poles, bulbs);
   const pm = poles.mesh({ cast: true });
   pm.name = 'lamps';
   group.add(pm);

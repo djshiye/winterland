@@ -188,7 +188,7 @@ read by anyone.
   (the Level instance: stations, queues, pads, progression), `ctx`.
 * Handy spots: chop (−9, 2), drop-zone pickup (−6.6, 0), walk-in counter (−4, 9), walk-in cash (−2, 8.6), processor
   tray (2.0, −0.4), workbench (6.9, −0.4), SE counter (9, 3.6), SE cash (8.9, 6).
-* Renderer budget (checked with `__bot.perf()` and `scripts/perf-breakdown.js`): normal late-game play ≤ ~800 draw
+* Renderer budget (checked with `__bot.perf()` and `scripts/perf-scenario.mjs`): normal late-game play ≤ ~800 draw
   calls (currently ~430 desktop, ~500 phone), forced worst case (everything unlocked, 150 s, no cash collected)
   ≤ ~1500 (currently ~1030).
 * `node scripts/perf-scenario.mjs [--ab] [--breakdown] [--views yard,village,...]` builds the forced 0.9 late game
