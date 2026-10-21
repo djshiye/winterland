@@ -582,7 +582,9 @@ describe('choose, pay, demolish', () => {
     expect(w.of('machine:demolished')).toHaveLength(1);
     expect(w.released.length - releasedBefore).toBe(6); // the 4 + 2 piled items went back to the pool
     expect(w.zones.filter((z) => z.opts.id.startsWith('pile:era2m1') && !z.removed)).toHaveLength(0);
-    expect(w.boxes.size).toBe(5); // depot, import dock, hand node, loading dock and market stall colliders remain, the kiln's is gone
+    // depot, import dock, hand node, loading dock and market stall colliders remain, the kiln's is gone; 0.9.13 (E10): plus
+    // the survey kit's crate stack on each of the 8 slots, all empty again
+    expect(w.boxes.size).toBe(5 + 8);
     expect(w.zones.find((z) => z.opts.id === 'slot:2:1:choose')!.enabled).toBe(true); // the slot is open again
     expect(req.onDemolish()).toBe(false); // already gone
     // a new machine can be chosen and built there

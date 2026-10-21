@@ -340,13 +340,16 @@ export class WinterFun {
       case 'ride': {
         // gravity down the slope, a little friction; the flat run-out brakes it
         const slope = slopeZ(TRACK_X, s.z);
-        s.speed = clamp(s.speed + (-slope * 7.5 - 0.5 - s.speed * 0.08) * dt, 0.4, 7.5);
-        s.z += s.speed * dt;
+        // 0.9.13 (review B8): on the flat the kid digs in their heels, so the sled slows to a stop right at the run's end
+        // (it hit an invisible wall there at up to 7.5 m/s)
+        const brake = slope === 0 ? Math.max(0, (s.speed * s.speed) / (2 * Math.max(0.02, RUN_END_Z - 0.2 - s.z)) - 0.5) : 0;
+        s.speed = clamp(s.speed + (-slope * 7.5 - 0.5 - s.speed * 0.08 - brake) * dt, slope === 0 ? 0 : 0.4, 7.5);
+        s.z = Math.min(RUN_END_Z, s.z + s.speed * dt);
         s.x = approach(s.x, TRACK_X, dt);
         s.yaw = 0;
         p.sit = 1;
         p.cheer = Math.max(p.cheer, s.speed > 4 ? 0.6 : 0);
-        if (s.z >= RUN_END_Z - 0.3 || (slope === 0 && s.speed <= 0.45)) {
+        if (s.speed <= 0.12 || s.z >= RUN_END_Z) {
           s.stage = 'rest';
           s.t = 1.2 + Math.random();
           s.speed = 0;

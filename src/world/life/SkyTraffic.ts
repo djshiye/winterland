@@ -1,4 +1,7 @@
 /**
+ * 0.9.13 (review E4): every flier casts a soft ground shadow (one instanced blob mesh), so it reads as high above the town and not parked on it.
+ * The heights keep a flier and its shadow on one screen at the default zoom (a height y shows 0.67 y above its shadow):
+ * the sleigh 14 m, the airship 15 m (was 19, its shadow fell off screen), the drones 10 m.
  * 0.9.12 (Dino: "era street traffic"): something of each era's own up in the air over its town.
  * Every open era area has them: eras II-IV a reindeer sleigh circling high over the town, eras V-VII a slow airship in the era's colours with
  * lit gondola windows, eras VIII-X little delivery drones shuttling parcels between the market and the huts.
@@ -6,7 +9,7 @@
  * The vehicle rules (npc/vehicleView.ts) hold without the road network: a flier keeps flying its loop all the time
  * and is only shown once it is somewhere off screen, and only put away once it is off screen again, so it never pops
  * in or out in view; its nose always points along its loop. Fliers stay out of the traffic registry on purpose:
- * nobody on the ground waits at a kerb for a sleigh in the sky. Cheap: at most 17 small meshes, culled off screen.
+ * nobody on the ground waits at a kerb for a sleigh in the sky. Cheap: at most 17 small meshes, culled off screen, plus one instanced shadow mesh.
  */
 import * as THREE from 'three';
 import { clamp } from '../../core/math';
@@ -90,13 +93,13 @@ export function loopsFor(n: number): Loop[] {
     b,
     y,
   });
-  if (kind === 'sleigh') return [round(15, 10, 13)];
-  if (kind === 'airship') return [round(14, 9, 19)];
+  if (kind === 'sleigh') return [round(15, 10, 14)];
+  if (kind === 'airship') return [round(14, 9, 15)];
   // drones: long thin loops from the market to the huts and back, side by side
   const L = Math.hypot(hx - mx, hz - mz) || 1;
   const ux = (hx - mx) / L;
   const uz = (hz - mz) / L;
-  return [-3, 0, 3].map((o, i) => ({ cx: tx - uz * o + lift(9), cz: tz + ux * o + lift(9), ux, uz, a: L / 2 + 2, b: 1.6, y: 9 + i * 0.7 }));
+  return [-3, 0, 3].map((o, i) => ({ cx: tx - uz * o + lift(10), cz: tz + ux * o + lift(10), ux, uz, a: L / 2 + 2, b: 1.6, y: 10 + i * 0.7 }));
 }
 
 // ---- models (built once per kind and era tint) ------------------------------------------------------------------------
@@ -191,6 +194,34 @@ function rotorGeometry(): THREE.BufferGeometry {
 }
 
 const _o = { x: 0, z: 0, fx: 0, fz: 0 };
+const _m = new THREE.Matrix4();
+const _p = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const _s = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
+
+/** Most fliers at once (3 sleighs, 3 airships, 3 x 3 drones), with room to spare. */
+const MAX_FLIERS = 24;
+/** Shadow footprint (width x length, m) per kind, long along the heading. */
+const SHADOW_SIZE: Record<Kind, readonly [number, number]> = { sleigh: [2.2, 4.4], airship: [3.2, 6.0], drone: [0.9, 0.9] };
+/** How far (m) each kind bobs up and down, for shrinking its shadow as it rises. */
+const BOB_AMP: Record<Kind, number> = { sleigh: 0.35, airship: 0.35, drone: 0.12 };
+
+/** A soft round blob (white, fading to clear at the edge); null where there is no canvas (tests in node). */
+function blobTexture(): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const g = cv.getContext('2d');
+  if (!g) return null;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.55, 'rgba(255,255,255,0.6)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(cv);
+}
 
 export class SkyTraffic {
   readonly group = new THREE.Group();
@@ -198,9 +229,32 @@ export class SkyTraffic {
   /** Era areas up to this one have their fliers. */
   private built = 1;
   private time = 0;
+  /** One soft blob on the ground under each flier: a single draw call. */
+  private readonly shadows: THREE.InstancedMesh;
 
   constructor(private readonly ctx: GameContext) {
     this.group.name = 'sky-traffic';
+    const disc = new THREE.CircleGeometry(1, 24);
+    disc.rotateX(-Math.PI / 2);
+    const tex = blobTexture();
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x2a2440,
+      map: tex,
+      transparent: true,
+      opacity: tex ? 0.5 : 0.12,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    this.shadows = new THREE.InstancedMesh(disc, mat, MAX_FLIERS);
+    this.shadows.name = 'sky-shadows';
+    this.shadows.count = 0;
+    this.shadows.frustumCulled = false;
+    this.shadows.castShadow = false;
+    this.shadows.receiveShadow = false;
+    this.shadows.renderOrder = 1;
+    this.group.add(this.shadows);
   }
 
   /** Fliers showing (tests). */
@@ -214,7 +268,8 @@ export class SkyTraffic {
     // every open era area keeps its fliers in the air from then on (a dozen small meshes, culled off screen)
     const age = Math.min(10, this.ctx.state?.eras.age ?? 0);
     while (this.built < age) if (kindFor(++this.built)) this.build(this.built);
-    for (const f of this.fliers) {
+    for (let i = 0; i < this.fliers.length; i++) {
+      const f = this.fliers[i]!;
       f.th += (f.speed / ((f.loop.a + f.loop.b) / 2)) * dt;
       loopAt(f.loop, f.th, _o);
       const bob = f.kind === 'drone' ? Math.sin(this.time * 3 + f.th * 2) * 0.12 : Math.sin(this.time * 0.8 + f.th) * 0.35;
@@ -226,7 +281,16 @@ export class SkyTraffic {
         f.on = true;
         f.root.visible = true;
       }
+      // the shadow lies directly below, yawed like the flier, a little smaller as the bob lifts it; none before the flier shows
+      const [w, l] = SHADOW_SIZE[f.kind];
+      const k = f.on ? 1 - 0.15 * clamp((bob / BOB_AMP[f.kind] + 1) / 2, 0, 1) : 0;
+      _p.set(_o.x, 0.06, _o.z);
+      _q.setFromAxisAngle(_up, f.root.rotation.y);
+      _s.set((w / 2) * k, 1, (l / 2) * k);
+      this.shadows.setMatrixAt(i, _m.compose(_p, _q, _s));
     }
+    this.shadows.count = this.fliers.length;
+    this.shadows.instanceMatrix.needsUpdate = true;
   }
 
   private seen(f: Flier): boolean {

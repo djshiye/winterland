@@ -128,7 +128,7 @@ function makeCtx(state: GameState) {
     player: { position: new THREE.Vector3(), arms: { count: () => 0 }, back: {} },
     economy: { money: 1e9, spend: () => true, add: () => undefined },
     upgrades: { value: () => 1, level: () => 1, crewStats: () => ({ walk: 1, capacity: 1, cadence: 1 }) },
-    colliders: { addBounds: () => undefined, addBox: () => ({}), remove: () => undefined },
+    colliders: { addBounds: () => undefined, addBox: () => ({}), addCircle: () => ({}), remove: () => undefined },
     zones: {
       add: (opts: { area: unknown; enabled: boolean }) => ({ ...opts, playerInside: false, setEnabled(on: boolean) { this.enabled = on; } }),
       addTransfer: () => ({ enabled: false, setEnabled: () => undefined }),

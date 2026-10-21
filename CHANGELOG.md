@@ -6,6 +6,39 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 
 ## Unreleased
 
+### Livelier harvest fields
+
+- **Worked fields.** Every era's harvest field now looks dug and worked: terraced quarry benches and a haul ramp in eras 2 to 6, a row of oil derricks in era 7, a sand terrace in era 8, a hazard-striped concrete wall in era 9 and a rocky crater rim in era 10. The heaps, slabs, ridges and pools come in three sizes and sit at their own angles instead of a neat grid.
+- **Things at work.** Each field has two working props: a crane swinging its load over the pit, an ore cart running along the top bench, a turning headframe wheel, a flickering flare, or scanner drones drifting over the dunes, the pits and the crater.
+- **Trodden paths.** A worn track runs from each hand node toward the yard, with cart ruts from the ramp.
+- **Empty machine slots look like building sites.** Survey stakes and string, a flag and a stack of crates wait on every slot until its machine goes up.
+- **Fliers have shadows.** The sleigh, the airship and the drones cast a soft shadow on the ground, so they read as flying, not parked on a roof or in the market lane.
+- **Era 9 in white and yellow.** The Nuclear era gets white concrete and hazard-striped kerbs by day and a deep blue night sky, so its green glow stands out.
+
+### Every late era its own yard, square and street
+
+- **Yards you can tell apart.** The Electric era's yard gets an art-deco power house with glowing insulators, the Oil era two round gas tanks and a flare stack, and the Computer era a raised showroom deck with a big satellite dish. Each of the three also gets its own gate arch: copper deco, honey-yellow pipes, and a white panel with a glowing marquee.
+- **A centrepiece on every late green.** Eras 6 to 10 get a quartz-crystal lamp, a little pumpjack statue by an eternal flame, a glowing holo-tree, an atom fountain and a crystal tree. Each green also gets market stalls round its edge and a snowman in an era hat.
+- **Livelier late markets.** The Electric and Oil streets get two-storey shops, rooftop water tanks and signs, tall blade signs and striped awnings. Eras 6 to 8 each park their own vehicle at the market, with crates waiting at its open doors.
+- **The export depot works.** A little cart, forklift or loader bot carries the crates to a freight lift beside the depot. When the lift is full it sinks out of sight and comes back up empty.
+- **Windows light up one by one.** At dusk the windows of the era huts, the shops and the city towers come on one after another, not all at once.
+
+### Arriving in a city district
+
+- Fast travel to a city district now lands you on its front street with every lot ahead of you, instead of behind the front row where a building hid you and you seemed to stand on its roof.
+- Among the tall towers of the later eras the see-through window around you is wider, so you never lose sight of yourself.
+- City benches, hedges, planters, bike racks and lamp posts are solid now, like the ones in the regions; the walks stay clear.
+
+### Smoother in motion
+
+- **Shoppers head home.** Era market shoppers no longer gather at the crossroads by the Granite Hollow market, where they stood for good while more piled up. They now walk off down the long side of the road until they're out of sight.
+- **Look both ways.** Shoppers wait at the kerb while a vehicle comes, and buyer carts and trucks stop a safe step short of anyone crossing in front of the market.
+- **The market gate stays clear.** The second buyer in line no longer parks right across the market gate, so shoppers never walk through a cart.
+- **No more parking inside each other.** Tricycles, trucks and walk-in customers that wait at the end of their road now stand a proper gap apart, and a tricycle is never pulled back up the road when the new land appears.
+- **Steady traffic when a new era opens.** Opening Silicon Shore no longer makes every buyer truck on the southern road jump 80 m along it.
+- **A new hut doesn't empty the green.** People chatting round the fire on a region's green stay put when you build a new hut; its family simply comes out to join them.
+- **Gentler sledding.** Sledders slow down along the flat at the bottom of the hill instead of stopping dead.
+
 ### Clearer screen
 
 - **Your population shows by day.** The little person next to the village badge's head count no longer disappears on the light badge, and the badge drops its extra "Town" label ("80 Town" next to "Frontier Town"). Town happiness still says what it is when you hover the heart.

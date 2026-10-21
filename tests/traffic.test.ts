@@ -8,7 +8,7 @@ import { TRADE_POST } from '../src/config';
 import { MAX_ERA, REGIONS, ROADS } from '../src/eras/data';
 import { regionLayout } from '../src/eras/layout';
 import { marketPlaces } from '../src/eras/market';
-import { buyerRoute, headingAt, pointAt, roadOpenAt } from '../src/eras/traffic';
+import { GATE_CLEAR, VEHICLE_NOSE, VEHICLE_TAIL, buyerRoute, headingAt, pointAt, queueSlots, roadOpenAt } from '../src/eras/traffic';
 import { TRUCK_BED_X } from '../src/assets/vehicles';
 
 /** Along-road distance past which a point is off screen at every zoom on a 16:9 screen (CAMERA: 25 m tall view). */
@@ -17,7 +17,7 @@ const OFF_SCREEN = 32;
 const routeOf = (n: number, age = n) => {
   const L = regionLayout(n);
   const P = marketPlaces(L);
-  return { L, P, r: buyerRoute(L.road, P.dock.x - TRUCK_BED_X, TRADE_POST.maxQueue, TRADE_POST.spacing, (id) => roadOpenAt(age, id)) };
+  return { L, P, r: buyerRoute(L.road, queueSlots(P.dock.x - TRUCK_BED_X, TRADE_POST.maxQueue, TRADE_POST.spacing, P.door.x), (id) => roadOpenAt(age, id)) };
 };
 
 describe('era buyer routes', () => {
@@ -41,12 +41,16 @@ describe('era buyer routes', () => {
         }
         // every queue slot sits in the stop lane, bed at the counter, the vehicle 1.3 m+ clear of the fence (C1)
         const road = ROADS.find((q) => q.id === L.road)!.rect;
+        expect(r.slots.length).toBe(TRADE_POST.maxQueue);
         for (let i = 0; i < TRADE_POST.maxQueue; i++) {
-          const s = r.sFront - i * TRADE_POST.spacing;
+          const s = r.slots[i]!;
           expect(s).toBeGreaterThan(r.sMerge);
           const p = pointAt(r, s);
           expect(p.z).toBeCloseTo(r.stopZ, 5);
           expect(road.maxZ - (p.z + 1.1)).toBeGreaterThanOrEqual(1.3);
+          // 0.9.13: a queue's spacing apart (or more), and never parked across the market gate (the shoppers' walk)
+          if (i > 0) expect(r.slots[i - 1]! - s).toBeGreaterThanOrEqual(TRADE_POST.spacing - 1e-6);
+          expect(p.x - VEHICLE_NOSE >= P.door.x + GATE_CLEAR || p.x + VEHICLE_TAIL <= P.door.x - GATE_CLEAR, `slot ${i} at x ${p.x.toFixed(1)} across the gate at ${P.door.x}`).toBe(true);
         }
         expect(pointAt(r, r.sFront).x).toBeCloseTo(P.dock.x - TRUCK_BED_X, 1);
         // room to appear and vanish out of sight on a desktop screen
