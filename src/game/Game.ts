@@ -31,6 +31,7 @@ import {
   type SaveData,
   type SaveRead,
 } from '../core/Save';
+import { restoringSave } from '../core/saveLoadError';
 import { keepUnreadable, pushBackup, readBackup, readRawSave, snapshotBefore } from '../core/saveVault';
 import { GAME_VERSION } from '../core/version';
 import { debugAllowed } from '../platform/debug';
@@ -260,11 +261,14 @@ export class Game {
     const notices = this.saveNotices(read);
     notices.push(...this.mirrorNotices(read));
     const state = createGameState();
-    if (save) {
-      mergeState(state, save.state);
-      sanitizeState(state);
-    }
-    const migration = migrateState(state, !save, { salesRate: save?.salesRate ?? 0, upgrades: (save?.state as { upgrades?: unknown } | undefined)?.upgrades, saved: save?.state, world: save?.world });
+    // restoring the save is the one startup step whose failure may set the save aside (main.ts, SaveLoadError)
+    const migration = restoringSave(() => {
+      if (save) {
+        mergeState(state, save.state);
+        sanitizeState(state);
+      }
+      return migrateState(state, !save, { salesRate: save?.salesRate ?? 0, upgrades: (save?.state as { upgrades?: unknown } | undefined)?.upgrades, saved: save?.state, world: save?.world });
+    });
     const startMoney = save ? Math.min(Number.MAX_SAFE_INTEGER, save.money + migration.refund + migration.masteryPayout) : ECONOMY.startMoney;
     const economy = new Economy(events, state, startMoney);
     const upgrades = new Upgrades(state, economy, events);
@@ -289,7 +293,7 @@ export class Game {
       rush: new RushHours(state, events),
       quests: new Quests(state, economy, events, save?.salesRate ?? 0),
       worldEvents: new WorldEvents(state, events, () => ctx.dayNight.darkness),
-      contracts: new Contracts(state, economy, events),
+      contracts: new Contracts(state, economy, events, save?.salesRate ?? 0),
       time: { elapsed: 0, frame: 0 },
       addUpdatable: (u: Updatable) => {
         this.pendingRemovals.delete(u);
@@ -316,7 +320,7 @@ export class Game {
     new WarmUp(ctx); // warm-up spots: standing beside an era's little fire softens the music and sits the pal (self-registers)
     new Soundscape(ctx); // 0.9.8: era music and ambient beds follow the player (self-registers as an updatable)
     this.level = new Level(ctx);
-    if (save) this.level.restoreWorld(save.world);
+    if (save) restoringSave(() => this.level.restoreWorld(save.world)); // a broken world blob is a save failure too
     new GateTracker(ctx); // 0.9.0 climb: computed 'gate:progress' (seeded from the loaded world, so a load is silent)
     this.completion = new CompletionTracker(ctx); // 0.9.7: the 100 % award, era dates and the plaza trophy
     this.sales = new SalesMeter(ctx, save?.salesRate ?? 0);

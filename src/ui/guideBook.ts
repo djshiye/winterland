@@ -221,7 +221,7 @@ const TIPS: readonly { id: string; era: number; name: string; text: string; icon
   { id: 'settlement', era: 2, name: 'Settlement and the city', text: "Build homes in the era's city district to grow your settlement; machine staff count too. Workplaces and landmarks earn money once residents fill their jobs, and residents from every district count. Parks only make the city happier. Each new settlement level leaves a gift on the avenue: walk over it to collect.", icon: { glyph: 'house' } },
   { id: 'map', era: 2, name: 'Map and travel', text: 'Press T or tap the map button to see every region and travel there in a moment.', icon: { glyph: 'map' } },
   { id: 'trade', era: 2, name: 'The Market', text: 'Press B or tap the market button to watch prices, trade goods and invest your savings.', icon: { glyph: 'market' } },
-  { id: 'foreman', era: 2, name: 'Foremen', text: 'A foreman brings materials to what you chose to build, then pays for it. They never choose for you. They always leave you part of your cash (40% in the eras, a fifth at the mill), so a build can wait while you still have money.', icon: { glyph: 'worker' } },
+  { id: 'foreman', era: 2, name: 'Foremen', text: 'A foreman brings materials to what you chose to build, then pays for it. They never choose for you. They always leave you some of your cash (40% in the eras, at least $500 at the mill), so a build can wait while you still have money.', icon: { glyph: 'worker' } },
 ];
 
 // ---------------------------------------------------------------------------
