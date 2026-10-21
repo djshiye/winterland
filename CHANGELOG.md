@@ -4,7 +4,9 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
-## Unreleased
+## 0.9.13 (2026-10-21)
+
+Snow that builds up in storms, a river promenade, a festival band, worked harvest fields, every late era its own yard and market, people running errands, city traffic, and a smoother late game.
 
 ### Snow, the river walk and the festival
 
@@ -52,7 +54,7 @@ Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary,
 
 ### Smoother late game
 
-- **Opening a new era no longer freezes the game.** The moment you paid for an era, building its yard briefly locked up the game; that pause is now about twenty times shorter.
+- **Opening a new era no longer freezes the game.** The moment you paid for an era, building its yard briefly locked up the game; that pause is now far shorter.
 - **A lighter world.** Era yards you can't see run at half rate behind the scenes (they make and sell exactly as much), and the guide arrow and the first-minute hint do less work each frame, so a fully built world runs about a quarter lighter.
 
 ### Small touches
