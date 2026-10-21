@@ -1,7 +1,7 @@
 {
   "name": "winterland",
   "private": true,
-  "version": "0.9.13",
+  "version": "0.9.14",
   "description": "A cozy 3D idle game: run a snowy lumber mill and grow a winter village through ten eras.",
   "type": "module",
   "scripts": {
