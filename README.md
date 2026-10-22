@@ -48,7 +48,8 @@ The game saves by itself and keeps backups every 10 minutes (Settings, Game, *Ea
 | Input | Action |
 |---|---|
 | WASD, arrow keys, or drag | Move |
-| Stand next to it | Pick up, drop off and pay |
+| Stand on it (hold E or Space; A on a controller) | Pick up and pay |
+| Walk up to it | Drop off and bank cash |
 | Mouse wheel, pinch, + / − | Zoom |
 | T / B / G | Map, Market, Guidebook |
 | Esc | Close a panel or open Settings |

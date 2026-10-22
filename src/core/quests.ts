@@ -58,7 +58,7 @@ export const QUEST_DEFS: readonly QuestDef[] = [
   { id: 'bunkhouse', title: 'Build the crew bunkhouse', target: 1, reward: 2500, progress: (s) => flag(s.quarters.tier >= 0) },
   { id: 'logs400', title: 'Sell 400 logs to trucks and trains', target: 400, reward: 3000, progress: (s) => s.stats.logsSold },
   { id: 'workshop', title: 'Open the furniture workshop', target: 1, reward: 3000, progress: (s) => flag(s.unlocked.workshop) },
-  { id: 'goods50', title: 'Sell 50 loaves to the townsfolk', target: 50, reward: 3000, progress: (s) => s.stats.goodsSold },
+  { id: 'goods50', title: 'Sell 50 goods to the townsfolk', target: 50, reward: 3000, progress: (s) => s.stats.goodsSold },
   { id: 'furniture60', title: 'Sell 60 chairs to the dog sleds', target: 60, reward: 4000, progress: (s) => s.stats.furnitureSold },
   { id: 'shelters20', title: 'Complete 20 shelter builds', target: 20, reward: 4000, progress: (s) => s.stats.sheltersBuilt },
   { id: 'town4', title: 'Fill 4 lots in Market Town', target: 4, reward: 5000, progress: (s) => townBuilt(s) },

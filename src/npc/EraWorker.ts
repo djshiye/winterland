@@ -55,6 +55,10 @@ const BASE_INTERVAL = 0.11;
 const PATIENCE = 1.1;
 /** Seconds a worker waits at a full destination before looking for another one. */
 const BLOCKED_GIVE_UP = 2.5;
+/** 0.9.15: where (m along a machine's front, + towards its take spot) more unloaders stand beside the first (EraWorker.unloadStand). */
+const SIDE_STEPS = [0.7, -0.7, 1.4];
+/** 0.9.15: the same at the depot and dock (m along their 3 m wide fronts). */
+const FRONT_STEPS = [0.7, -0.7, 1.3, -1.3];
 /** Seconds between two job searches while idle. */
 const PICK_EVERY = 0.4;
 /** After this long without work every minimum load drops to 1 (so a lone item still ships). */
@@ -997,6 +1001,37 @@ export class EraWorker {
     this.blocked = 0;
   }
 
+  /**
+   * 0.9.15: where to stand to unload at `dest`: its spot or, when a peer already stands (or walks) there, the first free
+   * spot beside it along the front: 0.7 m to either side or 1.4 m inwards for a machine (its feed zone, short of the
+   * take spot and of the belt lane in front), 0.7 or 1.3 m to either side at the depot or dock (3 m wide fronts), so
+   * unloaders never stand inside each other.
+   */
+  private unloadStand(dest: Ref & { slot: number | null }): XZ {
+    const taken = (q: XZ): boolean => this.peers.some((w) => w !== this && Math.abs(w.at.x - q.x) < 0.5 && Math.abs(w.at.z - q.z) < 0.5);
+    if (!taken(dest.spot)) return dest.spot;
+    const r = this.region;
+    const m = dest.machine;
+    let dx = 0;
+    let dz = 0;
+    if (m) {
+      dx = m.takeSpot.x - dest.spot.x;
+      dz = m.takeSpot.z - dest.spot.z;
+      if (Math.hypot(dx, dz) < 2.5) return dest.spot;
+    } else if (dest.slot === null && dest.look && (dest.holder === r.dock || dest.holder === r.depot || dest.holder === r.market.bank)) {
+      // along the front: perpendicular to the facing
+      dx = -(dest.look.z - dest.spot.z);
+      dz = dest.look.x - dest.spot.x;
+    } else return dest.spot;
+    const d = Math.hypot(dx, dz);
+    if (d < 1e-6) return dest.spot;
+    for (const u of m ? SIDE_STEPS : FRONT_STEPS) {
+      const q = { x: dest.spot.x + (dx / d) * u, z: dest.spot.z + (dz / d) * u };
+      if (!taken(q)) return q;
+    }
+    return dest.spot;
+  }
+
   /** Send the worker (holding `kind`) to a new destination chosen from the live region. */
   private redirect(kind: ItemKind, exclude: number | null): void {
     if (kind === 'cash') {
@@ -1010,7 +1045,7 @@ export class EraWorker {
     if (target === null) return this.park(1);
     this.job = { type: 'feed', item: kind, take: this.stack.size, from: this.job?.from ?? 'dock', to: target };
     this.dest = this.destRef(target);
-    this.goTo(this.dest.spot, this.dest.look);
+    this.goTo(this.unloadStand(this.dest), this.dest.look);
     this.phase = 'toDest';
   }
 
@@ -1019,10 +1054,10 @@ export class EraWorker {
     const kind = this.heldKind() ?? job.item;
     const dest = this.dest!;
     if (dest.machine && this.alive(dest, dest.slot) && dest.machine.wants(kind) > 0) {
-      this.goTo(dest.spot, dest.look);
+      this.goTo(this.unloadStand(dest), dest.look);
       this.phase = 'toDest';
     } else if (dest.slot === null && dest.holder) {
-      this.goTo(dest.spot, dest.look);
+      this.goTo(this.unloadStand(dest), dest.look);
       this.phase = 'toDest';
     } else {
       this.redirect(kind, dest.slot);
