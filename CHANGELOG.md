@@ -4,6 +4,13 @@ What changed in each Winterland release, newest first. The game shows the entrie
 time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
+## Unreleased
+
+### Smoother play
+
+- **120 Hz and faster screens are smooth again.** Since 0.9.11 the Auto frame rate stopped at 60, even on a 120 or 144 Hz screen. Auto now matches your screen again, and drops to 60 only while a laptop runs on battery. Settings › Display also has a new 120 option.
+- **Lighter city buildings.** The new shopfronts, door wreaths and potted shrubs are drawn with simpler shapes that look the same, so busy city streets cost less to draw.
+
 ## 0.9.14 (2026-10-21)
 
 A belt for every machine input, a cozy timber North Road, paved plazas with strollers in the late eras, a livelier city by day and night, and a short About screen.

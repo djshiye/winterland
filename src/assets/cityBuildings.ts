@@ -254,7 +254,9 @@ class Kit {
   /** Cylinder (rt = top radius, rb = bottom radius), bottom at y. */
   cyl(c: number, rb: number, rt: number, h: number, x: number, y: number, z: number, seg = 10, o?: { rx?: number; rz?: number }): void {
     const ratio = Math.round((rt / rb) * 1000) / 1000;
-    this.cur.add(geo.cylinder(ratio, 1, 1, seg), c, x, y + h / 2, z, { sx: rb, sy: h, sz: rb, rx: o?.rx, rz: o?.rz });
+    // 0.9.15: thin rods and pots need fewer sides (the street-level dressing tripled each building's triangles)
+    const sides = Math.max(rb, rt) < 0.12 ? Math.min(seg, 5) : Math.max(rb, rt) < 0.3 ? Math.min(seg, 7) : seg;
+    this.cur.add(geo.cylinder(ratio, 1, 1, sides), c, x, y + h / 2, z, { sx: rb, sy: h, sz: rb, rx: o?.rx, rz: o?.rz });
   }
 
   cone(c: number, r: number, h: number, x: number, y: number, z: number, seg = 10, ry = 0): void {
@@ -262,12 +264,15 @@ class Kit {
   }
 
   sph(c: number, r: number, x: number, y: number, z: number, sy = 1): void {
-    this.cur.add(geo.sphere(1, 10, 7), c, x, y, z, { sx: r, sy: r * sy, sz: r });
+    // 0.9.15: small spheres (shrubs, berries, bows) with fewer segments: a 0.1 m ball looks the same with a third of the triangles
+    const g = r < 0.12 ? geo.sphere(1, 6, 4) : r < 0.3 ? geo.sphere(1, 8, 5) : geo.sphere(1, 10, 7);
+    this.cur.add(g, c, x, y, z, { sx: r, sy: r * sy, sz: r });
   }
 
   /** Torus, ring radius R, tube t: flat in the XZ plane by default (rx = 0 stands it up, facing +Z). */
   torus(c: number, R: number, t: number, x: number, y: number, z: number, o?: { rx?: number; ry?: number; rz?: number }): void {
-    this.cur.add(geo.torus(1, t / R, 6, 18), c, x, y, z, { sx: R, sy: R, sz: R, rx: o?.rx ?? Math.PI / 2, ry: o?.ry, rz: o?.rz });
+    // 0.9.15: door wreaths and small rings with fewer segments
+    this.cur.add(R < 0.4 ? geo.torus(1, t / R, 4, 12) : geo.torus(1, t / R, 6, 18), c, x, y, z, { sx: R, sy: R, sz: R, rx: o?.rx ?? Math.PI / 2, ry: o?.ry, rz: o?.rz });
   }
 
   /** Slender box between two points (lattice legs, braces). */
