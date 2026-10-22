@@ -658,8 +658,8 @@ export interface GameEvents {
   'ui:menu': Record<string, never>;
   /** Mouse wheel / pinch / +- keys: `delta` > 0 zooms in (about 0.1 per notch). */
   'camera:zoom': { delta: number };
-  /** Settings → Display picked a frame cap (0 = uncapped); Game applies and persists it (core/fps.ts). */
-  'settings:fps': { cap: 0 | 30 | 60 };
+  /** Settings → Display picked a frame cap (0 = Auto); Game applies and persists it (core/fps.ts). */
+  'settings:fps': { cap: 0 | 30 | 60 | 120 };
   /** Settings → Restore save: validated save text. Game stops autosaving, writes it and reloads. */
   'save:restore': { text: string };
   /** 0.9.6 Settings → Game → Earlier saves: restore the backup stored under `key` (core/saveVault.ts). */

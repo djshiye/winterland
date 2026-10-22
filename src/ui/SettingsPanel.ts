@@ -3,7 +3,7 @@
  * is remembered in localStorage 'winterland:settingsTab'):
  * - Sound: Sound switch (same state as the mute button), Master / Effects volume sliders, Music switch + slider.
  * - Display: window mode (desktop app) or a Fullscreen switch (browser), Graphics Low / Medium / High (0.9.8 tiers,
- *   render/Renderer.ts TIERS), Resolution slider, Frame rate Auto / 60 / 30, Show FPS (PerfOverlay), Day / night (ctx.dayNight).
+ *   render/Renderer.ts TIERS), Resolution slider, Frame rate Auto / 120 / 60 / 30 (0.9.15: Auto = the screen's rate, 60 on battery), Show FPS (PerfOverlay), Day / night (ctx.dayNight).
  * - Comfort (fx/comfort, localStorage 'winterland:comfort'): Reduce motion, Effects Full / Calm / Minimal, Interface
  *   size 80-150 % (applied when the slider is let go, fitted to the window), Glow 0-100 % (0.9.8), Falling snow (0.9.8), Colour-blind friendly, and two quick
  *   buttons: "Make it calm" (all three at their gentlest) and "Defaults".
@@ -383,6 +383,7 @@ export class SettingsPanel {
       () => readFpsCap(),
       (cap) => ctx.events.emit('settings:fps', { cap }),
     );
+    pd.appendChild(h('div', 'wl-controls-note wl-comfort-note wl-fps-note', 'Auto matches your screen, 120 Hz and up (60 on battery).'));
     this.fpsSwitch = sw(pd, 'Show FPS', null, () => {
       ctx.audio.play('click');
       perf.enabled = !perf.enabled;

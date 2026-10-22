@@ -70,7 +70,7 @@ import { Soundscape } from '../fx/soundscape';
 import { WarmUp } from '../fx/WarmUp';
 import { Fireworks } from '../fx/Fireworks';
 import { HUD } from '../ui/HUD';
-import { frameDue, readFpsCap, targetFps, writeFpsCap, type FpsCap } from '../core/fps';
+import { frameDue, readFpsCap, targetFps, watchPower, writeFpsCap, type FpsCap } from '../core/fps';
 import { menuPause } from '../fx/comfort';
 import { WorldEvents } from '../core/WorldEvents';
 import { Contracts } from '../core/Contracts';
@@ -241,6 +241,8 @@ export class Game {
   private lastFrame = 0;
   /** False while another window has focus (the frame rate drops to UNFOCUSED_FPS, core/fps.ts). */
   private focused = true;
+  /** 0.9.15: a laptop on battery (Auto then draws at most 60, core/fps.ts). */
+  private onBattery = false;
   /** Saving is off for `?fresh` pages and after a reset (until the reload). */
   private saving: boolean;
   private saveTimer: number = SAVE.interval;
@@ -337,6 +339,7 @@ export class Game {
     window.addEventListener('pagehide', () => this.save());
     window.addEventListener('blur', () => (this.focused = false));
     window.addEventListener('focus', () => (this.focused = true));
+    watchPower((b) => (this.onBattery = b));
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') this.save();
     });
@@ -592,8 +595,8 @@ export class Game {
     const loop = (now: number) => {
       if (!this.running) return;
       requestAnimationFrame(loop);
-      // 0.9.11: Auto = 60 at most, 30 while another window has focus (core/fps.ts)
-      const due = frameDue(now, this.lastFrame, targetFps(this.fpsCap, this.focused));
+      // 0.9.15: Auto = the screen's rate (60 at most on battery), 30 while another window has focus (core/fps.ts)
+      const due = frameDue(now, this.lastFrame, targetFps(this.fpsCap, this.focused, this.onBattery));
       if (due === null) return;
       this.lastFrame = due;
       const dt = Math.min((now - this.lastTime) / 1000, MAX_DT);
@@ -625,7 +628,7 @@ export class Game {
     for (const dt of steps) this.step(dt);
   }
 
-  /** Settings → Display: 0 (uncapped), 30 or 60. Persisted. */
+  /** Settings → Display: 0 (Auto), 30, 60 or 120. Persisted. */
   setFpsCap(cap: FpsCap): void {
     this.fpsCap = cap;
     writeFpsCap(cap);

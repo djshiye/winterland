@@ -895,6 +895,10 @@
   .wl-settings-page {
     gap: 8px;
   }
+  /* 0.9.15: the frame rate hint is the one line that would push Day / night off an 800x450 card */
+  .wl-fps-note {
+    display: none;
+  }
   .wl-settings-tabs {
     margin-bottom: 8px;
   }

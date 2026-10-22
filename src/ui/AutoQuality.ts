@@ -4,7 +4,8 @@
  * - Down one tier when the real frame rate stays under DOWN_FRACTION of the target for DOWN_SECONDS.
  * - Up one tier when it stays at UP_FRACTION of the target or better for UP_SECONDS, never above High. A tier it had to
  *   leave because it was too slow is never tried again in this session, so it settles instead of bouncing.
- * - The target is the Frame rate setting (core/fps.ts: 30 or 60, Auto = 60), so a 30 fps cap never reads as "slow".
+ * - The target is the Frame rate setting (core/fps.ts: 30 or 60), at most 60 (0.9.15: Auto and 120 follow a fast screen,
+ *   but falling short of 120 or 144 is no reason to blur the picture), so a 30 fps cap never reads as "slow".
  * Each change says so with a small toast (`notify(quality, up)`).
  *
  * Rules
@@ -16,7 +17,7 @@
  *   first seconds after each change, skips while the tab is hidden or the window is not focused (0.9.11: drawn at 30
  *   then) and restarts its streak when it comes back.
  * - Test safety: it does nothing for `?noauto`, nor under automation (navigator.webdriver: Playwright / Puppeteer /
- *   headless test runs), and it only counts frames that arrive like a real animation loop (>= ~6 ms apart and < 1 s
+ *   headless test runs), and it only counts frames that arrive like a real animation loop (>= ~3.5 ms apart, 0.9.15: a 240 Hz screen, and < 1 s
  *   apart), so `__WINTERLAND__.simulate()` bursts and pauses never feed it.
  */
 import type { GameContext } from '../core/types';
@@ -68,7 +69,7 @@ export class AutoQuality {
     this.fast = 0;
   }
 
-  /** The frame rate the player expects (the Frame rate setting; Auto = 60). */
+  /** The frame rate the player expects (the Frame rate setting, at most 60; Auto = 60). */
   private target(): number {
     let cap = 0;
     try {
@@ -76,7 +77,7 @@ export class AutoQuality {
     } catch {
       /* storage unavailable */
     }
-    return cap > 0 ? cap : 60;
+    return cap > 0 ? Math.min(cap, 60) : 60;
   }
 
   /** Once per HUD update (frame). */
@@ -93,7 +94,7 @@ export class AutoQuality {
     if (prev === 0 || now < this.quietUntil) return;
     const d = (now - prev) / 1000;
     if (d >= 1) return; // a pause / a stall: not a frame rate sample
-    if (d < 0.006) {
+    if (d < 0.0035) {
       // faster than any display: the simulation is being fast-forwarded
       this.restart();
       this.last = now;
