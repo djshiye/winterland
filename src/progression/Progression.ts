@@ -869,7 +869,7 @@ export class Progression {
     if (!porter && arms.count('log') > 0) {
       const shop = this.townShopNeeding('log');
       if (shop && shop.have < 2) {
-        this.setGoal(`Bring firewood to the ${shop.def.label.toLowerCase()}`, shop.zone);
+        this.setGoal(`Bring logs to the ${shop.def.label.toLowerCase()}`, shop.zone);
         return true;
       }
     }

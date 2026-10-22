@@ -66,9 +66,9 @@ const SURVIVAL_GOODS: Record<SurvivalGood, { name: string; text: string }> = {
   crate: { name: 'Crates', text: 'The Processor turns logs into crates. Tricycles come by to buy them.' },
   furniture: { name: 'Furniture', text: 'The Workshop builds chairs out of logs. Dog sleds carry them away and pay well.' },
   wheat: { name: 'Wheat', text: 'Grown by the Farm. The Bakery needs it.' },
-  bread: { name: 'Bread', text: 'Baked from wheat and firewood. Townsfolk buy it at the Bakery.' },
+  bread: { name: 'Bread', text: 'Baked from wheat and logs. Townsfolk buy it at the Bakery.' },
   meat: { name: 'Meat', text: 'Comes from the Ranch. The Butcher needs it.' },
-  sausage: { name: 'Sausages', text: 'Smoked from meat and wood. Townsfolk buy them at the Butcher.' },
+  sausage: { name: 'Sausages', text: 'Smoked from meat over logs. Townsfolk buy them at the Butcher.' },
   toy: { name: 'Toys', text: 'The Toy Factory makes toy trains from crates. The Grand Market needs 20.' },
 };
 
@@ -210,7 +210,7 @@ const TIPS: readonly { id: string; era: number; name: string; text: string; icon
   { id: 'pads', era: 1, name: 'Pads', text: 'Stand on a pad to pay for it, a little at a time (with a keyboard or controller, hold E or A). Walking across pays nothing. A built machine comes back as a level pad.', icon: { glyph: 'hammer' } },
   { id: 'shop', era: 1, name: 'The shop', text: "Stand on the cabin's doormat to open the shop. Tap an upgrade's price to buy one level. Upgrades go up to Lv 10 once the Great Lodge is built. Each era's own Carry, Boots, Tool and Pal upgrades work only inside that era's region.", icon: { glyph: 'gear' } },
   { id: 'crew', era: 1, name: 'Crew', text: 'Hire helpers in the shop. Each one takes a job off your hands, and levels make them faster.', icon: { glyph: 'worker' } },
-  { id: 'village', era: 1, name: 'The village', text: 'Shelters bring villagers. More villagers raise the village level: Camp, Hamlet, Village, Town and Winter City. Every level brings better prices and new things to build.', icon: { glyph: 'house' } },
+  { id: 'village', era: 1, name: 'The village', text: 'Shelters bring villagers. More villagers raise the village level: Camp, Hamlet, Village, Town and Winter City, then Winterland once the Great Lodge stands. Every level brings better prices and new things to build.', icon: { glyph: 'house' } },
   { id: 'quests', era: 1, name: 'Quests and contracts', text: 'The quest card lists small goals with a reward. Contracts ask for a batch of goods and pay a bonus.', icon: { glyph: 'star' } },
   { id: 'away', era: 1, name: 'While you were away', text: 'The game saves by itself. While it is closed, you earn a quarter of your usual sales and rent, for up to 2 hours, and never more than a fifth of everything you have earned so far. Quests, contracts and Jack do not count. The desktop game keeps playing at full speed while it is minimised; in a browser, a hidden tab pauses the game.', icon: { glyph: 'coin' } },
   { id: 'eras', era: 2, name: 'Eras and the gate', text: 'To open the next era, raise everything this era added to Lv 10, grow to its settlement level, then buy the expansion pad. The era chip at the top shows your next goal.', icon: { glyph: 'pin' } },
@@ -221,7 +221,7 @@ const TIPS: readonly { id: string; era: number; name: string; text: string; icon
   { id: 'settlement', era: 2, name: 'Settlement and the city', text: "Build homes in the era's city district to grow your settlement; machine staff count too. Workplaces and landmarks earn money once residents fill their jobs, and residents from every district count. Parks only make the city happier. Each new settlement level leaves a gift on the avenue: walk over it to collect.", icon: { glyph: 'house' } },
   { id: 'map', era: 2, name: 'Map and travel', text: 'Press T or tap the map button to see every region and travel there in a moment.', icon: { glyph: 'map' } },
   { id: 'trade', era: 2, name: 'The Market', text: 'Press B or tap the market button to watch prices, trade goods and invest your savings.', icon: { glyph: 'market' } },
-  { id: 'foreman', era: 2, name: 'Foremen', text: 'A foreman brings materials to what you chose to build, then pays for it. They never choose for you. They always leave you some of your cash (40% in the eras, at least $500 at the mill), so a build can wait while you still have money.', icon: { glyph: 'worker' } },
+  { id: 'foreman', era: 2, name: 'Foremen', text: 'A foreman brings materials to what you chose to build, then pays for it. They never choose for you. They always leave you some of your cash (40% in the eras; a fifth at the mill, and never less than $500), so a build can wait while you still have money.', icon: { glyph: 'worker' } },
 ];
 
 // ---------------------------------------------------------------------------

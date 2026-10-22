@@ -1,8 +1,8 @@
 /**
  * [city] Festive street dressing of a district's sidewalk ring: a sagging string of bulbs between neighbouring street lamps
  * on the same side (eras 2-4 add flag bunting), a slim era banner on every second lamp post and a wreath on the others.
- * `districtSpans` / `districtPosts` are pure; `drawStreetDressing` appends everything to the district's existing lamp
- * (ropes, banners, wreaths) and bulb batches, so it adds no draw call. Visual only: no colliders.
+ * `districtSpans` / `districtPosts` are pure; `drawStreetDressing` appends everything to the district's existing pavement
+ * (ropes, banners, wreaths: no shadow casting) and bulb batches, so it adds no draw call. Visual only: no colliders.
  */
 import * as THREE from 'three';
 import type { Batch } from '../render/batch';
@@ -100,7 +100,7 @@ const post = new THREE.BoxGeometry(1, 1, 1);
 const a0: V3 = { x: 0, y: 0, z: 0 };
 const a1: V3 = { x: 0, y: 0, z: 0 };
 
-/** Append the dressing of district n: ropes, bunting, banners and wreaths to `poles`, the bulbs to `bulbs`. */
+/** Append the dressing of district n: ropes, bunting, banners and wreaths to `poles` (a non-shadow-casting batch), the bulbs to `bulbs`. */
 export function drawStreetDressing(n: number, poles: Batch, bulbs: Batch): void {
   const colors = bulbColors(n);
   for (const s of districtSpans(n)) {

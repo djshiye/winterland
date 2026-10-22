@@ -23,7 +23,7 @@
  *   each bundle / brick paid while the district was active used to count twice.
  *
  * Draw calls: pavement 1, lamps 1 (+ bulbs 1, + night halos 1), street furniture 1 (city/decor.ts, its lights in the bulbs), festive street dressing 0 (city/streetDressing.ts: ropes, banners and
- * wreaths ride in the lamps' batch, its bulbs in the bulbs), blinking tower beacons at most 1 per district (lazy, instanced),
+ * wreaths ride in the pavement's non-shadow-casting batch, its bulbs in the bulbs), blinking tower beacons at most 1 per district (lazy, instanced),
  * every building 2 (+1 pivot), every pad ~3. Chimneys / roof vents of built models feed the sky smoke (world/sky/smoke.ts).
  */
 import { faceCameraUpright, fadeManageSign, manageSignFoot } from '../fx/manageSign';
@@ -692,6 +692,10 @@ function buildScenery(n: number): THREE.Group {
       ground.add(geo.sphere(1, 8, 5), SNOW, sx, 0.05, sz, { sx: 0.8 + rnd() * 0.5, sy: 0.3, sz: 0.7 + rnd() * 0.4 });
     }
   }
+  // festive street dressing (ropes, bunting, banners, wreaths) rides in the pavement mesh: same material, no shadow
+  // casting (its ~9k thin triangles per district cast no visible shade); its bulbs join the lamps' bulb batch
+  const bulbs = new Batch();
+  drawStreetDressing(n, ground, bulbs);
   const gm = ground.mesh({ cast: false, receive: true });
   gm.name = 'pavement';
   group.add(gm);
@@ -707,7 +711,6 @@ function buildScenery(n: number): THREE.Group {
   // lamps along the perimeter: ~every 7 m, none on the corners
   const spots: HaloSpot[] = [];
   const poles = new Batch();
-  const bulbs = new Batch();
   const lampAt = (x: number, z: number, side: 'n' | 's' | 'e' | 'w'): void => {
     const h = 3.3;
     poles.add(geo.cylinder(0.7, 1, 1, 6), S.pole, x, h / 2, z, { sx: 0.1, sy: h, sz: 0.1 });
@@ -720,7 +723,6 @@ function buildScenery(n: number): THREE.Group {
     spots.push({ x: x + ax, y: h - 0.2, z: z + az, size: 2.0, pool: 4.6 });
   };
   for (const l of districtLamps(n)) lampAt(l.x, l.z, l.side);
-  drawStreetDressing(n, poles, bulbs);
   const pm = poles.mesh({ cast: true });
   pm.name = 'lamps';
   group.add(pm);

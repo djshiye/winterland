@@ -1,15 +1,23 @@
 # Changelog
 
 What changed in each Winterland release, newest first. The game shows the entries since your last version the first
-time it opens after an update (src/ui/changelog.ts reads this file), so write for players: plain words, no code.
+time it opens after an update (src/core/changelog.ts reads this file), so write for players: plain words, no code.
 Each release is a `## x.y.z (YYYY-MM-DD)` heading, an optional one-line summary, then `###` sections of `-` items.
 
-## Unreleased
+## 0.9.15 (2026-10-22)
+
+Smooth play on fast screens again, crew that make room for each other at busy machines, and clearer guide and quest wording.
 
 ### Smoother play
 
-- **120 Hz and faster screens are smooth again.** Since 0.9.11 the Auto frame rate stopped at 60, even on a 120 or 144 Hz screen. Auto now matches your screen again, and drops to 60 only while a laptop runs on battery. Settings › Display also has a new 120 option.
+- **120 Hz and faster screens are smooth again.** Since 0.9.11 the Auto frame rate stopped at 60, even on a 120 or 144 Hz screen. Auto now matches your screen again, and drops to 60 only while a laptop runs on battery. Settings, Display also has a new 120 option.
 - **Lighter city buildings.** The new shopfronts, door wreaths and potted shrubs are drawn with simpler shapes that look the same, so busy city streets cost less to draw.
+- **Lighter city streets.** The string lights, bunting, banners and wreaths over the city streets no longer cast their own thin shadows, which cost a lot to draw and could hardly be seen. They look the same.
+
+### Small fixes before 1.0
+
+- **Crew make room at busy machines.** When two or three era workers unloaded into the same hopper, dock or depot at once, they stood inside each other for a few seconds. Now the next one steps to a free spot beside the first.
+- **Clearer guide and quests.** The Bakery and Butcher pages now say they need logs (the item you carry), and the guide hint says "Bring logs to the bakery". The village levels list includes Winterland, the foreman tip says the mill foreman keeps a fifth of your cash (never less than $500), and the "Sell 50 goods to the townsfolk" quest is named for what it counts: bread, sausages and toys.
 
 ## 0.9.14 (2026-10-21)
 
